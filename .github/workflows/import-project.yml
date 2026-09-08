@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/import-project.yml'
-      - '.upload/aact-project-lite.tar.gz'
+      - 'AACT-Platform-v1.3.zip'
   workflow_dispatch:
 
 permissions:
@@ -16,12 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract project
+      - name: Extract project ZIP
         run: |
-          tar -xzf .upload/aact-project-lite.tar.gz
+          test -f AACT-Platform-v1.3.zip
+          mkdir -p /tmp/aact-project
+          unzip -q AACT-Platform-v1.3.zip -d /tmp/aact-project
+          cp -a /tmp/aact-project/. .
 
       - name: Commit project files
         run: |
+          rm -f AACT-Platform-v1.3.zip
           rm -rf .upload
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
