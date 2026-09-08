@@ -1,0 +1,543 @@
+// منصة الأكاديمية الأمريكية للاستشارات والتدريب - AACT Platform Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  password       String
+  name           String
+  phone          String?
+  country        String?
+  role           String       @default("STUDENT") // STUDENT | ADMIN | SUPERVISOR
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  enrollments    Enrollment[]
+  examAttempts   ExamAttempt[]
+  chatMessages   ChatMessage[]
+  sessions       Session[]
+  notifications  Notification[]
+  payments       Payment[]
+  theses         ThesisSubmission[]
+  supervisedAdmissions AdmissionApplication[] @relation("Supervisor")
+  ownedAdmissions      AdmissionApplication[] @relation("AdmissionOwner")
+  auditLogs      AuditLog[]
+  programExamAttempts ProgramExamAttempt[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Program {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  titleAr     String
+  titleEn     String?
+  description String
+  category    String // DOCTORATE | MASTERS | DIPLOMA | ACCREDITATION
+  hours       Int?
+  price       Int?
+  icon        String       @default("graduation-cap")
+  features    String? // JSON array
+  // قواعد قبول مخصصة لكل برنامج (تضبطها الإدارة) — يقرأها خبير القبول الذكي ويطبقها على كل طلب:
+  // { minEducation, requireMasterForDoctorate, allowExperienceEquivalency, minYearsExperience,
+  //   requiredDocuments[], minAge, customRules, displayNote }
+  admissionRules Json?
+  order       Int          @default(0)
+  active      Boolean      @default(true)
+  units       Unit[]
+  enrollments Enrollment[]
+  books       Book[]
+  programExams ProgramExam[]
+  admissions  AdmissionApplication[]
+}
+
+model Unit {
+  id         String    @id @default(cuid())
+  programId  String
+  program    Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  order      Int
+  title      String
+  summary    String?
+  content    String // JSON: array of { heading, body }
+  objectives String? // JSON array
+  exam       Exam?
+}
+
+model Enrollment {
+  id             String    @id @default(cuid())
+  userId         String
+  programId      String
+  status         String    @default("ACTIVE") // ACTIVE | COMPLETED
+  completedUnits String    @default("[]") // JSON array of unit ids
+  finalScore     Float?
+  certificateNo  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program        Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  payments       Payment[]
+
+  @@unique([userId, programId])
+}
+
+model Exam {
+  id        String        @id @default(cuid())
+  unitId    String        @unique
+  unit      Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  title     String
+  passScore Int           @default(60)
+  questions Question[]
+  attempts  ExamAttempt[]
+}
+
+model Question {
+  id            String    @id @default(cuid())
+  examId        String
+  exam          Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  order         Int
+  type          String // MCQ | ESSAY
+  text          String
+  options       String? // JSON array for MCQ
+  correctAnswer String? // index "0".."3" for MCQ
+  modelAnswer   String? // rubric/model answer for ESSAY
+  points        Int       @default(10)
+  answers       Answer[]
+}
+
+model ExamAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  examId      String
+  exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  score       Float?
+  passed      Boolean?
+  status      String    @default("SUBMITTED") // SUBMITTED | GRADED
+  feedback    String? // AI overall feedback JSON { summary, strengths[], improvements[] }
+  aiGraded    Boolean   @default(false)
+  submittedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+}
+
+model Answer {
+  id             String    @id @default(cuid())
+  attemptId      String
+  questionId     String
+  answerText     String?
+  selectedOption Int?
+  isCorrect      Boolean?
+  points         Float?
+  maxPoints      Int?
+  aiFeedback     String?
+  attempt        ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String // user | assistant
+  content   String
+  mode      String   @default("TEXT") // TEXT | VOICE (سجل مزدوج نصي/صوتي في ملف الطالب)
+  kind      String?  // THESIS_REVIEW — تحليل مسودة بحث التخرج
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ===== الوحدات الجديدة وفق البرومبت الشامل =====
+
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  admissionId String?
+  admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
+  enrollmentId String? // فاتورة تسجيل مباشر في برنامج (دفع قبل التفعيل)
+  enrollment  Enrollment? @relation(fields: [enrollmentId], references: [id])
+  agentId     String? // فاتورة مرتبطة بطلب وكالة/اعتماد (رسوم التقديم 100$ غير مستردة)
+  agent       AgentApplication? @relation(fields: [agentId], references: [id])
+  invoiceNo   String   @unique // AACT-INV-2026-XXXX
+  purpose     String   // APPLICATION_FEE (30$) | TUITION | ACCREDITATION_APP (100$) | ACCREDITATION | OTHER
+  description String
+  amount      Float
+  currency    String   @default("USD")
+  method      String?  // PAYMOB | FAWRY | STRIPE | PAYPAL | BANK_TRANSFER
+  status      String   @default("UNPAID") // UNPAID | PAID
+  receiptNo   String?  // AACT-REC-2026-XXXX عند السداد
+  // الربط الحقيقي ببوابات الدفع: جلسة الدفع لدى المزود والتوفيق عبر Webhook
+  provider       String?  // STRIPE | PAYPAL | SANDBOX
+  providerRef    String?  // معرف جلسة الدفع لدى المزود (checkout session / order id)
+  checkoutUrl    String?  // رابط الدفع المعاد من المزود
+  paidViaWebhook Boolean  @default(false)
+  paidAt      DateTime?
+  payerName   String?
+  payerEmail  String?
+  payerCountry String?
+  createdAt   DateTime @default(now())
+}
+
+model Certificate {
+  id          String   @id @default(cuid())
+  serial      String   @unique // AACT-C-2026-XXXXX
+  qrToken     String   @unique // رمز التحقق داخل QR
+  type        String   // PROGRAM_COMPLETION | ACCREDITATION | AGENCY
+  holderName  String
+  program     String   // اسم البرنامج أو نوع الاعتماد
+  grade       String?  // التقدير أو النتيجة
+  country     String?
+  issuedAt    DateTime @default(now())
+  valid       Boolean  @default(true)
+  userId      String?  // إن كان صاحبه مستخدماً مسجلاً
+  enrollmentId String?
+  admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
+  admissionId String?
+  agentId     String?
+  agent       AgentApplication? @relation(fields: [agentId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // ADMISSION | PAYMENT | CERTIFICATE | THESIS | DEFENSE | AGENT | GENERAL
+  title     String
+  body      String
+  link      String? // عرض داخلي مثل dashboard
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  actorName String
+  action    String   // APPROVE_ADMISSION | ISSUE_CERTIFICATE | ... 
+  entity    String   // AdmissionApplication | Payment | ...
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key       String   @id // FEE_APPLICATION, FEE_DOCTORATE, ...
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// سجل الإشعارات البريدية المرسلة من المنصة (قابل للعرض في لوحة الإدارة)
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  event     String // ADMISSION_SUBMITTED | PAYMENT_RECEIPT | ... 
+  status    String   @default("SENT") // SENT | SKIPPED (لا SMTP) | FAILED
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ThesisSubmission {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admissionId String?
+  admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
+  title       String
+  abstract    String
+  fileNote    String? // رابط أو وصف ملف البحث
+  status      String   @default("SUBMITTED") // SUBMITTED | SCHEDULED | RESULT_APPROVED | NEEDS_REVISION
+  defenseDate DateTime?
+  committee   String?  // JSON array أسماء أعضاء اللجنة
+  agentMember String?  // عضو من الوكيل الدولي (مقابل 100$)
+  // المناقشة عبر الفيديو كونفرنس على المنصة مع خبير الذكاء الاصطناعي
+  defenseStatus    String? // IN_PROGRESS | COMPLETED
+  aiScore          Float?  // تقييم خبير الذكاء الاصطناعي 0-100
+  aiRecommendation String? // توصية خبير الذكاء الاصطناعي للجنة
+  defenseCompletedAt DateTime?
+  // 12.3 مناقشة الفيديو كونفرنس متعدد الأطراف بحضور المستشار الذكي
+  defenseMinutes   String? // محضر الجلسة التلقائي بتوليد خبير الذكاء الاصطناعي
+  recordingData    String? // تسجيل الجلسة (فيديو+صوت webm base64) مؤرشف في ملف الطالب
+  recordingMime    String?
+  recordingSize    Int?
+  recordingDurationSec Int?
+  defenseMessages  DefenseMessage[]
+  defenseParticipants DefenseParticipant[]
+  resultScore Float?
+  passed      Boolean?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DefenseMessage {
+  id        String   @id @default(cuid())
+  thesisId  String
+  thesis    ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  role      String   // AI_EXPERT | STUDENT | SYSTEM
+  content   String
+  score     Float?   // تقييم الإجابة من 10
+  createdAt DateTime @default(now())
+}
+
+model AgentApplication {
+  id                String   @id @default(cuid())
+  kind              String   @default("AGENCY") // AGENCY | ACCREDITATION
+  accreditationType String? // COMPANY | CONSULTANT | TRAINER | QUALITY
+  orgName           String
+  repName           String
+  email             String
+  phone             String
+  country           String
+  territory         String?
+  experience        String?
+  status            String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  // بيانات العقد (تُملأ عند القبول وفق اتفاقية التمثيل والتفويض الدولي)
+  contractNo        String?  // رقم العقد AACT-AG-2026-XX
+  commissionRate    Float?   // نسبة العمولة 25% من إيرادات البرامج
+  committeeFee      Float?   // 100$ لكل بحث تخرج يشارك في لجنته
+  exclusive         Boolean  @default(false) // هل التمثيل حصري
+  startDate         DateTime?
+  endDate           DateTime? // مدة سنة قابلة للتجديد
+  createdAt         DateTime @default(now())
+  documents         AgentDocument[]
+  payments          Payment[]
+  revenueShares     RevenueShareTransaction[]
+  certificates      Certificate[]
+}
+
+// وثائق الاعتماد الرسمية الإلزامية وفق دليل الإجراءات (خطوة «إرفاق الوثائق الرسمية»):
+// LICENSE (شهادة الترخيص أو مزاولة المهنة) — ID (الهوية أو الجواز) —
+// PHOTO (صور شخصية حديثة للمدربين/المستشارين) — CV (صورة عن C.V)
+model AgentDocument {
+  id        String           @id @default(cuid())
+  agentId   String
+  agent     AgentApplication @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  docType   String // LICENSE | ID | PHOTO | CV
+  fileName  String
+  mimeType  String
+  size      Int
+  data      String // base64
+  createdAt DateTime         @default(now())
+}
+
+model RevenueShareTransaction {
+  id             String   @id @default(cuid())
+  agentId        String
+  agent          AgentApplication @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  type           String   // REVENUE_SHARE (25%) | COMMITTEE_FEE (100$)
+  description    String
+  amount         Float    // المبلغ المستحق للوكيل
+  currency       String   @default("USD")
+  status         String   @default("DUE") // DUE | PAID
+  dueDate        DateTime? // موعد التحويل خلال 14 يوماً
+  paidAt         DateTime?
+  programCountry String?
+  createdAt      DateTime @default(now())
+}
+
+model AdmissionApplication {
+  id         String   @id @default(cuid())
+  reference  String   @unique // كود تتبع حالة الطلب AACT-2026-XXXX
+  fullName   String
+  email      String
+  phone      String
+  country    String
+  nationalId String? // رقم الهوية الشخصية أو جواز السفر
+  birthDate  DateTime? // تاريخ الميلاد
+  address    String? // العنوان التفصيلي
+  education  String // الحالة التعليمية: HIGH_SCHOOL | BACHELOR | MASTER | OTHER
+  program    String // اسم البرنامج المختار
+  programId  String? // ربط بكائن البرنامج (للتسعير والتسجيل النهائي التلقائي)
+  programRef Program? @relation(fields: [programId], references: [id])
+  documents  String   @default("[]") // JSON array من أسماء الوثائق المقدمة
+  notes      String?
+  acknowledged Boolean @default(false) // إقرار الطالب (صحة البيانات + الالتزام + رسوم غير مستردة)
+  acknowledgedAt DateTime?
+  // آلة حالات الطلب وفق دليل الإجراءات الرسمي (الترتيب الصحيح):
+  // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
+  // → AWAITING_TUITION (مقبول — بانتظار سداد الرسوم الدراسية كاملة للدخول للبرنامج)
+  // → THESIS (التسجيل النهائي تم — قيد إعداد بحث التخرج) → SCHEDULED (مجدول للمناقشة)
+  // → RESULT_APPROVED → CERTIFIED | REJECTED
+  status     String   @default("AWAITING_FEE")
+  // ===== التقييم الذكي للطلب (مدعوم بالذكاء الاصطناعي) — يعرض للإدارة قبل زر الاعتماد =====
+  // يحلل خبير الذكاء الاصطناعي مدخلات الطالب ومرفقاته ويقارنها بمتطلبات البرنامج:
+  // هل شهادة الثانوية موجودة للدبلوم؟ هل وُجد الماجستير المطلوب للدكتوراة؟ هل البيانات منطقية؟
+  aiReview    String?   // JSON كامل: الحكم + درجة التوافق + قائمة المتطلبات + الملاحظات والتوصيات
+  aiVerdict   String?   // RECOMMEND_APPROVE | NEEDS_CLARIFICATION | RECOMMEND_REJECT | INSUFFICIENT_DATA
+  aiScore     Int?      // درجة توافق الملف مع متطلبات البرنامج 0-100
+  aiReviewedAt DateTime?
+  userId     String?  // المستخدم المسجل صاحب الطلب (إن وجد)
+  user       User?    @relation("AdmissionOwner", fields: [userId], references: [id])
+  // المشرف الأكاديمي
+  supervisorId    String?
+  supervisor      User?    @relation("Supervisor", fields: [supervisorId], references: [id])
+  supervisorAt    DateTime?
+  approvedAt      DateTime? // تاريخ القبول — منه يُحسب مهلة بحث التخرج
+  thesisDeadline  DateTime? // القبول + 6 أشهر كحد أقصى
+  createdAt  DateTime @default(now())
+  theses     ThesisSubmission[]
+  payments   Payment[]
+  certificates Certificate[]
+  files      AdmissionDocument[]
+}
+
+// ===== الكتب المقررة والاختبارات الشاملة من الكتب =====
+
+model Book {
+  id          String   @id @default(cuid())
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title       String
+  titleEn     String?
+  author      String?
+  year        String?
+  description String?  // لماذا هذا الكتاب مطلوب في التخصص
+  fileName    String?
+  mimeType    String?
+  size        Int?
+  data        String?  // base64 للملف المرفوع
+  link        String?  // رابط الكتاب على الإنترنت (للقراءة أو التحميل من المصدر)
+  textContent String?  // نص مستخرج من الملف أو من الرابط (لتحليل خبير الذكاء الاصطناعي)
+  semester    Int?     // الفصل الدراسي الذي يدرس فيه الكتاب (1 | 2 | null = عام للبرنامج)
+  source      String   @default("ADMIN") // ADMIN | AI
+  createdAt   DateTime @default(now())
+}
+
+model ProgramExam {
+  id           String   @id @default(cuid())
+  programId    String
+  program      Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title        String
+  status       String   @default("GENERATING") // GENERATING | REVIEW (بانتظار مراجعة الإدارة) | READY | FAILED
+  semester     Int      @default(1) // امتحان الفصل الدراسي الأول (1) أو الثاني (2)
+  errorNote    String?
+  durationMin  Int      @default(120) // لا يقل عن ساعتين وفق اللوائح
+  passScore    Int      @default(60)
+  totalPoints  Int      @default(0)
+  booksUsed    String?  // أسماء الكتب التي بُني عليها الاختبار
+  generatedBy  String   @default("AI")
+  questions    ProgramQuestion[]
+  attempts     ProgramExamAttempt[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProgramQuestion {
+  id            String       @id @default(cuid())
+  examId        String
+  exam          ProgramExam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  order         Int
+  type          String       // MCQ | TF | SHORT | ESSAY
+  text          String
+  options       String?      // JSON array لأسئلة الاختيار وصح/خطأ
+  correctAnswer String?      // "0".."3" أو "0"=صح/"1"=خطأ
+  modelAnswer   String?      // الإجابة النموذجية للأسئلة المقالية/القصيرة
+  points        Int          @default(2)
+  status        String       @default("PUBLISHED") // PENDING_REVIEW (بانتظار اعتماد الإدارة) | PUBLISHED | REJECTED
+  answers       ProgramAnswer[]
+}
+
+model ProgramExamAttempt {
+  id          String   @id @default(cuid())
+  examId      String
+  exam        ProgramExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Float?
+  passed      Boolean?
+  status      String   @default("SUBMITTED") // SUBMITTED | GRADED
+  feedback    String?  // JSON تقييم عام
+  durationUsedMin Int?     // كم دقيقة استغرق الطالب فعلياً
+  submittedAt DateTime?
+  // الاعتراض على النتيجة (Appeal) — يُحوَّل للمراجعة اليدوية من المشرف البشري/الإدارة
+  appealStatus   String   @default("NONE") // NONE | PENDING | REVIEWED
+  appealReason   String?
+  appealResponse String?
+  finalScore     Float?   // الدرجة النهائية بعد المراجعة اليدوية
+  appealedAt     DateTime?
+  // المراقبة الإلكترونية الاختيارية (AI Proctoring) — كاميرا + كشف تبديل النوافذ
+  proctoringEnabled  Boolean @default(false)
+  proctoringLog      String? // JSON [{t,type}] لحظات الخروج/تبديل النوافذ
+  proctoringSnapshot String? // لقطة كاميرا عند التسليم (base64)
+  createdAt   DateTime @default(now())
+  answers     ProgramAnswer[]
+}
+
+model ProgramAnswer {
+  id             String             @id @default(cuid())
+  attemptId      String
+  attempt        ProgramExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       ProgramQuestion    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText     String?
+  selectedOption Int?
+  isCorrect      Boolean?
+  points         Float?
+  maxPoints      Int?
+  aiFeedback     String?
+}
+
+// ===== 12.3 قاعة الفيديو كونفرنس متعدد الأطراف (الطالب + لجنة من دول مختلفة + المستشار الذكي) =====
+
+model DefenseParticipant {
+  id         String           @id @default(cuid())
+  thesisId   String
+  thesis     ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  peerId     String           @unique
+  userId     String?
+  name       String
+  role       String // STUDENT | COMMITTEE | AGENT | AI
+  tz         String?
+  joinedAt   DateTime         @default(now())
+  lastSeenAt DateTime         @default(now())
+}
+
+// إشارات WebRTC (Offer/Answer/ICE) بين المشاركين عبر الخادم
+model DefenseSignal {
+  id        String   @id @default(cuid())
+  thesisId  String
+  fromPeer  String
+  toPeer    String? // null = بث للجميع
+  type      String   // OFFER | ANSWER | ICE | BYE
+  payload   String
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AdmissionDocument {
+  id          String   @id @default(cuid())
+  admissionId String
+  admission   AdmissionApplication @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  docType     String   // DEGREE | TRANSCRIPT | ID | PHOTO | CV
+  fileName    String
+  mimeType    String
+  size        Int
+  data        String   // base64 للمحتوى (حفظ مباشر في قاعدة البيانات)
+  createdAt   DateTime @default(now())
+}

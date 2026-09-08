@@ -1,0 +1,117 @@
+'use client'
+
+import { create } from 'zustand'
+
+export type View =
+  | 'home'
+  | 'programs'
+  | 'apply'
+  | 'auth'
+  | 'dashboard'
+  | 'unit'
+  | 'exam'
+  | 'chat'
+  | 'agent'
+  | 'admin'
+  | 'verify'
+  | 'directory'
+  | 'contact'
+
+export interface AppUser {
+  id: string
+  name: string
+  email: string
+  role: string
+  country?: string | null
+}
+
+interface AppState {
+  user: AppUser | null
+  authChecked: boolean
+  view: View
+  activeProgramId: string | null
+  activeUnitId: string | null
+  activeExamId: string | null
+  activeExamKind: 'unit' | 'final'
+  applyProgramTitle: string | null // برنامج محدد مسبقاً لنموذج طلب الالتحاق
+  mobileMenuOpen: boolean
+  setUser: (u: AppUser | null) => void
+  setAuthChecked: (v: boolean) => void
+  navigate: (view: View) => void
+  openProgram: (id: string) => void
+  openUnit: (id: string) => void
+  openExam: (id: string, kind?: 'unit' | 'final') => void
+  openApply: (programTitle?: string) => void
+  setMobileMenuOpen: (v: boolean) => void
+}
+
+export const useAppStore = create<AppState>((set) => ({
+  user: null,
+  authChecked: false,
+  view: 'home',
+  activeProgramId: null,
+  activeUnitId: null,
+  activeExamId: null,
+  activeExamKind: 'unit',
+  mobileMenuOpen: false,
+  applyProgramTitle: null,
+  setUser: (u) => set({ user: u }),
+  setAuthChecked: (v) => set({ authChecked: v }),
+  navigate: (view) => set({ view, mobileMenuOpen: false }),
+  openProgram: (id) => set({ activeProgramId: id, view: 'dashboard' }),
+  openUnit: (id) => set({ activeUnitId: id, view: 'unit' }),
+  openExam: (id, kind = 'unit') => set({ activeExamId: id, activeExamKind: kind, view: 'exam' }),
+  openApply: (programTitle) => set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false }),
+  setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
+}))
+
+// ---- رمز الجلسة (Bearer Token) ----
+// يُخزَّن في localStorage ليعمل تسجيل الدخول حتى في البيئات التي تحجب الكوكيز
+// (iframe المعاينة / حجب كوكيز الطرف الثالث / WebView أندرويد)
+const TOKEN_KEY = 'aact_token'
+
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveToken(t: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, t)
+  } catch {}
+}
+
+export function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } catch {}
+}
+
+export async function api<T = any>(url: string, options?: RequestInit): Promise<T> {
+  const token = getToken()
+  const isForm = typeof FormData !== 'undefined' && options?.body instanceof FormData
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
+  })
+  const data = await res.json().catch(() => ({}))
+  // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
+  if (res.status === 401 && token) {
+    clearToken()
+    try { useAppStore.setState({ user: null }) } catch {}
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
+    err.data = data
+    throw err
+  }
+  return data as T
+}
