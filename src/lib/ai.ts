@@ -81,27 +81,66 @@ export function buildSupervisorSystemPrompt(context?: string): string {
 ${context ? `سياق إضافي عن الوحدة/الدورة الحالية للطالب:\n${context}` : ''}`
 }
 
+function normalizeArabicQuestion(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[ـًٌٍَُِّْ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function pickRelevantPrograms(q: string) {
+  const keywords: Record<string, string[]> = {
+    ادارة: ['اداره', 'قياده', 'اعمال', 'اداري'],
+    موارد: ['موارد', 'بشريه', 'hr'],
+    جودة: ['جوده', 'iso', 'ايزو'],
+    مشاريع: ['مشاريع', 'pmp', 'project'],
+    تسويق: ['تسويق', 'مبيعات', 'سوشيال'],
+    ذكاء: ['ذكاء', 'اصطناعي', 'ai'],
+    تدريب: ['تدريب', 'مدربين', 'tot'],
+  }
+  const wanted = Object.values(keywords).flat().filter((k) => q.includes(k))
+  const scored = allSeedPrograms
+    .map((p) => {
+      const blob = normalizeArabicQuestion([p.titleAr, p.titleEn, p.category, p.description, ...(p.features || [])].join(' '))
+      const score = wanted.reduce((s, k) => s + (blob.includes(k) ? 1 : 0), 0)
+      return { p, score }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+  return scored.length ? scored.map((x) => x.p) : allSeedPrograms.slice(0, 4)
+}
+
 function localSupervisorFallback(messages: { role: string; content: string }[]): string {
   const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
-  const q = last.toLowerCase()
+  const q = normalizeArabicQuestion(last)
 
-  if (/رسوم|سعر|تكلفة|دفع|قسط|دولار/.test(q)) {
-    return `التكلفة حسب نوع البرنامج: الدكتوراه المهنية بمعادلة الخبرات ${ADMISSION_FEES.doctorate}$، والماجستير المهني بمعادلة الخبرات ${ADMISSION_FEES.masters}$، والدبلومات والبرامج الدولية تبدأ من ${ADMISSION_FEES.diplomasRange}$ حسب البرنامج. رسوم تقديم الطلب وحجز المقعد ${ADMISSION_FEES.applicationFee}$ غير مستردة. للتأكد من حالتك المالية الخاصة تواصل مع الإدارة عبر ${ACADEMY_INFO.email}.`
+  if (/رسوم|سعر|تكلفه|دفع|قسط|دولار|كم/.test(q)) {
+    return `أكيد. الرسوم تعتمد على نوع البرنامج: الدبلومات والبرامج الدولية غالباً بين ${ADMISSION_FEES.diplomasRange}$، والماجستير المهني ${ADMISSION_FEES.masters}$، والدكتوراه المهنية ${ADMISSION_FEES.doctorate}$. قل لي اسم البرنامج الذي تريده لأعطيك تفاصيله.`
   }
 
-  if (/شهادة|تصدر|تخرج|اعتماد|موثقة/.test(q)) {
-    return `الشهادة تُصدر عادة خلال ${ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم المطلوبة. إن كان سؤالك عن شهادة محددة أو حالة إصدار خاصة، أرسل اسمك ورقم طلبك للإدارة عبر ${ACADEMY_INFO.email}.`
+  if (/شهاده|تصدر|تخرج|اعتماد|موثقه/.test(q)) {
+    return `الشهادة تُصدر عادة خلال ${ACADEMY_INFO.certificateDays} يوماً بعد استكمال المتطلبات والرسوم. إن كنت تسأل عن شهادة برنامج محدد، اكتب اسم البرنامج وسأوضح لك آلية الإصدار.`
   }
 
-  if (/تسجيل|التحاق|قبول|وثائق|مستندات/.test(q)) {
-    return `للالتحاق تحتاج إلى استيفاء شروط القبول وتقديم الوثائق المطلوبة، ثم دفع رسوم تقديم الطلب وحجز المقعد، وبعدها يتم تثبيت تسجيلك ومتابعة برنامجك. الوثائق المطلوبة تشمل عادة ما يثبت الهوية والمؤهل أو الخبرة حسب نوع البرنامج.`
+  if (/تسجيل|التحاق|قبول|وثائق|مستندات|ابدا|ابدأ/.test(q)) {
+    return `خطوات التسجيل بسيطة: تختار البرنامج، ترسل بياناتك ووثائقك الأساسية، ثم يتم تثبيت القبول ودفع رسوم حجز المقعد. اكتب اسم البرنامج الذي يهمك وسأرشدك للخطوة التالية.`
   }
 
-  if (/برنامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص/.test(q)) {
-    return `تقدم الأكاديمية برامج مهنية ودبلومات وشهادات دولية في الإدارة، الموارد البشرية، الجودة، المشاريع، التسويق، الذكاء الاصطناعي، والاستشارات المهنية وغيرها. اذكر اسم البرنامج أو التخصص الذي تريده وسأشرح لك فكرته ومتطلباته وخطوات البدء.`
+  if (/برنامج|برامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص|تهمني|بدي|حاب|عايز|اريد|شو/.test(q)) {
+    const programs = pickRelevantPrograms(q)
+    const names = programs.map((p, i) => `${i + 1}. ${p.titleAr}`).join('\n')
+    return `تمام، عندنا برامج مهنية وتدريبية كثيرة. هذه أقرب خيارات ممكن تبدأ منها:\n${names}\n\nقل لي أي مجال يهمك أكثر: الإدارة، الموارد البشرية، الجودة، المشاريع، التسويق، الذكاء الاصطناعي، أو تدريب المدربين؟`
   }
 
-  return `أنا مشرفك الأكاديمي من الأكاديمية الأمريكية. وصلتني رسالتك، لكن خدمة الذكاء الاصطناعي لم ترد الآن بشكل مستقر. أعد صياغة سؤالك بكلمات واضحة، أو اسألني عن برنامج محدد، الرسوم، الشهادة، الاعتماد، أو خطوات التسجيل وسأساعدك.`
+  return `تمام، فهمت عليك. وضّح لي هل سؤالك عن برنامج معيّن، الرسوم، الشهادة، الاعتماد، أو خطوات التسجيل؟ سأعطيك جواباً مباشراً.`
 }
 
 export async function chatComplete(
