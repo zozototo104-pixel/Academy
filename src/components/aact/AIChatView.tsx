@@ -728,8 +728,8 @@ export function AIChatView() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#0f2b46]/10 pt-3">
-        <div className="flex items-end gap-2">
+      <div className="border-t border-[#0f2b46]/10 bg-[#f5f0e1]/95 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+        <div className="grid grid-cols-[2.9rem_2.9rem_minmax(0,1fr)_2.9rem] items-end gap-2 sm:grid-cols-[3rem_3rem_minmax(0,1fr)_3rem]">
           <Button
             onClick={toggleVoiceMode}
             size="icon"
