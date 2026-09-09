@@ -206,16 +206,25 @@ export function ApplyView() {
     setFiles((prev) => ({ ...prev, [type]: f }))
   }
 
-  const selectedProgramId = useMemo(
-    () => programs.find((p) => p.titleAr === form.program)?.id || '',
+  const availableCategories = useMemo(() => {
+    const set = new Set(programs.map((p) => p.category).filter(Boolean))
+    return PROGRAM_CATEGORY_ORDER.filter((c) => set.has(c)).concat([...set].filter((c) => !PROGRAM_CATEGORY_ORDER.includes(c)))
+  }, [programs])
+
+  const filteredPrograms = useMemo(
+    () => selectedCategory ? programs.filter((p) => p.category === selectedCategory) : [],
+    [programs, selectedCategory]
+  )
+
+  const selectedProgram = useMemo(
+    () => programs.find((p) => p.titleAr === form.program) || null,
     [programs, form.program]
   )
 
+  const selectedProgramId = selectedProgram?.id || ''
+
   // متطلبات القبول المخصصة للبرنامج المختار (تعرض للمتقدم قبل التقديم)
-  const selectedRules = useMemo(
-    () => programs.find((p) => p.titleAr === form.program)?.admissionRules || null,
-    [programs, form.program]
-  )
+  const selectedRules = selectedProgram?.admissionRules || null
   const EDU_MIN_AR: Record<string, string> = { HIGH_SCHOOL: 'الثانوية العامة', BACHELOR: 'البكالوريوس', MASTER: 'الماجستير' }
 
   const submit = async (e?: React.FormEvent) => {
