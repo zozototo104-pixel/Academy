@@ -474,12 +474,12 @@ export function AdminBooksTab() {
                     </Select>
                   </div>
                   <div className="sm:col-span-2">
-                    <Label className="text-[10px] font-black text-slate-600">ملف الكتاب (PDF — يقرأه خبير الذكاء الاصطناعي لبناء الأسئلة، حتى 10 ميجابايت)</Label>
+                    <Label className="text-[10px] font-black text-slate-600">ملف الكتاب (PDF / Word / Excel / TXT — يقرأه خبير الذكاء الاصطناعي لبناء الأسئلة، حتى 10 ميجابايت)</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <input
                         ref={fileRef}
                         type="file"
-                        accept=".pdf,application/pdf,.txt"
+                        accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
                         onChange={(e) => setFile(e.target.files?.[0] || null)}
                         className="block w-full max-w-sm text-xs text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-[#0f2b46] file:px-3 file:py-1.5 file:text-[10px] file:font-black file:text-[#e0b83a]"
                       />
