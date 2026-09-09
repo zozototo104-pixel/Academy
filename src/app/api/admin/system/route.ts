@@ -124,13 +124,6 @@ export async function POST(req: NextRequest) {
             uses: 1,
             expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
             newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
-            liveConnectConstraints: {
-              model: `models/${model}`,
-              config: {
-                responseModalities: ['AUDIO'],
-                sessionResumption: {},
-              },
-            },
           }),
         })
         const d: any = await r.json().catch(() => ({}))
