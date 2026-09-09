@@ -57,7 +57,7 @@ async function runGeneration(examId: string) {
         where: { id: examId },
         data: {
           durationMin: Math.max(120, Math.min(240, Math.round(totalNow * 2))),
-          booksUsed: books.map((b) => `«${b.title}»`).join('، ').slice(0, 2000),
+          booksUsed: readableBooks.map((b) => `«${b.title}»`).join('، ').slice(0, 2000),
         },
       })
     }
