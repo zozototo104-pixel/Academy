@@ -190,7 +190,7 @@ function evidenceBlob(f: AdmissionFileEvidence): string {
 }
 
 function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_RANK {
-  if (!f) return 'NONE'
+  if (!f || nonAdmissionAttachmentReason(f)) return 'NONE'
   if (f.ocrRead?.degreeMentioned && f.ocrRead.degreeMentioned !== 'NONE') return f.ocrRead.degreeMentioned as keyof typeof EDU_RANK
   const blob = evidenceBlob(f)
   if (hasAny(blob, KEYWORDS.phd)) return 'PHD'
@@ -198,6 +198,31 @@ function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_
   if (hasAny(blob, KEYWORDS.bachelor)) return 'BACHELOR'
   if (hasAny(blob, KEYWORDS.highSchool)) return 'HIGH_SCHOOL'
   return 'NONE'
+}
+
+function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string | null {
+  if (!f || isVisionUnavailable(f)) return null
+  const visible = [
+    safeVisibleContent(f),
+    f.ocrRead?.docTypeDetected,
+    f.ocrRead?.qualityNote,
+    f.ocrRead?.matchNote,
+  ].filter(Boolean).join(' ')
+  const n = normalize(visible)
+
+  if (hasAny(visible, KEYWORDS.platformUi) || /لقطه شاشه|لقطة شاشة|سكرين|screenshot|webpage|website|صفحه ويب|صفحة ويب|واجهه نظام|واجهة نظام|لوحه تحكم|لوحة تحكم|vercel|deployments|environment variables/.test(n)) {
+    return 'المرفق عبارة عن لقطة شاشة من موقع/منصة/واجهة نظام، وليس شهادة أو هوية أو صورة شخصية أو سيرة ذاتية؛ لا يُحتسب ضمن مرفقات القبول.'
+  }
+
+  if (hasAny(visible, KEYWORDS.electronics)) {
+    return 'المرفق يظهر جهازاً/أداة إلكترونية أو كتابة تقنية على جهاز، وليس صورة شخصية أو مستند قبول.'
+  }
+
+  if (/محادثه|محادثة|chat|رساله|رسالة|whatsapp|واتساب|browser|safari|chrome/.test(n)) {
+    return 'المرفق يبدو لقطة محادثة أو متصفح، وليس مستند قبول رسمي.'
+  }
+
+  return null
 }
 
 function isImageFile(f: AdmissionFileEvidence): boolean {
