@@ -447,9 +447,15 @@ function runRules(app: {
 
   for (const type of reqDocs) {
     const label = DOC_TYPE_AR[type] || type
-    const candidates = app.files.filter((f) => f.docType === type)
+    const declaredCandidates = app.files.filter((f) => f.docType === type)
+    const autoDetectedCandidates = app.files.filter((f) => {
+      if (f.docType === type) return false
+      const actual = detectAdmissionDocumentKind(f)
+      return kindSatisfiesRequirement(type, actual.kind)
+    })
+    const candidates = [...declaredCandidates, ...autoDetectedCandidates]
     if (candidates.length === 0) {
-      checklist.push({ requirement: label, status: 'MISSING', detail: 'لم يُرفع هذا المستند (مطلوب وفق قواعد قبول البرنامج)' })
+      checklist.push({ requirement: label, status: 'MISSING', detail: 'لم يُرفع أو يُكتشف هذا المستند آلياً ضمن المرفقات (مطلوب وفق قواعد قبول البرنامج)' })
       hardProblems++
       continue
     }
