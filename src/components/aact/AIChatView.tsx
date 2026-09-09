@@ -744,7 +744,7 @@ export function AIChatView() {
             onClick={toggleMic}
             size="icon"
             variant="outline"
-            className={`h-12 w-12 shrink-0 rounded-full border-[#0f2b46]/20 ${listening ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#0f2b46]'}`}
+            className={`h-11 w-11 shrink-0 rounded-full border-[#0f2b46]/20 sm:h-12 sm:w-12 ${listening ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#0f2b46]'}`}
             title="سؤال صوتي واحد"
           >
             {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
