@@ -418,8 +418,10 @@ export function AIChatView() {
       setListening(false)
       return
     }
-    if (speakingId && audioRef.current) {
-      audioRef.current.pause()
+    if (speakingId) {
+      audioRef.current?.pause()
+      try { window.speechSynthesis?.cancel() } catch {}
+      speechUtteranceRef.current = null
       setSpeakingId(null)
     }
     const rec = getRecognition()
