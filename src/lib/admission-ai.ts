@@ -251,6 +251,57 @@ function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string 
   return null
 }
 
+function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: DetectedDocKind; reason: string } {
+  if (isVisionUnavailable(f)) {
+    return { kind: 'UNVERIFIED', reason: 'لم تكتمل قراءة الصورة آلياً الآن' }
+  }
+
+  const nonDoc = nonAdmissionAttachmentReason(f)
+  if (nonDoc) return { kind: 'NON_ADMISSION', reason: nonDoc }
+
+  const blob = evidenceBlob(f)
+  const detected = [f.ocrRead?.docTypeDetected, f.ocrRead?.matchNote, f.ocrRead?.qualityNote].filter(Boolean).join(' ')
+  const n = normalize(`${detected} ${blob}`)
+
+  if (hasAny(blob, KEYWORDS.logo)) {
+    return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
+  }
+
+  if (hasAny(detected, KEYWORDS.photoDoc) || (/صوره شخصيه|صورة شخصية|وجه|بورتريه|portrait|headshot|personal photo/.test(n) && !hasAny(blob, KEYWORDS.idDoc) && !hasAny(blob, KEYWORDS.degreeDoc))) {
+    return { kind: 'PHOTO', reason: 'تم التعرف عليه كصورة شخصية/وجه' }
+  }
+
+  if (hasAny(blob, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية/.test(n)) {
+    return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر' }
+  }
+
+  if (hasAny(blob, KEYWORDS.cvDoc) || /education|work experience|professional experience|الموارد البشريه|الخبرات العمليه|المؤهلات العلميه|المهارات|objective|profile/.test(n)) {
+    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات' }
+  }
+
+  if (hasAny(blob, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه/.test(n)) {
+    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي' }
+  }
+
+  if (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.highSchool) || hasAny(blob, KEYWORDS.bachelor) || hasAny(blob, KEYWORDS.master) || hasAny(blob, KEYWORDS.phd)) {
+    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي' }
+  }
+
+  if ((f.textSnippet || f.ocrRead?.extractedText || '').replace(/\s+/g, '').length >= 30 || f.ocrRead?.readable) {
+    return { kind: 'OTHER_DOCUMENT', reason: 'تمت قراءته لكنه لا يطابق الأنواع المطلوبة بوضوح' }
+  }
+
+  return { kind: 'UNVERIFIED', reason: 'لم يظهر دليل كافٍ لتحديد نوع المستند' }
+}
+
+function kindSatisfiesRequirement(expectedType: string, kind: DetectedDocKind): boolean {
+  if (expectedType === 'DEGREE') return kind === 'DEGREE_CERTIFICATE' || kind === 'TRANSCRIPT'
+  if (expectedType === 'ID') return kind === 'ID'
+  if (expectedType === 'CV') return kind === 'CV'
+  if (expectedType === 'PHOTO') return kind === 'PHOTO'
+  return kind === 'OTHER_DOCUMENT'
+}
+
 function isImageFile(f: AdmissionFileEvidence): boolean {
   return f.mimeType.startsWith('image/')
 }
