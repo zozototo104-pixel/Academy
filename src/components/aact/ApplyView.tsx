@@ -167,6 +167,13 @@ export function ApplyView() {
     if (applyProgramTitle) setForm((f) => ({ ...f, program: applyProgramTitle }))
   }, [user, applyProgramTitle])
 
+  // عند الدخول من بطاقة برنامج، نحدد تلقائياً درجة البرنامج ثم التخصص
+  useEffect(() => {
+    if (!form.program || selectedCategory) return
+    const p = programs.find((x) => x.titleAr === form.program)
+    if (p) setSelectedCategory(p.category)
+  }, [programs, form.program, selectedCategory])
+
   const DOCS = ADMISSION_GUIDE.documents
 
   const pickFile = (type: string, f: File | null) => {
