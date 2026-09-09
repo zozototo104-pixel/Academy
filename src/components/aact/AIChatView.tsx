@@ -69,6 +69,28 @@ const QUICK_QUESTIONS = [
   'كيف يُحسب العائد على الاستثمار ROI؟',
 ]
 
+function buildSpeechPreview(text: string): string {
+  const clean = String(text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[`*_#>\[\]()-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (clean.length <= 360) return clean
+
+  const sentences = clean.split(/(?<=[.!؟?])\s+/).filter(Boolean)
+  let out = ''
+  for (const s of sentences) {
+    const next = `${out} ${s}`.trim()
+    if (next.length > 330) break
+    out = next
+    if (out.length >= 190) break
+  }
+
+  if (!out) out = clean.slice(0, 320).replace(/\s+\S*$/, '')
+  return `${out}… التفاصيل مكتوبة أمامك في الرسالة.`
+}
+
 // ===== نتائج تحليل مسودة البحث =====
 interface ThesisReview {
   overallScore: number
