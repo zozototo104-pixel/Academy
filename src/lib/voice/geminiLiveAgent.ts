@@ -94,6 +94,7 @@ function downsampleTo16k(input: Float32Array, inputRate: number): Int16Array {
 class Pcm24Player {
   private ctx: AudioContext | null = null
   private nextTime = 0
+  private readonly volumeBoost = 2.35
 
   async play(b64: string) {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
@@ -103,10 +104,16 @@ class Pcm24Player {
     const pcm = b64ToInt16(b64)
     const buf = this.ctx.createBuffer(1, pcm.length, 24000)
     const ch = buf.getChannelData(0)
-    for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768
+    for (let i = 0; i < pcm.length; i++) {
+      const amplified = (pcm[i] / 32768) * 1.45
+      ch[i] = Math.max(-1, Math.min(1, amplified))
+    }
     const src = this.ctx.createBufferSource()
+    const gain = this.ctx.createGain()
+    gain.gain.value = this.volumeBoost
     src.buffer = buf
-    src.connect(this.ctx.destination)
+    src.connect(gain)
+    gain.connect(this.ctx.destination)
     const now = this.ctx.currentTime
     if (this.nextTime < now + 0.03) this.nextTime = now + 0.03
     src.start(this.nextTime)
