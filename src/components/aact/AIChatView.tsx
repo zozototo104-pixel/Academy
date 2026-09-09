@@ -442,7 +442,7 @@ export function AIChatView() {
         recognitionRef.current = null
         setListening(false)
         setInterim('')
-        if (text) send(text)
+        if (text) send(text, { voice: true })
         return
       }
 
