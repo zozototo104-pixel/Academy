@@ -777,7 +777,16 @@ export function AIChatView() {
                   </span>
                   {m.role === 'assistant' && (
                     <button
-                      onClick={() => (speakingId === m.id ? (audioRef.current?.pause(), setSpeakingId(null)) : speak(m.content, m.id))}
+                      onClick={() => {
+                        if (speakingId === m.id) {
+                          audioRef.current?.pause()
+                          try { window.speechSynthesis?.cancel() } catch {}
+                          speechUtteranceRef.current = null
+                          setSpeakingId(null)
+                        } else {
+                          speak(m.content, m.id)
+                        }
+                      }}
                       className="opacity-60 transition-opacity hover:opacity-100"
                       title="استمع للرد"
                     >
