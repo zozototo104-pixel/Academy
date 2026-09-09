@@ -522,7 +522,7 @@ async function buildFileEvidence(files: { docType: string; fileName: string; mim
     out.push({
       docType: f.docType,
       fileName: f.fileName,
-      mimeType: f.mimeType || 'application/octet-stream',
+      mimeType: inferMimeFromFileName(f.fileName, f.mimeType || 'application/octet-stream'),
       size: f.size,
       textSnippet,
       textReader,
