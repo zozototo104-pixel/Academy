@@ -74,6 +74,7 @@ export async function PATCH(req: NextRequest) {
       })
       updates.push(key)
     }
+    if (updates.some((k) => k.startsWith('GEMINI_'))) invalidateGeminiKeyCache()
     await audit(admin, 'UPDATE_SETTINGS', 'Setting', null, `إعدادات النظام: ${updates.join(', ')}`)
     const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS } } })
     const values: Record<string, string> = {}
