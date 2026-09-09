@@ -149,19 +149,36 @@ function matchKeywords(haystack: string, list: string[]): string | null {
   return null
 }
 
+function isVisionUnavailable(f?: AdmissionFileEvidence | null): boolean {
+  if (!f?.ocrRead) return false
+  const raw = normalize([
+    f.ocrRead.docTypeDetected,
+    f.ocrRead.extractedText,
+    f.ocrRead.qualityNote,
+    f.ocrRead.matchNote,
+  ].filter(Boolean).join(' '))
+  return !f.ocrRead.readable && /لم تقرا الصوره اليا|لم يكتمل تحليله|خدمه قراءه الصور مشغوله|انتهت حصه قراءه الصور|تعذر تشغيل قارئ الصور|gemini vision|legacy vision|503|high demand/.test(raw)
+}
+
+function safeVisibleContent(f: AdmissionFileEvidence): string {
+  if (isVisionUnavailable(f)) return ''
+  return [
+    f.textSnippet,
+    f.ocrRead?.extractedText,
+  ].filter(Boolean).join(' ')
+}
+
 function evidenceBlob(f: AdmissionFileEvidence): string {
+  if (isVisionUnavailable(f)) return [f.fileName, f.mimeType].filter(Boolean).join(' ')
   return [
     f.fileName,
     f.mimeType,
     f.textSnippet,
-    f.textNote,
     f.ocrRead?.docTypeDetected,
     f.ocrRead?.degreeMentioned,
     f.ocrRead?.nameOnDoc,
     f.ocrRead?.institution,
     f.ocrRead?.extractedText,
-    f.ocrRead?.qualityNote,
-    f.ocrRead?.matchNote,
   ].filter(Boolean).join(' ')
 }
 
