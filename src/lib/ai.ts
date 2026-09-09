@@ -4,6 +4,21 @@ import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnav
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
+function programDigestLine(p: (typeof allSeedPrograms)[number], i: number): string {
+  const features = (p.features || []).slice(0, 3).join('، ')
+  const price = p.price ? ` — رسومه التقريبية ${p.price}import ZAI from 'z-ai-web-dev-sdk'
+import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
+import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
+
+ : ''
+  const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+  return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — التصنيف: ${p.category}${hours}${price}${features ? ` — محاوره: ${features}` : ''}`
+}
+
+function buildStaticProgramCatalog(max = 70): string {
+  return allSeedPrograms.slice(0, max).map(programDigestLine).join('\n')
+}
+
 export async function getZAI() {
   if (!zaiInstance) zaiInstance = await ZAI.create()
   return zaiInstance
