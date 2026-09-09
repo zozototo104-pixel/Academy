@@ -21,12 +21,33 @@ async function runGeneration(examId: string) {
     const books = await db.book.findMany({
       where: { programId: exam.programId, OR: [{ semester: null }, { semester }] },
       orderBy: { createdAt: 'asc' },
-      select: { title: true, author: true, description: true, textContent: true },
+      select: {
+        id: true,
+        title: true,
+        titleEn: true,
+        author: true,
+        year: true,
+        description: true,
+        link: true,
+        fileName: true,
+        mimeType: true,
+        size: true,
+        data: true,
+        textContent: true,
+      },
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${semester === 2 ? 'الثاني' : 'الأول'}`)
-    const readableBooks = books.filter((b) => (b.textContent || '').replace(/\s+/g, ' ').trim().length >= 800)
-    if (readableBooks.length === 0) {
-      throw new Error('توجد كتب مقررة، لكن لم يُستخرج منها نص كافٍ. ارفع PDF نصي أو DOCX أو TXT/Excel قابل للقراءة حتى تُبنى الأسئلة من محتوى الكتب فعلياً.')
+
+    const hydratedBooks = []
+    for (const book of books) {
+      const hydrated = await hydrateBookContentForExam(book)
+      hydratedBooks.push(hydrated)
+      if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
+        await db.book.update({
+          where: { id: hydrated.id },
+          data: { textContent: hydrated.textContent.slice(0, 40000), updatedAt: new Date() },
+        }).catch(() => {})
+      }
     }
 
     let order = 0
