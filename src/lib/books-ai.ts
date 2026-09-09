@@ -276,9 +276,14 @@ export async function suggestBooksForProgram(program: {
 
 export interface ExamSourceBook {
   title: string
+  titleEn?: string | null
   author?: string | null
+  year?: string | null
   description?: string | null
+  link?: string | null
   textContent?: string | null
+  sourceNote?: string | null
+  contentQuality?: string | null
 }
 
 const BATCH_SPECS: {
