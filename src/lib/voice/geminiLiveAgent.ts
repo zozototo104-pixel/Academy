@@ -16,10 +16,36 @@ type LiveSessionPayload = {
   setup: unknown
   model: string
   voice: string
+  error?: string
 }
 
 function getToken(): string {
   try { return localStorage.getItem('aact_token') || '' } catch { return '' }
+}
+
+function friendlyClientError(e: unknown): string {
+  const raw = String((e as any)?.message || e || '').trim()
+  if (!raw) return 'تعذر بدء المحادثة الصوتية.'
+  if (/يجب تسجيل الدخول|UNAUTHORIZED|401/i.test(raw)) return 'يجب تسجيل الدخول أولاً قبل بدء محادثة Gemini Live.'
+  if (/NotAllowedError|Permission denied|permission|denied|رفض|السماح/i.test(raw)) {
+    return 'المتصفح رفض المايكروفون. افتح إعدادات الموقع في Safari/Chrome واسمح بالمايكروفون ثم أعد المحاولة.'
+  }
+  if (/NotFoundError|DevicesNotFoundError|no microphone|الميكروفون غير موجود/i.test(raw)) {
+    return 'لم يتم العثور على مايكروفون في هذا الجهاز.'
+  }
+  if (/NotReadableError|TrackStartError|device is busy/i.test(raw)) {
+    return 'الميكروفون مستخدم من تطبيق آخر أو غير متاح حالياً. أغلق أي مكالمة أخرى ثم جرّب مجدداً.'
+  }
+  if (/mediaDevices|getUserMedia|secure context|HTTPS/i.test(raw)) {
+    return 'هذا المتصفح لا يسمح بالمايكروفون هنا. افتح الموقع عبر HTTPS ومن Safari/Chrome مباشرة.'
+  }
+  if (/429|RESOURCE_EXHAUSTED|quota|rate limit/i.test(raw)) {
+    return 'انتهت حصة Gemini Live مؤقتاً. فعّل Billing أو انتظر إعادة ضبط الحصة.'
+  }
+  if (/API key|API_KEY|PERMISSION_DENIED|UNAUTHENTICATED|403/i.test(raw)) {
+    return 'مفتاح Gemini غير صالح أو لا يملك صلاحية Gemini Live.'
+  }
+  return raw.slice(0, 260)
 }
 
 function b64FromInt16(samples: Int16Array): string {
@@ -61,7 +87,8 @@ class Pcm24Player {
   private nextTime = 0
 
   async play(b64: string) {
-    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext
+    if (!Ctx) throw new Error('AudioContext غير مدعوم في هذا المتصفح')
     if (!this.ctx) this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
     const pcm = b64ToInt16(b64)
@@ -94,6 +121,7 @@ export class GeminiLiveAgent {
   private player = new Pcm24Player()
   private muted = false
   private running = false
+  private setupReady = false
   private startedAt = 0
   private timings: { event: string; atMs: number }[] = []
   private userText = ''
@@ -114,67 +142,144 @@ export class GeminiLiveAgent {
   async start(): Promise<void> {
     if (this.running) return
     this.running = true
+    this.setupReady = false
     this.startedAt = performance.now()
     this.state('THINKING')
-    this.mark('طلب جلسة Gemini Live')
 
+    try {
+      // مهم جداً في iPhone/Safari: طلب المايكروفون يجب أن يحدث مباشرة بعد ضغطة المستخدم
+      // قبل أي fetch أو WebSocket حتى لا يضيع user activation.
+      await this.prepareMicrophone()
+      this.mark('تم السماح بالمايكروفون')
+
+      const session = await this.createLiveSession()
+      this.model = session.model
+      await this.openSocket(session)
+    } catch (e) {
+      this.stop()
+      throw new Error(friendlyClientError(e))
+    }
+  }
+
+  private async prepareMicrophone(): Promise<void> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('getUserMedia غير مدعوم أو الموقع غير مفتوح عبر HTTPS')
+    }
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    })
+
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext
+    if (!Ctx) throw new Error('AudioContext غير مدعوم في هذا المتصفح')
+    this.ctx = new Ctx() as AudioContext
+    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
+    this.source = this.ctx.createMediaStreamSource(this.stream)
+    this.processor = this.ctx.createScriptProcessor(4096, 1, 1)
+    this.processor.onaudioprocess = (e) => this.sendAudioFrame(e)
+    this.source.connect(this.processor)
+    this.processor.connect(this.ctx.destination)
+  }
+
+  private async createLiveSession(): Promise<LiveSessionPayload> {
+    this.mark('طلب جلسة Gemini Live')
     const sessionRes = await fetch('/api/ai/gemini-live/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
       body: JSON.stringify({}),
     })
-    const session: LiveSessionPayload & { error?: string } = await sessionRes.json().catch(() => ({ error: 'تعذر قراءة رد Gemini Live' }))
-    if (!sessionRes.ok || !session.wsUrl) throw new Error(session.error || 'تعذر إنشاء جلسة Gemini Live')
-    this.model = session.model
-
-    this.ws = new WebSocket(session.wsUrl)
-    this.ws.onopen = () => {
-      this.mark('فتح WebSocket')
-      this.ws?.send(JSON.stringify(session.setup))
-      void this.startMic()
+    const session: LiveSessionPayload = await sessionRes.json().catch(() => ({
+      error: 'تعذر قراءة رد Gemini Live من الخادم',
+      wsUrl: '',
+      setup: null,
+      model: '',
+      voice: '',
+    }))
+    if (!sessionRes.ok || !session.wsUrl) {
+      throw new Error(session.error || `فشل إنشاء جلسة Gemini Live HTTP ${sessionRes.status}`)
     }
-    this.ws.onerror = () => this.cb.onError?.('تعذر الاتصال بـ Gemini Live. تحقق من المفتاح والحصة وBilling.')
-    this.ws.onclose = () => {
-      if (this.running) this.state('IDLE')
-      this.running = false
-    }
-    this.ws.onmessage = (ev) => this.handleMessage(ev.data)
+    return session
   }
 
-  private async startMic() {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
-    this.ctx = new Ctx() as AudioContext
-    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
-    this.source = this.ctx.createMediaStreamSource(this.stream)
-    this.processor = this.ctx.createScriptProcessor(4096, 1, 1)
-    this.processor.onaudioprocess = (e) => {
-      if (!this.running || this.muted || this.ws?.readyState !== WebSocket.OPEN) return
-      const input = e.inputBuffer.getChannelData(0)
-      let peak = 0
-      for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
-      this.cb.onLevel?.(Math.min(1, peak * 6))
-      this.state(peak > 0.018 ? 'USER_SPEAKING' : 'LISTENING')
-      const pcm16 = downsampleTo16k(input, this.ctx?.sampleRate || 48000)
-      this.ws?.send(JSON.stringify({ realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: b64FromInt16(pcm16) }] } }))
-    }
-    this.source.connect(this.processor)
-    this.processor.connect(this.ctx.destination)
-    this.state('LISTENING')
-    this.mark('بدأ إرسال صوت الطالب PCM 16k')
+  private openSocket(session: LiveSessionPayload): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const fail = (msg: string) => {
+        if (!settled) {
+          settled = true
+          reject(new Error(msg))
+        } else {
+          this.cb.onError?.(friendlyClientError(msg))
+        }
+      }
+
+      const timer = window.setTimeout(() => {
+        fail('لم يكتمل إعداد اتصال Gemini Live خلال المهلة المحددة')
+      }, 15_000)
+
+      this.ws = new WebSocket(session.wsUrl)
+      this.ws.onopen = () => {
+        this.mark('فتح WebSocket')
+        this.ws?.send(JSON.stringify(session.setup))
+      }
+      this.ws.onerror = () => fail('تعذر الاتصال بـ Gemini Live. تحقق من المفتاح والحصة وBilling.')
+      this.ws.onclose = () => {
+        window.clearTimeout(timer)
+        if (!this.setupReady) fail('انقطع اتصال Gemini Live قبل اكتمال الإعداد')
+        if (this.running) this.state('IDLE')
+        this.running = false
+      }
+      this.ws.onmessage = (ev) => {
+        const completed = this.handleMessage(ev.data)
+        if (completed && !settled) {
+          settled = true
+          window.clearTimeout(timer)
+          this.setupReady = true
+          this.state('LISTENING')
+          this.mark('اكتمل إعداد Gemini Live')
+          resolve()
+        }
+      }
+    })
   }
 
-  private handleMessage(raw: any) {
+  private sendAudioFrame(e: AudioProcessingEvent) {
+    if (!this.running || !this.setupReady || this.muted || this.ws?.readyState !== WebSocket.OPEN || !this.ctx) return
+    const input = e.inputBuffer.getChannelData(0)
+    let peak = 0
+    for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
+    this.cb.onLevel?.(Math.min(1, peak * 6))
+    this.state(peak > 0.018 ? 'USER_SPEAKING' : 'LISTENING')
+    const pcm16 = downsampleTo16k(input, this.ctx.sampleRate || 48000)
+    this.ws.send(JSON.stringify({
+      realtimeInput: {
+        audio: { mimeType: 'audio/pcm;rate=16000', data: b64FromInt16(pcm16) },
+      },
+    }))
+  }
+
+  private handleMessage(raw: any): boolean {
     let msg: any
-    try { msg = JSON.parse(String(raw)) } catch { return }
+    try { msg = JSON.parse(String(raw)) } catch { return false }
     if (msg.error) {
-      this.cb.onError?.(msg.error.message || 'خطأ من Gemini Live')
-      return
+      this.cb.onError?.(friendlyClientError(msg.error.message || 'خطأ من Gemini Live'))
+      return false
     }
+    if (msg.setupComplete) return true
+
     const sc = msg.serverContent || msg
-    const inputText = sc.inputTranscription?.text || sc.inputAudioTranscription?.text || sc.inputTranscription?.transcript
+    if (sc.interrupted) {
+      this.interrupt()
+      return false
+    }
+
+    const inputText = sc.inputTranscription?.text || sc.interimInputTranscription?.text || sc.inputAudioTranscription?.text || sc.inputTranscription?.transcript
     if (inputText) {
-      this.userText += inputText
+      this.userText = inputText
       this.cb.onUserCaption?.(this.userText)
     }
     const outputText = sc.outputTranscription?.text || sc.outputAudioTranscription?.text || sc.outputTranscription?.transcript
@@ -188,7 +293,7 @@ export class GeminiLiveAgent {
       if (b64) {
         this.state('AI_SPEAKING')
         this.mark('استقبال صوت Gemini PCM 24k')
-        void this.player.play(b64)
+        void this.player.play(b64).catch((e) => this.cb.onError?.(friendlyClientError(e)))
       }
     }
     if (sc.turnComplete || sc.generationComplete) {
@@ -202,6 +307,7 @@ export class GeminiLiveAgent {
       this.aiText = ''
       this.state('LISTENING')
     }
+    return false
   }
 
   private async logTurn(userText: string, aiText: string) {
@@ -227,6 +333,7 @@ export class GeminiLiveAgent {
 
   stop() {
     this.running = false
+    this.setupReady = false
     this.player.stop()
     try { this.processor?.disconnect() } catch {}
     try { this.source?.disconnect() } catch {}
