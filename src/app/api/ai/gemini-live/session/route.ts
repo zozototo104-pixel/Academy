@@ -42,7 +42,7 @@ function arabicErrorForGemini(e: any): string {
   if (isAuthError(e)) return 'مفتاح Gemini غير صالح أو لا يملك صلاحية Live API'
   if (isQuotaError(e)) return 'وصل Gemini Live إلى حد الحصة الحالية لهذا المشروع — فعّل Billing أو انتظر إعادة الضبط'
   if (isModelUnavailableError(e)) return 'نموذج Gemini Live المختار غير متاح لهذا المشروع'
-  if (isInvalidArgumentError(e)) return 'إعدادات Gemini Live غير مقبولة. تأكد من استخدام gemini-3.1-flash-live-preview وحفظ الإعدادات، أو فعّل صلاحية Live API لهذا المشروع'
+  if (isInvalidArgumentError(e)) return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview وتأكد أن المشروع يملك صلاحية Live API'
   return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
 
@@ -70,44 +70,50 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     )
   }
+
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
   const ragContext = await buildSupervisorContext(user.id)
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
     'استجب بصوت طبيعي قصير، وتوقف بعد فكرة أو سؤال واحد حتى تمنح الطالب فرصة المقاطعة والرد.'
-  const systemInstruction = buildVoiceSystemPrompt(mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n')))
+  const systemInstruction = buildVoiceSystemPrompt(
+    mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
+  )
 
-  const liveConfig = {
-    responseModalities: ['AUDIO'],
-    systemInstruction: {
-      parts: [{ text: systemInstruction.slice(0, 36000) }],
-    },
-    speechConfig: {
-      voiceConfig: {
-        prebuiltVoiceConfig: { voiceName: voice },
+  // حسب WebSocket API، رسالة setup لا تحتوي config. الحقول تكون مباشرة داخل setup
+  // و responseModalities تكون داخل generationConfig.
+  const setup = {
+    setup: {
+      model: `models/${model}`,
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voice },
+          },
+        },
       },
-    },
-    inputAudioTranscription: {},
-    outputAudioTranscription: {},
-    sessionResumption: {},
-  }
-
-  // عند إنشاء token نثبت أقل قيود لازمة فقط. بعض إعدادات Live التفصيلية
-  // تُقبل في رسالة setup على WebSocket لكنها قد تُرفض داخل auth_tokens.
-  const tokenLiveConstraints = {
-    model: `models/${model}`,
-    config: {
+      systemInstruction: {
+        parts: [{ text: systemInstruction.slice(0, 36000) }],
+      },
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
       sessionResumption: {},
-      responseModalities: ['AUDIO'],
     },
   }
 
   const now = Date.now()
+  const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
+  const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
+
+  // auth_tokens يحتاج body.authToken. نترك bidiGenerateContentSetup فارغاً حتى يستخدم
+  // الخادم رسالة setup المرسلة عبر WebSocket، وبهذا لا نكرر الإعدادات ولا تنرفض بسبب field mask.
   const tokenBody = {
-    uses: 1,
-    expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
-    newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
-    liveConnectConstraints: tokenLiveConstraints,
+    authToken: {
+      uses: 1,
+      expireTime,
+      newSessionExpireTime,
+    },
   }
 
   try {
@@ -134,7 +140,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const token = String(payload?.name || payload?.token || '').trim()
+    const token = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
     if (!token) {
       return NextResponse.json({ error: 'لم يرجع Gemini رمز جلسة Live صالحاً' }, { status: 502 })
     }
@@ -144,8 +150,8 @@ export async function POST(req: NextRequest) {
         ok: true,
         model,
         voice,
-        expiresAt: tokenBody.expireTime,
-        message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح'
+        expiresAt: expireTime,
+        message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
     }
 
@@ -153,14 +159,9 @@ export async function POST(req: NextRequest) {
       token,
       model,
       voice,
-      expiresAt: tokenBody.expireTime,
+      expiresAt: expireTime,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
-      setup: {
-        setup: {
-          model: `models/${model}`,
-          config: liveConfig,
-        },
-      },
+      setup,
     })
   } catch (e: any) {
     console.error('gemini-live session error:', String(e?.message || e).slice(0, 500))
