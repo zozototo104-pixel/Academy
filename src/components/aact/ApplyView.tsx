@@ -56,6 +56,15 @@ const EDUCATION_LABEL: Record<string, string> = {
   OTHER: 'أخرى',
 }
 
+const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
+  MASTERS: 'الماجستير المهني',
+  DOCTORATE: 'الدكتوراه المهنية',
+  DIPLOMA: 'الدبلومات المهنية',
+  INTL_CERT: 'الشهادات الدولية',
+  ACCREDITATION: 'الاعتمادات المهنية',
+}
+const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
   UNDER_REVIEW: { text: 'قيد دراسة الإدارة', cls: 'bg-blue-100 text-blue-700' },
