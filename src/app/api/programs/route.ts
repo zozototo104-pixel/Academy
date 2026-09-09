@@ -7,11 +7,21 @@ import { isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CAT
 export async function GET() {
   try {
     await ensureCoreSeed()
-    const programs = await db.program.findMany({
+    const rows = await db.program.findMany({
       where: { active: true },
-      orderBy: { order: 'asc' },
+      orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
       include: { units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } } },
     })
+
+    const programs = rows
+      .filter((p) => !isGenericAllSpecializationsProgram(p))
+      .sort((a, b) => {
+        const ca = PROGRAM_CATEGORY_ORDER.indexOf(a.category)
+        const cb = PROGRAM_CATEGORY_ORDER.indexOf(b.category)
+        const oa = ca === -1 ? 999 : ca
+        const ob = cb === -1 ? 999 : cb
+        return oa - ob || a.order - b.order || a.titleAr.localeCompare(b.titleAr, 'ar')
+      })
 
     const user = await getCurrentUser()
     let enrolledProgramIds: string[] = []
