@@ -271,19 +271,57 @@ export function AdminBooksTab() {
       {/* اختيار البرنامج */}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="p-5">
-          <Label className="mb-2 block text-xs font-black text-[#0f2b46]">اختر التخصص/البرنامج لإدارة كتبه واختباراته</Label>
-          <Select value={programId} onValueChange={(v) => { setProgramId(v); setSuggestions([]); loadProgramData(v) }}>
-            <SelectTrigger className="h-11 w-full max-w-xl text-sm font-bold">
-              <SelectValue placeholder="اختر برنامجاً..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {programs.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.titleAr} — {CAT_AR[p.category] || p.category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="mb-3 block text-xs font-black text-[#0f2b46]">اختر الدرجة ثم التخصص لإدارة الكتب والاختبارات</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-500">نوع البرنامج / الدرجة</Label>
+              <Select
+                value={selectedCategory}
+                onValueChange={(v) => {
+                  setSelectedCategory(v)
+                  setProgramId('')
+                  setBooks([])
+                  setExams([])
+                  setSuggestions([])
+                }}
+              >
+                <SelectTrigger className="h-11 text-sm font-bold">
+                  <SelectValue placeholder="اختر: ماجستير / دكتوراه / دبلوم" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map((c) => (
+                    <SelectItem key={c} value={c}>{CAT_AR[c] || c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-500">
+                {selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص' : 'البرنامج / الدبلوم'}
+              </Label>
+              <Select
+                value={programId}
+                disabled={!selectedCategory}
+                onValueChange={(v) => { setProgramId(v); setSuggestions([]); loadProgramData(v) }}
+              >
+                <SelectTrigger className="h-11 text-sm font-bold">
+                  <SelectValue placeholder={selectedCategory ? 'اختر التخصص...' : 'اختر الدرجة أولاً'} />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {filteredPrograms.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {(p.category === 'MASTERS' || p.category === 'DOCTORATE') ? (p.specialty || p.titleAr) : p.titleAr}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {selectedProgram && (
+            <div className="mt-3 rounded-xl border border-[#c9a227]/30 bg-[#f7edd0]/40 p-3 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
+              الكتب والامتحانات ستُربط تحديداً بـ «{selectedProgram.titleAr}». عند اقتراح الكتب سيستخدم الذكاء هذا التخصص، وليس برنامجاً عاماً باسم كافة التخصصات.
+            </div>
+          )}
         </CardContent>
       </Card>
 
