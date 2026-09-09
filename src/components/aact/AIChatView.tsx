@@ -326,37 +326,41 @@ export function AIChatView() {
       startAsrFallback()
       return
     }
+    speechDraftRef.current = ''
     recognitionRef.current = rec
     rec.onresult = (e) => {
       let finalText = ''
       let interimText = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i]
-        if (r.isFinal) finalText += r[0].transcript
-        else interimText += r[0].transcript
+        if (r.isFinal) finalText += ` ${r[0].transcript}`
+        else interimText += ` ${r[0].transcript}`
       }
-      if (interimText) setInterim(interimText)
-      if (finalText) {
-        setInterim('')
-        send(finalText)
-      }
+      if (finalText.trim()) speechDraftRef.current = `${speechDraftRef.current} ${finalText}`.replace(/\s+/g, ' ').trim()
+      setInterim((interimText || speechDraftRef.current || 'يستمع… اضغط المايك مرة أخرى للإرسال').trim())
     }
     rec.onerror = (ev: any) => {
       setListening(false)
       setInterim('')
+      speechDraftRef.current = ''
       if (ev?.error === 'not-allowed') {
         toast({ title: 'صلاحية المايكروفون مرفوضة', description: 'اسمح بالوصول للمايكروفون من إعدادات المتصفح', variant: 'destructive' })
       }
     }
     rec.onend = () => {
+      const text = speechDraftRef.current.trim()
+      speechDraftRef.current = ''
       setListening(false)
       setInterim('')
+      if (text) send(text)
     }
     try {
       rec.start()
       setListening(true)
+      setInterim('يستمع… اضغط المايك مرة أخرى للإرسال')
     } catch {
       setListening(false)
+      setInterim('')
     }
   }
 
