@@ -565,8 +565,11 @@ function summarizeEvidence(files: AdmissionFileEvidence[]): string {
   return files.map((f, i) => {
     const label = DOC_TYPE_AR[f.docType] || f.docType
     const match = expectedDocMatches(f.docType, f)
-    const text = (f.textSnippet || f.ocrRead?.extractedText || '').replace(/\s+/g, ' ').slice(0, 1000)
-    return `ملف ${i + 1}: التصنيف=${label}; الاسم=${f.fileName}; النوع=${f.mimeType}; الحجم=${Math.ceil(f.size / 1024)}ك.ب; القارئ=${f.textReader}; نتيجة المطابقة=${match.ok ? 'مطابق' : match.problem ? 'مشكلة' : 'غير متحقق'}; السبب=${match.reason}; ملاحظة القراءة=${f.textNote}; مقتطف=${text || '-'}`
+    const text = safeVisibleContent(f).replace(/\s+/g, ' ').slice(0, 1000)
+    const note = isVisionUnavailable(f)
+      ? (f.ocrRead?.qualityNote || 'لم تكتمل قراءة الصورة آلياً الآن')
+      : f.textNote
+    return `ملف ${i + 1}: التصنيف=${label}; الاسم=${f.fileName}; النوع=${f.mimeType}; الحجم=${Math.ceil(f.size / 1024)}ك.ب; القارئ=${f.textReader}; نتيجة المطابقة=${match.ok ? 'مطابق' : match.problem ? 'مشكلة' : 'غير متحقق'}; السبب=${match.reason}; ملاحظة القراءة=${note}; مقتطف=${text || '-'}`
   }).join('\n')
 }
 
