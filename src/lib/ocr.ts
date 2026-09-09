@@ -208,27 +208,29 @@ export async function readDocumentImage(
     const geminiRead = await readWithGemini(buffer, effectiveMime, declaredTypeAr)
     if (geminiRead) return geminiRead
   } catch (e: any) {
-    errors.push(`Gemini Vision: ${String(e?.message || e).slice(0, 220)}`)
+    errors.push(publicVisionError(e))
+    console.error('Gemini Vision failed:', String(e?.message || e).slice(0, 500))
   }
 
   try {
     const legacyRead = await readWithLegacyZai(buffer, effectiveMime, declaredTypeAr)
     if (legacyRead) return legacyRead
   } catch (e: any) {
-    errors.push(`Legacy Vision: ${String(e?.message || e).slice(0, 220)}`)
+    errors.push(publicVisionError(e))
+    console.error('Legacy Vision failed:', String(e?.message || e).slice(0, 500))
   }
 
-  console.error('readDocumentImage failed:', errors.join(' | '))
+  const publicReason = [...new Set(errors)].join(' / ') || 'تعذر تشغيل قارئ الصور الآلي لهذا المرفق.'
   return {
     readable: false,
-    docTypeDetected: 'فشل محرك الرؤية في قراءة الملف البصري',
+    docTypeDetected: 'لم تُقرأ الصورة آلياً',
     degreeMentioned: 'NONE',
     nameOnDoc: '',
     institution: '',
     issueDate: '',
-    extractedText: `لم يتمكن النظام من قراءة هذا المرفق بصرياً. نوع الملف: ${effectiveMime}. الأخطاء: ${errors.join(' | ').slice(0, 500)}`,
-    qualityNote: errors.join(' | ').slice(0, 500) || 'فشل غير معروف في قراءة الصورة',
-    matchNote: `لم يمكن التحقق من مطابقة الملف مع التصنيف المعلن (${declaredType || declaredTypeAr})`,
+    extractedText: `وصل المرفق كملف بصري (${effectiveMime}) لكن لم يكتمل تحليله آلياً الآن.` ,
+    qualityNote: publicReason,
+    matchNote: `لا يمكن احتساب هذا المرفق كمطابق للتصنيف «${declaredType || declaredTypeAr}» قبل إعادة التحليل أو المراجعة اليدوية.`,
   }
 }
 
