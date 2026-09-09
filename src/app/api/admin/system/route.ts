@@ -60,9 +60,13 @@ export async function PATCH(req: NextRequest) {
     const updates: string[] = []
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
-      const value = String(body[key] ?? '')
+      let value = String(body[key] ?? '').trim()
       // الحقول السرية: أرسل قيمة مقنعة أو فارغة = لا تغيير
       if (SECRET_KEYS.has(key) && (value.includes('••••') || value === '')) continue
+      if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL'].includes(key)) {
+        value = normalizeGeminiModelName(value)
+        if (key === 'GEMINI_LIVE_MODEL' && value && !isValidGeminiLiveModel(value)) value = 'gemini-3.1-flash-live-preview'
+      }
       await db.setting.upsert({
         where: { key },
         create: { key, value },
