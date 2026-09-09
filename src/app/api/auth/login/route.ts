@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyPassword, createSession } from '@/lib/auth'
+import { ensureCoreSeed } from '@/lib/bootstrap'
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureCoreSeed()
     const { email, password } = await req.json()
     if (!email?.trim() || !password) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }, { status: 400 })
