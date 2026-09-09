@@ -273,6 +273,47 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
   throw lastErr
 }
 
+export async function geminiVisionJson(opts: {
+  system?: string
+  prompt: string
+  images: { mimeType: string; dataBase64: string }[]
+  temperature?: number
+  maxOutputTokens?: number
+}): Promise<string> {
+  const ai = getGemini()
+  if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
+  const parts: any[] = [{ text: opts.prompt }]
+  for (const img of opts.images) {
+    parts.push({ inlineData: { mimeType: img.mimeType || 'image/jpeg', data: img.dataBase64 } })
+  }
+  const contents = [{ role: 'user', parts }]
+  let lastErr: any
+  for (const model of await textModelChain()) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
+          temperature: opts.temperature ?? 0.1,
+          maxOutputTokens: opts.maxOutputTokens ?? 2048,
+          responseMimeType: 'application/json',
+        },
+      })
+      const text = String((response as any).text || '').trim()
+      if (!text) throw new Error('EMPTY_VISION_RESPONSE')
+      activeTextModel = model
+      return text
+    } catch (e) {
+      lastErr = e
+      if (isAuthError(e)) throw e
+      if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) continue
+      throw e
+    }
+  }
+  throw lastErr
+}
+
 export async function geminiTestConnection(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; quotaExhausted?: boolean }> {
   const ai = getGemini()
   if (!ai) return { ok: false, error: 'GEMINI_NOT_CONFIGURED' }
