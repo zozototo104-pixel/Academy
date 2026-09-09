@@ -103,6 +103,21 @@ export function AdminBooksTab() {
     }
   }, [])
 
+  const availableCategories = useMemo(() => {
+    const set = new Set(programs.map((p) => p.category).filter(Boolean))
+    return CAT_ORDER.filter((c) => set.has(c)).concat([...set].filter((c) => !CAT_ORDER.includes(c)))
+  }, [programs])
+
+  const filteredPrograms = useMemo(
+    () => selectedCategory ? programs.filter((p) => p.category === selectedCategory) : [],
+    [programs, selectedCategory]
+  )
+
+  const selectedProgram = useMemo(
+    () => programs.find((p) => p.id === programId) || null,
+    [programs, programId]
+  )
+
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
