@@ -624,7 +624,7 @@ ${evidence}
       : 'NEEDS_CLARIFICATION') as Verdict
     const aiScore = Math.max(0, Math.min(100, Math.round(Number(parsed.fitScore) || 0)))
 
-    const finalScore = Math.min(rules.deterministicScore, aiScore || rules.deterministicScore)
+    const finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
     let finalVerdict: Verdict = worseVerdict(rules.verdict, aiVerdict)
     if (finalScore < 25) finalVerdict = app.files.length === 0 ? 'INSUFFICIENT_DATA' : 'RECOMMEND_REJECT'
     if (rules.hardProblems > 0 && finalVerdict === 'RECOMMEND_APPROVE') finalVerdict = 'NEEDS_CLARIFICATION'
