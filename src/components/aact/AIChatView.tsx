@@ -768,7 +768,7 @@ export function AIChatView() {
             onClick={() => send()}
             disabled={sending || !input.trim()}
             size="icon"
-            className="h-12 w-12 shrink-0 rounded-full bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]"
+            className="h-11 w-11 shrink-0 rounded-full bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a] sm:h-12 sm:w-12"
             title="إرسال"
           >
             {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rotate-180" />}
