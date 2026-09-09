@@ -52,7 +52,8 @@ function getRecognition(): SpeechRecognitionLike | null {
   if (!SR) return null
   const rec: SpeechRecognitionLike = new SR()
   rec.lang = 'ar-SA'
-  rec.continuous = true
+  // سؤال صوتي واحد: ينتهي عند الصمت أو عند الضغط مرة ثانية ثم يُرسل النص الملتقط.
+  rec.continuous = false
   rec.interimResults = true
   rec.maxAlternatives = 1
   return rec
