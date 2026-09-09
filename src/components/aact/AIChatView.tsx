@@ -494,7 +494,7 @@ export function AIChatView() {
             body: JSON.stringify({ audioBase64: b64 }),
           })
           setInterim('')
-          if (d.text?.trim()) send(d.text.trim())
+          if (d.text?.trim()) send(d.text.trim(), { voice: true })
           else toast({ title: 'لم يُفهم الصوت', description: 'حاول مرة أخرى بنطق أوضح', variant: 'destructive' })
         } catch (e: any) {
           setInterim('')
