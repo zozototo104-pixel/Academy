@@ -31,6 +31,7 @@ const TTS_MODELS = [
 
 export const GEMINI_LIVE_MODEL_FALLBACKS = [
   'gemini-3.1-flash-live-preview',
+  'gemini-2.5-flash-native-audio-preview-12-2025',
   'gemini-2.5-flash-live-preview',
 ]
 
