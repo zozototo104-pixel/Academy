@@ -243,19 +243,25 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
   const contents = buildContents(opts.history)
   let lastErr: any
   for (const model of await textModelChain()) {
-    try {
-      const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts) })
-      for await (const chunk of stream) {
-        const text = (chunk as any).text as string | undefined
-        if (text) yield text
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts) })
+        for await (const chunk of stream) {
+          const text = (chunk as any).text as string | undefined
+          if (text) yield text
+        }
+        activeTextModel = model
+        return
+      } catch (e) {
+        lastErr = e
+        if (isAuthError(e)) throw e
+        if (isTransientGeminiError(e)) {
+          if (attempt < 2) await wait(700 * attempt)
+          continue
+        }
+        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
+        throw e
       }
-      activeTextModel = model
-      return
-    } catch (e) {
-      lastErr = e
-      if (isAuthError(e)) throw e
-      if ((isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e))) continue
-      throw e
     }
   }
   throw lastErr
