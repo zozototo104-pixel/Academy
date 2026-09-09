@@ -259,12 +259,14 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
 
 function fileDetail(f: AdmissionFileEvidence, extra?: string): string {
   const base = `مرفوع (${f.fileName} — ${Math.ceil(f.size / 1024)}ك.ب)`
-  const visibleText = (f.textSnippet || f.ocrRead?.extractedText || '').replace(/\s+/g, ' ').trim().slice(0, 220)
-  const read = f.textSnippet.length >= 30
-    ? ` — تمت قراءة المحتوى آلياً (${f.textReader})${visibleText ? ` — محتوى ظاهر: ${visibleText}` : ''}`
-    : f.ocrRead
-      ? ` — نتيجة الرؤية: ${f.ocrRead.docTypeDetected || 'غير محدد'}${visibleText ? ` — محتوى/وصف ظاهر: ${visibleText}` : ''}${f.ocrRead.qualityNote ? ` — ${f.ocrRead.qualityNote}` : ''}`
-      : ` — ${f.textNote || 'غير قابل للقراءة الآلية'}`
+  const visibleText = safeVisibleContent(f).replace(/\s+/g, ' ').trim().slice(0, 220)
+  const read = isVisionUnavailable(f)
+    ? ` — لم تكتمل قراءة الصورة آلياً الآن — ${f.ocrRead?.qualityNote || f.textNote || 'أعد التحليل لاحقاً أو راجعها يدوياً'}`
+    : f.textSnippet.length >= 30
+      ? ` — تمت قراءة المحتوى آلياً (${f.textReader})${visibleText ? ` — محتوى ظاهر: ${visibleText}` : ''}`
+      : f.ocrRead
+        ? ` — نتيجة الرؤية: ${f.ocrRead.docTypeDetected || 'غير محدد'}${visibleText ? ` — محتوى/وصف ظاهر: ${visibleText}` : ''}${f.ocrRead.qualityNote ? ` — ${f.ocrRead.qualityNote}` : ''}`
+        : ` — ${f.textNote || 'غير قابل للقراءة الآلية'}`
   return `${base}${read}${extra ? ` — ${extra}` : ''}`
 }
 
