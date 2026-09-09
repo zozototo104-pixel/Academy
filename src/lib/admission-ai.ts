@@ -488,12 +488,15 @@ async function buildFileEvidence(files: { docType: string; fileName: string; mim
 
     if (f.data) {
       const buf = Buffer.from(f.data, 'base64')
-      if (f.mimeType.startsWith('image/') && visionReads < MAX_VISION_FILES) {
+      const effectiveMime = inferMimeFromFileName(f.fileName, f.mimeType || 'application/octet-stream')
+      if (isVisualFile(effectiveMime, f.fileName) && effectiveMime.startsWith('image/') && visionReads < MAX_VISION_FILES) {
         visionReads++
-        ocrRead = await readDocumentImage(buf, f.mimeType, f.docType, DOC_TYPE_AR[f.docType] || f.docType)
+        ocrRead = await readDocumentImage(buf, effectiveMime, f.docType, DOC_TYPE_AR[f.docType] || f.docType, f.fileName)
         textSnippet = ocrRead?.extractedText || ''
         textReader = 'IMAGE'
-        textNote = ocrRead ? (ocrRead.readable ? 'تمت قراءة الصورة بالرؤية الذكية' : `الصورة غير مقبولة آلياً: ${ocrRead.docTypeDetected || ocrRead.qualityNote}`) : 'تعذر فحص الصورة بالرؤية الذكية'
+        textNote = ocrRead
+          ? (ocrRead.readable ? 'تمت قراءة الصورة بالرؤية الذكية' : `تم فحص الصورة بالرؤية الذكية لكنها لا تثبت المطلوب: ${ocrRead.docTypeDetected || ocrRead.qualityNote}`)
+          : 'تعذر فحص الصورة بالرؤية الذكية'
       } else if (textReads < MAX_TEXT_EVIDENCE_FILES) {
         textReads++
         const extracted = await extractDocumentText(buf, f.mimeType, f.fileName, 12000)
