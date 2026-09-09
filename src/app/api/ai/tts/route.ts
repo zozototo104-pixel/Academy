@@ -85,6 +85,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
+function buildSpeechPreview(text: string): string {
+  const clean = String(text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[`*_#>\[\]()-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (clean.length <= 420) return clean
+
+  const sentences = clean.split(/(?<=[.!؟?])\s+/).filter(Boolean)
+  let out = ''
+  for (const s of sentences) {
+    const next = `${out} ${s}`.trim()
+    if (next.length > 380) break
+    out = next
+    if (out.length >= 230) break
+  }
+
+  if (!out) out = clean.slice(0, 360).replace(/\s+\S*$/, '')
+  return `${out}… التفاصيل مكتوبة أمامك في الرسالة.`
+}
+
 function audioResponse(buf: Buffer): NextResponse {
   return new NextResponse(new Uint8Array(buf), {
     status: 200,
