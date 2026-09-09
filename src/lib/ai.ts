@@ -143,11 +143,23 @@ function localSupervisorFallback(messages: { role: string; content: string }[]):
   return `تمام، فهمت عليك. وضّح لي هل سؤالك عن برنامج معيّن، الرسوم، الشهادة، الاعتماد، أو خطوات التسجيل؟ سأعطيك جواباً مباشراً.`
 }
 
+function shouldAnswerLocally(last: string): boolean {
+  const q = normalizeArabicQuestion(last)
+  return /برنامج|برامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص|تهمني|بدي|حاب|عايز|اريد|شو|رسوم|سعر|تكلفه|شهاده|تسجيل|قبول|اعتماد/.test(q)
+}
+
 export async function chatComplete(
   messages: { role: string; content: string }[],
   context?: string
 ): Promise<string> {
   const systemPrompt = buildSupervisorSystemPrompt(context)
+  const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+
+  // أسئلة المنصة العامة نجيب عليها فورياً من بيانات الأكاديمية حتى لا ينتظر الطالب Gemini طويلاً.
+  if (shouldAnswerLocally(lastUserText)) {
+    return localSupervisorFallback(messages)
+  }
+
   const geminiReady = await ensureGeminiKey().catch(() => false)
 
   if (geminiReady) {
