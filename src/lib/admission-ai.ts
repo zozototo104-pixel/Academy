@@ -122,7 +122,7 @@ const KEYWORDS = {
   idDoc: ['هويه', 'هوية', 'جواز', 'passport', 'national id', 'identity', 'id card', 'بطاقه', 'بطاقة'],
   cvDoc: ['سيره ذاتيه', 'سيرة ذاتية', 'cv', 'resume', 'curriculum vitae', 'خبره', 'خبرات', 'experience', 'skills', 'مهارات'],
   photoDoc: ['صوره شخصيه', 'صورة شخصية', 'personal photo', 'portrait', 'headshot', 'face'],
-  logo: ['شعار', 'logo', 'seal only', 'ختم فقط', 'ايقونه', 'أيقونة', 'رمز', 'غير مقبول'],
+  logo: ['شعار', 'logo', 'seal only', 'ختم فقط', 'ايقونه', 'أيقونة', 'رمز'],
 }
 
 function normalize(text: string): string {
