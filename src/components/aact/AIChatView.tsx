@@ -125,6 +125,7 @@ export function AIChatView() {
   activeUnitRef.current = activeUnitId ?? null
   // مسجل بديل ASR خادمي (لمتصفحات بلا Web Speech API)
   const asrRecorderRef = useRef<MediaRecorder | null>(null)
+  const speechDraftRef = useRef('')
 
   // Load history
   useEffect(() => {
