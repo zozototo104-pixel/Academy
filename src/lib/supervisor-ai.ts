@@ -54,61 +54,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
     if (activePrograms.length > 0) {
       const programLines = activePrograms.map((p, i) => {
         const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
-
-/**
- * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
- * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
- * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
- */
-export async function buildSupervisorContext(userId: string): Promise<string> {
-  try {
-    const [enrollments, thesis, admission, activePrograms] = await Promise.all([
-      db.enrollment.findMany({
-        where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
-        include: {
-          program: {
-            include: {
-              units: { orderBy: { order: 'asc' }, select: { title: true, summary: true, objectives: true } },
-              books: {
-                orderBy: { createdAt: 'asc' },
-                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true },
-              },
-              programExams: { select: { id: true, title: true, semester: true, status: true, passScore: true } },
-            },
-          },
-        },
-      }),
-      db.thesisSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
-      db.admissionApplication.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: { reference: true, program: true, status: true, thesisDeadline: true },
-      }),
-      db.program.findMany({
-        where: { active: true },
-        orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
-        take: 100,
-        select: {
-          titleAr: true,
-          titleEn: true,
-          category: true,
-          hours: true,
-          price: true,
-          description: true,
-          books: {
-            orderBy: { createdAt: 'asc' },
-            take: 3,
-            select: { title: true, titleEn: true, author: true, description: true, textContent: true },
-          },
-        },
-      }),
-    ])
-
-    const parts: string[] = []
-
-    if (activePrograms.length > 0) {
- : ''
+        const price = p.price ? ` — ${p.price}$` : ''
         const desc = p.description ? ` — ${p.description.replace(/\s+/g, ' ').slice(0, 120)}` : ''
         const books = p.books.length
           ? `\n   كتب/مراجع مرتبطة: ${p.books.map((b) => {
