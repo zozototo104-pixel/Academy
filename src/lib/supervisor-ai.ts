@@ -33,7 +33,19 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         where: { active: true },
         orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
         take: 100,
-        select: { titleAr: true, titleEn: true, category: true, hours: true, price: true, description: true },
+        select: {
+          titleAr: true,
+          titleEn: true,
+          category: true,
+          hours: true,
+          price: true,
+          description: true,
+          books: {
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+            select: { title: true, titleEn: true, author: true, description: true, textContent: true },
+          },
+        },
       }),
     ])
 
