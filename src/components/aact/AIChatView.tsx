@@ -367,6 +367,10 @@ export function AIChatView() {
       setMuted(false)
       return
     }
+    audioRef.current?.pause()
+    try { window.speechSynthesis?.cancel() } catch {}
+    speechUtteranceRef.current = null
+    setSpeakingId(null)
     setVoiceMode(true)
     voiceModeRef.current = true
     const agent = new VoiceAgent({
