@@ -207,7 +207,7 @@ export function AIChatView() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ text, speed: 1.0 }),
+          body: JSON.stringify({ text: buildSpeechPreview(text), speed: 1.18 }),
         })
         if (!res.ok) {
           const err = await res.json().catch(() => ({}))
