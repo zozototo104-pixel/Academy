@@ -6,7 +6,9 @@ import { ChevronDown, ChevronUp, ShieldCheck, Download } from 'lucide-react'
 
 // أزرار عائمة: واتساب مباشر + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
+  const { view } = useAppStore()
   const [showTop, setShowTop] = useState(false)
+  const inChat = view === 'chat'
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
