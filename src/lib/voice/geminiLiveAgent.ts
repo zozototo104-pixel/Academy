@@ -140,18 +140,11 @@ export class GeminiLiveAgent {
   private running = false
   private setupReady = false
   private usingSdk = false
-  private greeted = false
   private startedAt = 0
   private timings: { event: string; atMs: number }[] = []
   private userText = ''
   private aiText = ''
   private model = ''
-
-  // منع المشكلة التي ظهرت بعد رفع الصوت: صوت Gemini يلتقطه المايك ويقاطع نفسه.
-  private lastAiAudioAt = 0
-  private speechActive = false
-  private lastSpeechAt = 0
-  private sentAudioForCurrentSpeech = false
 
   constructor(callbacks: AgentCallbacks = {}) {
     this.cb = callbacks
@@ -169,18 +162,17 @@ export class GeminiLiveAgent {
     this.running = true
     this.setupReady = false
     this.usingSdk = false
-    this.greeted = false
-    this.speechActive = false
-    this.sentAudioForCurrentSpeech = false
     this.startedAt = performance.now()
+    this.userText = ''
+    this.aiText = ''
     this.state('THINKING')
 
     try {
-      // على iPhone/Safari يجب طلب المايكروفون مباشرة بعد ضغطة المستخدم.
+      // لا نرسل تحية تلقائية ولا نعمل VAD يدوي هنا.
+      // Gemini Live يستمع باستمرار ويدير نهاية الدور والمقاطعة بنفسه.
       await this.prepareMicrophone()
       this.mark('تم السماح بالمايكروفون')
       await this.connectWithFallbacks()
-      this.sendInitialGreeting()
     } catch (e) {
       this.stop()
       throw new Error(friendlyClientError(e))
@@ -208,7 +200,8 @@ export class GeminiLiveAgent {
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1)
     this.processor.onaudioprocess = (e) => this.sendAudioFrame(e)
     this.source.connect(this.processor)
-    // إبقاء processor حيّاً. الخرج صفر، ولن يسمع المستخدم نفسه.
+
+    // إبقاء ScriptProcessor حيّاً بدون إخراج صوت المستخدم للسماعة.
     const silent = this.ctx.createGain()
     silent.gain.value = 0
     this.processor.connect(silent)
@@ -222,7 +215,6 @@ export class GeminiLiveAgent {
       'gemini-2.5-flash-native-audio-preview-12-2025',
     ]
 
-    // SDK أولاً؛ إن فشل نرجع مباشرة لـ WebSocket خام.
     for (const model of modelCandidates) {
       try {
         const session = await this.createLiveSession('minimal', model)
@@ -370,50 +362,6 @@ export class GeminiLiveAgent {
     })
   }
 
-  private sendInitialGreeting() {
-    if (this.greeted) return
-    this.greeted = true
-    window.setTimeout(() => {
-      if (!this.running || !this.setupReady) return
-      this.sendTextPrompt('ابدأ بتحية عربية قصيرة جداً: السلام عليكم، أنا مشرفك الذكي، تفضل بسؤالك.')
-    }, 350)
-  }
-
-  private sendTextPrompt(text: string) {
-    if (this.usingSdk && this.sdkSession?.sendRealtimeInput) {
-      try { this.sdkSession.sendRealtimeInput({ text }) } catch (e) { this.cb.onError?.(friendlyClientError(e)) }
-      return
-    }
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        clientContent: {
-          turns: [{ role: 'user', parts: [{ text }] }],
-          turnComplete: true,
-        },
-      }))
-    }
-  }
-
-  private sendRealtimeInput(input: Record<string, unknown>) {
-    if (this.usingSdk && this.sdkSession?.sendRealtimeInput) {
-      this.sdkSession.sendRealtimeInput(input)
-      return
-    }
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ realtimeInput: input }))
-    }
-  }
-
-  private sendAudioStreamEnd() {
-    try {
-      this.sendRealtimeInput({ audioStreamEnd: true })
-      this.mark('انتهى كلام الطالب — إرسال audioStreamEnd')
-      this.state('THINKING')
-    } catch (e) {
-      this.cb.onError?.(friendlyClientError(e))
-    }
-  }
-
   private sendAudioFrame(e: AudioProcessingEvent) {
     if (!this.running || !this.setupReady || this.muted || !this.ctx) return
 
@@ -421,38 +369,24 @@ export class GeminiLiveAgent {
     let peak = 0
     for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
     this.cb.onLevel?.(Math.min(1, peak * 6))
+    this.state(peak > 0.018 ? 'USER_SPEAKING' : 'LISTENING')
 
-    const now = performance.now()
-    const aiRecentlySpeaking = now - this.lastAiAudioAt < 900
-    const speechThreshold = aiRecentlySpeaking ? 0.07 : 0.014
-    const trailingSilenceMs = 700
-    const isSpeech = peak > speechThreshold
-
-    if (isSpeech) {
-      this.speechActive = true
-      this.sentAudioForCurrentSpeech = true
-      this.lastSpeechAt = now
-      this.state('USER_SPEAKING')
-    }
-
-    if (this.speechActive && now - this.lastSpeechAt <= trailingSilenceMs) {
-      const data = b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000))
-      try {
-        this.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data } })
-      } catch (e) {
-        this.cb.onError?.(friendlyClientError(e))
+    const data = b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000))
+    try {
+      if (this.usingSdk && this.sdkSession?.sendRealtimeInput) {
+        this.sdkSession.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data } })
+        return
       }
-      return
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          realtimeInput: {
+            audio: { mimeType: 'audio/pcm;rate=16000', data },
+          },
+        }))
+      }
+    } catch (e) {
+      this.cb.onError?.(friendlyClientError(e))
     }
-
-    if (this.speechActive && this.sentAudioForCurrentSpeech && now - this.lastSpeechAt > trailingSilenceMs) {
-      this.speechActive = false
-      this.sentAudioForCurrentSpeech = false
-      this.sendAudioStreamEnd()
-      return
-    }
-
-    if (!aiRecentlySpeaking) this.state('LISTENING')
   }
 
   private handleRawMessage(raw: any): boolean {
@@ -474,9 +408,6 @@ export class GeminiLiveAgent {
       this.interrupt()
       return false
     }
-    if (sc.waitingForInput && !this.speechActive) {
-      this.state('LISTENING')
-    }
 
     const inputText = sc.inputTranscription?.text || sc.interimInputTranscription?.text || sc.inputAudioTranscription?.text || sc.inputTranscription?.transcript
     if (inputText) {
@@ -492,7 +423,6 @@ export class GeminiLiveAgent {
     for (const part of parts) {
       const b64 = part?.inlineData?.data
       if (b64) {
-        this.lastAiAudioAt = performance.now()
         this.state('AI_SPEAKING')
         this.mark('استقبال صوت Gemini PCM 24k')
         void this.player.play(b64).catch((e) => this.cb.onError?.(friendlyClientError(e)))
@@ -525,17 +455,11 @@ export class GeminiLiveAgent {
   interrupt() {
     this.player.stop()
     this.cb.onInterrupted?.({ spokenPartial: this.aiText })
-    this.lastAiAudioAt = 0
     this.state('LISTENING')
   }
 
   setMuted(v: boolean) {
     this.muted = v
-    if (v && this.speechActive) {
-      this.speechActive = false
-      this.sentAudioForCurrentSpeech = false
-      this.sendAudioStreamEnd()
-    }
     this.state(v ? 'IDLE' : 'LISTENING')
   }
 
