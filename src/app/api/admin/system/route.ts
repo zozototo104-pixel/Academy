@@ -39,6 +39,7 @@ export async function GET() {
         STRIPE_WEBHOOK_SECRET: !!(await db.setting.findUnique({ where: { key: 'STRIPE_WEBHOOK_SECRET' } }))?.value,
         PAYPAL_SECRET: !!(await db.setting.findUnique({ where: { key: 'PAYPAL_SECRET' } }))?.value,
         TURN_CREDENTIAL: !!(await db.setting.findUnique({ where: { key: 'TURN_CREDENTIAL' } }))?.value,
+        GEMINI_API_KEY: !!(await db.setting.findUnique({ where: { key: 'GEMINI_API_KEY' } }))?.value,
       },
       smtpEnabled: smtp.enabled,
       paymentMode: (await db.setting.findUnique({ where: { key: 'PAYMENT_MODE' } }))?.value || 'SANDBOX',
