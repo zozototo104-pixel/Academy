@@ -278,6 +278,31 @@ export function AdminSystemTab() {
           </div>
         </TabsContent>
 
+        {/* ===== Gemini Live ===== */}
+        <TabsContent value="gemini" className="mt-4 space-y-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800">
+            <Radio className="ml-1 inline h-4 w-4" /> Gemini Live هنا صوت إلى صوت حقيقي عبر WebSocket، وليس Text→TTS. احفظ الاسم الإنجليزي الكامل للنموذج؛ العرض العربي لا يُستخدم كقيمة محفوظة.
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
+            {F('GEMINI_API_KEY', 'مفتاح Gemini API', data.secretsSet.GEMINI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'AIza...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
+            {F('GEMINI_TEXT_MODEL', 'نموذج النصوص', 'gemini-3.8-flash', 'text', 'اتركه فارغاً للتلقائي؛ لا تضع نموذج Live هنا')}
+            {F('GEMINI_TTS_MODEL', 'نموذج TTS', 'gemini-3.1-flash-tts-preview', 'text', 'للردود النصية فقط عند استخدام TTS')}
+            {F('GEMINI_TTS_VOICE', 'نبرة الصوت', 'Charon', 'text', 'مثال: Charon')}
+            {F('GEMINI_LIVE_MODEL', 'نموذج Gemini Live', 'gemini-3.1-flash-live-preview', 'text', 'القيمة الصحيحة كاملة: gemini-3.1-flash-live-preview')}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات Gemini
+            </Button>
+            <Button onClick={testGeminiLive} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Gemini Live
+            </Button>
+          </div>
+          <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
+            إذا ظهر 429 فالمفتاح سليم لكن الحصة انتهت مؤقتاً. فعّل Billing في Google AI Studio أو انتظر إعادة ضبط الحصة. إذا ظهر خطأ نموذج، استخدم الاسم الكامل: gemini-3.1-flash-live-preview.
+          </div>
+        </TabsContent>
+
         {/* ===== TURN ===== */}
         <TabsContent value="turn" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
