@@ -203,10 +203,15 @@ export function AIChatView() {
         audio.onerror = cleanup
         const ok = await playOnSharedAudio(url)
         if (!ok) throw new Error('autoplay blocked')
-      } catch {
+      } catch (e: any) {
         setSpeakingId(null)
         if (!voiceModeRef.current) {
-          toast({ title: 'تنبيه', description: 'تعذر تشغيل الصوت — جرّب مرة أخرى', variant: 'destructive' })
+          const msg = String(e?.message || '').trim()
+          toast({
+            title: 'تنبيه',
+            description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى',
+            variant: 'destructive',
+          })
         }
       }
     },
