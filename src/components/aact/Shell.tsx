@@ -18,7 +18,7 @@ export function FloatingActions() {
   }, [])
 
   return (
-    <div className="aact-no-print fixed bottom-4 left-4 z-40 flex flex-col items-center gap-2.5">
+    <div className={`aact-no-print fixed left-4 z-40 flex flex-col items-center gap-2.5 transition-all duration-300 ${inChat ? 'bottom-28 sm:bottom-24' : 'bottom-4'}`}>
       {/* العودة للأعلى — يظهر بعد التمرير */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
