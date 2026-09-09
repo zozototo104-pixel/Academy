@@ -336,7 +336,7 @@ async function generateAudio(text: string): Promise<Buffer> {
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ:\n${text}` }] }],
+        contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ، بسرعة أعلى قليلاً وبدون إطالة أو توقفات كثيرة:\n${text}` }] }],
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
