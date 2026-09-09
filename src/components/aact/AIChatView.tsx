@@ -160,6 +160,7 @@ export function AIChatView() {
     return () => {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
+      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
     }
   }, [])
 
