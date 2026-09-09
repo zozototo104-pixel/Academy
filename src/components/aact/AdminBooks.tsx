@@ -76,6 +76,7 @@ const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATIO
 export function AdminBooksTab() {
   const { toast } = useToast()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [programId, setProgramId] = useState<string>('')
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
