@@ -128,6 +128,8 @@ export function AIChatView() {
   // مسجل بديل ASR خادمي (لمتصفحات بلا Web Speech API)
   const asrRecorderRef = useRef<MediaRecorder | null>(null)
   const speechDraftRef = useRef('')
+  const micManualStopRef = useRef(false)
+  const micRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load history
   useEffect(() => {
