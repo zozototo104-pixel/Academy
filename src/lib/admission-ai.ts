@@ -499,17 +499,17 @@ async function buildFileEvidence(files: { docType: string; fileName: string; mim
           : 'تعذر فحص الصورة بالرؤية الذكية'
       } else if (textReads < MAX_TEXT_EVIDENCE_FILES) {
         textReads++
-        const extracted = await extractDocumentText(buf, f.mimeType, f.fileName, 12000)
+        const extracted = await extractDocumentText(buf, effectiveMime, f.fileName, 12000)
         textSnippet = extracted.text
         textReader = extracted.reader
         textNote = extracted.note
 
         // إذا كان PDF غير نصي أو تعذر استخراج نصه، نمرره إلى Gemini Vision/Document Understanding
         // حتى يصف ما بداخله ولا يبقى التقرير يقول فقط "تعذر القراءة".
-        const isPdf = f.mimeType.includes('pdf') || /\.pdf$/i.test(f.fileName)
+        const isPdf = effectiveMime.includes('pdf') || /\.pdf$/i.test(f.fileName)
         if (!extracted.readable && isPdf && visionReads < MAX_VISION_FILES) {
           visionReads++
-          ocrRead = await readDocumentImage(buf, f.mimeType || 'application/pdf', f.docType, DOC_TYPE_AR[f.docType] || f.docType)
+          ocrRead = await readDocumentImage(buf, effectiveMime || 'application/pdf', f.docType, DOC_TYPE_AR[f.docType] || f.docType, f.fileName)
           if (ocrRead?.extractedText) {
             textSnippet = ocrRead.extractedText
             textReader = 'IMAGE'
