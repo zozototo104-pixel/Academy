@@ -215,6 +215,8 @@ function evidenceBlob(f: AdmissionFileEvidence): string {
 
 function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_RANK {
   if (!f || nonAdmissionAttachmentReason(f)) return 'NONE'
+  const actual = detectAdmissionDocumentKind(f)
+  if (!['DEGREE_CERTIFICATE', 'TRANSCRIPT'].includes(actual.kind)) return 'NONE'
   if (f.ocrRead?.degreeMentioned && f.ocrRead.degreeMentioned !== 'NONE') return f.ocrRead.degreeMentioned as keyof typeof EDU_RANK
   const blob = evidenceBlob(f)
   if (hasAny(blob, KEYWORDS.phd)) return 'PHD'
