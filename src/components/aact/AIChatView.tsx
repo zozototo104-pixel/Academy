@@ -179,6 +179,8 @@ export function AIChatView() {
     return () => {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
+      try { window.speechSynthesis?.cancel() } catch {}
+      speechUtteranceRef.current = null
       if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
     }
   }, [])
