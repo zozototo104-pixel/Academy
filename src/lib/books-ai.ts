@@ -346,9 +346,16 @@ export async function generateExamQuestionBatch(
 
   const booksSection = books
     .map((b, i) => {
-      const excerpt = (b.textContent || '').slice(0, 2500)
-      return `كتاب ${i + 1}: «${b.title}» ${b.author ? `— ${b.author}` : ''}
-${b.description ? `نبذة: ${b.description.slice(0, 300)}\n` : ''}${excerpt ? `مقتطف من محتوى الكتاب:\n${excerpt}\n` : ''}`
+      const excerpt = (b.textContent || '').slice(0, 3200)
+      const meta = [
+        b.titleEn ? `العنوان الأصلي: ${b.titleEn}` : '',
+        b.author ? `المؤلف: ${b.author}` : '',
+        b.year ? `السنة: ${b.year}` : '',
+        b.link ? `الرابط/المصدر: ${b.link}` : '',
+        b.sourceNote ? `مصدر المحتوى: ${b.sourceNote}` : '',
+      ].filter(Boolean).join(' — ')
+      return `كتاب ${i + 1}: «${b.title}»${meta ? ` — ${meta}` : ''}
+${b.description ? `نبذة: ${b.description.slice(0, 500)}\n` : ''}${excerpt ? `محتوى/فهرس معرفي مقروء أو مستخلص من الكتاب:\n${excerpt}\n` : ''}`
     })
     .join('\n\n')
 
