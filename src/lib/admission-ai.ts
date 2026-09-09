@@ -118,11 +118,18 @@ const KEYWORDS = {
   bachelor: ['بكالوريوس', 'بكلوريوس', 'بكلاريوس', 'اجازه', 'ليسانس', 'bachelor', 'b.sc', 'bsc', 'b.a', 'ba degree'],
   master: ['ماجستير', 'master', 'm.sc', 'msc', 'm.a', 'mba', 'master degree'],
   phd: ['دكتوراه', 'دكتوراة', 'phd', 'doctorate'],
-  degreeDoc: ['شهاده', 'كشف علامات', 'كشف درجات', 'transcript', 'certificate', 'diploma', 'degree', 'graduation'],
+  degreeDoc: ['شهاده', 'شهادة', 'كشف علامات', 'كشف درجات', 'transcript', 'certificate', 'diploma', 'degree', 'graduation'],
   idDoc: ['هويه', 'هوية', 'جواز', 'passport', 'national id', 'identity', 'id card', 'بطاقه', 'بطاقة'],
   cvDoc: ['سيره ذاتيه', 'سيرة ذاتية', 'cv', 'resume', 'curriculum vitae', 'خبره', 'خبرات', 'experience', 'skills', 'مهارات'],
-  photoDoc: ['صوره شخصيه', 'صورة شخصية', 'personal photo', 'portrait', 'headshot', 'face'],
+  photoDoc: ['صوره شخصيه', 'صورة شخصية', 'personal photo', 'portrait', 'headshot', 'face', 'وجه', 'بورتريه'],
   logo: ['شعار', 'logo', 'seal only', 'ختم فقط', 'ايقونه', 'أيقونة', 'رمز'],
+  platformUi: [
+    'vercel', 'deployment', 'deployments', 'environment variables', 'nextauth', 'gemini_api_key', 'gemini_live_model',
+    'production and preview', 'runtime logs', 'build logs', 'turbopack', 'academy-', '.vercel.app', 'vercel.com',
+    'المشرف الذكي', 'تعذر بدء المحادثه الصوتيه', 'اعاده التحليل', 'درجة توافق الملف', 'درجه توافق الملف',
+    'مقارنه الملف بمتطلبات البرنامج', 'توصيه خبير الذكاء الاصطناعي', 'اخفاء التفاصيل', 'مرفوع', 'whatsapp', 'واتساب',
+  ],
+  electronics: ['uni-t', 'ut33', 'hold', 'off 20m', 'cat ii', '600v', '300v', '10a', 'vΩma', 'vΩ', 'com ce', 'multimeter', 'ملتيميتر'],
 }
 
 function normalize(text: string): string {
