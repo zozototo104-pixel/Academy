@@ -87,14 +87,15 @@ async function main() {
     }
   }
 
-  // Admin account
+  // Admin account — نعيد ضبطه أثناء أول نشر سحابي حتى لا يفشل الدخول على قاعدة جديدة/جزئية
   const adminEmail = 'admin@aact.academy'
+  const adminPasswordHash = await hashPassword('Admin@2026')
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } })
   if (!existingAdmin) {
     await prisma.user.create({
       data: {
         email: adminEmail,
-        password: await hashPassword('Admin@2026'),
+        password: adminPasswordHash,
         name: 'إدارة الأكاديمية',
         role: 'ADMIN',
         country: 'USA',
@@ -102,7 +103,11 @@ async function main() {
     })
     console.log('  ✓ Admin account: admin@aact.academy / Admin@2026')
   } else {
-    console.log('  ℹ Admin account already exists')
+    await prisma.user.update({
+      where: { email: adminEmail },
+      data: { password: adminPasswordHash, role: 'ADMIN', name: existingAdmin.name || 'إدارة الأكاديمية' },
+    })
+    console.log('  ✓ Admin account refreshed: admin@aact.academy / Admin@2026')
   }
 
   // Demo student account
