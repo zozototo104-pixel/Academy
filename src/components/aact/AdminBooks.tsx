@@ -20,7 +20,10 @@ import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/Adm
 interface ProgramOption {
   id: string
   titleAr: string
+  titleEn?: string | null
   category: string
+  categoryLabel?: string
+  specialty?: string
 }
 
 interface BookRow {
