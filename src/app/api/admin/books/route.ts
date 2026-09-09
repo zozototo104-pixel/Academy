@@ -145,11 +145,10 @@ export async function POST(req: NextRequest) {
       mimeType = file.type || 'application/octet-stream'
       size = file.size
       data = buf.toString('base64')
-      if (mimeType.includes('pdf')) {
-        const text = await extractPdfText(buf)
-        if (text) textContent = text
-      } else if (mimeType.startsWith('text/')) {
-        textContent = buf.toString('utf-8').replace(/\s+/g, ' ').trim().slice(0, 40000)
+      const extracted = await extractDocumentText(buf, mimeType, fileName, 40000)
+      if (extracted.text) textContent = extracted.text
+      if (!extracted.readable) {
+        linkNote = extracted.note
       }
     }
 
