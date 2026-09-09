@@ -359,7 +359,9 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
 }
 
 function fileDetail(f: AdmissionFileEvidence, extra?: string): string {
-  const base = `مرفوع (${f.fileName} — ${Math.ceil(f.size / 1024)}ك.ب)`
+  const actual = detectAdmissionDocumentKind(f)
+  const actualLabel = ` — النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]}`
+  const base = `مرفوع (${f.fileName} — ${Math.ceil(f.size / 1024)}ك.ب)${actualLabel}`
   const visibleText = safeVisibleContent(f).replace(/\s+/g, ' ').trim().slice(0, 220)
   const read = isVisionUnavailable(f)
     ? ` — لم تكتمل قراءة الصورة آلياً الآن — ${f.ocrRead?.qualityNote || f.textNote || 'أعد التحليل لاحقاً أو راجعها يدوياً'}`
