@@ -500,6 +500,19 @@ async function buildFileEvidence(files: { docType: string; fileName: string; mim
         textSnippet = extracted.text
         textReader = extracted.reader
         textNote = extracted.note
+
+        // إذا كان PDF غير نصي أو تعذر استخراج نصه، نمرره إلى Gemini Vision/Document Understanding
+        // حتى يصف ما بداخله ولا يبقى التقرير يقول فقط "تعذر القراءة".
+        const isPdf = f.mimeType.includes('pdf') || /\.pdf$/i.test(f.fileName)
+        if (!extracted.readable && isPdf && visionReads < MAX_VISION_FILES) {
+          visionReads++
+          ocrRead = await readDocumentImage(buf, f.mimeType || 'application/pdf', f.docType, DOC_TYPE_AR[f.docType] || f.docType)
+          if (ocrRead?.extractedText) {
+            textSnippet = ocrRead.extractedText
+            textReader = 'IMAGE'
+            textNote = ocrRead.readable ? 'تمت قراءة PDF بالرؤية الذكية' : `تم فحص PDF بالرؤية الذكية: ${ocrRead.docTypeDetected || ocrRead.qualityNote}`
+          }
+        }
       }
     }
 
