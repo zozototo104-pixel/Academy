@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
+import { extractDocumentText } from '@/lib/document-extract'
 
 const MAX_BOOK_SIZE = 10 * 1024 * 1024 // 10MB
 
