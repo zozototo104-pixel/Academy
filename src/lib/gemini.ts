@@ -317,6 +317,16 @@ export function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1, bitsPerS
   return Buffer.concat([header, pcm])
 }
 
+function amplifyPcm16(pcm: Buffer, gain = 1.8): Buffer {
+  const out = Buffer.from(pcm)
+  for (let i = 0; i + 1 < out.length; i += 2) {
+    const sample = out.readInt16LE(i)
+    const boosted = Math.max(-32768, Math.min(32767, Math.round(sample * gain)))
+    out.writeInt16LE(boosted, i)
+  }
+  return out
+}
+
 async function generateAudio(text: string): Promise<Buffer> {
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
