@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { getZAI, chatWithRetry } from '@/lib/ai'
-import { readDocumentImage, DOC_TYPE_AR, type ImageDocRead } from '@/lib/ocr'
+import { readDocumentImage, DOC_TYPE_AR, inferMimeFromFileName, isVisualFile, type ImageDocRead } from '@/lib/ocr'
 import { extractDocumentText, type ExtractedDocumentText } from '@/lib/document-extract'
 
 // ===== قواعد القبول المخصصة لكل برنامج (تضبطها الإدارة من لوحة الإدارة) =====
