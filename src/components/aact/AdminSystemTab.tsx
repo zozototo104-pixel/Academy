@@ -143,12 +143,15 @@ export function AdminSystemTab() {
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mail" dir="rtl">
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-xl bg-[#f1f5f9] p-1">
+        <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl bg-[#f1f5f9] p-1">
           <TabsTrigger value="mail" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Mail className="h-3.5 w-3.5" /> الإشعارات البريدية
           </TabsTrigger>
           <TabsTrigger value="pay" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <CreditCard className="h-3.5 w-3.5" /> بوابات الدفع
+          </TabsTrigger>
+          <TabsTrigger value="gemini" className="gap-1.5 text-[11px] font-bold sm:text-xs">
+            <Bot className="h-3.5 w-3.5" /> Gemini Live
           </TabsTrigger>
           <TabsTrigger value="turn" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Network className="h-3.5 w-3.5" /> TURN للفيديو
