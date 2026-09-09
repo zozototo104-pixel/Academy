@@ -24,7 +24,10 @@ import {
 interface ProgramLite {
   id: string
   titleAr: string
+  titleEn?: string | null
   category: string
+  categoryLabel?: string
+  specialty?: string
   price?: number | null
   // قواعد قبول مخصصة يضبطها مدير البرنامج (تعرض للمتقدم عند اختيار البرنامج)
   admissionRules?: {
