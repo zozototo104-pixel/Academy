@@ -307,9 +307,6 @@ function isImageFile(f: AdmissionFileEvidence): boolean {
 }
 
 function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { ok: boolean; problem: boolean; reason: string } {
-  const blob = evidenceBlob(f)
-  const detected = normalize(f.ocrRead?.docTypeDetected || '')
-
   if (isVisionUnavailable(f)) {
     return {
       ok: false,
