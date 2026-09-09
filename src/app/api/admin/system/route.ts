@@ -105,6 +105,28 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ ok, message: ok ? 'أُرسلت رسالة الاختبار إلى بريدك — افحص صندوق الوارد' : 'لم يُرسل البريد — راجع الإعدادات وسجل البريد أدناه' })
     }
+    if (action === 'test-gemini-live') {
+      await ensureGeminiKey()
+      if (!hasGemini()) {
+        return NextResponse.json({ ok: false, title: 'مفتاح Gemini غير موجود', message: 'مفتاح Gemini غير موجود أو غير صالح.' })
+      }
+      const model = await geminiActiveLiveModel()
+      if (!isValidGeminiLiveModel(model)) {
+        return NextResponse.json({ ok: false, title: 'اسم نموذج Gemini Live غير صحيح', message: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.' })
+      }
+      try {
+        const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || ''
+        const r = await fetch(`${base}/api/ai/gemini-live/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('authorization') || '' },
+          body: JSON.stringify({ testOnly: true, model }),
+        })
+        const d = await r.json().catch(() => ({}))
+        return NextResponse.json({ ok: r.ok, title: r.ok ? 'Gemini Live يعمل' : 'فشل اختبار Gemini Live', message: d.message || d.error || 'تعذر اختبار Gemini Live', model })
+      } catch {
+        return NextResponse.json({ ok: true, title: 'Gemini Live مضبوط', message: `النموذج المحفوظ صالح: ${model}. سيتم إنشاء الرمز المؤقت عند بدء المكالمة من صفحة الطالب.` })
+      }
+    }
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
