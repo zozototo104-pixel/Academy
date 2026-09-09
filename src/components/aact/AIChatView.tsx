@@ -2,7 +2,7 @@
 
 import { useAppStore, api } from '@/lib/store'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
-import { VoiceAgent } from '@/lib/voice/voiceAgent'
+import { GeminiLiveAgent as VoiceAgent } from '@/lib/voice/geminiLiveAgent'
 import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useCallback, useEffect, useRef, useState } from 'react'
