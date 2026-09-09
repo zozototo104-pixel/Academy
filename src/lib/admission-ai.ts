@@ -480,7 +480,7 @@ function runRules(app: {
     }
   }
 
-  const degreeFiles = app.files.filter((f) => f.docType === 'DEGREE')
+  const degreeFiles = app.files.filter((f) => f.docType === 'DEGREE' || kindSatisfiesRequirement('DEGREE', detectAdmissionDocumentKind(f).kind))
   const bestDegree = degreeFiles
     .map((f) => ({ f, degree: degreeFromEvidence(f) }))
     .sort((a, b) => (EDU_RANK[b.degree] || 0) - (EDU_RANK[a.degree] || 0))[0]
