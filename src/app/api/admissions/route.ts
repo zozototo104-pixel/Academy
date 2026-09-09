@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
           const mime = f.type || 'application/octet-stream'
           if (!ALLOWED_MIME.includes(mime)) {
             return NextResponse.json(
-              { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG أو PDF` },
+              { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` },
               { status: 400 }
             )
           }
