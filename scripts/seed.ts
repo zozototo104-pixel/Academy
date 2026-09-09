@@ -88,6 +88,45 @@ async function main() {
     }
   }
 
+  // الماجستير والدكتوراه: نضيف برنامجاً مستقلاً لكل تخصص حتى لا تبقى الكتب والاختبارات عامة باسم «كافة التخصصات»
+  for (const p of degreeSpecializationSeedPrograms()) {
+    await prisma.program.upsert({
+      where: { slug: p.slug },
+      update: {
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        description: p.description,
+        category: p.category,
+        hours: p.hours,
+        price: p.price,
+        icon: p.icon,
+        features: JSON.stringify(p.features),
+        order: p.order,
+        active: true,
+      },
+      create: {
+        slug: p.slug,
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        description: p.description,
+        category: p.category,
+        hours: p.hours,
+        price: p.price,
+        icon: p.icon,
+        features: JSON.stringify(p.features),
+        order: p.order,
+        active: true,
+      },
+    })
+    console.log(`  ✓ Specialized degree program: ${p.titleAr}`)
+  }
+
+  await prisma.program.updateMany({
+    where: { slug: { in: GENERIC_ALL_SPECIALIZATIONS_SLUGS } },
+    data: { active: false },
+  })
+  console.log('  ✓ Generic all-specializations master/doctorate hidden from selection')
+
   // Admin account — نعيد ضبطه أثناء أول نشر سحابي حتى لا يفشل الدخول على قاعدة جديدة/جزئية
   const adminEmail = 'admin@aact.academy'
   const adminPasswordHash = await hashPassword('Admin@2026')
