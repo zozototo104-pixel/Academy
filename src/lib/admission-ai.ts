@@ -318,53 +318,43 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
     }
   }
 
-  const nonDocReason = nonAdmissionAttachmentReason(f)
-  if (nonDocReason) {
-    return { ok: false, problem: true, reason: nonDocReason }
+  const actual = detectAdmissionDocumentKind(f)
+  if (actual.kind === 'NON_ADMISSION' || actual.kind === 'LOGO') {
+    return { ok: false, problem: true, reason: actual.reason }
   }
 
-  const isLogo = hasAny(blob, KEYWORDS.logo)
-
-  if (isLogo) {
-    return { ok: false, problem: true, reason: 'المرفق يبدو شعاراً/ختمًا/صورة غير وثائقية، ولا يثبت المتطلب المطلوب' }
+  if (actual.kind === 'UNVERIFIED') {
+    return { ok: false, problem: false, reason: actual.reason }
   }
 
   if (expectedType === 'PHOTO') {
     if (!isImageFile(f)) return { ok: false, problem: true, reason: 'الصورة الشخصية يجب أن تكون ملف صورة واضحاً' }
-    if (hasAny(blob, KEYWORDS.photoDoc) && !hasAny(blob, KEYWORDS.idDoc) && !hasAny(blob, KEYWORDS.degreeDoc)) {
-      return { ok: true, problem: false, reason: 'تظهر كصورة شخصية/وجه واضح' }
-    }
-    if (f.ocrRead && f.ocrRead.readable && detected && !hasAny(detected, KEYWORDS.photoDoc)) {
-      return { ok: false, problem: true, reason: `المرفق مصنف صورة شخصية لكن الذكاء رآه: ${f.ocrRead.docTypeDetected || 'نوع آخر'}` }
-    }
-    return { ok: false, problem: false, reason: 'لم يتم التأكد آلياً أنها صورة شخصية واضحة' }
+    if (actual.kind === 'PHOTO') return { ok: true, problem: false, reason: `النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
+    return { ok: false, problem: true, reason: `المطلوب صورة شخصية، لكن النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
   }
 
   if (expectedType === 'DEGREE') {
-    const degree = degreeFromEvidence(f)
-    if (degree !== 'NONE' || hasAny(blob, KEYWORDS.degreeDoc)) {
-      return { ok: true, problem: false, reason: degree !== 'NONE' ? `يظهر مؤهل: ${EDUCATION_AR[degree] || degree}` : 'يظهر أنه مستند شهادة/كشف درجات' }
+    if (actual.kind === 'DEGREE_CERTIFICATE' || actual.kind === 'TRANSCRIPT') {
+      const degree = degreeFromEvidence(f)
+      return {
+        ok: true,
+        problem: false,
+        reason: degree !== 'NONE'
+          ? `النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — يظهر مؤهل: ${EDUCATION_AR[degree] || degree}`
+          : `النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}`,
+      }
     }
-    if (hasAny(blob, KEYWORDS.idDoc) || hasAny(blob, KEYWORDS.cvDoc) || hasAny(blob, KEYWORDS.photoDoc)) {
-      return { ok: false, problem: true, reason: 'المرفق المصنف شهادة يبدو أنه هوية/سيرة/صورة وليس شهادة أو كشف علامات' }
-    }
-    return { ok: false, problem: false, reason: 'لم يظهر نص أو دليل كافٍ على أنه شهادة أو كشف علامات' }
+    return { ok: false, problem: true, reason: `المطلوب شهادة/كشف درجات، لكن النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
   }
 
   if (expectedType === 'ID') {
-    if (hasAny(blob, KEYWORDS.idDoc)) return { ok: true, problem: false, reason: 'يظهر أنه هوية أو جواز سفر' }
-    if (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.cvDoc) || hasAny(blob, KEYWORDS.photoDoc)) {
-      return { ok: false, problem: true, reason: 'المرفق المصنف هوية/جواز يبدو أنه مستند آخر' }
-    }
-    return { ok: false, problem: false, reason: 'لم يظهر دليل كافٍ على أنه هوية أو جواز' }
+    if (actual.kind === 'ID') return { ok: true, problem: false, reason: `النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
+    return { ok: false, problem: true, reason: `المطلوب هوية/جواز، لكن النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
   }
 
   if (expectedType === 'CV') {
-    if (hasAny(blob, KEYWORDS.cvDoc)) return { ok: true, problem: false, reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات' }
-    if (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.idDoc) || hasAny(blob, KEYWORDS.photoDoc)) {
-      return { ok: false, problem: true, reason: 'المرفق المصنف سيرة ذاتية يبدو أنه مستند آخر' }
-    }
-    return { ok: false, problem: false, reason: 'لم يظهر دليل كافٍ على أنه سيرة ذاتية' }
+    if (actual.kind === 'CV') return { ok: true, problem: false, reason: `النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
+    return { ok: false, problem: true, reason: `المطلوب سيرة ذاتية، لكن النوع الحقيقي المكتشف: ${DETECTED_KIND_AR[actual.kind]} — ${actual.reason}` }
   }
 
   const readable = f.textSnippet.length >= 30 || !!f.ocrRead?.readable
