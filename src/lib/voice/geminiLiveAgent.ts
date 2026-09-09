@@ -17,6 +17,7 @@ type LiveSessionPayload = {
   model: string
   voice: string
   error?: string
+  details?: string
 }
 
 function getToken(): string {
