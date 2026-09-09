@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { allSeedPrograms } from '@/lib/academyData'
 import { DEFAULT_SETTINGS } from '@/lib/settings'
+import { degreeSpecializationSeedPrograms, GENERIC_ALL_SPECIALIZATIONS_SLUGS } from '@/lib/program-tracks'
 
 let inflight: Promise<void> | null = null
 let lastCheckedAt = 0
