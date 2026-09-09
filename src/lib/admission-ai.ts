@@ -233,10 +233,11 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
 
 function fileDetail(f: AdmissionFileEvidence, extra?: string): string {
   const base = `مرفوع (${f.fileName} — ${Math.ceil(f.size / 1024)}ك.ب)`
+  const visibleText = (f.textSnippet || f.ocrRead?.extractedText || '').replace(/\s+/g, ' ').trim().slice(0, 220)
   const read = f.textSnippet.length >= 30
-    ? ` — تمت قراءة المحتوى آلياً (${f.textReader})`
+    ? ` — تمت قراءة المحتوى آلياً (${f.textReader})${visibleText ? ` — محتوى ظاهر: ${visibleText}` : ''}`
     : f.ocrRead
-      ? ` — نتيجة الرؤية: ${f.ocrRead.docTypeDetected || 'غير محدد'}${f.ocrRead.qualityNote ? ` — ${f.ocrRead.qualityNote}` : ''}`
+      ? ` — نتيجة الرؤية: ${f.ocrRead.docTypeDetected || 'غير محدد'}${visibleText ? ` — محتوى/وصف ظاهر: ${visibleText}` : ''}${f.ocrRead.qualityNote ? ` — ${f.ocrRead.qualityNote}` : ''}`
       : ` — ${f.textNote || 'غير قابل للقراءة الآلية'}`
   return `${base}${read}${extra ? ` — ${extra}` : ''}`
 }
