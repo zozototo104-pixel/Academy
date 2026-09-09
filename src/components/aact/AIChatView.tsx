@@ -291,10 +291,12 @@ export function AIChatView() {
       onError: (msg) => toast({ title: 'تنبيه', description: msg, variant: 'destructive' }),
     })
     agentRef.current = agent
-    agent.start().catch(() => {
-      toast({ title: 'تعذر بدء المحادثة الصوتية', description: 'تأكد من السماح بالمايكروفون ثم أعد المحاولة', variant: 'destructive' })
+    agent.start().catch((e: any) => {
+      const msg = String(e?.message || '').trim() || 'تأكد من السماح بالمايكروفون ثم أعد المحاولة'
+      toast({ title: 'تعذر بدء المحادثة الصوتية', description: msg, variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
+      agentRef.current = null
     })
   }
 
