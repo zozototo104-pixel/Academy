@@ -187,6 +187,10 @@ export async function POST(req: NextRequest) {
       expiresAt: expireTime,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
+      sdkConfig: {
+        responseModalities: ['AUDIO'],
+        systemInstruction: systemInstruction.slice(0, 32000),
+      },
     })
   } catch (e: any) {
     console.error('gemini-live session error:', String(e?.message || e).slice(0, 500))
