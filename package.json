@@ -98,6 +98,7 @@
     "jspdf": "^4.2.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   },
   "description": "منصة الأكاديمية الأمريكية للاستشارات والتدريب — AACT Digital Platform (Next.js 16)"
