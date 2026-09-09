@@ -194,10 +194,41 @@ export function AIChatView() {
   const speak = useCallback(
     async (text: string, msgId: string) => {
       try {
+        const speechText = buildSpeechText(text)
+        if (!speechText) return
+
         if (audioRef.current) {
           audioRef.current.pause()
           audioRef.current = null
         }
+        try { window.speechSynthesis?.cancel() } catch {}
+        speechUtteranceRef.current = null
+
+        // قراءة فورية: نبدأ بصوت المتصفح مباشرة بدل انتظار توليد ملف TTS من السيرفر.
+        // هذا يحل فرق الدقيقة بين ظهور الرد الكتابي وبداية الصوت، ويقرأ النص كاملاً لا مختصراً.
+        if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+          const utterance = new SpeechSynthesisUtterance(speechText)
+          const voice = pickArabicBrowserVoice()
+          if (voice) utterance.voice = voice
+          utterance.lang = voice?.lang || 'ar-SA'
+          utterance.rate = 1.08
+          utterance.pitch = 1
+          utterance.volume = 1
+          speechUtteranceRef.current = utterance
+          setSpeakingId(msgId)
+          utterance.onend = () => {
+            if (speechUtteranceRef.current === utterance) speechUtteranceRef.current = null
+            setSpeakingId(null)
+          }
+          utterance.onerror = () => {
+            if (speechUtteranceRef.current === utterance) speechUtteranceRef.current = null
+            setSpeakingId(null)
+          }
+          window.speechSynthesis.speak(utterance)
+          return
+        }
+
+        // احتياط فقط للمتصفحات التي لا تدعم speechSynthesis.
         setSpeakingId(msgId)
         const token = getToken()
         const res = await fetch('/api/ai/tts', {
@@ -206,7 +237,7 @@ export function AIChatView() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ text: buildSpeechPreview(text), speed: 1.18 }),
+          body: JSON.stringify({ text: speechText, speed: 1.12 }),
         })
         if (!res.ok) {
           const err = await res.json().catch(() => ({}))
