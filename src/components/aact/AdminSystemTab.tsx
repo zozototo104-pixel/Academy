@@ -95,6 +95,21 @@ export function AdminSystemTab() {
     }
   }
 
+  const testGeminiLive = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ ok: boolean; title?: string; message: string }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'test-gemini-live' }),
+      })
+      toast({ title: d.title || (d.ok ? 'Gemini Live يعمل' : 'فشل Gemini Live'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
