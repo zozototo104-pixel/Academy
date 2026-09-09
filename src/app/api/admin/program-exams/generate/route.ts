@@ -54,10 +54,10 @@ async function runGeneration(examId: string) {
 
     for (let i = 0; i < EXAM_BATCH_COUNT; i++) {
       const spec = EXAM_BATCH_SPECS[i]
-      let batch = await generateExamQuestionBatch(exam.program, readableBooks, i)
+      let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, i)
       if (batch.length === 0) {
         // إعادة محاولة واحدة عند فشل الدفعة
-        batch = await generateExamQuestionBatch(exam.program, readableBooks, i)
+        batch = await generateExamQuestionBatch(exam.program, hydratedBooks, i)
       }
       if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${i + 1} من الأسئلة`)
 
