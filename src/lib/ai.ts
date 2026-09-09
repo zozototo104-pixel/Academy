@@ -1,5 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
+import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
