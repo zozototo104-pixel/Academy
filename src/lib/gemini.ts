@@ -90,6 +90,7 @@ export function normalizeGeminiModelName(value: unknown): string {
     .replace(/[?&#].*$/, '')
     .trim()
   if (!v || v === 'auto') return ''
+  if (v === 'gemini-2.5-flash-live-preview') return 'gemini-2.5-flash-native-audio-preview-12-2025'
   const known = [...TEXT_MODELS, ...TTS_MODELS, ...GEMINI_LIVE_MODEL_FALLBACKS]
   if (known.includes(v)) return v
   for (const model of known) {
