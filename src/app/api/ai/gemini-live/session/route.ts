@@ -42,7 +42,9 @@ function arabicErrorForGemini(e: any): string {
   if (isAuthError(e)) return 'مفتاح Gemini غير صالح أو لا يملك صلاحية Live API'
   if (isQuotaError(e)) return 'وصل Gemini Live إلى حد الحصة الحالية لهذا المشروع — فعّل Billing أو انتظر إعادة الضبط'
   if (isModelUnavailableError(e)) return 'نموذج Gemini Live المختار غير متاح لهذا المشروع'
-  if (isInvalidArgumentError(e)) return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview وتأكد أن المشروع يملك صلاحية Live API'
+  if (isInvalidArgumentError(e)) {
+    return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview وتأكد أن المشروع يملك صلاحية Live API'
+  }
   return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
 
@@ -80,17 +82,15 @@ export async function POST(req: NextRequest) {
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
   )
 
-  // حسب WebSocket API، رسالة setup لا تحتوي config. الحقول تكون مباشرة داخل setup
-  // و responseModalities تكون داخل generationConfig.
+  // الصيغة الرسمية لـ BidiGenerateContentSetup عبر WebSocket:
+  // model + responseModalities مباشرة داخل setup، وليست داخل generationConfig/config.
   const setup = {
     setup: {
       model: `models/${model}`,
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voice },
-          },
+      responseModalities: ['AUDIO'],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: voice },
         },
       },
       systemInstruction: {
@@ -106,13 +106,17 @@ export async function POST(req: NextRequest) {
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
-  // auth_tokens يحتاج body.authToken. نترك bidiGenerateContentSetup فارغاً حتى يستخدم
-  // الخادم رسالة setup المرسلة عبر WebSocket، وبهذا لا نكرر الإعدادات ولا تنرفض بسبب field mask.
+  // REST الرسمي لإنشاء ephemeral token هو top-level fields، وليس authToken wrapper.
   const tokenBody = {
-    authToken: {
-      uses: 1,
-      expireTime,
-      newSessionExpireTime,
+    uses: 1,
+    expireTime,
+    newSessionExpireTime,
+    liveConnectConstraints: {
+      model: `models/${model}`,
+      config: {
+        responseModalities: ['AUDIO'],
+        sessionResumption: {},
+      },
     },
   }
 
