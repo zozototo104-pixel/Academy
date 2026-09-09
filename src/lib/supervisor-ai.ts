@@ -2,9 +2,8 @@ import { db } from '@/lib/db'
 
 /**
  * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
- * تبني سياقاً تخصصياً حقيقياً من: برامج الطالب الفعّالة + وحداتها الدراسية +
- * الكتب المقررة المعتمدة (نصوصها المستخرجة) + تقدمه ونتائجه + بحث تخرجه ومواعيده
- * بحيث يكون المشرف الذكي ملمّاً فعلياً بتخصص الطالب وليس محادثة عامة.
+ * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
+ * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
  */
 export async function buildSupervisorContext(userId: string): Promise<string> {
   try {
@@ -43,17 +42,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
     if (activePrograms.length > 0) {
       const programLines = activePrograms.map((p, i) => {
         const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
-
-/**
- * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
- * تبني سياقاً تخصصياً حقيقياً من: برامج الطالب الفعّالة + وحداتها الدراسية +
- * الكتب المقررة المعتمدة (نصوصها المستخرجة) + تقدمه ونتائجه + بحث تخرجه ومواعيده
- * بحيث يكون المشرف الذكي ملمّاً فعلياً بتخصص الطالب وليس محادثة عامة.
- */
-export async function buildSupervisorContext(userId: string): Promise<string> {
-  try {
- : ''
+        const price = p.price ? ` — ${p.price}$` : ''
         const desc = p.description ? ` — ${p.description.replace(/\s+/g, ' ').slice(0, 120)}` : ''
         return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${price}${desc}`
       })
@@ -64,7 +53,6 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       parts.push('الطالب لم يسجل في أي برنامج بعد — ركّز على تقديم المشورة حول برامج الأكاديمية وإجراءات الالتحاق، وابدأ بذكر البرامج عندما يسأل عنها.')
     }
 
-    // ===== أولاً: أبحاث تخرج الطالب وسجل إجراءات الالتحاق =====
     if (admission) {
       const deadline = admission.thesisDeadline
         ? new Date(admission.thesisDeadline).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -77,6 +65,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
           (deadline ? ` — مهلة تسليم بحث التخرج تنتهي في ${deadline}${daysLeft != null ? ` (متبقٍ ${daysLeft} يوم)` : ''}` : '')
       )
     }
+
     if (thesis) {
       parts.push(
         `بحث التخرج: «${thesis.title}» — الحالة: ${thesis.status}` +
@@ -86,7 +75,6 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       )
     }
 
-    // ===== ثانياً: لكل برنامج مسجل — المنهج والكتب والتقدم =====
     for (const enr of enrollments) {
       const p = enr.program
       const totalUnits = p.units.length
@@ -96,16 +84,25 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       const unitLines = p.units
         .slice(0, 12)
         .map((u, i) => {
-          const obj = u.objectives ? (() => { try { const a = JSON.parse(u.objectives); return Array.isArray(a) ? ` — أهدافه: ${a.slice(0, 3).join('؛ ')}` : '' } catch { return '' } })() : ''
+          const obj = u.objectives
+            ? (() => {
+                try {
+                  const a = JSON.parse(u.objectives)
+                  return Array.isArray(a) ? ` — أهدافه: ${a.slice(0, 3).join('؛ ')}` : ''
+                } catch {
+                  return ''
+                }
+              })()
+            : ''
           return `${i + 1}. ${u.title}${u.summary ? `: ${u.summary.slice(0, 140)}` : ''}${obj}`
         })
+
       parts.push(
         `البرنامج المسجل به: «${p.titleAr}» (${p.category}) — تقدم الطالب: ${done.length}/${totalUnits} وحدة (${pct}%)` +
           (enr.finalScore != null ? ` — النتيجة النهائية: ${enr.finalScore}` : '') +
           `\nوحدات المنهج:\n${unitLines.join('\n')}`
       )
 
-      // الكتب المقررة المعتمدة — مقتطفات من نصوصها الفعلية (RAG)
       if (p.books.length > 0) {
         const bookBlocks = p.books.slice(0, 6).map((b) => {
           const excerpt = (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 1100)
@@ -114,7 +111,6 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         parts.push(`الكتب المقررة المعتمدة لهذا التخصص (يُمتحَن بها الطالب):\n${bookBlocks.join('\n')}`)
       }
 
-      // الامتحانات الشاملة المتاحة ونتائجه فيها
       const readyExams = p.programExams.filter((e) => e.status === 'READY')
       if (readyExams.length > 0) {
         parts.push(
@@ -123,13 +119,13 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       }
     }
 
-    // محاولات الامتحان الشامل وأفضل النتائج
     const attempts = await db.programExamAttempt.findMany({
       where: { userId },
       include: { exam: { select: { title: true } } },
       orderBy: { createdAt: 'desc' },
       take: 5,
     })
+
     if (attempts.length > 0) {
       parts.push(
         `آخر محاولاته في الامتحانات الشاملة: ${attempts
@@ -139,7 +135,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
     }
 
     let ctx = parts.join('\n\n')
-    if (ctx.length > 14000) ctx = ctx.slice(0, 14000) + '…'
+    if (ctx.length > 16000) ctx = ctx.slice(0, 16000) + '…'
     return ctx
   } catch (e) {
     console.error('supervisor-ai context error:', e)
