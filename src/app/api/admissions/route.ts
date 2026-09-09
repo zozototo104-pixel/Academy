@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
             )
           }
           const mime = f.type || 'application/octet-stream'
-          if (!ALLOWED_MIME.includes(mime)) {
+          const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
+          if (!ALLOWED_MIME.includes(mime) && !nameOk) {
             return NextResponse.json(
               { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` },
               { status: 400 }
