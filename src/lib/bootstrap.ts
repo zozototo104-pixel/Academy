@@ -85,6 +85,45 @@ async function seedProgramsIfEmpty(): Promise<void> {
   console.log(`✅ Runtime bootstrap: seeded ${allSeedPrograms.length} programs`)
 }
 
+async function ensureDegreeSpecializationPrograms(): Promise<void> {
+  const tracks = degreeSpecializationSeedPrograms()
+  for (const p of tracks) {
+    await db.program.upsert({
+      where: { slug: p.slug },
+      update: {
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        description: p.description,
+        category: p.category,
+        hours: p.hours,
+        price: p.price,
+        icon: p.icon,
+        features: JSON.stringify(p.features),
+        order: p.order,
+        active: true,
+      },
+      create: {
+        slug: p.slug,
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        description: p.description,
+        category: p.category,
+        hours: p.hours,
+        price: p.price,
+        icon: p.icon,
+        features: JSON.stringify(p.features),
+        order: p.order,
+        active: true,
+      },
+    })
+  }
+
+  await db.program.updateMany({
+    where: { slug: { in: GENERIC_ALL_SPECIALIZATIONS_SLUGS } },
+    data: { active: false },
+  }).catch(() => {})
+}
+
 async function seedAdminIfMissing(): Promise<void> {
   const adminEmail = 'admin@aact.academy'
   const admin = await db.user.findUnique({ where: { email: adminEmail } }).catch(() => null)
