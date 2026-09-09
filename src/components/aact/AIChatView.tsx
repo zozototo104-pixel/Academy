@@ -292,9 +292,22 @@ export function AIChatView() {
           mode: voice ? 'VOICE' : 'TEXT',
           time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
         }
+
+        // في زر المايك العادي فقط: نجهز الصوت الطبيعي قبل إظهار الرد،
+        // حتى لا يظهر الرد كتابياً ثم ينتظر الطالب فترة طويلة قبل النطق.
+        let preparedVoiceUrl: string | null = null
+        if (voice && autoSpeakRef.current) {
+          try {
+            preparedVoiceUrl = await fetchSpeechUrl(d.reply)
+          } catch (e) {
+            showSpeechError(e)
+          }
+        }
+
         setMessages((prev) => [...prev, aiMsg])
-        if (!voice && autoSpeakRef.current) {
-          speak(d.reply, d.messageId)
+        if (autoSpeakRef.current) {
+          if (preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
+          else if (!voice) speak(d.reply, d.messageId)
         }
       } catch (e: any) {
         toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
