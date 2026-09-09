@@ -663,7 +663,7 @@ export function ApplyView() {
                                   <input
                                     ref={(el) => { fileInputs.current[d.type] = el }}
                                     type="file"
-                                    accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.pdf"
+                                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.docx,.xlsx,.xls,.txt,.csv"
                                     className="hidden"
                                     onChange={(e) => pickFile(d.type, e.target.files?.[0] || null)}
                                   />
