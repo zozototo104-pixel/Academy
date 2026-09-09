@@ -170,8 +170,17 @@ export function ApplyView() {
       toast({ title: 'الملف كبير جداً', description: `الحد الأقصى ${MAX_FILE_MB} ميجابايت للملف الواحد — يرجى ضغطه أو تصغيره`, variant: 'destructive' })
       return
     }
-    if (f.type && !['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'].includes(f.type)) {
-      toast({ title: 'صيغة غير مدعومة', description: 'المسموح: صور JPG/PNG أو ملف PDF', variant: 'destructive' })
+    const allowed = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/plain', 'text/csv', 'application/csv',
+    ]
+    const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
+    if (f.type && !allowed.includes(f.type) && !nameOk) {
+      toast({ title: 'صيغة غير مدعومة', description: 'المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word أو Excel أو TXT/CSV', variant: 'destructive' })
       return
     }
     setFiles((prev) => ({ ...prev, [type]: f }))
