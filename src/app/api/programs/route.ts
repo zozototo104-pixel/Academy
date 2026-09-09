@@ -41,6 +41,8 @@ export async function GET() {
         titleEn: p.titleEn,
         description: p.description,
         category: p.category,
+        categoryLabel: PROGRAM_CATEGORY_AR[p.category] || p.category,
+        specialty: programSpecialtyLabel(p),
         hours: p.hours,
         price: p.price,
         icon: p.icon,
