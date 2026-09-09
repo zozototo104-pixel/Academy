@@ -229,8 +229,12 @@ export function ApplyView() {
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (!form.program) {
-      toast({ title: 'تنبيه', description: 'يرجى اختيار البرنامج المرغوب', variant: 'destructive' })
+    if (!selectedCategory) {
+      toast({ title: 'تنبيه', description: 'يرجى اختيار نوع البرنامج أولاً: ماجستير / دكتوراه / دبلوم', variant: 'destructive' })
+      return
+    }
+    if (!form.program || !selectedProgramId) {
+      toast({ title: 'تنبيه', description: 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
     if (!form.nationalId.trim()) {
