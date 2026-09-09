@@ -308,26 +308,32 @@ export async function geminiVisionJson(opts: {
   const chain = [...new Set([...VISION_MODELS, ...customTextModels])]
   let lastErr: any
   for (const model of chain) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config: {
-          systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
-          temperature: opts.temperature ?? 0.1,
-          maxOutputTokens: opts.maxOutputTokens ?? 2048,
-          responseMimeType: 'application/json',
-        },
-      })
-      const text = String((response as any).text || '').trim()
-      if (!text) throw new Error('EMPTY_VISION_RESPONSE')
-      activeTextModel = model
-      return text
-    } catch (e) {
-      lastErr = e
-      if (isAuthError(e)) throw e
-      if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) continue
-      throw e
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
+            temperature: opts.temperature ?? 0.1,
+            maxOutputTokens: opts.maxOutputTokens ?? 2048,
+            responseMimeType: 'application/json',
+          },
+        })
+        const text = String((response as any).text || '').trim()
+        if (!text) throw new Error('EMPTY_VISION_RESPONSE')
+        activeTextModel = model
+        return text
+      } catch (e) {
+        lastErr = e
+        if (isAuthError(e)) throw e
+        if (isTransientGeminiError(e)) {
+          if (attempt < 2) await wait(900 * attempt)
+          continue
+        }
+        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
+        throw e
+      }
     }
   }
   throw lastErr
