@@ -70,7 +70,8 @@ interface ExamRow {
 }
 
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
-const CAT_AR: Record<string, string> = { DOCTORATE: 'دكتوراه', MASTERS: 'ماجستير', DIPLOMA: 'دبلوم', ACCREDITATION: 'اعتماد' }
+const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
+const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
 
 export function AdminBooksTab() {
   const { toast } = useToast()
