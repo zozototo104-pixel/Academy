@@ -81,26 +81,79 @@ export function buildSupervisorSystemPrompt(context?: string): string {
 ${context ? `سياق إضافي عن الوحدة/الدورة الحالية للطالب:\n${context}` : ''}`
 }
 
+function localSupervisorFallback(messages: { role: string; content: string }[]): string {
+  const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const q = last.toLowerCase()
+
+  if (/رسوم|سعر|تكلفة|دفع|قسط|دولار/.test(q)) {
+    return `التكلفة حسب نوع البرنامج: الدكتوراه المهنية بمعادلة الخبرات ${ADMISSION_FEES.doctorate}$، والماجستير المهني بمعادلة الخبرات ${ADMISSION_FEES.masters}$، والدبلومات والبرامج الدولية تبدأ من ${ADMISSION_FEES.diplomasRange}$ حسب البرنامج. رسوم تقديم الطلب وحجز المقعد ${ADMISSION_FEES.applicationFee}$ غير مستردة. للتأكد من حالتك المالية الخاصة تواصل مع الإدارة عبر ${ACADEMY_INFO.email}.`
+  }
+
+  if (/شهادة|تصدر|تخرج|اعتماد|موثقة/.test(q)) {
+    return `الشهادة تُصدر عادة خلال ${ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم المطلوبة. إن كان سؤالك عن شهادة محددة أو حالة إصدار خاصة، أرسل اسمك ورقم طلبك للإدارة عبر ${ACADEMY_INFO.email}.`
+  }
+
+  if (/تسجيل|التحاق|قبول|وثائق|مستندات/.test(q)) {
+    return `للالتحاق تحتاج إلى استيفاء شروط القبول وتقديم الوثائق المطلوبة، ثم دفع رسوم تقديم الطلب وحجز المقعد، وبعدها يتم تثبيت تسجيلك ومتابعة برنامجك. الوثائق المطلوبة تشمل عادة ما يثبت الهوية والمؤهل أو الخبرة حسب نوع البرنامج.`
+  }
+
+  if (/برنامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص/.test(q)) {
+    return `تقدم الأكاديمية برامج مهنية ودبلومات وشهادات دولية في الإدارة، الموارد البشرية، الجودة، المشاريع، التسويق، الذكاء الاصطناعي، والاستشارات المهنية وغيرها. اذكر اسم البرنامج أو التخصص الذي تريده وسأشرح لك فكرته ومتطلباته وخطوات البدء.`
+  }
+
+  return `أنا مشرفك الأكاديمي من الأكاديمية الأمريكية. وصلتني رسالتك، لكن خدمة الذكاء الاصطناعي لم ترد الآن بشكل مستقر. أعد صياغة سؤالك بكلمات واضحة، أو اسألني عن برنامج محدد، الرسوم، الشهادة، الاعتماد، أو خطوات التسجيل وسأساعدك.`
+}
+
 export async function chatComplete(
   messages: { role: string; content: string }[],
   context?: string
 ): Promise<string> {
-  const zai = await getZAI()
   const systemPrompt = buildSupervisorSystemPrompt(context)
-  const completion = await zai.chat.completions.create({
-    messages: [
-      // ملاحظة: SDK Z-AI لا يقبل role 'system' في النوع — البرومبت النظامي يمر كرسالة أولى
-      { role: 'assistant', content: systemPrompt },
-      ...messages.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content,
-      })),
-    ],
-    thinking: { type: 'disabled' },
-  })
-  const content = completion.choices[0]?.message?.content
-  if (!content || !content.trim()) throw new Error('EMPTY_AI_RESPONSE')
-  return content.trim()
+  const geminiReady = await ensureGeminiKey().catch(() => false)
+
+  if (geminiReady) {
+    try {
+      const history = messages.map((m) => ({
+        role: m.role === 'user' ? 'user' as const : 'model' as const,
+        text: m.content,
+      }))
+      return await geminiComplete({
+        system: systemPrompt,
+        history,
+        temperature: 0.65,
+        maxOutputTokens: 1200,
+      })
+    } catch (e: any) {
+      const msg = String(e?.message || e || '')
+      console.error('Gemini chatComplete failed:', msg.slice(0, 300))
+      if (isQuotaError(e)) return 'انتهت حصة Gemini مؤقتاً لهذا المشروع. فعّل Billing أو انتظر إعادة ضبط الحصة، ويمكنك متابعة استخدام الأسئلة العامة أو التواصل مع الإدارة عند الحاجة.'
+      if (isAuthError(e)) return 'مفتاح Gemini غير صالح أو لا يملك الصلاحية المطلوبة. يرجى مراجعة إعدادات Gemini في لوحة الإدارة.'
+      if (!isModelUnavailableError(e) && !isInvalidArgumentError(e)) {
+        // نكمل إلى Z-AI كاحتياط قبل الرجوع للرد المحلي.
+      }
+    }
+  }
+
+  try {
+    const zai = await getZAI()
+    const completion = await zai.chat.completions.create({
+      messages: [
+        // ملاحظة: SDK Z-AI لا يقبل role 'system' في النوع — البرومبت النظامي يمر كرسالة أولى
+        { role: 'assistant', content: systemPrompt },
+        ...messages.map((m) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        })),
+      ],
+      thinking: { type: 'disabled' },
+    })
+    const content = completion.choices[0]?.message?.content
+    if (!content || !content.trim()) throw new Error('EMPTY_AI_RESPONSE')
+    return content.trim()
+  } catch (e: any) {
+    console.error('ZAI chatComplete failed:', String(e?.message || e).slice(0, 300))
+    return localSupervisorFallback(messages)
+  }
 }
 
 export interface GradedAnswer {
