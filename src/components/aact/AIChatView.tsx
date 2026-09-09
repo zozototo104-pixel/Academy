@@ -77,16 +77,6 @@ function buildSpeechText(text: string): string {
     .trim()
 }
 
-function pickArabicBrowserVoice(): SpeechSynthesisVoice | null {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
-  const voices = window.speechSynthesis.getVoices?.() || []
-  return (
-    voices.find((v) => /ar|arabic|العربية/i.test(`${v.lang} ${v.name}`)) ||
-    voices.find((v) => /samantha|maged|tarik|laila|rana|zeina|google/i.test(v.name)) ||
-    null
-  )
-}
-
 // ===== نتائج تحليل مسودة البحث =====
 interface ThesisReview {
   overallScore: number
