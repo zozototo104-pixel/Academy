@@ -317,6 +317,8 @@ export function AIChatView() {
   // مع بديل ASR خادمي للمتصفحات التي لا تدعم Web Speech API (تسجيل MediaRecorder → /api/ai/asr)
   const toggleMic = () => {
     if (listening) {
+      micManualStopRef.current = true
+      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
       recognitionRef.current?.stop()
       asrRecorderRef.current?.stop()
       setListening(false)
@@ -331,6 +333,7 @@ export function AIChatView() {
       startAsrFallback()
       return
     }
+    micManualStopRef.current = false
     speechDraftRef.current = ''
     recognitionRef.current = rec
     rec.onresult = (e) => {
@@ -341,23 +344,52 @@ export function AIChatView() {
         if (r.isFinal) finalText += ` ${r[0].transcript}`
         else interimText += ` ${r[0].transcript}`
       }
-      if (finalText.trim()) speechDraftRef.current = `${speechDraftRef.current} ${finalText}`.replace(/\s+/g, ' ').trim()
+      if (finalText.trim()) {
+        speechDraftRef.current = `${speechDraftRef.current} ${finalText}`.replace(/\s+/g, ' ').trim()
+        setInput(speechDraftRef.current)
+      }
       setInterim((interimText || speechDraftRef.current || 'يستمع… اضغط المايك مرة أخرى للإرسال').trim())
     }
     rec.onerror = (ev: any) => {
-      setListening(false)
-      setInterim('')
-      speechDraftRef.current = ''
-      if (ev?.error === 'not-allowed') {
+      const err = String(ev?.error || '')
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        micManualStopRef.current = true
+        setListening(false)
+        setInterim('')
+        speechDraftRef.current = ''
         toast({ title: 'صلاحية المايكروفون مرفوضة', description: 'اسمح بالوصول للمايكروفون من إعدادات المتصفح', variant: 'destructive' })
+        return
+      }
+      // no-speech / aborted يحدث كثيراً في iPhone وChrome؛ لا نطفئ الزر بسببه.
+      if (!micManualStopRef.current) {
+        setListening(true)
+        setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
       }
     }
     rec.onend = () => {
-      const text = speechDraftRef.current.trim()
-      speechDraftRef.current = ''
-      setListening(false)
-      setInterim('')
-      if (text) send(text)
+      if (micManualStopRef.current) {
+        const text = speechDraftRef.current.trim()
+        speechDraftRef.current = ''
+        recognitionRef.current = null
+        setListening(false)
+        setInterim('')
+        if (text) send(text)
+        return
+      }
+
+      // المتصفح قد ينهي التعرف تلقائياً بعد الصمت؛ نعيد تشغيله حتى يضغط المستخدم الإيقاف.
+      setListening(true)
+      setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
+      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
+      micRestartTimerRef.current = setTimeout(() => {
+        if (micManualStopRef.current || recognitionRef.current !== rec) return
+        try {
+          rec.start()
+        } catch {
+          setListening(false)
+          setInterim(speechDraftRef.current || '')
+        }
+      }, 250)
     }
     try {
       rec.start()
