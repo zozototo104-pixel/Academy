@@ -241,6 +241,11 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
     }
   }
 
+  const nonDocReason = nonAdmissionAttachmentReason(f)
+  if (nonDocReason) {
+    return { ok: false, problem: true, reason: nonDocReason }
+  }
+
   const isLogo = hasAny(blob, KEYWORDS.logo)
 
   if (isLogo) {
