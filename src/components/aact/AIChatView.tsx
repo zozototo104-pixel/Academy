@@ -178,12 +178,19 @@ export function AIChatView() {
           audioRef.current = null
         }
         setSpeakingId(msgId)
+        const token = getToken()
         const res = await fetch('/api/ai/tts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ text, speed: 1.0 }),
         })
-        if (!res.ok) throw new Error('TTS failed')
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err?.error || 'TTS failed')
+        }
         const blob = await res.blob()
         const url = URL.createObjectURL(blob)
         const audio = getSharedAudio()
