@@ -200,6 +200,15 @@ function isImageFile(f: AdmissionFileEvidence): boolean {
 function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { ok: boolean; problem: boolean; reason: string } {
   const blob = evidenceBlob(f)
   const detected = normalize(f.ocrRead?.docTypeDetected || '')
+
+  if (isVisionUnavailable(f)) {
+    return {
+      ok: false,
+      problem: false,
+      reason: 'وصل المرفق، لكن قارئ الصور لم يكمل التحليل بسبب انشغال الخدمة أو تعذر مؤقت؛ لا يُحتسب كمطابق قبل إعادة التحليل أو المراجعة اليدوية.',
+    }
+  }
+
   const isLogo = hasAny(blob, KEYWORDS.logo)
 
   if (isLogo) {
