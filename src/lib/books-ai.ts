@@ -1,5 +1,6 @@
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { ACADEMY_INFO } from '@/lib/academyData'
+import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
 
@@ -26,6 +27,60 @@ const LEVEL_AR: Record<string, string> = {
   MASTERS: 'الماجستير المهني',
   DIPLOMA: 'الدبلوم المهني المتقدم',
   ACCREDITATION: 'الاعتماد الدولي',
+}
+
+function cleanText(value: unknown, max = 1000): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function googleBooksSearch(title: string): string {
+  return `https://books.google.com/books?q=${encodeURIComponent(title)}`
+}
+
+async function completeJsonWithFallback(args: {
+  system: string
+  prompt: string
+  label: string
+  temperature?: number
+  maxOutputTokens?: number
+  retries?: number
+}): Promise<string> {
+  const errors: string[] = []
+
+  if (await ensureGeminiKey().catch(() => false)) {
+    try {
+      return await geminiCompleteJson({
+        system: args.system,
+        history: [{ role: 'user', text: args.prompt }],
+        temperature: args.temperature ?? 0.25,
+        maxOutputTokens: args.maxOutputTokens ?? 4096,
+      })
+    } catch (e: any) {
+      const msg = String(e?.message || e).slice(0, 220)
+      errors.push(`Gemini: ${msg}`)
+      console.error(`${args.label} Gemini failed:`, msg)
+    }
+  } else {
+    errors.push('Gemini: GEMINI_NOT_CONFIGURED')
+  }
+
+  try {
+    const zai = await getZAI()
+    return await chatWithRetry(
+      zai,
+      [
+        { role: 'assistant', content: args.system },
+        { role: 'user', content: args.prompt },
+      ],
+      args.retries ?? 3
+    )
+  } catch (e: any) {
+    const msg = String(e?.message || e).slice(0, 220)
+    errors.push(`ZAI: ${msg}`)
+    console.error(`${args.label} ZAI failed:`, msg)
+  }
+
+  throw new Error(`${args.label} AI failed — ${errors.join(' | ')}`)
 }
 
 function extractJsonArray(raw: string): any[] {
@@ -87,7 +142,6 @@ function tryParseJsonObject(t: string): any | null {
 
 /** استخراج متسامح: مصفوفة كاملة ← سطر بسطر ← مطابقة أقواس كائن-كائن */
 function parseLoose(raw: string): any[] {
-  // 1) كائن لكل سطر (JSONL)
   const byLine: any[] = []
   for (const line of raw.split('\n')) {
     const obj = tryParseJsonObject(line)
@@ -95,7 +149,6 @@ function parseLoose(raw: string): any[] {
   }
   if (byLine.length >= 3) return byLine
 
-  // 2) مطابقة أقواس متوازنة لكائنات مستقلة (يتحمّل خلل كائن واحد)
   const objs: any[] = []
   let depth = 0
   let cur = ''
@@ -128,52 +181,97 @@ function parseLoose(raw: string): any[] {
   return objs.length >= byLine.length ? objs : byLine
 }
 
+function normalizeSuggestion(b: any): BookSuggestion | null {
+  const title = cleanText(b?.title, 300)
+  const titleEn = cleanText(b?.titleEn || b?.englishTitle || b?.originalTitle, 300)
+  if (!title && !titleEn) return null
+  const searchTitle = titleEn || title
+  const rawLink = cleanText(b?.link || b?.url, 600)
+  const link = /^https?:\/\//i.test(rawLink) ? rawLink : googleBooksSearch(searchTitle)
+  return {
+    title: title || titleEn,
+    titleEn,
+    author: cleanText(b?.author, 200) || 'مرجع أكاديمي متخصص',
+    year: cleanText(b?.year, 20) || 'حديث/متداول',
+    reason: cleanText(b?.reason, 600) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
+    link,
+  }
+}
+
+function fallbackBookSuggestions(program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null }): BookSuggestion[] {
+  const topic = cleanText(program.titleEn || program.titleAr, 180)
+  const level = LEVEL_AR[program.category] || 'الدراسات المهنية'
+  const base = [
+    ['Research Design: Qualitative, Quantitative, and Mixed Methods Approaches', 'John W. Creswell & J. David Creswell', '2018', 'مرجع منهجي أساسي للبحوث الأكاديمية والمهنية ويخدم إعداد مشروع التخرج.'],
+    ['Research Methodology: Methods and Techniques', 'C. R. Kothari', '2004', 'مرجع واضح في تصميم البحث وجمع البيانات وتحليلها.'],
+    ['Harvard Business Review Manager’s Handbook', 'Harvard Business Review Press', '2017', 'مرجع تطبيقي شامل في الإدارة والقيادة واتخاذ القرار.'],
+    ['Strategic Management: Concepts and Cases', 'Fred R. David & Forest R. David', '2020', 'يعطي الطالب أدوات تحليل استراتيجية قابلة للتطبيق في أغلب البرامج المهنية.'],
+    ['Project Management: A Systems Approach to Planning, Scheduling, and Controlling', 'Harold Kerzner', '2022', 'مرجع قوي لإدارة المشاريع والمتابعة والرقابة المؤسسية.'],
+    ['Human Resource Management', 'Gary Dessler', '2020', 'مرجع عملي في إدارة الموارد البشرية والسلوك التنظيمي.'],
+    ['Quality Management for Organizational Excellence', 'David L. Goetsch & Stanley Davis', '2021', 'مناسب لفهم الجودة والتحسين المستمر وبناء مؤشرات الأداء.'],
+    ['The Fifth Discipline: The Art and Practice of the Learning Organization', 'Peter M. Senge', '2006', 'يربط التعلم المؤسسي بالتطوير القيادي والتغيير.'],
+  ]
+
+  return base.map(([titleEn, author, year, reason]) => ({
+    title: `مرجع في ${program.titleAr}: ${titleEn}`.slice(0, 300),
+    titleEn,
+    author,
+    year,
+    reason: `${reason} اختير كاقتراح احتياطي مناسب لمستوى ${level} إلى حين رجوع الذكاء الاصطناعي باقتراحات أكثر تخصصاً في ${topic}.`,
+    link: googleBooksSearch(`${titleEn} ${topic}`),
+  }))
+}
+
 /** اقتراح كتب مرجعية لتخصص البرنامج بناءً على واقع التخصص عالمياً */
 export async function suggestBooksForProgram(program: {
   titleAr: string
   titleEn?: string | null
   category: string
-  description: string
+  description?: string | null
 }): Promise<BookSuggestion[]> {
-  const zai = await getZAI()
   const level = LEVEL_AR[program.category] || program.category
+  const description = cleanText(program.description, 600)
+  const fallback = fallbackBookSuggestions(program)
   const prompt = `أنت خبير ذكاء اصطناعي أكاديمي متخصص في تحليل مناهج الدراسات العليا وواقع التخصصات في العالم.
 
 التخصص المطلوب: "${program.titleAr}" (${program.titleEn || '-'}) — درجة: ${level}
-وصف البرنامج: ${program.description.slice(0, 600)}
+وصف البرنامج: ${description || 'لا يوجد وصف تفصيلي؛ استنتج من اسم البرنامج ومستواه.'}
 الأكاديمية: ${ACADEMY_INFO.nameAr} — برامج دراسات عليا مهنية دولية.
 
 المطلوب:
-- حلل واقع تخصص "${program.titleAr}" عالمياً اليوم: أبرز المداول المعتمدة في الجامعات المرموقة، المراجع الكلاسيكية الأساسية، أحدث الإصدارات التي تعكس التطورات الحديثة في المجال.
-- اقترح 8 كتب (مراجع علمية) يجب على طالب ${level} في هذا التخصص قراءتها ليمتحن بها.
-- نوّع بين الكلاسيكيات المرجعية والإصدارات الحديثة، وبين المتوفر بالعربية والإنجليزية.
-- اذكر لكل كتاب: العنوان بالعربية، العنوان الأصلي بالإنجليزية، المؤلف، سنة النشر التقريبية، وسبب اختياره لهذا التخصص (سطران كحد أقصى).
-- مهم: لكل كتاب أضف رابطاً إلكترونياً واقعياً (link) يتيح الاطلاع أو التحميل أو الشراء — استخدم مصادر حقيقية معروفة فقط مثل:
-  - Google Books: https://books.google.com/books?id=... أو صفحة البحث https://books.google.com/books?q=<اسم الكتاب بالإنجليزية>
-  - Open Library: https://openlibrary.org/search?q=<العنوان>
-  - Archive.org: https://archive.org/search?query=<العنوان>
-  - موقع الناشر أو Amazon أو Goodreads أو DOI للمراجع العلمية
-  إذا لم تكن متأكداً من رابط مباشر دقيق، استخدم رابط بحث آمن بالصيغة أعلاه — لا تخترع روابط مكسورة.
+- حلل واقع تخصص "${program.titleAr}" عالمياً اليوم: أبرز المناهج المعتمدة في الجامعات المرموقة، المراجع الكلاسيكية الأساسية، وأحدث الإصدارات التي تعكس التطورات الحديثة في المجال.
+- اقترح 8 كتب أو مراجع علمية يجب على طالب ${level} في هذا التخصص قراءتها ليمتحن بها.
+- نوّع بين الكلاسيكيات المرجعية والإصدارات الحديثة، وبين المتوفر بالعربية والإنجليزية قدر الإمكان.
+- اذكر لكل كتاب: العنوان بالعربية، العنوان الأصلي بالإنجليزية، المؤلف، سنة النشر التقريبية، وسبب اختياره لهذا التخصص في سطرين كحد أقصى.
+- لكل كتاب أضف رابطاً واقعياً آمناً. إذا لم تكن متأكداً من رابط مباشر دقيق، استخدم رابط بحث Google Books أو Open Library ولا تخترع رابطاً مكسوراً.
 
 أجب بصيغة JSON فقط بدون أي نص إضافي — مصفوفة من 8 عناصر:
 [{"title":"<العنوان بالعربية>","titleEn":"<العنوان بالإنجليزية>","author":"<المؤلف>","year":"<سنة>","reason":"<سبب الاختيار>","link":"<رابط الكتاب أو رابط بحث عنه>"}]`
 
-  const raw = await chatWithRetry(zai, [
-    { role: 'assistant', content: 'أنت خبير أكاديمي يرجع JSON صالحاً فقط دون أي نص إضافي.' },
-    { role: 'user', content: prompt },
-  ])
-  const arr = extractJsonArray(raw)
-  return arr
-    .filter((b) => b && b.title)
-    .slice(0, 10)
-    .map((b) => ({
-      title: String(b.title).slice(0, 300),
-      titleEn: String(b.titleEn || '').slice(0, 300),
-      author: String(b.author || '').slice(0, 200),
-      year: String(b.year || '').slice(0, 20),
-      reason: String(b.reason || '').slice(0, 600),
-      link: String(b.link || '').trim().slice(0, 600),
-    }))
+  try {
+    const raw = await completeJsonWithFallback({
+      label: 'book suggestions',
+      system: 'أنت خبير أكاديمي يرجع JSON صالحاً فقط دون أي نص إضافي.',
+      prompt,
+      temperature: 0.25,
+      maxOutputTokens: 4096,
+      retries: 3,
+    })
+    const cleaned = extractJsonArray(raw)
+      .map(normalizeSuggestion)
+      .filter(Boolean) as BookSuggestion[]
+
+    const merged = [...cleaned]
+    for (const b of fallback) {
+      if (merged.length >= 8) break
+      if (!merged.some((x) => cleanText(x.titleEn || x.title).toLowerCase() === cleanText(b.titleEn || b.title).toLowerCase())) merged.push(b)
+    }
+    if (merged.length > 0) return merged.slice(0, 8)
+  } catch (e: any) {
+    console.error('suggestBooksForProgram fallback used:', String(e?.message || e).slice(0, 500))
+  }
+
+  return fallback.slice(0, 8)
 }
 
 export interface ExamSourceBook {
@@ -234,11 +332,10 @@ const BATCH_SPECS: {
 
 /** توليد دفعة أسئلة من الكتب المقررة وفق مواصفة الدفعة */
 export async function generateExamQuestionBatch(
-  program: { titleAr: string; titleEn?: string | null; category: string; description: string },
+  program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
   books: ExamSourceBook[],
   batchIndex: number
 ): Promise<GeneratedQuestion[]> {
-  const zai = await getZAI()
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
 
@@ -255,7 +352,7 @@ ${b.description ? `نبذة: ${b.description.slice(0, 300)}\n` : ''}${excerpt ? 
 
 ${booksSection}
 
-وصف البرنامج: ${program.description.slice(0, 500)}
+وصف البرنامج: ${cleanText(program.description, 500) || 'غير مذكور'}
 
 الدفعة المطلوبة (${spec.count} سؤالاً):
 ${spec.instruction}
@@ -274,10 +371,21 @@ ${spec.instruction}
 أجب بصيغة JSON فقط — مصفوفة من ${spec.count} أسئلة:
 [{"type":"MCQ","text":"...","options":["أ","ب","ج","د"],"correct":"0","points":2}]`
 
-  const raw = await chatWithRetry(zai, [
-    { role: 'assistant', content: 'أنت أستاذ امتحانات دراسات عليا يرجع JSON صالحاً فقط دون أي نص إضافي أو تعليقات.' },
-    { role: 'user', content: prompt },
-  ])
+  let raw = ''
+  try {
+    raw = await completeJsonWithFallback({
+      label: `exam question batch ${batchIndex + 1}`,
+      system: 'أنت أستاذ امتحانات دراسات عليا يرجع JSON صالحاً فقط دون أي نص إضافي أو تعليقات.',
+      prompt,
+      temperature: 0.25,
+      maxOutputTokens: 8192,
+      retries: 3,
+    })
+  } catch (e: any) {
+    console.error('generateExamQuestionBatch failed:', String(e?.message || e).slice(0, 600))
+    return []
+  }
+
   let arr: any[] = []
   try {
     arr = extractJsonArray(raw)
@@ -306,7 +414,7 @@ ${spec.instruction}
       })
     }
   }
-  return cleaned
+  return cleaned.slice(0, spec.count)
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
