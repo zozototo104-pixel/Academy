@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { allSeedPrograms } from '../src/lib/academyData'
+import { degreeSpecializationSeedPrograms, GENERIC_ALL_SPECIALIZATIONS_SLUGS } from '../src/lib/program-tracks'
 
 const prisma = new PrismaClient()
 
