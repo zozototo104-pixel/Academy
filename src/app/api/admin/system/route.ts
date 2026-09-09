@@ -115,16 +115,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, title: 'اسم نموذج Gemini Live غير صحيح', message: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.' })
       }
       try {
-        const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || ''
-        const r = await fetch(`${base}/api/ai/gemini-live/session`, {
+        const apiKey = await geminiApiKey()
+        const now = Date.now()
+        const r = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('authorization') || '' },
-          body: JSON.stringify({ testOnly: true, model }),
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({
+            authToken: {
+              uses: 1,
+              expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
+              newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+            },
+          }),
         })
-        const d = await r.json().catch(() => ({}))
-        return NextResponse.json({ ok: r.ok, title: r.ok ? 'Gemini Live يعمل' : 'فشل اختبار Gemini Live', message: d.message || d.error || 'تعذر اختبار Gemini Live', model })
-      } catch {
-        return NextResponse.json({ ok: true, title: 'Gemini Live مضبوط', message: `النموذج المحفوظ صالح: ${model}. سيتم إنشاء الرمز المؤقت عند بدء المكالمة من صفحة الطالب.` })
+        const d: any = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          const msg = d?.error?.message || d?.message || `Gemini Live HTTP ${r.status}`
+          const err: any = new Error(msg)
+          err.status = r.status
+          if (isQuotaError(err)) return NextResponse.json({ ok: false, title: 'انتهت حصة Gemini', message: 'انتهت حصة Gemini مؤقتاً، فعّل Billing أو انتظر إعادة ضبط الحصة.', model })
+          if (isAuthError(err)) return NextResponse.json({ ok: false, title: 'مفتاح Gemini غير صالح', message: 'مفتاح Gemini غير موجود أو غير صالح.', model })
+          if (isModelUnavailableError(err) || isInvalidArgumentError(err)) return NextResponse.json({ ok: false, title: 'إعدادات Gemini Live غير مقبولة', message: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.', model })
+          return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini Live', message: msg.slice(0, 300), model })
+        }
+        return NextResponse.json({ ok: true, title: 'Gemini Live يعمل', message: `تم إنشاء رمز مؤقت بنجاح للنموذج ${model}`, model })
+      } catch (e: any) {
+        const msg = String(e?.message || e || '').slice(0, 300)
+        return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini Live', message: msg || 'تعذر اختبار Gemini Live', model })
       }
     }
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
