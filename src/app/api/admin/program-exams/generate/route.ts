@@ -23,6 +23,10 @@ async function runGeneration(examId: string) {
       select: { title: true, author: true, description: true, textContent: true },
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${semester === 2 ? 'الثاني' : 'الأول'}`)
+    const readableBooks = books.filter((b) => (b.textContent || '').replace(/\s+/g, ' ').trim().length >= 800)
+    if (readableBooks.length === 0) {
+      throw new Error('توجد كتب مقررة، لكن لم يُستخرج منها نص كافٍ. ارفع PDF نصي أو DOCX أو TXT/Excel قابل للقراءة حتى تُبنى الأسئلة من محتوى الكتب فعلياً.')
+    }
 
     let order = 0
 
