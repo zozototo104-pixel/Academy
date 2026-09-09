@@ -157,6 +157,29 @@ function matchKeywords(haystack: string, list: string[]): string | null {
   return null
 }
 
+type DetectedDocKind =
+  | 'DEGREE_CERTIFICATE'
+  | 'TRANSCRIPT'
+  | 'ID'
+  | 'CV'
+  | 'PHOTO'
+  | 'LOGO'
+  | 'NON_ADMISSION'
+  | 'OTHER_DOCUMENT'
+  | 'UNVERIFIED'
+
+const DETECTED_KIND_AR: Record<DetectedDocKind, string> = {
+  DEGREE_CERTIFICATE: 'شهادة علمية',
+  TRANSCRIPT: 'كشف درجات/علامات',
+  ID: 'هوية أو جواز سفر',
+  CV: 'سيرة ذاتية',
+  PHOTO: 'صورة شخصية',
+  LOGO: 'شعار/ختم فقط',
+  NON_ADMISSION: 'مرفق غير تابع للقبول',
+  OTHER_DOCUMENT: 'مستند آخر',
+  UNVERIFIED: 'غير متحقق آلياً',
+}
+
 function isVisionUnavailable(f?: AdmissionFileEvidence | null): boolean {
   if (!f?.ocrRead) return false
   const raw = normalize([
