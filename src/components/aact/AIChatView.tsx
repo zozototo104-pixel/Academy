@@ -733,7 +733,7 @@ export function AIChatView() {
           <Button
             onClick={toggleVoiceMode}
             size="icon"
-            className={`h-12 w-12 shrink-0 rounded-full ${
+            className={`h-11 w-11 shrink-0 rounded-full sm:h-12 sm:w-12 ${
               voiceMode ? 'aact-pulse-mic bg-[#b22234] text-white hover:bg-[#b22234]' : 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]'
             }`}
             title={voiceMode ? 'إنهاء المحادثة الصوتية الحية' : 'محادثة صوتية حية — استماع مستمر ومقاطعة'}
