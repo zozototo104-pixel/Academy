@@ -280,17 +280,23 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
   const contents = buildContents(opts.history)
   let lastErr: any
   for (const model of await textModelChain()) {
-    try {
-      const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true) })
-      const text = String((response as any).text || '').trim()
-      if (!text) throw new Error('EMPTY_AI_RESPONSE')
-      activeTextModel = model
-      return text
-    } catch (e) {
-      lastErr = e
-      if (isAuthError(e)) throw e
-      if ((isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e))) continue
-      throw e
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true) })
+        const text = String((response as any).text || '').trim()
+        if (!text) throw new Error('EMPTY_AI_RESPONSE')
+        activeTextModel = model
+        return text
+      } catch (e) {
+        lastErr = e
+        if (isAuthError(e)) throw e
+        if (isTransientGeminiError(e)) {
+          if (attempt < 2) await wait(700 * attempt)
+          continue
+        }
+        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
+        throw e
+      }
     }
   }
   throw lastErr
