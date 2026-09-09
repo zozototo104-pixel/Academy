@@ -227,6 +227,16 @@ export function isQuotaError(e: any): boolean {
   return status === 429 || /RESOURCE_EXHAUSTED|quota|rate limit|exceed your current quota/i.test(msg)
 }
 
+export function isTransientGeminiError(e: any): boolean {
+  const status = e?.status ?? e?.code
+  const msg = String(e?.message || e || '')
+  return status === 500 || status === 502 || status === 503 || status === 504 || /UNAVAILABLE|overloaded|high demand|service unavailable|temporar|try again|timeout|deadline/i.test(msg)
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
