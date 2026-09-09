@@ -317,7 +317,7 @@ export function AIChatView() {
         setSending(false)
       }
     },
-    [input, sending, speak, toast]
+    [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast]
   )
 
   // ===== الوضع الصوتي الحي — عبر VoiceAgent (VAD + End-of-Turn ذكي + بث كامل + Barge-in) =====
