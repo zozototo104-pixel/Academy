@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api } from '@/lib/store'
+import { useAppStore, api, getToken } from '@/lib/store'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 import { GeminiLiveAgent as VoiceAgent } from '@/lib/voice/geminiLiveAgent'
 import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
