@@ -294,8 +294,10 @@ export async function geminiVisionJson(opts: {
     parts.push({ inlineData: { mimeType: img.mimeType || 'image/jpeg', data: img.dataBase64 } })
   }
   const contents = [{ role: 'user', parts }]
+  const customTextModels = (await textModelChain()).filter((m) => !/live|tts/i.test(m))
+  const chain = [...new Set([...VISION_MODELS, ...customTextModels])]
   let lastErr: any
-  for (const model of await textModelChain()) {
+  for (const model of chain) {
     try {
       const response = await ai.models.generateContent({
         model,
