@@ -21,6 +21,8 @@ export const maxDuration = 30
 const LIVE_WS_BASE =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 
+type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
+
 function cleanModel(model: unknown): string {
   return normalizeGeminiModelName(model)
 }
@@ -28,6 +30,10 @@ function cleanModel(model: unknown): string {
 function cleanVoice(voice: unknown): string {
   const v = String(voice || '').trim()
   return /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(v) ? v : 'Charon'
+}
+
+function cleanVariant(v: unknown): SetupVariant {
+  return v === 'generationConfig' || v === 'bare' ? v : 'minimal'
 }
 
 function httpStatusForGeminiError(e: any): number {
@@ -43,9 +49,46 @@ function arabicErrorForGemini(e: any): string {
   if (isQuotaError(e)) return 'وصل Gemini Live إلى حد الحصة الحالية لهذا المشروع — فعّل Billing أو انتظر إعادة الضبط'
   if (isModelUnavailableError(e)) return 'نموذج Gemini Live المختار غير متاح لهذا المشروع'
   if (isInvalidArgumentError(e)) {
-    return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview وتأكد أن المشروع يملك صلاحية Live API'
+    return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview، أو جرّب gemini-2.5-flash-live-preview إذا لم تكن 3.1 متاحة لمشروعك'
   }
   return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
+}
+
+function buildSetup(variant: SetupVariant, model: string, systemInstruction: string) {
+  const instruction = systemInstruction.slice(0, 32000)
+
+  if (variant === 'bare') {
+    return {
+      setup: {
+        model: `models/${model}`,
+        responseModalities: ['AUDIO'],
+      },
+    }
+  }
+
+  if (variant === 'generationConfig') {
+    return {
+      setup: {
+        model: `models/${model}`,
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+        },
+        systemInstruction: {
+          parts: [{ text: instruction }],
+        },
+      },
+    }
+  }
+
+  return {
+    setup: {
+      model: `models/${model}`,
+      responseModalities: ['AUDIO'],
+      systemInstruction: {
+        parts: [{ text: instruction }],
+      },
+    },
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +103,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
   }
 
-  let body: { model?: string; voice?: string; context?: string; testOnly?: boolean } = {}
+  let body: { model?: string; voice?: string; context?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
   } catch {}
@@ -74,6 +117,7 @@ export async function POST(req: NextRequest) {
   }
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
+  const setupVariant = cleanVariant(body.setupVariant)
   const ragContext = await buildSupervisorContext(user.id)
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
@@ -82,33 +126,13 @@ export async function POST(req: NextRequest) {
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
   )
 
-  // الصيغة الرسمية لـ BidiGenerateContentSetup عبر WebSocket:
-  // model + responseModalities مباشرة داخل setup، وليست داخل generationConfig/config.
-  const setup = {
-    setup: {
-      model: `models/${model}`,
-      responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: voice },
-        },
-      },
-      systemInstruction: {
-        parts: [{ text: systemInstruction.slice(0, 36000) }],
-      },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-      sessionResumption: {},
-    },
-  }
+  const setup = buildSetup(setupVariant, model, systemInstruction)
 
   const now = Date.now()
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
-  // ننشئ token مؤقتاً غير مقيّد ثم نرسل setup عبر WebSocket.
-  // بعض مشاريع Google ترفض liveConnectConstraints رغم أن Live نفسه متاح،
-  // فيظهر خطأ INVALID_ARGUMENT قبل فتح المكالمة. التوكن ما زال قصير العمر و use=1.
+  // التوكن المؤقت قصير العمر ويُستخدم مرة واحدة. الإعدادات تُرسل كأول رسالة setup عبر WebSocket.
   const tokenBody = {
     uses: 1,
     expireTime,
@@ -149,6 +173,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         model,
         voice,
+        setupVariant,
         expiresAt: expireTime,
         message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
@@ -158,6 +183,7 @@ export async function POST(req: NextRequest) {
       token,
       model,
       voice,
+      setupVariant,
       expiresAt: expireTime,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
