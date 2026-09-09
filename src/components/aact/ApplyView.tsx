@@ -117,6 +117,7 @@ export function ApplyView() {
   const { toast } = useToast()
   const { user, applyProgramTitle } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [selectedCategory, setSelectedCategory] = useState('')
   const [loading, setLoading] = useState(false)
   // نتيجة التقديم: كود التتبع + فاتورة رسوم التقديم للسداد الفوري
   const [done, setDone] = useState<{ reference: string; invoice: { invoiceNo: string; amount: number; description: string } | null } | null>(null)
