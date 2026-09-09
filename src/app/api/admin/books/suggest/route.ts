@@ -3,6 +3,9 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { suggestBooksForProgram } from '@/lib/books-ai'
 
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 // POST /api/admin/books/suggest — اقتراح كتب من خبير الذكاء الاصطناعي حسب التخصص
 export async function POST(req: NextRequest) {
   try {
