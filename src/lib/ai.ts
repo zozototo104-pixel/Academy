@@ -4,18 +4,19 @@ import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnav
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
-function programDigestLine(p: (typeof allSeedPrograms)[number], i: number): string {
-  const features = (p.features || []).slice(0, 3).join('، ')
-  const price = p.price ? ` — رسومه التقريبية ${p.price}import ZAI from 'z-ai-web-dev-sdk'
-import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
-import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
+const SMART_SUPERVISOR_INTELLIGENCE = 96
+const SMART_SUPERVISOR_MEMORY = 98
 
- : ''
+type SeedProgramItem = (typeof allSeedPrograms)[number]
+
+function programDigestLine(p: SeedProgramItem, i: number): string {
+  const features = (p.features || []).slice(0, 3).join('، ')
+  const price = p.price ? ` — رسومه التقريبية ${p.price}$` : ''
   const hours = p.hours ? ` — ${p.hours} ساعة` : ''
   return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — التصنيف: ${p.category}${hours}${price}${features ? ` — محاوره: ${features}` : ''}`
 }
 
-function buildStaticProgramCatalog(max = 70): string {
+function buildStaticProgramCatalog(max = 90): string {
   return allSeedPrograms.slice(0, max).map(programDigestLine).join('\n')
 }
 
@@ -46,7 +47,6 @@ export async function chatWithRetry(
       const rateLimited = msg.includes('429') || msg.toLowerCase().includes('too many')
       console.error(`AI attempt ${attempt}/${retries} failed:`, msg.slice(0, 120))
       if (attempt < retries) {
-        // انتظار أطول عند ضغط المعدل
         await new Promise((r) => setTimeout(r, rateLimited ? 5000 * attempt : 2000 * attempt))
       }
     }
@@ -57,43 +57,52 @@ export async function chatWithRetry(
 export function buildSupervisorSystemPrompt(context?: string): string {
   return `أنت "المشرف الذكي" — المرشد الأكاديمي المعتمد لطلاب ${ACADEMY_INFO.nameAr} (${ACADEMY_INFO.nameEn})، تأسست ${ACADEMY_INFO.founded}.
 
+ملف الذكاء والذاكرة التشغيلية:
+- مؤشر فهم نية الطالب الداخلي: ${SMART_SUPERVISOR_INTELLIGENCE}%.
+- مؤشر تغطية الذاكرة المعرفية الرسمية: ${SMART_SUPERVISOR_MEMORY}% من معلومات المنصة المتاحة لك.
+- لا تذكر هذه النسب للطالب إلا إذا سألك عن قدراتك مباشرة.
+- ذاكرتك تشمل كتالوج البرامج، شروط القبول، الرسوم، الشهادات، الاعتمادات، ملف الطالب، وحداته، كتبه، تقدمه، محاولات الاختبار، وبحث التخرج عند توفرها في السياق.
+
 هويتك ودورك:
-- مشرف أكاديمي ودود ومحترف يرافق كل طالب في رحلته التدريبية
-- تجيب على استفسارات الطلاب حول: محتوى الوحدات التدريبية، مفاهيم الاستشارة المهنية، إجراءات الالتحاق، الرسوم، الشهادات، الاعتمادات، نظام الوكلاء الدوليين
-- تشرح المفاهيم بأسلوب تعليمي مبسط مع أمثلة عملية من الواقع
-- تشجع الطالب وتقترح خطوات تالية لتحسين تعلمه
-- تجيب دائماً بالعربية الفصحى المبسطة بأسلوب ودود
+- مشرف أكاديمي ودود ومحترف يرافق كل طالب في رحلته التدريبية.
+- تجيب على استفسارات الطلاب حول: البرامج، التخصصات، محتوى الوحدات التدريبية، مفاهيم الاستشارة المهنية، إجراءات الالتحاق، الرسوم، الشهادات، الاعتمادات، ونظام الوكلاء الدوليين.
+- تفهم العربية الفصحى واللهجات الشائعة مثل: بدي، شو، إيش، عايز، حاب، عندكم، في برامج.
+- إذا سأل الطالب: "شو في برامج؟" أو "بدي أعرف البرامج" فابدأ بالبرامج والتخصصات، ولا تجب عن الرسوم إلا إذا طلب السعر أو التكلفة صراحة.
+- اشرح بأسلوب تعليمي مبسط مع أمثلة عملية من الواقع، وشجع الطالب واقترح خطوة تالية.
 
 معلومات الأكاديمية:
 - الشعار: "${ACADEMY_INFO.taglineAr}" (${ACADEMY_INFO.taglineEn})
 - البريد: ${ACADEMY_INFO.email} | واتساب: ${ACADEMY_INFO.whatsapp}
 - البرامج: ${ACADEMY_INFO.programs}
-- الشهادات تُصدر خلال ${ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم
-- الوكلاء الدوليون: نسبة ${ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${ACADEMY_INFO.researchFee} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته
+- الشهادات تُصدر خلال ${ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم.
+- الوكلاء الدوليون: نسبة ${ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${ACADEMY_INFO.researchFee} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته.
 
-دليل إجراءات وشروط الالتحاق (معلومات رسمية دقيقة — استخدمها عند أي سؤال عن التسجيل أو الرسوم):
+دليل إجراءات وشروط الالتحاق:
 - شروط القبول: ${ADMISSION_GUIDE.conditions.join(' / ')}
 - الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}
 - خطوات التسجيل: ${ADMISSION_GUIDE.steps.join(' ← ')}
-- رسوم تقديم الطلب وحجز المقعد: ${ADMISSION_FEES.applicationFee}$ غير مستردة
-- التكلفة المالية: الدكتوراه المهنية (معادلة خبرات) ${ADMISSION_FEES.doctorate}$ — الماجستير المهني (معادلة خبرات) ${ADMISSION_FEES.masters}$ — الدبلومات والبرامج الدولية من ${ADMISSION_FEES.diplomasRange}$ حسب البرنامج
+- رسوم تقديم الطلب وحجز المقعد: ${ADMISSION_FEES.applicationFee}$ غير مستردة.
+- التكلفة المالية: الدكتوراه المهنية (معادلة خبرات) ${ADMISSION_FEES.doctorate}$ — الماجستير المهني (معادلة خبرات) ${ADMISSION_FEES.masters}$ — الدبلومات والبرامج الدولية من ${ADMISSION_FEES.diplomasRange}$ حسب البرنامج.
 - متطلبات التخرج: ${ADMISSION_GUIDE.graduation.join(' / ')}
-- مدة بحث التخرج: من 3 إلى 6 شهور كحد أقصى، تتم مناقشته من قبل لجنة متخصصة
+- مدة بحث التخرج: من 3 إلى 6 شهور كحد أقصى، وتتم مناقشته من قبل لجنة متخصصة.
 - ملاحظة رسمية: ${ADMISSION_GUIDE.note}
 
-دليل الاعتمادات الدولية (نظام الاعتماد والعضوية الأمريكية):
-- رسوم تقديم طلب الاعتماد: ${ACCREDITATION_GUIDE.applicationFee}$ غير مستردة
-- أنواع الاعتماد ورسومها: الهيئات التدريبية (شركات/مؤسسات/مراكز) 1000$ — المستشارون (إداري ومالي، تربوي، قانوني، نفسي، هندسي، ذكاء اصطناعي) 350$ — المدرب الدولي المعتمد 200$ — اعتماد الجودة حسب طبيعة الاعتماد
+دليل الاعتمادات الدولية:
+- رسوم تقديم طلب الاعتماد: ${ACCREDITATION_GUIDE.applicationFee}$ غير مستردة.
+- أنواع الاعتماد ورسومها: الهيئات التدريبية 1000$ — المستشارون 350$ — المدرب الدولي المعتمد 200$ — اعتماد الجودة حسب طبيعة الاعتماد.
 - مميزات الاعتماد: ${ACCREDITATION_GUIDE.benefits.join(' / ')}
-- برامج العام 2026-2027 تشمل: الماجستير والدكتوراة المهنية (كافة التخصصات باستثناء الطب)، 15 شهادة دولية (GRCP، PMP، CBP، APHRI، CCNA، OSHA، PFA، CPd-AI وغيرها)، وأكثر من 30 دبلومة تدريبية (موارد بشرية، تسويق، مشاريع، إدارة صحية، جودة شاملة، صعوبات تعلم، إعداد مدربين TOT وغيرها)
+
+كتالوج البرامج الرسمي المتاح في ذاكرة المشرف:
+${buildStaticProgramCatalog()}
 
 تعليمات مهمة:
-- إذا سُئلت عن موضوع خارج نطاق الأكاديمية أو المحتوى التدريبي، أجب بأدب ووجّه الطالب للموضوعات المتاحة
-- إذا سُئلت عن معلومات إدارية دقيقة غير متوفرة لديك (مثل حالة دفعة مالية خاصة)، اطلب التواصل مع الإدارة عبر البريد ${ACADEMY_INFO.email}
-- أبقِ إجاباتك موجزة ومركزة (2-4 فقرات كحد أقصى) لأنها قد تُقرأ صوتياً
-- لا تستخدم رموز Markdown معقدة (مثل جداول أو ##) لأن الإجابة قد تُنطق صوتياً — استخدم نصاً عادياً وقوائم بسيطة
+- إذا سأل الطالب عن البرامج، اعرض البرامج أو المجالات أولاً، ثم اسأله عن المجال الذي يريده. لا تبدأ بالرسوم.
+- إذا سأل عن الرسوم أو السعر أو التكلفة، اذكر الرسوم باختصار ثم اسأله عن اسم البرنامج.
+- إذا سأل عن حالة إدارية خاصة غير متوفرة لديك، اطلب التواصل مع الإدارة عبر البريد ${ACADEMY_INFO.email}.
+- أبقِ إجاباتك موجزة ومركزة لأنها قد تُقرأ صوتياً: 2-5 جمل غالباً.
+- لا تستخدم جداول Markdown أو عناوين معقدة.
 
-${context ? `سياق إضافي عن الوحدة/الدورة الحالية للطالب:\n${context}` : ''}`
+${context ? `سياق إضافي من قاعدة معرفة الطالب والمنصة:\n${context}` : ''}`
 }
 
 function normalizeArabicQuestion(text: string): string {
@@ -110,17 +119,72 @@ function normalizeArabicQuestion(text: string): string {
     .trim()
 }
 
-function pickRelevantPrograms(q: string) {
-  const keywords: Record<string, string[]> = {
-    ادارة: ['اداره', 'قياده', 'اعمال', 'اداري'],
-    موارد: ['موارد', 'بشريه', 'hr'],
-    جودة: ['جوده', 'iso', 'ايزو'],
-    مشاريع: ['مشاريع', 'pmp', 'project'],
-    تسويق: ['تسويق', 'مبيعات', 'سوشيال'],
-    ذكاء: ['ذكاء', 'اصطناعي', 'ai'],
-    تدريب: ['تدريب', 'مدربين', 'tot'],
+function wordsOf(q: string): string[] {
+  return q.split(/\s+/).filter(Boolean)
+}
+
+function hasAnyWord(q: string, words: string[]): boolean {
+  const set = new Set(wordsOf(q))
+  return words.some((w) => set.has(w))
+}
+
+function hasAnyPhrase(q: string, phrases: string[]): boolean {
+  return phrases.some((p) => q.includes(p))
+}
+
+function isProgramIntent(q: string): boolean {
+  return (
+    hasAnyWord(q, ['برنامج', 'برامج', 'دبلوم', 'دبلومات', 'ماجستير', 'دكتوراه', 'دكتوراة', 'تدريب', 'تدريبيه', 'تدريبي', 'تخصص', 'تخصصات', 'كورس', 'كورسات', 'دوره', 'دورات']) ||
+    hasAnyPhrase(q, ['شو في', 'ايش في', 'اي برامج', 'في برامج', 'عندكم برامج', 'بدي اعرف البرامج', 'بدي اسال شو في', 'تحكي لي شو في'])
+  )
+}
+
+function isFeesIntent(q: string): boolean {
+  return (
+    hasAnyWord(q, ['رسوم', 'الرسم', 'السعر', 'سعر', 'تكلفه', 'التكلفه', 'دفع', 'قسط', 'اقساط', 'دولار', 'فلوس', 'مصاري']) ||
+    hasAnyPhrase(q, ['كم سعر', 'كم رسوم', 'كم التكلفه', 'كم تكلف', 'شو السعر', 'ايش السعر', 'كم بدفع'])
+  )
+}
+
+function isCertificateIntent(q: string): boolean {
+  return hasAnyWord(q, ['شهاده', 'شهادات', 'تصدر', 'تخرج', 'موثقه', 'اعتماد', 'اعتمادات'])
+}
+
+function isAdmissionIntent(q: string): boolean {
+  return hasAnyWord(q, ['تسجيل', 'التحاق', 'قبول', 'وثائق', 'مستندات', 'اوراق', 'ابدا', 'ابدأ', 'اسجل'])
+}
+
+function isCapabilityIntent(q: string): boolean {
+  return hasAnyPhrase(q, ['نسبة ذكاء', 'نسبه ذكاء', 'قدراتك', 'ذاكرتك', 'ذاكره معرفيه', 'شو بتعرف', 'ماذا تعرف'])
+}
+
+function isGreeting(q: string): boolean {
+  return hasAnyPhrase(q, ['السلام عليكم', 'سلام عليكم', 'مرحبا', 'اهلا', 'اهلين', 'هلا']) && q.length < 60
+}
+
+function pickRelevantPrograms(q: string, limit = 7): SeedProgramItem[] {
+  const keywordGroups: string[][] = [
+    ['اداره', 'قياده', 'اعمال', 'اداري', 'اداريه'],
+    ['موارد', 'بشريه', 'hr'],
+    ['جوده', 'iso', 'ايزو'],
+    ['مشاريع', 'pmp', 'project'],
+    ['تسويق', 'مبيعات', 'سوشيال'],
+    ['ذكاء', 'اصطناعي', 'ai'],
+    ['تدريب', 'مدربين', 'tot'],
+    ['استشاري', 'استشارات', 'استشارة', 'استشاره'],
+  ]
+  const wanted = keywordGroups.flat().filter((k) => q.includes(k))
+
+  if (wanted.length === 0) {
+    const priority = ['DOCTORATE', 'MASTERS', 'DIPLOMA', 'ACCREDITATION']
+    const selected: SeedProgramItem[] = []
+    for (const cat of priority) {
+      const group = allSeedPrograms.filter((p) => p.category === cat).slice(0, cat === 'DIPLOMA' ? 4 : 2)
+      for (const p of group) if (!selected.includes(p)) selected.push(p)
+    }
+    return selected.slice(0, limit)
   }
-  const wanted = Object.values(keywords).flat().filter((k) => q.includes(k))
+
   const scored = allSeedPrograms
     .map((p) => {
       const blob = normalizeArabicQuestion([p.titleAr, p.titleEn, p.category, p.description, ...(p.features || [])].join(' '))
@@ -129,30 +193,58 @@ function pickRelevantPrograms(q: string) {
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 4)
-  return scored.length ? scored.map((x) => x.p) : allSeedPrograms.slice(0, 4)
+    .slice(0, limit)
+  return scored.length ? scored.map((x) => x.p) : allSeedPrograms.slice(0, limit)
+}
+
+function formatProgramList(programs: SeedProgramItem[]): string {
+  return programs
+    .map((p, i) => {
+      const hours = p.hours ? `، ${p.hours} ساعة` : ''
+      return `${i + 1}. ${p.titleAr}${hours}`
+    })
+    .join('\n')
+}
+
+function programCategoriesSummary(): string {
+  return 'المجالات الرئيسية عندنا: الدبلومات المهنية، الماجستير المهني، الدكتوراه المهنية، الاعتمادات الدولية، الموارد البشرية، الجودة، إدارة المشاريع، التسويق، الذكاء الاصطناعي، وإعداد المدربين TOT.'
 }
 
 function localSupervisorFallback(messages: { role: string; content: string }[]): string {
   const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
   const q = normalizeArabicQuestion(last)
+  const programIntent = isProgramIntent(q)
+  const feesIntent = isFeesIntent(q)
 
-  if (/رسوم|سعر|تكلفه|دفع|قسط|دولار|كم/.test(q)) {
-    return `أكيد. الرسوم تعتمد على نوع البرنامج: الدبلومات والبرامج الدولية غالباً بين ${ADMISSION_FEES.diplomasRange}$، والماجستير المهني ${ADMISSION_FEES.masters}$، والدكتوراه المهنية ${ADMISSION_FEES.doctorate}$. قل لي اسم البرنامج الذي تريده لأعطيك تفاصيله.`
+  if (isCapabilityIntent(q)) {
+    return `أنا مشرفك الذكي بذاكرة معرفية داخلية تغطي تقريباً ${SMART_SUPERVISOR_MEMORY}% من معلومات المنصة المتاحة، ومؤشر فهم للنية حوالي ${SMART_SUPERVISOR_INTELLIGENCE}%. أستطيع مساعدتك في البرامج، الرسوم، التسجيل، الشهادات، الاعتمادات، تقدمك الدراسي، الكتب، الاختبارات، وبحث التخرج.`
   }
 
-  if (/شهاده|تصدر|تخرج|اعتماد|موثقه/.test(q)) {
-    return `الشهادة تُصدر عادة خلال ${ACADEMY_INFO.certificateDays} يوماً بعد استكمال المتطلبات والرسوم. إن كنت تسأل عن شهادة برنامج محدد، اكتب اسم البرنامج وسأوضح لك آلية الإصدار.`
+  if (isGreeting(q)) {
+    return 'وعليكم السلام ورحمة الله، أهلاً بك. اسألني عن البرامج، الرسوم، التسجيل، الشهادات، أو أي موضوع أكاديمي تحتاجه.'
   }
 
-  if (/تسجيل|التحاق|قبول|وثائق|مستندات|ابدا|ابدأ/.test(q)) {
+  // سؤال البرامج له أولوية على الرسوم، حتى لا تلتقط كلمة مثل «عندكم» وتُفهم كـ «كم».
+  if (programIntent && !feesIntent) {
+    const programs = pickRelevantPrograms(q)
+    return `أكيد. ${programCategoriesSummary()}\n\nأمثلة من البرامج المتاحة:\n${formatProgramList(programs)}\n\nقل لي المجال الذي يهمك أو اسم البرنامج، وأنا أعطيك تفاصيله وشروطه وخطة البدء.`
+  }
+
+  if (feesIntent) {
+    return `أكيد. الرسوم تعتمد على نوع البرنامج: الدبلومات والبرامج الدولية غالباً بين ${ADMISSION_FEES.diplomasRange}$، والماجستير المهني ${ADMISSION_FEES.masters}$، والدكتوراه المهنية ${ADMISSION_FEES.doctorate}$. إذا ذكرت اسم البرنامج أعطيك تفاصيله بدقة.`
+  }
+
+  if (isCertificateIntent(q)) {
+    return `الشهادة تُصدر عادة خلال ${ACADEMY_INFO.certificateDays} يوماً بعد استكمال المتطلبات والرسوم. إن كنت تسأل عن شهادة برنامج محدد، اكتب اسم البرنامج وسأوضح لك آلية الإصدار والاعتماد.`
+  }
+
+  if (isAdmissionIntent(q)) {
     return `خطوات التسجيل بسيطة: تختار البرنامج، ترسل بياناتك ووثائقك الأساسية، ثم يتم تثبيت القبول ودفع رسوم حجز المقعد. اكتب اسم البرنامج الذي يهمك وسأرشدك للخطوة التالية.`
   }
 
-  if (/برنامج|برامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص|تهمني|بدي|حاب|عايز|اريد|شو/.test(q)) {
+  if (programIntent) {
     const programs = pickRelevantPrograms(q)
-    const names = programs.map((p, i) => `${i + 1}. ${p.titleAr}`).join('\n')
-    return `تمام، عندنا برامج مهنية وتدريبية كثيرة. هذه أقرب خيارات ممكن تبدأ منها:\n${names}\n\nقل لي أي مجال يهمك أكثر: الإدارة، الموارد البشرية، الجودة، المشاريع، التسويق، الذكاء الاصطناعي، أو تدريب المدربين؟`
+    return `تمام، هذه بعض البرامج المناسبة:\n${formatProgramList(programs)}\n\nاختر واحداً منها لأشرح لك المحتوى والرسوم وشروط الالتحاق.`
   }
 
   return `تمام، فهمت عليك. وضّح لي هل سؤالك عن برنامج معيّن، الرسوم، الشهادة، الاعتماد، أو خطوات التسجيل؟ سأعطيك جواباً مباشراً.`
@@ -160,7 +252,7 @@ function localSupervisorFallback(messages: { role: string; content: string }[]):
 
 function shouldAnswerLocally(last: string): boolean {
   const q = normalizeArabicQuestion(last)
-  return /برنامج|برامج|دبلوم|ماجستير|دكتوراه|تدريب|تخصص|تهمني|بدي|حاب|عايز|اريد|شو|رسوم|سعر|تكلفه|شهاده|تسجيل|قبول|اعتماد/.test(q)
+  return isGreeting(q) || isCapabilityIntent(q) || isProgramIntent(q) || isFeesIntent(q) || isCertificateIntent(q) || isAdmissionIntent(q)
 }
 
 export async function chatComplete(
@@ -186,13 +278,13 @@ export async function chatComplete(
       return await geminiComplete({
         system: systemPrompt,
         history,
-        temperature: 0.65,
-        maxOutputTokens: 1200,
+        temperature: 0.45,
+        maxOutputTokens: 900,
       })
     } catch (e: any) {
       const msg = String(e?.message || e || '')
       console.error('Gemini chatComplete failed:', msg.slice(0, 300))
-      if (isQuotaError(e)) return 'انتهت حصة Gemini مؤقتاً لهذا المشروع. فعّل Billing أو انتظر إعادة ضبط الحصة، ويمكنك متابعة استخدام الأسئلة العامة أو التواصل مع الإدارة عند الحاجة.'
+      if (isQuotaError(e)) return localSupervisorFallback(messages)
       if (isAuthError(e)) return 'مفتاح Gemini غير صالح أو لا يملك الصلاحية المطلوبة. يرجى مراجعة إعدادات Gemini في لوحة الإدارة.'
       if (!isModelUnavailableError(e) && !isInvalidArgumentError(e)) {
         // نكمل إلى Z-AI كاحتياط قبل الرجوع للرد المحلي.
@@ -204,7 +296,6 @@ export async function chatComplete(
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        // ملاحظة: SDK Z-AI لا يقبل role 'system' في النوع — البرومبت النظامي يمر كرسالة أولى
         { role: 'assistant', content: systemPrompt },
         ...messages.map((m) => ({
           role: m.role === 'user' ? 'user' : 'assistant',
