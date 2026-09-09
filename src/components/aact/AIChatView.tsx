@@ -137,6 +137,7 @@ export function AIChatView() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const autoSpeakRef = useRef(autoSpeak)
   autoSpeakRef.current = autoSpeak
   const voiceModeRef = useRef(voiceMode)
