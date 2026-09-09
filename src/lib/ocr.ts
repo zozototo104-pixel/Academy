@@ -71,6 +71,23 @@ function fallbackReadFromRaw(raw: string, declaredTypeAr: string): ImageDocRead 
   }
 }
 
+function publicVisionError(e: any): string {
+  const raw = String(e?.message || e || '')
+  if (/503|UNAVAILABLE|high demand|overloaded|service unavailable|temporar/i.test(raw)) {
+    return 'خدمة قراءة الصور مشغولة مؤقتاً؛ أعد التحليل بعد قليل أو افحص الصورة يدوياً من زر المعاينة.'
+  }
+  if (/429|RESOURCE_EXHAUSTED|quota|rate limit/i.test(raw)) {
+    return 'انتهت حصة قراءة الصور مؤقتاً؛ فعّل Billing أو أعد التحليل لاحقاً.'
+  }
+  if (/API_KEY|401|403|PERMISSION|UNAUTHENTICATED/i.test(raw)) {
+    return 'مفتاح Gemini لا يملك صلاحية قراءة الصور أو غير صالح.'
+  }
+  if (/payload|too large|size|413/i.test(raw)) {
+    return 'حجم الصورة كبير جداً على التحليل الآلي؛ ارفع نسخة أوضح وأصغر.'
+  }
+  return 'تعذر تشغيل قارئ الصور الآلي لهذا المرفق؛ استخدم المعاينة اليدوية أو أعد التحليل لاحقاً.'
+}
+
 function parseVisionJson(raw: string, declaredTypeAr = ''): ImageDocRead | null {
   const json = cleanJson(raw)
   if (!json) return fallbackReadFromRaw(raw, declaredTypeAr)
