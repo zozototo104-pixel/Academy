@@ -106,18 +106,13 @@ export async function POST(req: NextRequest) {
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
-  // REST الرسمي لإنشاء ephemeral token هو top-level fields، وليس authToken wrapper.
+  // ننشئ token مؤقتاً غير مقيّد ثم نرسل setup عبر WebSocket.
+  // بعض مشاريع Google ترفض liveConnectConstraints رغم أن Live نفسه متاح،
+  // فيظهر خطأ INVALID_ARGUMENT قبل فتح المكالمة. التوكن ما زال قصير العمر و use=1.
   const tokenBody = {
     uses: 1,
     expireTime,
     newSessionExpireTime,
-    liveConnectConstraints: {
-      model: `models/${model}`,
-      config: {
-        responseModalities: ['AUDIO'],
-        sessionResumption: {},
-      },
-    },
   }
 
   try {
