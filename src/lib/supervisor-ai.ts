@@ -8,7 +8,7 @@ import { db } from '@/lib/db'
  */
 export async function buildSupervisorContext(userId: string): Promise<string> {
   try {
-    const [enrollments, thesis, admission] = await Promise.all([
+    const [enrollments, thesis, admission, activePrograms] = await Promise.all([
       db.enrollment.findMany({
         where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
         include: {
@@ -30,13 +30,39 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         orderBy: { createdAt: 'desc' },
         select: { reference: true, program: true, status: true, thesisDeadline: true },
       }),
+      db.program.findMany({
+        where: { active: true },
+        orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+        take: 100,
+        select: { titleAr: true, titleEn: true, category: true, hours: true, price: true, description: true },
+      }),
     ])
 
-    if (enrollments.length === 0 && !thesis && !admission) {
-      return 'الطالب لم يسجل في أي برنامج بعد — ركّز على تقديم المشورة حول برامج الأكاديمية وإجراءات الالتحاق.'
+    const parts: string[] = []
+
+    if (activePrograms.length > 0) {
+      const programLines = activePrograms.map((p, i) => {
+        const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
+
+/**
+ * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
+ * تبني سياقاً تخصصياً حقيقياً من: برامج الطالب الفعّالة + وحداتها الدراسية +
+ * الكتب المقررة المعتمدة (نصوصها المستخرجة) + تقدمه ونتائجه + بحث تخرجه ومواعيده
+ * بحيث يكون المشرف الذكي ملمّاً فعلياً بتخصص الطالب وليس محادثة عامة.
+ */
+export async function buildSupervisorContext(userId: string): Promise<string> {
+  try {
+ : ''
+        const desc = p.description ? ` — ${p.description.replace(/\s+/g, ' ').slice(0, 120)}` : ''
+        return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${price}${desc}`
+      })
+      parts.push(`ذاكرة كتالوج البرامج النشطة في النظام (${activePrograms.length} برنامج):\n${programLines.join('\n')}`)
     }
 
-    const parts: string[] = []
+    if (enrollments.length === 0 && !thesis && !admission) {
+      parts.push('الطالب لم يسجل في أي برنامج بعد — ركّز على تقديم المشورة حول برامج الأكاديمية وإجراءات الالتحاق، وابدأ بذكر البرامج عندما يسأل عنها.')
+    }
 
     // ===== أولاً: أبحاث تخرج الطالب وسجل إجراءات الالتحاق =====
     if (admission) {
