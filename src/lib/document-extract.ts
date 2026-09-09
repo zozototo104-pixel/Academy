@@ -5,7 +5,7 @@ export interface ExtractedDocumentText {
   note: string
 }
 
-function normalizeText(text: string, maxChars: number): string {
+export function normalizeExtractedText(text: string, maxChars: number): string {
   return String(text || '')
     .replace(/\u0000/g, ' ')
     .replace(/\s+/g, ' ')
@@ -39,22 +39,28 @@ export function isTextLike(mimeType: string, fileName?: string | null): boolean 
 
 async function extractPdf(buffer: Buffer, maxChars: number): Promise<ExtractedDocumentText> {
   try {
+    // مهم في Vercel/Next: تهيئة worker/canvas قبل تحميل pdf-parse حتى لا يظهر DOMMatrix is not defined.
+    const worker = await import('pdf-parse/worker')
     const { PDFParse } = await import('pdf-parse')
-    const parser = new PDFParse({ data: new Uint8Array(buffer) })
+    const parser = new PDFParse({
+      data: new Uint8Array(buffer),
+      CanvasFactory: (worker as any).CanvasFactory,
+    } as any)
+
     try {
       const result = await parser.getText()
-      const text = normalizeText(result?.text || '', maxChars)
+      const text = normalizeExtractedText(result?.text || '', maxChars)
       return {
         text,
         readable: text.length >= 40,
         reader: text.length >= 40 ? 'PDF' : 'EMPTY',
-        note: text.length >= 40 ? 'تم استخراج نص PDF بنجاح' : 'PDF غير نصي أو ممسوح ضوئياً؛ يحتاج صورة أو معاينة يدوية',
+        note: text.length >= 40 ? 'تم استخراج نص PDF بنجاح' : 'PDF لا يحتوي نصاً كافياً؛ سيتم تمريره للرؤية الذكية إن أمكن',
       }
     } finally {
       await parser.destroy().catch(() => {})
     }
   } catch (e: any) {
-    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة PDF: ${String(e?.message || e).slice(0, 120)}` }
+    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة PDF نصياً: ${String(e?.message || e).slice(0, 180)}` }
   }
 }
 
@@ -62,7 +68,7 @@ async function extractDocx(buffer: Buffer, maxChars: number): Promise<ExtractedD
   try {
     const mammoth = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer })
-    const text = normalizeText(result?.value || '', maxChars)
+    const text = normalizeExtractedText(result?.value || '', maxChars)
     return {
       text,
       readable: text.length >= 30,
@@ -70,14 +76,14 @@ async function extractDocx(buffer: Buffer, maxChars: number): Promise<ExtractedD
       note: text.length >= 30 ? 'تم استخراج نص Word DOCX بنجاح' : 'ملف Word لا يحتوي نصاً كافياً أو هو صورة داخل ملف',
     }
   } catch (e: any) {
-    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة Word DOCX: ${String(e?.message || e).slice(0, 120)}` }
+    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة Word DOCX: ${String(e?.message || e).slice(0, 180)}` }
   }
 }
 
 async function extractExcel(buffer: Buffer, fileName: string | null | undefined, maxChars: number): Promise<ExtractedDocumentText> {
   try {
     if (extOf(fileName) === 'csv') {
-      const text = normalizeText(buffer.toString('utf8'), maxChars)
+      const text = normalizeExtractedText(buffer.toString('utf8'), maxChars)
       return { text, readable: text.length >= 20, reader: 'CSV', note: text.length >= 20 ? 'تم استخراج CSV بنجاح' : 'ملف CSV فارغ أو غير قابل للقراءة' }
     }
     const XLSX = await import('xlsx')
@@ -88,7 +94,7 @@ async function extractExcel(buffer: Buffer, fileName: string | null | undefined,
       const csv = XLSX.utils.sheet_to_csv(sheet, { FS: ' | ' })
       if (csv.trim()) parts.push(`ورقة ${name}:\n${csv}`)
     }
-    const text = normalizeText(parts.join('\n\n'), maxChars)
+    const text = normalizeExtractedText(parts.join('\n\n'), maxChars)
     return {
       text,
       readable: text.length >= 20,
@@ -96,7 +102,7 @@ async function extractExcel(buffer: Buffer, fileName: string | null | undefined,
       note: text.length >= 20 ? 'تم استخراج جداول Excel بنجاح' : 'ملف Excel فارغ أو غير قابل للقراءة',
     }
   } catch (e: any) {
-    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة Excel: ${String(e?.message || e).slice(0, 120)}` }
+    return { text: '', readable: false, reader: 'ERROR', note: `تعذر قراءة Excel: ${String(e?.message || e).slice(0, 180)}` }
   }
 }
 
@@ -110,7 +116,7 @@ function extractPlainText(buffer: Buffer, mimeType: string, fileName: string | n
       .replace(/\\[a-z]+-?\d* ?/gi, ' ')
       .replace(/[{}]/g, ' ')
   }
-  text = normalizeText(text, maxChars)
+  text = normalizeExtractedText(text, maxChars)
   return { text, readable: text.length >= 20, reader, note: text.length >= 20 ? 'تم استخراج النص بنجاح' : 'ملف نصي فارغ أو غير قابل للقراءة' }
 }
 
