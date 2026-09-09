@@ -193,20 +193,66 @@ export function AIChatView() {
   // ===== نطق ردود الدردشة النصية (تلقائي عند التفعيل) — عبر العنصر الدائم المشترك =====
   const speak = useCallback(
     async (text: string, msgId: string) => {
-      try {
-        const speechText = buildSpeechText(text)
-        if (!speechText) return
+      const speechText = buildSpeechText(text)
+      if (!speechText) return
 
-        if (audioRef.current) {
-          audioRef.current.pause()
-          audioRef.current = null
+      let fallbackStarted = false
+
+      const playServerTts = async () => {
+        if (fallbackStarted) return
+        fallbackStarted = true
+        try {
+          setSpeakingId(msgId)
+          const token = getToken()
+          const res = await fetch('/api/ai/tts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ text: speechText, speed: 1.12 }),
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            throw new Error(err?.error || 'TTS failed')
+          }
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          const audio = getSharedAudio()
+          audioRef.current = audio
+          const cleanup = () => {
+            URL.revokeObjectURL(url)
+            setSpeakingId(null)
+          }
+          audio.onended = cleanup
+          audio.onerror = cleanup
+          const ok = await playOnSharedAudio(url)
+          if (!ok) throw new Error('autoplay blocked')
+        } catch (e: any) {
+          setSpeakingId(null)
+          if (!voiceModeRef.current) {
+            const msg = String(e?.message || '').trim()
+            toast({
+              title: 'تنبيه',
+              description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى',
+              variant: 'destructive',
+            })
+          }
         }
-        try { window.speechSynthesis?.cancel() } catch {}
-        speechUtteranceRef.current = null
+      }
 
-        // قراءة فورية: نبدأ بصوت المتصفح مباشرة بدل انتظار توليد ملف TTS من السيرفر.
-        // هذا يحل فرق الدقيقة بين ظهور الرد الكتابي وبداية الصوت، ويقرأ النص كاملاً لا مختصراً.
-        if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+      try { window.speechSynthesis?.cancel() } catch {}
+      speechUtteranceRef.current = null
+      setSpeakingId(msgId)
+
+      // الحل المحصور لفرق النص/الصوت: جرّب صوت المتصفح فوراً، وإذا لم يبدأ خلال لحظات
+      // انزل تلقائياً إلى TTS السيرفر. لا نغير منطق الرد ولا Gemini Live هنا.
+      if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+        try {
           const utterance = new SpeechSynthesisUtterance(speechText)
           const voice = pickArabicBrowserVoice()
           if (voice) utterance.voice = voice
@@ -215,57 +261,41 @@ export function AIChatView() {
           utterance.pitch = 1
           utterance.volume = 1
           speechUtteranceRef.current = utterance
-          setSpeakingId(msgId)
+
+          let started = false
+          const timer = window.setTimeout(() => {
+            if (started || speechUtteranceRef.current !== utterance) return
+            try { window.speechSynthesis?.cancel() } catch {}
+            speechUtteranceRef.current = null
+            void playServerTts()
+          }, 2200)
+
+          utterance.onstart = () => {
+            started = true
+            window.clearTimeout(timer)
+          }
           utterance.onend = () => {
+            window.clearTimeout(timer)
             if (speechUtteranceRef.current === utterance) speechUtteranceRef.current = null
             setSpeakingId(null)
           }
           utterance.onerror = () => {
+            window.clearTimeout(timer)
             if (speechUtteranceRef.current === utterance) speechUtteranceRef.current = null
-            setSpeakingId(null)
+            if (!started) void playServerTts()
+            else setSpeakingId(null)
           }
+
           window.speechSynthesis.speak(utterance)
           return
-        }
-
-        // احتياط فقط للمتصفحات التي لا تدعم speechSynthesis.
-        setSpeakingId(msgId)
-        const token = getToken()
-        const res = await fetch('/api/ai/tts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ text: speechText, speed: 1.12 }),
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err?.error || 'TTS failed')
-        }
-        const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const audio = getSharedAudio()
-        audioRef.current = audio
-        const cleanup = () => {
-          URL.revokeObjectURL(url)
-          setSpeakingId(null)
-        }
-        audio.onended = cleanup
-        audio.onerror = cleanup
-        const ok = await playOnSharedAudio(url)
-        if (!ok) throw new Error('autoplay blocked')
-      } catch (e: any) {
-        setSpeakingId(null)
-        if (!voiceModeRef.current) {
-          const msg = String(e?.message || '').trim()
-          toast({
-            title: 'تنبيه',
-            description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى',
-            variant: 'destructive',
-          })
+        } catch {
+          speechUtteranceRef.current = null
+          await playServerTts()
+          return
         }
       }
+
+      await playServerTts()
     },
     [toast]
   )
