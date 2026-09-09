@@ -121,10 +121,12 @@ export async function POST(req: NextRequest) {
       if (!file || file.size === 0) {
         const fetched = await fetchLinkContent(link!)
         if (fetched.ok && fetched.buffer) {
-          mimeType = 'application/pdf'
-          fileName = fetched.buffer ? (link!.split('/').pop() || 'book.pdf').slice(0, 180) : null
+          mimeType = fetched.mime || 'application/octet-stream'
+          fileName = fetched.buffer ? (link!.split('/').pop() || 'book-file').slice(0, 180) : null
           size = fetched.buffer.length
-          textContent = await extractPdfText(fetched.buffer)
+          const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, 40000)
+          textContent = extracted.text || null
+          linkNote = extracted.readable ? extracted.note : `الرابط محفوظ، لكن لم نستخرج نصاً كافياً: ${extracted.note}`
         } else if (fetched.ok && fetched.htmlText) {
           textContent = fetched.htmlText
           linkNote = 'تم استخراج نص الصفحة من الرابط'
