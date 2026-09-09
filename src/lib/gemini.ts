@@ -411,25 +411,31 @@ async function generateAudio(text: string): Promise<Buffer> {
   const voice = await geminiTTSVoice()
   let lastErr: any
   for (const model of await ttsModelChain()) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ، بسرعة أعلى قليلاً وبدون إطالة أو توقفات كثيرة:\n${text}` }] }],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-        },
-      })
-      const parts = (response as any).candidates?.[0]?.content?.parts || []
-      const buffers = parts.map((p: any) => p?.inlineData?.data).filter(Boolean).map((b64: string) => Buffer.from(b64, 'base64'))
-      if (!buffers.length) throw new Error('GEMINI_TTS_EMPTY')
-      activeTtsModel = model
-      return pcmToWav(amplifyPcm16(Buffer.concat(buffers), 1.85))
-    } catch (e) {
-      lastErr = e
-      if (isAuthError(e)) throw e
-      if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) continue
-      throw e
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ، بسرعة أعلى قليلاً وبدون إطالة أو توقفات كثيرة:\n${text}` }] }],
+          config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          },
+        })
+        const parts = (response as any).candidates?.[0]?.content?.parts || []
+        const buffers = parts.map((p: any) => p?.inlineData?.data).filter(Boolean).map((b64: string) => Buffer.from(b64, 'base64'))
+        if (!buffers.length) throw new Error('GEMINI_TTS_EMPTY')
+        activeTtsModel = model
+        return pcmToWav(amplifyPcm16(Buffer.concat(buffers), 1.85))
+      } catch (e) {
+        lastErr = e
+        if (isAuthError(e)) throw e
+        if (isTransientGeminiError(e)) {
+          if (attempt < 2) await wait(700 * attempt)
+          continue
+        }
+        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
+        throw e
+      }
     }
   }
   throw lastErr
