@@ -165,6 +165,7 @@ export async function ensureCoreSeed(force = false): Promise<void> {
   inflight = (async () => {
     try {
       await seedProgramsIfEmpty()
+      await ensureDegreeSpecializationPrograms()
       await seedAdminIfMissing()
       await seedSettingsIfEmpty()
       lastCheckedAt = Date.now()
