@@ -29,6 +29,13 @@ const TTS_MODELS = [
   'gemini-2.5-pro-preview-tts',
 ]
 
+const VISION_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+]
+
 export const GEMINI_LIVE_MODEL_FALLBACKS = [
   'gemini-3.1-flash-live-preview',
   'gemini-2.5-flash-native-audio-preview-12-2025',
