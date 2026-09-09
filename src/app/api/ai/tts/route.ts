@@ -22,7 +22,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { text, speed } = await req.json()
-    const cleanText = buildSpeechPreview(String(text || '').trim())
+    const cleanText = String(text || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[`*_#>\[\]()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
     if (!cleanText) {
       return NextResponse.json({ error: 'النص مطلوب' }, { status: 400 })
     }
