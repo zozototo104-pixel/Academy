@@ -121,10 +121,15 @@ export async function POST(req: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({
-            authToken: {
-              uses: 1,
-              expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
-              newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+            uses: 1,
+            expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
+            newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+            liveConnectConstraints: {
+              model: `models/${model}`,
+              config: {
+                responseModalities: ['AUDIO'],
+                sessionResumption: {},
+              },
             },
           }),
         })
