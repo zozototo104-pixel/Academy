@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { ensureCoreSeed } from '@/lib/bootstrap'
 
 export async function GET() {
   try {
+    await ensureCoreSeed()
     const programs = await db.program.findMany({
       where: { active: true },
       orderBy: { order: 'asc' },
