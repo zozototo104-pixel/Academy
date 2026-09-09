@@ -467,7 +467,8 @@ function runRules(app: {
     if (good) {
       requiredFound++
       if (type !== 'PHOTO') docTextFound = true
-      checklist.push({ requirement: label, status: 'FOUND', detail: fileDetail(good.f, good.match.reason) })
+      const placementNote = good.f.docType === type ? '' : `تم اكتشافه آلياً رغم أنه مرفوع تحت خانة «${DOC_TYPE_AR[good.f.docType] || good.f.docType}»`
+      checklist.push({ requirement: label, status: 'FOUND', detail: fileDetail(good.f, [good.match.reason, placementNote].filter(Boolean).join(' — ')) })
     } else if (bad) {
       checklist.push({ requirement: label, status: 'PROBLEM', detail: fileDetail(bad.f, bad.match.reason) })
       findings.push({ severity: 'HIGH', title: `المرفق لا يطابق: ${label}`, detail: bad.match.reason })
