@@ -213,6 +213,15 @@ export function AdminView() {
     else if (user) navigate('home')
   }, [user])
 
+  useEffect(() => {
+    if (activeTab !== 'admissions' || !highlightAdmissionId) return
+    const t = setTimeout(() => {
+      const el = document.getElementById(`admission-${highlightAdmissionId}`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 120)
+    return () => clearTimeout(t)
+  }, [activeTab, highlightAdmissionId, admissions.length])
+
   if (!user) {
     navigate('auth')
     return null
