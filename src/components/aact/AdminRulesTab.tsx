@@ -422,7 +422,7 @@ export function AdminRulesTab() {
                 <div className="flex flex-wrap gap-2 border-t pt-3">
                   <Button onClick={() => save(false)} disabled={saving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
                     {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
-                    حفظ القواعد
+                    حفظ القواعد والملف الأكاديمي
                   </Button>
                   {custom && (
                     <Button onClick={() => save(true)} disabled={saving} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
