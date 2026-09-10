@@ -230,15 +230,25 @@ export function AdminBooksTab() {
       toast({ title: 'لا يمكن التوليد', description: 'أضف كتباً مقررة للتخصص أولاً — يدوياً أو من اقتراحات خبير الذكاء الاصطناعي', variant: 'destructive' })
       return
     }
-    const semLabel = genSemester === '2' ? 'الفصل الثاني' : 'الفصل الأول'
-    if (!confirm(`سيولّد خبير الذكاء الاصطناعي امتحان ${semLabel} (${books.length} كتاب مقرر متاح) بعدد كبير من الأسئلة المتنوعة ومدة لا تقل عن ساعتين، ثم تمرّ الأسئلة على مراجعتك قبل النشر. التوليد يستغرق عدة دقائق. متابعة؟`)) return
+    const sem = genSemester === '2' ? 2 : 1
+    const semLabel = sem === 2 ? 'الفصل الثاني' : 'الفصل الأول'
+    const failedExam = exams.find((e) => e.semester === sem && e.status === 'FAILED')
+    const confirmText = failedExam
+      ? `يوجد امتحان فاشل سابقاً لهذا الفصل وفيه ${failedExam.questionCount} سؤالاً محفوظاً. سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف دون حذف الأسئلة السابقة. متابعة؟`
+      : `سيولّد خبير الذكاء الاصطناعي امتحان ${semLabel} (${books.length} كتاب مقرر متاح) بعدد كبير من الأسئلة المتنوعة ومدة لا تقل عن ساعتين، ثم تمرّ الأسئلة على مراجعتك قبل النشر. التوليد يستغرق عدة دقائق. متابعة؟`
+    if (!confirm(confirmText)) return
     setGenerating(true)
     try {
-      const d = await api<{ examId: string; booksCount: number }>('/api/admin/program-exams/generate', {
+      const d = await api<{ examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, semester: genSemester === '2' ? 2 : 1 }),
+        body: JSON.stringify({ programId, semester: sem }),
       })
-      toast({ title: 'بدأ التوليد', description: `خبير الذكاء الاصطناعي يقرأ ${d.booksCount} كتاباً ويحللها لتوليد أسئلة ${semLabel} — تابع الحالة بالأسفل` })
+      toast({
+        title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
+        description: d.resumed
+          ? `سيكمل من السؤال ${(d.existingQuestions || failedExam?.questionCount || 0) + 1} دون حذف الأسئلة السابقة — تابع الحالة بالأسفل`
+          : `خبير الذكاء الاصطناعي يقرأ ${d.booksCount} كتاباً ويحللها لتوليد أسئلة ${semLabel} — تابع الحالة بالأسفل`,
+      })
       await loadProgramData(programId, true)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
