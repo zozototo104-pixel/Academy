@@ -558,6 +558,18 @@ export function ExamView() {
                     <strong>الإجابة الصحيحة: </strong>{r.correctAnswerText}
                   </div>
                 )}
+                {(r.sourceBookTitle || r.sourceLocator || r.sourceChapter) && (
+                  <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+                    {r.sourceBookTitle && <p><strong className="text-[#0f2b46]">المصدر: </strong>{r.sourceBookTitle}</p>}
+                    {r.sourceChapter && <p><strong className="text-[#0f2b46]">الفصل/المحور: </strong>{r.sourceChapter}</p>}
+                    {r.sourceLocator && <p><strong className="text-[#0f2b46]">موضع الدليل: </strong>{r.sourceLocator}</p>}
+                  </div>
+                )}
+                {r.wrongOptionRationale && (
+                  <div className="mt-2 rounded-lg bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+                    <strong>سبب خطأ اختيارك: </strong>{r.wrongOptionRationale}
+                  </div>
+                )}
                 <div className="mt-2 rounded-lg bg-[#f7edd0]/60 p-3 text-xs leading-relaxed text-[#5c4d1a]">
                   <strong className="flex items-center gap-1.5">
                     <Bot className="h-3.5 w-3.5" /> تقييم المشرف الذكي:
