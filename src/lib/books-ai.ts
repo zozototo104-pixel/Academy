@@ -1300,9 +1300,10 @@ ${plannedTypes}
     const text = String(q.text || '').trim()
     if (!text) continue
     if (type === 'MCQ') {
-      const options = Array.isArray(q.options) ? uniqueStrings(q.options.map((o: any) => String(o)), 4, 240) : null
+      const options = Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o, 240)).filter(Boolean).slice(0, 4) : null
       const correctNum = Number(q.correct ?? '')
-      if (!options || options.length !== 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
+      const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
+      if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
       cleaned.push({ type: 'MCQ', text: text.slice(0, 2000), options, correct: String(correctNum), points: 2 })
     } else if (type === 'TF') {
       const correctNum = Number(q.correct ?? '')
