@@ -147,6 +147,7 @@ export function DefenseRoom({
   const aiInterjectingRef = useRef(false)
   const lastInterjectionAtRef = useRef(0)
   const lastSpokenMessageIdRef = useRef<string | null>(null)
+  const suppressLocalTtsRef = useRef(false)
 
   // ===== مشرف صوتي متدفق داخل الفيديو كونفرنس — Gemini Live مثل زر الاتصال =====
   const [liveAdvisorOn, setLiveAdvisorOn] = useState(false)
