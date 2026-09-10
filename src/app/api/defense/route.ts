@@ -529,7 +529,7 @@ ${dialog.slice(0, 4500)}
 }
 
 // ===== 12.3: محضر تلقائي للجلسة وتلخيص أهم النقاط والقرارات =====
-async function aiMinutes(thesisId: string, title: string, studentName: string, defenseDate: Date | null): Promise<string> {
+async function aiMinutes(thesisId: string, title: string, studentName: string, defenseDate: Date | null, studentAcademicContext?: string): Promise<string> {
   try {
     const all = await db.defenseMessage.findMany({ where: { thesisId }, orderBy: { createdAt: 'asc' } })
     const dialog = all
