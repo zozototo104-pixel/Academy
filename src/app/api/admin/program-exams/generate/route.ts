@@ -323,7 +323,7 @@ export async function POST(req: NextRequest) {
     )
 
     // التوليد خلفياً — الاستجابة فورية والإدارة تتابع الحالة عبر polling
-    runGeneration(exam.id).catch(() => {})
+    scheduleGeneration(exam.id)
 
     return NextResponse.json({ ok: true, examId: exam.id, booksCount, semester: sem, resumed: false, requiredQuestions: totalRequiredQuestions() })
   } catch (e: any) {
