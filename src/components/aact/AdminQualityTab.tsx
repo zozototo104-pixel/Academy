@@ -161,6 +161,14 @@ function metricValue(value: number | null | undefined, suffix = '') {
   return value == null ? '—' : `${value}${suffix}`
 }
 
+function formatSeconds(value: number | null | undefined) {
+  if (value == null) return '—'
+  if (value < 60) return `${value}ث`
+  const minutes = Math.floor(value / 60)
+  const seconds = value % 60
+  return seconds ? `${minutes}د ${seconds}ث` : `${minutes}د`
+}
+
 export function AdminQualityTab() {
   const [data, setData] = useState<AcademicQualityData | null>(null)
   const [loading, setLoading] = useState(true)
