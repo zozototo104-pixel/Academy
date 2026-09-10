@@ -265,7 +265,7 @@ export function Header() {
           <button
             onClick={() => navigate('programs')}
             className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              view === 'programs' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+              (view === 'programs' || view === 'program-detail') ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
             }`}
           >
             البرامج
