@@ -736,10 +736,20 @@ export function AdminView() {
                     </thead>
                     <tbody>
                       {students.map((s) => (
-                        <tr key={s.id} className="border-t border-slate-100">
+                        <tr
+                          key={s.id}
+                          onClick={() => openStudentAdmission(s)}
+                          className="cursor-pointer border-t border-slate-100 transition hover:bg-[#fff8e6]"
+                          title="اضغط لفتح بطاقة طلب الالتحاق المرتبطة بهذا الطالب"
+                        >
                           <td className="p-3">
                             <div className="font-extrabold text-[#0f2b46]">{s.name}</div>
                             <div className="text-[10px] text-slate-400" dir="ltr">{s.email}</div>
+                            {s.latestAdmission ? (
+                              <div className="mt-1 text-[10px] font-black text-[#a8841a]">فتح طلب {s.latestAdmission.reference}</div>
+                            ) : (
+                              <div className="mt-1 text-[10px] font-bold text-slate-400">لا يوجد طلب التحاق مرتبط</div>
+                            )}
                           </td>
                           <td className="p-3">
                             {s.enrollments.length === 0 ? (
