@@ -54,6 +54,47 @@ function hasAcademicAssessmentMetadata(q: any): boolean {
   return hasSource && hasMeasurement && hasDistractors
 }
 
+function detectWeakSupervisorReply(content: string): string | null {
+  const text = String(content || '').replace(/\s+/g, ' ').trim()
+  if (!text) return 'رد فارغ أو غير محفوظ'
+  if (text.length < 60) return 'رد قصير جداً لا يكفي لتوجيه أكاديمي'
+  const vaguePatterns = ['لا أعرف', 'لا استطيع', 'لا أستطيع', 'غير قادر', 'حدث خطأ', 'عذراً', 'عذرا', 'لا تتوفر لدي معلومات', 'تواصل مع الإدارة', 'راجع الإدارة']
+  if (vaguePatterns.some((p) => text.includes(p))) return 'رد عام أو اعتذاري يحتاج مراجعة بشرية'
+  const academicSignals = ['كتاب', 'برنامج', 'تخصص', 'مفهوم', 'مخرج', 'تعلم', 'امتحان', 'بحث', 'منهج', 'واجب', 'خطة', 'مصدر', 'دليل', 'تطبيق', 'مهارة', 'فصل']
+  if (text.length > 140 && !academicSignals.some((p) => text.includes(p))) return 'رد طويل لكنه لا يحمل ربطاً أكاديمياً واضحاً'
+  return null
+}
+
+function smartSupervisorLabel(mode?: string | null, kind?: string | null): string {
+  if (kind === 'THESIS_REVIEW') return 'مشرف مراجعة البحث'
+  if (mode === 'VOICE') return 'المشرف الصوتي'
+  return 'المشرف النصي'
+}
+
+function responseTimeMetrics(chats: any[]) {
+  const sorted = [...chats].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  const pending = new Map<string, Date>()
+  const durations: number[] = []
+  for (const msg of sorted) {
+    const userId = String(msg.userId || '')
+    if (!userId) continue
+    const at = new Date(msg.createdAt)
+    if (Number.isNaN(at.getTime())) continue
+    if (msg.role === 'user') {
+      pending.set(userId, at)
+    } else if (msg.role === 'assistant' && pending.has(userId)) {
+      const started = pending.get(userId)!
+      const seconds = Math.round((at.getTime() - started.getTime()) / 1000)
+      if (seconds >= 0 && seconds <= 24 * 60 * 60) durations.push(seconds)
+      pending.delete(userId)
+    }
+  }
+  return {
+    averageSeconds: durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null,
+    pairs: durations.length,
+  }
+}
+
 export async function GET() {
   try {
     await requireAdmin()
