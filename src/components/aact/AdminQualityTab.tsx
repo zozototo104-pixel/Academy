@@ -232,8 +232,9 @@ export function AdminQualityTab() {
                         <span className="rounded-lg bg-white px-2 py-1 text-xs font-black text-[#0f2b46]">{p.qualityScore}/100</span>
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
                       <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">توثيق الأسئلة: {p.sourceCoverage}%</div>
+                      <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">اكتمال القياس: {p.metadataCoverage}%</div>
                       <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">نجاح الامتحانات: {p.examPassRate}%</div>
                       <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">طلب/تسجيل: {p.admissions + p.enrollments}</div>
                     </div>
