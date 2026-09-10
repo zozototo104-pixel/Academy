@@ -171,8 +171,8 @@ async function runGeneration(examId: string) {
   } catch (e: any) {
     console.error('exam generation error:', e)
     await db.programExam
-      .update({
-        where: { id: examId },
+      .updateMany({
+        where: { id: examId, status: 'GENERATING' },
         data: { status: 'FAILED', errorNote: String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500) },
       })
       .catch(() => {})
