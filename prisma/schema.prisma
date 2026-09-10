@@ -457,6 +457,29 @@ model BookKnowledgeItem {
   @@index([category])
 }
 
+model ProgramStudyGuide {
+  id          String   @id @default(cuid())
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  semester    Int      @default(1) // 1 الفصل الأول | 2 الفصل الثاني | 3 بحث/مشروع
+  title       String
+  overview    String
+  objectives  String?  // JSON array أهداف التعلم
+  keyTerms    String?  // JSON array مصطلحات ومفاهيم
+  sections    String?  // JSON array محاور الدليل الدراسي
+  activities  String?  // JSON array أنشطة ومهام قراءة
+  discussionQuestions String? // JSON array أسئلة نقاش للمشرف الذكي/المحاضر
+  sourceKnowledgeIds String?  // JSON array لعناصر بنك المعرفة التي بني عليها الدليل
+  status      String   @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  generatedBy String   @default("AI")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([programId, semester])
+  @@index([programId])
+  @@index([status])
+}
+
 model ProgramAssignment {
   id          String   @id @default(cuid())
   programId   String
