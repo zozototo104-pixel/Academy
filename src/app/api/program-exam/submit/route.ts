@@ -138,6 +138,13 @@ export async function POST(req: NextRequest) {
       aiFeedback: string
       studentAnswer: string
       correctAnswerText?: string
+      sourceBookTitle?: string | null
+      sourceChapter?: string | null
+      sourceLocator?: string | null
+      cognitiveSkill?: string | null
+      difficulty?: string | null
+      correctRationale?: string | null
+      wrongOptionRationale?: string | null
     }
 
     const essayResults: GradedResult[] = []
