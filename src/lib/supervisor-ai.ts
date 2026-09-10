@@ -483,3 +483,92 @@ export async function updateStudentAcademicMemory(userId: string, signal: Studen
     console.error('student academic memory update error:', e)
   }
 }
+
+function dateToIso(value?: Date | string | null): string | null {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+export async function getStudentAcademicMemorySnapshot(userId: string) {
+  try {
+    const memoryStore = (db as any).studentAcademicMemory
+    if (!memoryStore) {
+      return {
+        exists: false,
+        profileDigest: null,
+        strengths: [],
+        weaknesses: [],
+        conceptsToReview: [],
+        recommendedNextActions: [],
+        lastConversationSummary: null,
+        examSignals: [],
+        thesisSignals: [],
+        lastFileAnalysis: null,
+        interactionsCount: 0,
+        lastInteractionAt: null,
+        lastExamAt: null,
+        lastDefenseAt: null,
+        updatedAt: null,
+      }
+    }
+
+    const memory = await memoryStore.findUnique({ where: { userId } })
+    if (!memory) {
+      return {
+        exists: false,
+        profileDigest: null,
+        strengths: [],
+        weaknesses: [],
+        conceptsToReview: [],
+        recommendedNextActions: ['ابدأ محادثة مع المشرف الذكي أو اجتز أول امتحان لبناء ذاكرة أكاديمية شخصية.'],
+        lastConversationSummary: null,
+        examSignals: [],
+        thesisSignals: [],
+        lastFileAnalysis: null,
+        interactionsCount: 0,
+        lastInteractionAt: null,
+        lastExamAt: null,
+        lastDefenseAt: null,
+        updatedAt: null,
+      }
+    }
+
+    return {
+      exists: true,
+      profileDigest: memory.profileDigest || null,
+      strengths: parseArray(memory.strengths),
+      weaknesses: parseArray(memory.weaknesses),
+      conceptsToReview: parseArray(memory.conceptsToReview),
+      recommendedNextActions: parseArray(memory.recommendedNextActions),
+      lastConversationSummary: memory.lastConversationSummary || null,
+      examSignals: parseArray(memory.examSignals),
+      thesisSignals: parseArray(memory.thesisSignals),
+      lastFileAnalysis: memory.lastFileAnalysis || null,
+      interactionsCount: memory.interactionsCount || 0,
+      lastInteractionAt: dateToIso(memory.lastInteractionAt),
+      lastExamAt: dateToIso(memory.lastExamAt),
+      lastDefenseAt: dateToIso(memory.lastDefenseAt),
+      updatedAt: dateToIso(memory.updatedAt),
+    }
+  } catch (e) {
+    console.error('student academic memory snapshot error:', e)
+    return {
+      exists: false,
+      profileDigest: null,
+      strengths: [],
+      weaknesses: [],
+      conceptsToReview: [],
+      recommendedNextActions: [],
+      lastConversationSummary: null,
+      examSignals: [],
+      thesisSignals: [],
+      lastFileAnalysis: null,
+      interactionsCount: 0,
+      lastInteractionAt: null,
+      lastExamAt: null,
+      lastDefenseAt: null,
+      updatedAt: null,
+    }
+  }
+}
