@@ -99,6 +99,39 @@ function optionSignatureFromArray(options?: string[] | null): string {
   return Array.isArray(options) ? options.map((o) => normalizeQuestionText(o)).filter(Boolean).join('|') : ''
 }
 
+function stringifyJsonField(value: unknown): string | null {
+  if (value == null) return null
+  if (Array.isArray(value) && value.length === 0) return null
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return null
+  }
+}
+
+function createProgramQuestionData(examId: string, order: number, q: GeneratedQuestion) {
+  return {
+    examId,
+    order,
+    type: q.type,
+    text: q.text,
+    options: q.options ? JSON.stringify(q.options) : null,
+    correctAnswer: q.correct ?? null,
+    modelAnswer: q.modelAnswer ?? (q.bookEvidence ? `مرجع التصحيح: ${q.bookEvidence}` : null),
+    sourceEvidence: q.bookEvidence || null,
+    sourceBookTitle: q.sourceBookTitle || null,
+    sourceChapter: q.sourceChapter || null,
+    sourceLocator: q.sourceLocator || null,
+    cognitiveSkill: q.cognitiveSkill || null,
+    difficulty: q.difficulty || null,
+    correctRationale: q.correctRationale || null,
+    distractorRationales: stringifyJsonField(q.distractorRationales),
+    qualityFlags: stringifyJsonField(q.qualityFlags),
+    points: q.points || 2,
+    status: 'PENDING_REVIEW',
+  }
+}
+
 async function existingOptionSignatures(examId: string): Promise<Set<string>> {
   const rows = await db.programQuestion.findMany({ where: { examId, type: 'MCQ' }, select: { options: true } })
   return new Set(rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean))
