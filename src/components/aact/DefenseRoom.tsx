@@ -236,7 +236,9 @@ export function DefenseRoom({
         body: JSON.stringify({ text: firstBlock, speed: 1.0 }),
       })
       if (!res.ok) throw new Error('TTS failed')
+      if (liveAdvisorRef.current || ttsSerial !== ttsSerialRef.current) return
       const blob = await res.blob()
+      if (liveAdvisorRef.current || ttsSerial !== ttsSerialRef.current) return
       const url = URL.createObjectURL(blob)
       // العنصر الصوتي الدائم المشترك — يسمح به iOS بعد فتحه بأول لمسة
       const audio = getSharedAudio()
