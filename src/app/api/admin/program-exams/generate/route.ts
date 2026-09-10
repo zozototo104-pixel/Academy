@@ -501,7 +501,7 @@ export async function POST(req: NextRequest) {
       if (existing.status !== 'GENERATING') {
         await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
       }
-      const step = await runGenerationSteps(examId, 2)
+      const step = await runGenerationSteps(examId, 1)
       return NextResponse.json({ ok: step.ok, examId, kicked: true, ...step, requiredQuestions: totalRequiredQuestions() })
     }
 
