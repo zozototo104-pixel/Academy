@@ -87,7 +87,7 @@ function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: st
 }
 
 export function HomeView() {
-  const { navigate, user, openPrograms, openProgramDetails } = useAppStore()
+  const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [loading, setLoading] = useState(true)
 
