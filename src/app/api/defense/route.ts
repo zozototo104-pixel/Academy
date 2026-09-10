@@ -147,6 +147,18 @@ export async function POST(req: NextRequest) {
         await db.defenseMessage.create({
           data: { thesisId: thesis.id, role: 'AI_EXPERT', content: `شكراً لك. انتهت أسئلة اللجنة.\n\n${result.feedback}\n\n${rec}` },
         })
+        await updateStudentAcademicMemory(user.id, {
+          kind: 'DEFENSE',
+          persona: 'DEFENSE',
+          thesisTitle: thesis.title,
+          score: aiScore,
+          passed: aiScore >= 60,
+          summary: `${result.feedback}\n${rec}`,
+          strengths: aiScore >= 80 ? ['أداء قوي في مناقشة بحث التخرج'] : [],
+          weaknesses: aiScore < 60 ? ['تحتاج إجابات المناقشة إلى ضبط المنهجية والنتائج والربط العملي'] : [],
+          concepts: aiScore < 70 ? ['منهجية البحث', 'عرض النتائج', 'ربط التوصيات بالتطبيق'] : [],
+          nextActions: ['مراجعة محضر المناقشة وتنفيذ ملاحظات اللجنة قبل الاعتماد النهائي'],
+        }).catch(() => {})
         await notify(
           user.id,
           'DEFENSE',
