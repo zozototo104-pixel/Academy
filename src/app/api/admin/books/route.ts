@@ -204,6 +204,7 @@ export async function POST(req: NextRequest) {
       book: { id: book.id, title: book.title, author: book.author, fileName: book.fileName, link: book.link, source: book.source },
       textExtracted: !!textContent,
       linkNote,
+      knowledgeItemsInserted: knowledgeBuild?.inserted || 0,
       notifiedStudents: enrolled.length,
     })
   } catch (e: any) {
