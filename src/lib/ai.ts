@@ -395,7 +395,9 @@ export async function generateOverallFeedback(
   weakPoints: string[]
 ): Promise<{ summary: string; strengths: string[]; improvements: string[] }> {
   const zai = await getZAI()
-  const prompt = `أنت مشرف أكاديمي في ${ACADEMY_INFO.nameAr}. طالب أنهى اختبار دورة "${programTitle}" بنتيجة ${percentage.toFixed(0)}% (${passed ? 'ناجح' : 'لم يجتز'}).
+  const prompt = `${buildSupervisorPersonaBlock('EXAM')}
+
+أنت مشرف أكاديمي في ${ACADEMY_INFO.nameAr}. طالب أنهى اختبار دورة "${programTitle}" بنتيجة ${percentage.toFixed(0)}% (${passed ? 'ناجح' : 'لم يجتز'}).
 
 نقاط الضعف الملاحظة في إجاباته:
 ${weakPoints.map((w) => `- ${w}`).join('\n') || 'لا توجد نقاط ضعف كبيرة'}
