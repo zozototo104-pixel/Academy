@@ -59,11 +59,29 @@ export interface Finding {
   detail: string
 }
 
+export interface AdmissionDocumentAnalysis {
+  fileName: string
+  declaredType: string
+  declaredLabel: string
+  detectedKind: string
+  detectedLabel: string
+  reader: ExtractedDocumentText['reader'] | 'IMAGE'
+  readable: boolean
+  clearEnough: boolean
+  belongsToStudent: 'YES' | 'NO' | 'UNVERIFIED'
+  relatedToProgram: 'YES' | 'NO' | 'UNVERIFIED'
+  coverage: number
+  coverageReason: string
+  recommendation: 'ACCEPT_AS_EVIDENCE' | 'REQUEST_CLEARER_COPY' | 'REQUEST_REPLACEMENT' | 'IGNORE_AS_NON_ADMISSION'
+  reasons: string[]
+}
+
 export interface AdmissionAIReview {
   verdict: Verdict
   fitScore: number
   summaryForAdmin: string
   checklist: ChecklistItem[]
+  documentAnalyses: AdmissionDocumentAnalysis[]
   findings: Finding[]
   strengths: string[]
   recommendedAction: string
