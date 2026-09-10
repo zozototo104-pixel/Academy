@@ -96,6 +96,7 @@ function looksLikeMetadataOnlyText(text: string): boolean {
   const n = normalizeExtractedText(text, 4000).toLowerCase()
   return (
     n.includes('رابط الكتاب أو مصدره') ||
+    n.includes('رابط الكتاب') ||
     n.includes('ملاحظة قراءة المحتوى') ||
     n.includes('تنبيه للذكاء') ||
     n.includes('google.com/search') ||
