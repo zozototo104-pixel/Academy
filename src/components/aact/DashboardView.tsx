@@ -249,6 +249,39 @@ export function DashboardView() {
                   </div>
                 )}
 
+                {activeAcademicProfile && (
+                  <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-black text-[#a8841a]">ملفك الأكاديمي في هذا البرنامج</p>
+                        <h3 className="mt-1 text-base font-black leading-snug text-[#0f2b46]">{activeAcademicProfile.academicTitle}</h3>
+                        <p className="mt-1 text-xs leading-6 text-slate-600">{activeAcademicProfile.durationLabel} · {activeAcademicProfile.creditHoursLabel}</p>
+                      </div>
+                      <Badge className="w-fit bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{activeAcademicProfile.degreeLabel}</Badge>
+                    </div>
+                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                      <div className="rounded-xl bg-white p-3 shadow-sm">
+                        <p className="mb-2 text-xs font-black text-[#0f2b46]">أهداف التعلم القريبة</p>
+                        <ul className="space-y-1.5 text-[11px] font-bold leading-5 text-slate-600">
+                          {activeAcademicProfile.learningOutcomes.slice(0, 3).map((item, i) => <li key={i}>• {item}</li>)}
+                        </ul>
+                      </div>
+                      <div className="rounded-xl bg-white p-3 shadow-sm">
+                        <p className="mb-2 text-xs font-black text-[#0f2b46]">خطة الدراسة</p>
+                        <ul className="space-y-1.5 text-[11px] font-bold leading-5 text-slate-600">
+                          {activeAcademicProfile.studyPlan.map((s, i) => <li key={s.title}>{i + 1}. {s.title}</li>)}
+                        </ul>
+                      </div>
+                      <div className="rounded-xl bg-white p-3 shadow-sm">
+                        <p className="mb-2 text-xs font-black text-[#0f2b46]">متطلبات التخرج</p>
+                        <ul className="space-y-1.5 text-[11px] font-bold leading-5 text-slate-600">
+                          {activeAcademicProfile.graduationRequirements.slice(0, 4).map((item, i) => <li key={i}>• {item}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 {/* Units */}
                 <div className="mt-5 space-y-3">
                   {active.units.map((u) => (
