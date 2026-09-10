@@ -164,14 +164,24 @@ export async function POST(req: NextRequest) {
     const totalUnits = await db.unit.count({ where: { programId } })
     let status = totalUnits > 0 && completedUnits.length >= totalUnits ? 'COMPLETED' : 'ACTIVE'
 
-    // لا إكمال للبرنامج قبل اجتياز جميع اختبارات وحداته (بوابة الجودة)
+    // لا إكمال للبرنامج قبل اجتياز جميع اختبارات وحداته وواجباته المنشورة (بوابة الجودة)
     let examsNotPassed = 0
+    let assignmentsNotPassed = 0
     if (status === 'COMPLETED') {
       const gate = await getExamsGate(user.id, programId)
       const unitMissing = gate.missing.filter((m) => m.kind === 'UNIT')
       examsNotPassed = unitMissing.length
-      if (examsNotPassed > 0) {
-        status = 'ACTIVE' // يبقى نشطاً حتى يجتاز كل الاختبارات
+      const requiredAssignments = await db.programAssignment.findMany({
+        where: { programId, status: 'PUBLISHED' },
+        select: { id: true, points: true, submissions: { where: { userId: user.id }, select: { score: true, status: true }, take: 1 } },
+      })
+      assignmentsNotPassed = requiredAssignments.filter((a) => {
+        const sub = a.submissions[0]
+        if (!sub || sub.status !== 'GRADED' || sub.score == null) return true
+        return a.points > 0 ? (sub.score / a.points) * 100 < 60 : false
+      }).length
+      if (examsNotPassed > 0 || assignmentsNotPassed > 0) {
+        status = 'ACTIVE' // يبقى نشطاً حتى يجتاز كل الاختبارات والواجبات المنشورة
       }
     }
 
