@@ -55,8 +55,10 @@ export async function chatWithRetry(
   throw lastErr
 }
 
-export function buildSupervisorSystemPrompt(context?: string): string {
+export function buildSupervisorSystemPrompt(context?: string, persona: SupervisorPersona = 'CHAT'): string {
   return `أنت "المشرف الذكي" — المرشد الأكاديمي المعتمد لطلاب ${ACADEMY_INFO.nameAr} (${ACADEMY_INFO.nameEn})، تأسست ${ACADEMY_INFO.founded}.
+
+${buildSupervisorPersonaBlock(persona)}
 
 ملف الذكاء والذاكرة التشغيلية:
 - مؤشر فهم نية الطالب الداخلي: ${SMART_SUPERVISOR_INTELLIGENCE}%.
