@@ -1256,7 +1256,7 @@ function hasForbiddenExamMetadata(value: unknown): boolean {
   const n = norm(raw)
   return (
     /\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|[^\]]*)?\]/i.test(raw) ||
-    /\b(?:CONCEPT|THEORY|METHOD|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/i.test(raw) ||
+    /\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/i.test(raw) ||
     /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(raw) ||
     /(?:^|\s)of\s+\d{1,5}\b/i.test(raw) ||
     n.includes('رابط الكتاب') ||
