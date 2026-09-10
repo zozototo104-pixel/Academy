@@ -188,6 +188,102 @@ export function ProgramDetailsView() {
             </section>
           </div>
 
+          {academicProfile && (
+            <section className="mt-6 rounded-3xl border border-[#0f2b46]/10 bg-gradient-to-br from-white to-[#fffaf0] p-5 sm:p-6">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-black text-[#a8841a]">الملف الأكاديمي الرسمي</p>
+                  <h2 className="mt-1 text-xl font-black leading-snug text-[#0f2b46]">{academicProfile.academicTitle}</h2>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">{academicProfile.levelDescription}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center text-xs font-black text-[#0f2b46] sm:min-w-[260px]">
+                  <div className="rounded-2xl border border-[#c9a227]/35 bg-white p-3">
+                    <span className="block text-slate-500">المدة/المسار</span>
+                    <span className="mt-1 block text-[#a8841a]">{academicProfile.durationLabel}</span>
+                  </div>
+                  <div className="rounded-2xl border border-[#c9a227]/35 bg-white p-3">
+                    <span className="block text-slate-500">الساعات</span>
+                    <span className="mt-1 block text-[#a8841a]">{academicProfile.creditHoursLabel}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+                  <h3 className="mb-3 flex items-center gap-2 font-black text-[#0f2b46]">
+                    <GraduationCap className="h-5 w-5 text-[#a8841a]" />
+                    مخرجات التعلم
+                  </h3>
+                  <ul className="space-y-2 text-sm leading-7 text-slate-600">
+                    {academicProfile.learningOutcomes.map((item, i) => (
+                      <li key={i} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /><span>{item}</span></li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+                  <h3 className="mb-3 flex items-center gap-2 font-black text-[#0f2b46]">
+                    <Briefcase className="h-5 w-5 text-[#a8841a]" />
+                    المهارات المهنية المكتسبة
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {academicProfile.skills.map((skill, i) => (
+                      <span key={i} className="rounded-full bg-[#faf6ea] px-3 py-1.5 text-xs font-black text-[#0f2b46] ring-1 ring-[#c9a227]/25">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+                <h3 className="mb-3 flex items-center gap-2 font-black text-[#0f2b46]">
+                  <BookOpen className="h-5 w-5 text-[#a8841a]" />
+                  الخطة الدراسية المعتمدة
+                </h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {academicProfile.studyPlan.map((stage, i) => (
+                    <div key={stage.title} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-100">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0f2b46] text-xs font-black text-[#e0b83a]">{i + 1}</span>
+                      <h4 className="mt-3 font-black text-[#0f2b46]">{stage.title}</h4>
+                      <p className="mt-2 text-xs leading-6 text-slate-600">{stage.description}</p>
+                      <p className="mt-2 rounded-xl bg-white p-2 text-xs font-bold leading-6 text-[#a8841a]">المخرج: {stage.deliverable}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 lg:col-span-1">
+                  <h3 className="mb-3 font-black text-[#0f2b46]">متطلب البحث/المشروع</h3>
+                  <p className="text-sm leading-7 text-slate-600">{academicProfile.thesisRequirement}</p>
+                </div>
+                <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 lg:col-span-2">
+                  <h3 className="mb-3 font-black text-[#0f2b46]">متطلبات التخرج ونظام التقييم</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <ul className="space-y-2 text-xs font-bold leading-6 text-slate-600">
+                      {academicProfile.graduationRequirements.map((item, i) => (
+                        <li key={i} className="flex gap-2"><ClipboardList className="mt-1 h-3.5 w-3.5 shrink-0 text-[#a8841a]" /><span>{item}</span></li>
+                      ))}
+                    </ul>
+                    <ul className="space-y-2 text-xs font-bold leading-6 text-slate-600">
+                      {academicProfile.assessmentComponents.map((item, i) => (
+                        <li key={i} className="flex gap-2"><BadgeCheck className="mt-1 h-3.5 w-3.5 shrink-0 text-emerald-600" /><span>{item}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-[#0f2b46] p-4 text-[#f5f0e1]">
+                <h3 className="mb-3 font-black text-[#e0b83a]">ضوابط الجودة الأكاديمية</h3>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {academicProfile.qualityControls.map((item, i) => (
+                    <p key={i} className="rounded-xl bg-white/10 p-3 text-xs font-bold leading-6">{item}</p>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
           {program.features.length > 0 && (
             <section className="mt-6 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-5">
               <h2 className="mb-4 text-lg font-black text-[#0f2b46]">مميزات ومخرجات البرنامج</h2>
