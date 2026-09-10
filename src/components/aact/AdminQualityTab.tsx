@@ -80,6 +80,8 @@ interface AcademicQualityData {
     atRiskStudents: number
     pendingAppeals: number
     supervisorMemoryCoverage: number
+    microCredentials: number
+    microCredentialAwards: number
     avgAttemptScore: number | null
     avgAdmissionFit: number | null
     avgThesisScore: number | null
