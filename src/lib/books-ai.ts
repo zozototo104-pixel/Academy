@@ -1213,6 +1213,9 @@ export async function generateExamQuestionBatch(
   const plannedTypes = batchQuestionPlan(spec.kind, spec.count)
     .map((t, i) => `${i + 1}. ${t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t}`)
     .join('\n')
+  const previousSection = previousQuestionTexts.length
+    ? previousQuestionTexts.slice(-80).map((q, i) => `${i + 1}. ${cleanText(q, 260)}`).join('\n')
+    : 'لا توجد أسئلة سابقة في هذا الامتحان.'
 
   const prompt = `أنت لجنة امتحانات عليا في ${ACADEMY_INFO.nameAr}. أنت لا تكتب أسئلة عشوائية، بل تبني امتحاناً جامعياً يمثل ملخصاً علمياً لأهم ما في الكتب المقررة.
 
