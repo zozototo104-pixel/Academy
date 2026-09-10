@@ -145,7 +145,7 @@ async function cleanupDuplicatePendingQuestions(examId: string): Promise<number>
   return rows.length - deleteIds.length
 }
 
-function filterNewQuestions<T extends { text: string; options?: string[] | null }>(
+function filterNewQuestions<T extends { text: string; type?: string; options?: string[] | null }>(
   questions: T[],
   keys: Set<string>,
   optionSigs?: Set<string>,
@@ -156,16 +156,17 @@ function filterNewQuestions<T extends { text: string; options?: string[] | null 
     if (hasBadExamMetadata(`${q.text} ${(q.options || []).join(' ')}`)) continue
     const key = normalizeQuestionText(q.text).slice(0, 160)
     if (!key || keys.has(key)) continue
-    const optSig = optionSignatureFromArray(q.options)
-    if (optSig && optionSigs?.has(optSig)) continue
-    const opts = Array.isArray(q.options) ? q.options.map((o) => normalizeQuestionText(o)).filter(Boolean) : []
-    if (opts.length && optionTexts) {
+    const isMcq = String(q.type || '').toUpperCase() === 'MCQ'
+    const optSig = isMcq ? optionSignatureFromArray(q.options) : ''
+    if (isMcq && optSig && optionSigs?.has(optSig)) continue
+    const opts = isMcq && Array.isArray(q.options) ? q.options.map((o) => normalizeQuestionText(o)).filter(Boolean) : []
+    if (isMcq && opts.length && optionTexts) {
       const repeatedOptionCount = opts.filter((o) => optionTexts.has(o)).length
       if (repeatedOptionCount >= 2) continue
     }
     keys.add(key)
-    if (optSig) optionSigs?.add(optSig)
-    for (const opt of opts) optionTexts?.add(opt)
+    if (isMcq && optSig) optionSigs?.add(optSig)
+    if (isMcq) for (const opt of opts) optionTexts?.add(opt)
     out.push(q)
   }
   return out
