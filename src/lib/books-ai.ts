@@ -1069,36 +1069,46 @@ export async function generateExamQuestionBatch(
 ): Promise<GeneratedQuestion[]> {
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
+  const specialty = specialtyName(program)
+  const domain = detectProgramDomain(program)
+  const booksSection = buildBooksKnowledgeSection(books, domain, batchIndex)
+  const contentConcepts = contentConceptsFromBooks(books, domain, 28).join('\n- ')
+  const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
+  const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
 
-  const booksSection = books
-    .map((b, i) => {
-      const excerpt = (b.textContent || '').slice(0, 3200)
-      const meta = [
-        b.titleEn ? `العنوان الأصلي: ${b.titleEn}` : '',
-        b.author ? `المؤلف: ${b.author}` : '',
-        b.year ? `السنة: ${b.year}` : '',
-        b.link ? `الرابط/المصدر: ${b.link}` : '',
-        b.sourceNote ? `مصدر المحتوى: ${b.sourceNote}` : '',
-      ].filter(Boolean).join(' — ')
-      return `كتاب ${i + 1}: «${b.title}»${meta ? ` — ${meta}` : ''}
-${b.description ? `نبذة: ${b.description.slice(0, 500)}\n` : ''}${excerpt ? `محتوى/فهرس معرفي مقروء أو مستخلص من الكتاب:\n${excerpt}\n` : ''}`
-    })
-    .join('\n\n')
+  const prompt = `أنت لجنة امتحانات عليا في ${ACADEMY_INFO.nameAr}. أنت لا تكتب أسئلة عشوائية، بل تبني امتحاناً جامعياً يمثل ملخصاً علمياً لأهم ما في الكتب المقررة.
 
-  const prompt = `أنت خبير ذكاء اصطناعي يمتحن طلاب ${level} في تخصص "${program.titleAr}" (${program.titleEn || '-'}) في ${ACADEMY_INFO.nameAr}.
-حللت مصادر الكتب المقررة التالية: نصوص مستخرجة من الملفات عند توفرها، أو محتوى مقروء من الروابط، أو فهارس معرفية مستخلصة من Gemini/المصدر. ابنِ الأسئلة من هذه المواد ومن المعرفة الأكاديمية الموثوقة عن نفس الكتب والتخصص، ولا تفشل بسبب نقص نص حرفي كامل:
+الدرجة: ${level}
+التخصص الحقيقي: ${specialty.ar} (${specialty.en || program.titleEn || '-'})
+اسم البرنامج في النظام: ${program.titleAr}
+وصف البرنامج: ${cleanText(program.description, 700) || 'غير مذكور'}
+عدد الكتب المقررة: ${books.length}
+عدد الكتب التي لها محتوى نصي/معرفي قوي: ${booksWithStrongContent}
+حجم المحتوى المقروء تقريباً: ${totalBookChars} حرف
+
+قاعدة جوهرية:
+الامتحان يجب أن يكون بمستوى جامعة/دراسات عليا. الأسئلة يجب أن تُظهر أن النظام قرأ الكتاب وفهم أهم أفكاره: المفاهيم، النماذج، النظريات، المنهجيات، الفصول، الحالات العملية، الأخطاء الشائعة، وأثرها في واقع تخصص ${specialty.ar}. لا تجعل الأسئلة تعريفية سطحية ولا عامة تصلح لأي تخصص.
+
+ملخص المعرفة المستخرجة من الكتب المقررة، مع مقاطع موزعة من بداية/وسط/نهاية كل كتاب وأهم الجمل التي التقطها النظام:
 
 ${booksSection}
 
-وصف البرنامج: ${cleanText(program.description, 500) || 'غير مذكور'}
+أهم محاور مستخرجة يجب تغطيتها قدر الإمكان في هذه الدفعة:
+- ${contentConcepts || `المفاهيم المركزية في ${specialty.ar}`}
 
 الدفعة المطلوبة (${spec.count} سؤالاً):
 ${spec.instruction}
 
 شروط صارمة:
-- مستوى الأسئلة: ${level} — تحليلي وتطبيقي وليس حفظاً سطحياً
-- الأسئلة مستمدة من مفاهيم الكتب المقررة أعلاه وحقيقة مجال التخصص عالمياً
-- صياغة عربية فصحى واضحة ودقيقة علمياً
+- مستوى الأسئلة: ${level} — تحليلي وتطبيقي وليس حفظاً سطحياً.
+- كل سؤال يجب أن يكون مبنياً على فكرة أو أكثر من الكتب أعلاه أو على سياقها العلمي المباشر في تخصص ${specialty.ar}.
+- وزّع الأسئلة على الكتب كلها قدر الإمكان، ولا تركز على أول كتاب فقط.
+- اجعل الأسئلة كأنها خريطة فهم للكتاب: من يجيبها جيداً يكون فهم أهم ما في الكتاب، لا حفظ سطراً واحداً.
+- عند السؤال التطبيقي أو المقالي، اذكر حالة واقعية أو سيناريو مهني من مجال ${specialty.ar}.
+- في modelAnswer اذكر عبارة قصيرة تبدأ بـ «مرجع التصحيح:» توضّح الفكرة أو الكتاب/المحور الذي يعتمد عليه السؤال.
+- لا تضع أسئلة عن إدارة أو قيادة عامة إلا إذا كانت واردة في محتوى الكتاب نفسه ومرتبطة صراحة بتخصص ${specialty.ar}.
+- لا تخترع اقتباسات حرفية ولا أرقاماً غير موجودة؛ استخدم المحتوى المقروء والمعرفة الأكاديمية العامة حول نفس الكتاب والتخصص فقط.
+- صياغة عربية فصحى واضحة ودقيقة علمياً.
 - لا تكرر سؤالاً أو فكرة سؤال مرتين
 - كل سؤال MCQ له options مصفوفة 4 نصوص و correct رقم الخيار الصحيح كنص "0"-"3"
 - كل سؤال TF له options ["صح","خطأ"] و correct "0" أو "1"
