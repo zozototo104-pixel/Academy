@@ -81,7 +81,7 @@ interface MyEnrollment {
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
 export function DashboardView() {
-  const { user, navigate, openUnit, openExam } = useAppStore()
+  const { user, navigate, openUnit, openExam, openProgramDetails } = useAppStore()
   const { toast } = useToast()
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
