@@ -111,6 +111,9 @@ export async function GET() {
       const assignmentRows = assignmentAssessments.map((a) => {
         const sub = a.submissions[0]
         const pct = sub?.score != null && a.points > 0 ? Math.round((sub.score / a.points) * 100) : null
+        const passed = sub?.status === 'GRADED' && pct != null && pct >= 60
+        totalExams++
+        if (passed) passedExams++
         if (pct != null) scores.push(pct)
         return {
           kind: 'ASSIGNMENT' as const,
