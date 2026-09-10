@@ -158,6 +158,7 @@ export interface AcademicProgramInput {
   units?: { title?: string | null; order?: number | null }[]
   books?: { title?: string | null; titleEn?: string | null; semester?: number | null }[]
   exams?: { title?: string | null; semester?: number | null; status?: string | null; questionCount?: number | null }[]
+  assignments?: { title?: string | null; semester?: number | null; points?: number | null; status?: string | null }[]
   /** تخصيص إداري اختياري محفوظ داخل admissionRules.academicProfile بدون الحاجة لتعديل قاعدة البيانات. */
   academicProfile?: PartialAcademicProgramProfile | null
 }
