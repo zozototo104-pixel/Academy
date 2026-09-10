@@ -1,6 +1,30 @@
 import { db } from '@/lib/db'
 import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
 
+const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
+  CONCEPT: 'مفهوم',
+  THEORY: 'نظرية أو إطار',
+  METHOD: 'منهجية',
+  CASE: 'حالة تطبيقية',
+  DEFINITION: 'تعريف',
+  QUESTION_SEED: 'محور سؤال',
+  SUMMARY: 'ملخص محوري',
+}
+
+function labelKnowledgeCategory(category: string) {
+  return KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || 'محور معرفي'
+}
+
+function parseArray(value?: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
 /**
  * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
  * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
