@@ -162,7 +162,7 @@ async function runGeneration(examId: string) {
       if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
         await db.book.update({
           where: { id: hydrated.id },
-          data: { textContent: hydrated.textContent.slice(0, 40000) },
+          data: { textContent: hydrated.textContent.slice(0, 180000) },
         }).catch(() => {})
       }
     }
