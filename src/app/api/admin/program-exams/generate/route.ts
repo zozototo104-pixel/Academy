@@ -63,9 +63,36 @@ async function stopGenerationAndExposeReview(examId: string, admin: { id: string
   return { ok: true, examId, status: nextStatus, questionCount, totalPoints }
 }
 
+function normalizeQuestionText(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
 async function examTotals(examId: string): Promise<{ questionCount: number; totalPoints: number }> {
   const rows = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
   return { questionCount: rows.length, totalPoints: rows.reduce((sum, q) => sum + q.points, 0) }
+}
+
+async function existingQuestionKeys(examId: string): Promise<Set<string>> {
+  const rows = await db.programQuestion.findMany({ where: { examId }, select: { text: true } })
+  return new Set(rows.map((q) => normalizeQuestionText(q.text).slice(0, 160)).filter(Boolean))
+}
+
+function filterNewQuestions<T extends { text: string }>(questions: T[], keys: Set<string>): T[] {
+  const out: T[] = []
+  for (const q of questions) {
+    const key = normalizeQuestionText(q.text).slice(0, 160)
+    if (!key || keys.has(key)) continue
+    keys.add(key)
+    out.push(q)
+  }
+  return out
 }
 
 async function exposeExamForReview(examId: string, note?: string) {
