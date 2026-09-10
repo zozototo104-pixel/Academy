@@ -1479,7 +1479,7 @@ ${plannedTypes}
       ? modelAnswerBase
       : `مرجع التصحيح: ${bookEvidence}${modelAnswerBase ? ` — ${modelAnswerBase}` : ''}`
     if (type === 'MCQ') {
-      const options = Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o, 240)).filter(Boolean).slice(0, 4) : null
+      const options = Array.isArray(q.options) ? q.options.map((o: any) => stripExamKnowledgeMeta(o, 240)).filter(Boolean).slice(0, 4) : null
       const correctNum = Number(q.correct ?? '')
       const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
       if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
