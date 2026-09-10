@@ -546,7 +546,7 @@ async function aiMinutes(thesisId: string, title: string, studentName: string, d
         { role: 'assistant', content: 'أنت كاتب محاضر أكاديمي محترف. تصوغ محضر جلسة مناقشة بحث تخرج بصيغة رسمية موجزة بالعربية. بدون Markdown أو جداول.' },
         {
           role: 'user',
-          content: `صُغ محضر جلسة مناقشة بحث التخرج التالي:
+          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 5500)}\n\n` : ''}صُغ محضر جلسة مناقشة بحث التخرج التالي:
 عنوان البحث: «${title}»
 الباحث: ${studentName}
 تاريخ الجلسة: ${defenseDate ? new Date(defenseDate).toLocaleDateString('ar-EG') : 'الجلسة الحالية'}
