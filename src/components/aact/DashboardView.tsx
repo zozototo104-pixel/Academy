@@ -41,6 +41,7 @@ interface ProgressData {
     hours?: number | null
     price?: number | null
     unitsCount?: number | null
+    academicProfile?: any
   }
   progress: number
   status: string
