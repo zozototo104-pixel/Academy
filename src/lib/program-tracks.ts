@@ -231,6 +231,8 @@ export interface PartialAcademicProgramProfile {
   learningOutcomes?: string[]
   skills?: string[]
   studyPlan?: AcademicPlanStage[]
+  termPlans?: AcademicTermPlan[]
+  finalEvaluationFormula?: AcademicEvaluationItem[]
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
