@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Loader2, CheckCircle2, XCircle, Pencil, ShieldAlert, Camera, Bot,
-  MessageSquareWarning, ClipboardCheck, AlertTriangle,
+  MessageSquareWarning, ClipboardCheck, AlertTriangle, Trash2,
 } from 'lucide-react'
 
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
