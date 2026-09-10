@@ -394,6 +394,86 @@ function fileDetail(f: AdmissionFileEvidence, extra?: string): string {
   return `${base}${read}${extra ? ` — ${extra}` : ''}`
 }
 
+function sharedNameStatus(fullName: string, f: AdmissionFileEvidence): AdmissionDocumentAnalysis['belongsToStudent'] {
+  const nameOnDoc = f.ocrRead?.nameOnDoc || ''
+  const content = `${safeVisibleContent(f)} ${nameOnDoc}`
+  if (!fullName.trim()) return 'UNVERIFIED'
+  if (!content.trim()) return 'UNVERIFIED'
+  const words = normalize(fullName).split(' ').filter((w) => w.length > 1)
+  if (words.length === 0) return 'UNVERIFIED'
+  const shared = words.filter((w) => normalize(content).includes(w)).length
+  if (shared >= Math.max(1, Math.ceil(words.length / 2))) return 'YES'
+  return nameOnDoc || safeVisibleContent(f).length > 40 ? 'NO' : 'UNVERIFIED'
+}
+
+function programRelevanceStatus(program: string, expectedType: string, f: AdmissionFileEvidence, detected: DetectedDocKind): AdmissionDocumentAnalysis['relatedToProgram'] {
+  if (detected === 'NON_ADMISSION' || detected === 'LOGO') return 'NO'
+  if (['ID', 'PHOTO'].includes(expectedType) || detected === 'ID' || detected === 'PHOTO') return 'YES'
+  const content = normalize(`${program} ${safeVisibleContent(f)} ${f.ocrRead?.degreeMentioned || ''} ${f.ocrRead?.institution || ''}`)
+  const programWords = normalize(program).split(' ').filter((w) => w.length > 3)
+  if (programWords.some((w) => content.includes(w))) return 'YES'
+  if (detected === 'CV' || detected === 'DEGREE_CERTIFICATE' || detected === 'TRANSCRIPT') return 'UNVERIFIED'
+  return 'UNVERIFIED'
+}
+
+function buildDocumentAnalyses(app: { fullName: string; program: string }, files: AdmissionFileEvidence[]): AdmissionDocumentAnalysis[] {
+  return files.map((f) => {
+    const detected = detectAdmissionDocumentKind(f)
+    const expected = expectedDocMatches(f.docType, f)
+    const visible = safeVisibleContent(f).trim()
+    const readable = !isVisionUnavailable(f) && (visible.length >= 30 || !!f.ocrRead?.readable || detected.kind === 'PHOTO')
+    const clearEnough = expected.ok && readable
+    const belongsToStudent = sharedNameStatus(app.fullName, f)
+    const relatedToProgram = programRelevanceStatus(app.program, f.docType, f, detected.kind)
+    const reasons = [
+      detected.reason,
+      expected.reason,
+      f.ocrRead?.qualityNote || f.textNote,
+      belongsToStudent === 'NO' ? 'الاسم المقروء لا يطابق اسم المتقدم بما يكفي' : null,
+      relatedToProgram === 'NO' ? 'المرفق لا يرتبط بمتطلبات القبول أو البرنامج' : null,
+    ].filter(Boolean).map((x) => String(x).slice(0, 280))
+
+    let coverage = 0
+    if (detected.kind === 'NON_ADMISSION' || detected.kind === 'LOGO') coverage = 5
+    else if (expected.ok) coverage = 78
+    else if (expected.problem) coverage = 25
+    else if (readable) coverage = 45
+    else coverage = 15
+    if (clearEnough) coverage += 10
+    if (belongsToStudent === 'YES') coverage += 7
+    if (belongsToStudent === 'NO') coverage -= 20
+    if (relatedToProgram === 'YES') coverage += 5
+    if (relatedToProgram === 'NO') coverage -= 15
+    coverage = Math.max(0, Math.min(100, Math.round(coverage)))
+
+    const recommendation: AdmissionDocumentAnalysis['recommendation'] =
+      detected.kind === 'NON_ADMISSION' || detected.kind === 'LOGO'
+        ? 'IGNORE_AS_NON_ADMISSION'
+        : expected.problem || belongsToStudent === 'NO' || relatedToProgram === 'NO'
+          ? 'REQUEST_REPLACEMENT'
+          : clearEnough
+            ? 'ACCEPT_AS_EVIDENCE'
+            : 'REQUEST_CLEARER_COPY'
+
+    return {
+      fileName: f.fileName,
+      declaredType: f.docType,
+      declaredLabel: DOC_TYPE_AR[f.docType] || f.docType,
+      detectedKind: detected.kind,
+      detectedLabel: DETECTED_KIND_AR[detected.kind],
+      reader: f.textReader,
+      readable,
+      clearEnough,
+      belongsToStudent,
+      relatedToProgram,
+      coverage,
+      coverageReason: reasons.join(' — ').slice(0, 900),
+      recommendation,
+      reasons,
+    }
+  })
+}
+
 function worseVerdict(a: Verdict, b: Verdict): Verdict {
   const order: Verdict[] = ['RECOMMEND_APPROVE', 'INSUFFICIENT_DATA', 'NEEDS_CLARIFICATION', 'RECOMMEND_REJECT']
   return order.indexOf(a) >= order.indexOf(b) ? a : b
