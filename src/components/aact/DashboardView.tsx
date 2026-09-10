@@ -702,6 +702,67 @@ export function DashboardView() {
 
         {/* Sidebar */}
         <div className="space-y-5">
+          {/* Academic memory */}
+          <Card className="border-[#0f2b46]/10 bg-white">
+            <CardContent className="p-5">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <Bot className="h-5 w-5 text-[#c9a227]" /> ملف المشرف الأكاديمي
+                  </h2>
+                  <p className="mt-1 text-[11px] font-bold text-slate-400">ذاكرة تعليمية مبنية من محادثاتك وامتحاناتك ومناقشتك</p>
+                </div>
+                <Badge className="bg-[#f7edd0] text-[10px] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                  {academicMemory?.interactionsCount || 0} تفاعل
+                </Badge>
+              </div>
+
+              <div className="rounded-2xl bg-[#f8fafc] p-3 text-xs font-bold leading-6 text-slate-600">
+                {academicMemory?.profileDigest || academicMemory?.lastConversationSummary || 'لم تتكوّن ذاكرة كافية بعد. ابدأ محادثة مع المشرف أو اجتز أول امتحان ليبني النظام ملفك الأكاديمي.'}
+              </div>
+
+              {academicNextAction && (
+                <div className="mt-3 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-3">
+                  <p className="text-[11px] font-black text-[#a8841a]">الخطوة التعليمية التالية</p>
+                  <p className="mt-1 text-xs font-bold leading-6 text-[#0f2b46]">{academicNextAction}</p>
+                </div>
+              )}
+
+              {(academicMemory?.conceptsToReview?.length || 0) > 0 && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-black text-[#0f2b46]">مفاهيم يراجعها معك المشرف</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {academicMemory!.conceptsToReview.slice(-6).map((item, i) => (
+                      <span key={`${item}-${i}`} className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{item}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {((academicMemory?.strengths?.length || 0) > 0 || (academicMemory?.weaknesses?.length || 0) > 0) && (
+                <div className="mt-3 grid gap-2">
+                  {(academicMemory?.strengths?.length || 0) > 0 && (
+                    <div className="rounded-xl bg-emerald-50 p-2 text-[11px] font-bold leading-5 text-emerald-700">
+                      <p className="mb-1 font-black">نقاط قوة مرصودة</p>
+                      {academicMemory!.strengths.slice(-3).map((item, i) => <p key={`${item}-${i}`}>• {item}</p>)}
+                    </div>
+                  )}
+                  {(academicMemory?.weaknesses?.length || 0) > 0 && (
+                    <div className="rounded-xl bg-amber-50 p-2 text-[11px] font-bold leading-5 text-amber-700">
+                      <p className="mb-1 font-black">تحتاج متابعة</p>
+                      {academicMemory!.weaknesses.slice(-3).map((item, i) => <p key={`${item}-${i}`}>• {item}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-black text-slate-500">
+                <div className="rounded-xl bg-slate-50 p-2">آخر امتحان: {formatMemoryDate(academicMemory?.lastExamAt)}</div>
+                <div className="rounded-xl bg-slate-50 p-2">آخر تحديث: {formatMemoryDate(memoryUpdatedAt)}</div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* AI chat latest */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5">
