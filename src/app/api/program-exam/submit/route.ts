@@ -163,6 +163,8 @@ export async function POST(req: NextRequest) {
         const pts = isCorrect ? q.points : 0
         totalScore += pts
         const options = q.options ? JSON.parse(q.options) : []
+        const feedback = buildObjectiveFeedback(q, isCorrect, options, selected)
+        const wrongOptionRationale = isCorrect ? null : selectedOptionRationale(q, selected)
         if (!isCorrect) weakPoints.push(`سؤال ${q.type === 'TF' ? 'صح/خطأ' : 'اختيار'}: ${q.text.slice(0, 60)}...`)
         await db.programAnswer.create({
           data: {
@@ -173,9 +175,7 @@ export async function POST(req: NextRequest) {
             isCorrect,
             points: pts,
             maxPoints: q.points,
-            aiFeedback: isCorrect
-              ? 'إجابة صحيحة! أحسنت.'
-              : `إجابة غير صحيحة. الإجابة الصحيحة: «${options[Number(q.correctAnswer)] ?? q.correctAnswer}». راجع هذا المفهوم في الكتب المقررة.`,
+            aiFeedback: feedback,
           },
         })
         objectiveResults.push({
@@ -186,9 +186,11 @@ export async function POST(req: NextRequest) {
           isCorrect,
           points: pts,
           maxPoints: q.points,
-          aiFeedback: '',
+          aiFeedback: feedback,
           studentAnswer: selected !== undefined ? options[selected] || '' : '(لم يجب)',
           correctAnswerText: options[Number(q.correctAnswer)],
+          wrongOptionRationale,
+          ...resultMetadata(q),
         })
       } else {
         essayTasks.push({ q, text: submit?.answerText || '' })
