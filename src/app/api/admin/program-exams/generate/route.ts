@@ -394,7 +394,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const existingOptions = await existingOptionSignatures(examId)
     const existingOptionWords = await existingOptionTexts(examId)
 
-    let batch = await generateExamQuestionBatch(exam.program, usableBooks, batchIndex, previousTexts)
+    let batch = await generateExamQuestionBatch(exam.program, examKnowledgeBooks, batchIndex, previousTexts)
     batch = filterNewQuestions(batch, existingKeys, existingOptions, existingOptionWords)
     if (batch.length < EXAM_BATCH_SPECS[batchIndex].count) {
       const fallbackKeys = await existingQuestionKeys(examId)
