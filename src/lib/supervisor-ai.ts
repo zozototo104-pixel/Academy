@@ -168,6 +168,15 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
 
     const parts: string[] = []
 
+    if (studentProfile) {
+      parts.push(
+        `بطاقة ملف الطالب الأساسية: الاسم ${studentProfile.name} — البريد ${studentProfile.email}` +
+          (studentProfile.phone ? ` — الهاتف ${studentProfile.phone}` : '') +
+          (studentProfile.country ? ` — الدولة ${studentProfile.country}` : '') +
+          ` — الدور ${studentProfile.role} — تاريخ إنشاء الملف ${new Date(studentProfile.createdAt).toLocaleDateString('ar-EG')}`
+      )
+    }
+
     if (academicMemory) {
       const memoryBlock = formatAcademicMemory(academicMemory)
       if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
