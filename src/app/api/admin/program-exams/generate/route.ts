@@ -128,7 +128,16 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}`)
 
-    const existingCount = await db.programQuestion.count({ where: { examId } })
+    let existingCount = await db.programQuestion.count({ where: { examId } })
+    if (
+      existingCount === EXAM_BATCH_SPECS[0].count &&
+      String(exam.errorNote || '').includes('دفعة أولية')
+    ) {
+      // علاج الامتحانات التي أنشأتها النسخة السابقة بأسئلة احتياطية عامة قبل قراءة ملف Word/PDF.
+      // نحذف هذه الدفعة فقط إذا كانت كلها ما زالت معلقة للمراجعة، ثم نعيد بناءها من محتوى الكتاب فعلياً.
+      const removed = await db.programQuestion.deleteMany({ where: { examId, status: 'PENDING_REVIEW' } })
+      if (removed.count > 0) existingCount = await db.programQuestion.count({ where: { examId } })
+    }
     const batchIndex = firstMissingBatchIndex(existingCount)
     if (batchIndex >= EXAM_BATCH_COUNT) {
       const reviewed = await exposeExamForReview(examId, null)
