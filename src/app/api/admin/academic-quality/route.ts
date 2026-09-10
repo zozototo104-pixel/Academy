@@ -241,6 +241,7 @@ export async function GET() {
         readyExams: programReadyExams.length,
         questions: programQuestions.length,
         sourceCoverage,
+        metadataCoverage,
         examPassRate,
         qualityScore,
         band: qualityBand(qualityScore),
