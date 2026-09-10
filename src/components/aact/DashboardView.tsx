@@ -175,6 +175,8 @@ export function DashboardView() {
   const [loadingActive, setLoadingActive] = useState(false)
   const [lastChats, setLastChats] = useState<ChatMsg[]>([])
   const [academicMemory, setAcademicMemory] = useState<AcademicMemorySnapshot | null>(null)
+  const [earnedMicroCredentials, setEarnedMicroCredentials] = useState<MicroCredentialCard[]>([])
+  const [availableMicroCredentials, setAvailableMicroCredentials] = useState<MicroCredentialCard[]>([])
 
   // Load my programs
   const loadList = useCallback(async () => {
