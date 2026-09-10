@@ -365,11 +365,13 @@ export async function gradeEssayAnswer(
   questionText: string,
   modelAnswer: string,
   studentAnswer: string,
-  maxPoints: number
+  maxPoints: number,
+  studentAcademicContext?: string
 ): Promise<GradedAnswer> {
   const zai = await getZAI()
   const prompt = `${buildSupervisorPersonaBlock('EXAM')}
 
+${studentAcademicContext ? `سياق ملف الطالب للقياس العادل لا للمجاملة:\n${studentAcademicContext.slice(0, 6000)}\n` : ''}
 أنت مصحح أكاديمي محترف في ${ACADEMY_INFO.nameAr}. صحح إجابة مقالية لطالب وفق المعايير التالية:
 
 السؤال: ${questionText}
