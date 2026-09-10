@@ -340,7 +340,19 @@ export async function POST(req: NextRequest) {
 
     const generating = await db.programExam.findFirst({ where: { programId, status: 'GENERATING' } })
     if (generating) {
-      return NextResponse.json({ error: 'هناك اختبار قيد التوليد حالياً — انتظر اكتماله', examId: generating.id }, { status: 409 })
+      const starter = await ensureStarterQuestions(generating.id)
+      scheduleGeneration(generating.id)
+      return NextResponse.json({
+        ok: true,
+        examId: generating.id,
+        booksCount,
+        semester: generating.semester,
+        resumed: true,
+        kicked: true,
+        existingQuestions: starter.questionCount,
+        inserted: starter.inserted,
+        requiredQuestions: totalRequiredQuestions(),
+      })
     }
 
     const existingSemExam = await db.programExam.findFirst({ where: { programId, semester: sem, status: { in: ['REVIEW', 'READY'] } } })
