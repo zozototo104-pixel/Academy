@@ -177,6 +177,8 @@ export async function GET() {
             include: { user: { select: { id: true, name: true, email: true } } },
           }).catch(() => [])
         : Promise.resolve([]),
+      microCredentialStore?.count ? microCredentialStore.count({ where: { active: true } }).catch(() => 0) : Promise.resolve(0),
+      microCredentialAwardStore?.count ? microCredentialAwardStore.count({ where: { valid: true } }).catch(() => 0) : Promise.resolve(0),
     ])
 
     const duplicateGroups = new Map<string, typeof questions>()
