@@ -643,6 +643,29 @@ export function AdminBooksTab() {
                           )}
                         </div>
                         <div className="flex shrink-0 gap-1">
+                          {e.status === 'GENERATING' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => stopExam(e)}
+                              disabled={stoppingExamId === e.id}
+                              className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                              title="إيقاف التوليد والاحتفاظ بما تم توليده للمراجعة"
+                            >
+                              {stoppingExamId === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
+                            </Button>
+                          )}
+                          {e.status === 'GENERATING' && e.questionCount > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setReviewingExam({ id: e.id, title: e.title })}
+                              className="h-8 border-[#c9a227]/40 text-[10px] font-black text-[#a8841a] hover:bg-[#f7edd0]"
+                              title="معاينة الأسئلة التي تم توليدها حتى الآن"
+                            >
+                              <FileCheck2 className="ml-1 h-3 w-3" /> معاينة
+                            </Button>
+                          )}
                           {(e.status === 'REVIEW' || e.status === 'READY') && (
                             <Button size="sm" onClick={() => setReviewingExam({ id: e.id, title: e.title })}
                               className={`h-8 text-[10px] font-black ${e.status === 'REVIEW' ? 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]' : 'border border-[#0f2b46]/20 bg-transparent text-[#0f2b46] hover:bg-slate-50'}`}>
