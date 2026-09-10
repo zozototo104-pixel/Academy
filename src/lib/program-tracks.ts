@@ -436,7 +436,7 @@ export function buildAcademicProgramProfile(program: AcademicProgramInput): Acad
       ? 'يركز المسار على توثيق الخبرة المهنية وقياس أهلية الاعتماد، ولا يتطلب بحث تخرج إلا إذا نصت قواعد الاعتماد على ذلك.'
       : 'قد يتضمن البرنامج مشروعاً تطبيقياً أو حالة عملية بدلاً من بحث تخرج كامل، حسب طبيعة الدبلوم.'
 
-  return {
+  const base: AcademicProgramProfile = {
     degreeLabel,
     specialization,
     academicTitle: `${degreeLabel} في ${specialization}`,
