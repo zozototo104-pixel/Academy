@@ -253,6 +253,89 @@ export function DefenseRoom({
     }
   }, [])
 
+  const buildDefenseVoiceContext = useCallback(() => {
+    const recent = messages
+      .slice(-10)
+      .map((m) => `${m.role === 'AI_EXPERT' ? 'سؤال رسمي' : m.role === 'AI_NOTE' ? 'مداخلة سابقة' : m.role === 'TRANSCRIPT' ? 'كلام الطالب' : m.role === 'STUDENT' ? 'إجابة مكتوبة' : 'نظام'}: ${m.content.slice(0, 450)}`)
+      .join('\n')
+    return `أنت الآن داخل قاعة فيديو كونفرنس لمناقشة بحث تخرج، ولست في دردشة نصية. المطلوب صوت متدفق طبيعي مثل مكالمة مباشرة.
+
+هويتك داخل القاعة: المستشار الذكي عضو لجنة استشاري حاضر مع الطالب واللجنة. لا تقرأ نصاً فصيحاً جامداً، ولا تنتظر دائماً نهاية إجابة رسمية. تحدث كإنسان أكاديمي: قاطع بلطف عند الحاجة، علّق على كلام الطالب، صحح له المسار، اطلب مثالاً أو دليلاً، ثم اترك له فرصة يكمل.
+
+أسلوبك الصوتي المطلوب: عربي بسيط قريب من الشامي/الفلسطيني إن تكلم الطالب بهذه اللهجة. جملة إلى ثلاث جمل فقط. استخدم عبارات طبيعية مثل: "تمام، فهمت عليك"، "اسمح لي أوقفك هون شوي"، "النقطة جيدة بس بدها دليل". ممنوع الأسلوب الآلي، وممنوع تعداد النقاط.
+
+موضوع المناقشة: ${thesis.title}
+ملخص البحث: ${thesis.abstract.slice(0, 1200)}
+اللجنة المعلنة: ${committee.join('، ') || 'لجنة الأكاديمية'}
+
+آخر ما ظهر في القاعة:
+${recent || 'بدأت الجلسة للتو.'}
+
+قاعدة مهمة: إذا بدأ الطالب يتكلم لا تصمت طويلاً. تفاعل معه كمشرف يناقش لا كسؤال وجواب. ومع ذلك لا تعطِ قرار نجاح أو رسوب؛ القرار النهائي للجنة البشرية.`
+  }, [committee, messages, thesis.abstract, thesis.title])
+
+  const stopLiveAdvisor = useCallback(() => {
+    liveAdvisorRef.current?.stop()
+    liveAdvisorRef.current = null
+    setLiveAdvisorOn(false)
+    setLiveAdvisorState('IDLE')
+    setLiveAdvisorLevel(0)
+    setLiveUserCaption('')
+    setLiveAiCaption('')
+  }, [])
+
+  const startLiveAdvisor = useCallback(() => {
+    if (!isStudent || finished || liveAdvisorRef.current) return
+    audioRef.current?.pause()
+    try { window.speechSynthesis?.cancel() } catch {}
+    setSpeaking(false)
+    if (transcriptResumeRef.current) {
+      transcriptRecRef.current?.stop()
+      transcriptRecRef.current = null
+      transcriptResumeRef.current = false
+      setTranscriptOn(false)
+    }
+    const agent = new VoiceAgent({
+      context: buildDefenseVoiceContext(),
+      logEndpoint: '/api/defense',
+      logExtra: { action: 'live-turn' },
+      onState: (s) => {
+        setLiveAdvisorState(s)
+        setSpeaking(s === 'AI_SPEAKING')
+      },
+      onLevel: (lvl) => setLiveAdvisorLevel((prev) => prev * 0.55 + lvl * 0.45),
+      onUserCaption: (t) => setLiveUserCaption(t),
+      onAiCaption: (t) => setLiveAiCaption(t),
+      onTurnComplete: ({ userText, aiText }) => {
+        const nowIso = new Date().toISOString()
+        const items: DefenseMsg[] = []
+        if (userText.trim()) items.push({ id: `live-u-${Date.now()}`, role: 'TRANSCRIPT', content: `محادثة صوتية مباشرة: ${userText.trim()}`, createdAt: nowIso })
+        if (aiText.trim()) items.push({ id: `live-a-${Date.now()}`, role: 'AI_NOTE', content: `مداخلة صوتية مباشرة: ${aiText.trim()}`, createdAt: nowIso })
+        if (items.length) setMessages((prev) => [...prev, ...items])
+        setLiveUserCaption('')
+        setLiveAiCaption('')
+      },
+      onInterrupted: () => setLiveAiCaption(''),
+      onError: (msg) => toast({ title: 'تنبيه المشرف الصوتي', description: msg, variant: 'destructive' }),
+    })
+    liveAdvisorRef.current = agent
+    setLiveAdvisorOn(true)
+    setLiveAdvisorState('THINKING')
+    agent.start().catch((e: any) => {
+      stopLiveAdvisor()
+      toast({
+        title: 'تعذر تشغيل المشرف الصوتي المتدفق',
+        description: String(e?.message || 'تأكد من صلاحية Gemini Live والمايكروفون ثم أعد المحاولة'),
+        variant: 'destructive',
+      })
+    })
+  }, [buildDefenseVoiceContext, finished, isStudent, stopLiveAdvisor, toast])
+
+  const toggleLiveAdvisor = useCallback(() => {
+    if (liveAdvisorRef.current || liveAdvisorOn) stopLiveAdvisor()
+    else startLiveAdvisor()
+  }, [liveAdvisorOn, startLiveAdvisor, stopLiveAdvisor])
+
   // ===== 12.3: إشارات WebRTC =====
   const sendSignal = useCallback(async (type: string, payload: any, to?: string | null) => {
     try {
