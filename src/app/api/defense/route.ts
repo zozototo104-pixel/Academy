@@ -399,7 +399,7 @@ async function aiRecommendation(title: string, name: string, aiScore: number, an
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: 'أنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.' },
+        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.` },
         {
           role: 'user',
           content: `اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
