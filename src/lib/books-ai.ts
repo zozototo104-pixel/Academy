@@ -666,7 +666,7 @@ function fallbackBookSuggestions(program: { titleAr: string; titleEn?: string | 
   const spec = specialtyName(program)
   const topic = cleanText(spec.en || spec.ar || program.titleAr, 180)
   const level = LEVEL_AR[program.category] || 'الدراسات المهنية'
-  const base = DOMAIN_BOOKS[domain]?.length ? DOMAIN_BOOKS[domain] : DOMAIN_BOOKS.general
+  const base = (DOMAIN_BOOKS[domain] && DOMAIN_BOOKS[domain]!.length ? DOMAIN_BOOKS[domain]! : DOMAIN_BOOKS.general)
 
   return base.map(([titleEn, author, year, reason]) => ({
     title: `${level} في ${spec.ar}: ${titleEn}`.slice(0, 300),
