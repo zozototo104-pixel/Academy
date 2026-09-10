@@ -53,6 +53,12 @@ export default function Home() {
         useAppStore.getState().openProgramDetails(programId)
       } else if (v === 'programs' && q.get('filter')) {
         useAppStore.getState().openPrograms(q.get('filter') || undefined)
+      } else if (v === 'dashboard' && programId) {
+        useAppStore.getState().openProgram(programId)
+      } else if (v === 'unit' && q.get('unitId')) {
+        useAppStore.getState().openUnit(q.get('unitId') || '')
+      } else if (v === 'exam' && q.get('examId')) {
+        useAppStore.getState().openExam(q.get('examId') || '', q.get('kind') === 'final' ? 'final' : 'unit')
       } else {
         useAppStore.getState().navigate(v as any)
       }
