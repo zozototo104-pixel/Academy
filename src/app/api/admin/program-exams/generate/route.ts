@@ -180,11 +180,16 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 
     let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, batchIndex, previousTexts)
     batch = filterNewQuestions(batch, existingKeys)
-    if (batch.length < Math.max(3, Math.floor(EXAM_BATCH_SPECS[batchIndex].count * 0.6))) {
+    if (batch.length < EXAM_BATCH_SPECS[batchIndex].count) {
       const fallbackKeys = await existingQuestionKeys(examId)
       for (const q of batch) fallbackKeys.add(normalizeQuestionText(q.text).slice(0, 160))
-      const fallback = filterNewQuestions(fallbackExamQuestionBatch(exam.program, hydratedBooks, batchIndex), fallbackKeys)
-      batch = [...batch, ...fallback].slice(0, EXAM_BATCH_SPECS[batchIndex].count)
+      for (let attempt = 0; attempt < EXAM_BATCH_COUNT && batch.length < EXAM_BATCH_SPECS[batchIndex].count; attempt++) {
+        const fallback = filterNewQuestions(
+          fallbackExamQuestionBatch(exam.program, hydratedBooks, batchIndex + attempt),
+          fallbackKeys
+        )
+        batch = [...batch, ...fallback].slice(0, EXAM_BATCH_SPECS[batchIndex].count)
+      }
     }
     if (batch.length === 0) throw new Error(`فشل توليد أسئلة جديدة غير مكررة للدفعة ${batchIndex + 1}`)
 
