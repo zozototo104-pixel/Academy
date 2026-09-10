@@ -608,6 +608,149 @@ export function AdminBooksTab() {
             </Card>
           )}
 
+          {/* الواجبات والتكليفات */}
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <FileCheck2 className="h-4.5 w-4.5 text-[#a8841a]" />
+                    الواجبات والتكليفات الأكاديمية ({assignments.length})
+                  </h2>
+                  <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">هذه الواجبات تظهر للطالب، يسلّمها نصاً أو ملفاً، ثم تصححها الإدارة وتدخل في المسار الأكاديمي.</p>
+                </div>
+                {assignmentForm.id && (
+                  <Button size="sm" variant="outline" onClick={resetAssignmentForm} className="text-xs font-bold">إلغاء التعديل</Button>
+                )}
+              </div>
+
+              <div className="grid gap-3 rounded-2xl bg-[#f8fafc] p-4 lg:grid-cols-6">
+                <div className="lg:col-span-2">
+                  <Label className="text-[10px] font-black text-slate-500">عنوان الواجب</Label>
+                  <Input value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} placeholder="مثال: تحليل حالة تطبيقية" className="mt-1 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">الفصل</Label>
+                  <Select value={assignmentForm.semester} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, semester: v })}>
+                    <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">الفصل الأول</SelectItem>
+                      <SelectItem value="2">الفصل الثاني</SelectItem>
+                      <SelectItem value="3">بحث/مشروع</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">نوع التكليف</Label>
+                  <Select value={assignmentForm.type} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, type: v })}>
+                    <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="REPORT">تقرير</SelectItem>
+                      <SelectItem value="CASE_STUDY">دراسة حالة</SelectItem>
+                      <SelectItem value="SUMMARY">تلخيص كتاب</SelectItem>
+                      <SelectItem value="PROJECT">مشروع تطبيقي</SelectItem>
+                      <SelectItem value="REFLECTION">تأمل مهني</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">النقاط</Label>
+                  <Input type="number" value={assignmentForm.points} onChange={(e) => setAssignmentForm({ ...assignmentForm, points: e.target.value })} className="mt-1 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">وزنه %</Label>
+                  <Input type="number" value={assignmentForm.weight} onChange={(e) => setAssignmentForm({ ...assignmentForm, weight: e.target.value })} className="mt-1 text-xs" />
+                </div>
+                <div className="lg:col-span-4">
+                  <Label className="text-[10px] font-black text-slate-500">وصف الواجب وتعليمات التسليم</Label>
+                  <Textarea rows={3} value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} placeholder="اكتب المطلوب من الطالب، طريقة التحليل، وعدد الكلمات أو شكل الملف المطلوب" className="mt-1 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">مدة التسليم بالأيام</Label>
+                  <Input type="number" value={assignmentForm.dueDays} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDays: e.target.value })} placeholder="اختياري" className="mt-1 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-black text-slate-500">الحالة</Label>
+                  <Select value={assignmentForm.status} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, status: v })}>
+                    <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PUBLISHED">منشور</SelectItem>
+                      <SelectItem value="DRAFT">مسودة</SelectItem>
+                      <SelectItem value="ARCHIVED">مؤرشف</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="lg:col-span-6">
+                  <Label className="text-[10px] font-black text-slate-500">معايير التصحيح Rubric</Label>
+                  <Textarea rows={2} value={assignmentForm.rubric} onChange={(e) => setAssignmentForm({ ...assignmentForm, rubric: e.target.value })} placeholder="مثال: وضوح المشكلة 20%، التحليل 40%، الأدلة 20%، جودة العرض 20%" className="mt-1 text-xs" />
+                </div>
+                <div className="lg:col-span-6">
+                  <Button onClick={saveAssignment} disabled={savingAssignment} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+                    {savingAssignment ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Plus className="ml-2 h-4 w-4" />}
+                    {assignmentForm.id ? 'حفظ تعديل الواجب' : 'إضافة واجب للبرنامج'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {assignments.length === 0 ? (
+                  <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">لا توجد واجبات حقيقية لهذا البرنامج بعد.</div>
+                ) : assignments.map((a) => (
+                  <div key={a.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-black text-[#0f2b46]">{a.title}</h3>
+                          <Badge variant="outline" className="text-[10px]">{a.semester === 2 ? 'الفصل الثاني' : a.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}</Badge>
+                          <Badge className="bg-[#f7edd0] text-[10px] text-[#a8841a] hover:bg-[#f7edd0]">{a.points} نقاط</Badge>
+                          {a.weight > 0 && <Badge className="bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50">وزن {a.weight}%</Badge>}
+                          <Badge variant="outline" className={`text-[10px] ${a.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : a.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>{a.status === 'PUBLISHED' ? 'منشور' : a.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
+                        {a.rubric && <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button size="sm" variant="outline" onClick={() => editAssignment(a)} className="text-xs font-bold">تعديل</Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteAssignment(a.id)} className="text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-xl bg-[#f8fafc] p-3">
+                      <p className="mb-2 text-xs font-black text-[#0f2b46]">تسليمات الطلاب ({a.submissionsCount})</p>
+                      {a.submissions.length === 0 ? (
+                        <p className="text-[11px] font-bold text-slate-500">لا توجد تسليمات بعد.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {a.submissions.map((s) => (
+                            <div key={s.id} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600 ring-1 ring-slate-100">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-black text-[#0f2b46]">{s.studentName} <span className="font-bold text-slate-400">{s.studentEmail}</span></p>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Badge variant="outline" className="text-[9px]">{s.status === 'GRADED' ? 'مصحح' : s.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار التصحيح'}</Badge>
+                                  {s.score != null && <Badge className="bg-emerald-50 text-[9px] text-emerald-700 hover:bg-emerald-50">{s.score}/{a.points}</Badge>}
+                                </div>
+                              </div>
+                              {s.answerText && <p className="mt-2 rounded-lg bg-slate-50 p-2">{s.answerText.slice(0, 600)}{s.answerText.length > 600 ? '…' : ''}</p>}
+                              {s.fileName && <p className="mt-1 text-[#a8841a]">ملف مرفق: {s.fileName} {s.size ? `(${Math.ceil(s.size / 1024)} ك.ب)` : ''}</p>}
+                              {s.feedback && <p className="mt-1 text-emerald-700">ملاحظة التصحيح: {s.feedback}</p>}
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Button size="sm" onClick={() => gradeSubmission(s, a)} disabled={gradingSubmissionId === s.id} className="h-8 bg-emerald-600 px-3 text-[10px] font-black text-white hover:bg-emerald-700">
+                                  {gradingSubmissionId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تصحيح'}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => requestAssignmentRevision(s)} disabled={gradingSubmissionId === s.id} className="h-8 px-3 text-[10px] font-black text-amber-700">
+                                  طلب تعديل
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* الكتب المقررة */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
