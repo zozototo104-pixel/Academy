@@ -16,6 +16,28 @@ import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, C
 // الإدارة تضبط لكل برنامج: الحد الأدنى للمؤهل، إلزام الماجستير للدكتوراة، معادلة الخبرات،
 // الوثائق الإلزامية، الحد الأدنى للعمر، وقواعد نصية حرة — يطبقها خبير القبول الذكي على كل طلب.
 
+interface AcademicPlanStage {
+  title: string
+  description: string
+  deliverable: string
+}
+
+interface AcademicProfileDraft {
+  degreeLabel?: string
+  specialization?: string
+  academicTitle?: string
+  levelDescription?: string
+  creditHoursLabel?: string
+  durationLabel?: string
+  learningOutcomes?: string[]
+  skills?: string[]
+  studyPlan?: AcademicPlanStage[]
+  graduationRequirements?: string[]
+  assessmentComponents?: string[]
+  thesisRequirement?: string
+  qualityControls?: string[]
+}
+
 interface Rules {
   minEducation?: string
   requireMasterForDoctorate?: boolean
@@ -25,6 +47,7 @@ interface Rules {
   minAge?: number
   customRules?: string
   displayNote?: string
+  academicProfile?: AcademicProfileDraft | null
 }
 
 interface ProgramRules {
