@@ -27,6 +27,7 @@ interface Program {
   unitsCount: number
   units?: { id?: string; order?: number; title?: string }[]
   books?: { id?: string; title?: string; titleEn?: string | null; semester?: number | null; source?: string | null }[]
+  assignments?: { id?: string; title?: string; semester?: number | null; points?: number | null; status?: string | null }[]
   exams?: { id?: string; title?: string; semester?: number | null; status?: string | null; questionCount?: number | null }[]
   academicProfile?: any
   enrolled: boolean
