@@ -1278,6 +1278,7 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
       usedTexts.has(textKey) ||
       hasForbiddenExamMetadata(q.text) ||
       hasForbiddenExamMetadata(evidenceValue) ||
+      mentionsUnsupportedExternalReference(q.text, books) ||
       (books.length > 0 && !evidenceGroundedInBooks(String(evidenceValue), books))
     ) continue
     if (type === 'MCQ') {
