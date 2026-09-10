@@ -129,16 +129,6 @@ function hasBadExamMetadata(value: unknown): boolean {
   )
 }
 
-function optionSignatureFromJson(options: string | null): string {
-  if (!options) return ''
-  try {
-    const arr = JSON.parse(options)
-    return Array.isArray(arr) ? arr.map((o) => normalizeQuestionText(o)).filter(Boolean).join('|') : ''
-  } catch {
-    return ''
-  }
-}
-
 async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: number): Promise<number> {
   if (existingCount === 0 || existingCount > totalRequiredQuestions()) return existingCount
   const rows = await db.programQuestion.findMany({
