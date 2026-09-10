@@ -738,7 +738,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       setMessages(d.messages)
       // شغّل المشرف الصوتي المتدفق مع بداية المناقشة؛ هذا يستخدم Gemini Live صوت-إلى-صوت بدل قراءة TTS آلية.
       if (isStudent) {
-        startLiveAdvisor()
+        startLiveAdvisor(d.messages)
       } else {
         const lastAi = [...d.messages].reverse().find((m) => m.role === 'AI_EXPERT')
         if (lastAi) speak(lastAi.content)
