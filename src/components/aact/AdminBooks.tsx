@@ -233,10 +233,13 @@ export function AdminBooksTab() {
     }
     const sem = genSemester === '2' ? 2 : 1
     const semLabel = sem === 2 ? 'الفصل الثاني' : 'الفصل الأول'
+    const generatingExam = exams.find((e) => e.semester === sem && e.status === 'GENERATING') || exams.find((e) => e.status === 'GENERATING')
     const failedExam = exams.find((e) => e.semester === sem && e.status === 'FAILED')
-    const confirmText = failedExam
-      ? `يوجد امتحان فاشل سابقاً لهذا الفصل وفيه ${failedExam.questionCount} سؤالاً محفوظاً. سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف دون حذف الأسئلة السابقة. متابعة؟`
-      : `سيولّد خبير الذكاء الاصطناعي امتحان ${semLabel} (${books.length} كتاب مقرر متاح) بعدد كبير من الأسئلة المتنوعة ومدة لا تقل عن ساعتين، ثم تمرّ الأسئلة على مراجعتك قبل النشر. التوليد يستغرق عدة دقائق. متابعة؟`
+    const confirmText = generatingExam
+      ? `يوجد امتحان عالق حالياً وفيه ${generatingExam.questionCount} سؤالاً. سأحرك التوليد الآن، وإذا كان صفر أسئلة سيتم إنشاء دفعة أولية فوراً ثم يكمل من حيث توقف. متابعة؟`
+      : failedExam
+        ? `يوجد امتحان فاشل سابقاً لهذا الفصل وفيه ${failedExam.questionCount} سؤالاً محفوظاً. سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف دون حذف الأسئلة السابقة. متابعة؟`
+        : `سيولّد خبير الذكاء الاصطناعي امتحان ${semLabel} (${books.length} كتاب مقرر متاح) بعدد كبير من الأسئلة المتنوعة ومدة لا تقل عن ساعتين، ثم تمرّ الأسئلة على مراجعتك قبل النشر. التوليد يستغرق عدة دقائق. متابعة؟`
     if (!confirm(confirmText)) return
     setGenerating(true)
     try {
