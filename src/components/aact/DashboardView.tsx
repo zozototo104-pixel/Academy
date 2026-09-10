@@ -174,6 +174,31 @@ export function DashboardView() {
     }
   }
 
+  const submitAssignment = async (assignmentId: string) => {
+    const answerText = (assignmentDrafts[assignmentId] || '').trim()
+    const file = assignmentFiles[assignmentId]
+    if (!answerText && !file) {
+      toast({ title: 'تنبيه', description: 'اكتب إجابتك أو أرفق ملف الواجب قبل التسليم', variant: 'destructive' })
+      return
+    }
+    setSubmittingAssignmentId(assignmentId)
+    try {
+      const fd = new FormData()
+      fd.append('assignmentId', assignmentId)
+      fd.append('answerText', answerText)
+      if (file) fd.append('file', file)
+      await api('/api/assignments', { method: 'POST', body: fd })
+      setAssignmentDrafts((prev) => ({ ...prev, [assignmentId]: '' }))
+      setAssignmentFiles((prev) => ({ ...prev, [assignmentId]: null }))
+      if (active) await open(active.program.id)
+      toast({ title: 'تم تسليم الواجب', description: 'سيظهر في لوحة الإدارة للتصحيح والمراجعة' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setSubmittingAssignmentId(null)
+    }
+  }
+
   // توجيه غير المسجل لصفحة الدخول — داخل useEffect لا أثناء الرسم (منع side-effect في render)
   useEffect(() => {
     if (!user) navigate('auth')
