@@ -13,6 +13,15 @@ export interface BookSuggestion {
   link: string
 }
 
+export type CognitiveSkill = 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE'
+export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'ADVANCED'
+
+export interface DistractorRationale {
+  optionIndex: number
+  option: string
+  reason: string
+}
+
 export interface GeneratedQuestion {
   type: 'MCQ' | 'TF' | 'SHORT' | 'ESSAY'
   text: string
@@ -21,6 +30,14 @@ export interface GeneratedQuestion {
   modelAnswer?: string
   points?: number
   bookEvidence?: string
+  sourceBookTitle?: string
+  sourceChapter?: string
+  sourceLocator?: string
+  cognitiveSkill?: CognitiveSkill
+  difficulty?: QuestionDifficulty
+  correctRationale?: string
+  distractorRationales?: DistractorRationale[]
+  qualityFlags?: string[]
 }
 
 const LEVEL_AR: Record<string, string> = {
