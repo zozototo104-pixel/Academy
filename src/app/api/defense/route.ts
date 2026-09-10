@@ -156,8 +156,12 @@ export async function POST(req: NextRequest) {
         )
         await audit({ id: user.id, name: user.name }, 'COMPLETE_DEFENSE', 'ThesisSubmission', thesis.id, `تقييم AI: ${aiScore}/100`)
       } else {
+        const interactiveReply = [
+          result.feedback ? `تعليق اللجنة: ${result.feedback}` : '',
+          result.nextQuestion,
+        ].filter(Boolean).join('\n\n')
         await db.defenseMessage.create({
-          data: { thesisId: thesis.id, role: 'AI_EXPERT', content: result.nextQuestion },
+          data: { thesisId: thesis.id, role: 'AI_EXPERT', content: interactiveReply },
         })
       }
 
