@@ -384,6 +384,75 @@ export function AdminBooksTab() {
 
   const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
 
+  const suggestAssignments = async () => {
+    if (!programId) return
+    const semester = Number(assignmentForm.semester || genSemester || 1) || 1
+    setSuggestingAssignments(true)
+    setAssignmentSuggestions([])
+    try {
+      const d = await api<{ suggestions: AssignmentSuggestion[] }>('/api/admin/assignments/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ programId, semester }),
+      })
+      setAssignmentSuggestions(d.suggestions || [])
+      toast({ title: 'اقتراحات الواجبات جاهزة', description: `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب` })
+    } catch (e: any) {
+      toast({ title: 'تعذر اقتراح الواجبات', description: e.message, variant: 'destructive' })
+    } finally {
+      setSuggestingAssignments(false)
+    }
+  }
+
+  const useAssignmentSuggestionInForm = (s: AssignmentSuggestion) => {
+    setAssignmentForm({
+      id: '',
+      title: s.title,
+      description: s.description,
+      semester: String(s.semester || 1),
+      type: s.type || 'CASE_STUDY',
+      points: String(s.points || 15),
+      weight: String(s.weight || 0),
+      dueDays: String(s.dueDays || ''),
+      rubric: s.rubric || '',
+      status: 'PUBLISHED',
+    })
+  }
+
+  const addAssignmentSuggestion = async (s: AssignmentSuggestion) => {
+    if (!programId) return
+    setSavingAssignment(true)
+    try {
+      await api('/api/admin/assignments', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId,
+          title: s.title,
+          description: s.description,
+          semester: s.semester,
+          type: s.type,
+          points: s.points,
+          weight: s.weight,
+          dueDays: s.dueDays,
+          rubric: s.rubric,
+          status: 'PUBLISHED',
+        }),
+      })
+      setAssignmentSuggestions((prev) => prev.map((x) => x.title === s.title ? { ...x, added: true } : x))
+      await loadProgramData(programId, true)
+      toast({ title: 'تم إضافة الواجب المقترح', description: s.title })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setSavingAssignment(false)
+    }
+  }
+
+  const addAllAssignmentSuggestions = async () => {
+    const list = assignmentSuggestions.filter((s) => !s.added)
+    for (const s of list) await addAssignmentSuggestion(s)
+    if (list.length) toast({ title: 'تمت إضافة الواجبات المقترحة' })
+  }
+
   const editAssignment = (a: AssignmentRow) => {
     setAssignmentForm({
       id: a.id,
