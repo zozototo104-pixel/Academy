@@ -249,6 +249,13 @@ export function DashboardView() {
   const myProgramIds = new Set(enrollments.map((e) => e.programId))
   const available = programs.filter((p) => !myProgramIds.has(p.id))
   const activeAcademicProfile = active ? buildAcademicProgramProfile(active.program) : null
+  const academicNextAction = academicMemory?.recommendedNextActions?.slice(-1)[0]
+  const memoryUpdatedAt = academicMemory?.updatedAt || academicMemory?.lastInteractionAt
+  const formatMemoryDate = (value?: string | null) => {
+    if (!value) return 'لم تُحدّث بعد'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? 'لم تُحدّث بعد' : date.toLocaleDateString('ar-EG')
+  }
 
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
