@@ -215,10 +215,11 @@ export function DefenseRoom({
   }, [messages, interim])
 
   // ===== نطق رسائل خبير الذكاء الاصطناعي (مع تعليق التفريغ أثناء النطق) =====
-  const speak = useCallback(async (text: string) => {
-    // عند تشغيل Gemini Live داخل القاعة يجب أن يكون مصدر الصوت واحداً فقط.
-    // لذلك نمنع TTS المحلي من قراءة رسائل AI_NOTE/AI_EXPERT فوق صوت البث المتدفق.
+  const speak = useCallback(async (text: string, opts: { force?: boolean } = {}) => {
+    // صوت TTS الفصيح يبقى موجوداً كخيار احتياطي فقط، ولا يعمل تلقائياً أثناء المشرف المتدفق.
+    // يعمل تلقائياً فقط عندما يضغط الطالب «تفريغ نصي احتياطي»، أو يدوياً عبر زر إعادة السماع.
     if (liveAdvisorRef.current || suppressLocalTtsRef.current) return
+    if (!opts.force && !transcriptResumeRef.current) return
     const ttsSerial = ++ttsSerialRef.current
     let wasTranscribing = false
     try {
