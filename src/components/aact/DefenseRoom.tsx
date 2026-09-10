@@ -148,6 +148,14 @@ export function DefenseRoom({
   const lastInterjectionAtRef = useRef(0)
   const lastSpokenMessageIdRef = useRef<string | null>(null)
 
+  // ===== مشرف صوتي متدفق داخل الفيديو كونفرنس — Gemini Live مثل زر الاتصال =====
+  const [liveAdvisorOn, setLiveAdvisorOn] = useState(false)
+  const [liveAdvisorState, setLiveAdvisorState] = useState<AgentVoiceState>('IDLE')
+  const [liveAdvisorLevel, setLiveAdvisorLevel] = useState(0)
+  const [liveUserCaption, setLiveUserCaption] = useState('')
+  const [liveAiCaption, setLiveAiCaption] = useState('')
+  const liveAdvisorRef = useRef<VoiceAgent | null>(null)
+
   // ===== 12.3: تسجيل الجلسة وأرشفتها =====
   const [recState, setRecState] = useState<'IDLE' | 'RECORDING' | 'SAVING' | 'SAVED' | 'FAILED' | 'NA'>('IDLE')
   const recorderRef = useRef<MediaRecorder | null>(null)
