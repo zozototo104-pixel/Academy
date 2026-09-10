@@ -166,13 +166,15 @@ export function DashboardView() {
   // Load my programs
   const loadList = useCallback(async () => {
     try {
-      const [p, e, c] = await Promise.all([
+      const [p, e, c, m] = await Promise.all([
         api<{ programs: any[] }>('/api/programs'),
         api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => ({ enrollments: [] as any[] })),
         api<{ messages: ChatMsg[] }>('/api/chat').catch(() => ({ messages: [] as ChatMsg[] })),
+        api<{ memory: AcademicMemorySnapshot | null }>('/api/my/academic-memory').catch(() => ({ memory: null })),
       ])
       setPrograms(p.programs)
       setLastChats(c.messages.slice(-2))
+      setAcademicMemory(m.memory || null)
       setEnrollments(e.enrollments || [])
       return e.enrollments || []
     } catch {
