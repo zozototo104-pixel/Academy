@@ -60,16 +60,38 @@ export function AcademyLogo({
   light?: boolean
   className?: string
 }) {
+  const sources = ['/logo.png', '/icon-192.png', '/apple-touch-icon.png']
+  const [srcIndex, setSrcIndex] = useState(0)
+  const [failed, setFailed] = useState(false)
+  const ring = light ? 'ring-2 ring-[#c9a227]/70 ring-offset-2 ring-offset-[#0f2b46]' : ''
+
+  if (failed) {
+    return (
+      <span
+        aria-label="شعار الأكاديمية الأمريكية للاستشارات والتدريب — AACT"
+        className={`flex shrink-0 select-none items-center justify-center rounded-full border-2 border-[#c9a227] bg-[#0f2b46] text-center font-black leading-none text-[#e0b83a] ${ring} ${className}`}
+        style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.28)) }}
+      >
+        AACT
+      </span>
+    )
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.png"
+      key={sources[srcIndex]}
+      src={sources[srcIndex]}
       alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب — AACT"
       width={size}
       height={size}
-      className={`shrink-0 select-none rounded-full ${light ? 'ring-2 ring-[#c9a227]/70 ring-offset-2 ring-offset-[#0f2b46]' : ''} ${className}`}
+      className={`shrink-0 select-none rounded-full object-cover ${ring} ${className}`}
       style={{ width: size, height: size }}
       draggable={false}
+      onError={() => {
+        if (srcIndex < sources.length - 1) setSrcIndex((i) => i + 1)
+        else setFailed(true)
+      }}
     />
   )
 }
