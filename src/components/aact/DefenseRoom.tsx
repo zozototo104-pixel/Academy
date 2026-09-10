@@ -766,7 +766,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       const studentMsg = [...d.messages].reverse().find((m) => m.role === 'STUDENT')
       if (studentMsg?.score != null) setLastScore(studentMsg.score)
       const lastAi = [...d.messages].reverse().find((m) => m.role === 'AI_EXPERT')
-      if (lastAi) speak(lastAi.content)
+      if (lastAi && !liveAdvisorRef.current) speak(lastAi.content)
       if (d.completed) {
         setFinished(true)
         setAiScore(d.aiScore ?? null)
