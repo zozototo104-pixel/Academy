@@ -857,6 +857,20 @@ export function TranscriptTab() {
                   <p>{academic.learningOutcomes.slice(0, 2).join(' ')}</p>
                 </div>
               </div>
+              {(academic.termPlans?.length || 0) > 0 && (
+                <div className="grid gap-2 border-b border-[#0f2b46]/10 bg-white p-3 text-[10px] font-bold leading-5 text-slate-600 sm:grid-cols-3">
+                  {academic.termPlans.slice(0, 3).map((term) => (
+                    <div key={term.id} className="rounded-xl bg-[#f8fafc] p-2 ring-1 ring-slate-100">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">{term.title}</p>
+                        <span className="rounded-full bg-[#f7edd0] px-2 py-0.5 font-black text-[#a8841a]">{term.weight}%</span>
+                      </div>
+                      <p>كتب: {term.requiredBooks.length ? term.requiredBooks.slice(0, 2).map((b) => b.title).join('، ') : 'تحددها الإدارة'}</p>
+                      <p>تقييم: {term.finalEvaluation}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <table className="w-full text-right text-[11px]">
                 <thead>
                   <tr className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 text-[10px] font-black text-[#5c4d1a]">
