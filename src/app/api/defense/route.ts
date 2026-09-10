@@ -352,8 +352,8 @@ async function aiOpening(title: string, abstract: string, studentAcademicContext
         { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.` },
         {
           role: 'user',
-          content: `افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
-السؤال الأول يجب أن يكون عن دوافع اختيار الموضوع وأهميته العملية.
+          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
+السؤال الأول يجب أن يكون عن دوافع اختيار الموضوع وأهميته العملية، ويراعي تخصص الطالب وكتبه ونتائجه إن ظهرت في السياق.
 ملخص البحث: ${abstract.slice(0, 1200)}
 
 اكتب: ترحيب من سطرين + "السؤال الأول:" ثم السؤال. بدون أي تنسيق Markdown.`,
