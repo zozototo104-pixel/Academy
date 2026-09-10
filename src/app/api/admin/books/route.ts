@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
       mimeType = file.type || 'application/octet-stream'
       size = file.size
       data = buf.toString('base64')
-      const extracted = await extractDocumentText(buf, mimeType, fileName, 40000)
+      const extracted = await extractDocumentText(buf, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
       if (extracted.text) textContent = extracted.text
       if (!extracted.readable) {
         linkNote = extracted.note
