@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId')
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    await seedStarterForZeroQuestionGeneratingExams(programId)
+    // لا نضيف أسئلة احتياطية عند مجرد تحميل القائمة؛ التوليد يجب أن يتم من محتوى الكتب عبر مسار generate/kick.
 
     const exams = await db.programExam.findMany({
       where: { programId },
