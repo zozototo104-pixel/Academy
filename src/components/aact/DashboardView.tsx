@@ -293,7 +293,7 @@ export function DashboardView() {
                       <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">درجة نهائية موزونة</Badge>
                     </div>
                     <div className="space-y-3">
-                      {activeAcademicProfile.termPlans.map((term) => {
+                      {activeAcademicProfile!.termPlans.map((term) => {
                         const passedExam = term.exams.some((te) => (active.semesterExams || []).some((se) => se.semester === te.semester && se.passed))
                         const hasPublishedExam = term.exams.some((te) => te.status === 'READY' || (te.questionCount || 0) > 0)
                         return (
