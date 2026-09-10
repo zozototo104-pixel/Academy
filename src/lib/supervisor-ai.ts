@@ -324,3 +324,162 @@ export function mergeContext(ragContext: string, uiContext?: string): string {
   if (uiContext) blocks.push(`سياق إضافي من الواجهة:\n${uiContext}`)
   return blocks.join('\n\n')
 }
+
+export interface StudentMemorySignal {
+  kind: StudentMemorySignalKind
+  persona?: SupervisorPersona
+  mode?: 'TEXT' | 'VOICE' | string
+  summary?: string
+  userMessage?: string
+  assistantReply?: string
+  programTitle?: string
+  examTitle?: string
+  score?: number
+  passed?: boolean
+  weakPoints?: string[]
+  strengths?: string[]
+  weaknesses?: string[]
+  concepts?: string[]
+  nextActions?: string[]
+  thesisTitle?: string
+  fileAnalysis?: string
+}
+
+function defaultNextActions(signal: StudentMemorySignal): string[] {
+  if (signal.kind === 'EXAM') {
+    return signal.passed
+      ? ['تثبيت المفاهيم التي ظهرت في الامتحان وربطها بتطبيق عملي أو واجب قصير']
+      : ['مراجعة الأسئلة التي فقد فيها الطالب درجات ثم إعادة تدريبه على أمثلة تطبيقية من الكتب المقررة']
+  }
+  if (signal.kind === 'DEFENSE') {
+    return (signal.score || 0) >= 60
+      ? ['تحويل ملاحظات المناقشة إلى تحسينات نهائية في البحث قبل اعتماد اللجنة']
+      : ['إعداد جلسة علاجية مركزة حول المشكلة والمنهجية والنتائج قبل إعادة المناقشة أو المراجعة']
+  }
+  if (signal.kind === 'FILE') return ['مراجعة نتيجة تحليل الملف وربطها بمتطلبات القبول أو التخصص']
+  return ['اقتراح قراءة أو نشاط قصير مرتبط بسؤال الطالب الحالي']
+}
+
+function buildSignalSummary(signal: StudentMemorySignal): string | null {
+  if (signal.summary) return compactText(signal.summary, 700)
+  if (signal.kind === 'EXAM') {
+    return compactText(
+      `امتحان ${signal.examTitle || 'شامل'}${signal.programTitle ? ` في ${signal.programTitle}` : ''}: ${signal.score != null ? `${signal.score}%` : 'قيد التقييم'} — ${signal.passed ? 'اجتاز' : 'يحتاج متابعة'}${signal.weakPoints?.length ? ` — نقاط تحتاج مراجعة: ${signal.weakPoints.slice(0, 4).join(' | ')}` : ''}`,
+      700
+    )
+  }
+  if (signal.kind === 'DEFENSE') {
+    return compactText(
+      `مناقشة بحث ${signal.thesisTitle ? `«${signal.thesisTitle}»` : 'التخرج'}: ${signal.score != null ? `${signal.score}/100` : 'دون درجة'}${signal.summary ? ` — ${signal.summary}` : ''}`,
+      700
+    )
+  }
+  if (signal.kind === 'CHAT') {
+    return compactText(
+      `آخر تفاعل ${signal.mode === 'VOICE' ? 'صوتي' : 'نصي'}: الطالب قال «${compactText(signal.userMessage, 240)}» — ورد المشرف: «${compactText(signal.assistantReply, 260)}»`,
+      700
+    )
+  }
+  return null
+}
+
+function buildProfileDigest(signal: StudentMemorySignal, previous?: string | null): string | null {
+  const persona = signal.persona ? PERSONA_LABEL_AR[signal.persona] : null
+  const bits = [
+    signal.programTitle ? `السياق الأكاديمي: ${signal.programTitle}` : null,
+    signal.thesisTitle ? `بحث التخرج: ${signal.thesisTitle}` : null,
+    signal.examTitle ? `آخر امتحان: ${signal.examTitle}` : null,
+    signal.score != null ? `آخر مؤشر أداء: ${signal.score}${signal.kind === 'DEFENSE' ? '/100' : '%'}` : null,
+    persona ? `آخر وضع للمشرف: ${persona}` : null,
+  ].filter(Boolean)
+  const next = bits.join(' — ')
+  return next ? compactText(next, 900) : previous ? compactText(previous, 900) : null
+}
+
+/**
+ * يحدّث ذاكرة أكاديمية مركزية للطالب بدون استدعاء نموذج إضافي.
+ * هذه الذاكرة تجعل المشرف الذكي يستحضر نقاط القوة والضعف وآخر الامتحانات والمناقشة في كل سياق لاحق.
+ */
+export async function updateStudentAcademicMemory(userId: string, signal: StudentMemorySignal): Promise<void> {
+  try {
+    const memoryStore = (db as any).studentAcademicMemory
+    if (!memoryStore) return
+
+    const now = new Date()
+    const existing = await memoryStore.findUnique({ where: { userId } })
+    const summary = buildSignalSummary(signal)
+
+    const strengths = [...(signal.strengths || [])]
+    const weaknesses = [...(signal.weaknesses || [])]
+    const concepts = [...(signal.concepts || [])]
+    const nextActions = [...(signal.nextActions || []), ...defaultNextActions(signal)]
+    const examSignals: string[] = []
+    const thesisSignals: string[] = []
+
+    if (signal.kind === 'EXAM') {
+      if (signal.passed) strengths.push(`اجتاز ${signal.examTitle || 'امتحاناً شاملاً'} بدرجة ${signal.score != null ? `${signal.score}%` : 'مقبولة'}`)
+      if (!signal.passed) weaknesses.push(`تعثر في ${signal.examTitle || 'امتحان شامل'} ويحتاج مراجعة موجهة`)
+      for (const w of signal.weakPoints || []) {
+        weaknesses.push(w)
+        concepts.push(w)
+      }
+      if (summary) examSignals.push(summary)
+    }
+
+    if (signal.kind === 'DEFENSE') {
+      if ((signal.score || 0) >= 80) strengths.push('أداء قوي في مناقشة بحث التخرج')
+      if ((signal.score || 0) < 60) weaknesses.push('أداء المناقشة يحتاج دعماً في المنهجية والنتائج والربط التطبيقي')
+      if (summary) thesisSignals.push(summary)
+    }
+
+    if (signal.kind === 'FILE' && signal.fileAnalysis) {
+      nextActions.push('متابعة نواقص الملف أو الوثيقة قبل قرار الإدارة النهائي')
+    }
+
+    const profileDigest = buildProfileDigest(signal, existing?.profileDigest)
+    const createData: any = {
+      userId,
+      profileDigest,
+      strengths: mergeJsonList(null, strengths),
+      weaknesses: mergeJsonList(null, weaknesses),
+      conceptsToReview: mergeJsonList(null, concepts),
+      recommendedNextActions: mergeJsonList(null, nextActions),
+      lastConversationSummary: signal.kind === 'CHAT' ? summary : null,
+      examSignals: mergeJsonList(null, examSignals),
+      thesisSignals: mergeJsonList(null, thesisSignals),
+      lastFileAnalysis: signal.fileAnalysis ? compactText(signal.fileAnalysis, 900) : null,
+      lastInteractionAt: now,
+      interactionsCount: 1,
+    }
+    if (signal.kind === 'EXAM') createData.lastExamAt = now
+    if (signal.kind === 'DEFENSE') createData.lastDefenseAt = now
+
+    const updateData: any = {
+      profileDigest,
+      strengths: mergeJsonList(existing?.strengths, strengths),
+      weaknesses: mergeJsonList(existing?.weaknesses, weaknesses),
+      conceptsToReview: mergeJsonList(existing?.conceptsToReview, concepts),
+      recommendedNextActions: mergeJsonList(existing?.recommendedNextActions, nextActions),
+      lastInteractionAt: now,
+      interactionsCount: { increment: 1 },
+    }
+    if (signal.kind === 'CHAT') updateData.lastConversationSummary = summary
+    if (signal.kind === 'EXAM') {
+      updateData.examSignals = mergeJsonList(existing?.examSignals, examSignals, 10)
+      updateData.lastExamAt = now
+    }
+    if (signal.kind === 'DEFENSE') {
+      updateData.thesisSignals = mergeJsonList(existing?.thesisSignals, thesisSignals, 10)
+      updateData.lastDefenseAt = now
+    }
+    if (signal.fileAnalysis) updateData.lastFileAnalysis = compactText(signal.fileAnalysis, 900)
+
+    await memoryStore.upsert({
+      where: { userId },
+      create: createData,
+      update: updateData,
+    })
+  } catch (e) {
+    console.error('student academic memory update error:', e)
+  }
+}
