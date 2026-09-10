@@ -277,7 +277,7 @@ export function AdminBooksTab() {
       fd.append('semester', payload ? '' : form.semester)
       fd.append('link', payload ? payload.link || '' : form.link)
       if (!payload && file) fd.append('file', file)
-      const d = await api<{ book: BookRow; textExtracted: boolean; linkNote?: string | null }>('/api/admin/books', { method: 'POST', body: fd })
+      const d = await api<{ book: BookRow; textExtracted: boolean; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'POST', body: fd })
       setBooks((prev) => [...prev, { ...d.book, hasFile: !!d.book.fileName, source: d.book.source || 'ADMIN' }])
       if (!payload) {
         setForm({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
