@@ -168,6 +168,7 @@ interface StudentRow {
   attemptsCount: number
   bestScore: number | null
   aiChats: number
+  latestAdmission?: { id: string; reference: string; status: string; program: string; createdAt: string } | null
 }
 
 export function AdminView() {
