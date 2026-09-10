@@ -51,6 +51,8 @@ export async function GET() {
         enrolled: enrolledProgramIds.includes(p.id),
         // قواعد قبول مخصصة يعرضها نموذج الالتحاق للمتقدم (شروط إضافية تضبطها الإدارة)
         admissionRules: p.admissionRules || null,
+        // الملف الأكاديمي المخصص الذي تضبطه الإدارة لكل برنامج، إن وجد.
+        academicProfile: academicProfileFromRules(p.admissionRules),
       })),
     })
   } catch (e) {
