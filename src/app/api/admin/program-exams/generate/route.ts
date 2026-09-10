@@ -265,11 +265,6 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 
     let existingCount = await db.programQuestion.count({ where: { examId } })
     existingCount = await resetLegacyWeakFirstBatchIfNeeded(examId, existingCount)
-    const batchIndex = firstMissingBatchIndex(existingCount)
-    if (batchIndex >= EXAM_BATCH_COUNT) {
-      const reviewed = await exposeExamForReview(examId, null)
-      return { ...reviewed, ok: true, done: true }
-    }
 
     const hydratedBooks = []
     for (const book of books) {
