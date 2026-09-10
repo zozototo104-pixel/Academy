@@ -103,7 +103,7 @@ export async function GET() {
           title: true,
           status: true,
           semester: true,
-          questions: { select: { id: true, status: true, sourceEvidence: true } },
+          questions: { select: { id: true, status: true, type: true, sourceEvidence: true, sourceBookTitle: true, sourceLocator: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } },
           attempts: { select: { score: true, passed: true, appealStatus: true } },
         },
       }),
