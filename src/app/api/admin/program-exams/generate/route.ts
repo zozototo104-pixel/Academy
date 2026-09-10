@@ -248,15 +248,19 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
   } catch (e: any) {
     const message = String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
-    if (totals.questionCount >= 10) {
-      const reviewed = await exposeExamForReview(examId, `توقف التوليد بعد حفظ ${totals.questionCount} سؤالاً: ${message}`)
+    if (totals.questionCount >= totalRequiredQuestions()) {
+      const reviewed = await exposeExamForReview(examId, null)
       return { ...reviewed, ok: true, done: true, error: message }
     }
     await db.programExam.update({
       where: { id: examId },
-      data: { status: 'FAILED', errorNote: message, totalPoints: totals.totalPoints },
+      data: {
+        status: 'FAILED',
+        errorNote: `توقف التوليد بعد حفظ ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()}: ${message} — اضغط استكمال/تحريك ليكمل من حيث توقف دون تكرار`,
+        totalPoints: totals.totalPoints,
+      },
     }).catch(() => {})
-    return { ok: false, status: 'FAILED', inserted: 0, done: true, error: message, ...totals }
+    return { ok: false, status: 'FAILED', inserted: 0, done: false, error: message, ...totals }
   }
 }
 
