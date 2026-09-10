@@ -8,6 +8,22 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
 import { ShieldCheck, Search, Loader2, BadgeCheck, XCircle, Eye } from 'lucide-react'
 
+interface AcademicRecord {
+  summary: {
+    finalScore: number | null
+    gradeLabel: string | null
+    unitExamCount: number
+    comprehensiveExamCount: number
+    assignmentCount: number
+    thesisStatus: string | null
+    committeeDecision: string
+  }
+  unitExams: { title: string; unitTitle: string; score: number | null; passed: boolean | null; submittedAt: string | null }[]
+  comprehensiveExams: { title: string; semester: number; score: number | null; passed: boolean | null; submittedAt: string | null }[]
+  assignments: { title: string; semester: number; score: number | null; maxPoints: number; status: string; submittedAt: string | null; gradedAt: string | null }[]
+  thesis: { title: string; status: string; score: number | null; passed: boolean | null; recommendation?: string | null } | null
+}
+
 interface VerifyResult {
   valid: boolean
   certificate?: CertificateData & {
