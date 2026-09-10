@@ -215,55 +215,13 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 }
 
 async function ensureStarterQuestions(examId: string): Promise<{ inserted: number; questionCount: number }> {
-  const exam = await db.programExam.findUnique({
-    where: { id: examId },
-    include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
-  })
-  if (!exam || exam.status === 'READY') return { inserted: 0, questionCount: 0 }
-
   const existingCount = await db.programQuestion.count({ where: { examId } })
   if (existingCount > 0) return { inserted: 0, questionCount: existingCount }
 
-  const books = await db.book.findMany({
-    where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
-    orderBy: { createdAt: 'asc' },
-    select: { title: true, titleEn: true, author: true, year: true, description: true, link: true, textContent: true },
-  })
-  if (books.length === 0) return { inserted: 0, questionCount: 0 }
-
-  const batchIndex = firstMissingBatchIndex(existingCount)
-  if (batchIndex >= EXAM_BATCH_COUNT) return { inserted: 0, questionCount: existingCount }
-
-  const batch = fallbackExamQuestionBatch(exam.program, books, batchIndex)
-  if (batch.length === 0) return { inserted: 0, questionCount: existingCount }
-
-  await db.programQuestion.createMany({
-    data: batch.map((q, index) => ({
-      examId,
-      order: index + 1,
-      type: q.type,
-      text: q.text,
-      options: q.options ? JSON.stringify(q.options) : null,
-      correctAnswer: q.correct ?? null,
-      modelAnswer: q.modelAnswer ?? null,
-      points: q.points || 2,
-      status: 'PENDING_REVIEW',
-    })),
-  })
-
-  const totalPoints = batch.reduce((sum, q) => sum + (q.points || 2), 0)
-  await db.programExam.update({
-    where: { id: examId },
-    data: {
-      status: 'GENERATING',
-      durationMin: Math.max(120, Math.min(240, Math.round(batch.length * 2))),
-      totalPoints,
-      errorNote: 'تم إنشاء دفعة أولية فوراً حتى لا يبقى الامتحان على صفر أسئلة — ويستمر الذكاء بمحاولة استكمال باقي الدفعات',
-      booksUsed: books.map((b) => `«${b.title}»`).join('، ').slice(0, 2000),
-    },
-  })
-
-  return { inserted: batch.length, questionCount: batch.length }
+  // لا نضع أسئلة احتياطية قبل قراءة الكتاب. الدفعة الأولى نفسها تُبنى عبر runGenerationStep
+  // من محتوى الملف/الرابط، وإذا تعطل مزود الذكاء فقط نستخدم fallback مرتبطاً بالمحتوى.
+  const step = await runGenerationStep(examId)
+  return { inserted: step.inserted, questionCount: step.questionCount }
 }
 
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
