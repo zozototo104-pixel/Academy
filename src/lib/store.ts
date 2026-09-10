@@ -157,27 +157,59 @@ export function clearToken() {
   } catch {}
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isTransientFetchError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err || '').toLowerCase()
+  return (
+    msg.includes('load failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('network request failed') ||
+    msg.includes('fetch failed') ||
+    msg.includes('temporarily unavailable')
+  )
+}
+
 export async function api<T = any>(url: string, options?: RequestInit): Promise<T> {
   const token = getToken()
   const isForm = typeof FormData !== 'undefined' && options?.body instanceof FormData
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers || {}),
-    },
-  })
-  const data = await res.json().catch(() => ({}))
-  // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
-  if (res.status === 401 && token) {
-    clearToken()
-    try { useAppStore.setState({ user: null }) } catch {}
+  const maxAttempts = isForm ? 1 : 3
+  let lastNetworkError: unknown = null
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        cache: 'no-store',
+        headers: {
+          ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options?.headers || {}),
+        },
+      })
+      const data = await res.json().catch(() => ({}))
+      // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
+      if (res.status === 401 && token) {
+        clearToken()
+        try { useAppStore.setState({ user: null }) } catch {}
+      }
+      if (!res.ok) {
+        const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
+        err.data = data
+        throw err
+      }
+      return data as T
+    } catch (err) {
+      if (!isTransientFetchError(err) || attempt >= maxAttempts) {
+        throw err
+      }
+      lastNetworkError = err
+      await wait(450 * attempt)
+    }
   }
-  if (!res.ok) {
-    const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
-    err.data = data
-    throw err
-  }
-  return data as T
+
+  throw lastNetworkError || new Error('تعذر الاتصال بالخادم')
 }
