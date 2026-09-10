@@ -307,6 +307,29 @@ export function AdminView() {
     }
   }
 
+  const createDemoThesisStudent = async () => {
+    setCreatingDemoThesis(true)
+    try {
+      const d = await api<{
+        student: { email: string; password: string; name: string }
+        admission: { id: string; reference: string; program: string; status: string }
+        thesis: { id: string; title: string; status: string; defenseDate: string }
+        note: string
+      }>('/api/admin/demo-thesis', { method: 'POST' })
+      await load()
+      setHighlightAdmissionId(d.admission.id)
+      setActiveTab('admissions')
+      toast({
+        title: 'تم تجهيز طالب بحث تجريبي',
+        description: `الدخول: ${d.student.email} / ${d.student.password} — افتح بوابة الطالب ثم بحث التخرج ثم قاعة المناقشة`,
+      })
+    } catch (e: any) {
+      toast({ title: 'تعذر تجهيز الطالب التجريبي', description: e.message, variant: 'destructive' })
+    } finally {
+      setCreatingDemoThesis(false)
+    }
+  }
+
   const openStudentAdmission = (student: StudentRow) => {
     const linked = student.latestAdmission || admissions.find((a) => a.email.toLowerCase() === student.email.toLowerCase()) || null
     if (!linked) {
