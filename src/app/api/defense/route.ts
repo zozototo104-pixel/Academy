@@ -439,6 +439,10 @@ ${dialog.slice(0, 4500)}
     return note && note.length > 30 ? note.slice(0, 900) : null
   } catch (e) {
     console.error('aiLiveNote error:', e)
+    const latest = String(latestChunk || '').trim()
+    if (latest.length >= 12) {
+      return `مداخلة المستشار الذكي: سمعت إجابتك، لكن أحتاج منك أن تربط كلامك مباشرة بعنوان البحث ومنهجيته. وضّح لي الآن: ما الدليل أو المثال العملي الذي يثبت هذه النقطة؟`
+    }
     return null
   }
 }
