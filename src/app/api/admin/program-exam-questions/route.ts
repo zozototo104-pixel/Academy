@@ -225,8 +225,14 @@ export async function PATCH(req: NextRequest) {
             options: cleanOptions(existing.options),
             modelAnswer: existing.modelAnswer ? cleanInternalExamMeta(existing.modelAnswer, 4000) : existing.modelAnswer,
             sourceEvidence: existing.sourceEvidence ? cleanInternalExamMeta(existing.sourceEvidence, 2500) : existing.sourceEvidence,
+            approvedBy: admin.id,
+            approvedAt: new Date(),
+            rejectedReason: null,
           }
-        : { status: 'REJECTED' }
+        : {
+            status: 'REJECTED',
+            rejectedReason: rejectedReason ? cleanInternalExamMeta(rejectedReason, 1000) : 'رفض إداري أثناء مراجعة الامتحان',
+          }
       await db.programQuestion.update({
         where: { id: questionId },
         data: approveData,
