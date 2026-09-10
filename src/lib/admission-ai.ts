@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { readDocumentImage, DOC_TYPE_AR, inferMimeFromFileName, isVisualFile, type ImageDocRead } from '@/lib/ocr'
 import { extractDocumentText, type ExtractedDocumentText } from '@/lib/document-extract'
+import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 // ===== قواعد القبول المخصصة لكل برنامج (تضبطها الإدارة من لوحة الإدارة) =====
 export interface AdmissionRules {
