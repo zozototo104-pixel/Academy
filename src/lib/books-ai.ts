@@ -768,6 +768,17 @@ const EXAM_BOOK_MAX_CHARS = 180000
 const EXAM_BOOK_SECTION_CHARS = 2400
 const EXAM_TOTAL_PROMPT_BOOK_CHARS = 72000
 
+function stripExamKnowledgeMeta(value: unknown, max = 1000): string {
+  return cleanText(value, max)
+    // لا يجوز أن تتسرب تسميات بنك المعرفة التقنية إلى نص السؤال مثل [CONCEPT | أهمية 60].
+    .replace(/^\s*\d+\.\s*/u, '')
+    .replace(/[«"]?\s*\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|\s*(?:أهمية|اهمية)\s*\d{1,3})?\s*\]\s*[»"]?/giu, '')
+    .replace(/\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/giu, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s:：\-–—،؛]+|[\s:：\-–—،؛]+$/gu, '')
+    .trim()
+}
+
 function sanitizeExamText(value: unknown, max = EXAM_BOOK_MAX_CHARS): string {
   return String(value || '')
     .replace(/\u0000/g, ' ')
