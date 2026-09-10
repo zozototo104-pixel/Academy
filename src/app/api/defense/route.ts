@@ -393,8 +393,9 @@ async function aiRecommendation(title: string, name: string, aiScore: number, an
 
 // ===== 12.3: مداخلة حية من المستشار الذكي داخل المناقشة =====
 // يسمع التفريغ الحي ويعلّق كعضو لجنة: رأي، تصحيح، مقاطعة لطيفة، أو سؤال متابعة قصير.
-async function aiLiveNote(title: string, abstract: string, thesisId: string, userId: string): Promise<string | null> {
+async function aiLiveNote(title: string, abstract: string, thesisId: string, userId: string, latestChunk = ''): Promise<string | null> {
   try {
+    const latest = String(latestChunk || '').trim().slice(0, 900)
     const history = await db.defenseMessage.findMany({
       where: { thesisId, role: { in: ['AI_EXPERT', 'STUDENT', 'TRANSCRIPT', 'AI_NOTE'] } },
       orderBy: { createdAt: 'desc' },
@@ -404,7 +405,7 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
       .reverse()
       .map((m) => `${m.role === 'AI_EXPERT' ? 'اللجنة/المستشار' : m.role === 'AI_NOTE' ? 'مداخلة سابقة للمستشار' : m.role === 'STUDENT' ? 'إجابة الطالب' : 'كلام الطالب المباشر'}: ${m.content.slice(0, 500)}`)
       .join('\n')
-    if (dialog.length < 80) return null
+    if (`${dialog} ${latest}`.length < 45) return null
 
     const rag = await buildSupervisorContext(userId)
     const zai = await getZAI()
