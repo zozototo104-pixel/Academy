@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId')
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
+    await seedStarterForZeroQuestionGeneratingExams(programId)
+
     const exams = await db.programExam.findMany({
       where: { programId },
       orderBy: { createdAt: 'desc' },
