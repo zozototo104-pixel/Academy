@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { chatComplete } from '@/lib/ai'
-import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 // GET /api/chat — سجل المحادثة (نصي وصوتي مع النسخ المفرّغ)
 export async function GET() {
