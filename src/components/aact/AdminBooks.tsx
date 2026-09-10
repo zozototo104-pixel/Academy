@@ -247,8 +247,30 @@ export function AdminBooksTab() {
     }
   }
 
+  const resumeExam = async (exam: ProgramExamRow) => {
+    if (!programId) return
+    const semLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
+    if (!confirm(`سيستكمل خبير الذكاء الاصطناعي توليد ${semLabel} من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً. متابعة؟`)) return
+    setGenerating(true)
+    try {
+      const d = await api<{ examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
+        method: 'POST',
+        body: JSON.stringify({ examId: exam.id }),
+      })
+      toast({
+        title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
+        description: `سيكمل من السؤال ${(d.existingQuestions || exam.questionCount) + 1} دون حذف الأسئلة السابقة — تابع الحالة بالأسفل`,
+      })
+      await loadProgramData(programId, true)
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   const deleteExam = async (id: string) => {
-    if (!confirm('حذف هذا الاختبار الشامل وكل محاولاته؟')) return
+    if (!confirm('حذف هذا الاختبار الشامل وكل أسئلته ومحاولاته؟ هذا الحذف نهائي.')) return
     try {
       await api(`/api/admin/program-exams?id=${id}`, { method: 'DELETE' })
       setExams((prev) => prev.filter((e) => e.id !== id))
