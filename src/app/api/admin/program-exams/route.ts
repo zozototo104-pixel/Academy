@@ -17,6 +17,9 @@ async function seedStarterForZeroQuestionGeneratingExams(programId: string) {
     })
     if (books.length === 0) continue
 
+    const stillZero = await db.programQuestion.count({ where: { examId: exam.id } })
+    if (stillZero > 0) continue
+
     const batch = fallbackExamQuestionBatch(exam.program, books, 0)
     if (batch.length === 0) continue
 
