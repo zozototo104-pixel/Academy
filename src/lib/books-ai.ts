@@ -500,6 +500,13 @@ function isSuggestionRelevantToDomain(s: BookSuggestion, programDomain: ProgramD
   })
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label}_TIMEOUT_${ms}ms`)), ms)),
+  ])
+}
+
 async function completeJsonWithFallback(args: {
   system: string
   prompt: string
@@ -507,8 +514,10 @@ async function completeJsonWithFallback(args: {
   temperature?: number
   maxOutputTokens?: number
   retries?: number
+  timeoutMs?: number
 }): Promise<string> {
   const errors: string[] = []
+  const timeoutMs = args.timeoutMs ?? 45000
 
   if (await ensureGeminiKey().catch(() => false)) {
     try {
