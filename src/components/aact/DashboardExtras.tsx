@@ -687,7 +687,10 @@ interface TranscriptProgram {
   programId: string
   title: string
   titleEn?: string | null
+  description?: string | null
+  category?: string | null
   hours?: number | null
+  unitsCount?: number | null
   status: string
   finalScore?: number | null
   certificateNo?: string | null
