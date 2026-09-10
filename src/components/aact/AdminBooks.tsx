@@ -745,7 +745,7 @@ export function AdminBooksTab() {
                     {knowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل.</p> : knowledgeItems.slice(0, 12).map((item) => (
                       <article key={item.id} className="rounded-xl bg-[#f8fafc] p-3 text-[11px] font-bold leading-5 text-slate-600">
                         <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className="text-[9px] font-black">{item.category}</Badge>
+                          <Badge variant="outline" className="text-[9px] font-black">{knowledgeCategoryLabel(item.category)}</Badge>
                           <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">أهمية {item.importance}%</Badge>
                           {item.bookTitle && <span className="text-[10px] text-slate-400">{item.bookTitle}</span>}
                         </div>
