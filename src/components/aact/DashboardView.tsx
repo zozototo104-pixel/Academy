@@ -114,6 +114,20 @@ interface StudentAssignment {
   } | null
 }
 
+interface StudentStudyGuide {
+  id: string
+  programId: string
+  semester: number
+  title: string
+  overview: string
+  objectives: string[]
+  keyTerms: string[]
+  sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[] }[]
+  activities: string[]
+  discussionQuestions: string[]
+  updatedAt: string
+}
+
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
 export function DashboardView() {
