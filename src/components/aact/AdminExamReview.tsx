@@ -417,6 +417,80 @@ export function QuestionReviewDialog({
                           <Textarea value={draft.modelAnswer} onChange={(e) => setDraft({ ...draft, modelAnswer: e.target.value })} className="mt-1 min-h-20 text-xs" />
                         </div>
                       )}
+
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div>
+                          <Label className="text-[10px] font-black text-slate-600">اسم الكتاب/المصدر</Label>
+                          <Input value={draft.sourceBookTitle} onChange={(e) => setDraft({ ...draft, sourceBookTitle: e.target.value })} className="mt-1 h-8 text-xs" />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-black text-slate-600">الفصل/المحور</Label>
+                          <Input value={draft.sourceChapter} onChange={(e) => setDraft({ ...draft, sourceChapter: e.target.value })} className="mt-1 h-8 text-xs" placeholder="مثلاً: الفصل الثالث أو محور إدارة المخاطر" />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-black text-slate-600">المقطع أو موضع الدليل</Label>
+                        <Textarea value={draft.sourceLocator} onChange={(e) => setDraft({ ...draft, sourceLocator: e.target.value })} className="mt-1 min-h-14 text-xs" />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-black text-slate-600">دليل السؤال من الكتاب</Label>
+                        <Textarea value={draft.sourceEvidence} onChange={(e) => setDraft({ ...draft, sourceEvidence: e.target.value })} className="mt-1 min-h-16 text-xs" />
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div>
+                          <Label className="text-[10px] font-black text-slate-600">المهارة المقاسة</Label>
+                          <Select value={draft.cognitiveSkill} onValueChange={(value) => setDraft({ ...draft, cognitiveSkill: value })}>
+                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="UNDERSTAND">فهم</SelectItem>
+                              <SelectItem value="APPLY">تطبيق</SelectItem>
+                              <SelectItem value="ANALYZE">تحليل</SelectItem>
+                              <SelectItem value="EVALUATE">تقييم</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-black text-slate-600">درجة الصعوبة</Label>
+                          <Select value={draft.difficulty} onValueChange={(value) => setDraft({ ...draft, difficulty: value })}>
+                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="EASY">سهل</SelectItem>
+                              <SelectItem value="MEDIUM">متوسط</SelectItem>
+                              <SelectItem value="ADVANCED">متقدم</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-black text-slate-600">سبب صحة الإجابة / معيار قبولها</Label>
+                        <Textarea value={draft.correctRationale} onChange={(e) => setDraft({ ...draft, correctRationale: e.target.value })} className="mt-1 min-h-16 text-xs" />
+                      </div>
+                      {(q.type === 'MCQ' || q.type === 'TF') && draft.distractorRationales.length > 0 && (
+                        <div>
+                          <Label className="text-[10px] font-black text-slate-600">سبب خطأ الخيارات الأخرى</Label>
+                          <div className="mt-1 space-y-1.5">
+                            {draft.distractorRationales.map((r, idx) => (
+                              <div key={`${r.optionIndex}-${idx}`} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+                                <p className="mb-1 text-[10px] font-black text-slate-500">الخيار {r.optionIndex + 1}: {r.option}</p>
+                                <Textarea
+                                  value={r.reason}
+                                  onChange={(e) => {
+                                    const next = [...draft.distractorRationales]
+                                    next[idx] = { ...next[idx], reason: e.target.value }
+                                    setDraft({ ...draft, distractorRationales: next })
+                                  }}
+                                  className="min-h-12 text-xs"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <Label className="text-[10px] font-black text-slate-600">ملاحظات المراجعة البشرية</Label>
+                        <Textarea value={draft.reviewNotes} onChange={(e) => setDraft({ ...draft, reviewNotes: e.target.value })} className="mt-1 min-h-14 text-xs" />
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <Label className="text-[10px] font-black text-slate-600">النقاط</Label>
