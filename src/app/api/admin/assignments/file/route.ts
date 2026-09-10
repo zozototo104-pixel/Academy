@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     if (!submission?.data) return NextResponse.json({ error: 'لا يوجد ملف مرفق لهذا التسليم' }, { status: 404 })
     const buffer = Buffer.from(submission.data, 'base64')
     const name = encodeURIComponent(submission.fileName || 'assignment-submission')
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'content-type': submission.mimeType || 'application/octet-stream',
         'content-disposition': `inline; filename*=UTF-8''${name}`,
