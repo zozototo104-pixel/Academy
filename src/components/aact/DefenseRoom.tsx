@@ -1327,7 +1327,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         )}
         {!isStudent && !finished && messages.length > 0 && (
           <div className="space-y-2">
-            <Button size="sm" onClick={() => { const lastAi = [...messages].reverse().find((m) => m.role === 'AI_EXPERT'); if (lastAi) speak(lastAi.content) }}
+            <Button size="sm" onClick={() => { const lastAi = [...messages].reverse().find((m) => m.role === 'AI_EXPERT'); if (lastAi) speak(lastAi.content, { force: true }) }}
               className="w-full bg-white/10 font-bold text-white hover:bg-white/20">
               <Volume2 className="ml-1 h-3.5 w-3.5" /> إعادة سماع آخر سؤال من الخبير الذكي
             </Button>
