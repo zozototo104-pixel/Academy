@@ -74,7 +74,17 @@ export async function GET() {
           null
         ),
         aiChats: s._count.chatMessages,
-      })),
+        latestAdmission: latestAdmission
+          ? {
+              id: latestAdmission.id,
+              reference: latestAdmission.reference,
+              status: latestAdmission.status,
+              program: latestAdmission.program,
+              createdAt: latestAdmission.createdAt,
+            }
+          : null,
+        })
+      }),
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
