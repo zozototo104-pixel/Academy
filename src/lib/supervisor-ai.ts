@@ -54,6 +54,44 @@ function parseArray(value?: string | null): string[] {
   }
 }
 
+function compactText(value?: string | null, max = 240): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function cleanMemoryItem(value: unknown, max = 220): string | null {
+  const text = compactText(String(value || ''), max)
+  return text.length >= 3 ? text : null
+}
+
+function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
+  const merged: string[] = []
+  for (const item of [...parseArray(existing), ...additions]) {
+    const clean = cleanMemoryItem(item)
+    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
+  }
+  return JSON.stringify(merged.slice(-max))
+}
+
+function formatJsonList(title: string, value?: string | null, max = 8): string | null {
+  const items = parseArray(value).slice(-max)
+  return items.length ? `${title}: ${items.join(' | ')}` : null
+}
+
+function formatAcademicMemory(memory: any): string {
+  const rows = [
+    memory.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
+    formatJsonList('نقاط القوة المتكررة', memory.strengths),
+    formatJsonList('نقاط الضعف/الفجوات', memory.weaknesses),
+    formatJsonList('مفاهيم يجب مراجعتها', memory.conceptsToReview),
+    formatJsonList('خطوات التعلم المقترحة', memory.recommendedNextActions),
+    memory.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
+    formatJsonList('إشارات الاختبارات', memory.examSignals, 6),
+    formatJsonList('إشارات البحث/المناقشة', memory.thesisSignals, 6),
+    memory.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
+  ].filter(Boolean)
+  return rows.join('\n')
+}
+
 /**
  * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
  * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
