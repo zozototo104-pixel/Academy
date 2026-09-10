@@ -99,7 +99,11 @@ function formatAcademicMemory(memory: any): string {
  */
 export async function buildSupervisorContext(userId: string): Promise<string> {
   try {
-    const [enrollments, thesis, admission, activePrograms] = await Promise.all([
+    const [studentProfile, enrollments, thesis, admission, activePrograms] = await Promise.all([
+      db.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
+      }),
       db.enrollment.findMany({
         where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
         include: {
