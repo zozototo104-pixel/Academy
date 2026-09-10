@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { buildAcademicProgramProfile } from '@/lib/program-tracks'
+import { academicProfileFromRules, buildAcademicProgramProfile } from '@/lib/program-tracks'
 
 // GET /api/certificates/verify?serial=AACT-C-2026-00001 — تحقق عام من صحة الشهادة
 export async function GET(req: NextRequest) {
