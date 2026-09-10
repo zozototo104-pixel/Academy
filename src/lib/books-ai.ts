@@ -1171,17 +1171,19 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
   const plan = batchQuestionPlan(spec.kind, spec.count)
   const usedTexts = new Set<string>()
   const usedOptionSigs = new Set<string>()
+  const usedMcqOptions = new Set<string>()
   const byType = new Map<string, GeneratedQuestion[]>()
 
   for (const q of aiQuestions) {
     const type = q.type === 'MCQ' || q.type === 'TF' || q.type === 'SHORT' || q.type === 'ESSAY' ? q.type : 'MCQ'
     const textKey = norm(q.text).slice(0, 180)
-    if (!textKey || usedTexts.has(textKey)) continue
+    if (!textKey || usedTexts.has(textKey) || hasForbiddenExamMetadata(q.text)) continue
     if (type === 'MCQ') {
-      if (isWeakMcq(q)) continue
+      if (isWeakMcq(q) || mcqOptionOverlap(q, usedMcqOptions) >= 2) continue
       const sig = optionSignature(q)
       if (!sig || usedOptionSigs.has(sig)) continue
       usedOptionSigs.add(sig)
+      for (const opt of q.options || []) usedMcqOptions.add(norm(opt))
     }
     usedTexts.add(textKey)
     const list = byType.get(type) || []
