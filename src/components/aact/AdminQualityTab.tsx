@@ -31,6 +31,7 @@ interface QualityProgram {
   readyExams: number
   questions: number
   sourceCoverage: number
+  metadataCoverage: number
   examPassRate: number
   qualityScore: number
   band: 'STRONG' | 'GOOD' | 'NEEDS_ATTENTION' | 'CRITICAL'
