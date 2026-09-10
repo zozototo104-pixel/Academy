@@ -253,6 +253,7 @@ export async function POST(req: NextRequest) {
       status,
       finalScore,
       examsNotPassed,
+      assignmentsNotPassed,
       certificate: certificate ? { serial: certificate.serial } : null,
     })
   } catch (e: any) {
