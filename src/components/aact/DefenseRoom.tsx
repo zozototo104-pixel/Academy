@@ -237,6 +237,7 @@ export function DefenseRoom({
       if (!ok) throw new Error('autoplay blocked')
     } catch {
       transcriptPausedForSpeechRef.current = false
+      if (wasTranscribing) { try { transcriptRecRef.current?.start() } catch {} }
       setSpeaking(false)
     }
   }, [])
