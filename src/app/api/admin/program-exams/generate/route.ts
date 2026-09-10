@@ -270,7 +270,17 @@ export async function POST(req: NextRequest) {
       })
       if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
       if (existing.status === 'GENERATING') {
-        return NextResponse.json({ error: 'هذا الامتحان قيد التوليد حالياً — انتظر اكتماله', examId: existing.id }, { status: 409 })
+        const starter = await ensureStarterQuestions(existing.id)
+        scheduleGeneration(existing.id)
+        return NextResponse.json({
+          ok: true,
+          examId: existing.id,
+          resumed: true,
+          kicked: true,
+          existingQuestions: starter.questionCount,
+          inserted: starter.inserted,
+          requiredQuestions: totalRequiredQuestions(),
+        })
       }
       if (existing.status === 'READY') {
         return NextResponse.json({ error: 'الامتحان منشور للطلاب — استخدم زر الحذف إذا أردت إنشاء امتحان جديد بالكامل' }, { status: 409 })
