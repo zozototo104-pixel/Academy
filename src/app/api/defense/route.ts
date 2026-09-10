@@ -207,8 +207,13 @@ export async function POST(req: NextRequest) {
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' } })
       const scores = studentMsgs.map((m) => m.score || 0)
       const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : 0
-      const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, 'جلسة مبتورة — أنهى الطالب الجلسة مبكراً.')
-      const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate)
+      const rag = await buildSupervisorContext(user.id).catch(() => '')
+      const defenseAcademicContext = mergeContext(
+        rag,
+        `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nالجلسة انتهت مبكراً؛ اربط التوصية بملف الطالب ونتائجه وبحثه دون إصدار قرار نهائي بدلاً من اللجنة البشرية.`
+      )
+      const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, 'جلسة مبتورة — أنهى الطالب الجلسة مبكراً.', defenseAcademicContext)
+      const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
       await db.thesisSubmission.update({
         where: { id: thesis.id },
         data: { defenseStatus: 'COMPLETED', aiScore, aiRecommendation: rec, defenseMinutes: minutes, defenseCompletedAt: new Date() },
