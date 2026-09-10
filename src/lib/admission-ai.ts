@@ -844,6 +844,27 @@ ${evidence}
     },
   })
 
+  if (app.userId) {
+    await updateStudentAcademicMemory(app.userId, {
+      kind: 'FILE',
+      persona: 'CHAT',
+      programTitle: app.program,
+      score: review.fitScore,
+      passed: review.verdict === 'RECOMMEND_APPROVE',
+      summary: `تحليل قبول ${app.reference}: ${review.verdict} — نسبة التغطية ${review.fitScore}%`,
+      fileAnalysis: [
+        `طلب الالتحاق ${app.reference} لبرنامج «${app.program}»`,
+        `نسبة التغطية: ${review.fitScore}% — الحكم: ${review.verdict}`,
+        review.summaryForAdmin,
+        `توصية الإدارة: ${review.recommendedAction}`,
+      ].filter(Boolean).join('\n'),
+      strengths: review.strengths,
+      weaknesses: review.findings.slice(0, 8).map((f) => `${f.title}: ${f.detail}`),
+      concepts: ['متطلبات القبول', 'توثيق المؤهلات', 'وضوح المرفقات'],
+      nextActions: [review.recommendedAction],
+    }).catch(() => {})
+  }
+
   return { review, cached: false }
 }
 
