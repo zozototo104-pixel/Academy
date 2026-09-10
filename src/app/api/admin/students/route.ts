@@ -23,8 +23,32 @@ export async function GET() {
       },
     })
 
+    const studentIds = students.map((s) => s.id)
+    const studentEmails = students.map((s) => s.email).filter(Boolean)
+    const admissions = students.length
+      ? await db.admissionApplication.findMany({
+          where: {
+            OR: [
+              { userId: { in: studentIds } },
+              { email: { in: studentEmails } },
+            ],
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, reference: true, userId: true, email: true, status: true, program: true, createdAt: true },
+        })
+      : []
+
+    const latestAdmissionByStudent = new Map<string, typeof admissions[number]>()
+    for (const app of admissions) {
+      if (app.userId && !latestAdmissionByStudent.has(app.userId)) latestAdmissionByStudent.set(app.userId, app)
+      const emailKey = app.email.toLowerCase()
+      if (emailKey && !latestAdmissionByStudent.has(emailKey)) latestAdmissionByStudent.set(emailKey, app)
+    }
+
     return NextResponse.json({
-      students: students.map((s) => ({
+      students: students.map((s) => {
+        const latestAdmission = latestAdmissionByStudent.get(s.id) || latestAdmissionByStudent.get(s.email.toLowerCase()) || null
+        return ({
         id: s.id,
         name: s.name,
         email: s.email,
