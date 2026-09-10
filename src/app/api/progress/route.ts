@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
         unitsCount: program.units.length,
         units: program.units.map((u) => ({ id: u.id, order: u.order, title: u.title })),
         books: program.books,
+        assignments: program.assignments,
         exams: program.programExams.map((e) => ({ id: e.id, title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
         academicProfile: academicProfileFromRules(program.admissionRules),
       },
