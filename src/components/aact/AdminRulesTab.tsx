@@ -161,7 +161,7 @@ export function AdminRulesTab() {
       setDraft({ ...d.rules })
       setCustom(d.custom)
       setPrograms((ps) => ps.map((p) => (p.id === selectedId ? { ...p, rules: d.rules, custom: d.custom } : p)))
-      toast({ title: reset ? 'أُعيدت القواعد الافتراضية' : 'حُفظت قواعد القبول — سيطبقها خبير القبول الذكي على كل طلب جديد' })
+      toast({ title: reset ? 'أُعيدت القواعد والملف الأكاديمي للافتراضي' : 'حُفظت قواعد القبول والملف الأكاديمي — سيظهر التحديث في تفاصيل البرنامج والسجل والشهادة' })
     } catch {
       toast({ title: 'تعذر الحفظ', variant: 'destructive' })
     } finally {
