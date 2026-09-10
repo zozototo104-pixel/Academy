@@ -519,11 +519,28 @@ export function QuestionReviewDialog({
                           ))}
                         </ul>
                       )}
-                      {q.sourceEvidence && (
-                        <p className="mt-1.5 rounded-lg bg-[#fffaf0] p-2 text-[10px] font-bold leading-5 text-[#a8841a]"><strong>دليل السؤال من الكتاب/بنك المعرفة:</strong> {q.sourceEvidence}</p>
+                      {(q.sourceEvidence || q.sourceBookTitle || q.sourceLocator) && (
+                        <div className="mt-1.5 rounded-lg bg-[#fffaf0] p-2 text-[10px] font-bold leading-5 text-[#a8841a]">
+                          {q.sourceBookTitle && <p><strong>الكتاب:</strong> {q.sourceBookTitle}</p>}
+                          {q.sourceChapter && <p><strong>الفصل/المحور:</strong> {q.sourceChapter}</p>}
+                          {q.sourceLocator && <p><strong>الموضع:</strong> {q.sourceLocator}</p>}
+                          {q.sourceEvidence && <p><strong>دليل السؤال:</strong> {q.sourceEvidence}</p>}
+                        </div>
+                      )}
+                      {q.correctRationale && (
+                        <p className="mt-1.5 rounded-lg bg-emerald-50 p-2 text-[10px] font-bold leading-5 text-emerald-700"><strong>سبب صحة الإجابة:</strong> {q.correctRationale}</p>
+                      )}
+                      {(q.distractorRationales?.length || 0) > 0 && (
+                        <div className="mt-1.5 rounded-lg bg-red-50/70 p-2 text-[10px] font-bold leading-5 text-red-700">
+                          <strong>سبب خطأ الخيارات الأخرى:</strong>
+                          {q.distractorRationales!.map((r, i) => <p key={i}>• خيار {r.optionIndex + 1}: {r.reason}</p>)}
+                        </div>
                       )}
                       {q.modelAnswer && (
                         <p className="mt-1.5 line-clamp-2 text-[10px] text-slate-500"><strong>نموذج الإجابة:</strong> {q.modelAnswer}</p>
+                      )}
+                      {q.reviewNotes && (
+                        <p className="mt-1.5 rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-5 text-slate-500"><strong>ملاحظات المراجعة:</strong> {q.reviewNotes}</p>
                       )}
                     </div>
                   )}
