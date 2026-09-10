@@ -1195,7 +1195,7 @@ function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQu
 }
 
 function makeFallbackShort(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = cleanText(concept, 480)
+  const evidence = stripExamKnowledgeMeta(concept, 480)
   const idea = conceptLabel(concept, 190)
   const stems = [
     `اشرح بإيجاز كيف يمكن إسقاط فكرة «${idea}» من الكتاب على موقف مهني في ${specAr}.`,
