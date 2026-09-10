@@ -152,6 +152,20 @@ export function VerifyView() {
                       <ul className="mt-2 space-y-1 text-[11px] font-bold leading-5 text-slate-600">
                         {result.certificate.academicProfile.learningOutcomes.slice(0, 3).map((item, i) => <li key={i}>• {item}</li>)}
                       </ul>
+                      {(result.certificate.academicProfile.termPlans?.length || 0) > 0 && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          {result.certificate.academicProfile.termPlans!.slice(0, 3).map((term) => (
+                            <div key={term.id} className="rounded-lg bg-white p-2 ring-1 ring-[#c9a227]/20">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <p className="font-black text-[#0f2b46]">{term.title}</p>
+                                <span className="rounded-full bg-[#f7edd0] px-1.5 py-0.5 font-black text-[#a8841a]">{term.weight}%</span>
+                              </div>
+                              <p>كتب: {term.requiredBooks.length ? term.requiredBooks.slice(0, 2).map((b) => b.title).join('، ') : 'وفق الخطة'}</p>
+                              <p className="text-[#a8841a]">{term.finalEvaluation}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="sm:col-span-2">
