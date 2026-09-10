@@ -163,6 +163,54 @@ async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: 
   return 0
 }
 
+function groundedTokenSet(value: unknown): string[] {
+  const stop = new Set(['هذا', 'هذه', 'ذلك', 'التي', 'الذي', 'على', 'الى', 'في', 'من', 'عن', 'ضمن', 'كتاب', 'الكتاب', 'اداره', 'المشاريع', 'مشروع', 'تخصص', 'تحليل', 'قرار', 'مخاطر', 'تخطيط', 'تنفيذ'])
+  return normalizeQuestionText(value).split(' ').filter((t) => t.length >= 4 && !stop.has(t)).slice(0, 40)
+}
+
+function questionGroundedInBooks(
+  question: { text: string; options: string | null; modelAnswer?: string | null },
+  books: { title: string; titleEn?: string | null; textContent?: string | null }[]
+): boolean {
+  if (hasBadExamMetadata(`${question.text} ${question.options || ''} ${question.modelAnswer || ''}`)) return false
+  const source = normalizeQuestionText(books.map((b) => `${b.title} ${b.titleEn || ''} ${String(b.textContent || '').slice(0, 70000)}`).join(' '))
+  const combined = `${question.text} ${question.options || ''} ${question.modelAnswer || ''}`
+  const tokens = groundedTokenSet(combined)
+  if (!source || tokens.length === 0) return false
+  const hits = tokens.filter((t) => source.includes(t)).length
+  return hits >= Math.min(5, Math.max(2, Math.ceil(tokens.length * 0.18)))
+}
+
+async function resetUngroundedPendingQuestionsIfNeeded(
+  examId: string,
+  books: { title: string; titleEn?: string | null; textContent?: string | null }[],
+  existingCount: number
+): Promise<number> {
+  if (existingCount === 0) return existingCount
+  const rows = await db.programQuestion.findMany({
+    where: { examId },
+    orderBy: { order: 'asc' },
+    select: { text: true, options: true, modelAnswer: true, status: true },
+  })
+  if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
+
+  const optionSigs = rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean)
+  const repeatedOptions = new Set(optionSigs).size < optionSigs.length
+  const ungrounded = rows.filter((q) => !questionGroundedInBooks(q, books)).length
+  if (!repeatedOptions && ungrounded < Math.max(2, Math.ceil(rows.length * 0.35))) return existingCount
+
+  await db.programQuestion.deleteMany({ where: { examId, status: 'PENDING_REVIEW' } })
+  await db.programExam.update({
+    where: { id: examId },
+    data: {
+      status: 'GENERATING',
+      totalPoints: 0,
+      errorNote: 'حذف النظام الأسئلة لأنها لا تستند كفاية إلى محتوى الكتاب المقروء أو فيها خيارات مكررة، وسيعيد بناء الامتحان من الكتاب نفسه',
+    },
+  }).catch(() => {})
+  return 0
+}
+
 async function exposeExamForReview(examId: string, note?: string) {
   const totals = await examTotals(examId)
   const status = totals.questionCount >= 10 ? 'REVIEW' : 'FAILED'
