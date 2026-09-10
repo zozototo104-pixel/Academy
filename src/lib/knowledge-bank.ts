@@ -127,7 +127,7 @@ function titleFromSeed(seed: string, index: number) {
   return first.length > 12 ? first : `محور معرفي رقم ${index + 1}`
 }
 
-function deterministicKnowledgeItems(book: RawBookForHydration, text: string, semester?: number | null): KnowledgeItemDraft[] {
+function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: number | null }, text: string, semester?: number | null): KnowledgeItemDraft[] {
   const seeds = splitBookIntoSeeds(text, MAX_ITEMS_PER_BOOK)
   const seen = new Set<string>()
   const items: KnowledgeItemDraft[] = []
