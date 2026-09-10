@@ -141,6 +141,9 @@ export function DefenseRoom({
   const transcriptCountRef = useRef(0)
   const transcriptRecRef = useRef<SpeechRecognitionLike | null>(null)
   const transcriptResumeRef = useRef(false)
+  const aiInterjectingRef = useRef(false)
+  const lastInterjectionAtRef = useRef(0)
+  const lastSpokenMessageIdRef = useRef<string | null>(null)
 
   // ===== 12.3: تسجيل الجلسة وأرشفتها =====
   const [recState, setRecState] = useState<'IDLE' | 'RECORDING' | 'SAVING' | 'SAVED' | 'FAILED' | 'NA'>('IDLE')
