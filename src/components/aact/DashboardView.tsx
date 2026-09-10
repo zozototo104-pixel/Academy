@@ -391,7 +391,7 @@ export function DashboardView() {
                   {available.map((p) => (
                     <button
                       key={p.id}
-                      onClick={() => navigate('programs')}
+                      onClick={() => openProgramDetails(p.id)}
                       className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-4 text-right shadow-sm transition-colors hover:border-[#c9a227]"
                     >
                       <div>
