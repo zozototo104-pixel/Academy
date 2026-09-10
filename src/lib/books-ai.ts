@@ -1018,18 +1018,20 @@ function fallbackExamConcepts(
 ): string[] {
   const domain = detectProgramDomain(program)
   const spec = specialtyName(program)
-  const contentConcepts = contentConceptsFromBooks(books, domain, 60)
-  const bookTitles = books.flatMap((b) => [b.title, b.titleEn || '', b.description || ''])
-  const seedTitles = ((DOMAIN_BOOKS[domain] && DOMAIN_BOOKS[domain]!.length ? DOMAIN_BOOKS[domain]! : DOMAIN_BOOKS.general) || []).map(([t]) => t)
+  const contentConcepts = contentConceptsFromBooks(books, domain, 80)
+  if (contentConcepts.length >= 4) {
+    // عند وجود نص كتاب مقروء، لا نرجع أبداً إلى مفاهيم عامة في التخصص؛
+    // الأسئلة الاحتياطية نفسها يجب أن تنطلق من أحداث/أفكار الكتاب ثم تُسقط على التخصص.
+    return uniqueStrings(contentConcepts, 70, 420)
+  }
+
+  // هذا المسار احتياطي شديد الندرة عند فشل القراءة بالكامل، والمسار الرئيسي يمنع التوليد دون محتوى فعلي.
   return uniqueStrings([
-    ...contentConcepts,
     ...(DOMAIN_CONCEPTS[domain] || []),
-    ...bookTitles,
-    ...seedTitles,
+    ...books.flatMap((b) => [b.title, b.titleEn || '', b.description || '']),
     `مفاهيم ${spec.ar}`,
     `تطبيقات ${spec.ar}`,
-    `أخلاقيات ومخاطر ${spec.ar}`,
-  ], 50, 340)
+  ], 30, 260)
 }
 
 function conceptLabel(concept: string, max = 150): string {
