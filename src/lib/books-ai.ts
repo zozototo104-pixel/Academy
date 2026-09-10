@@ -985,8 +985,8 @@ ${spec.instruction}
       retries: 3,
     })
   } catch (e: any) {
-    console.error('generateExamQuestionBatch failed:', String(e?.message || e).slice(0, 600))
-    return []
+    console.error('generateExamQuestionBatch failed; using deterministic fallback:', String(e?.message || e).slice(0, 600))
+    return fallbackExamQuestionBatch(program, books, batchIndex)
   }
 
   let arr: any[] = []
