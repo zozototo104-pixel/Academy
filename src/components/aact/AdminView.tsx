@@ -306,6 +306,19 @@ export function AdminView() {
     }
   }
 
+  const openStudentAdmission = (student: StudentRow) => {
+    const linked = student.latestAdmission || admissions.find((a) => a.email.toLowerCase() === student.email.toLowerCase()) || null
+    if (!linked) {
+      toast({
+        title: 'لا يوجد طلب التحاق مرتبط',
+        description: 'هذا الطالب لديه حساب أو تسجيل، لكن لا توجد له بطاقة طلب التحاق مفصلة حالياً.',
+      })
+      return
+    }
+    setHighlightAdmissionId(linked.id)
+    setActiveTab('admissions')
+  }
+
   const kpis = data
     ? [
         { icon: Users2, label: 'الطلاب المسجلون', value: data.stats.totalStudents, color: 'bg-[#0f2b46] text-[#e0b83a]' },
