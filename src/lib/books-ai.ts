@@ -879,12 +879,39 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
   const concepts: string[] = []
   for (const book of books) {
     const title = cleanText(book.title, 90)
-    const sentences = topImportantSentences(book.textContent || '', programDomain, 10)
+    const full = sanitizeExamText(book.textContent || '')
+    const sentences = topImportantSentences(full, programDomain, 18)
     for (const s of sentences) {
       if (!hasForbiddenExamMetadata(s)) concepts.push(`من كتاب «${title}»: ${s}`)
     }
+
+    // إذا كان الكتاب رواية أو نصاً أدبياً قد لا تظهر فيه مصطلحات التخصص مباشرة؛
+    // نأخذ عينات موزعة من النص حتى يكون الامتحان مبنياً على أحداث/أفكار الكتاب نفسه لا على التخصص العام.
+    for (const excerpt of distributedBookExcerpts(full, 0, 6)) {
+      for (const s of splitSentences(excerpt).slice(0, 5)) {
+        if (!hasForbiddenExamMetadata(s)) concepts.push(`من كتاب «${title}»: ${s}`)
+      }
+    }
   }
-  return uniqueStrings(concepts, max)
+  return uniqueStrings(concepts, max, 420)
+}
+
+function likelyNarrativeOrReflectiveBook(books: ExamSourceBook[]): boolean {
+  const sample = books.map((b) => `${b.title} ${b.description || ''} ${sanitizeExamText(b.textContent || '', 8000)}`).join('\n')
+  const n = norm(sample)
+  return /روايه|قصه|شخصيه|بطل|حوار|حدث|مشهد|سرد|novel|story|character|dialogue|narrative/.test(n)
+}
+
+function bookToSpecialtyBridgeInstruction(books: ExamSourceBook[], specialtyAr: string): string {
+  if (!likelyNarrativeOrReflectiveBook(books)) {
+    return `هذه الكتب قد تكون تخصصية أو مهنية. استخرج المفاهيم والنماذج والمنهجيات منها مباشرة، ثم اربطها بتطبيقات ${specialtyAr}.`
+  }
+  return `تنبيه مهم جداً: واحد أو أكثر من الكتب المقررة يبدو رواية/قصة/نصاً سردياً أو تأملياً، وليس كتاباً مدرسياً مباشراً في ${specialtyAr}.
+لا تحول الامتحان إلى أسئلة عامة في ${specialtyAr}. المطلوب هو الإسقاط الأكاديمي:
+- اقرأ أحداث الكتاب وشخصياته وصراعاته وقراراته وتحولاته.
+- حوّل كل حدث/مشهد/فكرة إلى حالة دراسية في ${specialtyAr}.
+- في إدارة المشاريع مثلاً: استخرج من الرواية قضايا مثل الرؤية، التخطيط، أصحاب المصلحة، المخاطر، الموارد، الاتصال، مقاومة التغيير، القيادة، تعثر التنفيذ، إدارة الفريق، أو إغلاق المبادرة؛ لكن يجب أن يبدأ السؤال من حدث أو فكرة ظاهرة في الكتاب نفسه.
+- السؤال الصحيح يجب أن يكون مستحيلاً تقريباً دون قراءة الكتاب؛ لا تسأل سؤالاً عاماً في التخصص يمكن لأي طالب الإجابة عليه من خارج الكتاب.`
 }
 
 const BATCH_SPECS: {
