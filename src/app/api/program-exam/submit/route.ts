@@ -253,8 +253,9 @@ export async function POST(req: NextRequest) {
         isCorrect: graded.points >= q.points * 0.6,
         points: graded.points,
         maxPoints: q.points,
-        aiFeedback: graded.feedback,
+        aiFeedback: q.correctRationale ? `${graded.feedback}\nمعيار التصحيح: ${q.correctRationale}` : graded.feedback,
         studentAnswer: text || '(لم يجب)',
+        ...resultMetadata(q),
       }
       totalScore += graded.points
       return r
