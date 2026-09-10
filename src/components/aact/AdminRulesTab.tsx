@@ -83,6 +83,18 @@ const CAT_AR: Record<string, string> = {
   ACCREDITATION: 'اعتماد',
 }
 
+function listToText(list?: string[]) {
+  return (list || []).join('\n')
+}
+
+function textToList(text: string) {
+  return text.split('\n').map((x) => x.trim()).filter(Boolean)
+}
+
+function stageAt(profile: AcademicProfileDraft | null | undefined, index: number): AcademicPlanStage {
+  return profile?.studyPlan?.[index] || { title: '', description: '', deliverable: '' }
+}
+
 export function AdminRulesTab() {
   const [programs, setPrograms] = useState<ProgramRules[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
