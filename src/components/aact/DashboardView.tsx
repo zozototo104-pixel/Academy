@@ -37,8 +37,10 @@ interface ProgressData {
     titleAr: string
     titleEn?: string
     description: string
+    category?: string | null
     hours?: number | null
     price?: number | null
+    unitsCount?: number | null
   }
   progress: number
   status: string
