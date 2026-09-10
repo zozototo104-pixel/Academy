@@ -180,8 +180,7 @@ export function HomeView() {
                       key={`${copy}-${i}`}
                       onClick={() => {
                         if (!f.slug) return navigate('programs')
-                        const p = programs.find((x) => x.slug === f.slug)
-                        p ? openProgramDetails(p.id) : navigate('programs')
+                        openProgramDetails(f.slug)
                       }}
                       className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#c9a227]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-[#f5f0e1] transition hover:border-[#c9a227] hover:bg-[#c9a227]/15 sm:text-[11px]"
                     >
