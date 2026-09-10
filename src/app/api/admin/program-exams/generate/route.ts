@@ -158,8 +158,8 @@ async function runGeneration(examId: string) {
     const totalPoints = allQuestions.reduce((s, q) => s + q.points, 0)
     const totalQ = allQuestions.length
 
-    await db.programExam.update({
-      where: { id: examId },
+    await db.programExam.updateMany({
+      where: { id: examId, status: 'GENERATING' },
       data: {
         // بانتظار مراجعة الإدارة واعتماد الأسئلة قبل النشر للطلاب
         status: 'REVIEW',
