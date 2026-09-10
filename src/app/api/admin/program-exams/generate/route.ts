@@ -170,6 +170,16 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       }
     }
 
+    const usableBooks = hydratedBooks.filter((b) =>
+      b.contentQuality !== 'METADATA_ONLY' &&
+      b.contentQuality !== 'NO_CONTENT' &&
+      String(b.textContent || '').trim().length >= 300
+    )
+    if (usableBooks.length === 0) {
+      const notes = hydratedBooks.map((b) => `«${b.title}»: ${b.sourceNote}`).join(' — ').slice(0, 700)
+      throw new Error(`لا يوجد نص فعلي مقروء من الكتب. ارفع ملف Word/PDF/TXT قابل للقراءة أو ضع رابط PDF مباشر، ولا تستخدم رابط بحث Google أو صفحة وصف فقط. ${notes}`)
+    }
+
     const previousQuestions = await db.programQuestion.findMany({
       where: { examId },
       orderBy: { order: 'asc' },
