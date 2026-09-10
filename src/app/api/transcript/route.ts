@@ -62,6 +62,15 @@ export async function GET() {
         },
       })
 
+      const assignmentAssessments = await db.programAssignment.findMany({
+        where: { programId: en.programId, status: 'PUBLISHED' },
+        orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          title: true, points: true, semester: true,
+          submissions: { where: { userId: user.id }, select: { score: true, status: true, submittedAt: true, gradedAt: true }, take: 1 },
+        },
+      })
+
       const unitRows = unitExams
         .sort((a, b) => a.unit.order - b.unit.order)
         .map((ex) => {
