@@ -1120,16 +1120,18 @@ function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQu
 }
 
 function makeFallbackShort(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const idea = conceptLabel(concept, 180)
+  const evidence = cleanText(concept, 480)
+  const idea = conceptLabel(concept, 190)
   const stems = [
-    `اشرح بإيجاز كيف يساهم محور «${idea}» في فهم مشكلة مهنية داخل تخصص ${specAr}.`,
-    `قارن بين الفهم النظري لمحور «${idea}» وتطبيقه العملي في مجال ${specAr}.`,
-    `اذكر خطوتين عمليتين لاستخدام فكرة «${idea}» في تحليل حالة مهنية.`,
+    `اشرح بإيجاز كيف يمكن إسقاط فكرة «${idea}» من الكتاب على موقف مهني في ${specAr}.`,
+    `استخرج من «${idea}» درساً عملياً في ${specAr}، واذكر كيف يمكن التحقق من نجاح تطبيقه.`,
+    `ما العلاقة بين الحدث/الفكرة «${idea}» وبين إدارة القرار أو المخاطر أو أصحاب المصلحة في ${specAr}؟`,
   ]
   return {
     type: 'SHORT',
     text: stems[i % stems.length],
-    modelAnswer: `مرجع التصحيح: محور «${idea}» من محتوى الكتاب المقرر. الإجابة الجيدة تشرح الفكرة بلغتها العلمية، تربطها بمشكلة واقعية في ${specAr}، وتذكر خطوات أو مؤشرات قياس واضحة بدلاً من الاكتفاء بتعريف عام.`,
+    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة الجيدة تبدأ من دلالة النص نفسه، ثم تفسرها كحالة أو درس مهني في ${specAr}، وتذكر إجراءً أو معيار قياس واضحاً دون تحويل السؤال إلى تعريف عام منفصل عن الكتاب.`,
+    bookEvidence: evidence,
     points: 5,
   }
 }
