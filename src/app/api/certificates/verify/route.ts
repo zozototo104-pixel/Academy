@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true,
             units: { orderBy: { order: 'asc' }, select: { order: true, title: true } },
             books: { orderBy: { createdAt: 'asc' }, select: { title: true, titleEn: true, semester: true } },
-            assignments: { where: { status: { not: 'ARCHIVED' } }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { title: true, semester: true, points: true, status: true } },
+            assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { title: true, semester: true, points: true, status: true } },
             programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { title: true, semester: true, status: true, _count: { select: { questions: true } } } },
             _count: { select: { units: true } },
           },
