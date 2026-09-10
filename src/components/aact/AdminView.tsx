@@ -74,11 +74,28 @@ interface AdmissionApp {
 
 interface ChecklistItem { requirement: string; status: string; detail: string }
 interface AIFinding { severity: string; title: string; detail: string }
+interface AdmissionDocumentAnalysis {
+  fileName: string
+  declaredType: string
+  declaredLabel: string
+  detectedKind: string
+  detectedLabel: string
+  reader: string
+  readable: boolean
+  clearEnough: boolean
+  belongsToStudent: 'YES' | 'NO' | 'UNVERIFIED'
+  relatedToProgram: 'YES' | 'NO' | 'UNVERIFIED'
+  coverage: number
+  coverageReason: string
+  recommendation: string
+  reasons: string[]
+}
 interface AdmissionAIReview {
   verdict: string
   fitScore: number
   summaryForAdmin: string
   checklist: ChecklistItem[]
+  documentAnalyses?: AdmissionDocumentAnalysis[]
   findings: AIFinding[]
   strengths: string[]
   recommendedAction: string
