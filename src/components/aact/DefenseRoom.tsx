@@ -312,8 +312,13 @@ ${recent || 'بدأت الجلسة للتو.'}
       transcriptResumeRef.current = false
       setTranscriptOn(false)
     }
+    recognitionRef.current?.abort()
+    setListening(false)
+    setInterim('')
     const agent = new VoiceAgent({
       context: buildDefenseVoiceContext(initialMessages),
+      // صوت أخف من Charon الافتراضي حتى لا يظهر صوت الرجل الفصيح داخل المناقشة.
+      voice: 'Aoede',
       logEndpoint: '/api/defense',
       logExtra: { action: 'live-turn' },
       onState: (s) => {
