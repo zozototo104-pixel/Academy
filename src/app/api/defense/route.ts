@@ -53,7 +53,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { action, text, dataUrl, mime, durationSec } = await req.json()
+    const { action, text, userText, aiText, model, dataUrl, mime, durationSec } = await req.json()
 
     const thesis = await db.thesisSubmission.findFirst({
       where: { userId: user.id },
