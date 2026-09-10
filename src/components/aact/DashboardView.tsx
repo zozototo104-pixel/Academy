@@ -161,6 +161,7 @@ export function DashboardView() {
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null)
   const [loadingActive, setLoadingActive] = useState(false)
   const [lastChats, setLastChats] = useState<ChatMsg[]>([])
+  const [academicMemory, setAcademicMemory] = useState<AcademicMemorySnapshot | null>(null)
 
   // Load my programs
   const loadList = useCallback(async () => {
