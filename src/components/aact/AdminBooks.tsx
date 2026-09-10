@@ -621,6 +621,7 @@ export function AdminBooksTab() {
                   setBooks([])
                   setExams([])
                   setAssignments([])
+                  setAssignmentSuggestions([])
                   setKnowledgeItems([])
                   setKnowledgeStats({})
                   setSuggestions([])
