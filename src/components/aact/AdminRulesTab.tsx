@@ -56,7 +56,10 @@ interface ProgramRules {
   slug: string
   titleAr: string
   titleEn?: string | null
+  description?: string | null
   category: string
+  hours?: number | null
+  _count?: { units: number }
   rules: Rules
   custom: boolean
 }
