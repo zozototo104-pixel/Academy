@@ -118,7 +118,7 @@ function optionSignatureFromJson(options: string | null): string {
 }
 
 async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: number): Promise<number> {
-  if (existingCount === 0 || existingCount > EXAM_BATCH_SPECS[0].count) return existingCount
+  if (existingCount === 0 || existingCount > totalRequiredQuestions()) return existingCount
   const rows = await db.programQuestion.findMany({
     where: { examId },
     orderBy: { order: 'asc' },
