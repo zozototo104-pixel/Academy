@@ -25,6 +25,7 @@ interface Program {
   icon: string
   features: string[]
   unitsCount: number
+  academicProfile?: any
   enrolled: boolean
 }
 
