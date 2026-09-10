@@ -918,7 +918,8 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
     // نأخذ عينات موزعة من النص حتى يكون الامتحان مبنياً على أحداث/أفكار الكتاب نفسه لا على التخصص العام.
     for (const excerpt of distributedBookExcerpts(full, 0, 6)) {
       for (const s of splitSentences(excerpt).slice(0, 5)) {
-        if (!hasForbiddenExamMetadata(s)) concepts.push(`من كتاب «${title}»: ${s}`)
+        const cleanSentence = stripExamKnowledgeMeta(s, 360)
+        if (cleanSentence && !hasForbiddenExamMetadata(cleanSentence)) concepts.push(`من كتاب «${title}»: ${cleanSentence}`)
       }
     }
 
