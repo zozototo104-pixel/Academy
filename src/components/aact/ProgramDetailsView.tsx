@@ -295,7 +295,7 @@ export function ProgramDetailsView() {
                 </div>
               </div>
 
-              {academicProfile.termPlans?.length > 0 && (
+              {(academicProfile.termPlans?.length || 0) > 0 && (
                 <div className="mt-4 rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
                   <h3 className="mb-3 flex items-center gap-2 font-black text-[#0f2b46]">
                     <ClipboardList className="h-5 w-5 text-[#a8841a]" />
