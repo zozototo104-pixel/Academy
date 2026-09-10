@@ -827,6 +827,7 @@ export async function analyzeAdmission(
     rules: programRules,
     files,
   })
+  const documentAnalyses = buildDocumentAnalyses({ fullName: app.fullName, program: app.program }, files)
 
   const cat = app.programRef?.category || 'DIPLOMA'
   const level = CATEGORY_AR[cat] || cat
