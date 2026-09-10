@@ -79,34 +79,55 @@ export const useAppStore = create<AppState>((set) => ({
   applyProgramTitle: null,
   setUser: (u) => set({ user: u }),
   setAuthChecked: (v) => set({ authChecked: v }),
-  navigate: (view) => set({
-    view,
-    mobileMenuOpen: false,
-    programsFilter: null,
-    ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
-  }),
-  openPrograms: (filter) => set({
-    view: 'programs',
-    programsFilter: filter || null,
-    programDetailsId: null,
-    activeProgramId: null,
-    activeUnitId: null,
-    activeExamId: null,
-    mobileMenuOpen: false,
-  }),
-  openProgram: (id) => set({ activeProgramId: id, view: 'dashboard', mobileMenuOpen: false }),
-  openProgramDetails: (id) => set({
-    programDetailsId: id,
-    view: 'program-detail',
-    programsFilter: null,
-    activeProgramId: null,
-    activeUnitId: null,
-    activeExamId: null,
-    mobileMenuOpen: false,
-  }),
-  openUnit: (id) => set({ activeUnitId: id, view: 'unit' }),
-  openExam: (id, kind = 'unit') => set({ activeExamId: id, activeExamKind: kind, view: 'exam' }),
-  openApply: (programTitle) => set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false }),
+  navigate: (view) => {
+    updateBrowserRoute(view)
+    set({
+      view,
+      mobileMenuOpen: false,
+      programsFilter: null,
+      ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
+    })
+  },
+  openPrograms: (filter) => {
+    updateBrowserRoute('programs', filter ? { filter } : {})
+    set({
+      view: 'programs',
+      programsFilter: filter || null,
+      programDetailsId: null,
+      activeProgramId: null,
+      activeUnitId: null,
+      activeExamId: null,
+      mobileMenuOpen: false,
+    })
+  },
+  openProgram: (id) => {
+    updateBrowserRoute('dashboard', { programId: id })
+    set({ activeProgramId: id, view: 'dashboard', mobileMenuOpen: false })
+  },
+  openProgramDetails: (id) => {
+    updateBrowserRoute('program-detail', { program: id })
+    set({
+      programDetailsId: id,
+      view: 'program-detail',
+      programsFilter: null,
+      activeProgramId: null,
+      activeUnitId: null,
+      activeExamId: null,
+      mobileMenuOpen: false,
+    })
+  },
+  openUnit: (id) => {
+    updateBrowserRoute('unit', { unitId: id })
+    set({ activeUnitId: id, view: 'unit' })
+  },
+  openExam: (id, kind = 'unit') => {
+    updateBrowserRoute('exam', { examId: id, kind })
+    set({ activeExamId: id, activeExamKind: kind, view: 'exam' })
+  },
+  openApply: (programTitle) => {
+    updateBrowserRoute('apply')
+    set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false })
+  },
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
 }))
 
