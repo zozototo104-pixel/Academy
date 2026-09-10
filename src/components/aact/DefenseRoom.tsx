@@ -1301,7 +1301,7 @@ ${recent || 'بدأت الجلسة للتو.'}
                 <MonitorUp className="ml-1 h-3.5 w-3.5" />
                 {sharing ? 'إنهاء مشاركة الشاشة' : 'مشاركة الشاشة'}
               </Button>
-              <Button size="sm" onClick={() => { const lastAi = [...messages].reverse().find((m) => m.role === 'AI_EXPERT'); if (lastAi) speak(lastAi.content) }}
+              <Button size="sm" onClick={() => { const lastAi = [...messages].reverse().find((m) => m.role === 'AI_EXPERT'); if (lastAi) speak(lastAi.content, { force: true }) }}
                 className="flex-1 bg-white/10 font-bold text-white hover:bg-white/20">
                 <Volume2 className="ml-1 h-3.5 w-3.5" /> إعادة سماع السؤال
               </Button>
