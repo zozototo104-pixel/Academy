@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
           unitsCount: program._count.units,
           units: program.units,
           books: program.books,
+          assignments: program.assignments,
           exams: program.programExams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
           academicProfile: academicProfileFromRules(program.admissionRules),
         })
