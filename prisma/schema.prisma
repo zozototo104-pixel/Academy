@@ -63,6 +63,7 @@ model Program {
   enrollments Enrollment[]
   books       Book[]
   knowledgeItems BookKnowledgeItem[]
+  studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
   admissions  AdmissionApplication[]
