@@ -213,7 +213,7 @@ async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: stri
 
 export async function hydrateBookContentForExam(book: RawBookForHydration): Promise<HydratedExamBook> {
   const stored = normalizeExtractedText(book.textContent || '', MAX_BOOK_CONTEXT_CHARS)
-  if (stored.length >= MIN_STRONG_TEXT) {
+  if (stored.length >= MIN_STRONG_TEXT && !looksLikeMetadataOnlyText(stored)) {
     return {
       ...book,
       textContent: stored,
