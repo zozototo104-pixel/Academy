@@ -605,6 +605,32 @@ export function AdminView() {
                                   </div>
                                 </div>
 
+                                {(aiReviews[a.id]!.documentAnalyses?.length || 0) > 0 && (
+                                  <div>
+                                    <p className="mb-1.5 text-[10px] font-black text-slate-500">تحليل كل مرفق على حدة:</p>
+                                    <div className="grid gap-1.5 lg:grid-cols-2">
+                                      {aiReviews[a.id]!.documentAnalyses!.map((d, i) => (
+                                        <div key={`${d.fileName}-${i}`} className="rounded-lg border border-slate-100 bg-white p-2 text-[10px]">
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <Badge className={`${d.recommendation === 'ACCEPT_AS_EVIDENCE' ? 'bg-emerald-100 text-emerald-700' : d.recommendation === 'REQUEST_REPLACEMENT' || d.recommendation === 'IGNORE_AS_NON_ADMISSION' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'} hover:bg-inherit text-[9px]`}>
+                                              {DOC_RECOMMENDATION_AR[d.recommendation] || d.recommendation}
+                                            </Badge>
+                                            <span className="rounded bg-[#0f2b46] px-1.5 py-0.5 font-black text-[#e0b83a]">{d.coverage}%</span>
+                                          </div>
+                                          <p className="mt-1 font-black text-[#0f2b46]">{d.fileName}</p>
+                                          <p className="mt-0.5 text-slate-500">المرفوع كـ {d.declaredLabel} — المكتشف: {d.detectedLabel}</p>
+                                          <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] font-bold text-slate-500">
+                                            <span className="rounded bg-slate-50 p-1">واضح: {d.clearEnough ? 'نعم' : 'لا'}</span>
+                                            <span className="rounded bg-slate-50 p-1">يخص الطالب: {TRI_STATE_AR[d.belongsToStudent] || d.belongsToStudent}</span>
+                                            <span className="rounded bg-slate-50 p-1">مرتبط: {TRI_STATE_AR[d.relatedToProgram] || d.relatedToProgram}</span>
+                                          </div>
+                                          <p className="mt-1 leading-relaxed text-slate-600">{d.coverageReason}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {aiReviews[a.id]!.findings.length > 0 && (
                                   <div>
                                     <p className="mb-1.5 text-[10px] font-black text-slate-500">ملاحظات وتقييم خبير الذكاء الاصطناعي:</p>
