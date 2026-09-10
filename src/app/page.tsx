@@ -48,7 +48,12 @@ export default function Home() {
     const v = q.get('view')
     const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'verify', 'directory', 'contact']
     if (v && validViews.includes(v)) {
-      useAppStore.getState().navigate(v as any)
+      const programId = q.get('programId') || q.get('program') || q.get('slug')
+      if (v === 'program-detail' && programId) {
+        useAppStore.getState().openProgramDetails(programId)
+      } else {
+        useAppStore.getState().navigate(v as any)
+      }
     }
   }, [])
 
