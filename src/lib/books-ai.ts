@@ -1219,7 +1219,8 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
   for (const q of aiQuestions) {
     const type = q.type === 'MCQ' || q.type === 'TF' || q.type === 'SHORT' || q.type === 'ESSAY' ? q.type : 'MCQ'
     const textKey = norm(q.text).slice(0, 180)
-    if (!textKey || usedTexts.has(textKey) || hasForbiddenExamMetadata(q.text)) continue
+    const evidenceKey = norm(q.bookEvidence || q.modelAnswer || '').slice(0, 180)
+    if (!textKey || !evidenceKey || usedTexts.has(textKey) || hasForbiddenExamMetadata(q.text) || hasForbiddenExamMetadata(q.bookEvidence)) continue
     if (type === 'MCQ') {
       if (isWeakMcq(q) || mcqOptionOverlap(q, usedMcqOptions) >= 2) continue
       const sig = optionSignature(q)
