@@ -220,6 +220,10 @@ export function AdminQualityTab() {
     { icon: BarChart3, label: 'توثيق مصادر الأسئلة', value: `${data.overview.questionSourceCoverage}%`, hint: 'sourceEvidence' },
     { icon: ClipboardCheck, label: 'اكتمال القياس', value: `${data.overview.assessmentMetadataCoverage}%`, hint: 'مهارة/صعوبة/تعليل' },
     { icon: UserCheck, label: 'طلاب متعثرون', value: data.overview.atRiskStudents, hint: `${data.overview.pendingAppeals} اعتراض قيد المراجعة` },
+    { icon: CheckCircle2, label: 'نسبة النجاح', value: `${data.overview.successRate}%`, hint: 'كل الاختبارات المصححة' },
+    { icon: AlertTriangle, label: 'نسبة الاعتراضات', value: `${data.overview.appealRate}%`, hint: `${data.overview.pendingAppeals} قيد المراجعة` },
+    { icon: Clock, label: 'متوسط زمن الرد', value: formatSeconds(data.overview.averageResponseSeconds), hint: `${data.overview.responsePairs} رد محسوب` },
+    { icon: Bot, label: 'ردود مشرف ضعيفة', value: data.overview.weakSupervisorReplies, hint: `${data.overview.weakSupervisorReplyRate}% من الردود` },
     { icon: Bot, label: 'تغطية ذاكرة المشرف', value: `${data.overview.supervisorMemoryCoverage}%`, hint: `${data.supervisor.studentsWithMemory} طالب` },
     { icon: Award, label: 'مهارات صغيرة', value: data.overview.microCredentials, hint: `${data.overview.microCredentialAwards} منحة` },
   ]
