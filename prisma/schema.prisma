@@ -578,9 +578,25 @@ model ProgramQuestion {
   correctAnswer String?      // "0".."3" أو "0"=صح/"1"=خطأ
   modelAnswer   String?      // الإجابة النموذجية للأسئلة المقالية/القصيرة
   sourceEvidence String?     // دليل السؤال من الكتاب/بنك المعرفة حتى تراجع الإدارة مصدره الأكاديمي
+  sourceBookTitle String?    // اسم الكتاب/المرجع الذي بُني عليه السؤال
+  sourceChapter String?      // الفصل/الباب/المحور داخل الكتاب إن توفر
+  sourceLocator String?      // محدد أدق: مقطع، صفحة، فقرة، عنوان فرعي، أو وصف مكان الدليل
+  cognitiveSkill String?     // UNDERSTAND | APPLY | ANALYZE | EVALUATE
+  difficulty    String?      // EASY | MEDIUM | ADVANCED
+  correctRationale String?   // سبب صحة الإجابة الصحيحة أو معيار قبول الإجابة النموذجية
+  distractorRationales String? // JSON: أسباب خطأ الخيارات الأخرى في MCQ/TF
+  qualityFlags  String?      // JSON: إشارات جودة داخلية مثل SOURCE_GROUNDED أو NEEDS_REVIEW
+  reviewNotes   String?      // ملاحظات الإدارة أثناء المراجعة البشرية
+  approvedBy    String?
+  approvedAt    DateTime?
+  rejectedReason String?
   points        Int          @default(2)
   status        String       @default("PUBLISHED") // PENDING_REVIEW (بانتظار اعتماد الإدارة) | PUBLISHED | REJECTED
   answers       ProgramAnswer[]
+
+  @@index([examId, cognitiveSkill])
+  @@index([examId, difficulty])
+  @@index([sourceBookTitle])
 }
 
 model ProgramExamAttempt {
