@@ -104,6 +104,7 @@ export async function GET() {
         category: en.program.category,
         hours: en.program.hours,
         unitsCount: en.program._count.units,
+        academicProfile: academicProfileFromRules(en.program.admissionRules),
         status: en.status,
         finalScore: en.finalScore,
         certificateNo: en.certificateNo,
