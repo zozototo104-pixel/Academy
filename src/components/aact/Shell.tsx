@@ -60,7 +60,8 @@ export function AcademyLogo({
   light?: boolean
   className?: string
 }) {
-  const sources = ['/logo.png', '/icon-192.png', '/apple-touch-icon.png']
+  // /logo.png الموجود في المستودع فارغ حالياً، لذلك نبدأ من أيقونة التطبيق الحقيقية حتى لا يظهر رمز الصورة المكسورة في الهيدر.
+  const sources = ['/icon-192.png', '/apple-touch-icon.png']
   const [srcIndex, setSrcIndex] = useState(0)
   const [failed, setFailed] = useState(false)
   const ring = light ? 'ring-2 ring-[#c9a227]/70 ring-offset-2 ring-offset-[#0f2b46]' : ''
