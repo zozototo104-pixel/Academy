@@ -891,48 +891,64 @@ const BATCH_SPECS: {
   instruction: string
 }[] = [
   {
-    kind: 'MCQ',
+    kind: 'MIX_CORE',
     count: 20,
     instruction:
-      'أسئلة اختيار من متعدد (4 خيارات أ-د) تغطي المفاهيم والنظريات والمناهج الأساسية في الكتب المقررة كلها، لكل سؤال إجابة صحيحة واحدة. النقاط: 2 لكل سؤال.',
+      'توزيع إلزامي: 8 أسئلة اختيار من متعدد MCQ + 6 صح/خطأ TF + 4 إجابة قصيرة SHORT + سؤالان مقاليان ESSAY. تغطي هذه الدفعة المفاهيم والنماذج والفصول الأساسية في الكتب المقررة، لا سؤالاً عاماً خارج الكتاب.',
   },
   {
-    kind: 'MIX_TF_MCQ',
+    kind: 'MIX_APPLICATION',
     count: 20,
     instruction:
-      '15 سؤال صح/خطأ (type: TF، options: ["صح","خطأ"]، correct: "0" للصح و"1" للخطأ، النقاط 2) + 5 أسئلة اختيار من متعدد تطبيقية (type: MCQ، النقاط 2) تقيس الفهم العميق لا الحفظ.',
+      'توزيع إلزامي: 7 أسئلة اختيار من متعدد MCQ تطبيقية + 5 صح/خطأ TF + 5 إجابة قصيرة SHORT + 3 أسئلة مقالية ESSAY. تركّز على تطبيق أفكار الكتب في سيناريوهات مهنية واقعية.',
   },
   {
-    kind: 'SHORT_A',
+    kind: 'MIX_ANALYSIS',
+    count: 12,
+    instruction:
+      'توزيع إلزامي: 4 أسئلة اختيار من متعدد MCQ + 3 صح/خطأ TF + 3 إجابة قصيرة SHORT + سؤالان مقاليان ESSAY. تركّز على التحليل والمقارنة والتمييز بين المفاهيم المتقاربة في الكتب.',
+  },
+  {
+    kind: 'MIX_CASE',
+    count: 12,
+    instruction:
+      'توزيع إلزامي: 6 أسئلة اختيار من متعدد مبنية على حالة CASE_MCQ + 2 صح/خطأ TF + 2 إجابة قصيرة SHORT + سؤالان مقاليان ESSAY. كل سؤال حالة يجب أن يصف موقفاً واقعياً من مجال التخصص ثم يطلب القرار أو التشخيص الصحيح.',
+  },
+  {
+    kind: 'MIX_RESEARCH',
     count: 8,
     instruction:
-      'أسئلة إجابة قصيرة تحليلية (type: SHORT، النقاط 5) تطلب شرح مفهوم أو مقارنة أو ذكر خطوات — لكل سؤال إجابة نموذجية وافية (modelAnswer) من 2-4 جمل يصحح عليها الذكاء الاصطناعي.',
+      'توزيع إلزامي: سؤالان اختيار من متعدد MCQ + سؤالان صح/خطأ TF + سؤالان إجابة قصيرة SHORT + سؤالان مقاليان ESSAY. تركّز على المنهجية، النقد، مؤشرات القياس، وحدود تطبيق أفكار الكتب.',
   },
   {
-    kind: 'SHORT_B',
-    count: 7,
+    kind: 'MIX_FINAL',
+    count: 8,
     instruction:
-      'أسئلة إجابة قصيرة تحليلية إضافية (type: SHORT، النقاط 5) تغطي جوانب الكتب التي لم تغطيها الأسئلة السابقة: أهداف المبادئ، الفروق الدقيقة، شروط التطبيق — لكل سؤال إجابة نموذجية (modelAnswer) من 2-4 جمل.',
-  },
-  {
-    kind: 'ESSAY_A',
-    count: 5,
-    instruction:
-      'أسئلة مقالية معمقة (type: ESSAY، النقاط 10) على مستوى بحثي: تحليل نقدي وربط النظريات بواقع التخصص — لكل سؤال إجابة نموذجية مفصلة (modelAnswer) كمعيار تصحيح في 4-6 جمل.',
-  },
-  {
-    kind: 'ESSAY_B',
-    count: 5,
-    instruction:
-      'أسئلة مقالية معمقة إضافية (type: ESSAY، النقاط 10): تصميم حلول لقضايا التخصص، تقييم منهجيات، صياغة رؤى استشرافية — لكل سؤال إجابة نموذجية مفصلة (modelAnswer) في 4-6 جمل.',
-  },
-  {
-    kind: 'CASE_MCQ',
-    count: 15,
-    instruction:
-      'أسئلة اختيار من متعدد مبنية على حالات عملية ودراسات واقعية من مجال التخصص (type: MCQ، 4 خيارات، النقاط 2): تُعرض حالة قصيرة ثم سؤال عن أفضل قرار/تشخيص/منهجية وفقاً لما ورد في الكتب المقررة.',
+      'توزيع إلزامي: سؤالان اختيار من متعدد مبنيان على حالات عملية CASE_MCQ + سؤالان صح/خطأ TF + سؤالان إجابة قصيرة SHORT + سؤالان مقاليان ESSAY. هذه دفعة ختامية شاملة تربط محاور الكتب ببعضها.',
   },
 ]
+
+type PlannedQuestionKind = 'MCQ' | 'CASE_MCQ' | 'TF' | 'SHORT' | 'ESSAY'
+
+function batchQuestionPlan(kind: string, count: number): PlannedQuestionKind[] {
+  const plan: PlannedQuestionKind[] = []
+  const add = (type: PlannedQuestionKind, n: number) => { for (let i = 0; i < n; i++) plan.push(type) }
+  if (kind === 'MIX_CORE') { add('MCQ', 8); add('TF', 6); add('SHORT', 4); add('ESSAY', 2) }
+  else if (kind === 'MIX_APPLICATION') { add('MCQ', 7); add('TF', 5); add('SHORT', 5); add('ESSAY', 3) }
+  else if (kind === 'MIX_ANALYSIS') { add('MCQ', 4); add('TF', 3); add('SHORT', 3); add('ESSAY', 2) }
+  else if (kind === 'MIX_CASE') { add('CASE_MCQ', 6); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+  else if (kind === 'MIX_RESEARCH') { add('MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+  else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+  else { add('MCQ', count) }
+  while (plan.length < count) plan.push('SHORT')
+  return plan.slice(0, count)
+}
+
+function batchDistributionText(kind: string, count: number): string {
+  const plan = batchQuestionPlan(kind, count)
+  const counts = plan.reduce((acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }), {} as Record<string, number>)
+  return Object.entries(counts).map(([k, v]) => `${v} ${k === 'CASE_MCQ' ? 'MCQ حالة عملية' : k}`).join(' + ')
+}
 
 function uniqueStrings(values: string[], max = 30, itemMax = 260): string[] {
   const seen = new Set<string>()
