@@ -122,8 +122,11 @@ function hasBadExamMetadata(value: unknown): boolean {
   return (
     n.includes('رابط الكتاب') ||
     n.includes('مصدره') ||
+    n.includes('عنوان الكتاب') ||
+    n.includes('العنوان الاصلي') ||
     n.includes('ملاحظه قراءه المحتوي') ||
     n.includes('google com search') ||
+    n.includes('books google') ||
     n.includes('tbm bks') ||
     n.includes('لم يظهر فيه نص')
   )
