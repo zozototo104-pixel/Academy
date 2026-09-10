@@ -519,11 +519,8 @@ export async function POST(req: NextRequest) {
       `توليد امتحان الفصل ${semLabel} من ${booksCount} كتاب مقرر لبرنامج ${program.titleAr}`
     )
 
-    // نُنشئ دفعة أولية فوراً حتى لا يظهر الامتحان على صفر أسئلة إذا تأخر مزود الذكاء أو تعطّل الخلفي في Vercel
+    // نُنشئ الدفعة الأولى الآن من محتوى الكتاب/الرابط. بقية الدفعات تكملها الواجهة تدريجياً عبر زر/تحريك التوليد.
     const starter = await ensureStarterQuestions(exam.id)
-
-    // التوليد خلفياً — الاستجابة فورية والإدارة تتابع الحالة عبر polling
-    scheduleGeneration(exam.id)
 
     return NextResponse.json({
       ok: true,
