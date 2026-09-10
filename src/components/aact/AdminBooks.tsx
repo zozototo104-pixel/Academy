@@ -865,7 +865,7 @@ export function AdminBooksTab() {
                   <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">هذه الواجبات تظهر للطالب، يسلّمها نصاً أو ملفاً، ثم تصححها الإدارة وتدخل في المسار الأكاديمي.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={suggestAssignments} disabled={suggestingAssignments || knowledgeItems.length === 0} className="border-[#c9a227] text-xs font-bold text-[#a8841a]">
+                  <Button size="sm" variant="outline" onClick={suggestAssignments} disabled={suggestingAssignments || books.length === 0} className="border-[#c9a227] text-xs font-bold text-[#a8841a]">
                     {suggestingAssignments ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
                     اقترح واجبات من بنك المعرفة
                   </Button>
