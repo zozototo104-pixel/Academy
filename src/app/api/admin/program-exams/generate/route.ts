@@ -351,6 +351,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(stopped)
     }
 
+    if (body?.action === 'rebuild') {
+      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لإعادة البناء' }, { status: 400 })
+      const existing = await db.programExam.findUnique({
+        where: { id: examId },
+        include: { program: { select: { titleAr: true } }, _count: { select: { questions: true } } },
+      })
+      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
+      if (existing.status === 'READY') return NextResponse.json({ error: 'الامتحان منشور للطلاب — احذفه وأنشئ امتحاناً جديداً إذا أردت إعادة البناء' }, { status: 409 })
+      await db.programQuestion.deleteMany({ where: { examId } })
+      await db.programExam.update({
+        where: { id: examId },
+        data: { status: 'GENERATING', errorNote: null, totalPoints: 0, booksUsed: null },
+      })
+      await audit(
+        { id: admin.id, name: admin.name },
+        'REBUILD_PROGRAM_EXAM_FROM_BOOKS',
+        'ProgramExam',
+        examId,
+        `إعادة بناء امتحان ${existing.program.titleAr} من الكتب بعد حذف ${existing._count.questions} سؤالاً سابقاً`
+      )
+      const step = await runGenerationStep(examId)
+      return NextResponse.json({ ok: step.ok, examId, rebuilt: true, ...step, requiredQuestions: totalRequiredQuestions() })
+    }
+
     if (body?.action === 'kick') {
       if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لتحريك التوليد' }, { status: 400 })
       const existing = await db.programExam.findUnique({ where: { id: examId }, select: { id: true, status: true } })
