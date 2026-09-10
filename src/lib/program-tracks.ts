@@ -583,7 +583,7 @@ function buildDetailedTermPlans(program: AcademicProgramInput, category: string,
         requiredSkills: focus.skills.slice(2, 6).concat('تحليل الحالات'),
         requiredBooks: term2Books,
         exams: term2Exams,
-        assignments: [
+        assignments: term2Assignments.length ? term2Assignments : [
           'دراسة حالة تطبيقية مرتبطة بالتخصص.',
           ...(unitStage2.length ? [`ربط الوحدات المتقدمة: ${unitStage2.join('، ')} بالواقع المهني.`] : ['إعداد تقرير توصيات تطبيقي قصير.']),
         ],
