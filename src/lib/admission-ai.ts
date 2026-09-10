@@ -903,6 +903,7 @@ ${evidence}
       fitScore: finalScore,
       summaryForAdmin: String(parsed.summaryForAdmin || '').slice(0, 1200) || `فحص قواعدي صارم: التغطية ${rules.deterministicScore}%.`,
       checklist: rules.checklist,
+      documentAnalyses,
       findings: [...rules.findings, ...aiFindings].slice(0, 14),
       strengths: (Array.isArray(parsed.strengths) ? parsed.strengths : []).slice(0, 5).map((s: any) => String(s).slice(0, 220)),
       recommendedAction: String(parsed.recommendedAction || '').slice(0, 600) || (finalVerdict === 'RECOMMEND_APPROVE' ? 'يمكن للإدارة اعتماد الطلب بعد مراجعة بشرية نهائية' : 'اطلب من الطالب رفع مستندات صحيحة ومقروءة ثم أعد التحليل'),
