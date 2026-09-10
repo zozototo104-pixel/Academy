@@ -415,6 +415,50 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {studyGuides.length > 0 && (
+                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><BookMarked className="h-4 w-4 text-[#a8841a]" /> أدلة الدراسة والمحاضرات</h3>
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">محاور مذاكرة مولدة من كتبك وبنك المعرفة، لتجهيزك للواجبات والامتحانات والمناقشة.</p>
+                      </div>
+                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{studyGuides.length} دليل</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {studyGuides.map((guide) => (
+                        <article key={guide.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <Badge className="bg-[#0f2b46] text-[9px] font-black text-[#e0b83a] hover:bg-[#0f2b46]">
+                              {guide.semester === 2 ? 'الفصل الثاني' : guide.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}
+                            </Badge>
+                            <h4 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h4>
+                          </div>
+                          <p className="text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>
+                          <div className="mt-3 grid gap-2 md:grid-cols-3">
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                              <p className="mb-1 font-black text-[#0f2b46]">أهداف التعلم</p>
+                              {guide.objectives.slice(0, 4).map((x, i) => <p key={i}>• {x}</p>)}
+                            </div>
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                              <p className="mb-1 font-black text-[#0f2b46]">محاور رئيسية</p>
+                              {guide.sections.slice(0, 4).map((s, i) => <p key={i}>• {s.title}</p>)}
+                            </div>
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                              <p className="mb-1 font-black text-[#0f2b46]">أسئلة نقاش</p>
+                              {guide.discussionQuestions.slice(0, 3).map((x, i) => <p key={i}>• {x}</p>)}
+                            </div>
+                          </div>
+                          {guide.keyTerms.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1">
+                              {guide.keyTerms.slice(0, 12).map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {assignments.length > 0 && (
                   <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
