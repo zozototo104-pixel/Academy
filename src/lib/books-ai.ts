@@ -1134,6 +1134,24 @@ function optionSignature(q: GeneratedQuestion): string {
   return q.options ? q.options.map((o) => norm(o)).join('|') : ''
 }
 
+function hasForbiddenExamMetadata(value: unknown): boolean {
+  const n = norm(String(value || ''))
+  return (
+    n.includes('رابط الكتاب') ||
+    n.includes('مصدره') ||
+    n.includes('ملاحظه قراءه المحتوي') ||
+    n.includes('رابط مفتوح لكن لم يظهر') ||
+    n.includes('google com search') ||
+    n.includes('tbm bks') ||
+    n.includes('لم يظهر فيه نص')
+  )
+}
+
+function mcqOptionOverlap(q: GeneratedQuestion, usedOptions: Set<string>): number {
+  if (!q.options) return 0
+  return q.options.map((o) => norm(o)).filter((o) => o && usedOptions.has(o)).length
+}
+
 function isWeakMcq(q: GeneratedQuestion): boolean {
   if (q.type !== 'MCQ' || !q.options || q.options.length !== 4) return q.type === 'MCQ'
   const sig = optionSignature(q)
