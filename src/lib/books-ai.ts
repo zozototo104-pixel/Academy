@@ -972,16 +972,18 @@ function fallbackExamConcepts(
 ): string[] {
   const domain = detectProgramDomain(program)
   const spec = specialtyName(program)
+  const contentConcepts = contentConceptsFromBooks(books, domain, 60)
   const bookTitles = books.flatMap((b) => [b.title, b.titleEn || '', b.description || ''])
   const seedTitles = ((DOMAIN_BOOKS[domain] && DOMAIN_BOOKS[domain]!.length ? DOMAIN_BOOKS[domain]! : DOMAIN_BOOKS.general) || []).map(([t]) => t)
   return uniqueStrings([
+    ...contentConcepts,
     ...(DOMAIN_CONCEPTS[domain] || []),
     ...bookTitles,
     ...seedTitles,
     `مفاهيم ${spec.ar}`,
     `تطبيقات ${spec.ar}`,
     `أخلاقيات ومخاطر ${spec.ar}`,
-  ], 40)
+  ], 50, 340)
 }
 
 function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i = 0): GeneratedQuestion {
