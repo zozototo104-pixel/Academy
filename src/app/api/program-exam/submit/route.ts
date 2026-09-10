@@ -208,16 +208,34 @@ export async function POST(req: NextRequest) {
 
     const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints)
 
+    const roundedScore = Math.round(percentage * 10) / 10
+
     await db.programExamAttempt.update({
       where: { id: attempt.id },
       data: {
-        score: Math.round(percentage * 10) / 10,
+        score: roundedScore,
         passed,
         status: 'GRADED',
         feedback: JSON.stringify(overall),
         submittedAt: new Date(),
       },
     })
+
+    await updateStudentAcademicMemory(user.id, {
+      kind: 'EXAM',
+      persona: 'EXAM',
+      programTitle: exam.program.titleAr,
+      examTitle: exam.title,
+      score: roundedScore,
+      passed,
+      weakPoints: weakPoints.slice(0, 8),
+      strengths: overall.strengths,
+      weaknesses: overall.improvements,
+      concepts: weakPoints.slice(0, 8),
+      nextActions: passed
+        ? ['مراجعة التغذية الراجعة وتحويل المفاهيم الصحيحة إلى تطبيق عملي قصير']
+        : ['حل تدريب علاجي على نقاط الضعف قبل إعادة المحاولة أو مراجعة المشرف'],
+    }).catch(() => {})
 
     return NextResponse.json({
       ok: true,
