@@ -218,8 +218,13 @@ export async function POST(req: NextRequest) {
         select: { createdAt: true },
       })
       const secondsFromLastNote = lastNote ? (Date.now() - new Date(lastNote.createdAt).getTime()) / 1000 : 999
-      if (secondsFromLastNote >= 8 && transcriptText.replace(/\s+/g, ' ').length >= 12) {
-        const note = await aiLiveNote(thesis.title, thesis.abstract, thesis.id, user.id, transcriptText)
+      const cleanText = transcriptText.replace(/\s+/g, ' ')
+      // تفاعل حي: لا ننتظر زر إرسال الإجابة. كل وقفة كلامية مفهومة تولّد مداخلة قصيرة من المستشار.
+      if (secondsFromLastNote >= 3 && cleanText.length >= 6) {
+        const note = await Promise.race([
+          aiLiveNote(thesis.title, thesis.abstract, thesis.id, user.id, transcriptText),
+          new Promise<string | null>((resolve) => setTimeout(() => resolve(fallbackLiveIntervention(transcriptText)), 4500)),
+        ])
         if (note) {
           savedNote = await db.defenseMessage.create({
             data: { thesisId: thesis.id, role: 'AI_NOTE', content: note },
