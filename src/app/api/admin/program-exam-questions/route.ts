@@ -163,11 +163,24 @@ export async function POST(req: NextRequest) {
     })
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
 
-    // اعتماد كل الأسئلة المعلقة + إعادة تفعيل المرفوض تلقائياً غير موجود — المرفوض يبقى خارج الامتحان
-    const result = await db.programQuestion.updateMany({
+    // اعتماد كل الأسئلة المعلقة بعد تنظيف أي تسميات تقنية تسربت من بنك المعرفة.
+    const pendingQuestions = await db.programQuestion.findMany({
       where: { examId, status: 'PENDING_REVIEW' },
-      data: { status: 'PUBLISHED' },
+      select: { id: true, text: true, options: true, modelAnswer: true, sourceEvidence: true },
     })
+    for (const q of pendingQuestions) {
+      await db.programQuestion.update({
+        where: { id: q.id },
+        data: {
+          status: 'PUBLISHED',
+          text: cleanInternalExamMeta(q.text, 3000),
+          options: cleanOptions(q.options),
+          modelAnswer: q.modelAnswer ? cleanInternalExamMeta(q.modelAnswer, 4000) : q.modelAnswer,
+          sourceEvidence: q.sourceEvidence ? cleanInternalExamMeta(q.sourceEvidence, 2500) : q.sourceEvidence,
+        },
+      })
+    }
+    const result = { count: pendingQuestions.length }
 
     const published = await db.programQuestion.count({ where: { examId, status: 'PUBLISHED' } })
     if (published < REQUIRED_PUBLISHED_QUESTIONS) {
