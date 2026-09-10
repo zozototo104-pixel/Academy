@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { getZAI } from '@/lib/ai'
 import { notify, audit } from '@/lib/notify'
-import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 
