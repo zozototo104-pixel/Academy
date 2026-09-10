@@ -616,6 +616,7 @@ export function DefenseRoom({
     rec.onerror = () => {}
     rec.onend = () => {
       // استئناف الاستماع المستمر — إلا إذا كنا نوقفه مؤقتاً أثناء نطق الخبير
+      if (transcriptPausedForSpeechRef.current) return
       if (transcriptResumeRef.current && transcriptRecRef.current) {
         setTimeout(() => { try { transcriptRecRef.current?.start() } catch {} }, 400)
       } else {
