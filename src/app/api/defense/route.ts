@@ -396,6 +396,21 @@ async function aiRecommendation(title: string, name: string, aiScore: number, an
   }
 }
 
+function fallbackLiveIntervention(latestChunk: string): string | null {
+  const latest = String(latestChunk || '').trim()
+  if (latest.length < 6) return null
+  if (/مش\s*عارف|لا\s*اعرف|ما\s*بعرف|مش\s*فاهم|لا\s*أعرف/i.test(latest)) {
+    return 'مداخلة المستشار الذكي: لا مشكلة، توقف هنا لحظة. حاول أن تعيد الفكرة بجملة واحدة: ما موضوع بحثك، وما المشكلة التي تريد حلها تحديداً؟'
+  }
+  if (/السلام|مرحبا|اهلا|أهلا/i.test(latest) && latest.length < 40) {
+    return 'مداخلة المستشار الذكي: أهلاً بك. لنبدأ عملياً: عرّفني بموضوع بحثك في جملة واضحة، ثم قل لماذا اخترته.'
+  }
+  if (/يعني|قصدي|اقصد/i.test(latest)) {
+    return 'مداخلة المستشار الذكي: فهمت أنك تحاول ضبط الفكرة. اسمح لي أقاطعك هنا: اربط ما تقوله مباشرة بسؤال البحث أو بالنتيجة التي وصلت إليها.'
+  }
+  return 'مداخلة المستشار الذكي: النقطة وصلت، لكن أريد منك توضيحها أكاديمياً أكثر. ما الدليل من بحثك أو المثال العملي الذي يؤيد كلامك؟'
+}
+
 // ===== 12.3: مداخلة حية من المستشار الذكي داخل المناقشة =====
 // يسمع التفريغ الحي ويعلّق كعضو لجنة: رأي، تصحيح، مقاطعة لطيفة، أو سؤال متابعة قصير.
 async function aiLiveNote(title: string, abstract: string, thesisId: string, userId: string, latestChunk = ''): Promise<string | null> {
