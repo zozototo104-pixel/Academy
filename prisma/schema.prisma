@@ -164,6 +164,31 @@ model ChatMessage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model StudentAcademicMemory {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileDigest          String?  // ملخص أكاديمي حي عن الطالب: برنامجه، نمط تعلمه، وضعه الحالي
+  strengths              String?  // JSON array: نقاط قوة متكررة
+  weaknesses             String?  // JSON array: فجوات معرفية أو مهارية تحتاج متابعة
+  conceptsToReview       String?  // JSON array: مفاهيم يجب أن يراجعها المشرف مع الطالب
+  recommendedNextActions String?  // JSON array: خطوات تعليمية مقترحة للطالب
+  lastConversationSummary String? // آخر خلاصة محادثة مفيدة للمشرف الذكي
+  examSignals            String?  // JSON array: إشارات مستخلصة من الاختبارات والتصحيح
+  thesisSignals          String?  // JSON array: إشارات مستخلصة من بحث التخرج والمناقشة
+  lastFileAnalysis       String?  // آخر خلاصة لتحليل مرفق/ملف طالب عند توفرها
+  lastInteractionAt      DateTime @default(now())
+  lastExamAt             DateTime?
+  lastDefenseAt          DateTime?
+  interactionsCount      Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([lastInteractionAt])
+  @@index([lastExamAt])
+  @@index([lastDefenseAt])
+}
+
 // ===== الوحدات الجديدة وفق البرومبت الشامل =====
 
 model Payment {
