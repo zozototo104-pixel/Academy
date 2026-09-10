@@ -55,13 +55,22 @@ export async function POST(req: NextRequest) {
 
     const reply = await chatComplete(
       [...ordered.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message.trim() }],
-      mergeContext(ragContext, context)
+      mergeContext(ragContext, context),
+      'CHAT'
     )
 
     // حفظ رد المشرف
     const saved = await db.chatMessage.create({
       data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
     })
+
+    await updateStudentAcademicMemory(user.id, {
+      kind: 'CHAT',
+      persona: 'CHAT',
+      mode: chatMode,
+      userMessage: message.trim(),
+      assistantReply: reply,
+    }).catch(() => {})
 
     return NextResponse.json({ reply, messageId: saved.id })
   } catch (e: any) {
