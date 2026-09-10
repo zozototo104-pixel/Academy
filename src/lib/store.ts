@@ -5,6 +5,7 @@ import { create } from 'zustand'
 export type View =
   | 'home'
   | 'programs'
+  | 'program-detail'
   | 'apply'
   | 'auth'
   | 'dashboard'
