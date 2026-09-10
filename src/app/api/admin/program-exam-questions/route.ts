@@ -94,9 +94,18 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'APPROVE' || action === 'REJECT') {
+      const approveData = action === 'APPROVE'
+        ? {
+            status: 'PUBLISHED',
+            text: cleanInternalExamMeta(existing.text, 3000),
+            options: cleanOptions(existing.options),
+            modelAnswer: existing.modelAnswer ? cleanInternalExamMeta(existing.modelAnswer, 4000) : existing.modelAnswer,
+            sourceEvidence: existing.sourceEvidence ? cleanInternalExamMeta(existing.sourceEvidence, 2500) : existing.sourceEvidence,
+          }
+        : { status: 'REJECTED' }
       await db.programQuestion.update({
         where: { id: questionId },
-        data: { status: action === 'APPROVE' ? 'PUBLISHED' : 'REJECTED' },
+        data: approveData,
       })
       await audit(
         { id: admin.id, name: admin.name },
