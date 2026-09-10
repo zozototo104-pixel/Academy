@@ -856,7 +856,8 @@ function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: nu
     !full ? 'تنبيه: لا يوجد نص كافٍ مستخرج لهذا الكتاب؛ لا تستخدمه وحده إلا عبر بياناته الوصفية.' : '',
   ].filter(Boolean).join('\n')
 
-  return body.slice(0, Math.max(3500, Math.floor(EXAM_TOTAL_PROMPT_BOOK_CHARS / Math.max(1, index + 1))))
+  const perBookBudget = Math.max(4200, Math.floor(EXAM_TOTAL_PROMPT_BOOK_CHARS / Math.max(1, totalBooks)))
+  return body.slice(0, perBookBudget)
 }
 
 function buildBooksKnowledgeSection(books: ExamSourceBook[], programDomain: ProgramDomain, batchIndex: number): string {
