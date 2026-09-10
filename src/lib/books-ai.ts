@@ -925,6 +925,39 @@ function bookToSpecialtyBridgeInstruction(books: ExamSourceBook[], specialtyAr: 
 - السؤال الصحيح يجب أن يكون مستحيلاً تقريباً دون قراءة الكتاب؛ لا تسأل سؤالاً عاماً في التخصص يمكن لأي طالب الإجابة عليه من خارج الكتاب.`
 }
 
+const BOOK_EVIDENCE_STOPWORDS = new Set([
+  'هذا', 'هذه', 'ذلك', 'تلك', 'على', 'الى', 'إلى', 'عن', 'من', 'في', 'او', 'أو', 'ان', 'أن', 'كان', 'كانت', 'يكون', 'يمكن', 'ضمن', 'كتاب', 'الكتاب',
+  'اداره', 'المشاريع', 'مشروع', 'تخصص', 'تحليل', 'قرار', 'مخاطر', 'تخطيط', 'تنفيذ', 'نطاق', 'موارد', 'اصحاب', 'المصلحه',
+  'the', 'and', 'for', 'with', 'from', 'this', 'that', 'project', 'management', 'risk', 'scope', 'planning', 'implementation',
+])
+
+function evidenceTokens(value: unknown): string[] {
+  return uniqueStrings(norm(value).split(' ').filter((t) => t.length >= 4 && !BOOK_EVIDENCE_STOPWORDS.has(t)), 24, 80)
+}
+
+function bookSourceNorm(books: ExamSourceBook[]): string {
+  return norm(books.map((b) => `${b.title} ${b.titleEn || ''} ${sanitizeExamText(b.textContent || '', 50000)}`).join('\n'))
+}
+
+function evidenceSupportedByBooks(evidence: string, books: ExamSourceBook[]): boolean {
+  const ev = norm(evidence)
+  if (!ev || hasForbiddenExamMetadata(ev)) return false
+  const source = bookSourceNorm(books)
+  if (!source) return false
+  if (ev.length >= 35 && source.includes(ev.slice(0, Math.min(110, ev.length)))) return true
+  const tokens = evidenceTokens(ev)
+  if (tokens.length === 0) return false
+  const hits = tokens.filter((t) => source.includes(t)).length
+  return hits >= Math.min(3, Math.max(2, Math.ceil(tokens.length * 0.45)))
+}
+
+function mentionsUnsupportedExternalReference(value: unknown, books: ExamSourceBook[]): boolean {
+  const text = norm(value)
+  const source = bookSourceNorm(books)
+  const refs = ['pmbok', 'kerzner', 'systems approach', 'agile', 'scrum', 'prince2']
+  return refs.some((r) => text.includes(norm(r)) && !source.includes(norm(r)))
+}
+
 const BATCH_SPECS: {
   kind: string
   count: number
