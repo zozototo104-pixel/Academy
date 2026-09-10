@@ -243,7 +243,7 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
 
   if (book.link) {
     const fromLink = await fetchLinkContent(book)
-    if (fromLink.text.length >= MIN_USABLE_TEXT) {
+    if (fromLink.text.length >= MIN_USABLE_TEXT && !looksLikeMetadataOnlyText(fromLink.text)) {
       return {
         ...book,
         textContent: fromLink.text,
@@ -253,21 +253,20 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
       }
     }
 
-    const meta = metadataContext(book, fromLink.note)
     return {
       ...book,
-      textContent: meta,
-      sourceNote: `لم يتوفر نص كامل من الرابط؛ تم استخدام بيانات الكتاب والرابط كمرجع احتياطي. ${fromLink.note}`,
-      contentQuality: 'METADATA_ONLY',
+      textContent: '',
+      sourceNote: `لم يتوفر نص فعلي قابل للقراءة من رابط الكتاب. ${fromLink.note}`,
+      contentQuality: 'NO_CONTENT',
       shouldPersistText: false,
     }
   }
 
   return {
     ...book,
-    textContent: metadataContext(book, 'لا يوجد نص مستخرج ولا رابط؛ تم استخدام بيانات الكتاب فقط كمرجع احتياطي'),
-    sourceNote: 'لا يوجد نص مستخرج ولا رابط؛ تم استخدام بيانات الكتاب فقط كمرجع احتياطي',
-    contentQuality: 'METADATA_ONLY',
+    textContent: '',
+    sourceNote: 'لا يوجد نص مستخرج ولا رابط مباشر قابل للقراءة للكتاب',
+    contentQuality: 'NO_CONTENT',
     shouldPersistText: false,
   }
 }
