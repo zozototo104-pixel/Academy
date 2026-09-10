@@ -311,7 +311,7 @@ async function aiOpening(title: string, abstract: string): Promise<string> {
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: 'أنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.' },
+        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.` },
         {
           role: 'user',
           content: `افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
