@@ -11,6 +11,8 @@ export interface AgentCallbacks {
   onError?: (msg: string) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
+  /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
+  voice?: string
   /** endpoint بديل لحفظ تفريغ الدور؛ الدردشة تحفظ في /api/ai/gemini-live/log، والمناقشة تحفظ في /api/defense. */
   logEndpoint?: string
   /** حقول إضافية ترسل مع حفظ الدور، مثل action: live-turn. */
