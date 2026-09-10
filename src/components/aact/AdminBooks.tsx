@@ -626,6 +626,45 @@ export function AdminBooksTab() {
                               <AlertTriangle className="h-3 w-3" /> {e.errorNote} — تم حفظ {e.questionCount} سؤالاً، اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
                             </p>
                           )}
+                          {e.status === 'GENERATING' && (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                              <p className="text-[11px] font-bold leading-relaxed text-amber-800">
+                                التوليد يعمل على دفعات. إن بقي الرقم صفراً أو أردت إيقافه، استخدم الأزرار التالية: الإيقاف يحفظ ما تم توليده ويفتح المراجعة، والتحريك ينشئ دفعة أولية فوراً إذا كان عالقاً.
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => stopExam(e)}
+                                  disabled={stoppingExamId === e.id}
+                                  className="h-8 text-[10px] font-black"
+                                >
+                                  {stoppingExamId === e.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <StopCircle className="ml-1 h-3.5 w-3.5" />}
+                                  إيقاف التوليد وفتح المراجعة
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => resumeExam(e)}
+                                  disabled={generating}
+                                  className="h-8 border-amber-300 text-[10px] font-black text-amber-700 hover:bg-amber-100"
+                                >
+                                  {generating ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                                  تحريك / استكمال الآن
+                                </Button>
+                                {e.questionCount > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setReviewingExam({ id: e.id, title: e.title })}
+                                    className="h-8 border-[#c9a227]/40 text-[10px] font-black text-[#a8841a] hover:bg-[#f7edd0]"
+                                  >
+                                    <FileCheck2 className="ml-1 h-3 w-3" /> معاينة {e.questionCount} سؤال
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           {e.status === 'READY' && (
                             <>
                               <div className="mt-2 flex flex-wrap gap-1.5">
