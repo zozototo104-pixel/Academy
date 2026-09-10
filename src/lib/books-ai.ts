@@ -725,7 +725,8 @@ export async function suggestBooksForProgram(program: {
       .map(normalizeSuggestion)
       .filter(Boolean) as BookSuggestion[]
 
-    const merged = [...cleaned]
+    const relevant = cleaned.filter((b) => isSuggestionRelevantToDomain(b, domain))
+    const merged = [...relevant]
     for (const b of fallback) {
       if (merged.length >= 8) break
       if (!merged.some((x) => cleanText(x.titleEn || x.title).toLowerCase() === cleanText(b.titleEn || b.title).toLowerCase())) merged.push(b)
