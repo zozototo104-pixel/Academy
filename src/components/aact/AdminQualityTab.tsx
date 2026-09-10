@@ -159,6 +159,7 @@ export function AdminQualityTab() {
     { icon: AlertTriangle, label: 'تحتاج تحسين', value: data.overview.programsNeedingAttention, hint: 'برامج أو مسارات ضعيفة' },
     { icon: ClipboardCheck, label: 'امتحانات جاهزة', value: data.overview.readyExams, hint: `${data.overview.totalQuestions} سؤال منشور` },
     { icon: BarChart3, label: 'توثيق مصادر الأسئلة', value: `${data.overview.questionSourceCoverage}%`, hint: 'sourceEvidence' },
+    { icon: ClipboardCheck, label: 'اكتمال القياس', value: `${data.overview.assessmentMetadataCoverage}%`, hint: 'مهارة/صعوبة/تعليل' },
     { icon: UserCheck, label: 'طلاب متعثرون', value: data.overview.atRiskStudents, hint: `${data.overview.pendingAppeals} اعتراض قيد المراجعة` },
     { icon: Bot, label: 'تغطية ذاكرة المشرف', value: `${data.overview.supervisorMemoryCoverage}%`, hint: `${data.supervisor.studentsWithMemory} طالب` },
   ]
