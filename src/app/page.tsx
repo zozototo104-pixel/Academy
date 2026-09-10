@@ -46,7 +46,7 @@ export default function Home() {
     // دعم فتح الصفحات مباشرة برابط: /?view=admin أو /?view=verify&serial=...
     const q = new URLSearchParams(window.location.search)
     const v = q.get('view')
-    const validViews = ['home', 'programs', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'verify', 'directory', 'contact']
+    const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'verify', 'directory', 'contact']
     if (v && validViews.includes(v)) {
       useAppStore.getState().navigate(v as any)
     }
