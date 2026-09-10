@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
 
 /**
  * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
