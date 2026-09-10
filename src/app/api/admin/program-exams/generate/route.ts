@@ -21,6 +21,54 @@ function firstMissingBatchIndex(existingCount: number): number {
   return EXAM_BATCH_COUNT
 }
 
+async function isExamStillGenerating(examId: string): Promise<boolean> {
+  const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
+  return row?.status === 'GENERATING'
+}
+
+async function stopGenerationAndExposeReview(examId: string, admin: { id: string; name: string }) {
+  const exam = await db.programExam.findUnique({
+    where: { id: examId },
+    include: { program: { select: { titleAr: true } } },
+  })
+  if (!exam) return { error: 'الامتحان غير موجود', statusCode: 404 }
+  if (exam.status === 'READY') return { error: 'الامتحان منشور بالفعل ولا يمكن إيقاف توليده', statusCode: 409 }
+
+  const questions = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
+  const questionCount = questions.length
+  const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
+  const nextStatus = questionCount > 0 ? 'REVIEW' : 'FAILED'
+  const errorNote = questionCount > 0
+    ? `تم إيقاف التوليد يدوياً بعد حفظ ${questionCount} سؤالاً — الأسئلة جاهزة للمراجعة والتعديل قبل النشر`
+    : 'تم إيقاف التوليد يدوياً قبل توليد أي سؤال'
+
+  await db.programExam.update({
+    where: { id: examId },
+    data: {
+      status: nextStatus,
+      errorNote,
+      totalPoints,
+      durationMin: questionCount > 0 ? Math.max(120, Math.min(240, Math.round(questionCount * 2))) : exam.durationMin,
+    },
+  })
+
+  await audit(
+    { id: admin.id, name: admin.name },
+    'STOP_PROGRAM_EXAM_GENERATION',
+    'ProgramExam',
+    examId,
+    `إيقاف توليد امتحان ${exam.program.titleAr} بعد ${questionCount} سؤال`
+  )
+
+  return { ok: true, examId, status: nextStatus, questionCount, totalPoints }
+}
+
+function scheduleGeneration(examId: string) {
+  after(() => {
+    runGeneration(examId).catch((e) => console.error('scheduled program exam generation failed:', e))
+  })
+}
+
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
 // 12.2: كل برنامج له امتحانان (فصل أول + فصل ثانٍ) — الأسئلة تولد بحالة "بانتظار مراجعة الإدارة"
 // (Human-in-the-loop) ولا تُنشر للطلاب إلا بعد اعتماد الإدارة.
