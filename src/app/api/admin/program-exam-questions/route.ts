@@ -164,30 +164,36 @@ export async function POST(req: NextRequest) {
       `اعتماد ونشر ${totalQ} سؤالاً (${result.count} سؤالاً اعتمدت الآن)`
     )
 
-    // إشعار كل الطلاب المسجلين والمفعّل تسجيلهم — لا نُفشل النشر إذا تعطّل الإشعار أو البريد
-    const enrolled = await db.enrollment.findMany({
-      where: { programId: exam.programId, status: { in: ['ACTIVE', 'COMPLETED'] } },
-      select: {
-        userId: true,
-        user: { select: { email: true, name: true } },
-      },
-    })
-    const semesterLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
-    const examDuration = Math.max(120, Math.min(240, Math.round(totalQ * 2)))
-    Promise.allSettled(enrolled.map(async (en) => {
-      await notify(
-        en.userId,
-        'GENERAL',
-        `امتحان ${semesterLabel} متاح الآن`,
-        `اعتمدت الإدارة أسئلة «${exam.title}» ونشرتها: ${totalQ} سؤالاً متنوعاً ومدة ${examDuration} دقيقة. راجع الكتب المقررة ثم ابدأ من بوابة الطالب.`,
-        'dashboard'
-      )
-      if (en.user?.email) {
-        await emailExamPublished(en.user.email, en.user.name, exam.title, totalQ, examDuration)
-      }
-    })).catch((err) => console.error('exam publish notifications failed:', err))
+    // إشعار الطلاب اختياري ولا يجوز أن يفشل اعتماد الامتحان إذا تعطّل البريد أو جدول الإشعارات.
+    let notified = 0
+    try {
+      const enrolled = await db.enrollment.findMany({
+        where: { programId: exam.programId, status: { in: ['ACTIVE', 'COMPLETED'] } },
+        select: {
+          userId: true,
+          user: { select: { email: true, name: true } },
+        },
+      })
+      notified = enrolled.length
+      const semesterLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
+      const examDuration = Math.max(120, Math.min(240, Math.round(totalQ * 2)))
+      Promise.allSettled(enrolled.map(async (en) => {
+        await notify(
+          en.userId,
+          'GENERAL',
+          `امتحان ${semesterLabel} متاح الآن`,
+          `اعتمدت الإدارة أسئلة «${exam.title}» ونشرتها: ${totalQ} سؤالاً متنوعاً ومدة ${examDuration} دقيقة. راجع الكتب المقررة ثم ابدأ من بوابة الطالب.`,
+          'dashboard'
+        )
+        if (en.user?.email) {
+          await emailExamPublished(en.user.email, en.user.name, exam.title, totalQ, examDuration)
+        }
+      })).catch((err) => console.error('exam publish notifications failed:', err))
+    } catch (notifyErr) {
+      console.error('exam publish notification lookup failed:', notifyErr)
+    }
 
-    return NextResponse.json({ ok: true, published: totalQ, approvedNow: result.count, notified: enrolled.length })
+    return NextResponse.json({ ok: true, published: totalQ, approvedNow: result.count, notified })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin exam questions POST error:', e)
