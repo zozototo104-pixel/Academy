@@ -352,7 +352,7 @@ async function aiEvaluate(
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: 'أنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.' },
+        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.` },
         {
           role: 'user',
           content: `بحث: «${title}»
