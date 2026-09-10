@@ -54,6 +54,15 @@ export async function POST(req: NextRequest) {
       assistantMessageId = savedAssistant.id
     }
 
+    await updateStudentAcademicMemory(user.id, {
+      kind: 'CHAT',
+      persona: 'CHAT',
+      mode: 'VOICE',
+      userMessage: userText,
+      assistantReply: aiText,
+      summary: `جلسة صوتية مع المشرف الذكي: الطالب قال «${userText.slice(0, 280)}» — رد المشرف «${aiText.slice(0, 320)}»`,
+    }).catch(() => {})
+
     return NextResponse.json({ ok: true, userMessageId, assistantMessageId })
   } catch (e: any) {
     console.error('gemini-live log error:', String(e?.message || e).slice(0, 300))
