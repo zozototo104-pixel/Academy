@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { buildKnowledgeContextForExam, getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge } from '@/lib/knowledge-bank'
+import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
