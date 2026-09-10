@@ -567,8 +567,8 @@ export function AdminView() {
 
                         {/* أزرار آلة الحالات وفق الترتيب الرسمي: سداد 30$ ← دراسة الإدارة والإقرار ← سداد الرسوم الدراسية ← تسجيل نهائي */}
                         {a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
-                          <div className="flex flex-col items-end gap-2">
-                            <div className="flex flex-wrap justify-end gap-2">
+                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
                               {a.status === 'AWAITING_FEE' && (
                                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-700">
                                   <Banknote className="ml-1 inline h-3.5 w-3.5" />
