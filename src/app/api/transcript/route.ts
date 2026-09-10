@@ -26,7 +26,13 @@ export async function GET() {
       db.enrollment.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
-        include: { program: { select: { id: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } } } },
+        include: { program: { select: {
+          id: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true,
+          units: { orderBy: { order: 'asc' }, select: { order: true, title: true } },
+          books: { orderBy: { createdAt: 'asc' }, select: { title: true, titleEn: true, semester: true } },
+          programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { title: true, semester: true, status: true, _count: { select: { questions: true } } } },
+          _count: { select: { units: true } },
+        } } },
       }),
     ])
 
