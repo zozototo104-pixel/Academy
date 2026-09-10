@@ -170,11 +170,23 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       }
     }
 
-    let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, batchIndex)
-    if (batch.length === 0) {
-      batch = fallbackExamQuestionBatch(exam.program, hydratedBooks, batchIndex)
+    const previousQuestions = await db.programQuestion.findMany({
+      where: { examId },
+      orderBy: { order: 'asc' },
+      select: { text: true },
+    })
+    const previousTexts = previousQuestions.map((q) => q.text)
+    const existingKeys = await existingQuestionKeys(examId)
+
+    let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, batchIndex, previousTexts)
+    batch = filterNewQuestions(batch, existingKeys)
+    if (batch.length < Math.max(3, Math.floor(EXAM_BATCH_SPECS[batchIndex].count * 0.6))) {
+      const fallbackKeys = await existingQuestionKeys(examId)
+      for (const q of batch) fallbackKeys.add(normalizeQuestionText(q.text).slice(0, 160))
+      const fallback = filterNewQuestions(fallbackExamQuestionBatch(exam.program, hydratedBooks, batchIndex), fallbackKeys)
+      batch = [...batch, ...fallback].slice(0, EXAM_BATCH_SPECS[batchIndex].count)
     }
-    if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${batchIndex + 1} من الأسئلة`)
+    if (batch.length === 0) throw new Error(`فشل توليد أسئلة جديدة غير مكررة للدفعة ${batchIndex + 1}`)
 
     if (!(await isExamStillGenerating(examId))) {
       const totals = await examTotals(examId)
