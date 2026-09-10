@@ -556,6 +556,17 @@ async function runGeneration(examId: string) {
       }
     }
 
+    const usableBooks = hydratedBooks.filter((b) =>
+      b.contentQuality !== 'METADATA_ONLY' &&
+      b.contentQuality !== 'NO_CONTENT' &&
+      String(b.textContent || '').trim().length >= 300
+    )
+    if (usableBooks.length === 0) throw new Error('لا يوجد نص فعلي مقروء من الكتب لبناء الامتحان')
+    const knowledgeContext = await buildKnowledgeContextForExam(exam.programId, exam.semester, 56).catch(() => '')
+    const examKnowledgeBooks = knowledgeContext
+      ? [{ title: 'بنك المعرفة الأكاديمي المستخرج من الكتب', titleEn: 'Academic Knowledge Bank', description: 'عناصر معرفة منظمة مستخرجة من الكتب', textContent: knowledgeContext, sourceNote: 'بنك معرفة مبني من محتوى الكتب', contentQuality: 'STORED_TEXT' }, ...usableBooks]
+      : usableBooks
+
     const existingCount = await db.programQuestion.count({ where: { examId } })
     const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
     let order = maxOrder._max.order || existingCount || 0
