@@ -247,6 +247,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(stopped)
     }
 
+    if (body?.action === 'kick') {
+      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لتحريك التوليد' }, { status: 400 })
+      const existing = await db.programExam.findUnique({ where: { id: examId }, select: { id: true, status: true } })
+      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
+      if (existing.status === 'READY') return NextResponse.json({ error: 'الامتحان منشور بالفعل' }, { status: 409 })
+      if (existing.status !== 'GENERATING') {
+        await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
+      }
+      const starter = await ensureStarterQuestions(examId)
+      scheduleGeneration(examId)
+      return NextResponse.json({ ok: true, examId, kicked: true, ...starter, requiredQuestions: totalRequiredQuestions() })
+    }
+
     if (examId) {
       const existing = await db.programExam.findUnique({
         where: { id: examId },
