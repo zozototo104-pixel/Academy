@@ -54,14 +54,26 @@ function arabicErrorForGemini(e: any): string {
   return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
 
-function buildSetup(variant: SetupVariant, model: string, systemInstruction: string) {
+function speechConfigForVoice(voice: string) {
+  return {
+    voiceConfig: {
+      prebuiltVoiceConfig: {
+        voiceName: voice,
+      },
+    },
+  }
+}
+
+function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string) {
   const instruction = systemInstruction.slice(0, 32000)
+  const speechConfig = speechConfigForVoice(voice)
 
   if (variant === 'bare') {
     return {
       setup: {
         model: `models/${model}`,
         responseModalities: ['AUDIO'],
+        speechConfig,
       },
     }
   }
@@ -72,6 +84,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
         model: `models/${model}`,
         generationConfig: {
           responseModalities: ['AUDIO'],
+          speechConfig,
         },
         systemInstruction: {
           parts: [{ text: instruction }],
@@ -84,6 +97,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
     setup: {
       model: `models/${model}`,
       responseModalities: ['AUDIO'],
+      speechConfig,
       systemInstruction: {
         parts: [{ text: instruction }],
       },
