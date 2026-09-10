@@ -1,6 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { fallbackExamQuestionBatch } from '@/lib/books-ai'
+
+async function seedStarterForZeroQuestionGeneratingExams(programId: string) {
+  const stuck = await db.programExam.findMany({
+    where: { programId, status: 'GENERATING', questions: { none: {} } },
+    include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
+  })
+
+  for (const exam of stuck) {
+    const books = await db.book.findMany({
+      where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
+      orderBy: { createdAt: 'asc' },
+      select: { title: true, titleEn: true, author: true, year: true, description: true, link: true, textContent: true },
+    })
+    if (books.length === 0) continue
+
+    const batch = fallbackExamQuestionBatch(exam.program, books, 0)
+    if (batch.length === 0) continue
+
+    await db.programQuestion.createMany({
+      data: batch.map((q, index) => ({
+        examId: exam.id,
+        order: index + 1,
+        type: q.type,
+        text: q.text,
+        options: q.options ? JSON.stringify(q.options) : null,
+        correctAnswer: q.correct ?? null,
+        modelAnswer: q.modelAnswer ?? null,
+        points: q.points || 2,
+        status: 'PENDING_REVIEW',
+      })),
+    })
+
+    const totalPoints = batch.reduce((sum, q) => sum + (q.points || 2), 0)
+    await db.programExam.update({
+      where: { id: exam.id },
+      data: {
+        durationMin: Math.max(120, Math.min(240, Math.round(batch.length * 2))),
+        totalPoints,
+        errorNote: 'تم إنشاء دفعة أولية تلقائياً لأن التوليد بقي على صفر أسئلة — يمكنك الإيقاف للمراجعة أو التحريك للاستكمال',
+        booksUsed: books.map((b) => `«${b.title}»`).join('، ').slice(0, 2000),
+      },
+    })
+  }
+}
 
 // GET /api/admin/program-exams?programId=xxx — قائمة الاختبارات الشاملة المولدة
 export async function GET(req: NextRequest) {
