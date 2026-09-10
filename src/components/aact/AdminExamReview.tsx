@@ -222,6 +222,9 @@ export function QuestionReviewDialog({
                             <XCircle className="h-3 w-3" />
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" onClick={() => deleteQuestion(q)} disabled={busy} className="h-7 px-2 text-red-600 hover:bg-red-50" title="حذف السؤال نهائياً">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     )}
                   </div>
