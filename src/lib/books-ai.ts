@@ -662,25 +662,18 @@ function normalizeSuggestion(b: any): BookSuggestion | null {
 }
 
 function fallbackBookSuggestions(program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null }): BookSuggestion[] {
-  const topic = cleanText(program.titleEn || program.titleAr, 180)
+  const domain = detectProgramDomain(program)
+  const spec = specialtyName(program)
+  const topic = cleanText(spec.en || spec.ar || program.titleAr, 180)
   const level = LEVEL_AR[program.category] || 'الدراسات المهنية'
-  const base = [
-    ['Research Design: Qualitative, Quantitative, and Mixed Methods Approaches', 'John W. Creswell & J. David Creswell', '2018', 'مرجع منهجي أساسي للبحوث الأكاديمية والمهنية ويخدم إعداد مشروع التخرج.'],
-    ['Research Methodology: Methods and Techniques', 'C. R. Kothari', '2004', 'مرجع واضح في تصميم البحث وجمع البيانات وتحليلها.'],
-    ['Harvard Business Review Manager’s Handbook', 'Harvard Business Review Press', '2017', 'مرجع تطبيقي شامل في الإدارة والقيادة واتخاذ القرار.'],
-    ['Strategic Management: Concepts and Cases', 'Fred R. David & Forest R. David', '2020', 'يعطي الطالب أدوات تحليل استراتيجية قابلة للتطبيق في أغلب البرامج المهنية.'],
-    ['Project Management: A Systems Approach to Planning, Scheduling, and Controlling', 'Harold Kerzner', '2022', 'مرجع قوي لإدارة المشاريع والمتابعة والرقابة المؤسسية.'],
-    ['Human Resource Management', 'Gary Dessler', '2020', 'مرجع عملي في إدارة الموارد البشرية والسلوك التنظيمي.'],
-    ['Quality Management for Organizational Excellence', 'David L. Goetsch & Stanley Davis', '2021', 'مناسب لفهم الجودة والتحسين المستمر وبناء مؤشرات الأداء.'],
-    ['The Fifth Discipline: The Art and Practice of the Learning Organization', 'Peter M. Senge', '2006', 'يربط التعلم المؤسسي بالتطوير القيادي والتغيير.'],
-  ]
+  const base = DOMAIN_BOOKS[domain]?.length ? DOMAIN_BOOKS[domain] : DOMAIN_BOOKS.general
 
   return base.map(([titleEn, author, year, reason]) => ({
-    title: `مرجع في ${program.titleAr}: ${titleEn}`.slice(0, 300),
+    title: `${level} في ${spec.ar}: ${titleEn}`.slice(0, 300),
     titleEn,
     author,
     year,
-    reason: `${reason} اختير كاقتراح احتياطي مناسب لمستوى ${level} إلى حين رجوع الذكاء الاصطناعي باقتراحات أكثر تخصصاً في ${topic}.`,
+    reason: `${reason} اختير لأنه مرتبط مباشرة بتخصص ${spec.ar} ومستوى ${level}، وليس اقتراحاً عاماً لكل التخصصات.`,
     link: googleBooksSearch(`${titleEn} ${topic}`),
   }))
 }
