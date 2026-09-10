@@ -590,7 +590,7 @@ export function AdminBooksTab() {
                           </div>
                           {e.status === 'FAILED' && e.errorNote && (
                             <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-red-500">
-                              <AlertTriangle className="h-3 w-3" /> {e.errorNote} — اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
+                              <AlertTriangle className="h-3 w-3" /> {e.errorNote} — تم حفظ {e.questionCount} سؤالاً، اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
                             </p>
                           )}
                           {e.status === 'READY' && (
