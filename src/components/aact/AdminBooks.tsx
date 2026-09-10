@@ -321,6 +321,8 @@ export function AdminBooksTab() {
     }
   }
 
+  const hasGeneratingExam = exams.some((e) => e.status === 'GENERATING')
+
   if (loading) {
     return (
       <div className="flex h-48 items-center justify-center">
