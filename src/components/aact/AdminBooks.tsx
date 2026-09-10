@@ -103,6 +103,23 @@ interface AssignmentRow {
   submissions: AssignmentSubmissionRow[]
 }
 
+interface KnowledgeItemRow {
+  id: string
+  bookId?: string | null
+  bookTitle?: string | null
+  semester?: number | null
+  category: string
+  title: string
+  summary: string
+  excerpt?: string | null
+  keywords?: string[]
+  importance: number
+  sourceNote?: string | null
+  createdAt: string
+}
+
+type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
+
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
