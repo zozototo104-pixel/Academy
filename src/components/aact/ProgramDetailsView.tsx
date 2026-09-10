@@ -55,7 +55,8 @@ export function ProgramDetailsView() {
       .then((d) => setPrograms(d.programs || []))
       .catch(() => toast({ title: 'خطأ', description: 'تعذر تحميل تفاصيل البرنامج', variant: 'destructive' }))
       .finally(() => setLoading(false))
-  }, [toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!programDetailsId && !loading) navigate('programs')
