@@ -630,6 +630,10 @@ export function DefenseRoom({
         body: JSON.stringify({ action: 'start' }),
       })
       setMessages(d.messages)
+      // شغّل وضع التفاعل الحي تلقائياً مع بداية المناقشة حتى لا يبقى المستشار مجرد سائل ينتظر الإجابة.
+      if (isStudent && sttSupported && !transcriptResumeRef.current && !transcriptRecRef.current) {
+        try { toggleTranscript() } catch {}
+      }
       const lastAi = [...d.messages].reverse().find((m) => m.role === 'AI_EXPERT')
       if (lastAi) speak(lastAi.content)
       startRecording() // 12.3: بدء تسجيل الجلسة مع بدء المناقشة
