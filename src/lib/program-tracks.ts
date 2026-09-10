@@ -474,6 +474,16 @@ function examsForSemester(program: AcademicProgramInput, semester: number): Acad
     .map((e) => ({ title: String(e.title || '').trim(), semester, status: e.status || null, questionCount: e.questionCount || null }))
 }
 
+function assignmentLabelsForSemester(program: AcademicProgramInput, semester: number): string[] {
+  return (program.assignments || [])
+    .filter((a) => Number(a.semester || 1) === semester && a.status !== 'ARCHIVED' && a.title)
+    .slice(0, 5)
+    .map((a) => {
+      const pts = Number(a.points || 0)
+      return `${String(a.title || '').trim()}${pts > 0 ? ` (${pts} نقاط)` : ''}`
+    })
+}
+
 function unitsForStage(program: AcademicProgramInput, index: number) {
   const units = [...(program.units || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).filter((u) => u.title)
   if (units.length === 0) return []
