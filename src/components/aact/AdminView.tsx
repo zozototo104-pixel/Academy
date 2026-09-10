@@ -410,7 +410,11 @@ export function AdminView() {
                 const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
                 const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
                 return (
-                  <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
+                  <Card
+                    key={a.id}
+                    id={`admission-${a.id}`}
+                    className={`aact-responsive-card aact-readable transition-all ${highlightAdmissionId === a.id ? 'border-[#c9a227] shadow-lg shadow-[#c9a227]/20 ring-2 ring-[#c9a227]/40' : 'border-[#0f2b46]/10'}`}
+                  >
                     <CardContent className="p-4 sm:p-5">
                       <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 w-full sm:flex-1">
