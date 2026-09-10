@@ -227,6 +227,7 @@ export function DefenseRoom({
       const resume = () => {
         URL.revokeObjectURL(url)
         setSpeaking(false)
+        transcriptPausedForSpeechRef.current = false
         if (wasTranscribing) { try { transcriptRecRef.current?.start() } catch {} }
       }
       audio.onended = resume
