@@ -242,6 +242,44 @@ model Certificate {
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
 }
 
+model MicroCredential {
+  id              String   @id @default(cuid())
+  programId       String
+  program         Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  titleAr         String
+  titleEn         String?
+  skillArea       String   // RISK_MANAGEMENT | STRATEGIC_PLANNING | CYBERSECURITY_APPLIED ...
+  description     String
+  learningOutcome String
+  criteria        Json?    // قواعد الاستحقاق: minExamScore, requiredSkill, requiredAssignmentType...
+  badgeCode       String   @unique // AACT-MC-<program>-<skill>
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  awards          UserMicroCredential[]
+
+  @@index([programId, active])
+  @@index([skillArea])
+}
+
+model UserMicroCredential {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  microCredentialId String
+  microCredential   MicroCredential @relation(fields: [microCredentialId], references: [id], onDelete: Cascade)
+  source            String          @default("AUTO") // AUTO | MANUAL | EXAM | ASSIGNMENT | THESIS
+  evidence          String?         // JSON: سبب منح المهارة والدرجات/الأدلة
+  valid             Boolean         @default(true)
+  issuedAt          DateTime        @default(now())
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  @@unique([userId, microCredentialId])
+  @@index([userId, valid])
+  @@index([microCredentialId, valid])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String
