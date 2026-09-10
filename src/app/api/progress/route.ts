@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
         hours: program.hours,
         price: program.price,
         unitsCount: program.units.length,
+        academicProfile: academicProfileFromRules(program.admissionRules),
       },
       progress,
       status: enrollment.status,
