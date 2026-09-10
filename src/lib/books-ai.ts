@@ -800,6 +800,132 @@ const BATCH_SPECS: {
   },
 ]
 
+function uniqueStrings(values: string[], max = 30): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const v of values.map((x) => cleanText(x, 180)).filter(Boolean)) {
+    const key = norm(v)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(v)
+    if (out.length >= max) break
+  }
+  return out
+}
+
+const DOMAIN_CONCEPTS: Partial<Record<ProgramDomain, string[]>> = {
+  cybersecurity: [
+    'حوكمة أمن المعلومات',
+    'إدارة المخاطر السيبرانية',
+    'أمن الشبكات والبروتوكولات',
+    'التشفير وحماية البيانات',
+    'أمن تطبيقات الويب',
+    'الاستجابة للحوادث السيبرانية',
+    'التحليل الجنائي الرقمي',
+    'مراقبة الأحداث الأمنية واكتشاف التهديدات',
+    'تحليل البرمجيات الخبيثة',
+    'إدارة الهوية والصلاحيات',
+  ],
+  'artificial-intelligence': ['تعلم الآلة', 'التعلم العميق', 'هندسة البيانات', 'حوكمة الذكاء الاصطناعي', 'تشغيل النماذج في الإنتاج', 'أخلاقيات الذكاء الاصطناعي'],
+  'business-analytics': ['نمذجة البيانات', 'التحليل الإحصائي', 'ذكاء الأعمال', 'تصوير البيانات', 'لوحات المؤشرات', 'دعم القرار'],
+  'project-management': ['نطاق المشروع', 'إدارة الزمن والتكلفة', 'المخاطر', 'أصحاب المصلحة', 'Agile وScrum', 'إغلاق المشروع'],
+  'human-resources': ['تخطيط الموارد البشرية', 'الاستقطاب والاختيار', 'إدارة الأداء', 'التدريب والتطوير', 'التعويضات', 'تحليلات الموارد البشرية'],
+  'quality-management': ['التحسين المستمر', 'TQM', 'Six Sigma', 'ISO 9001', 'خرائط العمليات', 'مؤشرات الجودة'],
+}
+
+function fallbackExamConcepts(
+  program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
+  books: ExamSourceBook[]
+): string[] {
+  const domain = detectProgramDomain(program)
+  const spec = specialtyName(program)
+  const bookTitles = books.flatMap((b) => [b.title, b.titleEn || '', b.description || ''])
+  const seedTitles = ((DOMAIN_BOOKS[domain] && DOMAIN_BOOKS[domain]!.length ? DOMAIN_BOOKS[domain]! : DOMAIN_BOOKS.general) || []).map(([t]) => t)
+  return uniqueStrings([
+    ...(DOMAIN_CONCEPTS[domain] || []),
+    ...bookTitles,
+    ...seedTitles,
+    `مفاهيم ${spec.ar}`,
+    `تطبيقات ${spec.ar}`,
+    `أخلاقيات ومخاطر ${spec.ar}`,
+  ], 40)
+}
+
+function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i = 0): GeneratedQuestion {
+  const intro = caseBased
+    ? `في حالة عملية داخل مؤسسة تريد تحسين ${specAr}، أي إجراء يعكس فهماً صحيحاً لمفهوم ${concept}؟`
+    : `أي العبارات الآتية أدق في تفسير مفهوم ${concept} ضمن تخصص ${specAr}؟`
+  return {
+    type: 'MCQ',
+    text: intro,
+    options: [
+      `تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة`,
+      'تطبيق أداة تقنية واحدة دون تحليل البيئة أو أصحاب المصلحة',
+      'الاعتماد على الانطباع الشخصي بدلاً من الأدلة والمؤشرات',
+      'تأجيل التقييم إلى نهاية البرنامج أو المشروع فقط',
+    ],
+    correct: '0',
+    points: 2,
+  }
+}
+
+function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQuestion {
+  const truthy = i % 2 === 0
+  return {
+    type: 'TF',
+    text: truthy
+      ? `في تخصص ${specAr}، لا تكفي المعرفة النظرية بمفهوم ${concept} ما لم ترتبط بتطبيق عملي ومؤشرات تحقق.`
+      : `في تخصص ${specAr}، يمكن اعتماد قرار مهني متعلق بـ ${concept} دون تحليل مخاطر أو أدلة أو سياق المؤسسة.`,
+    options: ['صح', 'خطأ'],
+    correct: truthy ? '0' : '1',
+    points: 2,
+  }
+}
+
+function makeFallbackShort(concept: string, specAr: string, i: number): GeneratedQuestion {
+  return {
+    type: 'SHORT',
+    text: `اشرح بإيجاز كيف يمكن توظيف مفهوم ${concept} في معالجة مشكلة مهنية ضمن تخصص ${specAr}.`,
+    modelAnswer: `الإجابة الجيدة تربط ${concept} بالمشكلة المهنية، وتحدد خطوات تشخيص الوضع، ثم تقترح إجراءً عملياً قابلاً للقياس. يجب أن تتضمن الإجابة مؤشرات متابعة أو معايير نجاح، وأن تبيّن أثر القرار على المؤسسة أو المستفيدين.`,
+    points: 5,
+  }
+}
+
+function makeFallbackEssay(concept: string, specAr: string, i: number): GeneratedQuestion {
+  return {
+    type: 'ESSAY',
+    text: `حلل نقدياً دور ${concept} في تطوير الأداء المهني في مجال ${specAr}، مع اقتراح إطار تطبيقي مناسب.`,
+    modelAnswer: `تتناول الإجابة النموذجية تعريف ${concept} وعلاقته بمجال ${specAr}، ثم تحلل نقاط القوة والقيود والمخاطر العملية. يجب أن تقترح إطاراً تطبيقياً يتضمن تشخيصاً أولياً، إجراءات تنفيذ، مؤشرات قياس، ومسؤوليات واضحة. كما ينبغي ربط التحليل بمحتوى الكتب المقررة أو مصادر البرنامج وعدم الاكتفاء بالتعميم.`,
+    points: 10,
+  }
+}
+
+function fallbackExamQuestionBatch(
+  program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
+  books: ExamSourceBook[],
+  batchIndex: number
+): GeneratedQuestion[] {
+  const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
+  const specAr = specialtyName(program).ar
+  const concepts = fallbackExamConcepts(program, books)
+  const pick = (i: number) => concepts[i % Math.max(concepts.length, 1)] || specAr
+  const out: GeneratedQuestion[] = []
+
+  if (spec.kind === 'MIX_TF_MCQ') {
+    for (let i = 0; i < 15; i++) out.push(makeFallbackTf(pick(i), specAr, i))
+    for (let i = 15; i < spec.count; i++) out.push(makeFallbackMcq(pick(i), specAr, false, i))
+    return out.slice(0, spec.count)
+  }
+
+  for (let i = 0; i < spec.count; i++) {
+    if (spec.kind === 'MCQ') out.push(makeFallbackMcq(pick(i), specAr, false, i))
+    else if (spec.kind === 'CASE_MCQ') out.push(makeFallbackMcq(pick(i), specAr, true, i))
+    else if (spec.kind.startsWith('SHORT')) out.push(makeFallbackShort(pick(i), specAr, i))
+    else if (spec.kind.startsWith('ESSAY')) out.push(makeFallbackEssay(pick(i), specAr, i))
+  }
+  return out.slice(0, spec.count)
+}
+
 /** توليد دفعة أسئلة من الكتب المقررة وفق مواصفة الدفعة */
 export async function generateExamQuestionBatch(
   program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
