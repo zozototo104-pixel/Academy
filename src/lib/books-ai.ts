@@ -1233,7 +1233,7 @@ function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boo
   return false
 }
 
-function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }): GeneratedQuestion[] {
+function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }, books: ExamSourceBook[] = []): GeneratedQuestion[] {
   const plan = batchQuestionPlan(spec.kind, spec.count)
   const usedTexts = new Set<string>()
   const usedOptionSigs = new Set<string>()
