@@ -1375,24 +1375,28 @@ ${plannedTypes}
     const rawType = String(q.type || '').toUpperCase()
     const type = rawType === 'CASE_MCQ' ? 'MCQ' : rawType
     const text = String(q.text || '').trim()
-    if (!text) continue
+    const bookEvidence = cleanText(q.bookEvidence || q.evidence || q.sourceEvidence || q.referenceEvidence || '', 700)
+    if (!text || !bookEvidence || bookEvidence.length < 18 || hasForbiddenExamMetadata(text) || hasForbiddenExamMetadata(bookEvidence)) continue
+    const modelAnswerBase = cleanText(q.modelAnswer || '', 3000)
+    const modelAnswer = modelAnswerBase.includes('مرجع التصحيح')
+      ? modelAnswerBase
+      : `مرجع التصحيح: ${bookEvidence}${modelAnswerBase ? ` — ${modelAnswerBase}` : ''}`
     if (type === 'MCQ') {
       const options = Array.isArray(q.options) ? q.options.map((o: any) => cleanText(o, 240)).filter(Boolean).slice(0, 4) : null
       const correctNum = Number(q.correct ?? '')
       const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
       if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
-      cleaned.push({ type: 'MCQ', text: text.slice(0, 2000), options, correct: String(correctNum), points: 2 })
+      cleaned.push({ type: 'MCQ', text: text.slice(0, 2000), options, correct: String(correctNum), modelAnswer, bookEvidence, points: 2 })
     } else if (type === 'TF') {
       const correctNum = Number(q.correct ?? '')
       if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
-      cleaned.push({ type: 'TF', text: text.slice(0, 2000), options: ['صح', 'خطأ'], correct: String(correctNum), points: 2 })
+      cleaned.push({ type: 'TF', text: text.slice(0, 2000), options: ['صح', 'خطأ'], correct: String(correctNum), modelAnswer, bookEvidence, points: 2 })
     } else if (type === 'SHORT' || type === 'ESSAY') {
-      const modelAnswer = String(q.modelAnswer || q.correct || '').trim()
-      if (!modelAnswer) continue
       cleaned.push({
         type,
         text: text.slice(0, 2000),
         modelAnswer: modelAnswer.slice(0, 3000),
+        bookEvidence,
         points: Number(q.points) || (type === 'ESSAY' ? 10 : 5),
       })
     }
