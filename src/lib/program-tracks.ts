@@ -664,6 +664,8 @@ export function buildAcademicProgramProfile(program: AcademicProgramInput): Acad
     ],
     skills: Array.from(new Set([...focus.skills, 'التفكير النقدي', 'التواصل المهني', 'العرض والمناقشة'])).slice(0, 9),
     studyPlan: academicStudyPlanFor(category, specialization),
+    termPlans,
+    finalEvaluationFormula,
     graduationRequirements: category === 'ACCREDITATION'
       ? [
           'تقديم ملف خبرات ووثائق داعمة واضحة وقابلة للتحقق.',
