@@ -41,6 +41,19 @@ function qualityBand(score: number): 'STRONG' | 'GOOD' | 'NEEDS_ATTENTION' | 'CR
   return 'CRITICAL'
 }
 
+function hasAcademicAssessmentMetadata(q: any): boolean {
+  const hasSource = String(q.sourceEvidence || '').trim().length >= 12 &&
+    String(q.sourceBookTitle || '').trim().length >= 2 &&
+    String(q.sourceLocator || '').trim().length >= 8
+  const hasMeasurement = ['UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE'].includes(String(q.cognitiveSkill || '')) &&
+    ['EASY', 'MEDIUM', 'ADVANCED'].includes(String(q.difficulty || '')) &&
+    String(q.correctRationale || '').trim().length >= 12
+  const hasDistractors = q.type === 'MCQ' || q.type === 'TF'
+    ? parseList(q.distractorRationales).length > 0
+    : true
+  return hasSource && hasMeasurement && hasDistractors
+}
+
 export async function GET() {
   try {
     await requireAdmin()
