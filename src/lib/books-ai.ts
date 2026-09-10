@@ -1570,10 +1570,10 @@ ${plannedTypes}
 
 أجب بصيغة JSON فقط — مصفوفة من ${spec.count} أسئلة مختلطة حسب التسلسل أعلاه، أمثلة شكلية فقط:
 [
-{"type":"MCQ","text":"...","options":["خيار مستند إلى دليل الكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":2},
-{"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":2},
-{"type":"SHORT","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":5},
-{"type":"ESSAY","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":10}
+{"type":"MCQ","text":"...","options":["خيار مستند إلى دليل الكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceChapter":"الفصل أو المحور إن وجد","sourceLocator":"مقطع أو فقرة أو فكرة محددة","cognitiveSkill":"APPLY","difficulty":"MEDIUM","correctRationale":"سبب صحة الخيار الصحيح مستنداً إلى الدليل","distractorRationales":[{"optionIndex":0,"option":"...","reason":"سبب الخطأ"},{"optionIndex":1,"option":"...","reason":"سبب الخطأ"},{"optionIndex":3,"option":"...","reason":"سبب الخطأ"}],"qualityFlags":["SOURCE_GROUNDED","HAS_SOURCE_BOOK","HAS_CORRECT_RATIONALE"],"points":2},
+{"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"UNDERSTAND","difficulty":"EASY","correctRationale":"سبب صحة الحكم","distractorRationales":[{"optionIndex":1,"option":"خطأ","reason":"سبب خطأ الحكم المعاكس"}],"qualityFlags":["SOURCE_GROUNDED"],"points":2},
+{"type":"SHORT","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"ANALYZE","difficulty":"MEDIUM","correctRationale":"معيار قبول الإجابة القصيرة","qualityFlags":["SOURCE_GROUNDED"],"points":5},
+{"type":"ESSAY","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"EVALUATE","difficulty":"ADVANCED","correctRationale":"معيار قبول الإجابة المقالية","qualityFlags":["SOURCE_GROUNDED"],"points":10}
 ]`
 
   let raw = ''
