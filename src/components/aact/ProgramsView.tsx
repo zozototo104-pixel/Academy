@@ -220,7 +220,15 @@ export function ProgramsView() {
                     </Accordion>
                   )}
 
-                  <div className="mt-auto pt-4">
+                  <div className="mt-auto space-y-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => openProgramDetails(p.id)}
+                      className="w-full border-[#0f2b46]/20 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46]/5"
+                    >
+                      تفاصيل هذا البرنامج
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                    </Button>
                     <Button
                       onClick={() => startAdmission(p)}
                       className={`w-full font-extrabold ${
