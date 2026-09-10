@@ -154,6 +154,19 @@ export function AdminRulesTab() {
     setDraft(next)
   }
 
+  const fillAcademicFromDefault = () => {
+    if (!selected) return
+    const profile = buildAcademicProgramProfile({
+      titleAr: selected.titleAr,
+      titleEn: selected.titleEn,
+      description: selected.description,
+      category: selected.category,
+      hours: selected.hours,
+      unitsCount: selected._count?.units,
+    })
+    setDraft({ ...draft, academicProfile: profile })
+  }
+
   const save = async (reset = false) => {
     if (!selectedId) return
     setSaving(true)
