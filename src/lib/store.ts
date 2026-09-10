@@ -53,6 +53,7 @@ export const useAppStore = create<AppState>((set) => ({
   authChecked: false,
   view: 'home',
   activeProgramId: null,
+  programDetailsId: null,
   activeUnitId: null,
   activeExamId: null,
   activeExamKind: 'unit',
