@@ -1095,23 +1095,26 @@ function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i =
 }
 
 function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const idea = conceptLabel(concept, 160)
+  const evidence = cleanText(concept, 430)
+  const idea = conceptLabel(concept, 170)
   const truthy = i % 2 === 0
   const trueStems = [
-    `يساعد محور «${idea}» في تخصص ${specAr} على الانتقال من المعرفة النظرية إلى قرار عملي قابل للقياس.`,
-    `لا يكتمل فهم «${idea}» إلا بربطه بالسياق والأدلة ومؤشرات النجاح كما تفعل الأسئلة الجامعية.`,
-    `يمكن تحويل فكرة «${idea}» إلى سؤال تطبيقي أو حالة عملية تقيس الفهم وليس الحفظ فقط.`,
+    `تسمح فكرة «${idea}» الواردة في الكتاب ببناء قراءة تطبيقية في ${specAr} لا تكتفي بالتعريف النظري.`,
+    `يمكن التعامل مع المشهد/الفكرة «${idea}» كحالة لتحليل القرار والمخاطر والتواصل ضمن ${specAr}.`,
+    `فهم «${idea}» يتطلب ربط النص بسياقه ثم إسقاطه على ممارسة مهنية قابلة للقياس في ${specAr}.`,
   ]
   const falseStems = [
-    `يكفي في دراسة «${idea}» حفظ المصطلح دون فهم تطبيقاته أو حدوده العملية.`,
-    `يمكن اعتماد قرار مهني حول «${idea}» دون الرجوع إلى بيانات أو تحليل أو سياق الكتاب.`,
-    `كل الأفكار المرتبطة بـ «${idea}» تصلح للتطبيق بالطريقة نفسها في كل المؤسسات دون تكييف.`,
+    `يجوز تجاهل تفاصيل «${idea}» في الكتاب والاكتفاء بسؤال عام في ${specAr}.`,
+    `لا توجد قيمة تعليمية في تحويل أحداث أو أفكار الكتاب إلى حالات تطبيقية في ${specAr}.`,
+    `يمكن تعميم درس «${idea}» على كل المشاريع أو المؤسسات دون تحليل شروط الحالة وحدودها.`,
   ]
   return {
     type: 'TF',
     text: truthy ? trueStems[i % trueStems.length] : falseStems[i % falseStems.length],
     options: ['صح', 'خطأ'],
     correct: truthy ? '0' : '1',
+    modelAnswer: `مرجع التصحيح: ${evidence}`,
+    bookEvidence: evidence,
     points: 2,
   }
 }
