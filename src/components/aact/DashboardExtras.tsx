@@ -673,7 +673,7 @@ export function CertificatesTab() {
 // ============ تبويب السجل الأكاديمي الرسمي (Transcript) ============
 
 interface TranscriptRow {
-  kind: 'UNIT' | 'SEMESTER'
+  kind: 'UNIT' | 'SEMESTER' | 'ASSIGNMENT'
   title: string
   part: string
   passScore: number
