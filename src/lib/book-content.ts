@@ -250,7 +250,7 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
   if (book.data) {
     try {
       const read = await readBufferContent(Buffer.from(book.data, 'base64'), book.mimeType || '', book.fileName, book)
-      if (read.text.length >= MIN_USABLE_TEXT) {
+      if (isUsableBookText(read.text, MIN_USABLE_TEXT)) {
         return {
           ...book,
           textContent: read.text,
