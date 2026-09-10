@@ -108,6 +108,21 @@ export async function GET() {
           }
         })
 
+      const assignmentRows = assignmentAssessments.map((a) => {
+        const sub = a.submissions[0]
+        const pct = sub?.score != null && a.points > 0 ? Math.round((sub.score / a.points) * 100) : null
+        if (pct != null) scores.push(pct)
+        return {
+          kind: 'ASSIGNMENT' as const,
+          title: a.title,
+          part: `واجب الفصل ${a.semester === 2 ? 'الثاني' : a.semester === 3 ? 'المشروع/البحث' : 'الأول'}`,
+          passScore: 60,
+          bestScore: pct,
+          passed: sub?.status === 'GRADED' && pct != null && pct >= 60,
+          date: sub?.gradedAt ?? sub?.submittedAt ?? null,
+        }
+      })
+
       let completedUnits = 0
       try { completedUnits = JSON.parse(en.completedUnits || '[]').length } catch {}
 
