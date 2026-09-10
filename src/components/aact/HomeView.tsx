@@ -431,7 +431,7 @@ export function HomeView() {
                 <Card
                   key={p.id}
                   className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
-                  onClick={() => navigate('programs')}
+                  onClick={() => openProgramDetails(p.id)}
                 >
                   <CardContent className="flex h-full flex-col p-6">
                     <div className="mb-4 flex items-start justify-between">
