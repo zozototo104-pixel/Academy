@@ -485,4 +485,6 @@ export function buildAcademicProgramProfile(program: AcademicProgramInput): Acad
       'إبقاء القرار الأكاديمي النهائي بيد الإدارة أو اللجنة البشرية، مع دعم تحليلي من الذكاء الاصطناعي.',
     ],
   }
+
+  return applyAcademicOverride(base, program.academicProfile)
 }
