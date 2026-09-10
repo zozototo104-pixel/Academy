@@ -1064,13 +1064,18 @@ ${recent || 'بدأت الجلسة للتو.'}
         </div>
 
         {/* خبير الذكاء الاصطناعي — عضو فعلي في القاعة */}
-        <div className={`relative aspect-video overflow-hidden rounded-xl bg-gradient-to-bl from-[#12365c] to-[#0a1f36] ${speaking ? 'ring-2 ring-emerald-400' : 'ring-1 ring-white/20'}`}>
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
-            <div className={`rounded-full bg-[#c9a227] p-3 text-[#0f2b46] ${speaking ? 'animate-pulse' : ''}`}>
+        <div className={`relative aspect-video overflow-hidden rounded-xl bg-gradient-to-bl from-[#12365c] to-[#0a1f36] ${(speaking || liveAdvisorOn) ? 'ring-2 ring-emerald-400' : 'ring-1 ring-white/20'}`}>
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center">
+            <div className={`rounded-full bg-[#c9a227] p-3 text-[#0f2b46] ${(speaking || liveAdvisorState === 'AI_SPEAKING') ? 'animate-pulse' : ''}`}>
               <Bot className="h-6 w-6" />
             </div>
             <span className="text-[10px] font-black text-white">المستشار الذكي (AI)</span>
-            <span className="text-[9px] text-[#e0b83a]">{speaking ? 'يتحدث الآن…' : 'عضو فعلي — أسئلة وتحليل حي للجنة'}</span>
+            <span className="text-[9px] text-[#e0b83a]">{liveAdvisorLabel}</span>
+            {liveAdvisorOn && (
+              <div className="mt-1 h-1.5 w-20 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, Math.round(liveAdvisorLevel * 100))}%` }} />
+              </div>
+            )}
           </div>
         </div>
 
