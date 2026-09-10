@@ -296,7 +296,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       setTranscriptOn(false)
     }
     const agent = new VoiceAgent({
-      context: buildDefenseVoiceContext(),
+      context: buildDefenseVoiceContext(initialMessages),
       logEndpoint: '/api/defense',
       logExtra: { action: 'live-turn' },
       onState: (s) => {
