@@ -166,6 +166,7 @@ export function DefenseRoom({
   const streamRef = useRef<MediaStream | null>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsSerialRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const myPeerId = useRef<string>('')
