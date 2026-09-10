@@ -563,7 +563,7 @@ async function runGeneration(examId: string) {
     )
     if (usableBooks.length === 0) throw new Error('لا يوجد نص فعلي مقروء من الكتب لبناء الامتحان')
     const knowledgeContext = await buildKnowledgeContextForExam(exam.programId, exam.semester, 56).catch(() => '')
-    const examKnowledgeBooks = knowledgeContext
+    const examKnowledgeBooks: ExamSourceBook[] = knowledgeContext
       ? [{ title: 'بنك المعرفة الأكاديمي المستخرج من الكتب', titleEn: 'Academic Knowledge Bank', description: 'عناصر معرفة منظمة مستخرجة من الكتب', textContent: knowledgeContext, sourceNote: 'بنك معرفة مبني من محتوى الكتب', contentQuality: 'STORED_TEXT' }, ...usableBooks]
       : usableBooks
 
