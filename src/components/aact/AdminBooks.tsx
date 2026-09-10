@@ -166,8 +166,9 @@ export function AdminBooksTab() {
       category: selectedProgram.category,
       books: books.map((b) => ({ title: b.title, titleEn: b.titleEn, semester: b.semester })),
       exams: exams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e.questionCount })),
+      assignments: assignments.map((a) => ({ title: a.title, semester: a.semester, points: a.points, status: a.status })),
     })
-  }, [selectedProgram, books, exams])
+  }, [selectedProgram, books, exams, assignments])
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
