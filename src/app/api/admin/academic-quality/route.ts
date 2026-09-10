@@ -332,6 +332,7 @@ export async function GET() {
         readyExams: readyExams.length,
         totalQuestions: publishedQuestions.length,
         questionSourceCoverage,
+        assessmentMetadataCoverage,
         duplicateQuestionGroups: duplicateQuestions.length,
         atRiskStudents: atRiskStudents.length,
         pendingAppeals: appealsCount,
