@@ -5,10 +5,32 @@ export interface ExtractedDocumentText {
   note: string
 }
 
-export function normalizeExtractedText(text: string, maxChars: number): string {
+function stripPageAndReaderArtifacts(text: string): string {
   return String(text || '')
     .replace(/\u0000/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    // PDF/Word readers sometimes inject counters like: 1 of 397 --- 2 of 397
+    .replace(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bpage\s+\d{1,5}\s+(?:of|\/|من)\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
+    // remove long visual separators emitted by parsers
+    .replace(/[ـ_\-–—]{3,}/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => {
+      if (!line) return false
+      if (/^(?:[\-–—_ـ\s]+|\d+|of\s+\d+)$/i.test(line)) return false
+      const letters = (line.match(/[\p{L}]/gu) || []).length
+      const digits = (line.match(/\d/g) || []).length
+      return !(digits >= 4 && letters <= 2)
+    })
+    .join('\n')
+}
+
+export function normalizeExtractedText(text: string, maxChars: number): string {
+  return stripPageAndReaderArtifacts(text)
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, maxChars)
 }
