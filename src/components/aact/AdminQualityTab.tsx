@@ -182,7 +182,7 @@ export function AdminQualityTab() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
         {overviewCards.map((m) => (
           <Card key={m.label} className="border-[#0f2b46]/10">
             <CardContent className="p-4 text-center">
