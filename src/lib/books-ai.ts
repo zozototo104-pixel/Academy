@@ -1208,6 +1208,10 @@ export async function generateExamQuestionBatch(
   const contentConcepts = contentConceptsFromBooks(books, domain, 28).join('\n- ')
   const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
   const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
+  const requiredDistribution = batchDistributionText(spec.kind, spec.count)
+  const plannedTypes = batchQuestionPlan(spec.kind, spec.count)
+    .map((t, i) => `${i + 1}. ${t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t}`)
+    .join('\n')
 
   const prompt = `أنت لجنة امتحانات عليا في ${ACADEMY_INFO.nameAr}. أنت لا تكتب أسئلة عشوائية، بل تبني امتحاناً جامعياً يمثل ملخصاً علمياً لأهم ما في الكتب المقررة.
 
