@@ -660,6 +660,23 @@ export function AdminBooksTab() {
                               <AlertTriangle className="h-3 w-3" /> {e.errorNote} — تم حفظ {e.questionCount} سؤالاً، اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
                             </p>
                           )}
+                          {e.status === 'REVIEW' && e.questionCount < FULL_EXAM_TARGET && (
+                            <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50/80 p-3">
+                              <p className="text-[11px] font-bold leading-relaxed text-orange-800">
+                                هذا امتحان جزئي فقط: {e.questionCount} من {FULL_EXAM_TARGET} سؤال. لا تنشره الآن إلا إذا كنت تريد امتحاناً مختصراً؛ اضغط استكمال التوليد ليكمل من الكتب دون تكرار.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => resumeExam(e)}
+                                disabled={generating || hasGeneratingExam}
+                                className="mt-2 h-8 border-orange-300 text-[10px] font-black text-orange-700 hover:bg-orange-100"
+                              >
+                                {generating ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                                استكمال بقية الامتحان من الكتب
+                              </Button>
+                            </div>
+                          )}
                           {e.status === 'GENERATING' && (
                             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
                               <p className="text-[11px] font-bold leading-relaxed text-amber-800">
