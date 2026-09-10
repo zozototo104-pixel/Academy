@@ -1137,16 +1137,18 @@ function makeFallbackShort(concept: string, specAr: string, i: number): Generate
 }
 
 function makeFallbackEssay(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const idea = conceptLabel(concept, 180)
+  const evidence = cleanText(concept, 520)
+  const idea = conceptLabel(concept, 190)
   const stems = [
-    `حلل نقدياً محور «${idea}» كما ورد في الكتاب المقرر، وبيّن أثره في تطوير الممارسة المهنية في ${specAr}.`,
-    `صمّم إطاراً تطبيقياً يعتمد على فكرة «${idea}» لمعالجة تحدٍ واقعي في تخصص ${specAr}.`,
-    `ناقش حدود تطبيق محور «${idea}» ومخاطره وشروط نجاحه في بيئة مهنية حقيقية.`,
+    `حلل نقدياً فكرة «${idea}» من الكتاب، ثم بيّن كيف يمكن تحويلها إلى حالة دراسية في ${specAr}.`,
+    `صمّم إطاراً تطبيقياً في ${specAr} مستلهماً من الحدث/الفكرة «${idea}» الواردة في الكتاب.`,
+    `ناقش حدود ومخاطر إسقاط «${idea}» من الكتاب على بيئة مهنية حقيقية في ${specAr}.`,
   ]
   return {
     type: 'ESSAY',
     text: stems[i % stems.length],
-    modelAnswer: `مرجع التصحيح: محور «${idea}» من الكتاب المقرر. الإجابة الممتازة تعرّف المحور بدقة، تستخرج عناصره الرئيسة، تربطه بسيناريو مهني في ${specAr}، تقارن بين البدائل، وتختم بمؤشرات قياس أو توصية قابلة للتنفيذ مع بيان القيود والمخاطر.`,
+    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة الممتازة تبرهن أولاً على فهم النص، ثم تستخرج منه قضية قابلة للإسقاط على ${specAr} مثل التخطيط أو المخاطر أو أصحاب المصلحة أو التواصل أو القيادة أو الموارد، وتناقش شروط التطبيق وحدوده ومؤشرات نجاحه.`,
+    bookEvidence: evidence,
     points: 10,
   }
 }
