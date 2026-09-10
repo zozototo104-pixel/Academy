@@ -29,6 +29,8 @@
 - `src/lib/supervisor-ai.ts` يبني سياق الطالب من الذاكرة، البرامج، الكتب، الامتحانات، الواجبات، البحث، وآخر المحادثات.
 - `src/lib/ai.ts` يميز شخصيات المشرف: شات، امتحان، مناقشة.
 - `src/app/api/chat/route.ts` و`src/app/api/ai/gemini-live/log/route.ts` يحفظان التفاعلات النصية والصوتية في الذاكرة.
+- `src/app/api/program-exam/submit/route.ts` لا يكتفي بحفظ نتيجة الامتحان؛ بل يمرر ملف الطالب الكامل إلى مصحح الإجابات المقالية والتغذية الراجعة العامة بوضع خبير قياس وتقويم.
+- `src/app/api/defense/route.ts` يمرر ملف الطالب الكامل إلى افتتاح المناقشة، تقييم الإجابات، توصية اللجنة، ومحضر الجلسة بوضع عضو لجنة مناقشة بحث تخرج.
 - `src/app/api/program-exam/submit/route.ts` و`src/app/api/defense/route.ts` يضيفان إشارات الامتحان والمناقشة إلى الذاكرة.
 - `src/app/api/my/academic-memory/route.ts` و`DashboardView.tsx` يعرضان ذاكرة المشرف للطالب.
 
