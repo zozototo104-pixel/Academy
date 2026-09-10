@@ -928,6 +928,11 @@ export function AdminView() {
           <AdminBooksTab />
         </TabsContent>
 
+        {/* مركز الجودة الأكاديمي الداخلي */}
+        <TabsContent value="quality">
+          <AdminQualityTab />
+        </TabsContent>
+
         {/* 12.1: سجل المشرف الذكي — متاح للمشرف البشري والإدارة */}
         <TabsContent value="ai">
           <AdminAITab />
