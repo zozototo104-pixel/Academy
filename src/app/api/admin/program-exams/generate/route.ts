@@ -66,9 +66,12 @@ async function runGeneration(examId: string) {
       }
     }
 
-    let order = 0
+    const existingCount = await db.programQuestion.count({ where: { examId } })
+    const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
+    let order = maxOrder._max.order || existingCount || 0
+    const startBatch = firstMissingBatchIndex(existingCount)
 
-    for (let i = 0; i < EXAM_BATCH_COUNT; i++) {
+    for (let i = startBatch; i < EXAM_BATCH_COUNT; i++) {
       const spec = EXAM_BATCH_SPECS[i]
       let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, i)
       if (batch.length === 0) {
