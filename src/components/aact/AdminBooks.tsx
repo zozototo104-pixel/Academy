@@ -305,6 +305,8 @@ export function AdminBooksTab() {
     try {
       await api(`/api/admin/books?bookId=${id}`, { method: 'DELETE' })
       setBooks((prev) => prev.filter((b) => b.id !== id))
+      setKnowledgeItems((prev) => prev.filter((k) => k.bookId !== id))
+      if (programId) await loadProgramData(programId, true)
       toast({ title: 'تم الحذف' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
