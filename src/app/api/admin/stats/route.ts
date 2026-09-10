@@ -14,7 +14,7 @@ export async function GET() {
         db.examAttempt.count(),
         db.chatMessage.count({ where: { role: 'user' } }),
         db.agentApplication.count({ where: { status: 'PENDING' } }),
-        db.admissionApplication.count({ where: { status: 'PENDING' } }),
+        db.admissionApplication.count({ where: { status: { in: ['PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'] } } }),
         db.examAttempt.count({ where: { passed: true } }),
         db.examAttempt.findMany({
           orderBy: { submittedAt: 'desc' },
