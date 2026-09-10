@@ -120,8 +120,9 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
   const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true, category: true, description: true } })
   if (!program) throw new Error('البرنامج غير موجود')
 
-  await ensureProgramKnowledge(programId, semester, 8).catch(() => null)
-  const knowledge = await getProgramKnowledgeItems(programId, semester, 60)
+  const knowledgeSemester = semester === 3 ? null : semester
+  await ensureProgramKnowledge(programId, knowledgeSemester, 8).catch(() => null)
+  const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 60)
   if (!knowledge.length) throw new Error('لا يوجد بنك معرفة كافٍ لتوليد دليل دراسة. أضف كتباً أو ابنِ بنك المعرفة أولاً.')
 
   const context = knowledge.slice(0, 36).map((k, i) => {
