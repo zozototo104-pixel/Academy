@@ -11,6 +11,7 @@ function stripPageAndReaderArtifacts(text: string): string {
     .replace(/\r\n?/g, '\n')
     // PDF/Word readers sometimes inject counters like: 1 of 397 --- 2 of 397
     .replace(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi, ' ')
+    .replace(/(?:^|\s)of\s+\d{1,5}\b/gi, ' ')
     .replace(/\bpage\s+\d{1,5}\s+(?:of|\/|من)\s+\d{1,5}\b/gi, ' ')
     .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
     // remove long visual separators emitted by parsers
