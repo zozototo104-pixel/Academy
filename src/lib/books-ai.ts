@@ -1154,6 +1154,7 @@ function mcqOptionOverlap(q: GeneratedQuestion, usedOptions: Set<string>): numbe
 
 function isWeakMcq(q: GeneratedQuestion): boolean {
   if (q.type !== 'MCQ' || !q.options || q.options.length !== 4) return q.type === 'MCQ'
+  if (hasForbiddenExamMetadata(q.text) || q.options.some((o) => hasForbiddenExamMetadata(o))) return true
   const sig = optionSignature(q)
   const genericSignals = [
     'تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة',
