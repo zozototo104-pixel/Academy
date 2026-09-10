@@ -155,6 +155,9 @@ export interface AcademicProgramInput {
   category?: string | null
   hours?: number | null
   unitsCount?: number | null
+  units?: { title?: string | null; order?: number | null }[]
+  books?: { title?: string | null; titleEn?: string | null; semester?: number | null }[]
+  exams?: { title?: string | null; semester?: number | null; status?: string | null; questionCount?: number | null }[]
   /** تخصيص إداري اختياري محفوظ داخل admissionRules.academicProfile بدون الحاجة لتعديل قاعدة البيانات. */
   academicProfile?: PartialAcademicProgramProfile | null
 }
