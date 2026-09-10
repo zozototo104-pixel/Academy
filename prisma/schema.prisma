@@ -527,6 +527,7 @@ model ProgramQuestion {
   options       String?      // JSON array لأسئلة الاختيار وصح/خطأ
   correctAnswer String?      // "0".."3" أو "0"=صح/"1"=خطأ
   modelAnswer   String?      // الإجابة النموذجية للأسئلة المقالية/القصيرة
+  sourceEvidence String?     // دليل السؤال من الكتاب/بنك المعرفة حتى تراجع الإدارة مصدره الأكاديمي
   points        Int          @default(2)
   status        String       @default("PUBLISHED") // PENDING_REVIEW (بانتظار اعتماد الإدارة) | PUBLISHED | REJECTED
   answers       ProgramAnswer[]
