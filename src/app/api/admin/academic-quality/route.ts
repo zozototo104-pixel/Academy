@@ -303,6 +303,36 @@ export async function GET() {
       }
     })
 
+    const strongProgramList = [...programCards]
+      .filter((p) => p.band === 'STRONG' || (p.qualityScore >= 75 && p.warnings.length <= 1))
+      .sort((a, b) => b.qualityScore - a.qualityScore)
+      .slice(0, 10)
+      .map((p) => ({
+        id: p.id,
+        titleAr: p.titleAr,
+        category: p.category,
+        qualityScore: p.qualityScore,
+        band: p.band,
+        enrollments: p.enrollments,
+        admissions: p.admissions,
+        readyExams: p.readyExams,
+        books: p.books,
+        sourceCoverage: p.sourceCoverage,
+        metadataCoverage: p.metadataCoverage,
+      }))
+
+    const topDemandSpecialties = [...programCards]
+      .map((p) => ({
+        id: p.id,
+        titleAr: p.titleAr,
+        category: p.category,
+        demandScore: p.enrollments + p.admissions,
+        enrollments: p.enrollments,
+        admissions: p.admissions,
+      }))
+      .sort((a, b) => b.demandScore - a.demandScore)
+      .slice(0, 10)
+
     const weakBooks = books
       .filter((b) => !b.textContent || b.textContent.trim().length < 1200 || b._count.knowledgeItems < 5)
       .slice(0, 12)
