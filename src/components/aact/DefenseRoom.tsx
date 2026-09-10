@@ -353,13 +353,19 @@ export function DefenseRoom({
           `/api/defense/room?thesisId=${thesisIdRef.current}&peerId=${myPeerId.current}`
         )
         setParticipants(d.participants || [])
+        const incomingMessages = d.messages || []
         setMessages((prev) => {
-          const incoming = d.messages || []
+          const incoming = incomingMessages
           if (incoming.length !== prev.length || (incoming.length > 0 && prev.length > 0 && incoming[incoming.length - 1].id !== prev[prev.length - 1].id)) {
             return incoming
           }
           return prev
         })
+        const latestLiveInterjection = [...incomingMessages].reverse().find((m) => m.role === 'AI_NOTE')
+        if (latestLiveInterjection && latestLiveInterjection.id !== lastSpokenMessageIdRef.current) {
+          lastSpokenMessageIdRef.current = latestLiveInterjection.id
+          speak(latestLiveInterjection.content)
+        }
         await processSignals(d.signals || [])
         // فتح اتصالات WebRTC مع كل مشارك جديد (أصغر معرف يبادر بالعرض لتفادي التضارب)
         for (const p of d.participants || []) {
