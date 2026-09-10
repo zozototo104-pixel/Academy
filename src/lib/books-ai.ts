@@ -538,14 +538,14 @@ async function completeJsonWithFallback(args: {
 
   try {
     const zai = await getZAI()
-    return await chatWithRetry(
+    return await withTimeout(chatWithRetry(
       zai,
       [
         { role: 'assistant', content: args.system },
         { role: 'user', content: args.prompt },
       ],
       args.retries ?? 3
-    )
+    ), timeoutMs, `${args.label}_ZAI`)
   } catch (e: any) {
     const msg = String(e?.message || e).slice(0, 220)
     errors.push(`ZAI: ${msg}`)
