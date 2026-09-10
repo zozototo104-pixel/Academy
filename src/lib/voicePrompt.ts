@@ -1,4 +1,5 @@
 import { ACADEMY_INFO, ADMISSION_FEES } from '@/lib/academyData'
+import { buildSupervisorPersonaBlock } from '@/lib/supervisor-ai'
 
 /**
  * برومبت نظام المحادثة الصوتية الحية — مختلف جوهرياً عن برومبت الدردشة النصية.
