@@ -7,7 +7,7 @@ let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 const SMART_SUPERVISOR_INTELLIGENCE = 96
 const SMART_SUPERVISOR_MEMORY = 98
 
-type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
 const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
   CHAT: 'مدرّس ومرشد أكاديمي',
