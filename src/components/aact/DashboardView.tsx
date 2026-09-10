@@ -130,6 +130,24 @@ interface StudentStudyGuide {
 
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
+interface AcademicMemorySnapshot {
+  exists: boolean
+  profileDigest: string | null
+  strengths: string[]
+  weaknesses: string[]
+  conceptsToReview: string[]
+  recommendedNextActions: string[]
+  lastConversationSummary: string | null
+  examSignals: string[]
+  thesisSignals: string[]
+  lastFileAnalysis: string | null
+  interactionsCount: number
+  lastInteractionAt: string | null
+  lastExamAt: string | null
+  lastDefenseAt: string | null
+  updatedAt: string | null
+}
+
 export function DashboardView() {
   const { user, navigate, openUnit, openExam, openProgramDetails } = useAppStore()
   const { toast } = useToast()
