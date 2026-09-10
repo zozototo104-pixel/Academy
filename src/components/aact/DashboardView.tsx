@@ -148,6 +148,19 @@ interface AcademicMemorySnapshot {
   updatedAt: string | null
 }
 
+interface MicroCredentialCard {
+  id: string
+  credentialId: string
+  titleAr: string
+  skillArea: string
+  description: string
+  learningOutcome: string
+  badgeCode: string
+  programTitle: string
+  issuedAt?: string | null
+  evidence?: any
+}
+
 export function DashboardView() {
   const { user, navigate, openUnit, openExam, openProgramDetails } = useAppStore()
   const { toast } = useToast()
