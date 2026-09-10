@@ -29,6 +29,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const FILTERS: { key: string; label: string }[] = [
   { key: 'ALL', label: 'الكل' },
+  { key: 'MASTERS', label: 'الماجستير' },
+  { key: 'DOCTORATE', label: 'الدكتوراه' },
   { key: 'DEGREES', label: 'ماجستير ودكتوراة' },
   { key: 'INTL_CERT', label: 'الشهادات الدولية' },
   { key: 'DIPLOMA', label: 'الدبلومات التدريبية' },
