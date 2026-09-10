@@ -400,8 +400,34 @@ export async function GET() {
     const totalAssistantMessages = chats.filter((c) => c.role === 'assistant').length
     const totalUserMessages = chats.filter((c) => c.role === 'user').length
     const voiceMessages = chats.filter((c) => c.mode === 'VOICE').length
+    const responseTimes = responseTimeMetrics(chats)
+    const weakSupervisorReplies = chats
+      .filter((c) => c.role === 'assistant')
+      .map((c) => {
+        const reason = detectWeakSupervisorReply(c.content)
+        return reason ? {
+          id: c.id,
+          supervisor: smartSupervisorLabel(c.mode, c.kind),
+          student: c.user?.name || 'طالب غير محدد',
+          email: c.user?.email || '',
+          reason,
+          mode: c.mode,
+          kind: c.kind,
+          excerpt: String(c.content || '').replace(/\s+/g, ' ').trim().slice(0, 220),
+          createdAt: c.createdAt,
+        } : null
+      })
+      .filter(Boolean)
+      .slice(0, 12)
+    const weakSupervisorReplyRate = pct(weakSupervisorReplies.length, totalAssistantMessages)
     const memoryCoverage = pct((memories as any[]).length, studentsCount)
     const avgMemoryInteractions = avg((memories as any[]).map((m) => Number(m.interactionsCount || 0))) || 0
+
+    const allCompletedAttempts = [...programAttempts, ...unitAttempts].filter((a) => a.passed != null || typeof a.score === 'number')
+    const allPassedAttempts = allCompletedAttempts.filter((a) => a.passed === true || (typeof a.score === 'number' && a.score >= 60))
+    const successRate = pct(allPassedAttempts.length, allCompletedAttempts.length)
+    const totalAppeals = programAttempts.filter((a) => a.appealStatus && a.appealStatus !== 'NONE').length
+    const appealRate = pct(totalAppeals, programAttempts.length)
 
     const admissionScores = admissions.map((a) => a.aiScore)
     const thesisScores = theses.map((t) => t.resultScore ?? t.aiScore)
