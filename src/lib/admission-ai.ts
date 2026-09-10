@@ -409,7 +409,7 @@ function sharedNameStatus(fullName: string, f: AdmissionFileEvidence): Admission
 function programRelevanceStatus(program: string, expectedType: string, f: AdmissionFileEvidence, detected: DetectedDocKind): AdmissionDocumentAnalysis['relatedToProgram'] {
   if (detected === 'NON_ADMISSION' || detected === 'LOGO') return 'NO'
   if (['ID', 'PHOTO'].includes(expectedType) || detected === 'ID' || detected === 'PHOTO') return 'YES'
-  const content = normalize(`${program} ${safeVisibleContent(f)} ${f.ocrRead?.degreeMentioned || ''} ${f.ocrRead?.institution || ''}`)
+  const content = normalize(`${safeVisibleContent(f)} ${f.ocrRead?.degreeMentioned || ''} ${f.ocrRead?.institution || ''}`)
   const programWords = normalize(program).split(' ').filter((w) => w.length > 3)
   if (programWords.some((w) => content.includes(w))) return 'YES'
   if (detected === 'CV' || detected === 'DEGREE_CERTIFICATE' || detected === 'TRANSCRIPT') return 'UNVERIFIED'
