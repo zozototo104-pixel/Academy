@@ -42,10 +42,10 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 // أبرز البرامج المميزة — الشريط المتحرك (الدكتوراة، الماجستير، الدبلومات، شهادات الاستشاريين)
-const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string }[] = [
-  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'كافة التخصصات (باستثناء الطب)', slug: 'professional-doctorate' },
-  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'كافة التخصصات (باستثناء الطب)', slug: 'professional-masters' },
-  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً' },
+const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
+  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
+  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
   { icon: BadgeCheck, t: 'اعتماد المستشارين والمدربين', hint: 'اعتماد دولي', slug: 'accredit-consultants-trainers' },
   { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
   { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
