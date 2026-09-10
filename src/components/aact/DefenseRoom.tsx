@@ -1115,9 +1115,9 @@ export function DefenseRoom({
               </Button>
               <Button size="sm" variant={transcriptOn ? 'default' : 'outline'} onClick={toggleTranscript} disabled={!sttSupported}
                 className={`flex-1 border-white/25 font-bold ${transcriptOn ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-transparent text-white hover:bg-white/10'}`}
-                title="تفريغ صوتي حي يغذي تحليل المستشار الذكي ويُحفظ في المحضر">
+                title="وضع تفاعلي: يسمع المستشار الذكي كلامك، يعلّق صوتياً، ويُحفظ التفريغ في المحضر">
                 <Captions className="ml-1 h-3.5 w-3.5" />
-                {transcriptOn ? 'التفريغ الحي يعمل — تحدث' : 'تفريغ صوتي حي'}
+                {transcriptOn ? 'التفاعل الحي يعمل — تحدث' : 'تشغيل التفاعل الحي'}
               </Button>
               <Button size="sm" variant="outline" onClick={toggleCam} className="border-white/25 bg-transparent font-bold text-white hover:bg-white/10">
                 {camOn ? <Video className="ml-1 h-3.5 w-3.5" /> : <VideoOff className="ml-1 h-3.5 w-3.5" />}
