@@ -176,12 +176,14 @@ export function DashboardView() {
   const open = async (programId: string) => {
     setLoadingActive(true)
     try {
-      const [d, a] = await Promise.all([
+      const [d, a, g] = await Promise.all([
         api<ProgressData>(`/api/progress?programId=${programId}`),
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
+        api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
       ])
       setActive(d)
       setAssignments(a.assignments || [])
+      setStudyGuides(g.guides || [])
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
