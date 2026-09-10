@@ -79,7 +79,7 @@ async function runGeneration(examId: string) {
       where: { id: examId },
       include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
     })
-    if (!exam) return
+    if (!exam || exam.status !== 'GENERATING') return
 
     const semester = exam.semester
     const books = await db.book.findMany({
