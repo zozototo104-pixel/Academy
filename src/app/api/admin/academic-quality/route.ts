@@ -356,6 +356,7 @@ export async function GET() {
       recommendations: [
         weakBooks.length > 0 ? 'ابدأ بتحويل الكتب الضعيفة إلى نص وبنك معرفة قبل توليد امتحانات جديدة.' : null,
         questionSourceCoverage < 80 ? 'راجع الأسئلة التي لا تحمل sourceEvidence واضحاً قبل نشر الامتحانات.' : null,
+        assessmentMetadataCoverage < 80 ? 'استكمل حقول المهارة والصعوبة وتعليل الإجابة وأسباب خطأ الخيارات قبل نشر أي امتحان جامع.' : null,
         duplicateQuestions.length > 0 ? 'استخدم تقرير التكرار لتنظيف بنك الأسئلة ومنع تكرار الأسئلة بين الامتحانات.' : null,
         atRiskStudents.length > 0 ? 'حوّل الطلاب المتعثرين إلى خطة علاجية مع المشرف الذكي وربطها بالمفاهيم الناقصة.' : null,
         memoryCoverage < 60 ? 'شجع الطلاب على استخدام المشرف الذكي بعد كل امتحان ومهمة لزيادة تغطية الذاكرة الأكاديمية.' : null,
