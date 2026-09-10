@@ -37,7 +37,7 @@ export interface HydratedExamBook {
   link?: string | null
   textContent: string
   sourceNote: string
-  contentQuality: 'STORED_TEXT' | 'UPLOADED_FILE' | 'LINK_TEXT' | 'GEMINI_DOCUMENT' | 'METADATA_ONLY'
+  contentQuality: 'STORED_TEXT' | 'UPLOADED_FILE' | 'LINK_TEXT' | 'GEMINI_DOCUMENT' | 'METADATA_ONLY' | 'NO_CONTENT'
   shouldPersistText: boolean
 }
 
