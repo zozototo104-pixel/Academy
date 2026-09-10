@@ -59,6 +59,8 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   UPDATE_ASSIGNMENT: 'تعديل واجب أكاديمي',
   DELETE_ASSIGNMENT: 'حذف واجب أكاديمي',
   GRADE_ASSIGNMENT: 'تصحيح واجب طالب',
+  REBUILD_BOOK_KNOWLEDGE: 'تحليل كتاب لبنك المعرفة',
+  REBUILD_PROGRAM_KNOWLEDGE: 'بناء بنك معرفة البرنامج',
   UPDATE_SETTINGS: 'تحديث إعدادات/رسوم المنصة',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل',
   MARK_SHARE_PAID: 'تأكيد تحويل مستحقات وكيل',
