@@ -150,6 +150,37 @@ export function AdminBooksTab() {
     }
   }, [exams, programId, loadProgramData])
 
+  // تحريك التوليد تلقائياً دفعة بعد دفعة طالما الإدارة فاتحة الصفحة.
+  // هذا يلغي الاعتماد على خلفية Vercel التي كانت تسبب بقاء الامتحان على 20 سؤالاً فقط.
+  useEffect(() => {
+    if (!programId || advanceRef.current || stoppingExamId) return
+    const generatingExam = exams.find((e) => e.status === 'GENERATING')
+    if (!generatingExam) return
+
+    const timer = setTimeout(async () => {
+      if (advanceRef.current) return
+      advanceRef.current = true
+      try {
+        const d = await api<{ status?: string; questionCount?: number; inserted?: number; done?: boolean }>('/api/admin/program-exams/generate', {
+          method: 'POST',
+          body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
+        })
+        await loadProgramData(programId, true)
+        if (d.done || d.status === 'REVIEW') {
+          toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
+        }
+      } catch (err: any) {
+        await loadProgramData(programId, true)
+        // لا نزعج الإدارة بتوست كل عدة ثوانٍ؛ تظهر التفاصيل داخل بطاقة الامتحان.
+        console.error('auto exam generation step failed:', err)
+      } finally {
+        advanceRef.current = false
+      }
+    }, generatingExam.questionCount === 0 ? 1200 : 6500)
+
+    return () => clearTimeout(timer)
+  }, [exams, programId, stoppingExamId, loadProgramData, toast])
+
   const addBook = async (payload?: Partial<Suggestion>) => {
     if (!programId) return
     const title = payload?.title ?? form.title
