@@ -292,6 +292,13 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       throw new Error(`لا يوجد نص فعلي مقروء من الكتب. ارفع ملف Word/PDF/TXT قابل للقراءة أو ضع رابط PDF مباشر، ولا تستخدم رابط بحث Google أو صفحة وصف فقط. ${notes}`)
     }
 
+    existingCount = await resetUngroundedPendingQuestionsIfNeeded(examId, usableBooks, existingCount)
+    const batchIndex = firstMissingBatchIndex(existingCount)
+    if (batchIndex >= EXAM_BATCH_COUNT) {
+      const reviewed = await exposeExamForReview(examId, null)
+      return { ...reviewed, ok: true, done: true }
+    }
+
     const previousQuestions = await db.programQuestion.findMany({
       where: { examId },
       orderBy: { order: 'asc' },
