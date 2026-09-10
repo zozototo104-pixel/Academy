@@ -79,11 +79,13 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
         assignment: { select: { title: true, semester: true, type: true, points: true, weight: true } },
       },
     }).catch(() => []),
-    db.thesisSubmission.findFirst({
-      where: { userId, admission: { programId: program.id } },
+    db.thesisSubmission.findMany({
+      where: { userId },
       orderBy: { updatedAt: 'desc' },
+      take: 10,
       select: {
         id: true,
+        admissionId: true,
         title: true,
         status: true,
         aiScore: true,
@@ -95,8 +97,9 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
         reviewedAt: true,
         aiRecommendation: true,
         committee: true,
+        admission: { select: { programId: true } },
       },
-    }).catch(() => null),
+    }).then((rows) => rows.find((t) => t.admission?.programId === program.id || (!!cert.admissionId && t.admissionId === cert.admissionId)) || null).catch(() => null),
   ])
 
   const examScores = [...unitAttempts.map((a) => a.score), ...programAttempts.map((a) => a.score)].filter((x): x is number => typeof x === 'number')
