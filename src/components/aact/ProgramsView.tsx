@@ -90,10 +90,8 @@ export function ProgramsView() {
   }, [])
 
   useEffect(() => {
-    if (programsFilter) {
-      setFilter(programsFilter)
-      setSearch('')
-    }
+    setFilter(programsFilter || 'ALL')
+    setSearch('')
   }, [programsFilter])
 
   // الالتحاق بالبرنامج يتم عبر إجراءات الالتحاق الرسمية (دليل الإجراءات):
