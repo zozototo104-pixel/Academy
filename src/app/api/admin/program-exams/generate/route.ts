@@ -120,6 +120,31 @@ async function existingOptionTexts(examId: string): Promise<Set<string>> {
   return out
 }
 
+async function cleanupDuplicatePendingQuestions(examId: string): Promise<number> {
+  const rows = await db.programQuestion.findMany({
+    where: { examId, status: 'PENDING_REVIEW' },
+    orderBy: { order: 'asc' },
+    select: { id: true, text: true, options: true },
+  })
+  const seenTexts = new Set<string>()
+  const seenOptionSigs = new Set<string>()
+  const deleteIds: string[] = []
+  for (const row of rows) {
+    const textKey = normalizeQuestionText(row.text).slice(0, 180)
+    const optSig = optionSignatureFromJson(row.options)
+    const duplicatedText = !!textKey && seenTexts.has(textKey)
+    const duplicatedOptions = !!optSig && seenOptionSigs.has(optSig)
+    if (duplicatedText || duplicatedOptions) {
+      deleteIds.push(row.id)
+      continue
+    }
+    if (textKey) seenTexts.add(textKey)
+    if (optSig) seenOptionSigs.add(optSig)
+  }
+  if (deleteIds.length) await db.programQuestion.deleteMany({ where: { id: { in: deleteIds } } })
+  return rows.length - deleteIds.length
+}
+
 function filterNewQuestions<T extends { text: string; options?: string[] | null }>(
   questions: T[],
   keys: Set<string>,
