@@ -164,6 +164,7 @@ export function AdminQualityTab() {
     { icon: ClipboardCheck, label: 'اكتمال القياس', value: `${data.overview.assessmentMetadataCoverage}%`, hint: 'مهارة/صعوبة/تعليل' },
     { icon: UserCheck, label: 'طلاب متعثرون', value: data.overview.atRiskStudents, hint: `${data.overview.pendingAppeals} اعتراض قيد المراجعة` },
     { icon: Bot, label: 'تغطية ذاكرة المشرف', value: `${data.overview.supervisorMemoryCoverage}%`, hint: `${data.supervisor.studentsWithMemory} طالب` },
+    { icon: Award, label: 'مهارات صغيرة', value: data.overview.microCredentials, hint: `${data.overview.microCredentialAwards} منحة` },
   ]
 
   return (
