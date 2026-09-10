@@ -272,6 +272,76 @@ export function AdminQualityTab() {
         </Card>
       )}
 
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="p-5">
+            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي البرامج قوية؟</h3>
+            {data.strongPrograms.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا يوجد برنامج وصل لمؤشر قوة كافٍ بعد.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.strongPrograms.slice(0, 5).map((p) => {
+                  const meta = BAND_META[p.band]
+                  return (
+                    <div key={p.id} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">{p.titleAr}</p>
+                        <Badge className={`${meta.cls} hover:bg-inherit text-[10px]`}>{p.qualityScore}/100</Badge>
+                      </div>
+                      <p className="mt-1 font-bold text-emerald-700">كتب {p.books} · امتحانات جاهزة {p.readyExams} · توثيق {p.sourceCoverage}% · قياس {p.metadataCoverage}%</p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="p-5">
+            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي تخصص عليه طلب عالي؟</h3>
+            {data.topDemandSpecialties.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد طلبات أو تسجيلات كافية بعد.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.topDemandSpecialties.slice(0, 5).map((p, index) => (
+                  <div key={p.id} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-black text-[#0f2b46]">{index + 1}. {p.titleAr}</p>
+                      <span className="rounded-full bg-[#0f2b46] px-2 py-1 text-[10px] font-black text-[#e0b83a]">{p.demandScore}</span>
+                    </div>
+                    <p className="mt-1 font-bold text-slate-500">طلبات قبول {p.admissions} · تسجيلات {p.enrollments}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="p-5">
+            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي مشرف ذكي أعطى إجابات ضعيفة؟</h3>
+            {data.weakSupervisorReplies.length === 0 ? (
+              <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود ضعيفة مرصودة في آخر السجل.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.weakSupervisorReplies.slice(0, 5).map((r) => (
+                  <div key={r.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-black text-[#0f2b46]">{r.supervisor}</p>
+                      <Badge className="bg-amber-100 text-[10px] text-amber-700 hover:bg-amber-100">يحتاج مراجعة</Badge>
+                    </div>
+                    <p className="mt-1 font-bold text-amber-700">{r.reason}</p>
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-slate-500">{r.excerpt}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">الطالب: {r.student}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <Card className="border-[#0f2b46]/10">
           <CardContent className="p-5">
