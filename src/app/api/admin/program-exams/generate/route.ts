@@ -64,9 +64,154 @@ async function stopGenerationAndExposeReview(examId: string, admin: { id: string
 }
 
 function scheduleGeneration(examId: string) {
+  // بقيت كاحتياط فقط، لكن التوليد الأساسي أصبح خطوة بخطوة من نفس طلب الإدارة
+  // حتى لا يعلق Vercel على حالة GENERATING بدون زيادة الأسئلة.
   after(() => {
-    runGeneration(examId).catch((e) => console.error('scheduled program exam generation failed:', e))
+    runGenerationStep(examId).catch((e) => console.error('scheduled program exam step failed:', e))
   })
+}
+
+async function examTotals(examId: string): Promise<{ questionCount: number; totalPoints: number }> {
+  const rows = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
+  return { questionCount: rows.length, totalPoints: rows.reduce((sum, q) => sum + q.points, 0) }
+}
+
+async function exposeExamForReview(examId: string, note?: string) {
+  const totals = await examTotals(examId)
+  const status = totals.questionCount >= 10 ? 'REVIEW' : 'FAILED'
+  await db.programExam.update({
+    where: { id: examId },
+    data: {
+      status,
+      totalPoints: totals.totalPoints,
+      durationMin: totals.questionCount > 0 ? Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))) : 120,
+      errorNote: note || (status === 'REVIEW'
+        ? `تم نقل ${totals.questionCount} سؤالاً للمراجعة بعد توقف التوليد`
+        : 'فشل التوليد قبل إنشاء الحد الأدنى من الأسئلة'),
+    },
+  })
+  return { ok: status === 'REVIEW', status, inserted: 0, done: status === 'REVIEW', ...totals }
+}
+
+async function runGenerationStep(examId: string): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+  try {
+    const exam = await db.programExam.findUnique({
+      where: { id: examId },
+      include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
+    })
+    if (!exam) return { ok: false, status: 'MISSING', inserted: 0, questionCount: 0, totalPoints: 0, done: true, error: 'الامتحان غير موجود' }
+    if (exam.status === 'READY' || exam.status === 'REVIEW') {
+      const totals = await examTotals(examId)
+      return { ok: true, status: exam.status, inserted: 0, done: true, ...totals }
+    }
+    if (exam.status !== 'GENERATING') {
+      await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
+    }
+
+    const books = await db.book.findMany({
+      where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        titleEn: true,
+        author: true,
+        year: true,
+        description: true,
+        link: true,
+        fileName: true,
+        mimeType: true,
+        size: true,
+        data: true,
+        textContent: true,
+      },
+    })
+    if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}`)
+
+    const existingCount = await db.programQuestion.count({ where: { examId } })
+    const batchIndex = firstMissingBatchIndex(existingCount)
+    if (batchIndex >= EXAM_BATCH_COUNT) {
+      const reviewed = await exposeExamForReview(examId, null)
+      return { ...reviewed, ok: true, done: true }
+    }
+
+    const hydratedBooks = []
+    for (const book of books) {
+      if (!(await isExamStillGenerating(examId))) {
+        const totals = await examTotals(examId)
+        return { ok: true, status: 'STOPPED', inserted: 0, done: true, ...totals }
+      }
+      const hydrated = await hydrateBookContentForExam(book)
+      hydratedBooks.push(hydrated)
+      if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
+        await db.book.update({
+          where: { id: hydrated.id },
+          data: { textContent: hydrated.textContent.slice(0, 180000) },
+        }).catch(() => {})
+      }
+    }
+
+    let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, batchIndex)
+    if (batch.length === 0) {
+      batch = fallbackExamQuestionBatch(exam.program, hydratedBooks, batchIndex)
+    }
+    if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${batchIndex + 1} من الأسئلة`)
+
+    if (!(await isExamStillGenerating(examId))) {
+      const totals = await examTotals(examId)
+      return { ok: true, status: 'STOPPED', inserted: 0, done: true, ...totals }
+    }
+
+    // منع التكرار إذا دخل طلبان في نفس اللحظة: نعيد فحص العدد قبل الإدخال.
+    const latestCount = await db.programQuestion.count({ where: { examId } })
+    if (latestCount !== existingCount) {
+      const totals = await examTotals(examId)
+      return { ok: true, status: 'GENERATING', inserted: 0, done: false, batchIndex, ...totals }
+    }
+
+    const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
+    let order = maxOrder._max.order || existingCount || 0
+    await db.programQuestion.createMany({
+      data: batch.map((q) => ({
+        examId,
+        order: ++order,
+        type: q.type,
+        text: q.text,
+        options: q.options ? JSON.stringify(q.options) : null,
+        correctAnswer: q.correct ?? null,
+        modelAnswer: q.modelAnswer ?? null,
+        points: q.points || 2,
+        status: 'PENDING_REVIEW',
+      })),
+    })
+
+    const totals = await examTotals(examId)
+    const done = firstMissingBatchIndex(totals.questionCount) >= EXAM_BATCH_COUNT
+    await db.programExam.update({
+      where: { id: examId },
+      data: {
+        status: done ? 'REVIEW' : 'GENERATING',
+        totalPoints: totals.totalPoints,
+        durationMin: Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))),
+        errorNote: done ? null : `تم توليد ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()} — اضغط تحريك/استكمال أو اترك الصفحة مفتوحة ليكمل على دفعات`,
+        booksUsed: hydratedBooks.map((b) => `«${b.title}» (${b.sourceNote})`).join('، ').slice(0, 2000),
+      },
+    })
+
+    return { ok: true, status: done ? 'REVIEW' : 'GENERATING', inserted: batch.length, done, batchIndex, ...totals }
+  } catch (e: any) {
+    const message = String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
+    const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
+    if (totals.questionCount >= 10) {
+      const reviewed = await exposeExamForReview(examId, `توقف التوليد بعد حفظ ${totals.questionCount} سؤالاً: ${message}`)
+      return { ...reviewed, ok: true, done: true, error: message }
+    }
+    await db.programExam.update({
+      where: { id: examId },
+      data: { status: 'FAILED', errorNote: message, totalPoints: totals.totalPoints },
+    }).catch(() => {})
+    return { ok: false, status: 'FAILED', inserted: 0, done: true, error: message, ...totals }
+  }
 }
 
 async function ensureStarterQuestions(examId: string): Promise<{ inserted: number; questionCount: number }> {
