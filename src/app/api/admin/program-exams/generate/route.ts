@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { fallbackExamQuestionBatch, generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS } from '@/lib/books-ai'
 import { hydrateBookContentForExam } from '@/lib/book-content'
+import { buildKnowledgeContextForExam } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
