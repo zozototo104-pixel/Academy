@@ -18,6 +18,21 @@ export type View =
   | 'directory'
   | 'contact'
 
+function updateBrowserRoute(view: View, params: Record<string, string | null | undefined> = {}) {
+  if (typeof window === 'undefined') return
+  try {
+    const url = new URL(window.location.href)
+    url.search = ''
+    if (view !== 'home') url.searchParams.set('view', view)
+    for (const [key, value] of Object.entries(params)) {
+      if (value) url.searchParams.set(key, value)
+    }
+    const next = `${url.pathname}${url.search}${url.hash}`
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (next !== current) window.history.pushState(null, '', next)
+  } catch {}
+}
+
 export interface AppUser {
   id: string
   name: string
