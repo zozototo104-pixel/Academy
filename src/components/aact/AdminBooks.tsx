@@ -943,6 +943,49 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
+              {assignmentSuggestions.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-1.5 text-xs font-black text-[#0f2b46]">
+                      <Bot className="h-4 w-4 text-[#a8841a]" /> واجبات مقترحة من بنك المعرفة
+                    </h3>
+                    <Button size="sm" onClick={addAllAssignmentSuggestions} disabled={savingAssignment} className="bg-[#0f2b46] text-[10px] font-black text-[#e0b83a] hover:bg-[#12365c]">
+                      <Plus className="ml-1 h-3 w-3" /> إضافة كل الواجبات
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {assignmentSuggestions.map((s, i) => (
+                      <article key={`${s.title}-${i}`} className={`rounded-xl border bg-white p-3 shadow-sm ${s.added ? 'border-emerald-200 opacity-70' : 'border-[#c9a227]/20'}`}>
+                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px] font-black">{assignmentTypeLabel(s.type)}</Badge>
+                          <Badge variant="outline" className="text-[9px] font-black">{s.semester === 2 ? 'الفصل الثاني' : s.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}</Badge>
+                          <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">{s.points} نقاط</Badge>
+                          {s.weight > 0 && <Badge className="bg-emerald-50 text-[9px] font-black text-emerald-700 hover:bg-emerald-50">وزن {s.weight}%</Badge>}
+                        </div>
+                        <h4 className="text-xs font-black leading-5 text-[#0f2b46]">{s.title}</h4>
+                        <p className="mt-1 line-clamp-4 text-[11px] font-bold leading-5 text-slate-600">{s.description}</p>
+                        {s.sourceKnowledgeTitles?.length ? (
+                          <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-5 text-slate-500">مصادر معرفية: {s.sourceKnowledgeTitles.slice(0, 4).join('، ')}</p>
+                        ) : null}
+                        <p className="mt-2 text-[10px] font-bold leading-5 text-[#a8841a]">معايير التصحيح: {s.rubric}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {s.added ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> أُضيف</Badge>
+                          ) : (
+                            <Button size="sm" onClick={() => addAssignmentSuggestion(s)} disabled={savingAssignment} className="h-8 bg-[#c9a227] px-3 text-[10px] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
+                              <Plus className="ml-1 h-3 w-3" /> إضافة مباشرة
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => useAssignmentSuggestionInForm(s)} className="h-8 px-3 text-[10px] font-black">
+                            فتح للتعديل قبل الإضافة
+                          </Button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 space-y-3">
                 {assignments.length === 0 ? (
                   <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">لا توجد واجبات حقيقية لهذا البرنامج بعد.</div>
