@@ -245,9 +245,9 @@ export function DefenseRoom({
       audioRef.current = audio
       const resume = () => {
         URL.revokeObjectURL(url)
-        setSpeaking(false)
+        if (ttsSerial === ttsSerialRef.current) setSpeaking(false)
         transcriptPausedForSpeechRef.current = false
-        if (wasTranscribing) { try { transcriptRecRef.current?.start() } catch {} }
+        if (wasTranscribing && !liveAdvisorRef.current) { try { transcriptRecRef.current?.start() } catch {} }
       }
       audio.onended = resume
       audio.onerror = resume
