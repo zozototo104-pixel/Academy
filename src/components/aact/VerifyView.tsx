@@ -18,6 +18,8 @@ interface VerifyResult {
       creditHoursLabel: string
       learningOutcomes: string[]
       qualityControls: string[]
+      termPlans?: { id: string; title: string; weight: number; requiredBooks: { title: string }[]; finalEvaluation: string }[]
+      finalEvaluationFormula?: { label: string; weight: number; description: string }[]
     } | null
   }
   message: string
