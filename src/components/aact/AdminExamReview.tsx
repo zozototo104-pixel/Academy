@@ -553,7 +553,7 @@ export function QuestionReviewDialog({
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <p className="text-[10px] font-bold text-slate-500">
-                المعتمد: {questions.filter((q) => q.status === 'PUBLISHED').length} من {questions.length} — الحد الأدنى للنشر 10 أسئلة معتمدة
+                المعتمد: {questions.filter((q) => q.status === 'PUBLISHED').length} من {questions.length} — النشر يتطلب 80 سؤالاً موثقاً ومتنوعاً مع مهارة وصعوبة وتعليلات
               </p>
               <Button onClick={publish} disabled={busy} className="bg-emerald-600 font-extrabold text-white hover:bg-emerald-700">
                 {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />}
