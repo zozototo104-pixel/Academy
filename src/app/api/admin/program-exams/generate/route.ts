@@ -95,6 +95,59 @@ function filterNewQuestions<T extends { text: string }>(questions: T[], keys: Se
   return out
 }
 
+function hasBadExamMetadata(value: unknown): boolean {
+  const n = normalizeQuestionText(value)
+  return (
+    n.includes('رابط الكتاب') ||
+    n.includes('مصدره') ||
+    n.includes('ملاحظه قراءه المحتوي') ||
+    n.includes('google com search') ||
+    n.includes('tbm bks') ||
+    n.includes('لم يظهر فيه نص')
+  )
+}
+
+function optionSignatureFromJson(options: string | null): string {
+  if (!options) return ''
+  try {
+    const arr = JSON.parse(options)
+    return Array.isArray(arr) ? arr.map((o) => normalizeQuestionText(o)).filter(Boolean).join('|') : ''
+  } catch {
+    return ''
+  }
+}
+
+async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: number): Promise<number> {
+  if (existingCount === 0 || existingCount > EXAM_BATCH_SPECS[0].count) return existingCount
+  const rows = await db.programQuestion.findMany({
+    where: { examId },
+    orderBy: { order: 'asc' },
+    select: { text: true, options: true, status: true },
+  })
+  if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
+
+  const optionSigs = rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean)
+  const repeatedOptions = new Set(optionSigs).size < optionSigs.length
+  const metadataQuestions = rows.some((q) => hasBadExamMetadata(q.text) || hasBadExamMetadata(q.options))
+  const genericRepeated = optionSigs.some((sig) =>
+    sig.includes(normalizeQuestionText('تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة')) ||
+    sig.includes(normalizeQuestionText('تطبيق أداة تقنية واحدة دون تحليل البيئة أو أصحاب المصلحة'))
+  )
+
+  if (!metadataQuestions && !repeatedOptions && !genericRepeated) return existingCount
+
+  await db.programQuestion.deleteMany({ where: { examId, status: 'PENDING_REVIEW' } })
+  await db.programExam.update({
+    where: { id: examId },
+    data: {
+      status: 'GENERATING',
+      totalPoints: 0,
+      errorNote: 'حذف النظام الدفعة القديمة لأنها كانت مبنية على رابط/وصف أو خيارات مكررة، وسيعيد بناءها من محتوى الكتاب المقروء فعلياً',
+    },
+  }).catch(() => {})
+  return 0
+}
+
 async function exposeExamForReview(examId: string, note?: string) {
   const totals = await examTotals(examId)
   const status = totals.questionCount >= 10 ? 'REVIEW' : 'FAILED'
