@@ -446,17 +446,18 @@ export async function POST(req: NextRequest) {
 
     const generating = await db.programExam.findFirst({ where: { programId, status: 'GENERATING' } })
     if (generating) {
-      const starter = await ensureStarterQuestions(generating.id)
-      scheduleGeneration(generating.id)
+      const step = await runGenerationStep(generating.id)
       return NextResponse.json({
-        ok: true,
+        ok: step.ok,
         examId: generating.id,
         booksCount,
         semester: generating.semester,
         resumed: true,
         kicked: true,
-        existingQuestions: starter.questionCount,
-        inserted: starter.inserted,
+        existingQuestions: step.questionCount,
+        inserted: step.inserted,
+        status: step.status,
+        done: step.done,
         requiredQuestions: totalRequiredQuestions(),
       })
     }
