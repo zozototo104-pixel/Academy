@@ -5,6 +5,9 @@ import { audit } from '@/lib/notify'
 import { generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS } from '@/lib/books-ai'
 import { hydrateBookContentForExam } from '@/lib/book-content'
 
+export const runtime = 'nodejs'
+export const maxDuration = 300
+
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
 // 12.2: كل برنامج له امتحانان (فصل أول + فصل ثانٍ) — الأسئلة تولد بحالة "بانتظار مراجعة الإدارة"
 // (Human-in-the-loop) ولا تُنشر للطلاب إلا بعد اعتماد الإدارة.
