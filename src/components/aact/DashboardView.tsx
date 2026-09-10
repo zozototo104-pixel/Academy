@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api } from '@/lib/store'
+import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { useCallback, useEffect, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
