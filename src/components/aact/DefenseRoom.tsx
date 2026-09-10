@@ -596,23 +596,25 @@ export function DefenseRoom({
       if (finalText.trim()) {
         setInterim('')
         const spokenChunk = finalText.trim()
-        // حفظ التفريغ + مداخلة صوتية حية من المستشار الذكي عند وجود وقفة مناسبة في كلام الطالب.
-        api('/api/defense', { method: 'POST', body: JSON.stringify({ action: 'transcript', text: spokenChunk }) }).catch(() => {})
+        // حفظ التفريغ + طلب مداخلة المستشار في نفس الطلب حتى لا يسكت بعد السؤال الأول.
         transcriptCountRef.current++
         const now = Date.now()
-        if (!aiInterjectingRef.current && now - lastInterjectionAtRef.current > 12000) {
+        const wantsInterjection = !aiInterjectingRef.current && now - lastInterjectionAtRef.current > 7000
+        if (wantsInterjection) {
           aiInterjectingRef.current = true
           lastInterjectionAtRef.current = now
-          api<{ note: DefenseMsg | null }>('/api/defense', { method: 'POST', body: JSON.stringify({ action: 'ai-note' }) })
-            .then((d) => {
-              if (!d.note) return
-              setMessages((prev) => (prev.some((m) => m.id === d.note!.id) ? prev : [...prev, d.note!]))
-              lastSpokenMessageIdRef.current = d.note.id
-              speak(d.note.content)
-            })
-            .catch(() => {})
-            .finally(() => { aiInterjectingRef.current = false })
         }
+        api<{ ok: boolean; note?: DefenseMsg | null }>('/api/defense', { method: 'POST', body: JSON.stringify({ action: 'transcript', text: spokenChunk }) })
+          .then((d) => {
+            if (!d.note) return
+            setMessages((prev) => (prev.some((m) => m.id === d.note!.id) ? prev : [...prev, d.note!]))
+            lastSpokenMessageIdRef.current = d.note.id
+            speak(d.note.content)
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (wantsInterjection) aiInterjectingRef.current = false
+          })
       }
     }
     rec.onerror = () => {}
