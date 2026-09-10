@@ -103,6 +103,19 @@ interface AssignmentRow {
   submissions: AssignmentSubmissionRow[]
 }
 
+interface AssignmentSuggestion {
+  title: string
+  description: string
+  type: string
+  semester: number
+  points: number
+  weight: number
+  dueDays: number
+  rubric: string
+  sourceKnowledgeTitles: string[]
+  added?: boolean
+}
+
 interface KnowledgeItemRow {
   id: string
   bookId?: string | null
