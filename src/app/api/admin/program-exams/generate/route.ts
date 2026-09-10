@@ -240,7 +240,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
         totalPoints: totals.totalPoints,
         durationMin: Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))),
         errorNote: done ? null : `تم توليد ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()} — اضغط تحريك/استكمال أو اترك الصفحة مفتوحة ليكمل على دفعات`,
-        booksUsed: hydratedBooks.map((b) => `«${b.title}» (${b.sourceNote})`).join('، ').slice(0, 2000),
+        booksUsed: usableBooks.map((b) => `«${b.title}» (${b.sourceNote})`).join('، ').slice(0, 2000),
       },
     })
 
