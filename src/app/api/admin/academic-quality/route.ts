@@ -158,13 +158,6 @@ export async function GET() {
         : Promise.resolve([]),
     ])
 
-    const questionsByExam = new Map<string, typeof questions>()
-    for (const q of questions) {
-      const list = questionsByExam.get(q.examId) || []
-      list.push(q)
-      questionsByExam.set(q.examId, list)
-    }
-
     const duplicateGroups = new Map<string, typeof questions>()
     for (const q of questions) {
       const key = normalizeQuestion(q.text)
