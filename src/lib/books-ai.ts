@@ -763,6 +763,127 @@ export interface ExamSourceBook {
   contentQuality?: string | null
 }
 
+const EXAM_BOOK_MAX_CHARS = 180000
+const EXAM_BOOK_SECTION_CHARS = 2400
+const EXAM_TOTAL_PROMPT_BOOK_CHARS = 72000
+
+function sanitizeExamText(value: unknown, max = EXAM_BOOK_MAX_CHARS): string {
+  return String(value || '')
+    .replace(/\u0000/g, ' ')
+    .replace(/[ \t\r\f\v]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, max)
+}
+
+function splitSentences(text: string): string[] {
+  return sanitizeExamText(text, 80000)
+    .split(/(?<=[.!؟?؛;])\s+|\n+/u)
+    .map((s) => cleanText(s, 320))
+    .filter((s) => s.length >= 45 && s.length <= 320)
+}
+
+function importanceScore(sentence: string, programDomain: ProgramDomain): number {
+  const n = norm(sentence)
+  let score = Math.min(sentence.length / 90, 3)
+  const common = [
+    'تعريف', 'مفهوم', 'نموذج', 'اطار', 'منهجيه', 'استراتيجيه', 'تحليل', 'تقييم', 'تطبيق', 'مخاطر', 'حوكمه', 'جوده', 'قرار', 'مؤشرات',
+    'principle', 'framework', 'model', 'methodology', 'analysis', 'risk', 'governance', 'strategy', 'assessment', 'process', 'control', 'performance',
+  ]
+  const domainTerms: Partial<Record<ProgramDomain, string[]>> = {
+    cybersecurity: ['security', 'cyber', 'network', 'cryptography', 'encryption', 'incident', 'forensics', 'malware', 'vulnerability', 'threat', 'امن', 'سيبراني', 'تشفير', 'شبكات', 'ثغرات', 'حادث'],
+    'artificial-intelligence': ['machine learning', 'deep learning', 'model', 'algorithm', 'data', 'neural', 'ذكاء', 'تعلم', 'خوارزم', 'نماذج', 'بيانات'],
+    'business-analytics': ['data', 'analytics', 'dashboard', 'statistics', 'prediction', 'decision', 'بيانات', 'تحليل', 'مؤشرات', 'قرار'],
+    'project-management': ['project', 'scope', 'schedule', 'cost', 'stakeholder', 'risk', 'agile', 'مشروع', 'نطاق', 'تكلفه', 'مخاطر'],
+    'human-resources': ['talent', 'performance', 'recruitment', 'training', 'compensation', 'موارد', 'اداء', 'استقطاب', 'تدريب'],
+    'quality-management': ['quality', 'six sigma', 'lean', 'iso', 'process', 'جوده', 'تحسين', 'عمليات'],
+  }
+  for (const k of common) if (n.includes(norm(k))) score += 2
+  for (const k of domainTerms[programDomain] || []) if (n.includes(norm(k))) score += 3
+  if (/\b(chapter|unit|section|part)\b/i.test(sentence) || /الفصل|الوحدة|المبحث|الباب/u.test(sentence)) score += 2
+  if (/\d/.test(sentence)) score += 0.5
+  return score
+}
+
+function pickWindow(text: string, ratio: number, length = EXAM_BOOK_SECTION_CHARS): string {
+  const clean = sanitizeExamText(text)
+  if (clean.length <= length) return clean
+  const start = Math.max(0, Math.min(clean.length - length, Math.floor((clean.length - length) * ratio)))
+  return clean.slice(start, start + length).trim()
+}
+
+function topImportantSentences(text: string, programDomain: ProgramDomain, max = 14): string[] {
+  return splitSentences(text)
+    .map((s) => ({ s, score: importanceScore(s, programDomain) }))
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.s)
+    .filter((s, i, arr) => arr.findIndex((z) => norm(z).slice(0, 80) === norm(s).slice(0, 80)) === i)
+    .slice(0, max)
+}
+
+function distributedBookExcerpts(text: string, batchIndex: number, maxParts = 4): string[] {
+  const clean = sanitizeExamText(text)
+  if (!clean) return []
+  if (clean.length <= EXAM_BOOK_SECTION_CHARS * maxParts) return [clean]
+  const batchRatio = (batchIndex % 7) / 6
+  const ratios = uniqueStrings([
+    String(0),
+    String(Math.max(0.08, Math.min(0.92, batchRatio))),
+    String(Math.max(0.12, Math.min(0.88, batchRatio + 0.18))),
+    String(1),
+  ], maxParts).map(Number)
+  return ratios.map((r) => pickWindow(clean, r)).filter(Boolean)
+}
+
+function buildBookExamDigest(book: ExamSourceBook, index: number, programDomain: ProgramDomain, batchIndex: number): string {
+  const full = sanitizeExamText(book.textContent || '')
+  const important = topImportantSentences(full, programDomain, 12)
+  const excerpts = distributedBookExcerpts(full, batchIndex, 4)
+  const meta = [
+    book.titleEn ? `العنوان الأصلي: ${book.titleEn}` : '',
+    book.author ? `المؤلف: ${book.author}` : '',
+    book.year ? `السنة: ${book.year}` : '',
+    book.link ? `الرابط/المصدر: ${book.link}` : '',
+    book.sourceNote ? `مصدر القراءة: ${book.sourceNote}` : '',
+    book.contentQuality ? `جودة المحتوى: ${book.contentQuality}` : '',
+  ].filter(Boolean).join(' — ')
+
+  const body = [
+    `كتاب ${index + 1}: «${book.title}»${meta ? ` — ${meta}` : ''}`,
+    book.description ? `سبب اعتماد/نبذة الكتاب: ${cleanText(book.description, 700)}` : '',
+    important.length ? `أهم أفكار مستخرجة آلياً من محتوى الكتاب:\n- ${important.join('\n- ')}` : '',
+    excerpts.length ? `مقاطع موزعة من بداية/وسط/نهاية الكتاب لبناء أسئلة شاملة:\n${excerpts.map((e, i) => `مقطع ${i + 1}: ${e}`).join('\n\n')}` : '',
+    !full ? 'تنبيه: لا يوجد نص كافٍ مستخرج لهذا الكتاب؛ لا تستخدمه وحده إلا عبر بياناته الوصفية.' : '',
+  ].filter(Boolean).join('\n')
+
+  return body.slice(0, Math.max(3500, Math.floor(EXAM_TOTAL_PROMPT_BOOK_CHARS / Math.max(1, index + 1))))
+}
+
+function buildBooksKnowledgeSection(books: ExamSourceBook[], programDomain: ProgramDomain, batchIndex: number): string {
+  let used = 0
+  const parts: string[] = []
+  for (let i = 0; i < books.length; i++) {
+    const part = buildBookExamDigest(books[i], i, programDomain, batchIndex)
+    if (!part.trim()) continue
+    const remaining = EXAM_TOTAL_PROMPT_BOOK_CHARS - used
+    if (remaining <= 1500) break
+    const clipped = part.slice(0, remaining)
+    parts.push(clipped)
+    used += clipped.length
+  }
+  return parts.join('\n\n---\n\n')
+}
+
+function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: ProgramDomain, max = 60): string[] {
+  const concepts: string[] = []
+  for (const book of books) {
+    const title = cleanText(book.title, 90)
+    const sentences = topImportantSentences(book.textContent || book.description || '', programDomain, 10)
+    for (const s of sentences) concepts.push(`من كتاب «${title}»: ${s}`)
+  }
+  return uniqueStrings(concepts, max)
+}
+
 const BATCH_SPECS: {
   kind: string
   count: number
