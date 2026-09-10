@@ -835,7 +835,7 @@ function distributedBookExcerpts(text: string, batchIndex: number, maxParts = 4)
   return ratios.map((r) => pickWindow(clean, r)).filter(Boolean)
 }
 
-function buildBookExamDigest(book: ExamSourceBook, index: number, programDomain: ProgramDomain, batchIndex: number): string {
+function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: number, programDomain: ProgramDomain, batchIndex: number): string {
   const full = sanitizeExamText(book.textContent || '')
   const important = topImportantSentences(full, programDomain, 12)
   const excerpts = distributedBookExcerpts(full, batchIndex, 4)
