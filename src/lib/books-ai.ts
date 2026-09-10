@@ -843,7 +843,6 @@ function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: nu
     book.titleEn ? `العنوان الأصلي: ${book.titleEn}` : '',
     book.author ? `المؤلف: ${book.author}` : '',
     book.year ? `السنة: ${book.year}` : '',
-    book.link ? `الرابط/المصدر: ${book.link}` : '',
     book.sourceNote ? `مصدر القراءة: ${book.sourceNote}` : '',
     book.contentQuality ? `جودة المحتوى: ${book.contentQuality}` : '',
   ].filter(Boolean).join(' — ')
