@@ -487,7 +487,7 @@ ${recent || 'بدأت الجلسة للتو.'}
           return prev
         })
         const latestLiveInterjection = [...incomingMessages].reverse().find((m) => m.role === 'AI_NOTE')
-        if (!liveAdvisorRef.current && latestLiveInterjection && latestLiveInterjection.id !== lastSpokenMessageIdRef.current) {
+        if (!liveAdvisorRef.current && transcriptResumeRef.current && latestLiveInterjection && latestLiveInterjection.id !== lastSpokenMessageIdRef.current) {
           lastSpokenMessageIdRef.current = latestLiveInterjection.id
           speak(latestLiveInterjection.content)
         }
