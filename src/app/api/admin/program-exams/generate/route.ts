@@ -118,8 +118,11 @@ function filterNewQuestions<T extends { text: string; options?: string[] | null 
 }
 
 function hasBadExamMetadata(value: unknown): boolean {
+  const raw = String(value || '')
   const n = normalizeQuestionText(value)
   return (
+    /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(raw) ||
+    /(?:^|\s)of\s+\d{1,5}\b/i.test(raw) ||
     n.includes('رابط الكتاب') ||
     n.includes('مصدره') ||
     n.includes('عنوان الكتاب') ||
