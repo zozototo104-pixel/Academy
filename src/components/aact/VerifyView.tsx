@@ -142,6 +142,16 @@ export function VerifyView() {
                       {new Date(result.certificate.issuedAt).toLocaleDateString('ar-EG')}
                     </span>
                   </div>
+                  {result.certificate.academicProfile && (
+                    <div className="sm:col-span-2 rounded-xl border border-[#c9a227]/25 bg-[#fffaf0] p-3">
+                      <p className="font-black text-[#0f2b46]">الملف الأكاديمي المرتبط بالشهادة</p>
+                      <p className="mt-1 font-bold text-[#a8841a]">{result.certificate.academicProfile.academicTitle}</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">{result.certificate.academicProfile.durationLabel} · {result.certificate.academicProfile.creditHoursLabel}</p>
+                      <ul className="mt-2 space-y-1 text-[11px] font-bold leading-5 text-slate-600">
+                        {result.certificate.academicProfile.learningOutcomes.slice(0, 3).map((item, i) => <li key={i}>• {item}</li>)}
+                      </ul>
+                    </div>
+                  )}
                   <div className="sm:col-span-2">
                     <Button
                       size="sm"
