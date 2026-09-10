@@ -188,6 +188,13 @@ export async function POST(req: NextRequest) {
     const programId = String(body?.programId || '').trim()
     const sem = Number(body?.semester) === 2 ? 2 : 1
 
+    if (body?.action === 'stop') {
+      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لإيقاف التوليد' }, { status: 400 })
+      const stopped = await stopGenerationAndExposeReview(examId, { id: admin.id, name: admin.name })
+      if ('error' in stopped) return NextResponse.json({ error: stopped.error }, { status: stopped.statusCode || 400 })
+      return NextResponse.json(stopped)
+    }
+
     if (examId) {
       const existing = await db.programExam.findUnique({
         where: { id: examId },
