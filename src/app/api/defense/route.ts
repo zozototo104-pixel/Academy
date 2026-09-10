@@ -126,7 +126,12 @@ export async function POST(req: NextRequest) {
       const lastQuestion = [...history].reverse().find((m) => m.role === 'AI_EXPERT')
       const answeredCount = history.filter((m) => m.role === 'STUDENT').length
 
-      const result = await aiEvaluate(thesis.title, thesis.abstract, lastQuestion?.content || '', answer, answeredCount + 1, QUESTIONS_COUNT)
+      const rag = await buildSupervisorContext(user.id).catch(() => '')
+      const defenseAcademicContext = mergeContext(
+        rag,
+        `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nاستخدم ملف الطالب وبرنامجه وتخصصه وكتبه ونتائجه ونقاط ضعفه وآخر محادثاته وتحليل ملفه لمناقشة الإجابة، لا لمجاملة الطالب.`
+      )
+      const result = await aiEvaluate(thesis.title, thesis.abstract, lastQuestion?.content || '', answer, answeredCount + 1, QUESTIONS_COUNT, defenseAcademicContext)
 
       await db.defenseMessage.create({
         data: { thesisId: thesis.id, role: 'STUDENT', content: answer, score: result.score },
