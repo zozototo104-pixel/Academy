@@ -145,6 +145,8 @@ export function AdminBooksTab() {
   const [assignmentForm, setAssignmentForm] = useState({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [gradingSubmissionId, setGradingSubmissionId] = useState<string | null>(null)
+  const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
+  const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
