@@ -164,6 +164,46 @@ export function ProgramDetailsView() {
             </div>
           </div>
 
+          {academicProfile && (
+            <section className="mt-6 rounded-3xl border-2 border-[#c9a227]/45 bg-[#fffaf0] p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-black text-[#a8841a]">الملف الأكاديمي الرسمي للبرنامج</p>
+                  <h2 className="mt-1 text-xl font-black leading-snug text-[#0f2b46]">{academicProfile.academicTitle}</h2>
+                  <p className="mt-2 text-sm font-bold leading-7 text-slate-600">{academicProfile.levelDescription}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center text-[11px] font-black text-[#0f2b46] sm:min-w-[250px]">
+                  <div className="rounded-2xl bg-white p-3 ring-1 ring-[#c9a227]/25">
+                    <p className="text-slate-500">الدرجة</p>
+                    <p className="mt-1 text-[#a8841a]">{academicProfile.degreeLabel}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-3 ring-1 ring-[#c9a227]/25">
+                    <p className="text-slate-500">التخصص</p>
+                    <p className="mt-1 text-[#a8841a]">{academicProfile.specialization}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 font-black text-[#0f2b46]">مخرجات التعلم</p>
+                  <p className="text-xs font-bold leading-6 text-slate-600">{academicProfile.learningOutcomes.slice(0, 2).join(' ')}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 font-black text-[#0f2b46]">الخطة الدراسية</p>
+                  <p className="text-xs font-bold leading-6 text-slate-600">{academicProfile.studyPlan.map((s) => s.title).join(' ← ')}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 font-black text-[#0f2b46]">نظام التقييم</p>
+                  <p className="text-xs font-bold leading-6 text-slate-600">{academicProfile.assessmentComponents.slice(0, 2).join(' ')}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 font-black text-[#0f2b46]">متطلبات التخرج</p>
+                  <p className="text-xs font-bold leading-6 text-slate-600">{academicProfile.graduationRequirements.slice(0, 2).join(' ')}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
           <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
             <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-5">
               <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-[#0f2b46]">
