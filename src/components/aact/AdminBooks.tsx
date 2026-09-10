@@ -247,7 +247,7 @@ export function AdminBooksTab() {
     }
   }
 
-  const resumeExam = async (exam: ProgramExamRow) => {
+  const resumeExam = async (exam: ExamRow) => {
     if (!programId) return
     const semLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
     if (!confirm(`سيستكمل خبير الذكاء الاصطناعي توليد ${semLabel} من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً. متابعة؟`)) return
