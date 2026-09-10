@@ -319,6 +319,9 @@ export async function POST(req: NextRequest) {
           options: cleanOptions(q.options),
           modelAnswer: q.modelAnswer ? cleanInternalExamMeta(q.modelAnswer, 4000) : q.modelAnswer,
           sourceEvidence: q.sourceEvidence ? cleanInternalExamMeta(q.sourceEvidence, 2500) : q.sourceEvidence,
+          approvedBy: admin.id,
+          approvedAt: new Date(),
+          rejectedReason: null,
         },
       })
     }
