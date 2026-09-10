@@ -374,18 +374,18 @@ async function aiRecommendation(title: string, name: string, aiScore: number, an
   }
 }
 
-// ===== 12.3: ملاحظة تحليلية حية من المستشار الذكي لأعضاء اللجنة =====
-// تحليل إجابات الطالب لحظياً: تناقضات، جوانب لم تُناقَش بعد، اقتراح أسئلة إضافية للتعمق
+// ===== 12.3: مداخلة حية من المستشار الذكي داخل المناقشة =====
+// يسمع التفريغ الحي ويعلّق كعضو لجنة: رأي، تصحيح، مقاطعة لطيفة، أو سؤال متابعة قصير.
 async function aiLiveNote(title: string, abstract: string, thesisId: string, userId: string): Promise<string | null> {
   try {
     const history = await db.defenseMessage.findMany({
-      where: { thesisId, role: { in: ['AI_EXPERT', 'STUDENT', 'TRANSCRIPT'] } },
+      where: { thesisId, role: { in: ['AI_EXPERT', 'STUDENT', 'TRANSCRIPT', 'AI_NOTE'] } },
       orderBy: { createdAt: 'desc' },
-      take: 12,
+      take: 14,
     })
     const dialog = history
       .reverse()
-      .map((m) => `${m.role === 'AI_EXPERT' ? 'سؤال اللجنة' : m.role === 'STUDENT' ? 'إجابة الطالب' : 'كلام الطالب (تفريغ)'}: ${m.content.slice(0, 500)}`)
+      .map((m) => `${m.role === 'AI_EXPERT' ? 'اللجنة/المستشار' : m.role === 'AI_NOTE' ? 'مداخلة سابقة للمستشار' : m.role === 'STUDENT' ? 'إجابة الطالب' : 'كلام الطالب المباشر'}: ${m.content.slice(0, 500)}`)
       .join('\n')
     if (dialog.length < 80) return null
 
@@ -393,27 +393,29 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: 'أنت المستشار الذكي (مشرف ذكاء اصطناعي) حاضر كعضو فعلي في لجنة مناقشة بحث التخرج. دورك استشاري/داعم فقط: تساعد أعضاء اللجنة البشرية بملاحظات تحليلية موجزة، والقرار النهائي يبقى بيد اللجنة البشرية. ترجع نصاً عربياً فقط بدون تنسيق.' },
+        { role: 'assistant', content: 'أنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.' },
         {
           role: 'user',
-          content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 800)}
+          content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
 
-أحدث ما جرى في الجلسة (سؤال ← إجابة):
-${dialog.slice(0, 4000)}
+أحدث ما جرى في الجلسة:
+${dialog.slice(0, 4500)}
 
-اكتب ملاحظة تحليلية موجزة (2-4 جمل) لأعضاء اللجنة تشمل ما ينطبق من التالي:
-- تنبيه لتضارب أو تناقض بين إجابات الطالب (إن وُجد — مع اقتباسه)
-- جانب مهم في البحث لم تُناقشه اللجنة بعد ويستحق سؤالاً
-- اقتراح سؤال إضافي للتعمق في نقطة ضعفت إجابة الطالب فيها
-- أو تعزيز إيجابي لنقطة قوة رصدتَها في الإجابات
+اكتب مداخلة صوتية مباشرة للطالب من جملتين إلى ثلاث فقط، كأنك داخل قاعة مناقشة:
+- علّق على آخر كلام قاله الطالب تحديداً، لا على البحث بشكل عام.
+- إن كان كلامه ضعيفاً: قل له أين الخلل واطلب توضيحاً محدداً.
+- إن كان جيداً: عزّز الفكرة ثم اطلب ربطها بالمنهجية أو النتائج.
+- يجوز أن تقول: "اسمح لي أقاطعك هنا" أو "النقطة جيدة لكن تحتاج ضبطاً" عندما يناسب السياق.
+- لا تبدأ سؤالاً رسمياً مرقماً، ولا تكرر الأسئلة الخمسة الأساسية.
+- لا تذكر أنك مجرد نموذج أو خدمة.
 
-ابدأ بكلمة «ملاحظة للمستشار الذكي للجنة:» وبدون أي تعداد نقطي مرقّم.`,
+ابدأ بعبارة «مداخلة المستشار الذكي:».`,
         },
       ],
       thinking: { type: 'disabled' },
     })
     const note = (completion.choices[0]?.message?.content || '').trim()
-    return note && note.length > 30 ? note.slice(0, 1200) : null
+    return note && note.length > 30 ? note.slice(0, 900) : null
   } catch (e) {
     console.error('aiLiveNote error:', e)
     return null
