@@ -9,6 +9,12 @@ export interface AgentCallbacks {
   onTurnComplete?: (turn: { userText: string; aiText: string; messageId?: string }) => void
   onInterrupted?: (info: { spokenPartial: string }) => void
   onError?: (msg: string) => void
+  /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
+  context?: string
+  /** endpoint بديل لحفظ تفريغ الدور؛ الدردشة تحفظ في /api/ai/gemini-live/log، والمناقشة تحفظ في /api/defense. */
+  logEndpoint?: string
+  /** حقول إضافية ترسل مع حفظ الدور، مثل action: live-turn. */
+  logExtra?: Record<string, unknown>
 }
 
 type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
