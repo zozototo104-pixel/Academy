@@ -113,6 +113,7 @@ export async function GET() {
         unitsCount: en.program._count.units,
         units: en.program.units,
         books: en.program.books,
+        assignments: en.program.assignments,
         exams: en.program.programExams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
         academicProfile: academicProfileFromRules(en.program.admissionRules),
         status: en.status,
