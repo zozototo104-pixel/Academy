@@ -185,6 +185,46 @@ export function VerifyView() {
                       )}
                     </div>
                   )}
+                  {result.certificate.academicRecord && (
+                    <div className="sm:col-span-2 rounded-xl border border-[#0f2b46]/10 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">السجل الأكاديمي المختصر</p>
+                        {result.certificate.academicRecord.summary.finalScore != null && (
+                          <span className="rounded-full bg-[#0f2b46] px-2 py-1 text-[10px] font-black text-[#e0b83a]">
+                            المعدل النهائي: {result.certificate.academicRecord.summary.finalScore}% — {result.certificate.academicRecord.summary.gradeLabel || 'بدون تقدير'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                        <div className="rounded-lg bg-white p-2 text-[11px] font-bold text-slate-600">امتحانات وحدات: {result.certificate.academicRecord.summary.unitExamCount}</div>
+                        <div className="rounded-lg bg-white p-2 text-[11px] font-bold text-slate-600">امتحانات شاملة: {result.certificate.academicRecord.summary.comprehensiveExamCount}</div>
+                        <div className="rounded-lg bg-white p-2 text-[11px] font-bold text-slate-600">واجبات/مشاريع: {result.certificate.academicRecord.summary.assignmentCount}</div>
+                        <div className="rounded-lg bg-white p-2 text-[11px] font-bold text-slate-600">قرار اللجنة: {result.certificate.academicRecord.summary.committeeDecision}</div>
+                      </div>
+
+                      {result.certificate.academicRecord.comprehensiveExams.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-1 text-[10px] font-black text-slate-500">درجات الامتحانات الشاملة:</p>
+                          <div className="grid gap-1.5 sm:grid-cols-2">
+                            {result.certificate.academicRecord.comprehensiveExams.slice(0, 4).map((e, i) => (
+                              <div key={i} className="rounded-lg bg-white p-2 text-[10px] font-bold text-slate-600">
+                                <p className="font-black text-[#0f2b46]">{e.title}</p>
+                                <p>الفصل {e.semester} — {e.score ?? '—'}% — {e.passed ? 'ناجح' : e.passed === false ? 'غير مجتاز' : e.status}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {result.certificate.academicRecord.thesis && (
+                        <div className="mt-3 rounded-lg bg-white p-2 text-[10px] font-bold leading-5 text-slate-600">
+                          <p className="font-black text-[#0f2b46]">بحث التخرج: {result.certificate.academicRecord.thesis.title}</p>
+                          <p>الحالة: {result.certificate.academicRecord.thesis.status} — الدرجة: {result.certificate.academicRecord.thesis.score ?? '—'}%</p>
+                          {result.certificate.academicRecord.thesis.recommendation && <p className="text-[#a8841a]">توصية اللجنة/الذكاء: {result.certificate.academicRecord.thesis.recommendation}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="sm:col-span-2">
                     <Button
                       size="sm"
