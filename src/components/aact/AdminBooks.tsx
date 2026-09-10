@@ -612,14 +612,21 @@ export function AdminBooksTab() {
                               {e.status === 'REVIEW' ? 'مراجعة الأسئلة واعتمادها' : 'عرض الأسئلة المعتمدة'}
                             </Button>
                           )}
-                          {e.status === 'READY' && (
-                            <Button size="sm" variant="ghost" onClick={() => deleteExam(e.id)} className="text-slate-400 hover:bg-red-50 hover:text-red-600" title="حذف">
-                              <Trash2 className="h-3.5 w-3.5" />
+                          {e.status === 'FAILED' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => resumeExam(e)}
+                              disabled={generating || exams.some((x) => x.status === 'GENERATING')}
+                              className="text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                              title="استكمال التوليد من حيث توقف دون حذف الأسئلة السابقة"
+                            >
+                              {generating || exams.some((x) => x.status === 'GENERATING') ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                             </Button>
                           )}
-                          {(e.status === 'FAILED' || e.status === 'REVIEW') && (
-                            <Button size="sm" variant="ghost" onClick={() => deleteExam(e.id)} className="text-red-400 hover:bg-red-50 hover:text-red-600" title="حذف وإعادة المحاولة">
-                              <RefreshCw className="h-3.5 w-3.5" />
+                          {(e.status === 'FAILED' || e.status === 'REVIEW' || e.status === 'READY') && (
+                            <Button size="sm" variant="ghost" onClick={() => deleteExam(e.id)} className="text-red-400 hover:bg-red-50 hover:text-red-600" title="حذف الامتحان بالكامل">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
                         </div>
