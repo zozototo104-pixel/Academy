@@ -594,6 +594,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       transcriptRecRef.current = null
       setTranscriptOn(false)
       transcriptResumeRef.current = false
+      stopLiveAdvisor()
       recognitionRef.current?.abort()
       audioRef.current?.pause()
       setSpeaking(false)
