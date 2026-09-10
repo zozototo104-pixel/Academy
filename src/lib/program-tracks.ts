@@ -181,6 +181,93 @@ export interface AcademicProgramProfile {
   qualityControls: string[]
 }
 
+export interface PartialAcademicProgramProfile {
+  degreeLabel?: string
+  specialization?: string
+  academicTitle?: string
+  levelDescription?: string
+  creditHoursLabel?: string
+  durationLabel?: string
+  learningOutcomes?: string[]
+  skills?: string[]
+  studyPlan?: AcademicPlanStage[]
+  graduationRequirements?: string[]
+  assessmentComponents?: string[]
+  thesisRequirement?: string
+  qualityControls?: string[]
+}
+
+function cleanList(list: unknown, max = 12): string[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list.map((x) => cleanAcademicText(String(x || ''))).filter((x) => x.length > 1)
+  return rows.length ? rows.slice(0, max) : undefined
+}
+
+function cleanStudyPlan(list: unknown): AcademicPlanStage[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list
+    .map((x) => {
+      const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
+      return {
+        title: cleanAcademicText(String(row.title || '')),
+        description: cleanAcademicText(String(row.description || '')),
+        deliverable: cleanAcademicText(String(row.deliverable || '')),
+      }
+    })
+    .filter((x) => x.title && x.description)
+  return rows.length ? rows.slice(0, 6) : undefined
+}
+
+export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicProgramProfile | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  const out: PartialAcademicProgramProfile = {}
+  for (const key of ['degreeLabel', 'specialization', 'academicTitle', 'levelDescription', 'creditHoursLabel', 'durationLabel', 'thesisRequirement'] as const) {
+    const value = cleanAcademicText(String(r[key] || ''))
+    if (value) out[key] = value
+  }
+  const learningOutcomes = cleanList(r.learningOutcomes, 12)
+  const skills = cleanList(r.skills, 15)
+  const graduationRequirements = cleanList(r.graduationRequirements, 12)
+  const assessmentComponents = cleanList(r.assessmentComponents, 12)
+  const qualityControls = cleanList(r.qualityControls, 12)
+  const studyPlan = cleanStudyPlan(r.studyPlan)
+  if (learningOutcomes) out.learningOutcomes = learningOutcomes
+  if (skills) out.skills = skills
+  if (graduationRequirements) out.graduationRequirements = graduationRequirements
+  if (assessmentComponents) out.assessmentComponents = assessmentComponents
+  if (qualityControls) out.qualityControls = qualityControls
+  if (studyPlan) out.studyPlan = studyPlan
+  return Object.keys(out).length ? out : null
+}
+
+export function academicProfileFromRules(raw: unknown): PartialAcademicProgramProfile | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  return normalizeAcademicProfileOverride((raw as Record<string, unknown>).academicProfile)
+}
+
+function applyAcademicOverride(base: AcademicProgramProfile, override?: PartialAcademicProgramProfile | null): AcademicProgramProfile {
+  const clean = normalizeAcademicProfileOverride(override)
+  if (!clean) return base
+  return {
+    ...base,
+    ...clean,
+    degreeLabel: clean.degreeLabel || base.degreeLabel,
+    specialization: clean.specialization || base.specialization,
+    academicTitle: clean.academicTitle || base.academicTitle,
+    levelDescription: clean.levelDescription || base.levelDescription,
+    creditHoursLabel: clean.creditHoursLabel || base.creditHoursLabel,
+    durationLabel: clean.durationLabel || base.durationLabel,
+    thesisRequirement: clean.thesisRequirement || base.thesisRequirement,
+    learningOutcomes: clean.learningOutcomes?.length ? clean.learningOutcomes : base.learningOutcomes,
+    skills: clean.skills?.length ? clean.skills : base.skills,
+    studyPlan: clean.studyPlan?.length ? clean.studyPlan : base.studyPlan,
+    graduationRequirements: clean.graduationRequirements?.length ? clean.graduationRequirements : base.graduationRequirements,
+    assessmentComponents: clean.assessmentComponents?.length ? clean.assessmentComponents : base.assessmentComponents,
+    qualityControls: clean.qualityControls?.length ? clean.qualityControls : base.qualityControls,
+  }
+}
+
 const ACADEMIC_DEGREE_LABEL: Record<string, string> = {
   DIPLOMA: 'دبلوم مهني تطبيقي',
   MASTERS: 'ماجستير مهني',
