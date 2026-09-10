@@ -66,7 +66,7 @@ interface InvoiceLite {
 }
 
 export function ProgramsView() {
-  const { user, navigate, openProgram, openProgramDetails, openApply } = useAppStore()
+  const { user, navigate, openProgram, openProgramDetails, openApply, programsFilter } = useAppStore()
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')
