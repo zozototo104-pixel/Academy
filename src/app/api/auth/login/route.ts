@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase()
     if (normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
       // يجهّز حساب الطالب التجريبي تلقائياً عند أول محاولة دخول، حتى لو لم يظهر زر الإدارة بسبب تأخر الـ Deploy السابق.
+      await ensureCoreSeed(true).catch((err) => console.error('Auto demo seed error:', err))
       await ensureDemoThesisStudent({ resetDefense: true, actor: null }).catch((err) => console.error('Auto demo thesis setup error:', err))
     }
 
