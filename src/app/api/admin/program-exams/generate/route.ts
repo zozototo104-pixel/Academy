@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
         `استكمال توليد امتحان الفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} من السؤال ${existing._count.questions + 1} لبرنامج ${existing.program.titleAr}`
       )
 
-      runGeneration(existing.id).catch(() => {})
+      scheduleGeneration(existing.id)
 
       return NextResponse.json({
         ok: true,
