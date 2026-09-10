@@ -876,7 +876,7 @@ export function TranscriptTab() {
               <table className="w-full text-right text-[11px]">
                 <thead>
                   <tr className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 text-[10px] font-black text-[#5c4d1a]">
-                    <th className="px-3 py-2">الاختبار</th>
+                    <th className="px-3 py-2">التقييم/الواجب</th>
                     <th className="px-3 py-2">القسم</th>
                     <th className="px-3 py-2">الدرجة</th>
                     <th className="px-3 py-2">حد النجاح</th>
