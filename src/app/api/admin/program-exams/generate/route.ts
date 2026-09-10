@@ -489,7 +489,7 @@ export async function POST(req: NextRequest) {
         examId,
         `إعادة بناء امتحان ${existing.program.titleAr} من الكتب بعد حذف ${existing._count.questions} سؤالاً سابقاً`
       )
-      const step = await runGenerationSteps(examId, 2)
+      const step = await runGenerationSteps(examId, 1)
       return NextResponse.json({ ok: step.ok, examId, rebuilt: true, ...step, requiredQuestions: totalRequiredQuestions() })
     }
 
