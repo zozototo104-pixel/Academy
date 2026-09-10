@@ -1129,7 +1129,7 @@ ${spec.instruction}
       temperature: 0.25,
       maxOutputTokens: 8192,
       retries: 1,
-      timeoutMs: 18000,
+      timeoutMs: 32000,
     })
   } catch (e: any) {
     console.error('generateExamQuestionBatch failed; using deterministic fallback:', String(e?.message || e).slice(0, 600))
