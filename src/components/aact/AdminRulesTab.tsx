@@ -333,6 +333,92 @@ export function AdminRulesTab() {
                   />
                 </div>
 
+                {/* الملف الأكاديمي الرسمي */}
+                <div className="rounded-2xl border-2 border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="flex items-center gap-1.5 text-sm font-black text-[#0f2b46]">
+                        <BookOpen className="h-4 w-4 text-[#a8841a]" />
+                        الملف الأكاديمي الرسمي للبرنامج
+                      </h4>
+                      <p className="mt-1 text-[10px] leading-5 text-slate-500">هذه البيانات تظهر في تفاصيل البرنامج، بوابة الطالب، السجل الأكاديمي، والتحقق من الشهادة. اترك الحقول فارغة ليستخدم النظام الملف التلقائي.</p>
+                    </div>
+                    {draft.academicProfile && (
+                      <Button size="sm" variant="outline" onClick={clearAcademicProfile} className="border-red-200 text-xs text-red-600 hover:bg-red-50">
+                        مسح التخصيص الأكاديمي
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">المسمى الأكاديمي الظاهر</label>
+                      <Input className="text-xs" placeholder="مثال: الماجستير المهني في الأمن السيبراني" value={draft.academicProfile?.academicTitle || ''} onChange={(e) => patchAcademic({ academicTitle: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الدرجة</label>
+                      <Input className="text-xs" placeholder="مثال: ماجستير مهني" value={draft.academicProfile?.degreeLabel || ''} onChange={(e) => patchAcademic({ degreeLabel: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">التخصص</label>
+                      <Input className="text-xs" placeholder="مثال: الأمن السيبراني" value={draft.academicProfile?.specialization || ''} onChange={(e) => patchAcademic({ specialization: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">المدة/المسار</label>
+                      <Input className="text-xs" placeholder="مثال: فصلان دراسيان + بحث تخرج مهني" value={draft.academicProfile?.durationLabel || ''} onChange={(e) => patchAcademic({ durationLabel: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الساعات/الرصيد</label>
+                      <Input className="text-xs" placeholder="مثال: 700 ساعة تدريبية أو حسب الخطة" value={draft.academicProfile?.creditHoursLabel || ''} onChange={(e) => patchAcademic({ creditHoursLabel: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">متطلب البحث/المشروع</label>
+                      <Input className="text-xs" placeholder="مثال: بحث تطبيقي ومناقشة فيديو" value={draft.academicProfile?.thesisRequirement || ''} onChange={(e) => patchAcademic({ thesisRequirement: e.target.value })} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الوصف الأكاديمي الرسمي</label>
+                      <Textarea rows={2} className="text-xs" placeholder="صف البرنامج أكاديمياً بلغة رسمية واضحة" value={draft.academicProfile?.levelDescription || ''} onChange={(e) => patchAcademic({ levelDescription: e.target.value })} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div>
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><Target className="h-3.5 w-3.5 text-[#a8841a]" /> مخرجات التعلم — كل سطر مخرج</label>
+                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.learningOutcomes)} onChange={(e) => updateAcademicList('learningOutcomes', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><Sparkles className="h-3.5 w-3.5 text-[#a8841a]" /> المهارات المكتسبة — كل سطر مهارة</label>
+                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.skills)} onChange={(e) => updateAcademicList('skills', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ClipboardCheck className="h-3.5 w-3.5 text-[#a8841a]" /> متطلبات التخرج — كل سطر متطلب</label>
+                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.graduationRequirements)} onChange={(e) => updateAcademicList('graduationRequirements', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ListChecks className="h-3.5 w-3.5 text-[#a8841a]" /> نظام التقييم — كل سطر بند</label>
+                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.assessmentComponents)} onChange={(e) => updateAcademicList('assessmentComponents', e.target.value)} />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><FileText className="h-3.5 w-3.5 text-[#a8841a]" /> ضوابط الجودة الأكاديمية — كل سطر ضابط</label>
+                      <Textarea rows={4} className="text-xs" value={listToText(draft.academicProfile?.qualityControls)} onChange={(e) => updateAcademicList('qualityControls', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
+                    <p className="text-xs font-black text-[#0f2b46]">الخطة الدراسية المعتمدة</p>
+                    {[0, 1, 2].map((i) => {
+                      const stage = stageAt(draft.academicProfile, i)
+                      return (
+                        <div key={i} className="grid gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-3">
+                          <Input className="text-xs" placeholder={`عنوان المرحلة ${i + 1}`} value={stage.title} onChange={(e) => updateStudyStage(i, { title: e.target.value })} />
+                          <Input className="text-xs" placeholder="وصف المرحلة" value={stage.description} onChange={(e) => updateStudyStage(i, { description: e.target.value })} />
+                          <Input className="text-xs" placeholder="المخرج المطلوب" value={stage.deliverable} onChange={(e) => updateStudyStage(i, { deliverable: e.target.value })} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2 border-t pt-3">
                   <Button onClick={() => save(false)} disabled={saving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
                     {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
