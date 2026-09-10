@@ -1615,19 +1615,58 @@ ${plannedTypes}
       const correctNum = Number(q.correct ?? '')
       const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
       if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
-      cleaned.push({ type: 'MCQ', text: text.slice(0, 2000), options, correct: String(correctNum), modelAnswer, bookEvidence, points: 2 })
+      cleaned.push(enrichQuestionMetadata({
+        type: 'MCQ',
+        text: text.slice(0, 2000),
+        options,
+        correct: String(correctNum),
+        modelAnswer,
+        bookEvidence,
+        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
+        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
+        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
+        cognitiveSkill: q.cognitiveSkill,
+        difficulty: q.difficulty,
+        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
+        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
+        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
+        points: 2,
+      }, books, spec.kind))
     } else if (type === 'TF') {
       const correctNum = Number(q.correct ?? '')
       if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
-      cleaned.push({ type: 'TF', text: text.slice(0, 2000), options: ['صح', 'خطأ'], correct: String(correctNum), modelAnswer, bookEvidence, points: 2 })
+      cleaned.push(enrichQuestionMetadata({
+        type: 'TF',
+        text: text.slice(0, 2000),
+        options: ['صح', 'خطأ'],
+        correct: String(correctNum),
+        modelAnswer,
+        bookEvidence,
+        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
+        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
+        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
+        cognitiveSkill: q.cognitiveSkill,
+        difficulty: q.difficulty,
+        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
+        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
+        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
+        points: 2,
+      }, books, spec.kind))
     } else if (type === 'SHORT' || type === 'ESSAY') {
-      cleaned.push({
+      cleaned.push(enrichQuestionMetadata({
         type,
         text: text.slice(0, 2000),
         modelAnswer: modelAnswer.slice(0, 3000),
         bookEvidence,
+        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
+        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
+        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
+        cognitiveSkill: q.cognitiveSkill,
+        difficulty: q.difficulty,
+        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
+        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
         points: Number(q.points) || (type === 'ESSAY' ? 10 : 5),
-      })
+      }, books, spec.kind))
     }
   }
 
