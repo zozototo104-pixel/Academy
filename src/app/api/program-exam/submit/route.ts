@@ -104,6 +104,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const ragContext = await buildSupervisorContext(user.id).catch(() => '')
+    const examAcademicContext = mergeContext(
+      ragContext,
+      `وضع المشرف الحالي: خبير قياس وتقويم.\nالبرنامج: ${exam.program.titleAr}.\nالامتحان: ${exam.title}.\nدرجة النجاح: ${exam.passScore}%.\nاستخدم السياق لفهم مستوى الطالب ونقاط ضعفه، لكن لا تمنحه نقاطاً إلا بناءً على إجابته والدليل الأكاديمي.`
+    )
+
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
 
     // 12.2: بيانات المراقبة الإلكترونية الاختيارية
