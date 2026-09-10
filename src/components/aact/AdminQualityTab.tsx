@@ -67,6 +67,41 @@ interface AtRiskStudent {
   nextAction: string
 }
 
+interface StrongProgram {
+  id: string
+  titleAr: string
+  category: string
+  qualityScore: number
+  band: QualityProgram['band']
+  enrollments: number
+  admissions: number
+  readyExams: number
+  books: number
+  sourceCoverage: number
+  metadataCoverage: number
+}
+
+interface DemandSpecialty {
+  id: string
+  titleAr: string
+  category: string
+  demandScore: number
+  enrollments: number
+  admissions: number
+}
+
+interface WeakSupervisorReply {
+  id: string
+  supervisor: string
+  student: string
+  email: string
+  reason: string
+  mode?: string | null
+  kind?: string | null
+  excerpt: string
+  createdAt: string
+}
+
 interface AcademicQualityData {
   generatedAt: string
   overview: {
