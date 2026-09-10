@@ -144,6 +144,14 @@ const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
   SUMMARY: 'ملخصات محورية',
 }
 const knowledgeCategoryLabel = (category: string) => KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || category
+const ASSIGNMENT_TYPE_AR: Record<string, string> = {
+  REPORT: 'تقرير تحليلي',
+  CASE_STUDY: 'دراسة حالة',
+  SUMMARY: 'تلخيص/خريطة مفاهيم',
+  PROJECT: 'مشروع تطبيقي',
+  REFLECTION: 'تأمل مهني',
+}
+const assignmentTypeLabel = (type: string) => ASSIGNMENT_TYPE_AR[String(type || '').toUpperCase()] || type
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
 
