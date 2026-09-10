@@ -647,7 +647,7 @@ export async function POST(req: NextRequest) {
         failedSemExam.id,
         `استكمال توليد امتحان فاشل سابقاً للفصل ${sem === 2 ? 'الثاني' : 'الأول'} من السؤال ${failedSemExam._count.questions + 1} لبرنامج ${program.titleAr}`
       )
-      const step = await runGenerationSteps(failedSemExam.id, 2)
+      const step = await runGenerationSteps(failedSemExam.id, 1)
       return NextResponse.json({
         ok: step.ok,
         examId: failedSemExam.id,
