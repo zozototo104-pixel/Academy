@@ -12,7 +12,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }, { status: 400 })
     }
 
-    const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+    const normalizedEmail = email.trim().toLowerCase()
+    if (normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
+      // يجهّز حساب الطالب التجريبي تلقائياً عند أول محاولة دخول، حتى لو لم يظهر زر الإدارة بسبب تأخر الـ Deploy السابق.
+      await ensureDemoThesisStudent({ resetDefense: true, actor: null }).catch((err) => console.error('Auto demo thesis setup error:', err))
+    }
+
+    const user = await db.user.findUnique({ where: { email: normalizedEmail } })
     if (!user || !verifyPassword(password, user.password)) {
       return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
     }
