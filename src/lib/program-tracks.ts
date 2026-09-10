@@ -458,6 +458,176 @@ function academicStudyPlanFor(category: string, specialization: string): Academi
   ]
 }
 
+function booksForSemester(program: AcademicProgramInput, semester: number): AcademicBookRef[] {
+  const all = (program.books || []).filter((b) => b?.title)
+  const specific = all.filter((b) => Number(b.semester || 0) === semester)
+  const general = all.filter((b) => !b.semester)
+  const chosen = specific.length ? specific : general
+  return chosen.slice(0, 8).map((b) => ({ title: String(b.title || '').trim(), titleEn: b.titleEn || null, semester: b.semester || semester }))
+}
+
+function examsForSemester(program: AcademicProgramInput, semester: number): AcademicExamRef[] {
+  return (program.exams || [])
+    .filter((e) => Number(e.semester || 1) === semester)
+    .slice(0, 4)
+    .map((e) => ({ title: String(e.title || '').trim(), semester, status: e.status || null, questionCount: e.questionCount || null }))
+}
+
+function unitsForStage(program: AcademicProgramInput, index: number) {
+  const units = [...(program.units || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).filter((u) => u.title)
+  if (units.length === 0) return []
+  const midpoint = Math.ceil(units.length / 2)
+  return (index === 1 ? units.slice(0, midpoint) : units.slice(midpoint)).map((u) => String(u.title || '').trim()).slice(0, 6)
+}
+
+function finalEvaluationFormulaFor(category: string): AcademicEvaluationItem[] {
+  if (category === 'DOCTORATE') {
+    return [
+      { label: 'القراءات المتقدمة', weight: 20, description: 'اختبارات أو تقارير نقدية مبنية على المراجع المقررة.' },
+      { label: 'التطبيق والتحليل', weight: 20, description: 'حالات عملية وأدوات تحليل مرتبطة بسياق التخصص.' },
+      { label: 'الأطروحة المهنية', weight: 40, description: 'بحث تطبيقي معمق يعالج مشكلة مهنية واقعية.' },
+      { label: 'المناقشة النهائية', weight: 20, description: 'مناقشة فيديو أمام اللجنة مع محضر وتقييم نهائي.' },
+    ]
+  }
+  if (category === 'MASTERS') {
+    return [
+      { label: 'امتحان الفصل الأول', weight: 25, description: 'قياس المفاهيم الأساسية والقراءات الأولى.' },
+      { label: 'امتحان الفصل الثاني', weight: 25, description: 'قياس التطبيق والتحليل والحالات العملية.' },
+      { label: 'بحث التخرج المهني', weight: 30, description: 'بحث تطبيقي يوثق المشكلة والمنهجية والنتائج.' },
+      { label: 'المناقشة النهائية', weight: 20, description: 'مناقشة صوتية/مرئية مع اللجنة والمستشار الذكي.' },
+    ]
+  }
+  if (category === 'ACCREDITATION') {
+    return [
+      { label: 'ملف الخبرات والوثائق', weight: 40, description: 'مطابقة الوثائق والخبرات مع متطلبات الاعتماد.' },
+      { label: 'تقييم الكفاءة أو المقابلة', weight: 40, description: 'قياس القدرة المهنية والاستشارية في مجال الاعتماد.' },
+      { label: 'قرار اللجنة', weight: 20, description: 'اعتماد نهائي أو طلب استكمال وفق ضوابط الإدارة.' },
+    ]
+  }
+  return [
+    { label: 'الأنشطة والقراءات', weight: 25, description: 'متابعة المحتوى والكتب أو المواد المقررة.' },
+    { label: 'الواجبات التطبيقية', weight: 25, description: 'تكليفات قصيرة وحالات عملية مرتبطة بالمهارة.' },
+    { label: 'الاختبار النهائي', weight: 50, description: 'قياس إتقان المهارة ومخرجات البرنامج.' },
+  ]
+}
+
+function buildDetailedTermPlans(program: AcademicProgramInput, category: string, specialization: string, focus: ReturnType<typeof academicFocusFor>): AcademicTermPlan[] {
+  const term1Books = booksForSemester(program, 1)
+  const term2Books = booksForSemester(program, 2)
+  const term1Exams = examsForSemester(program, 1)
+  const term2Exams = examsForSemester(program, 2)
+  const unitStage1 = unitsForStage(program, 1)
+  const unitStage2 = unitsForStage(program, 2)
+
+  if (category === 'ACCREDITATION') {
+    return [
+      {
+        id: 'portfolio-review', order: 1, title: 'مرحلة ملف الاعتماد', phase: 'ACCREDITATION', weight: 40,
+        description: `تدقيق السيرة والخبرات والشهادات وربطها بمعايير الاعتماد في ${specialization}.`,
+        learningOutcomes: ['إثبات الأهلية المهنية بالوثائق والخبرات.', 'تحديد فجوات الملف قبل قرار الاعتماد.'],
+        requiredSkills: ['توثيق الخبرة', 'عرض الإنجازات', 'قراءة معايير الاعتماد'],
+        requiredBooks: term1Books,
+        exams: term1Exams,
+        assignments: ['رفع السيرة والشهادات والخبرات الداعمة.', 'تقديم ملخص مهني يوضح نطاق الخبرة ومجالات الممارسة.'],
+        finalEvaluation: 'تقرير أهلية ذكي ومراجعة بشرية قبل الانتقال للتقييم النهائي.',
+        statusHint: 'لا يبدأ الاعتماد النهائي قبل اكتمال الوثائق المطلوبة.',
+      },
+      {
+        id: 'competency-assessment', order: 2, title: 'تقييم الكفاءة المهنية', phase: 'ACCREDITATION', weight: 40,
+        description: 'اختبار أو مقابلة للتحقق من قدرة المتقدم على ممارسة الدور الاستشاري أو المهني.',
+        learningOutcomes: ['إثبات الفهم العملي للمجال.', 'الدفاع عن الخبرة والتوصيات بمهنية.'],
+        requiredSkills: ['المقابلة المهنية', 'تحليل الحالة', 'صياغة التوصيات'],
+        requiredBooks: term2Books,
+        exams: term2Exams,
+        assignments: ['تحليل حالة مهنية قصيرة في مجال الاعتماد.'],
+        finalEvaluation: 'نتيجة تقييم الكفاءة أو المقابلة مع توصية اعتماد/استكمال.',
+        statusHint: 'تُراجع النتيجة قبل إصدار شهادة الاعتماد.',
+      },
+    ]
+  }
+
+  if (category === 'MASTERS' || category === 'DOCTORATE') {
+    const researchLabel = category === 'DOCTORATE' ? 'الأطروحة المهنية' : 'بحث التخرج المهني'
+    return [
+      {
+        id: 'term-1', order: 1, title: category === 'DOCTORATE' ? 'مرحلة القراءات المتقدمة' : 'الفصل الدراسي الأول', phase: 'TERM', weight: category === 'DOCTORATE' ? 20 : 25,
+        description: `تأسيس المعرفة والمنهجيات الرئيسية في ${specialization} من خلال الكتب والوحدات الأولى.`,
+        learningOutcomes: focus.outcomes.slice(0, 2),
+        requiredSkills: focus.skills.slice(0, 4),
+        requiredBooks: term1Books,
+        exams: term1Exams,
+        assignments: [
+          'تلخيص تحليلي لأهم مفاهيم الكتب المقررة.',
+          ...(unitStage1.length ? [`تطبيق مفاهيم: ${unitStage1.join('، ')}.`] : ['تطبيق المفاهيم على حالة عملية قصيرة.']),
+        ],
+        finalEvaluation: 'امتحان فصل أول أو تقرير نقدي يقيس الفهم والتحليل.',
+        statusHint: 'يُنصح باجتياز هذه المرحلة قبل الانتقال للتطبيقات المتقدمة.',
+      },
+      {
+        id: 'term-2', order: 2, title: category === 'DOCTORATE' ? 'مرحلة التطبيق والتحليل' : 'الفصل الدراسي الثاني', phase: 'TERM', weight: category === 'DOCTORATE' ? 20 : 25,
+        description: 'تحويل المفاهيم إلى حالات تطبيقية، مع قياس القدرة على التحليل والتقييم واتخاذ القرار.',
+        learningOutcomes: focus.outcomes.slice(1, 3).concat('بناء توصيات مهنية قابلة للتطبيق والقياس.'),
+        requiredSkills: focus.skills.slice(2, 6).concat('تحليل الحالات'),
+        requiredBooks: term2Books,
+        exams: term2Exams,
+        assignments: [
+          'دراسة حالة تطبيقية مرتبطة بالتخصص.',
+          ...(unitStage2.length ? [`ربط الوحدات المتقدمة: ${unitStage2.join('، ')} بالواقع المهني.`] : ['إعداد تقرير توصيات تطبيقي قصير.']),
+        ],
+        finalEvaluation: 'امتحان فصل ثانٍ تطبيقي أو ملف تحليل حالة.',
+        statusHint: 'يفتح هذا الفصل بعد استكمال متطلبات الفصل الأول وفق سياسة البرنامج.',
+      },
+      {
+        id: 'research', order: 3, title: researchLabel, phase: 'THESIS', weight: category === 'DOCTORATE' ? 40 : 30,
+        description: `إعداد ${researchLabel} يربط ${specialization} بمشكلة مهنية حقيقية وينتهي بتوصيات قابلة للتنفيذ.`,
+        learningOutcomes: ['صياغة مشكلة بحثية مهنية واضحة.', 'اختيار منهجية مناسبة وتحليل النتائج.', 'الدفاع عن التوصيات أمام لجنة المناقشة.'],
+        requiredSkills: ['كتابة البحث', 'تحليل البيانات أو الحالات', 'العرض والدفاع', 'الاستدلال بالأدلة'],
+        requiredBooks: [],
+        exams: [],
+        assignments: ['تقديم مقترح بحث.', 'رفع نسخة البحث النهائية.', 'إجراء مناقشة فيديو مسجلة بمحضر.'],
+        finalEvaluation: 'تقييم البحث والمناقشة مع اعتماد اللجنة البشرية ودعم المستشار الذكي.',
+        statusHint: 'لا تصدر الشهادة قبل اعتماد البحث والمناقشة عند البرامج التي تتطلب ذلك.',
+      },
+    ]
+  }
+
+  return [
+    {
+      id: 'foundation', order: 1, title: 'مرحلة التأسيس', phase: 'TERM', weight: 25,
+      description: `فهم مبادئ ${specialization} والمصطلحات والأدوات الأساسية.`,
+      learningOutcomes: focus.outcomes.slice(0, 2),
+      requiredSkills: focus.skills.slice(0, 4),
+      requiredBooks: term1Books,
+      exams: term1Exams,
+      assignments: ['قراءات موجهة وتلخيص أهم المفاهيم.', 'نشاط قصير للتحقق من الفهم.'],
+      finalEvaluation: 'اختبار قصير أو نشاط تطبيقي أولي.',
+      statusHint: 'مرحلة تمهيدية لبناء أساس المهارة.',
+    },
+    {
+      id: 'application', order: 2, title: 'مرحلة التطبيق', phase: 'TERM', weight: 35,
+      description: 'تطبيق المفاهيم على سيناريوهات عملية وحالات قريبة من بيئة العمل.',
+      learningOutcomes: focus.outcomes.slice(1, 3),
+      requiredSkills: focus.skills.slice(2, 6),
+      requiredBooks: term2Books,
+      exams: term2Exams,
+      assignments: ['تحليل حالة مهنية قصيرة.', 'تقديم مخرج تطبيقي قابل للمراجعة.'],
+      finalEvaluation: 'تقييم تطبيقي يقيس القدرة على الاستخدام العملي.',
+      statusHint: 'يُنصح بإتمام القراءات قبل الاختبار التطبيقي.',
+    },
+    {
+      id: 'final-project', order: 3, title: 'المشروع أو التقييم النهائي', phase: 'PROJECT', weight: 40,
+      description: 'قياس إتقان المهارة من خلال اختبار نهائي أو مشروع تطبيقي مختصر.',
+      learningOutcomes: ['إثبات القدرة على تطبيق المهارة في سياق مهني.', 'تقديم نتيجة قابلة للتقييم والاعتماد.'],
+      requiredSkills: ['التطبيق العملي', 'التوثيق', 'العرض المختصر'],
+      requiredBooks: [],
+      exams: [],
+      assignments: ['تسليم مشروع تطبيقي أو اجتياز الاختبار النهائي.'],
+      finalEvaluation: 'اعتماد نهائي للمهارة وإصدار الشهادة عند استيفاء المتطلبات.',
+      statusHint: 'تغلق المرحلة بعد اعتماد الإدارة للنتيجة النهائية.',
+    },
+  ]
+}
+
 export function buildAcademicProgramProfile(program: AcademicProgramInput): AcademicProgramProfile {
   const category = String(program.category || '').toUpperCase()
   const degreeLabel = ACADEMIC_DEGREE_LABEL[category] || 'برنامج مهني'
