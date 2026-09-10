@@ -30,6 +30,7 @@ model User {
   ownedAdmissions      AdmissionApplication[] @relation("AdmissionOwner")
   auditLogs      AuditLog[]
   programExamAttempts ProgramExamAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
 }
 
 model Session {
