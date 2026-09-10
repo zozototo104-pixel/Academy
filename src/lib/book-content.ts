@@ -244,7 +244,7 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
         }
       }
     } catch (e: any) {
-      // نكمل إلى الرابط أو بيانات الكتاب بدل إفشال التوليد.
+      // نكمل إلى الرابط المباشر فقط؛ لا نولّد امتحاناً من بيانات وصفية بلا نص مقروء.
       console.error('book uploaded file hydration failed:', book.id || book.title, String(e?.message || e).slice(0, 180))
     }
   }
