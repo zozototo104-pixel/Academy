@@ -54,7 +54,7 @@ async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: strin
         .replace(/&amp;/g, '&')
         .replace(/\s+/g, ' ')
         .trim()
-      return { ok: true, mime, htmlText: text.slice(0, 20000) }
+      return { ok: true, mime, htmlText: text.slice(0, MAX_BOOK_TEXT_CHARS) }
     }
     return { ok: false, mime, note: 'نوع المحتوى غير مدعوم للاستخراج الآلي (الرابط يبقى متاحاً للطلاب للقراءة)' }
   } catch (e: any) {
