@@ -957,6 +957,7 @@ ${evidence}
         `طلب الالتحاق ${app.reference} لبرنامج «${app.program}»`,
         `نسبة التغطية: ${review.fitScore}% — الحكم: ${review.verdict}`,
         review.summaryForAdmin,
+        `تحليل المرفقات: ${review.documentAnalyses.map((d) => `${d.fileName}: ${d.detectedLabel} (${d.coverage}%) — ${d.recommendation}`).join(' | ')}`,
         `توصية الإدارة: ${review.recommendedAction}`,
       ].filter(Boolean).join('\n'),
       strengths: review.strengths,
