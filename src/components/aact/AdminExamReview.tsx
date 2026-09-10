@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
+const FULL_EXAM_TARGET = 80
 
 // ============================================================
 // 12.2 — حوار المراجعة البشرية للأسئلة المولدة (Human-in-the-loop)
