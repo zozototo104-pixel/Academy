@@ -771,7 +771,23 @@ const EXAM_TOTAL_PROMPT_BOOK_CHARS = 72000
 function sanitizeExamText(value: unknown, max = EXAM_BOOK_MAX_CHARS): string {
   return String(value || '')
     .replace(/\u0000/g, ' ')
-    .replace(/[ \t\r\f\v]+/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    // Remove reader/page counters that polluted exam questions, e.g. "1 of 397 --- 2 of 397".
+    .replace(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi, ' ')
+    .replace(/(?:^|\s)of\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bpage\s+\d{1,5}\s+(?:of|\/|من)\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
+    .replace(/[ـ_\-–—]{3,}/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t\f\v]+/g, ' ').trim())
+    .filter((line) => {
+      if (!line) return false
+      if (/^(?:\d+|of\s+\d+|[\-–—_ـ\s]+)$/i.test(line)) return false
+      const letters = (line.match(/[\p{L}]/gu) || []).length
+      const digits = (line.match(/\d/g) || []).length
+      return !(digits >= 4 && letters <= 2)
+    })
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, max)
