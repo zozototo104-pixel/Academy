@@ -85,6 +85,7 @@ export function QuestionReviewDialog({
 
   const saveEdit = async (id: string) => {
     if (!draft) return
+    const current = questions.find((q) => q.id === id)
     setBusy(true)
     try {
       await api('/api/admin/program-exam-questions', {
@@ -93,7 +94,7 @@ export function QuestionReviewDialog({
           questionId: id,
           action: 'EDIT',
           text: draft.text,
-          options: draft.type === 'TF' ? undefined : draft.options,
+          options: current?.type === 'TF' ? ['صح', 'خطأ'] : draft.options,
           correctAnswer: draft.correctAnswer,
           modelAnswer: draft.modelAnswer,
           points: draft.points,
