@@ -551,10 +551,30 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const existingSemExam = await db.programExam.findFirst({ where: { programId, semester: sem, status: { in: ['REVIEW', 'READY'] } } })
+    const existingSemExam = await db.programExam.findFirst({
+      where: { programId, semester: sem, status: { in: ['REVIEW', 'READY'] } },
+      include: { _count: { select: { questions: true } } },
+    })
     if (existingSemExam) {
+      if (existingSemExam.status === 'REVIEW' && existingSemExam._count.questions < totalRequiredQuestions()) {
+        await db.programExam.update({ where: { id: existingSemExam.id }, data: { status: 'GENERATING', errorNote: null } })
+        const step = await runGenerationSteps(existingSemExam.id, 2)
+        return NextResponse.json({
+          ok: step.ok,
+          examId: existingSemExam.id,
+          booksCount,
+          semester: sem,
+          resumed: true,
+          continuedFromReview: true,
+          existingQuestions: step.questionCount,
+          inserted: step.inserted,
+          status: step.status,
+          done: step.done,
+          requiredQuestions: totalRequiredQuestions(),
+        })
+      }
       return NextResponse.json(
-        { error: `يوجد امتحان معتمد أو بانتظار المراجعة للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — استخدم زر حذف الامتحان إذا أردت توليد نسخة جديدة بالكامل` },
+        { error: `يوجد امتحان ${existingSemExam.status === 'READY' ? 'منشور' : 'بانتظار المراجعة'} للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — استخدم زر الحذف أو زر إعادة البناء داخل المراجعة إذا أردت نسخة جديدة` },
         { status: 409 }
       )
     }
