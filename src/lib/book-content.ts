@@ -92,18 +92,15 @@ function safeUrl(raw?: string | null): string | null {
   }
 }
 
-function metadataContext(book: RawBookForHydration, note?: string): string {
-  const lines = [
-    `عنوان الكتاب بالعربية: ${book.title}`,
-    book.titleEn ? `العنوان الأصلي/الإنجليزي: ${book.titleEn}` : '',
-    book.author ? `المؤلف: ${book.author}` : '',
-    book.year ? `سنة النشر: ${book.year}` : '',
-    book.description ? `وصف/سبب اعتماد الكتاب: ${book.description}` : '',
-    book.link ? `رابط الكتاب أو مصدره: ${book.link}` : '',
-    note ? `ملاحظة قراءة المحتوى: ${note}` : '',
-    'تنبيه للذكاء: إذا كان النص الكامل غير متاح، ابنِ الأسئلة من عنوان الكتاب ووصفه والمعرفة الأكاديمية العامة حول هذا المرجع والتخصص، ولا تفشل التوليد.',
-  ].filter(Boolean)
-  return normalizeExtractedText(lines.join('\n'), MAX_BOOK_CONTEXT_CHARS)
+function looksLikeMetadataOnlyText(text: string): boolean {
+  const n = normalizeExtractedText(text, 4000).toLowerCase()
+  return (
+    n.includes('رابط الكتاب أو مصدره') ||
+    n.includes('ملاحظة قراءة المحتوى') ||
+    n.includes('تنبيه للذكاء') ||
+    n.includes('google.com/search') ||
+    n.includes('tbm=bks')
+  )
 }
 
 function parseGeminiBookJson(raw: string): { text: string; note: string } {
