@@ -800,7 +800,7 @@ export function TranscriptTab() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { icon: BookOpen, l: 'البرامج', v: String(data.summary.programsCount), c: 'bg-[#0f2b46] text-[#e0b83a]' },
-            { icon: ClipboardCheck, l: 'امتحانات مجتازة', v: `${data.summary.passedExams}/${data.summary.totalExams}`, c: 'bg-emerald-600 text-white' },
+            { icon: ClipboardCheck, l: 'تقييمات مجتازة', v: `${data.summary.passedExams}/${data.summary.totalExams}`, c: 'bg-emerald-600 text-white' },
             { icon: Award, l: 'متوسط الدرجات', v: data.summary.averageScore != null ? `${data.summary.averageScore}%` : '—', c: 'bg-[#c9a227] text-[#0f2b46]' },
             { icon: Trophy, l: 'شهادات صادرة', v: String(data.programs.filter((p) => p.certificateNo).length), c: 'bg-[#b22234] text-white' },
           ].map((k) => (
