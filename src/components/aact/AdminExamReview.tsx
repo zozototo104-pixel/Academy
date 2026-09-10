@@ -193,6 +193,15 @@ export function QuestionReviewDialog({
           <DialogDescription>
             {examTitle} — راجع الأسئلة المولّدة بالذكاء الاصطناعي: عدّل ما يلزم، اعتمد السليم، ارفض غير الملائم، أو احذف السؤال نهائياً. لا يرى الطالب إلا الأسئلة المعتمدة.
           </DialogDescription>
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+            <p className="mb-2 text-[11px] font-bold leading-relaxed text-amber-800">
+              إذا كانت الأسئلة القديمة مكررة أو خياراتها متشابهة، استخدم هذا الزر لإعادة بناء الامتحان من الكتب بالمنهجية الجديدة المتنوعة.
+            </p>
+            <Button size="sm" variant="outline" onClick={rebuildFromBooks} disabled={busy} className="border-amber-300 text-[10px] font-black text-amber-700 hover:bg-amber-100">
+              {busy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+              إعادة بناء الامتحان من الكتب
+            </Button>
+          </div>
         </DialogHeader>
 
         {loading ? (
