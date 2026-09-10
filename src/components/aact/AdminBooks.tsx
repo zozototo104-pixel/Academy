@@ -280,6 +280,33 @@ export function AdminBooksTab() {
     }
   }
 
+  const stopExam = async (exam: ExamRow) => {
+    if (!programId) return
+    const msg = exam.questionCount > 0
+      ? `سيتم إيقاف التوليد الآن، وستبقى ${exam.questionCount} سؤالاً محفوظة وتتحول مباشرة إلى مراجعة الإدارة للتعديل/الاعتماد/الحذف. متابعة؟`
+      : 'سيتم إيقاف التوليد الآن. لم تُحفظ أي أسئلة بعد، ويمكنك استكماله لاحقاً من زر الاستكمال. متابعة؟'
+    if (!confirm(msg)) return
+    setStoppingExamId(exam.id)
+    try {
+      const d = await api<{ ok: boolean; status: string; questionCount: number; totalPoints: number }>('/api/admin/program-exams/generate', {
+        method: 'POST',
+        body: JSON.stringify({ examId: exam.id, action: 'stop' }),
+      })
+      toast({
+        title: 'تم إيقاف التوليد',
+        description: d.questionCount > 0
+          ? `تم حفظ ${d.questionCount} سؤالاً وتحويل الامتحان إلى مراجعة الإدارة`
+          : 'تم إيقاف التوليد قبل حفظ أي سؤال',
+      })
+      await loadProgramData(programId, true)
+      if (d.questionCount > 0) setReviewingExam({ id: exam.id, title: exam.title })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message || 'تعذر إيقاف التوليد', variant: 'destructive' })
+    } finally {
+      setStoppingExamId(null)
+    }
+  }
+
   const deleteExam = async (id: string) => {
     if (!confirm('حذف هذا الاختبار الشامل وكل أسئلته ومحاولاته؟ هذا الحذف نهائي.')) return
     try {
