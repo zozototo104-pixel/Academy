@@ -1428,7 +1428,7 @@ ${plannedTypes}
   }
 
   const fallback = fallbackExamQuestionBatch(program, books, batchIndex)
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec)
+  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec, books)
   return balanced.length > 0 ? balanced : fallback
 }
 
