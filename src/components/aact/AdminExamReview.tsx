@@ -359,6 +359,9 @@ export function QuestionReviewDialog({
                       <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0f2b46] text-[10px] font-black text-[#e0b83a]">{q.order}</span>
                       <Badge variant="outline" className="border-[#c9a227]/40 text-[9px] font-bold text-[#a8841a]">{TYPE_AR[q.type]}</Badge>
                       <Badge variant="outline" className="border-slate-200 text-[9px] text-slate-500">{q.points} نقاط</Badge>
+                      {q.cognitiveSkill && <Badge variant="outline" className="border-blue-200 text-[9px] text-blue-700">{SKILL_AR[q.cognitiveSkill] || q.cognitiveSkill}</Badge>}
+                      {q.difficulty && <Badge variant="outline" className="border-purple-200 text-[9px] text-purple-700">{DIFFICULTY_AR[q.difficulty] || q.difficulty}</Badge>}
+                      {q.sourceBookTitle && <Badge variant="outline" className="border-emerald-200 text-[9px] text-emerald-700">موثق بمصدر</Badge>}
                       <Badge className={`text-[9px] ${q.status === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-600 hover:bg-red-100' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'}`}>
                         {q.status === 'PENDING_REVIEW' ? 'بانتظار المراجعة' : q.status === 'REJECTED' ? 'مرفوض' : 'معتمد'}
                       </Badge>
