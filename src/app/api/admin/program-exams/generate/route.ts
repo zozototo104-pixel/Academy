@@ -201,6 +201,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}`)
 
     let existingCount = await db.programQuestion.count({ where: { examId } })
+    existingCount = await resetLegacyWeakFirstBatchIfNeeded(examId, existingCount)
     const batchIndex = firstMissingBatchIndex(existingCount)
     if (batchIndex >= EXAM_BATCH_COUNT) {
       const reviewed = await exposeExamForReview(examId, null)
