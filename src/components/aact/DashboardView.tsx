@@ -122,6 +122,10 @@ export function DashboardView() {
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [active, setActive] = useState<ProgressData | null>(null)
+  const [assignments, setAssignments] = useState<StudentAssignment[]>([])
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({})
+  const [assignmentFiles, setAssignmentFiles] = useState<Record<string, File | null>>({})
+  const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null)
   const [loadingActive, setLoadingActive] = useState(false)
   const [lastChats, setLastChats] = useState<ChatMsg[]>([])
 
