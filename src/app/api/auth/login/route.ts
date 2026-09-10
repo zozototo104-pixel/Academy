@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyPassword, createSession } from '@/lib/auth'
 import { ensureCoreSeed } from '@/lib/bootstrap'
+import { ensureDemoThesisStudent, DEMO_THESIS_STUDENT_EMAIL, DEMO_THESIS_STUDENT_PASSWORD } from '@/lib/demo-thesis'
 
 export async function POST(req: NextRequest) {
   try {
