@@ -341,6 +341,8 @@ export async function GET() {
         atRiskStudents: atRiskStudents.length,
         pendingAppeals: appealsCount,
         supervisorMemoryCoverage: memoryCoverage,
+        microCredentials: Number(microCredentialsCount || 0),
+        microCredentialAwards: Number(microCredentialAwardsCount || 0),
         avgAttemptScore: avg(allAttemptScores),
         avgAdmissionFit: avg(admissionScores),
         avgThesisScore: avg(thesisScores),
