@@ -687,10 +687,15 @@ export async function suggestBooksForProgram(program: {
 }): Promise<BookSuggestion[]> {
   const level = LEVEL_AR[program.category] || program.category
   const description = cleanText(program.description, 600)
+  const spec = specialtyName(program)
+  const domain = detectProgramDomain(program)
   const fallback = fallbackBookSuggestions(program)
+  const domainSeedTitles = (DOMAIN_BOOKS[domain] || DOMAIN_BOOKS.general).map(([title]) => title).join(' | ')
   const prompt = `أنت خبير ذكاء اصطناعي أكاديمي متخصص في تحليل مناهج الدراسات العليا وواقع التخصصات في العالم.
 
-التخصص المطلوب: "${program.titleAr}" (${program.titleEn || '-'}) — درجة: ${level}
+التخصص المحدد الحقيقي: "${spec.ar}" (${spec.en || program.titleEn || '-'})
+الدرجة فقط: ${level}
+اسم البرنامج الكامل في النظام: "${program.titleAr}" (${program.titleEn || '-'}) — درجة: ${level}
 وصف البرنامج: ${description || 'لا يوجد وصف تفصيلي؛ استنتج من اسم البرنامج ومستواه.'}
 الأكاديمية: ${ACADEMY_INFO.nameAr} — برامج دراسات عليا مهنية دولية.
 
