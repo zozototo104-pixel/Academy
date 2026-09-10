@@ -395,6 +395,8 @@ export function AdminQualityTab() {
                 <div className="rounded-xl bg-[#f8fafc] p-3">ردود المشرف: <b className="text-[#0f2b46]">{data.supervisor.totalAssistantMessages}</b></div>
                 <div className="rounded-xl bg-[#f8fafc] p-3">رسائل صوتية: <b className="text-[#0f2b46]">{data.supervisor.voiceMessages}</b></div>
                 <div className="rounded-xl bg-[#f8fafc] p-3">متوسط التفاعلات: <b className="text-[#0f2b46]">{data.supervisor.avgMemoryInteractions}</b></div>
+                <div className="rounded-xl bg-[#f8fafc] p-3">متوسط زمن الرد: <b className="text-[#0f2b46]">{formatSeconds(data.supervisor.averageResponseSeconds)}</b></div>
+                <div className="rounded-xl bg-[#f8fafc] p-3">نسبة الردود الضعيفة: <b className="text-[#0f2b46]">{data.supervisor.weakReplyRate}%</b></div>
               </div>
               <p className="mt-3 rounded-xl bg-[#f7edd0]/60 p-3 text-xs font-bold leading-6 text-[#5c4d1a]">
                 تغطية الذاكرة الأكاديمية: {data.supervisor.memoryCoverage}% — كلما ارتفعت، أصبحت ردود المشرف أكثر ارتباطاً بسجل الطالب وامتحاناته وبحثه.
