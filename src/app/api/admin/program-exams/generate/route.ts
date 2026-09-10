@@ -63,14 +63,6 @@ async function stopGenerationAndExposeReview(examId: string, admin: { id: string
   return { ok: true, examId, status: nextStatus, questionCount, totalPoints }
 }
 
-function scheduleGeneration(examId: string) {
-  // بقيت كاحتياط فقط، لكن التوليد الأساسي أصبح خطوة بخطوة من نفس طلب الإدارة
-  // حتى لا يعلق Vercel على حالة GENERATING بدون زيادة الأسئلة.
-  after(() => {
-    runGenerationStep(examId).catch((e) => console.error('scheduled program exam step failed:', e))
-  })
-}
-
 async function examTotals(examId: string): Promise<{ questionCount: number; totalPoints: number }> {
   const rows = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
   return { questionCount: rows.length, totalPoints: rows.reduce((sum, q) => sum + q.points, 0) }
