@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { AcademyLogo } from '@/components/aact/Shell'
 import {
   Bot, Video, VideoOff, Mic, MicOff, Send, Loader2, Gavel, Users2,
-  PhoneOff, Sparkles, Volume2, Radio, CalendarClock, User2, Captions,
+  Phone, PhoneOff, Sparkles, Volume2, Radio, CalendarClock, User2, Captions,
   Disc, FileSignature, ShieldCheck, Network, MonitorUp,
 } from 'lucide-react'
 
