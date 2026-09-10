@@ -749,10 +749,10 @@ export function AdminView() {
               </Card>
             ) : (
               apps.map((a) => (
-                <Card key={a.id} className="border-[#0f2b46]/10">
-                  <CardContent className="p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
+                <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 w-full sm:flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-sm font-black text-[#0f2b46]">{a.orgName}</h3>
                           {a.kind === 'ACCREDITATION' ? (
