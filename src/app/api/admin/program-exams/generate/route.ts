@@ -325,7 +325,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       throw new Error(`لا يوجد نص فعلي مقروء من الكتب. ارفع ملف Word/PDF/TXT قابل للقراءة أو ضع رابط PDF مباشر، ولا تستخدم رابط بحث Google أو صفحة وصف فقط. ${notes}`)
     }
 
-    existingCount = await resetUngroundedPendingQuestionsIfNeeded(examId, usableBooks, existingCount)
+    // لا نحذف الدفعات السابقة هنا حتى لو كانت بحاجة مراجعة؛ نمنع السيئ في الدفعات الجديدة ونترك القديم للمراجعة أو زر إعادة البناء.
     const batchIndex = firstMissingBatchIndex(existingCount)
     if (batchIndex >= EXAM_BATCH_COUNT) {
       const reviewed = await exposeExamForReview(examId, null)
