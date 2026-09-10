@@ -1212,7 +1212,7 @@ function makeFallbackShort(concept: string, specAr: string, i: number): Generate
 }
 
 function makeFallbackEssay(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = cleanText(concept, 520)
+  const evidence = stripExamKnowledgeMeta(concept, 520)
   const idea = conceptLabel(concept, 190)
   const stems = [
     `حلل نقدياً فكرة «${idea}» من الكتاب، ثم بيّن كيف يمكن تحويلها إلى حالة دراسية في ${specAr}.`,
