@@ -1126,7 +1126,7 @@ function rotateCorrectOption(options: string[], correctIndex: number): { options
 }
 
 function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i = 0): GeneratedQuestion {
-  const evidence = cleanText(concept, 430)
+  const evidence = stripExamKnowledgeMeta(concept, 430)
   const idea = conceptLabel(concept, 180)
   const stems = caseBased
     ? [
