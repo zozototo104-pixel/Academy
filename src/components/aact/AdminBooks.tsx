@@ -284,11 +284,14 @@ export function AdminBooksTab() {
         setFile(null)
         if (fileRef.current) fileRef.current.value = ''
       }
+      await loadProgramData(programId, true)
       toast({
         title: 'تمت إضافة الكتاب',
-        description: d.textExtracted
-          ? 'تمت قراءة محتوى الملف/الرابط — خبير الذكاء الاصطناعي سيستخدمه في بناء الأسئلة'
-          : d.linkNote || 'أُضيف إلى الكتب المقررة للتخصص',
+        description: d.knowledgeItemsInserted
+          ? `تمت قراءة الكتاب وبناء ${d.knowledgeItemsInserted} عنصر معرفة للامتحانات والمشرف الذكي`
+          : d.textExtracted
+            ? 'تمت قراءة محتوى الملف/الرابط — ويمكنك تحديث بنك المعرفة عند الحاجة'
+            : d.linkNote || 'أُضيف إلى الكتب المقررة للتخصص',
       })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
