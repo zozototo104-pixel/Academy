@@ -922,6 +922,104 @@ export function AdminBooksTab() {
             </CardContent>
           </Card>
 
+          {/* أدلة الدراسة والمحاضرات */}
+          <Card className="border-[#0f2b46]/10 bg-white">
+            <CardContent className="p-5 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <BookMarked className="h-4.5 w-4.5 text-[#a8841a]" />
+                    أدلة الدراسة والمحاضرات ({studyGuides.length})
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">
+                    يولد النظام دليلاً دراسياً من بنك المعرفة: محاور مذاكرة، أهداف تعلم، مصطلحات، أنشطة قراءة، وأسئلة نقاش يستخدمها الطالب والمشرف الذكي.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3].map((semester) => (
+                    <Button key={semester} size="sm" variant="outline" onClick={() => generateStudyGuide(semester)} disabled={!!generatingGuideSemester || books.length === 0} className="border-[#c9a227] text-[10px] font-black text-[#a8841a]">
+                      {generatingGuideSemester === String(semester) ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                      {semester === 3 ? 'دليل البحث/المشروع' : `دليل الفصل ${semester === 2 ? 'الثاني' : 'الأول'}`}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {studyGuides.length === 0 ? (
+                <div className="rounded-2xl bg-[#f8fafc] p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                  لا توجد أدلة دراسة بعد. ابنِ بنك المعرفة ثم ولّد دليل الفصل المطلوب ليظهر للطالب داخل بوابته.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {studyGuides.map((guide) => (
+                    <article key={guide.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <Badge className="bg-[#0f2b46] text-[10px] font-black text-[#e0b83a] hover:bg-[#0f2b46]">
+                              {guide.semester === 2 ? 'الفصل الثاني' : guide.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}
+                            </Badge>
+                            <Badge variant="outline" className={`text-[10px] font-black ${guide.status === 'PUBLISHED' ? 'border-emerald-200 text-emerald-700' : guide.status === 'DRAFT' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'}`}>
+                              {guide.status === 'PUBLISHED' ? 'منشور للطلاب' : guide.status === 'DRAFT' ? 'مسودة' : 'مؤرشف'}
+                            </Badge>
+                          </div>
+                          <h3 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h3>
+                          <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-1">
+                          {guide.status !== 'PUBLISHED' && (
+                            <Button size="sm" onClick={() => updateStudyGuideStatus(guide, 'PUBLISHED')} className="h-8 bg-emerald-600 px-3 text-[10px] font-black text-white hover:bg-emerald-700">
+                              نشر
+                            </Button>
+                          )}
+                          {guide.status === 'PUBLISHED' && (
+                            <Button size="sm" variant="outline" onClick={() => updateStudyGuideStatus(guide, 'DRAFT')} className="h-8 px-3 text-[10px] font-black">
+                              إخفاء مؤقت
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => generateStudyGuide(guide.semester)} disabled={!!generatingGuideSemester} className="h-8 px-3 text-[10px] font-black text-[#a8841a]">
+                            {generatingGuideSemester === String(guide.semester) ? <Loader2 className="h-3 w-3 animate-spin" /> : 'إعادة توليد'}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => deleteStudyGuide(guide.id)} className="h-8 px-2 text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                        <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أهداف التعلم</p>
+                          {guide.objectives.slice(0, 6).map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
+                        </div>
+                        <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">مصطلحات ومحاور</p>
+                          <div className="flex flex-wrap gap-1">
+                            {guide.keyTerms.slice(0, 12).map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أسئلة نقاش للمشرف</p>
+                          {guide.discussionQuestions.slice(0, 4).map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                        <p className="mb-2 text-[11px] font-black text-[#0f2b46]">محاور الدليل</p>
+                        <div className="grid gap-2 lg:grid-cols-2">
+                          {guide.sections.slice(0, 6).map((section, i) => (
+                            <div key={i} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-600">
+                              <p className="font-black text-[#0f2b46]">{section.title}</p>
+                              <p>{section.summary}</p>
+                              {section.outcomes?.length ? <p className="mt-1 text-emerald-700">{section.outcomes.slice(0, 2).join(' · ')}</p> : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* الواجبات والتكليفات */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
