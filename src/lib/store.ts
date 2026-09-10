@@ -67,8 +67,8 @@ export const useAppStore = create<AppState>((set) => ({
   navigate: (view) => set({
     view,
     mobileMenuOpen: false,
+    programsFilter: null,
     ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
-    ...(view !== 'programs' ? { programsFilter: null } : {}),
   }),
   openPrograms: (filter) => set({ view: 'programs', programsFilter: filter || null, programDetailsId: null, mobileMenuOpen: false }),
   openProgram: (id) => set({ activeProgramId: id, view: 'dashboard', mobileMenuOpen: false }),
