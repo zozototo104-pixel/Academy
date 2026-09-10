@@ -578,9 +578,9 @@ export function AdminBooksTab() {
                       <SelectItem value="2">امتحان الفصل الثاني</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button size="sm" onClick={generateExam} disabled={generating || exams.some((e) => e.status === 'GENERATING')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">
-                    {generating || exams.some((e) => e.status === 'GENERATING') ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
-                    توليد بالذكاء الاصطناعي
+                  <Button size="sm" onClick={generateExam} disabled={generating} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">
+                    {generating ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : hasGeneratingExam ? <RefreshCw className="ml-1 h-3.5 w-3.5" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                    {hasGeneratingExam ? 'تحريك التوليد' : 'توليد بالذكاء الاصطناعي'}
                   </Button>
                 </div>
               </div>
