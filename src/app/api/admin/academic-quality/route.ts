@@ -199,7 +199,16 @@ export async function GET() {
       db.chatMessage.findMany({
         take: 500,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, userId: true, role: true, mode: true, content: true, createdAt: true },
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          mode: true,
+          kind: true,
+          content: true,
+          createdAt: true,
+          user: { select: { name: true, email: true } },
+        },
       }),
       db.admissionApplication.findMany({
         take: 300,
