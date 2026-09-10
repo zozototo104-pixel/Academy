@@ -439,6 +439,46 @@ export function AdminBooksTab() {
 
       {programId && (
         <>
+          {academicPlanPreview && (
+            <Card className="border-[#c9a227]/35 bg-[#fffaf0]">
+              <CardContent className="p-5 sm:p-6">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <ClipboardList className="h-4.5 w-4.5 text-[#a8841a]" />
+                    مصفوفة الخطة الدراسية لهذا التخصص
+                  </h2>
+                  <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{academicPlanPreview.academicTitle}</Badge>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {academicPlanPreview.termPlans.map((term) => (
+                    <div key={term.id} className="rounded-2xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600 shadow-sm ring-1 ring-[#0f2b46]/10">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">{term.title}</p>
+                        <span className="rounded-full bg-[#f7edd0] px-2 py-0.5 font-black text-[#a8841a]">{term.weight}%</span>
+                      </div>
+                      <p className="mb-2">{term.description}</p>
+                      <div className="rounded-xl bg-slate-50 p-2">
+                        <p className="font-black text-[#0f2b46]">كتب الفصل</p>
+                        {term.requiredBooks.length ? term.requiredBooks.slice(0, 3).map((b) => <p key={`${term.id}-${b.title}`}>• {b.title}</p>) : <p>لم تُربط كتب لهذا الفصل بعد.</p>}
+                      </div>
+                      <div className="mt-2 rounded-xl bg-slate-50 p-2">
+                        <p className="font-black text-[#0f2b46]">مخرجات/مهارات/واجبات</p>
+                        <p>{term.learningOutcomes.slice(0, 2).join(' ')}</p>
+                        <p className="text-[#a8841a]">{term.requiredSkills.slice(0, 4).join(' · ')}</p>
+                        <p>{term.assignments.slice(0, 2).join(' · ')}</p>
+                      </div>
+                      <div className="mt-2 rounded-xl bg-slate-50 p-2">
+                        <p className="font-black text-[#0f2b46]">امتحانات وتقييم</p>
+                        {term.exams.length ? term.exams.map((e) => <p key={`${term.id}-${e.title}`} className="text-emerald-700">• {e.title} {e.questionCount ? `(${e.questionCount} سؤال)` : ''}</p>) : <p className="text-amber-700">لا يوجد امتحان لهذا الفصل بعد.</p>}
+                        <p className="mt-1 text-[#0f2b46]">{term.finalEvaluation}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* الكتب المقررة */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
