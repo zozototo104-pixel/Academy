@@ -589,7 +589,7 @@ export async function POST(req: NextRequest) {
 
     const generating = await db.programExam.findFirst({ where: { programId, status: 'GENERATING' } })
     if (generating) {
-      const step = await runGenerationSteps(generating.id, 2)
+      const step = await runGenerationSteps(generating.id, 1)
       return NextResponse.json({
         ok: step.ok,
         examId: generating.id,
