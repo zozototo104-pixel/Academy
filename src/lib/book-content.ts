@@ -104,6 +104,19 @@ function looksLikeMetadataOnlyText(text: string): boolean {
   )
 }
 
+function isUsableBookText(text: string, minChars = MIN_USABLE_TEXT): boolean {
+  const cleaned = normalizeExtractedText(text, MAX_BOOK_CONTEXT_CHARS)
+  if (cleaned.length < minChars || looksLikeMetadataOnlyText(cleaned)) return false
+  const letters = (cleaned.match(/[\p{L}]/gu) || []).length
+  const words = (cleaned.match(/[\p{L}]{3,}/gu) || []).length
+  const digits = (cleaned.match(/\d/g) || []).length
+  const rawCounters = (String(text || '').match(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi) || []).length
+  if (letters < 120 || words < 25) return false
+  if (rawCounters >= 10 && words < rawCounters * 3) return false
+  if (digits > letters * 0.9 && words < 80) return false
+  return true
+}
+
 function parseGeminiBookJson(raw: string): { text: string; note: string } {
   const body = String(raw || '').trim()
   const json = body.match(/\{[\s\S]*\}/)?.[0]
