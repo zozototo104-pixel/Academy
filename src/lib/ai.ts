@@ -7,6 +7,33 @@ let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 const SMART_SUPERVISOR_INTELLIGENCE = 96
 const SMART_SUPERVISOR_MEMORY = 98
 
+type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
 type SeedProgramItem = (typeof allSeedPrograms)[number]
 
 function programDigestLine(p: SeedProgramItem, i: number): string {
