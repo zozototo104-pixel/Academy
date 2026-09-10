@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const program = cert.program
       ? await db.program.findFirst({
           where: { titleAr: cert.program },
-          select: { titleAr: true, titleEn: true, description: true, category: true, hours: true, _count: { select: { units: true } } },
+          select: { titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
         }).catch(() => null)
       : null
     const academicProfile = program
