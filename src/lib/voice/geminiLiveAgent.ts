@@ -451,10 +451,11 @@ export class GeminiLiveAgent {
 
   private async logTurn(userText: string, aiText: string) {
     try {
-      await fetch('/api/ai/gemini-live/log', {
+      const endpoint = this.cb.logEndpoint || '/api/ai/gemini-live/log'
+      await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
-        body: JSON.stringify({ userText, aiText, model: this.model }),
+        body: JSON.stringify({ ...(this.cb.logExtra || {}), userText, aiText, model: this.model }),
       })
     } catch {}
   }
