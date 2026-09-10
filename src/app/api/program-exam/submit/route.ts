@@ -10,6 +10,51 @@ interface SubmitAnswer {
   selectedOption?: number
 }
 
+function parseJsonArray(value: string | null): any[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const SKILL_AR: Record<string, string> = { UNDERSTAND: 'فهم', APPLY: 'تطبيق', ANALYZE: 'تحليل', EVALUATE: 'تقييم' }
+const DIFFICULTY_AR: Record<string, string> = { EASY: 'سهل', MEDIUM: 'متوسط', ADVANCED: 'متقدم' }
+
+function selectedOptionRationale(q: { distractorRationales?: string | null }, selected?: number): string | null {
+  if (selected == null) return null
+  const rationales = parseJsonArray(q.distractorRationales || null)
+  const match = rationales.find((r) => Number(r?.optionIndex) === selected)
+  return match?.reason ? String(match.reason).slice(0, 800) : null
+}
+
+function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], selected?: number): string {
+  const correctText = options[Number(q.correctAnswer)] ?? q.correctAnswer
+  const sourceBits = [
+    q.sourceBookTitle ? `المصدر: ${q.sourceBookTitle}` : null,
+    q.sourceLocator ? `الموضع: ${q.sourceLocator}` : null,
+    q.cognitiveSkill ? `المهارة: ${SKILL_AR[q.cognitiveSkill] || q.cognitiveSkill}` : null,
+    q.difficulty ? `الصعوبة: ${DIFFICULTY_AR[q.difficulty] || q.difficulty}` : null,
+  ].filter(Boolean).join(' — ')
+  const correctWhy = q.correctRationale ? ` سبب الصحة: ${q.correctRationale}` : ''
+  const wrongWhy = !isCorrect ? selectedOptionRationale(q, selected) : null
+  if (isCorrect) return `إجابة صحيحة. ${correctWhy}${sourceBits ? ` ${sourceBits}.` : ''}`.trim()
+  return `إجابة غير صحيحة. الإجابة الصحيحة: «${correctText}».${correctWhy}${wrongWhy ? ` سبب خطأ اختيارك: ${wrongWhy}` : ''}${sourceBits ? ` ${sourceBits}.` : ''}`.trim()
+}
+
+function resultMetadata(q: any) {
+  return {
+    sourceBookTitle: q.sourceBookTitle || null,
+    sourceChapter: q.sourceChapter || null,
+    sourceLocator: q.sourceLocator || null,
+    cognitiveSkill: q.cognitiveSkill || null,
+    difficulty: q.difficulty || null,
+    correctRationale: q.correctRationale || null,
+  }
+}
+
 /** تنفيذ مهام بشكل متوازٍ على دفعات (لتسريع التصحيح الآلي دون إغراق النموذج) */
 async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length)
