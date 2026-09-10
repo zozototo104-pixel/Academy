@@ -826,6 +826,7 @@ export function TranscriptTab() {
               unitsCount: p.unitsCount,
               units: p.units,
               books: p.books,
+              assignments: p.assignments,
               exams: p.exams,
               academicProfile: p.academicProfile,
             })
