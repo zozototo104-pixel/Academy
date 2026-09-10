@@ -356,7 +356,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       console.error('knowledge context for exam failed:', String(e?.message || e).slice(0, 300))
       return ''
     })
-    const examKnowledgeBooks = knowledgeContext
+    const examKnowledgeBooks: ExamSourceBook[] = knowledgeContext
       ? [
           {
             title: 'بنك المعرفة الأكاديمي المستخرج من الكتب',
