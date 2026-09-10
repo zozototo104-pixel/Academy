@@ -1017,7 +1017,19 @@ ${spec.instruction}
       })
     }
   }
-  return cleaned.slice(0, spec.count)
+  if (cleaned.length < spec.count) {
+    const fallback = fallbackExamQuestionBatch(program, books, batchIndex)
+    const existing = new Set(cleaned.map((q) => norm(q.text)))
+    for (const q of fallback) {
+      if (cleaned.length >= spec.count) break
+      const key = norm(q.text)
+      if (existing.has(key)) continue
+      existing.add(key)
+      cleaned.push(q)
+    }
+  }
+
+  return cleaned.length > 0 ? cleaned.slice(0, spec.count) : fallbackExamQuestionBatch(program, books, batchIndex)
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
