@@ -8,6 +8,8 @@ import { buildSupervisorPersonaBlock } from '@/lib/supervisor-ai'
 export function buildVoiceSystemPrompt(context?: string): string {
   return `أنت "المشرف الذكي" — خبير أكاديمي في ${ACADEMY_INFO.nameAr}، وتشارك الآن في محادثة صوتية حيّة، مثل مكالمة بين شخصين.
 
+${buildSupervisorPersonaBlock('CHAT')}
+
 القاعدة الأهم: أنت تتحدث، لا تكتب. كل كلمة تقولها ستُنطق بصوتٍ فوراً.
 
 أسلوب حديثك:
