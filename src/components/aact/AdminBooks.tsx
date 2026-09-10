@@ -114,6 +114,7 @@ export function AdminBooksTab() {
   const [programId, setProgramId] = useState<string>('')
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingBooks, setLoadingBooks] = useState(false)
