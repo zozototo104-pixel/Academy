@@ -460,9 +460,12 @@ export async function GET() {
         avgThesisScore: avg(thesisScores),
       },
       programs: programCards.sort((a, b) => a.qualityScore - b.qualityScore),
+      strongPrograms: strongProgramList,
+      topDemandSpecialties,
       weakBooks,
       duplicateQuestions,
       atRiskStudents,
+      weakSupervisorReplies,
       supervisor: {
         totalUserMessages,
         totalAssistantMessages,
@@ -470,6 +473,9 @@ export async function GET() {
         memoryCoverage,
         avgMemoryInteractions,
         studentsWithMemory: (memories as any[]).length,
+        averageResponseSeconds: responseTimes.averageSeconds,
+        responsePairs: responseTimes.pairs,
+        weakReplyRate: weakSupervisorReplyRate,
       },
       recommendations: [
         weakBooks.length > 0 ? 'ابدأ بتحويل الكتب الضعيفة إلى نص وبنك معرفة قبل توليد امتحانات جديدة.' : null,
