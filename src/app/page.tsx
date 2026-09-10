@@ -51,6 +51,8 @@ export default function Home() {
       const programId = q.get('programId') || q.get('program') || q.get('slug')
       if (v === 'program-detail' && programId) {
         useAppStore.getState().openProgramDetails(programId)
+      } else if (v === 'programs' && q.get('filter')) {
+        useAppStore.getState().openPrograms(q.get('filter') || undefined)
       } else {
         useAppStore.getState().navigate(v as any)
       }
