@@ -936,7 +936,8 @@ function evidenceTokens(value: unknown): string[] {
 }
 
 function bookSourceNorm(books: ExamSourceBook[]): string {
-  return norm(books.map((b) => `${b.title} ${b.titleEn || ''} ${sanitizeExamText(b.textContent || '', 50000)}`).join('\n'))
+  // التحقق يجب أن يكون من النص المقروء نفسه، لا من عنوان الكتاب أو وصفه، حتى لا تتحول الأسئلة إلى أسئلة عن العنوان أو الرابط.
+  return norm(books.map((b) => sanitizeExamText(b.textContent || '', 70000)).join('\n'))
 }
 
 function evidenceSupportedByBooks(evidence: string, books: ExamSourceBook[]): boolean {
