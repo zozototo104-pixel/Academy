@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
   )
 
-  const setup = buildSetup(setupVariant, model, systemInstruction)
+  const setup = buildSetup(setupVariant, model, systemInstruction, voice)
 
   const now = Date.now()
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
