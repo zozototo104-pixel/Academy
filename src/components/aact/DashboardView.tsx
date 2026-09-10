@@ -85,6 +85,35 @@ interface MyEnrollment {
   program?: { titleAr?: string }
 }
 
+interface StudentAssignment {
+  id: string
+  programId: string
+  programTitle?: string
+  title: string
+  description: string
+  semester: number
+  type: string
+  points: number
+  weight: number
+  dueDays?: number | null
+  dueAt?: string | null
+  rubric?: string | null
+  status: string
+  submitted: boolean
+  submission?: {
+    id: string
+    answerText?: string | null
+    fileName?: string | null
+    mimeType?: string | null
+    size?: number | null
+    status: string
+    score?: number | null
+    feedback?: string | null
+    submittedAt?: string
+    gradedAt?: string | null
+  } | null
+}
+
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
 export function DashboardView() {
