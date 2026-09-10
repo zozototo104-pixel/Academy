@@ -25,6 +25,12 @@ const FULL_EXAM_TARGET = 80
 // 12.2 — حوار المراجعة البشرية للأسئلة المولدة (Human-in-the-loop)
 // ============================================================
 
+interface DistractorRationale {
+  optionIndex: number
+  option: string
+  reason: string
+}
+
 interface ReviewQuestion {
   id: string
   order: number
@@ -34,8 +40,35 @@ interface ReviewQuestion {
   correctAnswer: string | null
   modelAnswer: string | null
   sourceEvidence?: string | null
+  sourceBookTitle?: string | null
+  sourceChapter?: string | null
+  sourceLocator?: string | null
+  cognitiveSkill?: string | null
+  difficulty?: string | null
+  correctRationale?: string | null
+  distractorRationales?: DistractorRationale[]
+  qualityFlags?: string[]
+  reviewNotes?: string | null
   points: number
   status: string
+}
+
+interface QuestionDraft {
+  text: string
+  options: string[]
+  correctAnswer: string
+  modelAnswer: string
+  sourceEvidence: string
+  sourceBookTitle: string
+  sourceChapter: string
+  sourceLocator: string
+  cognitiveSkill: string
+  difficulty: string
+  correctRationale: string
+  distractorRationales: DistractorRationale[]
+  qualityFlags: string[]
+  reviewNotes: string
+  points: number
 }
 
 export function QuestionReviewDialog({
