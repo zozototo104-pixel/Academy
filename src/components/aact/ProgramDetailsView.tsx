@@ -210,6 +210,27 @@ export function ProgramDetailsView() {
             </section>
           )}
 
+          {(program.studyGuides?.length || 0) > 0 && (
+            <section className="mt-6 rounded-3xl border border-[#0f2b46]/10 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-[#0f2b46]">
+                <BookOpen className="h-5 w-5 text-[#a8841a]" />
+                أدلة الدراسة المتاحة
+              </h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                {program.studyGuides!.map((guide) => (
+                  <div key={guide.id || `${guide.semester}-${guide.title}`} className="rounded-2xl bg-[#f8fafc] p-4 ring-1 ring-slate-100">
+                    <Badge className="mb-2 bg-[#f7edd0] text-[10px] font-black text-[#0f2b46] hover:bg-[#f7edd0]">
+                      {guide.semester === 2 ? 'الفصل الثاني' : guide.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}
+                    </Badge>
+                    <h3 className="text-sm font-black leading-6 text-[#0f2b46]">{guide.title}</h3>
+                    {guide.overview && <p className="mt-1 line-clamp-4 text-xs font-bold leading-6 text-slate-600">{guide.overview}</p>}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] font-bold text-slate-500">تظهر الأدلة كاملة داخل بوابة الطالب بعد التسجيل في البرنامج.</p>
+            </section>
+          )}
+
           <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
             <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-5">
               <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-[#0f2b46]">
