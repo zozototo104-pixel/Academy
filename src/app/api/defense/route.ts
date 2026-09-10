@@ -394,7 +394,7 @@ async function aiEvaluate(
         { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.` },
         {
           role: 'user',
-          content: `بحث: «${title}»
+          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}بحث: «${title}»
 الملخص: ${abstract.slice(0, 1000)}
 السؤال المطروح: ${question}
 إجابة الطالب: ${answer.slice(0, 2500)}
