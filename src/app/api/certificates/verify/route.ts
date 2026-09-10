@@ -216,6 +216,7 @@ export async function GET(req: NextRequest) {
           academicProfile: academicProfileFromRules(program.admissionRules),
         })
       : null
+    const academicRecord = await buildCertificateAcademicRecord(cert)
     return NextResponse.json({
       valid: cert.valid,
       certificate: {
