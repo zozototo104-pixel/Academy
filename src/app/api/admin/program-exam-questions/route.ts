@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest) {
     const { questionId, action, text, options, correctAnswer, modelAnswer, points } = await req.json()
     if (!questionId || !action) return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
 
-    const existing = await db.programQuestion.findUnique({ where: { id: questionId }, include: { exam: { select: { title: true } } } })
+    const existing = await db.programQuestion.findUnique({ where: { id: questionId }, include: { exam: { select: { id: true, title: true } } } })
     if (!existing) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
 
     if (action === 'EDIT') {
