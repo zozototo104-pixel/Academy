@@ -19,7 +19,13 @@ export async function GET(req: NextRequest) {
     const program = cert.program
       ? await db.program.findFirst({
           where: { titleAr: cert.program },
-          select: { titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
+          select: {
+            titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true,
+            units: { orderBy: { order: 'asc' }, select: { order: true, title: true } },
+            books: { orderBy: { createdAt: 'asc' }, select: { title: true, titleEn: true, semester: true } },
+            programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { title: true, semester: true, status: true, _count: { select: { questions: true } } } },
+            _count: { select: { units: true } },
+          },
         }).catch(() => null)
       : null
     const academicProfile = program
