@@ -517,7 +517,14 @@ export function ExamView() {
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-black text-[#0f2b46]">
                       {i + 1}
                     </span>
-                    <h3 className="text-sm font-extrabold leading-relaxed text-[#0f2b46]">{r.text}</h3>
+                    <div>
+                      <h3 className="text-sm font-extrabold leading-relaxed text-[#0f2b46]">{r.text}</h3>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {r.cognitiveSkill && <Badge variant="outline" className="border-blue-200 text-[10px] text-blue-700">مهارة: {SKILL_AR[r.cognitiveSkill] || r.cognitiveSkill}</Badge>}
+                        {r.difficulty && <Badge variant="outline" className="border-purple-200 text-[10px] text-purple-700">صعوبة: {DIFFICULTY_AR[r.difficulty] || r.difficulty}</Badge>}
+                        {r.sourceBookTitle && <Badge variant="outline" className="border-emerald-200 text-[10px] text-emerald-700">من كتاب موثق</Badge>}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge
