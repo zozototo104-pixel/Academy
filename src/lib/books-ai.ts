@@ -20,6 +20,7 @@ export interface GeneratedQuestion {
   correct?: string
   modelAnswer?: string
   points?: number
+  bookEvidence?: string
 }
 
 const LEVEL_AR: Record<string, string> = {
