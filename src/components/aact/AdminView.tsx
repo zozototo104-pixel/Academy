@@ -182,6 +182,7 @@ export function AdminView() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('admissions')
   const [highlightAdmissionId, setHighlightAdmissionId] = useState<string | null>(null)
+  const [creatingDemoThesis, setCreatingDemoThesis] = useState(false)
   // ===== التقييم الذكي للطلب قبل الاعتماد: خبير AI يحلل المدخلات والمرفقات ويقارنها بالمطلوب =====
   const [aiReviews, setAiReviews] = useState<Record<string, AdmissionAIReview | null>>({})
   const [aiLoading, setAiLoading] = useState<string | null>(null)
