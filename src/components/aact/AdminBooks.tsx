@@ -547,6 +547,8 @@ export function AdminBooksTab() {
                   setBooks([])
                   setExams([])
                   setAssignments([])
+                  setKnowledgeItems([])
+                  setKnowledgeStats({})
                   setSuggestions([])
                 }}
               >
