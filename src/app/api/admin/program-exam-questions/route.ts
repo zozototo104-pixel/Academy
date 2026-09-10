@@ -137,9 +137,9 @@ export async function POST(req: NextRequest) {
     })
 
     const published = await db.programQuestion.count({ where: { examId, status: 'PUBLISHED' } })
-    if (published < 10) {
+    if (published < REQUIRED_PUBLISHED_QUESTIONS) {
       return NextResponse.json(
-        { error: `عدد الأسئلة المعتمدة (${published}) لا يكفي لنشر الامتحان — الحد الأدنى 10 أسئلة معتمدة` },
+        { error: `عدد الأسئلة المعتمدة (${published}) لا يكفي لنشر الامتحان الكامل — المطلوب ${REQUIRED_PUBLISHED_QUESTIONS} سؤالاً. استخدم استكمال التوليد قبل النشر.` },
         { status: 400 }
       )
     }
