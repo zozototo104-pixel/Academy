@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
+import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 interface SubmitAnswer {
   questionId: string
