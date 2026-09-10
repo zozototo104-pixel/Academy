@@ -69,7 +69,7 @@ export function ProgramsView() {
   const { user, navigate, openProgram, openProgramDetails, openApply, programsFilter } = useAppStore()
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('ALL')
+  const [filter, setFilter] = useState(programsFilter || 'ALL')
   const [search, setSearch] = useState('')
   const { toast } = useToast()
 
