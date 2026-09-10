@@ -736,12 +736,13 @@ ${recent || 'بدأت الجلسة للتو.'}
         body: JSON.stringify({ action: 'start' }),
       })
       setMessages(d.messages)
-      // شغّل وضع التفاعل الحي تلقائياً مع بداية المناقشة حتى لا يبقى المستشار مجرد سائل ينتظر الإجابة.
-      if (isStudent && sttSupported && !transcriptResumeRef.current && !transcriptRecRef.current) {
-        try { toggleTranscript() } catch {}
+      // شغّل المشرف الصوتي المتدفق مع بداية المناقشة؛ هذا يستخدم Gemini Live صوت-إلى-صوت بدل قراءة TTS آلية.
+      if (isStudent) {
+        startLiveAdvisor()
+      } else {
+        const lastAi = [...d.messages].reverse().find((m) => m.role === 'AI_EXPERT')
+        if (lastAi) speak(lastAi.content)
       }
-      const lastAi = [...d.messages].reverse().find((m) => m.role === 'AI_EXPERT')
-      if (lastAi) speak(lastAi.content)
       startRecording() // 12.3: بدء تسجيل الجلسة مع بدء المناقشة
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
