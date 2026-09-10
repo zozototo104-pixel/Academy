@@ -707,7 +707,7 @@ export function AdminBooksTab() {
               <div className="grid gap-2 sm:grid-cols-4">
                 {Object.entries(knowledgeStats).length ? Object.entries(knowledgeStats).slice(0, 8).map(([cat, stat]) => (
                   <div key={cat} className="rounded-2xl bg-white p-3 text-center ring-1 ring-[#c9a227]/20">
-                    <p className="text-[10px] font-black text-[#a8841a]">{cat}</p>
+                    <p className="text-[10px] font-black text-[#a8841a]">{knowledgeCategoryLabel(cat)}</p>
                     <p className="text-lg font-black text-[#0f2b46]">{stat.count}</p>
                     <p className="text-[10px] font-bold text-slate-400">أهمية {stat.avgImportance}%</p>
                   </div>
