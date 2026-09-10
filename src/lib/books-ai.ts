@@ -1107,7 +1107,7 @@ function fallbackExamConcepts(
 }
 
 function conceptLabel(concept: string, max = 150): string {
-  return cleanText(concept
+  return stripExamKnowledgeMeta(concept
     .replace(/^من كتاب\s+«[^»]+»:?\s*/u, '')
     .replace(/^(مقطع|فصل|باب)\s+\d+[:：]?\s*/u, ''), max)
 }
