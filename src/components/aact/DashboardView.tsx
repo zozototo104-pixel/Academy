@@ -161,8 +161,12 @@ export function DashboardView() {
   const open = async (programId: string) => {
     setLoadingActive(true)
     try {
-      const d = await api<ProgressData>(`/api/progress?programId=${programId}`)
+      const [d, a] = await Promise.all([
+        api<ProgressData>(`/api/progress?programId=${programId}`),
+        api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
+      ])
       setActive(d)
+      setAssignments(a.assignments || [])
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
