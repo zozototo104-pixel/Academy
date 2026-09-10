@@ -199,6 +199,10 @@ export async function GET() {
       questions.filter((q) => String(q.sourceEvidence || '').trim().length >= 12).length,
       questions.length
     )
+    const assessmentMetadataCoverage = pct(
+      questions.filter((q) => hasAcademicAssessmentMetadata(q)).length,
+      questions.length
+    )
 
     const readyExams = exams.filter((e) => e.status === 'READY')
     const publishedQuestions = questions.filter((q) => q.status !== 'REJECTED')
