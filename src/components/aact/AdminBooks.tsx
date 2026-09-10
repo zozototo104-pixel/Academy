@@ -121,6 +121,16 @@ interface KnowledgeItemRow {
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
 
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
+const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
+  CONCEPT: 'مفاهيم',
+  THEORY: 'نظريات وأطر',
+  METHOD: 'منهجيات وأساليب',
+  CASE: 'حالات تطبيقية',
+  DEFINITION: 'تعريفات',
+  QUESTION_SEED: 'بذور أسئلة',
+  SUMMARY: 'ملخصات محورية',
+}
+const knowledgeCategoryLabel = (category: string) => KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || category
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
 
