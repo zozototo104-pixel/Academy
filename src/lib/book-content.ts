@@ -267,7 +267,7 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
 
   if (book.link) {
     const fromLink = await fetchLinkContent(book)
-    if (fromLink.text.length >= MIN_USABLE_TEXT && !looksLikeMetadataOnlyText(fromLink.text)) {
+    if (isUsableBookText(fromLink.text, MIN_USABLE_TEXT)) {
       return {
         ...book,
         textContent: fromLink.text,
