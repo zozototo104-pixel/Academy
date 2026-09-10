@@ -123,6 +123,17 @@ export function AdminBooksTab() {
     [programs, programId]
   )
 
+  const academicPlanPreview = useMemo(() => {
+    if (!selectedProgram) return null
+    return buildAcademicProgramProfile({
+      titleAr: selectedProgram.titleAr,
+      titleEn: selectedProgram.titleEn,
+      category: selectedProgram.category,
+      books: books.map((b) => ({ title: b.title, titleEn: b.titleEn, semester: b.semester })),
+      exams: exams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e.questionCount })),
+    })
+  }, [selectedProgram, books, exams])
+
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
