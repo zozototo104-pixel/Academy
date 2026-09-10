@@ -123,6 +123,23 @@ export function QuestionReviewDialog({
     }
   }
 
+  const deleteQuestion = async (q: ReviewQuestion) => {
+    if (!confirm(`حذف السؤال رقم ${q.order} نهائياً من الامتحان؟`)) return
+    setBusy(true)
+    try {
+      await api('/api/admin/program-exam-questions', {
+        method: 'PATCH',
+        body: JSON.stringify({ questionId: q.id, action: 'DELETE' }),
+      })
+      setQuestions((prev) => prev.filter((x) => x.id !== q.id).map((x, i) => ({ ...x, order: i + 1 })))
+      toast({ title: 'تم حذف السؤال' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message || 'تعذر حذف السؤال', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const publish = async () => {
     if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
     setBusy(true)
