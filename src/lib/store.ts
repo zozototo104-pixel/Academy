@@ -30,6 +30,7 @@ interface AppState {
   authChecked: boolean
   view: View
   activeProgramId: string | null
+  programDetailsId: string | null
   activeUnitId: string | null
   activeExamId: string | null
   activeExamKind: 'unit' | 'final'
