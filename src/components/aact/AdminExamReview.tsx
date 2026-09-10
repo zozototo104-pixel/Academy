@@ -291,7 +291,8 @@ export function QuestionReviewDialog({
       onPublished()
       onClose()
     } catch (e: any) {
-      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+      const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
+      toast({ title: 'خطأ', description: `${e.message}${details}`.slice(0, 900), variant: 'destructive' })
     } finally {
       setBusy(false)
     }
