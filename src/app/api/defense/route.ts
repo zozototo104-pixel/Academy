@@ -86,7 +86,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'انتهت مناقشتك مسبقاً — النتيجة لدى اللجنة' }, { status: 400 })
       }
       await db.defenseMessage.deleteMany({ where: { thesisId: thesis.id } })
-      const opening = await aiOpening(thesis.title, thesis.abstract)
+      const rag = await buildSupervisorContext(user.id).catch(() => '')
+      const defenseAcademicContext = mergeContext(
+        rag,
+        `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nملخص البحث: ${thesis.abstract.slice(0, 900)}\nاستخدم ملف الطالب وبرنامجه وكتبه ونتائجه وآخر محادثاته وتحليل ملفه عند صياغة السؤال، مع بقاء القرار النهائي للجنة البشرية.`
+      )
+      const opening = await aiOpening(thesis.title, thesis.abstract, defenseAcademicContext)
       await db.thesisSubmission.update({
         where: { id: thesis.id },
         data: { defenseStatus: 'IN_PROGRESS' },
