@@ -795,6 +795,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       setAiRec(d.aiRecommendation ?? null)
       setMinutes(d.minutes ?? null)
       audioRef.current?.pause()
+      stopLiveAdvisor()
       setSpeaking(false)
       await stopAndSaveRecording()
       onFinished?.()
