@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap } from 'lucide-react'
+import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap, BookOpen, Target, ListChecks } from 'lucide-react'
 
 // ===== تبويب قواعد القبول المخصصة لكل برنامج =====
 // الإدارة تضبط لكل برنامج: الحد الأدنى للمؤهل، إلزام الماجستير للدكتوراة، معادلة الخبرات،
