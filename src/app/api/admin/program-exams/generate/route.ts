@@ -124,7 +124,7 @@ async function cleanupDuplicatePendingQuestions(examId: string): Promise<number>
   const rows = await db.programQuestion.findMany({
     where: { examId, status: 'PENDING_REVIEW' },
     orderBy: { order: 'asc' },
-    select: { id: true, text: true, options: true },
+    select: { id: true, text: true, type: true, options: true },
   })
   const seenTexts = new Set<string>()
   const seenOptionSigs = new Set<string>()
