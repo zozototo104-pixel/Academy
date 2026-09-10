@@ -121,6 +121,7 @@ async function runGeneration(examId: string) {
     const startBatch = firstMissingBatchIndex(existingCount)
 
     for (let i = startBatch; i < EXAM_BATCH_COUNT; i++) {
+      if (!(await isExamStillGenerating(examId))) return
       const spec = EXAM_BATCH_SPECS[i]
       let batch = await generateExamQuestionBatch(exam.program, hydratedBooks, i)
       if (batch.length === 0) {
