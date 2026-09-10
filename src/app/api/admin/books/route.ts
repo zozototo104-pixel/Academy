@@ -5,8 +5,9 @@ import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
 
 const MAX_BOOK_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_BOOK_TEXT_CHARS = 180000
 
-/** استخراج نص من ملف PDF (أول 40 ألف حرف) لتحليل خبير الذكاء الاصطناعي */
+/** استخراج نص من ملف PDF — احتياطي قديم؛ المسار الأساسي يستخدم extractDocumentText لكل الصيغ */
 async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
     const { PDFParse } = await import('pdf-parse')
