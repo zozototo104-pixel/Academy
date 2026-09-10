@@ -110,12 +110,35 @@ export function QuestionReviewDialog({
   }, [open, load])
 
   const startEdit = (q: ReviewQuestion) => {
+    const options = q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', ''])
+    const correctAnswer = q.correctAnswer || '0'
+    const existingRationales = q.distractorRationales?.length
+      ? q.distractorRationales
+      : options
+          .map((option, i) => String(i) === correctAnswer ? null : ({
+            optionIndex: i,
+            option,
+            reason: q.type === 'TF'
+              ? 'هذا الحكم يخالف الدليل المحدد في الكتاب.'
+              : 'هذا الخيار مشتت لأنه لا يطابق الدليل أو المهارة المطلوبة في السؤال.',
+          }))
+          .filter(Boolean) as DistractorRationale[]
     setEditing(q.id)
     setDraft({
       text: q.text,
-      options: q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', '']),
-      correctAnswer: q.correctAnswer || '0',
+      options,
+      correctAnswer,
       modelAnswer: q.modelAnswer || '',
+      sourceEvidence: q.sourceEvidence || '',
+      sourceBookTitle: q.sourceBookTitle || '',
+      sourceChapter: q.sourceChapter || '',
+      sourceLocator: q.sourceLocator || '',
+      cognitiveSkill: q.cognitiveSkill || 'UNDERSTAND',
+      difficulty: q.difficulty || 'MEDIUM',
+      correctRationale: q.correctRationale || '',
+      distractorRationales: existingRationales,
+      qualityFlags: q.qualityFlags?.length ? q.qualityFlags : ['SOURCE_GROUNDED'],
+      reviewNotes: q.reviewNotes || '',
       points: q.points,
     })
   }
