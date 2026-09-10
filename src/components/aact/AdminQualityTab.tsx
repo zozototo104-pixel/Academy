@@ -408,9 +408,12 @@ export function AdminQualityTab() {
             <CardContent className="p-5">
               <h3 className="mb-3 text-sm font-black text-[#0f2b46]">متوسطات أكاديمية</h3>
               <div className="space-y-2 text-xs font-bold text-slate-600">
+                <p className="rounded-xl bg-slate-50 p-3">نسبة النجاح: {metricValue(data.overview.successRate, '%')}</p>
+                <p className="rounded-xl bg-slate-50 p-3">نسبة الاعتراضات: {metricValue(data.overview.appealRate, '%')}</p>
                 <p className="rounded-xl bg-slate-50 p-3">متوسط درجات الامتحانات: {metricValue(data.overview.avgAttemptScore, '%')}</p>
                 <p className="rounded-xl bg-slate-50 p-3">متوسط توافق القبول الذكي: {metricValue(data.overview.avgAdmissionFit, '%')}</p>
                 <p className="rounded-xl bg-slate-50 p-3">متوسط درجات الأبحاث/المناقشة: {metricValue(data.overview.avgThesisScore, '%')}</p>
+                <p className="rounded-xl bg-slate-50 p-3">متوسط زمن الرد: {formatSeconds(data.overview.averageResponseSeconds)}</p>
               </div>
             </CardContent>
           </Card>
