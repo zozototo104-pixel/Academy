@@ -65,6 +65,7 @@ export default function Home() {
           <>
             {view === 'home' && <HomeView />}
             {view === 'programs' && <ProgramsView />}
+            {view === 'program-detail' && <ProgramDetailsView />}
             {view === 'apply' && <ApplyView />}
             {view === 'auth' && <AuthView />}
             {view === 'dashboard' && <DashboardView />}
