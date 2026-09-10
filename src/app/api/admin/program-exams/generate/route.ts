@@ -104,6 +104,7 @@ async function runGeneration(examId: string) {
 
     const hydratedBooks = []
     for (const book of books) {
+      if (!(await isExamStillGenerating(examId))) return
       const hydrated = await hydrateBookContentForExam(book)
       hydratedBooks.push(hydrated)
       if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
