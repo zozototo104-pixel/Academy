@@ -252,17 +252,19 @@ export function AdminBooksTab() {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
     try {
-      const [b, e, a, k] = await Promise.all([
+      const [b, e, a, k, g] = await Promise.all([
         api<{ books: BookRow[] }>(`/api/admin/books?programId=${pid}`),
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
         api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
+        api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
       ])
       setBooks(b.books)
       setExams(e.exams)
       setAssignments(a.assignments)
       setKnowledgeItems(k.items || [])
       setKnowledgeStats(k.stats || {})
+      setStudyGuides(g.guides || [])
     } catch (err: any) {
       if (!silent) toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
