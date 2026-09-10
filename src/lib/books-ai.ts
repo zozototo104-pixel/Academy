@@ -1238,8 +1238,11 @@ function optionSignature(q: GeneratedQuestion): string {
 }
 
 function hasForbiddenExamMetadata(value: unknown): boolean {
-  const n = norm(String(value || ''))
+  const raw = String(value || '')
+  const n = norm(raw)
   return (
+    /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(raw) ||
+    /(?:^|\s)of\s+\d{1,5}\b/i.test(raw) ||
     n.includes('رابط الكتاب') ||
     n.includes('مصدره') ||
     n.includes('عنوان الكتاب') ||
