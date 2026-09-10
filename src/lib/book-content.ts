@@ -177,8 +177,8 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
     const visual = await readVisualDocumentWithGemini(buffer, effectiveMime, book)
-    if (visual.text && visual.text.length >= MIN_USABLE_TEXT) {
-      return { text: visual.text, note: visual.note, quality: 'GEMINI_DOCUMENT' }
+    if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
+      return { text: normalizeExtractedText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: visual.note, quality: 'GEMINI_DOCUMENT' }
     }
     return { text: '', note: visual.note || extracted.note, quality: 'GEMINI_DOCUMENT' }
   }
