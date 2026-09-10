@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
+import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
