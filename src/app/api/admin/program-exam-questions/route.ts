@@ -82,6 +82,32 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    if (action === 'DELETE') {
+      const examId = existing.exam.id
+      await db.programQuestion.delete({ where: { id: questionId } })
+
+      // إعادة ترتيب الأسئلة بعد الحذف حتى تبقى القائمة نظيفة ومتسلسلة للإدارة والطلاب
+      const remaining = await db.programQuestion.findMany({
+        where: { examId },
+        orderBy: [{ order: 'asc' }, { id: 'asc' }],
+        select: { id: true, points: true },
+      })
+      for (let i = 0; i < remaining.length; i++) {
+        await db.programQuestion.update({ where: { id: remaining[i].id }, data: { order: i + 1 } })
+      }
+      const totalPoints = remaining.reduce((sum, q) => sum + q.points, 0)
+      await db.programExam.update({
+        where: { id: examId },
+        data: {
+          totalPoints,
+          durationMin: remaining.length > 0 ? Math.max(120, Math.min(240, Math.round(remaining.length * 2))) : 120,
+        },
+      })
+
+      await audit({ id: admin.id, name: admin.name }, 'DELETE_EXAM_QUESTION', 'ProgramQuestion', questionId, existing.exam.title)
+      return NextResponse.json({ ok: true, remaining: remaining.length, totalPoints })
+    }
+
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
