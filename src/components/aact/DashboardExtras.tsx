@@ -823,6 +823,9 @@ export function TranscriptTab() {
               category: p.category,
               hours: p.hours,
               unitsCount: p.unitsCount,
+              units: p.units,
+              books: p.books,
+              exams: p.exams,
               academicProfile: p.academicProfile,
             })
             return (
