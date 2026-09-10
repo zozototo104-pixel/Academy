@@ -730,7 +730,11 @@ export function AdminBooksTab() {
                                 </div>
                               </div>
                               {s.answerText && <p className="mt-2 rounded-lg bg-slate-50 p-2">{s.answerText.slice(0, 600)}{s.answerText.length > 600 ? '…' : ''}</p>}
-                              {s.fileName && <p className="mt-1 text-[#a8841a]">ملف مرفق: {s.fileName} {s.size ? `(${Math.ceil(s.size / 1024)} ك.ب)` : ''}</p>}
+                              {s.fileName && (
+                                <a href={`/api/admin/assignments/file?id=${s.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                                  <FileText className="h-3 w-3" /> ملف مرفق: {s.fileName} {s.size ? `(${Math.ceil(s.size / 1024)} ك.ب)` : ''}
+                                </a>
+                              )}
                               {s.feedback && <p className="mt-1 text-emerald-700">ملاحظة التصحيح: {s.feedback}</p>}
                               <div className="mt-2 flex flex-wrap gap-2">
                                 <Button size="sm" onClick={() => gradeSubmission(s, a)} disabled={gradingSubmissionId === s.id} className="h-8 bg-emerald-600 px-3 text-[10px] font-black text-white hover:bg-emerald-700">
