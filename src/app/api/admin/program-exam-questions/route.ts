@@ -33,6 +33,89 @@ function cleanOptions(value: string | null): string | null {
   }
 }
 
+function parseJsonArray(value: string | null): any[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function cleanJsonArray(value: unknown, maxItems = 12): string | null {
+  if (!Array.isArray(value)) return null
+  const cleaned = value
+    .map((item) => {
+      if (typeof item === 'string') return cleanInternalExamMeta(item, 300)
+      if (!item || typeof item !== 'object') return null
+      const obj: any = {}
+      for (const [k, v] of Object.entries(item as Record<string, unknown>)) {
+        if (k === 'optionIndex' || k === 'index') obj.optionIndex = Number(v)
+        else obj[k] = cleanInternalExamMeta(v, 500)
+      }
+      return Object.keys(obj).length ? obj : null
+    })
+    .filter(Boolean)
+    .slice(0, maxItems)
+  return cleaned.length ? JSON.stringify(cleaned) : null
+}
+
+function normalizeQuestionText(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function validatePublicationReadiness(questions: any[]): string[] {
+  const errors: string[] = []
+  const candidates = questions.filter((q) => q.status !== 'REJECTED')
+  if (candidates.length < REQUIRED_PUBLISHED_QUESTIONS) {
+    errors.push(`عدد الأسئلة القابلة للنشر (${candidates.length}) أقل من المطلوب (${REQUIRED_PUBLISHED_QUESTIONS}).`)
+  }
+
+  for (const [type, min] of Object.entries(MIN_TYPE_DISTRIBUTION)) {
+    const count = candidates.filter((q) => q.type === type).length
+    if (count < min) errors.push(`تنوع الأسئلة غير كافٍ: نوع ${type} عدده ${count} والمطلوب على الأقل ${min}.`)
+  }
+
+  const seen = new Map<string, number>()
+  for (const q of candidates) {
+    const key = normalizeQuestionText(q.text).slice(0, 180)
+    if (!key) continue
+    seen.set(key, (seen.get(key) || 0) + 1)
+  }
+  const duplicateCount = Array.from(seen.values()).filter((n) => n > 1).length
+  if (duplicateCount > 0) errors.push(`يوجد ${duplicateCount} سؤالاً أو أكثر بتكرار نصي محتمل؛ راجع التكرار قبل النشر.`)
+
+  const missingSource = candidates.filter((q) =>
+    !String(q.sourceEvidence || '').trim() ||
+    !String(q.sourceBookTitle || '').trim() ||
+    !String(q.sourceLocator || '').trim()
+  ).length
+  if (missingSource > 0) errors.push(`${missingSource} سؤالاً بلا مصدر أكاديمي مكتمل: اسم كتاب + دليل + موضع/مقطع.`)
+
+  const missingMeasurement = candidates.filter((q) =>
+    !VALID_SKILLS.has(String(q.cognitiveSkill || '')) ||
+    !VALID_DIFFICULTIES.has(String(q.difficulty || '')) ||
+    !String(q.correctRationale || '').trim()
+  ).length
+  if (missingMeasurement > 0) errors.push(`${missingMeasurement} سؤالاً بلا مهارة/صعوبة/تعليل إجابة مكتمل.`)
+
+  const missingDistractors = candidates.filter((q) =>
+    (q.type === 'MCQ' || q.type === 'TF') && parseJsonArray(q.distractorRationales).length === 0
+  ).length
+  if (missingDistractors > 0) errors.push(`${missingDistractors} سؤالاً موضوعياً بلا سبب خطأ للخيارات الأخرى.`)
+
+  return errors.slice(0, 8)
+}
+
 // ===== 12.2 المراجعة البشرية للأسئلة المولدة بالذكاء الاصطناعي (Human-in-the-loop) =====
 // GET ?examId= → كل الأسئلة مع إجاباتها النموذجية (للإدارة فقط)
 // PATCH → تعديل سؤال / اعتماد / رفض / حذف سؤال
