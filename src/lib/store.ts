@@ -32,6 +32,7 @@ interface AppState {
   view: View
   activeProgramId: string | null
   programDetailsId: string | null
+  programsFilter: string | null
   activeUnitId: string | null
   activeExamId: string | null
   activeExamKind: 'unit' | 'final'
