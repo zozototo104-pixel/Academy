@@ -607,18 +607,7 @@ async function runGeneration(examId: string) {
       if (!(await isExamStillGenerating(examId))) return
 
       await db.programQuestion.createMany({
-        data: batch.map((q) => ({
-          examId,
-          order: ++order,
-          type: q.type,
-          text: q.text,
-          options: q.options ? JSON.stringify(q.options) : null,
-          correctAnswer: q.correct ?? null,
-          modelAnswer: q.modelAnswer ?? (q.bookEvidence ? `مرجع التصحيح: ${q.bookEvidence}` : null),
-          sourceEvidence: q.bookEvidence || null,
-          points: q.points || 2,
-          status: 'PENDING_REVIEW', // 12.2: مراجعة بشرية قبل النشر
-        })),
+        data: batch.map((q) => createProgramQuestionData(examId, ++order, q)),
       })
       const totalNow = await db.programQuestion.count({ where: { examId } })
       await db.programExam.update({
