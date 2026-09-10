@@ -391,7 +391,7 @@ export function DefenseRoom({
     }
     pollRef.current = setInterval(tick, 2000)
     tick()
-  }, [processSignals, getOrCreatePeer])
+  }, [processSignals, getOrCreatePeer, speak])
 
   // ===== دخول القاعة: كاميرا + مايك + انضمام للغرفة =====
   // ===== شاشة التجهيز (Pre-join): معاينة الكاميرا والمايك قبل الانضمام — كما في قاعات الاجتماعات الاحترافية =====
