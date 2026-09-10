@@ -128,13 +128,68 @@ async function runGeneration(examId: string) {
   }
 }
 
-// POST /api/admin/program-exams/generate — بدء توليد امتحان فصل دراسي من الكتب المقررة
+// POST /api/admin/program-exams/generate — بدء أو استكمال توليد امتحان فصل دراسي من الكتب المقررة
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { programId, semester } = await req.json()
+    const body = await req.json()
+    const examId = String(body?.examId || '').trim()
+    const programId = String(body?.programId || '').trim()
+    const sem = Number(body?.semester) === 2 ? 2 : 1
+
+    if (examId) {
+      const existing = await db.programExam.findUnique({
+        where: { id: examId },
+        include: {
+          program: { select: { id: true, titleAr: true, category: true } },
+          _count: { select: { questions: true } },
+        },
+      })
+      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
+      if (existing.status === 'GENERATING') {
+        return NextResponse.json({ error: 'هذا الامتحان قيد التوليد حالياً — انتظر اكتماله', examId: existing.id }, { status: 409 })
+      }
+      if (existing.status === 'READY') {
+        return NextResponse.json({ error: 'الامتحان منشور للطلاب — استخدم زر الحذف إذا أردت إنشاء امتحان جديد بالكامل' }, { status: 409 })
+      }
+
+      const booksCount = await db.book.count({
+        where: { programId: existing.programId, OR: [{ semester: null }, { semester: existing.semester }] },
+      })
+      if (booksCount === 0) {
+        return NextResponse.json(
+          { error: `لا توجد كتب مقررة للفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} — أضف كتباً لهذا الفصل أو اجعل بعض الكتب «عامة للبرنامج»` },
+          { status: 400 }
+        )
+      }
+
+      await db.programExam.update({
+        where: { id: existing.id },
+        data: { status: 'GENERATING', errorNote: null },
+      })
+
+      await audit(
+        { id: admin.id, name: admin.name },
+        'RESUME_PROGRAM_EXAM_GENERATION',
+        'ProgramExam',
+        existing.id,
+        `استكمال توليد امتحان الفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} من السؤال ${existing._count.questions + 1} لبرنامج ${existing.program.titleAr}`
+      )
+
+      runGeneration(existing.id).catch(() => {})
+
+      return NextResponse.json({
+        ok: true,
+        examId: existing.id,
+        booksCount,
+        semester: existing.semester,
+        resumed: true,
+        existingQuestions: existing._count.questions,
+        requiredQuestions: totalRequiredQuestions(),
+      })
+    }
+
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const sem = Number(semester) === 2 ? 2 : 1
 
     const program = await db.program.findUnique({
       where: { id: programId },
@@ -158,9 +213,35 @@ export async function POST(req: NextRequest) {
     const existingSemExam = await db.programExam.findFirst({ where: { programId, semester: sem, status: { in: ['REVIEW', 'READY'] } } })
     if (existingSemExam) {
       return NextResponse.json(
-        { error: `يوجد امتحان معتمد أو بانتظار المراجعة للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — احذفه أولاً لإعادة التوليد` },
+        { error: `يوجد امتحان معتمد أو بانتظار المراجعة للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — استخدم زر حذف الامتحان إذا أردت توليد نسخة جديدة بالكامل` },
         { status: 409 }
       )
+    }
+
+    const failedSemExam = await db.programExam.findFirst({
+      where: { programId, semester: sem, status: 'FAILED' },
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { questions: true } } },
+    })
+    if (failedSemExam) {
+      await db.programExam.update({ where: { id: failedSemExam.id }, data: { status: 'GENERATING', errorNote: null } })
+      await audit(
+        { id: admin.id, name: admin.name },
+        'RESUME_PROGRAM_EXAM_GENERATION',
+        'ProgramExam',
+        failedSemExam.id,
+        `استكمال توليد امتحان فاشل سابقاً للفصل ${sem === 2 ? 'الثاني' : 'الأول'} من السؤال ${failedSemExam._count.questions + 1} لبرنامج ${program.titleAr}`
+      )
+      runGeneration(failedSemExam.id).catch(() => {})
+      return NextResponse.json({
+        ok: true,
+        examId: failedSemExam.id,
+        booksCount,
+        semester: sem,
+        resumed: true,
+        existingQuestions: failedSemExam._count.questions,
+        requiredQuestions: totalRequiredQuestions(),
+      })
     }
 
     const semLabel = sem === 2 ? 'الثاني' : 'الأول'
@@ -186,7 +267,7 @@ export async function POST(req: NextRequest) {
     // التوليد خلفياً — الاستجابة فورية والإدارة تتابع الحالة عبر polling
     runGeneration(exam.id).catch(() => {})
 
-    return NextResponse.json({ ok: true, examId: exam.id, booksCount, semester: sem })
+    return NextResponse.json({ ok: true, examId: exam.id, booksCount, semester: sem, resumed: false, requiredQuestions: totalRequiredQuestions() })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam generate error:', e)
