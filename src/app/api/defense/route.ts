@@ -384,7 +384,8 @@ async function aiEvaluate(
   question: string,
   answer: string,
   qNum: number,
-  total: number
+  total: number,
+  studentAcademicContext?: string
 ): Promise<{ score: number; feedback: string; nextQuestion: string }> {
   try {
     const zai = await getZAI()
