@@ -223,8 +223,11 @@ export async function POST(req: NextRequest) {
         isCorrect: false,
         points: 0,
         maxPoints: q.points,
-        aiFeedback: 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
+        aiFeedback: q.correctRationale
+          ? `لم يجب على هذا السؤال — معيار التصحيح: ${q.correctRationale}`
+          : 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
         studentAnswer: '(لم يجب)',
+        ...resultMetadata(q),
       })
     }
 
