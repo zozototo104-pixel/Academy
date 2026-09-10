@@ -130,9 +130,12 @@ interface AcademicQualityData {
     avgThesisScore: number | null
   }
   programs: QualityProgram[]
+  strongPrograms: StrongProgram[]
+  topDemandSpecialties: DemandSpecialty[]
   weakBooks: WeakBook[]
   duplicateQuestions: DuplicateQuestion[]
   atRiskStudents: AtRiskStudent[]
+  weakSupervisorReplies: WeakSupervisorReply[]
   supervisor: {
     totalUserMessages: number
     totalAssistantMessages: number
@@ -140,6 +143,9 @@ interface AcademicQualityData {
     memoryCoverage: number
     avgMemoryInteractions: number
     studentsWithMemory: number
+    averageResponseSeconds: number | null
+    responsePairs: number
+    weakReplyRate: number
   }
   recommendations: string[]
 }
