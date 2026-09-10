@@ -420,11 +420,13 @@ export async function generateOverallFeedback(
   programTitle: string,
   percentage: number,
   passed: boolean,
-  weakPoints: string[]
+  weakPoints: string[],
+  studentAcademicContext?: string
 ): Promise<{ summary: string; strengths: string[]; improvements: string[] }> {
   const zai = await getZAI()
   const prompt = `${buildSupervisorPersonaBlock('EXAM')}
 
+${studentAcademicContext ? `سياق ملف الطالب لتخصيص التغذية الراجعة:\n${studentAcademicContext.slice(0, 6000)}\n` : ''}
 أنت مشرف أكاديمي في ${ACADEMY_INFO.nameAr}. طالب أنهى اختبار دورة "${programTitle}" بنتيجة ${percentage.toFixed(0)}% (${passed ? 'ناجح' : 'لم يجتز'}).
 
 نقاط الضعف الملاحظة في إجاباته:
