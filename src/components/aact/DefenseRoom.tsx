@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/store'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
+import { GeminiLiveAgent as VoiceAgent } from '@/lib/voice/geminiLiveAgent'
+import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
