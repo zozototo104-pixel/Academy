@@ -218,7 +218,7 @@ export function DefenseRoom({
   const speak = useCallback(async (text: string) => {
     // عند تشغيل Gemini Live داخل القاعة يجب أن يكون مصدر الصوت واحداً فقط.
     // لذلك نمنع TTS المحلي من قراءة رسائل AI_NOTE/AI_EXPERT فوق صوت البث المتدفق.
-    if (liveAdvisorRef.current) return
+    if (liveAdvisorRef.current || suppressLocalTtsRef.current) return
     const ttsSerial = ++ttsSerialRef.current
     let wasTranscribing = false
     try {
