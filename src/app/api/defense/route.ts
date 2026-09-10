@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
         const scores = [...history.filter((m) => m.role === 'STUDENT').map((m) => m.score || 0), result.score]
         const avg = scores.reduce((s, x) => s + x, 0) / scores.length
         const aiScore = Math.round(avg * 10) // من 100
-        const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback)
-        const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate)
+        const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
+        const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
         await db.thesisSubmission.update({
           where: { id: thesis.id },
           data: {
