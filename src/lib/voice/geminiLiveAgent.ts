@@ -255,6 +255,7 @@ export class GeminiLiveAgent {
     this.mark(`طلب جلسة Gemini Live (${model || 'saved'} / ${setupVariant})`)
     const body: Record<string, string> = { setupVariant }
     if (model) body.model = model
+    if (this.cb.context) body.context = this.cb.context
     const sessionRes = await fetch('/api/ai/gemini-live/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
