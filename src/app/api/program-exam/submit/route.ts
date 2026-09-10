@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
-      score: Math.round(percentage * 10) / 10,
+      score: roundedScore,
       rawScore: totalScore,
       maxTotal,
       passScore: exam.passScore,
