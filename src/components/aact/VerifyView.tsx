@@ -37,6 +37,7 @@ interface VerifyResult {
       termPlans?: { id: string; title: string; weight: number; requiredBooks: { title: string }[]; finalEvaluation: string }[]
       finalEvaluationFormula?: { label: string; weight: number; description: string }[]
     } | null
+    academicRecord?: AcademicRecord | null
   }
   message: string
 }
