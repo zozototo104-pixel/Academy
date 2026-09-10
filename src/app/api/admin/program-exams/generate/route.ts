@@ -253,12 +253,18 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     })
     const previousTexts = previousQuestions.map((q) => q.text)
     const existingKeys = await existingQuestionKeys(examId)
+    const existingOptions = await existingOptionSignatures(examId)
 
     let batch = await generateExamQuestionBatch(exam.program, usableBooks, batchIndex, previousTexts)
-    batch = filterNewQuestions(batch, existingKeys)
+    batch = filterNewQuestions(batch, existingKeys, existingOptions)
     if (batch.length < EXAM_BATCH_SPECS[batchIndex].count) {
       const fallbackKeys = await existingQuestionKeys(examId)
-      for (const q of batch) fallbackKeys.add(normalizeQuestionText(q.text).slice(0, 160))
+      const fallbackOptions = await existingOptionSignatures(examId)
+      for (const q of batch) {
+        fallbackKeys.add(normalizeQuestionText(q.text).slice(0, 160))
+        const optSig = optionSignatureFromArray(q.options)
+        if (optSig) fallbackOptions.add(optSig)
+      }
       for (let attempt = 0; attempt < EXAM_BATCH_COUNT && batch.length < EXAM_BATCH_SPECS[batchIndex].count; attempt++) {
         const fallback = filterNewQuestions(
           fallbackExamQuestionBatch(exam.program, usableBooks, batchIndex + attempt),
