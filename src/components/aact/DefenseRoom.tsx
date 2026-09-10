@@ -235,6 +235,7 @@ export function DefenseRoom({
       const ok = await playOnSharedAudio(url)
       if (!ok) throw new Error('autoplay blocked')
     } catch {
+      transcriptPausedForSpeechRef.current = false
       setSpeaking(false)
     }
   }, [])
