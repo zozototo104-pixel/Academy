@@ -307,6 +307,58 @@
   transition: height 0.09s linear;
 }
 
+/* ===== تنظيم النصوص ومنع تكسير الصفحات على الجوال ===== */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+main,
+.aact-fade-in,
+.aact-responsive-card,
+.aact-responsive-card * {
+  min-width: 0;
+}
+
+.aact-readable,
+.aact-readable p,
+.aact-readable h1,
+.aact-readable h2,
+.aact-readable h3,
+.aact-readable span,
+.aact-readable a,
+.aact-readable button,
+.aact-readable div {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.aact-ltr-line {
+  direction: ltr;
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .aact-mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .aact-mobile-stack > * {
+    width: 100% !important;
+  }
+  .aact-mobile-actions {
+    width: 100% !important;
+    align-items: stretch !important;
+  }
+  .aact-mobile-actions button,
+  .aact-mobile-actions [role="button"] {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* ===== طباعة الشهادة أو السجل الأكاديمي: إظهار الوثيقة المستهدفة فقط ===== */
 @media print {
   body * {
