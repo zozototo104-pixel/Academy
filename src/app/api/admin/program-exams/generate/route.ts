@@ -309,6 +309,7 @@ export async function POST(req: NextRequest) {
         `استكمال توليد امتحان الفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} من السؤال ${existing._count.questions + 1} لبرنامج ${existing.program.titleAr}`
       )
 
+      const starter = await ensureStarterQuestions(existing.id)
       scheduleGeneration(existing.id)
 
       return NextResponse.json({
@@ -317,7 +318,8 @@ export async function POST(req: NextRequest) {
         booksCount,
         semester: existing.semester,
         resumed: true,
-        existingQuestions: existing._count.questions,
+        existingQuestions: starter.questionCount || existing._count.questions,
+        inserted: starter.inserted,
         requiredQuestions: totalRequiredQuestions(),
       })
     }
