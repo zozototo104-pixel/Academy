@@ -57,6 +57,7 @@ export async function GET() {
         units: p.units,
         books: p.books,
         assignments: p.assignments,
+        studyGuides: p.studyGuides,
         exams: p.programExams.map((e) => ({ id: e.id, title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
         enrolled: enrolledProgramIds.includes(p.id),
         // قواعد قبول مخصصة يعرضها نموذج الالتحاق للمتقدم (شروط إضافية تضبطها الإدارة)
