@@ -521,12 +521,12 @@ async function completeJsonWithFallback(args: {
 
   if (await ensureGeminiKey().catch(() => false)) {
     try {
-      return await geminiCompleteJson({
+      return await withTimeout(geminiCompleteJson({
         system: args.system,
         history: [{ role: 'user', text: args.prompt }],
         temperature: args.temperature ?? 0.25,
         maxOutputTokens: args.maxOutputTokens ?? 4096,
-      })
+      }), timeoutMs, `${args.label}_Gemini`)
     } catch (e: any) {
       const msg = String(e?.message || e).slice(0, 220)
       errors.push(`Gemini: ${msg}`)
