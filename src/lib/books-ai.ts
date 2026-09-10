@@ -933,10 +933,10 @@ const BATCH_SPECS: {
   },
 ]
 
-function uniqueStrings(values: string[], max = 30): string[] {
+function uniqueStrings(values: string[], max = 30, itemMax = 260): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  for (const v of values.map((x) => cleanText(x, 180)).filter(Boolean)) {
+  for (const v of values.map((x) => cleanText(x, itemMax)).filter(Boolean)) {
     const key = norm(v)
     if (!key || seen.has(key)) continue
     seen.add(key)
