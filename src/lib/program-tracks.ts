@@ -647,6 +647,8 @@ export function buildAcademicProgramProfile(program: AcademicProgramInput): Acad
     : category === 'ACCREDITATION'
       ? 'يركز المسار على توثيق الخبرة المهنية وقياس أهلية الاعتماد، ولا يتطلب بحث تخرج إلا إذا نصت قواعد الاعتماد على ذلك.'
       : 'قد يتضمن البرنامج مشروعاً تطبيقياً أو حالة عملية بدلاً من بحث تخرج كامل، حسب طبيعة الدبلوم.'
+  const termPlans = buildDetailedTermPlans(program, category, specialization, focus)
+  const finalEvaluationFormula = finalEvaluationFormulaFor(category)
 
   const base: AcademicProgramProfile = {
     degreeLabel,
