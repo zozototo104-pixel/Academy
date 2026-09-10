@@ -178,7 +178,8 @@ export function AdminBooksTab() {
       } finally {
         advanceRef.current = false
       }
-    }, generatingExam.questionCount === 0 ? 1200 : 6500)
+    // يجب أن يكون أقل من فترة الاستطلاع 5 ثوانٍ؛ وإلا كان الاستطلاع يلغي المؤقت قبل تنفيذ دفعة جديدة فيتوقف الامتحان عند 40 سؤالاً.
+    }, generatingExam.questionCount === 0 ? 1200 : 2200)
 
     return () => clearTimeout(timer)
   }, [exams, programId, stoppingExamId, loadProgramData, toast])
