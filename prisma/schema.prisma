@@ -22,6 +22,7 @@ model User {
   enrollments    Enrollment[]
   examAttempts   ExamAttempt[]
   chatMessages   ChatMessage[]
+  academicMemory StudentAcademicMemory?
   sessions       Session[]
   notifications  Notification[]
   payments       Payment[]
