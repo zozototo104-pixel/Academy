@@ -35,7 +35,9 @@ export async function GET(req: NextRequest) {
 
     const items = await getProgramKnowledgeItems(programId, semester, 140)
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
-    const contextPreview = items.length ? await buildKnowledgeContextForExam(programId, semester, 16) : ''
+    const contextPreview = items.length
+      ? items.slice(0, 16).map((item, i) => `${i + 1}. [${item.category}] ${item.title}: ${item.summary.slice(0, 320)}${item.bookTitle ? ` — المصدر: ${item.bookTitle}` : ''}`).join('\n')
+      : ''
     return NextResponse.json({
       program,
       booksCount,
