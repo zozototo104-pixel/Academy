@@ -72,6 +72,37 @@ interface ExamRow {
   createdAt: string
 }
 
+interface AssignmentSubmissionRow {
+  id: string
+  studentName?: string
+  studentEmail?: string
+  answerText?: string | null
+  fileName?: string | null
+  mimeType?: string | null
+  size?: number | null
+  status: string
+  score?: number | null
+  feedback?: string | null
+  submittedAt: string
+  gradedAt?: string | null
+}
+
+interface AssignmentRow {
+  id: string
+  programId: string
+  title: string
+  description: string
+  semester: number
+  type: string
+  points: number
+  weight: number
+  dueDays?: number | null
+  rubric?: string | null
+  status: string
+  submissionsCount: number
+  submissions: AssignmentSubmissionRow[]
+}
+
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
