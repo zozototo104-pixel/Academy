@@ -142,7 +142,7 @@ async function cleanupDuplicatePendingQuestions(examId: string): Promise<number>
     if (row.type === 'MCQ' && optSig) seenOptionSigs.add(optSig)
   }
   if (deleteIds.length) await db.programQuestion.deleteMany({ where: { id: { in: deleteIds } } })
-  return rows.length - deleteIds.length
+  return db.programQuestion.count({ where: { examId } })
 }
 
 function filterNewQuestions<T extends { text: string; type?: string; options?: string[] | null }>(
