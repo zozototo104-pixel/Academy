@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   BookMarked, Loader2, Plus, Sparkles, Trash2, FileText, Bot,
   Hourglass, RefreshCw, Upload, CheckCircle2, AlertTriangle, XCircle, ClipboardList,
-  Layers, FileCheck2, Link2,
+  Layers, FileCheck2, Link2, StopCircle,
 } from 'lucide-react'
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 
