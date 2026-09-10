@@ -7,6 +7,29 @@ import { emailExamPublished } from '@/lib/mailer'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
 
+function cleanInternalExamMeta(value: unknown, max = 4000): string {
+  return String(value || '')
+    .replace(/\u0000/g, ' ')
+    .replace(/[«"]?\s*\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|\s*(?:أهمية|اهمية)\s*\d{1,3})?\s*\]\s*[»"]?/giu, '')
+    .replace(/\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/giu, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s:：\-–—،؛]+|[\s:：\-–—،؛]+$/gu, '')
+    .trim()
+    .slice(0, max)
+}
+
+function cleanOptions(value: string | null): string | null {
+  if (!value) return null
+  try {
+    const arr = JSON.parse(value)
+    if (!Array.isArray(arr)) return value
+    const cleaned = arr.map((o) => cleanInternalExamMeta(o, 500)).filter(Boolean)
+    return cleaned.length ? JSON.stringify(cleaned) : value
+  } catch {
+    return value
+  }
+}
+
 // ===== 12.2 المراجعة البشرية للأسئلة المولدة بالذكاء الاصطناعي (Human-in-the-loop) =====
 // GET ?examId= → كل الأسئلة مع إجاباتها النموذجية (للإدارة فقط)
 // PATCH → تعديل سؤال / اعتماد / رفض / حذف سؤال
