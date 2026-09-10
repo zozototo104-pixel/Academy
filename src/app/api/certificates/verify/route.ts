@@ -16,6 +16,22 @@ export async function GET(req: NextRequest) {
     if (!cert) {
       return NextResponse.json({ valid: false, message: 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
     }
+    const program = cert.program
+      ? await db.program.findFirst({
+          where: { titleAr: cert.program },
+          select: { titleAr: true, titleEn: true, description: true, category: true, hours: true, _count: { select: { units: true } } },
+        }).catch(() => null)
+      : null
+    const academicProfile = program
+      ? buildAcademicProgramProfile({
+          titleAr: program.titleAr,
+          titleEn: program.titleEn,
+          description: program.description,
+          category: program.category,
+          hours: program.hours,
+          unitsCount: program._count.units,
+        })
+      : null
     return NextResponse.json({
       valid: cert.valid,
       certificate: {
