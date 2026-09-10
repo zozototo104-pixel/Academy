@@ -293,6 +293,18 @@ export async function POST(req: NextRequest) {
     })
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
 
+    const publicationCandidates = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } } })
+    const readinessErrors = validatePublicationReadiness(publicationCandidates)
+    if (readinessErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'لا يمكن نشر الامتحان قبل اكتمال معايير مصنع الامتحانات الأكاديمي',
+          details: readinessErrors,
+        },
+        { status: 400 }
+      )
+    }
+
     // اعتماد كل الأسئلة المعلقة بعد تنظيف أي تسميات تقنية تسربت من بنك المعرفة.
     const pendingQuestions = await db.programQuestion.findMany({
       where: { examId, status: 'PENDING_REVIEW' },
