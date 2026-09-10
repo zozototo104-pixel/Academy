@@ -69,6 +69,7 @@ model Program {
   assignments ProgramAssignment[]
   programExams ProgramExam[]
   admissions  AdmissionApplication[]
+  microCredentials MicroCredential[]
 }
 
 model Unit {
