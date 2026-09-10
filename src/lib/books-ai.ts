@@ -878,8 +878,10 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
   const concepts: string[] = []
   for (const book of books) {
     const title = cleanText(book.title, 90)
-    const sentences = topImportantSentences(book.textContent || book.description || '', programDomain, 10)
-    for (const s of sentences) concepts.push(`من كتاب «${title}»: ${s}`)
+    const sentences = topImportantSentences(book.textContent || '', programDomain, 10)
+    for (const s of sentences) {
+      if (!hasForbiddenExamMetadata(s)) concepts.push(`من كتاب «${title}»: ${s}`)
+    }
   }
   return uniqueStrings(concepts, max)
 }
