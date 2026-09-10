@@ -285,6 +285,7 @@ ${recent || 'بدأت الجلسة للتو.'}
   const stopLiveAdvisor = useCallback(() => {
     liveAdvisorRef.current?.stop()
     liveAdvisorRef.current = null
+    suppressLocalTtsRef.current = false
     setLiveAdvisorOn(false)
     setLiveAdvisorState('IDLE')
     setLiveAdvisorLevel(0)
