@@ -142,7 +142,7 @@ async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: 
     data: {
       status: 'GENERATING',
       totalPoints: 0,
-      errorNote: 'حذف النظام الدفعة القديمة لأنها كانت مبنية على رابط/وصف أو خيارات مكررة، وسيعيد بناءها من محتوى الكتاب المقروء فعلياً',
+      errorNote: 'حذف النظام الأسئلة القديمة لأنها كانت مبنية على رابط/وصف أو خيارات مكررة، وسيعيد بناءها من محتوى الكتاب المقروء فعلياً',
     },
   }).catch(() => {})
   return 0
