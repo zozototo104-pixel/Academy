@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 
+const FULL_EXAM_TARGET = 80
+
 interface ProgramOption {
   id: string
   titleAr: string
