@@ -140,6 +140,27 @@ export function QuestionReviewDialog({
     }
   }
 
+  const rebuildFromBooks = async () => {
+    if (!confirm('سيتم حذف كل الأسئلة الحالية وإعادة بناء الامتحان من الكتب المقررة وفق المنطق الجديد المتنوع. متابعة؟')) return
+    setBusy(true)
+    try {
+      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+        method: 'POST',
+        body: JSON.stringify({ examId, action: 'rebuild' }),
+      })
+      toast({
+        title: 'بدأت إعادة بناء الامتحان من الكتب',
+        description: `تم إنشاء ${d.questionCount || d.inserted || 0} سؤالاً أولياً، وسيكمل النظام الدفعات التالية من صفحة الكتب`,
+      })
+      await load()
+      onPublished()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message || 'تعذر إعادة بناء الامتحان', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const publish = async () => {
     if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
     setBusy(true)
