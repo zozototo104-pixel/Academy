@@ -7,7 +7,7 @@ import { emailExamPublished } from '@/lib/mailer'
 
 // ===== 12.2 المراجعة البشرية للأسئلة المولدة بالذكاء الاصطناعي (Human-in-the-loop) =====
 // GET ?examId= → كل الأسئلة مع إجاباتها النموذجية (للإدارة فقط)
-// PATCH → تعديل سؤال / اعتماد / رفض
+// PATCH → تعديل سؤال / اعتماد / رفض / حذف سؤال
 // POST { examId, action: 'APPROVE_ALL' } → اعتماد الكل ونشر الامتحان للطلاب
 
 export async function GET(req: NextRequest) {
