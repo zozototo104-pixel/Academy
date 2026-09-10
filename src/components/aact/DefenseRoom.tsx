@@ -284,7 +284,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     setLiveAiCaption('')
   }, [])
 
-  const startLiveAdvisor = useCallback(() => {
+  const startLiveAdvisor = useCallback((initialMessages?: DefenseMsg[]) => {
     if (!isStudent || finished || liveAdvisorRef.current) return
     audioRef.current?.pause()
     try { window.speechSynthesis?.cancel() } catch {}
