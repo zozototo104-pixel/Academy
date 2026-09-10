@@ -13,7 +13,9 @@ const ALLOWED_MIME = new Set([
   'text/plain',
   'image/png',
   'image/jpeg',
+  'application/octet-stream',
 ])
+const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|txt|png|jpe?g)$/i
 
 function dueDateFrom(enrolledAt: Date, dueDays?: number | null) {
   if (!dueDays) return null
