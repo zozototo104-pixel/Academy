@@ -321,8 +321,8 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}`)
 
-    // مهم: الاستكمال لا يحذف أي سؤال موجود إطلاقاً. التنظيف الكامل يتم فقط من زر «إعادة البناء» الصريح.
-    let existingCount = await db.programQuestion.count({ where: { examId } })
+    // مهم: الاستكمال لا يصفر الامتحان إطلاقاً. نزيل فقط النسخ المكررة حرفياً ونكمل من آخر سؤال محفوظ.
+    let existingCount = await cleanupDuplicatePendingQuestions(examId)
 
     const hydratedBooks = []
     for (const book of books) {
