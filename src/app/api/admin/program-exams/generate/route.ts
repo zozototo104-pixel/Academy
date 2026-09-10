@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
         failedSemExam.id,
         `استكمال توليد امتحان فاشل سابقاً للفصل ${sem === 2 ? 'الثاني' : 'الأول'} من السؤال ${failedSemExam._count.questions + 1} لبرنامج ${program.titleAr}`
       )
-      runGeneration(failedSemExam.id).catch(() => {})
+      scheduleGeneration(failedSemExam.id)
       return NextResponse.json({
         ok: true,
         examId: failedSemExam.id,
