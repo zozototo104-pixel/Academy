@@ -427,7 +427,7 @@ async function aiEvaluate(
   }
 }
 
-async function aiRecommendation(title: string, name: string, aiScore: number, answered: number, lastFeedback: string): Promise<string> {
+async function aiRecommendation(title: string, name: string, aiScore: number, answered: number, lastFeedback: string, studentAcademicContext?: string): Promise<string> {
   const verdict =
     aiScore >= 80
       ? 'توصية بالقبول والاجتياز'
