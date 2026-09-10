@@ -25,7 +25,7 @@ export async function GET() {
       db.enrollment.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
-        include: { program: { select: { id: true, titleAr: true, titleEn: true, hours: true } } },
+        include: { program: { select: { id: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, _count: { select: { units: true } } } } },
       }),
     ])
 
