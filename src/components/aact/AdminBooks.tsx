@@ -670,6 +670,81 @@ export function AdminBooksTab() {
             </Card>
           )}
 
+          {/* بنك المعرفة الأكاديمي */}
+          <Card className="border-[#c9a227]/35 bg-gradient-to-br from-white to-[#fffaf0]">
+            <CardContent className="p-5 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <Layers className="h-4.5 w-4.5 text-[#a8841a]" />
+                    بنك المعرفة الأكاديمي ({knowledgeItems.length})
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">
+                    هذه هي المرحلة الثانية: تحويل الكتب إلى مفاهيم ونظريات وحالات ومنهجيات وبذور أسئلة. الامتحانات والمشرف الذكي يستخدمون هذه المعرفة بدلاً من الاعتماد على نص خام أو أسئلة عامة.
+                  </p>
+                </div>
+                <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
+                  {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
+                  بناء/تحديث بنك المعرفة
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-4">
+                {Object.entries(knowledgeStats).length ? Object.entries(knowledgeStats).slice(0, 8).map(([cat, stat]) => (
+                  <div key={cat} className="rounded-2xl bg-white p-3 text-center ring-1 ring-[#c9a227]/20">
+                    <p className="text-[10px] font-black text-[#a8841a]">{cat}</p>
+                    <p className="text-lg font-black text-[#0f2b46]">{stat.count}</p>
+                    <p className="text-[10px] font-bold text-slate-400">أهمية {stat.avgImportance}%</p>
+                  </div>
+                )) : (
+                  <div className="rounded-2xl bg-white p-4 text-center text-xs font-bold text-slate-500 ring-1 ring-[#c9a227]/20 sm:col-span-4">
+                    لم يتم بناء بنك معرفة لهذا البرنامج بعد. أضف كتاباً ثم اضغط بناء/تحديث بنك المعرفة.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 text-xs font-black text-[#0f2b46]">تحليل الكتب فردياً</p>
+                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                    {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
+                      const countForBook = knowledgeItems.filter((k) => k.bookId === b.id).length
+                      return (
+                        <div key={b.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
+                          <div className="min-w-0">
+                            <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
+                            <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => rebuildBookKnowledge(b.id)} disabled={rebuildingKnowledge || rebuildingBookId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
+                            {rebuildingBookId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تحليل'}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+                  <p className="mb-2 text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p>
+                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                    {knowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل.</p> : knowledgeItems.slice(0, 12).map((item) => (
+                      <article key={item.id} className="rounded-xl bg-[#f8fafc] p-3 text-[11px] font-bold leading-5 text-slate-600">
+                        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px] font-black">{item.category}</Badge>
+                          <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">أهمية {item.importance}%</Badge>
+                          {item.bookTitle && <span className="text-[10px] text-slate-400">{item.bookTitle}</span>}
+                        </div>
+                        <p className="font-black text-[#0f2b46]">{item.title}</p>
+                        <p className="mt-1">{item.summary}</p>
+                        {item.keywords?.length ? <p className="mt-1 text-[#a8841a]">{item.keywords.slice(0, 6).join(' · ')}</p> : null}
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* الواجبات والتكليفات */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
