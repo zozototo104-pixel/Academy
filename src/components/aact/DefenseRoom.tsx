@@ -914,6 +914,15 @@ ${recent || 'بدأت الجلسة للتو.'}
   const inProgress = messages.length > 0 && !finished
   const others = participants.filter((p) => p.peerId !== myPeerId.current && p.role !== 'AI')
   const connectedCommitteeNames = new Set(others.map((o) => o.name))
+  const liveAdvisorLabel = liveAdvisorOn
+    ? liveAdvisorState === 'AI_SPEAKING'
+      ? 'يتحدث معك الآن بصوت متدفق…'
+      : liveAdvisorState === 'USER_SPEAKING'
+        ? 'يسمعك الآن ويتابع كلامك…'
+        : liveAdvisorState === 'THINKING'
+          ? 'يفكر في مداخلة قصيرة…'
+          : 'المشرف الصوتي المتدفق يعمل'
+    : 'عضو فعلي — اضغط تشغيل الصوت المتدفق'
 
   // ===== شاشة التجهيز (Pre-join) =====
   if (preJoin && !roomOpen) {
