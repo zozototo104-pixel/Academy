@@ -171,8 +171,8 @@ async function readVisualDocumentWithGemini(buffer: Buffer, mimeType: string, bo
 async function readBufferContent(buffer: Buffer, mimeType: string, fileName: string | null | undefined, book: RawBookForHydration): Promise<{ text: string; note: string; quality: HydratedExamBook['contentQuality'] }> {
   const effectiveMime = inferMime(fileName, mimeType)
   const extracted = await extractDocumentText(buffer, effectiveMime, fileName, MAX_BOOK_CONTEXT_CHARS)
-  if (extracted.text && extracted.text.length >= MIN_USABLE_TEXT) {
-    return { text: extracted.text, note: extracted.note, quality: 'UPLOADED_FILE' }
+  if (isUsableBookText(extracted.text, MIN_USABLE_TEXT)) {
+    return { text: normalizeExtractedText(extracted.text, MAX_BOOK_CONTEXT_CHARS), note: extracted.note, quality: 'UPLOADED_FILE' }
   }
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
