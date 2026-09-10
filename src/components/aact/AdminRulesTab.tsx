@@ -129,6 +129,27 @@ export function AdminRulesTab() {
     setDraft({ ...draft, requiredDocuments: Array.from(cur) })
   }
 
+  const patchAcademic = (patch: AcademicProfileDraft) => {
+    setDraft({ ...draft, academicProfile: { ...(draft.academicProfile || {}), ...patch } })
+  }
+
+  const updateAcademicList = (key: keyof Pick<AcademicProfileDraft, 'learningOutcomes' | 'skills' | 'graduationRequirements' | 'assessmentComponents' | 'qualityControls'>, value: string) => {
+    patchAcademic({ [key]: textToList(value) } as AcademicProfileDraft)
+  }
+
+  const updateStudyStage = (index: number, patch: Partial<AcademicPlanStage>) => {
+    const rows = [...(draft.academicProfile?.studyPlan || [])]
+    while (rows.length <= index) rows.push({ title: '', description: '', deliverable: '' })
+    rows[index] = { ...rows[index], ...patch }
+    patchAcademic({ studyPlan: rows })
+  }
+
+  const clearAcademicProfile = () => {
+    const next = { ...draft }
+    delete next.academicProfile
+    setDraft(next)
+  }
+
   const save = async (reset = false) => {
     if (!selectedId) return
     setSaving(true)
