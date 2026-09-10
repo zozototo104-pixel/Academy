@@ -691,6 +691,9 @@ interface TranscriptProgram {
   category?: string | null
   hours?: number | null
   unitsCount?: number | null
+  units?: { order?: number; title?: string }[]
+  books?: { title?: string; titleEn?: string | null; semester?: number | null }[]
+  exams?: { title?: string; semester?: number | null; status?: string | null; questionCount?: number | null }[]
   academicProfile?: any
   status: string
   finalScore?: number | null
