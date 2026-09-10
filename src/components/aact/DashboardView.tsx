@@ -286,6 +286,53 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {activeAcademicProfile?.termPlans?.length > 0 && (
+                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-black text-[#0f2b46]">خطة تقدمك الفصلية</h3>
+                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">درجة نهائية موزونة</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {activeAcademicProfile.termPlans.map((term) => {
+                        const passedExam = term.exams.some((te) => (active.semesterExams || []).some((se) => se.semester === te.semester && se.passed))
+                        const hasPublishedExam = term.exams.some((te) => te.status === 'READY' || (te.questionCount || 0) > 0)
+                        return (
+                          <div key={term.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {passedExam ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <CircleDashed className="h-4 w-4 text-slate-300" />}
+                                  <p className="text-xs font-black text-[#0f2b46]">{term.title}</p>
+                                  <Badge variant="outline" className="text-[9px] font-black">{term.weight}%</Badge>
+                                </div>
+                                <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{term.statusHint}</p>
+                              </div>
+                              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${passedExam ? 'bg-emerald-100 text-emerald-700' : hasPublishedExam ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                {passedExam ? 'منجز' : hasPublishedExam ? 'جاهز للتقييم' : 'قيد الإعداد'}
+                              </span>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                                <p className="mb-1 font-black text-[#0f2b46]">الكتب</p>
+                                {term.requiredBooks.length ? term.requiredBooks.slice(0, 3).map((b) => <p key={`${term.id}-${b.title}`}>• {b.title}</p>) : <p>تُضاف من الإدارة أو الروابط المقررة.</p>}
+                              </div>
+                              <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                                <p className="mb-1 font-black text-[#0f2b46]">المهارات</p>
+                                <p>{term.requiredSkills.slice(0, 4).join(' · ')}</p>
+                              </div>
+                              <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600">
+                                <p className="mb-1 font-black text-[#0f2b46]">الواجبات/التقييم</p>
+                                <p>{term.assignments[0]}</p>
+                                <p className="mt-1 text-[#a8841a]">{term.finalEvaluation}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
+
                 {/* Units */}
                 <div className="mt-5 space-y-3">
                   {active.units.map((u) => (
