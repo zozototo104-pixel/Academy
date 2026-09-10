@@ -408,6 +408,48 @@ export function AdminBooksTab() {
     }
   }
 
+  const generateStudyGuide = async (semester: number) => {
+    if (!programId) return
+    setGeneratingGuideSemester(String(semester))
+    try {
+      const d = await api<{ guide: StudyGuideRow }>('/api/admin/study-guides', {
+        method: 'POST',
+        body: JSON.stringify({ programId, semester, status: 'PUBLISHED' }),
+      })
+      setStudyGuides((prev) => [d.guide, ...prev.filter((g) => !(g.programId === d.guide.programId && g.semester === d.guide.semester))].sort((a, b) => a.semester - b.semester))
+      toast({ title: 'تم توليد دليل الدراسة', description: d.guide.title })
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد دليل الدراسة', description: e.message, variant: 'destructive' })
+    } finally {
+      setGeneratingGuideSemester(null)
+    }
+  }
+
+  const updateStudyGuideStatus = async (guide: StudyGuideRow, status: string) => {
+    if (!programId) return
+    try {
+      const d = await api<{ guide: StudyGuideRow }>('/api/admin/study-guides', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: guide.id, status }),
+      })
+      setStudyGuides((prev) => prev.map((g) => g.id === guide.id ? d.guide : g))
+      toast({ title: status === 'PUBLISHED' ? 'تم نشر دليل الدراسة' : 'تم تحديث حالة الدليل' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const deleteStudyGuide = async (id: string) => {
+    if (!programId || !confirm('حذف دليل الدراسة؟')) return
+    try {
+      await api(`/api/admin/study-guides?id=${id}`, { method: 'DELETE' })
+      setStudyGuides((prev) => prev.filter((g) => g.id !== id))
+      toast({ title: 'تم حذف دليل الدراسة' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
 
   const suggestAssignments = async () => {
