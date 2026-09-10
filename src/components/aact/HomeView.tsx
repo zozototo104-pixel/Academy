@@ -395,10 +395,10 @@ export function HomeView() {
                   </div>
                   <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
                     <Button
-                      onClick={() => (user ? openProgram(featured.id) : navigate('auth'))}
+                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
                       className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
                     >
-                      {featured.enrolled ? 'ادرس الآن' : 'سجل في البرنامج'}
+                      {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
                     </Button>
                   </div>
                 </div>
