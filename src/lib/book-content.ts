@@ -6,7 +6,9 @@ import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
 // ثم Gemini Document/Vision للـ PDF أو الصور، وفي النهاية نمرر بيانات الكتاب كرابط/وصف بدلاً من إفشال التوليد.
 
 const MAX_FETCH_BYTES = 12 * 1024 * 1024
-const MAX_BOOK_CONTEXT_CHARS = 32000
+// نحتاج للامتحانات الجامعية محتوى واسعاً من الكتاب، لا أول صفحات فقط.
+// لا يُرسل كل هذا للنموذج دفعة واحدة؛ books-ai.ts يبني منه ملخصاً موزعاً ومقاطع مختارة.
+const MAX_BOOK_CONTEXT_CHARS = 180000
 const MIN_STRONG_TEXT = 700
 const MIN_USABLE_TEXT = 160
 
