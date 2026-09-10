@@ -593,6 +593,7 @@ async function runGeneration(examId: string) {
           options: q.options ? JSON.stringify(q.options) : null,
           correctAnswer: q.correct ?? null,
           modelAnswer: q.modelAnswer ?? (q.bookEvidence ? `مرجع التصحيح: ${q.bookEvidence}` : null),
+          sourceEvidence: q.bookEvidence || null,
           points: q.points || 2,
           status: 'PENDING_REVIEW', // 12.2: مراجعة بشرية قبل النشر
         })),
