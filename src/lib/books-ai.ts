@@ -1170,7 +1170,7 @@ function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i =
 }
 
 function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = cleanText(concept, 430)
+  const evidence = stripExamKnowledgeMeta(concept, 430)
   const idea = conceptLabel(concept, 170)
   const truthy = i % 2 === 0
   const trueStems = [
