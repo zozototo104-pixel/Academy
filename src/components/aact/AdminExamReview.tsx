@@ -88,7 +88,7 @@ export function QuestionReviewDialog({
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
-  const [draft, setDraft] = useState<{ text: string; options: string[]; correctAnswer: string; modelAnswer: string; points: number } | null>(null)
+  const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
 
