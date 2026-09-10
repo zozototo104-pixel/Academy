@@ -203,6 +203,7 @@ export async function POST(req: NextRequest) {
       setup,
       sdkConfig: {
         responseModalities: ['AUDIO'],
+        speechConfig: speechConfigForVoice(voice),
         systemInstruction: systemInstruction.slice(0, 32000),
       },
     })
