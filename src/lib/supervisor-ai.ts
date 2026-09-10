@@ -146,7 +146,46 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       }),
     ])
 
+    const [academicMemory, recentMessages, latestAssignments] = await Promise.all([
+      db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
+      db.chatMessage.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { role: true, content: true, mode: true, kind: true, createdAt: true },
+      }).catch(() => []),
+      db.assignmentSubmission.findMany({
+        where: { userId },
+        orderBy: { submittedAt: 'desc' },
+        take: 5,
+        include: { assignment: { select: { title: true, type: true, semester: true, program: { select: { titleAr: true } } } } },
+      }).catch(() => []),
+    ])
+
     const parts: string[] = []
+
+    if (academicMemory) {
+      const memoryBlock = formatAcademicMemory(academicMemory)
+      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
+    }
+
+    if (recentMessages.length > 0) {
+      const chatDigest = recentMessages
+        .slice()
+        .reverse()
+        .map((m) => `${m.role === 'assistant' ? 'المشرف' : 'الطالب'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
+        .join('\n')
+      parts.push(`آخر محادثات محفوظة في ملف الطالب (لا تكررها؛ استخدمها لفهم السياق):\n${chatDigest}`)
+    }
+
+    if (latestAssignments.length > 0) {
+      parts.push(
+        `آخر الواجبات/المشاريع التطبيقية:\n${latestAssignments.map((a) => {
+          const status = a.score != null ? ` — الدرجة ${a.score}` : ` — الحالة ${a.status}`
+          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester})${status}${a.feedback ? ` — ملاحظة: ${compactText(a.feedback, 160)}` : ''}`
+        }).join('\n')}`
+      )
+    }
 
     if (activePrograms.length > 0) {
       const programLines = activePrograms.map((p, i) => {
