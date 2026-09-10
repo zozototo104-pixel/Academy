@@ -1,7 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
 import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
-import { buildSupervisorPersonaBlock, type SupervisorPersona } from '@/lib/supervisor-ai'
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
