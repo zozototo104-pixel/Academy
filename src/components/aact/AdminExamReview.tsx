@@ -186,6 +186,14 @@ export function QuestionReviewDialog({
   }
 
   const publish = async () => {
+    if (questions.length < FULL_EXAM_TARGET) {
+      toast({
+        title: 'الامتحان غير مكتمل',
+        description: `لا يمكن النشر الآن: الموجود ${questions.length} من ${FULL_EXAM_TARGET} سؤال. استخدم استكمال التوليد أو إعادة البناء أولاً.`,
+        variant: 'destructive',
+      })
+      return
+    }
     if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
     setBusy(true)
     try {
