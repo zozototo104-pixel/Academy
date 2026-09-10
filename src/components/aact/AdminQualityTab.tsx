@@ -116,6 +116,12 @@ interface AcademicQualityData {
     duplicateQuestionGroups: number
     atRiskStudents: number
     pendingAppeals: number
+    successRate: number
+    appealRate: number
+    averageResponseSeconds: number | null
+    responsePairs: number
+    weakSupervisorReplies: number
+    weakSupervisorReplyRate: number
     supervisorMemoryCoverage: number
     microCredentials: number
     microCredentialAwards: number
