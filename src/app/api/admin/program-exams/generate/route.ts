@@ -245,13 +245,28 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
   }
 }
 
+async function runGenerationSteps(
+  examId: string,
+  maxSteps = 2
+): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+  let totalInserted = 0
+  let last: Awaited<ReturnType<typeof runGenerationStep>> | null = null
+  for (let i = 0; i < maxSteps; i++) {
+    last = await runGenerationStep(examId)
+    totalInserted += last.inserted || 0
+    if (last.done || last.status !== 'GENERATING' || !last.ok || last.inserted === 0) break
+  }
+  if (!last) return { ok: false, status: 'FAILED', inserted: 0, questionCount: 0, totalPoints: 0, done: true, error: 'لم يبدأ التوليد' }
+  return { ...last, inserted: totalInserted }
+}
+
 async function ensureStarterQuestions(examId: string): Promise<{ inserted: number; questionCount: number }> {
   const existingCount = await db.programQuestion.count({ where: { examId } })
   if (existingCount > 0) return { inserted: 0, questionCount: existingCount }
 
   // لا نضع أسئلة احتياطية قبل قراءة الكتاب. الدفعة الأولى نفسها تُبنى عبر runGenerationStep
   // من محتوى الملف/الرابط، وإذا تعطل مزود الذكاء فقط نستخدم fallback مرتبطاً بالمحتوى.
-  const step = await runGenerationStep(examId)
+  const step = await runGenerationSteps(examId, 1)
   return { inserted: step.inserted, questionCount: step.questionCount }
 }
 
