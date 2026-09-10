@@ -1131,6 +1131,112 @@ function conceptLabel(concept: string, max = 150): string {
     .replace(/^(مقطع|فصل|باب)\s+\d+[:：]?\s*/u, ''), max)
 }
 
+function sourceBookFromEvidence(evidence: string, books: ExamSourceBook[]): string | null {
+  const explicit = evidence.match(/من\s+كتاب\s+«([^»]{2,160})»/u)?.[1]
+  if (explicit) return cleanText(explicit, 180)
+  const normalizedEvidence = norm(evidence)
+  const matched = books.find((b) => normalizedEvidence.includes(norm(b.title)) || (b.titleEn && normalizedEvidence.includes(norm(b.titleEn))))
+  if (matched) return cleanText(matched.title, 180)
+  if (normalizedEvidence.includes(norm('بنك المعرفة الأكاديمي'))) return 'بنك المعرفة الأكاديمي المستخرج من الكتب'
+  return books[0]?.title ? cleanText(books[0].title, 180) : null
+}
+
+function sourceChapterFromEvidence(evidence: string): string | null {
+  const m = evidence.match(/(?:الفصل|الباب|الوحدة|المبحث|Chapter|Unit|Section)\s+([\p{L}\p{N}\-–— ]{1,80})/iu)
+  return m ? cleanText(m[0], 120) : null
+}
+
+function defaultSourceLocator(evidence: string): string {
+  return cleanText(evidence.replace(/^من\s+كتاب\s+«[^»]+»:?\s*/u, ''), 260) || 'مقطع/فكرة مستخرجة من الكتاب المقرر'
+}
+
+function validSkill(value: unknown, fallback: CognitiveSkill): CognitiveSkill {
+  const v = String(value || '').toUpperCase()
+  return v === 'UNDERSTAND' || v === 'APPLY' || v === 'ANALYZE' || v === 'EVALUATE' ? v : fallback
+}
+
+function validDifficulty(value: unknown, fallback: QuestionDifficulty): QuestionDifficulty {
+  const v = String(value || '').toUpperCase()
+  return v === 'EASY' || v === 'MEDIUM' || v === 'ADVANCED' ? v : fallback
+}
+
+function inferSkill(type: GeneratedQuestion['type'], text: string, batchKind?: string): CognitiveSkill {
+  const n = norm(`${text} ${batchKind || ''}`)
+  if (n.includes('قيم') || n.includes('انقد') || n.includes('ناقش حدود') || n.includes('evaluate') || n.includes('research')) return 'EVALUATE'
+  if (type === 'ESSAY' || n.includes('حلل') || n.includes('قارن') || n.includes('ميز') || n.includes('analysis')) return 'ANALYZE'
+  if (type === 'SHORT' || n.includes('طبق') || n.includes('حاله') || n.includes('سيناريو') || n.includes('application') || n.includes('case')) return 'APPLY'
+  return 'UNDERSTAND'
+}
+
+function inferDifficulty(type: GeneratedQuestion['type'], skill: CognitiveSkill, batchKind?: string): QuestionDifficulty {
+  if (type === 'ESSAY' || skill === 'EVALUATE' || batchKind === 'MIX_RESEARCH' || batchKind === 'MIX_FINAL') return 'ADVANCED'
+  if (type === 'SHORT' || skill === 'APPLY' || skill === 'ANALYZE' || batchKind === 'MIX_ANALYSIS' || batchKind === 'MIX_CASE') return 'MEDIUM'
+  return 'EASY'
+}
+
+function buildDistractorRationales(q: GeneratedQuestion): DistractorRationale[] | undefined {
+  if ((q.type !== 'MCQ' && q.type !== 'TF') || !q.options || q.correct == null) return undefined
+  const correctIndex = Number(q.correct)
+  if (!Number.isInteger(correctIndex)) return undefined
+  return q.options
+    .map((option, i) => i === correctIndex ? null : {
+      optionIndex: i,
+      option: cleanText(option, 240),
+      reason: q.type === 'TF'
+        ? 'هذا الاختيار يعكس حكماً مخالفاً للدليل المحدد في الكتاب أو لصياغة العبارة.'
+        : 'هذا الخيار مشتت؛ لا يربط الإجابة بالدليل المحدد من الكتاب أو يتجاهل شرطاً محورياً في السؤال.',
+    })
+    .filter(Boolean) as DistractorRationale[]
+}
+
+function normalizeDistractorRationales(value: unknown, q: GeneratedQuestion): DistractorRationale[] | undefined {
+  const fallback = buildDistractorRationales(q)
+  if (!Array.isArray(value)) return fallback
+  const out: DistractorRationale[] = []
+  for (const item of value) {
+    const optionIndex = Number((item as any)?.optionIndex ?? (item as any)?.index)
+    const option = cleanText((item as any)?.option ?? q.options?.[optionIndex] ?? '', 240)
+    const reason = cleanText((item as any)?.reason ?? (item as any)?.rationale ?? '', 500)
+    if (Number.isInteger(optionIndex) && optionIndex >= 0 && option && reason) out.push({ optionIndex, option, reason })
+  }
+  return out.length ? out.slice(0, 4) : fallback
+}
+
+function academicQualityFlags(q: GeneratedQuestion): string[] {
+  return uniqueStrings([
+    q.bookEvidence ? 'SOURCE_GROUNDED' : '',
+    q.sourceBookTitle ? 'HAS_SOURCE_BOOK' : '',
+    q.sourceLocator ? 'HAS_SOURCE_LOCATOR' : '',
+    q.cognitiveSkill ? `SKILL_${q.cognitiveSkill}` : '',
+    q.difficulty ? `DIFFICULTY_${q.difficulty}` : '',
+    q.correctRationale ? 'HAS_CORRECT_RATIONALE' : '',
+    q.distractorRationales?.length ? 'HAS_DISTRACTOR_RATIONALES' : '',
+    norm(q.text).includes('حاله') || norm(q.text).includes('سيناريو') || norm(q.text).includes('موقف') ? 'CASE_OR_SCENARIO_BASED' : '',
+  ].filter(Boolean), 12, 80)
+}
+
+function enrichQuestionMetadata(q: GeneratedQuestion, books: ExamSourceBook[], batchKind?: string): GeneratedQuestion {
+  const evidence = stripExamKnowledgeMeta(q.bookEvidence || q.modelAnswer || '', 900)
+  const type = q.type
+  const skill = validSkill(q.cognitiveSkill, inferSkill(type, q.text, batchKind))
+  const difficulty = validDifficulty(q.difficulty, inferDifficulty(type, skill, batchKind))
+  const enriched: GeneratedQuestion = {
+    ...q,
+    bookEvidence: evidence || q.bookEvidence,
+    sourceBookTitle: cleanText(q.sourceBookTitle, 180) || sourceBookFromEvidence(evidence, books) || undefined,
+    sourceChapter: cleanText(q.sourceChapter, 120) || sourceChapterFromEvidence(evidence) || undefined,
+    sourceLocator: cleanText(q.sourceLocator, 280) || defaultSourceLocator(evidence),
+    cognitiveSkill: skill,
+    difficulty,
+    correctRationale: cleanText(q.correctRationale, 700) || (type === 'MCQ' || type === 'TF'
+      ? 'الإجابة صحيحة لأنها تتفق مع الدليل المحدد من الكتاب ومع المهارة المطلوبة في السؤال.'
+      : 'تُقبل الإجابة إذا فسرت دليل الكتاب بوضوح وربطته بالمنهج أو التطبيق المهني المطلوب.'),
+  }
+  enriched.distractorRationales = normalizeDistractorRationales(q.distractorRationales, enriched)
+  enriched.qualityFlags = uniqueStrings([...(q.qualityFlags || []), ...academicQualityFlags(enriched)], 16, 90)
+  return enriched
+}
+
 function rotateCorrectOption(options: string[], correctIndex: number): { options: string[]; correct: string } {
   const cleanOptions = uniqueStrings(options, 4, 220)
   while (cleanOptions.length < 4) cleanOptions.push(`خيار مشتت غير مكتمل رقم ${cleanOptions.length + 1}`)
