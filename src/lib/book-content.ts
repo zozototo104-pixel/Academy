@@ -237,7 +237,7 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
   const rawStored = String(book.textContent || '')
   const hadPageCounterArtifacts = /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(rawStored) || /(?:^|\s)of\s+\d{1,5}\b/i.test(rawStored)
   const stored = normalizeExtractedText(rawStored, MAX_BOOK_CONTEXT_CHARS)
-  if (stored.length >= MIN_STRONG_TEXT && !looksLikeMetadataOnlyText(stored)) {
+  if (isUsableBookText(stored, MIN_STRONG_TEXT)) {
     return {
       ...book,
       textContent: stored,
