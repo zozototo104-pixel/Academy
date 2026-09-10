@@ -37,6 +37,469 @@ function googleBooksSearch(title: string): string {
   return `https://books.google.com/books?q=${encodeURIComponent(title)}`
 }
 
+type ProgramDomain =
+  | 'cybersecurity'
+  | 'artificial-intelligence'
+  | 'business-analytics'
+  | 'business-administration'
+  | 'strategic-management'
+  | 'human-resources'
+  | 'project-management'
+  | 'marketing-management'
+  | 'accounting-finance'
+  | 'public-administration'
+  | 'healthcare-management'
+  | 'quality-management'
+  | 'occupational-safety'
+  | 'leadership-management'
+  | 'training-development'
+  | 'management-information-systems'
+  | 'education-management'
+  | 'kindergarten-management'
+  | 'guidance-counseling'
+  | 'learning-disabilities'
+  | 'learning-resources'
+  | 'journalism-media'
+  | 'public-relations-customer-service'
+  | 'tourism-management'
+  | 'office-management'
+  | 'insurance-management'
+  | 'logistics-supply-chain'
+  | 'procurement-contracts'
+  | 'governance-risk-compliance'
+  | 'crisis-disaster-management'
+  | 'diplomacy-international-relations'
+  | 'entrepreneurship'
+  | 'general'
+
+type BookSeed = [titleEn: string, author: string, year: string, reasonAr: string]
+
+function norm(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[ًٌٍَُِّْـ]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function specialtyName(program: { titleAr: string; titleEn?: string | null }): { ar: string; en: string } {
+  const ar = cleanText(program.titleAr, 240)
+    .replace(/^الماجستير\s+المهني\s+في\s+/u, '')
+    .replace(/^الدكتوراه\s+المهنية\s+في\s+/u, '')
+    .replace(/^الدبلوم\s+المهني\s+(المتقدم\s+)?في\s+/u, '')
+    .trim()
+  const en = cleanText(program.titleEn || '', 240)
+    .replace(/^professional\s+master\s+in\s+/i, '')
+    .replace(/^professional\s+doctorate\s+in\s+/i, '')
+    .replace(/^professional\s+diploma\s+in\s+/i, '')
+    .trim()
+  return { ar: ar || cleanText(program.titleAr, 240), en: en || cleanText(program.titleEn || '', 240) }
+}
+
+function detectProgramDomain(input: { titleAr?: string | null; titleEn?: string | null; description?: string | null } | string): ProgramDomain {
+  const text = typeof input === 'string'
+    ? norm(input)
+    : norm(`${input.titleAr || ''} ${input.titleEn || ''} ${input.description || ''}`)
+
+  const checks: [ProgramDomain, RegExp][] = [
+    ['cybersecurity', /امن سيبراني|cyber\s*security|cybersecurity|information security|network security|امن المعلومات|اختراق|تهديدات سيبرانيه/],
+    ['artificial-intelligence', /ذكاء اصطناعي|تحول رقمي|artificial intelligence|\bai\b|digital transformation|machine learning|تعلم الي/],
+    ['business-analytics', /تحليل البيانات|ذكاء الاعمال|business analytics|data analysis|data analytics|business intelligence/],
+    ['management-information-systems', /نظم المعلومات الاداريه|management information systems|\bmis\b/],
+    ['human-resources', /موارد بشريه|human resources|human resource|\bhr\b/],
+    ['project-management', /اداره المشاريع|project management|pmp|agile|scrum/],
+    ['marketing-management', /اداره التسويق|marketing management|digital marketing|تسويق/],
+    ['accounting-finance', /محاسبه|ماليه|finance|accounting|financial/],
+    ['public-administration', /اداره عامه|public administration|public management/],
+    ['healthcare-management', /اداره صحيه|المستشفيات|healthcare|hospital management|health care/],
+    ['quality-management', /جوده شامله|اداره الجوده|quality management|total quality|tqm|six sigma/],
+    ['occupational-safety', /السلامه والصحه المهنيه|occupational health|occupational safety|\bosh\b|hse/],
+    ['leadership-management', /قياده اداريه|leadership|managerial leadership/],
+    ['training-development', /التدريب|تطوير الاداء|training|performance development/],
+    ['education-management', /اداره تعليميه|educational management|educational leadership|school management/],
+    ['kindergarten-management', /رياض الاطفال|طفوله مبكره|kindergarten|early childhood/],
+    ['guidance-counseling', /توجيه وارشاد|ارشاد|counseling|guidance/],
+    ['learning-disabilities', /صعوبات التعلم|learning disabilities/],
+    ['learning-resources', /مصادر التعلم|learning resources|library|libraries/],
+    ['journalism-media', /اعلام|صحافه|صحفيه|journalism|media/],
+    ['public-relations-customer-service', /علاقات عامه|خدمه العملاء|public relations|customer service/],
+    ['tourism-management', /سياحيه|فندقيه|tourism|hospitality/],
+    ['office-management', /سكرتاريه|اداره المكاتب|office management|secretarial/],
+    ['insurance-management', /تامين|اداره المخاطر|insurance|risk management/],
+    ['logistics-supply-chain', /لوجستيات|سلاسل الامداد|supply chain|logistics/],
+    ['procurement-contracts', /مشتريات|عقود|procurement|contracts/],
+    ['governance-risk-compliance', /حوكمه|امتثال|governance|compliance|\bgrc\b/],
+    ['crisis-disaster-management', /ازمات|كوارث|crisis|disaster/],
+    ['diplomacy-international-relations', /دبلوماسيه|علاقات دوليه|diplomacy|international relations/],
+    ['entrepreneurship', /رياده الاعمال|entrepreneurship|startup|startups/],
+    ['strategic-management', /اداره استراتيجيه|strategic management|strategy/],
+    ['business-administration', /اداره الاعمال|business administration|business management|mba/],
+  ]
+  return checks.find(([, re]) => re.test(text))?.[0] || 'general'
+}
+
+const DOMAIN_BOOKS: Record<ProgramDomain, BookSeed[]> = {
+  cybersecurity: [
+    ['Security Engineering: A Guide to Building Dependable Distributed Systems', 'Ross J. Anderson', '2020', 'مرجع محوري في بناء الأنظمة الآمنة وتحليل المخاطر الأمنية عملياً.'],
+    ['Computer Security: Principles and Practice', 'William Stallings & Lawrie Brown', 'حديث/متداول', 'يغطي مبادئ أمن الحاسوب والتهديدات والضوابط الأمنية بمستوى مناسب للماجستير.'],
+    ['Cryptography and Network Security: Principles and Practice', 'William Stallings', 'حديث/متداول', 'يربط التشفير بأمن الشبكات والبروتوكولات والتطبيقات الأمنية.'],
+    ['Network Security Essentials: Applications and Standards', 'William Stallings', 'حديث/متداول', 'مناسب لفهم أمن الشبكات والمعايير والتطبيقات الدفاعية.'],
+    ['Web Application Security: Exploitation and Countermeasures for Modern Web Applications', 'Andrew Hoffman', '2020', 'يركز على أمن تطبيقات الويب والثغرات وطرق المعالجة الحديثة.'],
+    ['Incident Response & Computer Forensics', 'Jason T. Luttgens, Matthew Pepe & Kevin Mandia', '2014', 'مهم لبناء قدرة الطالب على التعامل مع الحوادث والتحليل الجنائي الرقمي.'],
+    ['Practical Malware Analysis', 'Michael Sikorski & Andrew Honig', '2012', 'مرجع عملي لفهم البرمجيات الخبيثة وتحليلها ضمن الأمن السيبراني.'],
+    ['The Practice of Network Security Monitoring', 'Richard Bejtlich', '2013', 'يركز على المراقبة الأمنية واكتشاف التهديدات وتشغيل فرق الدفاع.'],
+  ],
+  'artificial-intelligence': [
+    ['Artificial Intelligence: A Modern Approach', 'Stuart Russell & Peter Norvig', 'حديث/متداول', 'مرجع تأسيسي شامل في مفاهيم الذكاء الاصطناعي والخوارزميات.'],
+    ['Deep Learning', 'Ian Goodfellow, Yoshua Bengio & Aaron Courville', '2016', 'يعطي أساساً علمياً قوياً للشبكات العميقة والتعلم التمثيلي.'],
+    ['Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow', 'Aurélien Géron', 'حديث/متداول', 'مرجع تطبيقي لبناء نماذج تعلم الآلة والتعلم العميق.'],
+    ['Pattern Recognition and Machine Learning', 'Christopher M. Bishop', '2006', 'يدعم الفهم الرياضي والإحصائي للنماذج الذكية.'],
+    ['Data Science for Business', 'Foster Provost & Tom Fawcett', '2013', 'يربط الذكاء الاصطناعي بقرارات الأعمال والتحول الرقمي.'],
+    ['Human Compatible', 'Stuart Russell', '2019', 'مهم لفهم حوكمة الذكاء الاصطناعي ومخاطره الأخلاقية.'],
+    ['Designing Machine Learning Systems', 'Chip Huyen', '2022', 'يركز على تشغيل نماذج الذكاء الاصطناعي في الإنتاج.'],
+    ['Competing in the Age of AI', 'Marco Iansiti & Karim R. Lakhani', '2020', 'يناسب جانب التحول الرقمي والاستراتيجية المؤسسية بالذكاء الاصطناعي.'],
+  ],
+  'business-analytics': [
+    ['Data Science for Business', 'Foster Provost & Tom Fawcett', '2013', 'مرجع أساسي لتحويل البيانات إلى قرارات أعمال.'],
+    ['Business Analytics: Data Analysis and Decision Making', 'S. Christian Albright & Wayne Winston', 'حديث/متداول', 'يغطي التحليل الكمي والنمذجة واتخاذ القرار.'],
+    ['Competing on Analytics', 'Thomas H. Davenport & Jeanne G. Harris', '2007', 'يوضح كيف تصنع المؤسسات ميزة تنافسية عبر التحليلات.'],
+    ['Storytelling with Data', 'Cole Nussbaumer Knaflic', '2015', 'يعزز عرض نتائج التحليل بصرياً وإدارياً.'],
+    ['Python for Data Analysis', 'Wes McKinney', 'حديث/متداول', 'مرجع تطبيقي لمعالجة البيانات وتحليلها.'],
+    ['Practical Statistics for Data Scientists', 'Peter Bruce, Andrew Bruce & Peter Gedeck', 'حديث/متداول', 'يبني الأساس الإحصائي العملي لقرارات التحليل.'],
+    ['The Data Warehouse Toolkit', 'Ralph Kimball & Margy Ross', 'حديث/متداول', 'مهم لفهم مستودعات البيانات ونمذجة ذكاء الأعمال.'],
+    ['Business Intelligence Guidebook', 'Rick Sherman', '2014', 'يربط ذكاء الأعمال بالمنهجيات والأدوات المؤسسية.'],
+  ],
+  'business-administration': [
+    ['Management', 'Stephen P. Robbins & Mary Coulter', 'حديث/متداول', 'مرجع شامل في وظائف الإدارة والمنظمات والقرار الإداري.'],
+    ['Harvard Business Review Manager’s Handbook', 'Harvard Business Review Press', '2017', 'مرجع تطبيقي لأدوات الإدارة والقيادة اليومية.'],
+    ['Essentials of Organizational Behavior', 'Stephen P. Robbins & Timothy A. Judge', 'حديث/متداول', 'يدعم فهم السلوك التنظيمي وإدارة الفرق.'],
+    ['Competitive Strategy', 'Michael E. Porter', '1980', 'أساسي في تحليل المنافسة والميزة التنافسية.'],
+    ['Operations Management', 'William J. Stevenson', 'حديث/متداول', 'مناسب لفهم العمليات والإنتاجية والجودة.'],
+    ['Corporate Finance', 'Jonathan Berk & Peter DeMarzo', 'حديث/متداول', 'يغطي القرارات المالية الأساسية للمديرين.'],
+    ['Marketing Management', 'Philip Kotler & Kevin Lane Keller', 'حديث/متداول', 'مرجع رئيسي في فهم السوق والعميل والاستراتيجية التسويقية.'],
+    ['Business Model Generation', 'Alexander Osterwalder & Yves Pigneur', '2010', 'عملي في تصميم نماذج الأعمال والابتكار.'],
+  ],
+  'strategic-management': [
+    ['Strategic Management: Concepts and Cases', 'Fred R. David & Forest R. David', 'حديث/متداول', 'مرجع تطبيقي لبناء وتحليل الاستراتيجيات.'],
+    ['Contemporary Strategy Analysis', 'Robert M. Grant', 'حديث/متداول', 'يعطي إطاراً تحليلياً متقدماً للاستراتيجية والميزة التنافسية.'],
+    ['Competitive Strategy', 'Michael E. Porter', '1980', 'كلاسيكي في تحليل الصناعة والقوى التنافسية.'],
+    ['Blue Ocean Strategy', 'W. Chan Kim & Renée Mauborgne', '2005', 'يركز على الابتكار الاستراتيجي وخلق أسواق جديدة.'],
+    ['Good Strategy Bad Strategy', 'Richard Rumelt', '2011', 'يفرق بين الاستراتيجية الحقيقية والشعارات الإدارية.'],
+    ['Strategy Maps', 'Robert S. Kaplan & David P. Norton', '2004', 'يربط الاستراتيجية بمؤشرات الأداء والبطاقة المتوازنة.'],
+    ['The Rise and Fall of Strategic Planning', 'Henry Mintzberg', '1994', 'مرجع نقدي مهم في التفكير الاستراتيجي.'],
+    ['Playing to Win', 'A.G. Lafley & Roger L. Martin', '2013', 'يعرض منهجاً عملياً لاختيار الاستراتيجية وتنفيذها.'],
+  ],
+  'human-resources': [
+    ['Human Resource Management', 'Gary Dessler', 'حديث/متداول', 'مرجع شامل في وظائف الموارد البشرية المعاصرة.'],
+    ['Armstrong’s Handbook of Human Resource Management Practice', 'Michael Armstrong', 'حديث/متداول', 'مرجع مهني متقدم في سياسات وممارسات الموارد البشرية.'],
+    ['Strategic Human Resource Management', 'Jeffrey A. Mello', 'حديث/متداول', 'يربط إدارة الموارد البشرية بالأهداف الاستراتيجية.'],
+    ['Human Resource Champions', 'Dave Ulrich', '1997', 'كلاسيكي في دور الموارد البشرية كشريك استراتيجي.'],
+    ['The HR Scorecard', 'Brian Becker, Mark Huselid & Dave Ulrich', '2001', 'يبني قياس أثر الموارد البشرية على الأداء.'],
+    ['Investing in People', 'Wayne Cascio & John Boudreau', 'حديث/متداول', 'يعالج التحليلات والعائد من رأس المال البشري.'],
+    ['The Talent Management Handbook', 'Lance A. Berger & Dorothy R. Berger', 'حديث/متداول', 'مناسب لتخطيط التعاقب واستقطاب المواهب.'],
+    ['Organizational Behavior', 'Stephen P. Robbins & Timothy A. Judge', 'حديث/متداول', 'يدعم فهم السلوك التنظيمي والثقافة والتحفيز.'],
+  ],
+  'project-management': [
+    ['A Guide to the Project Management Body of Knowledge (PMBOK Guide)', 'Project Management Institute', 'حديث/متداول', 'مرجع معياري في عمليات ومعارف إدارة المشاريع.'],
+    ['Project Management: A Systems Approach to Planning, Scheduling, and Controlling', 'Harold Kerzner', 'حديث/متداول', 'مرجع متقدم في تخطيط ورقابة المشاريع.'],
+    ['Agile Practice Guide', 'Project Management Institute & Agile Alliance', '2017', 'يربط إدارة المشاريع بالمنهجيات الرشيقة.'],
+    ['Scrum: The Art of Doing Twice the Work in Half the Time', 'Jeff Sutherland', '2014', 'مدخل عملي لفهم Scrum وإدارة فرق المنتج.'],
+    ['Project Management for Engineering, Business and Technology', 'John M. Nicholas & Herman Steyn', 'حديث/متداول', 'يناسب المشاريع المؤسسية والتقنية المتنوعة.'],
+    ['Effective Project Management', 'Robert K. Wysocki', 'حديث/متداول', 'يركز على الأساليب التقليدية والرشيقة والتكيفية.'],
+    ['Making Things Happen', 'Scott Berkun', '2008', 'يعطي منظوراً عملياً لإدارة التنفيذ والمخاطر.'],
+    ['Project Risk Management Guidelines', 'Dale F. Cooper et al.', 'حديث/متداول', 'متخصص في إدارة مخاطر المشاريع.'],
+  ],
+  'marketing-management': [
+    ['Marketing Management', 'Philip Kotler & Kevin Lane Keller', 'حديث/متداول', 'مرجع رئيسي في الاستراتيجية التسويقية وسلوك المستهلك.'],
+    ['Principles of Marketing', 'Philip Kotler & Gary Armstrong', 'حديث/متداول', 'يبني الأساس المفاهيمي والتطبيقي للتسويق.'],
+    ['Digital Marketing: Strategy, Implementation and Practice', 'Dave Chaffey & Fiona Ellis-Chadwick', 'حديث/متداول', 'متخصص في التسويق الرقمي والقنوات الإلكترونية.'],
+    ['Consumer Behavior', 'Leon G. Schiffman & Joseph Wisenblit', 'حديث/متداول', 'مهم لفهم قرار الشراء وسلوك المستهلك.'],
+    ['Positioning: The Battle for Your Mind', 'Al Ries & Jack Trout', '1981', 'كلاسيكي في تموضع العلامة والاتصال التسويقي.'],
+    ['Building Strong Brands', 'David A. Aaker', '1996', 'أساسي في إدارة العلامات التجارية.'],
+    ['Contagious: Why Things Catch On', 'Jonah Berger', '2013', 'يعالج الانتشار والتأثير الاجتماعي في التسويق.'],
+    ['Marketing Analytics', 'Wayne L. Winston', 'حديث/متداول', 'يربط التسويق بالتحليلات وقياس الأداء.'],
+  ],
+  'accounting-finance': [
+    ['Principles of Corporate Finance', 'Richard A. Brealey, Stewart C. Myers & Franklin Allen', 'حديث/متداول', 'مرجع أساسي في قرارات التمويل والاستثمار.'],
+    ['Corporate Finance', 'Jonathan Berk & Peter DeMarzo', 'حديث/متداول', 'يعالج تقييم الشركات والهيكل المالي والمخاطر.'],
+    ['Financial Accounting', 'Robert Libby, Patricia Libby & Frank Hodge', 'حديث/متداول', 'يبني أساس التقارير والقوائم المالية.'],
+    ['Managerial Accounting', 'Ray H. Garrison, Eric Noreen & Peter Brewer', 'حديث/متداول', 'مهم للرقابة والتكاليف واتخاذ القرار الإداري.'],
+    ['Financial Statement Analysis', 'K. R. Subramanyam', 'حديث/متداول', 'يركز على تحليل القوائم وتقييم الأداء.'],
+    ['Investment Valuation', 'Aswath Damodaran', 'حديث/متداول', 'مرجع قوي في التقييم والاستثمار.'],
+    ['Accounting Information Systems', 'Marshall B. Romney & Paul J. Steinbart', 'حديث/متداول', 'يربط المحاسبة بأنظمة المعلومات والرقابة.'],
+    ['International Financial Reporting Standards (IFRS) Explained', 'Various IFRS authors', 'حديث/متداول', 'مفيد لفهم المعايير الدولية والتطبيقات العملية.'],
+  ],
+  'public-administration': [
+    ['Public Administration: Concepts and Cases', 'Richard J. Stillman II', 'حديث/متداول', 'مرجع أساسي في مفاهيم وقضايا الإدارة العامة.'],
+    ['Public Management and Governance', 'Tony Bovaird & Elke Löffler', 'حديث/متداول', 'يربط الإدارة العامة بالحوكمة وجودة الخدمات.'],
+    ['The New Public Service', 'Janet V. Denhardt & Robert B. Denhardt', 'حديث/متداول', 'مهم لفهم خدمة المواطن والقيم العامة.'],
+    ['Understanding and Managing Public Organizations', 'Hal G. Rainey', 'حديث/متداول', 'يركز على خصائص المنظمات العامة وإدارتها.'],
+    ['Public Policy: Politics, Analysis, and Alternatives', 'Michael E. Kraft & Scott R. Furlong', 'حديث/متداول', 'يدعم تحليل السياسات العامة وصنع القرار.'],
+    ['Bureaucracy', 'James Q. Wilson', '1989', 'كلاسيكي في فهم الأجهزة البيروقراطية.'],
+    ['Managing the Public Sector', 'Grover Starling', 'حديث/متداول', 'مرجع تطبيقي لإدارة القطاع العام.'],
+    ['The Oxford Handbook of Public Management', 'Ewan Ferlie, Laurence E. Lynn Jr. & Christopher Pollitt', '2005', 'مرجع متقدم وشامل في الإدارة العامة.'],
+  ],
+  'healthcare-management': [
+    ['Health Care Management: Organization Design and Behavior', 'Stephen M. Shortell & Arnold D. Kaluzny', 'حديث/متداول', 'مرجع رئيسي في إدارة مؤسسات الرعاية الصحية.'],
+    ['Healthcare Operations Management', 'Daniel B. McLaughlin & Julie M. Hays', 'حديث/متداول', 'يركز على العمليات والجودة والكفاءة في الرعاية الصحية.'],
+    ['Introduction to Health Care Management', 'Sharon B. Buchbinder & Nancy H. Shanks', 'حديث/متداول', 'مدخل شامل لإدارة الرعاية الصحية والمستشفيات.'],
+    ['The Well-Managed Healthcare Organization', 'John R. Griffith & Kenneth R. White', 'حديث/متداول', 'يعالج الأداء والحوكمة داخل المؤسسات الصحية.'],
+    ['Health Policy and Politics', 'Jeri A. Milstead & Nancy M. Short', 'حديث/متداول', 'مهم لفهم السياسات الصحية والبيئة التنظيمية.'],
+    ['Lean Hospitals', 'Mark Graban', 'حديث/متداول', 'يربط التحسين المستمر بتجربة المريض وتقليل الهدر.'],
+    ['Quality and Performance Improvement in Healthcare', 'Patricia Shaw & Darcy Carter', 'حديث/متداول', 'متخصص في تحسين الجودة ومؤشرات الأداء الصحية.'],
+    ['Strategic Management of Health Care Organizations', 'Peter M. Ginter, W. Jack Duncan & Linda E. Swayne', 'حديث/متداول', 'يركز على التخطيط والاستراتيجية في المؤسسات الصحية.'],
+  ],
+  'quality-management': [
+    ['Juran’s Quality Handbook', 'Joseph M. Juran & Joseph A. De Feo', 'حديث/متداول', 'مرجع كلاسيكي شامل في إدارة الجودة.'],
+    ['Quality Management for Organizational Excellence', 'David L. Goetsch & Stanley Davis', 'حديث/متداول', 'مناسب لفهم الجودة الشاملة والتحسين المستمر.'],
+    ['Out of the Crisis', 'W. Edwards Deming', '1986', 'كلاسيكي في فلسفة الجودة والتحول الإداري.'],
+    ['The Six Sigma Handbook', 'Thomas Pyzdek & Paul Keller', 'حديث/متداول', 'دليل تطبيقي لمنهجية ستة سيجما.'],
+    ['Total Quality Management', 'Dale H. Besterfield et al.', 'حديث/متداول', 'يعرض أدوات ومفاهيم TQM بشكل منهجي.'],
+    ['Lean Six Sigma and Minitab', 'Quentin Brook', 'حديث/متداول', 'يدعم التطبيق العملي والتحليل الإحصائي للجودة.'],
+    ['The Machine That Changed the World', 'James P. Womack, Daniel T. Jones & Daniel Roos', '1990', 'أساسي لفهم التفكير الرشيق Lean.'],
+    ['ISO 9001:2015 Explained', 'Charles A. Cianfrani & John E. West', 'حديث/متداول', 'يربط الجودة بالمعايير وأنظمة الإدارة.'],
+  ],
+  'occupational-safety': [
+    ['Occupational Safety and Health for Technologists, Engineers, and Managers', 'David L. Goetsch', 'حديث/متداول', 'مرجع شامل في السلامة والصحة المهنية وإدارة المخاطر.'],
+    ['Industrial Safety and Health Management', 'C. Ray Asfahl & David W. Rieske', 'حديث/متداول', 'يركز على أنظمة السلامة في بيئات العمل الصناعية.'],
+    ['Safety Management Systems in a Joint Environment', 'Charles Billings', 'حديث/متداول', 'يعالج بناء أنظمة إدارة السلامة.'],
+    ['Guidelines for Risk Based Process Safety', 'CCPS', 'حديث/متداول', 'مهم لفهم مخاطر العمليات والتحكم الوقائي.'],
+    ['The Safety Professionals Handbook', 'Joel M. Haight', 'حديث/متداول', 'مرجع مهني واسع للممارسين في السلامة.'],
+    ['Introduction to Health and Safety at Work', 'Phil Hughes & Ed Ferrett', 'حديث/متداول', 'مدخل عملي للتشريعات والممارسات الأساسية.'],
+    ['Accident Prevention Manual', 'National Safety Council', 'حديث/متداول', 'يركز على الوقاية والتحقيق في الحوادث.'],
+    ['Risk Assessment: A Practical Guide to Assessing Operational Risks', 'Georgi Popov et al.', 'حديث/متداول', 'يدعم تقييم المخاطر في بيئات العمل.'],
+  ],
+  'leadership-management': [
+    ['Leadership in Organizations', 'Gary Yukl', 'حديث/متداول', 'مرجع أكاديمي قوي في نظريات وممارسات القيادة.'],
+    ['The Leadership Challenge', 'James M. Kouzes & Barry Z. Posner', 'حديث/متداول', 'عملي في بناء السلوك القيادي والتأثير.'],
+    ['Primal Leadership', 'Daniel Goleman, Richard Boyatzis & Annie McKee', '2002', 'يربط القيادة بالذكاء العاطفي والثقافة التنظيمية.'],
+    ['Leaders Eat Last', 'Simon Sinek', '2014', 'يعالج بناء الثقة والفرق عالية الأداء.'],
+    ['The Practice of Adaptive Leadership', 'Ronald Heifetz, Marty Linsky & Alexander Grashow', '2009', 'مهم للتعامل مع التغيير والتحديات المعقدة.'],
+    ['On Leadership', 'John W. Gardner', '1990', 'كلاسيكي في فهم القيم والمسؤولية القيادية.'],
+    ['Leadership: Theory and Practice', 'Peter G. Northouse', 'حديث/متداول', 'يعطي إطاراً أكاديمياً منظماً لنظريات القيادة.'],
+    ['The Five Dysfunctions of a Team', 'Patrick Lencioni', '2002', 'مفيد لفهم قيادة الفرق وبناء الثقة.'],
+  ],
+  'training-development': [
+    ['Designing Effective Instruction', 'Gary R. Morrison, Steven M. Ross & Jerrold E. Kemp', 'حديث/متداول', 'مرجع في تصميم التعليم والتدريب وتحليل الاحتياجات.'],
+    ['Telling Ain’t Training', 'Harold D. Stolovitch & Erica J. Keeps', 'حديث/متداول', 'يوضح الفرق بين الإلقاء وبناء تجربة تعلم فعالة.'],
+    ['The Adult Learner', 'Malcolm S. Knowles, Elwood F. Holton & Richard A. Swanson', 'حديث/متداول', 'أساسي في تعلم الكبار والتدريب المهني.'],
+    ['ASTD Handbook', 'Elaine Biech', 'حديث/متداول', 'مرجع شامل في التدريب وتطوير الموارد البشرية.'],
+    ['Evaluating Training Programs', 'Donald L. Kirkpatrick & James D. Kirkpatrick', 'حديث/متداول', 'يعرض نموذج كيركباتريك لقياس أثر التدريب.'],
+    ['Performance Consulting', 'Dana Gaines Robinson & James C. Robinson', 'حديث/متداول', 'يربط التدريب بتحسين الأداء المؤسسي.'],
+    ['Instructional Design', 'Patricia L. Smith & Tillman J. Ragan', 'حديث/متداول', 'يدعم تصميم البرامج التدريبية منهجياً.'],
+    ['Make It Stick', 'Peter C. Brown, Henry L. Roediger III & Mark A. McDaniel', '2014', 'يعالج علم التعلم والتذكر ونقل الأثر التدريبي.'],
+  ],
+  'management-information-systems': [
+    ['Management Information Systems: Managing the Digital Firm', 'Kenneth C. Laudon & Jane P. Laudon', 'حديث/متداول', 'مرجع أساسي في نظم المعلومات والمنظمات الرقمية.'],
+    ['Business Driven Information Systems', 'Paige Baltzan', 'حديث/متداول', 'يربط نظم المعلومات بأهداف الأعمال.'],
+    ['Information Systems Today', 'Joseph Valacich & Christoph Schneider', 'حديث/متداول', 'يغطي التطبيقات الحديثة والتحول الرقمي.'],
+    ['Enterprise Architecture As Strategy', 'Jeanne W. Ross, Peter Weill & David Robertson', '2006', 'مهم لفهم بنية المؤسسة الرقمية.'],
+    ['IT Governance', 'Peter Weill & Jeanne W. Ross', '2004', 'يركز على حوكمة تقنية المعلومات والقرار المؤسسي.'],
+    ['Database System Concepts', 'Abraham Silberschatz, Henry Korth & S. Sudarshan', 'حديث/متداول', 'يبني أساس قواعد البيانات لنظم المعلومات.'],
+    ['Business Process Management', 'Mathias Weske', 'حديث/متداول', 'يربط العمليات بنظم المعلومات والتحسين.'],
+    ['Digital Transformation', 'Thomas M. Siebel', '2019', 'يعرض تقنيات التحول الرقمي في المؤسسات.'],
+  ],
+  'education-management': [
+    ['Educational Administration: Theory, Research, and Practice', 'Wayne K. Hoy & Cecil G. Miskel', 'حديث/متداول', 'مرجع أساسي في الإدارة التعليمية ونظرياتها.'],
+    ['School Leadership That Works', 'Robert J. Marzano, Timothy Waters & Brian A. McNulty', '2005', 'يربط القيادة المدرسية بتحسين نتائج التعلم.'],
+    ['Leading in a Culture of Change', 'Michael Fullan', 'حديث/متداول', 'مهم لفهم قيادة التغيير في المؤسسات التعليمية.'],
+    ['The Principal: Three Keys to Maximizing Impact', 'Michael Fullan', '2014', 'يركز على دور المدير في تحسين المدرسة.'],
+    ['Instructional Leadership', 'Anita Woolfolk Hoy & Wayne K. Hoy', 'حديث/متداول', 'يعالج القيادة التعليمية وتحسين التدريس.'],
+    ['Visible Learning', 'John Hattie', 'حديث/متداول', 'مفيد لربط الإدارة التعليمية بالأثر التعليمي.'],
+    ['Professional Capital', 'Andy Hargreaves & Michael Fullan', '2012', 'يناقش تطوير المعلمين وبناء رأس المال المهني.'],
+    ['The Fifth Discipline Fieldbook for Educators', 'Peter Senge et al.', 'حديث/متداول', 'يطبق التعلم المؤسسي داخل المؤسسات التعليمية تحديداً.'],
+  ],
+  'kindergarten-management': [
+    ['Developmentally Appropriate Practice in Early Childhood Programs', 'NAEYC', 'حديث/متداول', 'مرجع عملي في إدارة برامج الطفولة المبكرة.'],
+    ['Early Childhood Education Today', 'George S. Morrison', 'حديث/متداول', 'يغطي المفاهيم والممارسات الأساسية لرياض الأطفال.'],
+    ['Theories of Childhood', 'Carol Garhart Mooney', 'حديث/متداول', 'يعرض نظريات نمو الطفل وتطبيقاتها.'],
+    ['Administration of Programs for Young Children', 'Phyllis M. Click & Kimberly A. Karkos', 'حديث/متداول', 'متخصص في إدارة مؤسسات وبرامج الطفولة.'],
+    ['The Intentional Teacher', 'Ann S. Epstein', 'حديث/متداول', 'يدعم التخطيط التعليمي في الطفولة المبكرة.'],
+    ['Working with Families of Young Children', 'Rena Shimoni & Joanne Baxter', 'حديث/متداول', 'يركز على الشراكة مع الأسر في رياض الأطفال.'],
+    ['Early Childhood Environment Rating Scale', 'Thelma Harms, Richard M. Clifford & Debby Cryer', 'حديث/متداول', 'مفيد لتقييم جودة بيئات الطفولة.'],
+    ['Leadership in Early Childhood', 'Jillian Rodd', 'حديث/متداول', 'يعالج القيادة والإدارة في مؤسسات الطفولة المبكرة.'],
+  ],
+  'guidance-counseling': [
+    ['The Skilled Helper', 'Gerard Egan', 'حديث/متداول', 'مرجع رئيسي في مهارات الإرشاد والمساعدة.'],
+    ['Theory and Practice of Counseling and Psychotherapy', 'Gerald Corey', 'حديث/متداول', 'يعرض النظريات الإرشادية وتطبيقاتها.'],
+    ['Counseling Children', 'Donna A. Henderson & Charles L. Thompson', 'حديث/متداول', 'مهم للإرشاد المدرسي وإرشاد الأطفال.'],
+    ['School Counseling Principles: Ethics and Law', 'Carolyn Stone', 'حديث/متداول', 'يركز على أخلاقيات وقوانين الإرشاد المدرسي.'],
+    ['Solution-Focused Counseling in Schools', 'John J. Murphy', 'حديث/متداول', 'عملي في الإرشاد المدرسي المختصر.'],
+    ['Motivational Interviewing', 'William R. Miller & Stephen Rollnick', 'حديث/متداول', 'يدعم المقابلة التحفيزية وبناء الدافعية.'],
+    ['Group Counseling: Strategies and Skills', 'Ed Jacobs, Robert Masson & Riley Harvill', 'حديث/متداول', 'يناسب الإرشاد الجمعي وتطوير المهارات.'],
+    ['Career Development and Counseling', 'Steven D. Brown & Robert W. Lent', 'حديث/متداول', 'متخصص في الإرشاد المهني والتوجيه الوظيفي.'],
+  ],
+  'learning-disabilities': [
+    ['Learning Disabilities: Characteristics, Identification, and Teaching Strategies', 'Bob Algozzine & James Ysseldyke', 'حديث/متداول', 'مرجع تطبيقي في تشخيص وتعليم ذوي صعوبات التعلم.'],
+    ['Learning Disabilities and Related Disabilities', 'Janet W. Lerner & Beverley Johns', 'حديث/متداول', 'يغطي الخصائص والتدخلات التربوية.'],
+    ['Essentials of Specific Learning Disability Identification', 'Vincent C. Alfonso & Dawn P. Flanagan', 'حديث/متداول', 'مهم لفهم التقييم والتشخيص.'],
+    ['Teaching Students with Learning Problems', 'Cecil D. Mercer & Ann R. Mercer', 'حديث/متداول', 'يركز على استراتيجيات التدريس العلاجي.'],
+    ['Overcoming Dyslexia', 'Sally Shaywitz', 'حديث/متداول', 'مرجع مهم في عسر القراءة والتدخلات.'],
+    ['Explicit Instruction', 'Anita L. Archer & Charles A. Hughes', '2011', 'يعالج التدريس المباشر الفعال للمتعلمين المتعثرين.'],
+    ['Assessment in Special and Inclusive Education', 'John Salvia, James Ysseldyke & Sara Bolt', 'حديث/متداول', 'يربط التقييم بخطط التدخل.'],
+    ['High-Leverage Practices in Special Education', 'Council for Exceptional Children', 'حديث/متداول', 'يعرض ممارسات فعالة في التربية الخاصة.'],
+  ],
+  'learning-resources': [
+    ['Information Services Today', 'Sandra Hirsh', 'حديث/متداول', 'مرجع حديث في خدمات المعلومات ومصادر التعلم.'],
+    ['Library and Information Center Management', 'Barbara B. Moran, Robert D. Stueart & Claudia J. Morner', 'حديث/متداول', 'أساسي في إدارة المكتبات ومراكز المعلومات.'],
+    ['The School Library Manager', 'Blanche Woolls', 'حديث/متداول', 'متخصص في إدارة مكتبات ومصادر التعلم المدرسية.'],
+    ['Introduction to Information Science', 'David Bawden & Lyn Robinson', 'حديث/متداول', 'يبني أساس علم المعلومات وتنظيم المعرفة.'],
+    ['Reference and Information Services', 'Kay Ann Cassell & Uma Hiremath', 'حديث/متداول', 'مفيد لخدمات المراجع ودعم المستفيدين.'],
+    ['Digital Libraries', 'William Y. Arms', '2000', 'يعالج المكتبات الرقمية وإتاحة المعرفة.'],
+    ['The Information Society', 'John Feather', 'حديث/متداول', 'يفهم دور المعلومات في المجتمع والمؤسسات.'],
+    ['Managing and Improving Electronic Thesis and Dissertation Programs', 'Suzie Allard et al.', 'حديث/متداول', 'يربط الإدارة المعرفية بالمصادر الرقمية الأكاديمية.'],
+  ],
+  'journalism-media': [
+    ['Journalism: Principles and Practice', 'Tony Harcup', 'حديث/متداول', 'مرجع شامل في مبادئ وممارسات الصحافة.'],
+    ['The Elements of Journalism', 'Bill Kovach & Tom Rosenstiel', 'حديث/متداول', 'كلاسيكي في قيم الصحافة والتحقق والمساءلة.'],
+    ['Multimedia Journalism', 'Andy Bull', 'حديث/متداول', 'يناسب الإعلام الرقمي وإنتاج المحتوى متعدد الوسائط.'],
+    ['Media Ethics: Issues and Cases', 'Philip Patterson & Lee Wilkins', 'حديث/متداول', 'يعالج أخلاقيات الإعلام والحالات العملية.'],
+    ['News Writing and Reporting', 'Chip Scanlan & Richard Craig', 'حديث/متداول', 'يركز على الكتابة الصحفية والتحرير.'],
+    ['Convergence Culture', 'Henry Jenkins', '2006', 'مهم لفهم تحولات الإعلام والجمهور الرقمي.'],
+    ['The Online Journalism Handbook', 'Paul Bradshaw & Liisa Rohumaa', 'حديث/متداول', 'عملي في الصحافة الرقمية والتحقق.'],
+    ['Broadcast Journalism', 'Andrew Boyd, Peter Stewart & Ray Alexander', 'حديث/متداول', 'مناسب للإذاعة والتلفزيون وإعداد التقارير.'],
+  ],
+  'public-relations-customer-service': [
+    ['Effective Public Relations', 'Scott M. Cutlip, Allen H. Center & Glen M. Broom', 'حديث/متداول', 'مرجع رئيسي في العلاقات العامة وإدارة السمعة.'],
+    ['The New Rules of Marketing and PR', 'David Meerman Scott', 'حديث/متداول', 'يربط العلاقات العامة بالاتصال الرقمي والمحتوى.'],
+    ['Customer Service: Career Success Through Customer Loyalty', 'Paul R. Timm', 'حديث/متداول', 'مفيد في مهارات خدمة العملاء وبناء الولاء.'],
+    ['Services Marketing', 'Valarie A. Zeithaml, Mary Jo Bitner & Dwayne D. Gremler', 'حديث/متداول', 'يربط الخدمة بتجربة العميل وجودة الخدمة.'],
+    ['Excellence in Public Relations and Communication Management', 'James E. Grunig', '1992', 'كلاسيكي في نماذج العلاقات العامة الاستراتيجية.'],
+    ['Reputation Management', 'John Doorley & Helio Fred Garcia', 'حديث/متداول', 'يركز على السمعة والأزمات والاتصال المؤسسي.'],
+    ['Delivering Happiness', 'Tony Hsieh', '2010', 'يعطي مثالاً عملياً في ثقافة خدمة العملاء.'],
+    ['The Customer Rules', 'Lee Cockerell', '2013', 'يعرض قواعد عملية لتجربة العميل.'],
+  ],
+  'tourism-management': [
+    ['Tourism Management', 'Stephen J. Page', 'حديث/متداول', 'مرجع شامل في إدارة السياحة والوجهات.'],
+    ['Hospitality Management and Organisational Behaviour', 'Laurie J. Mullins', 'حديث/متداول', 'يربط الإدارة بالسلوك التنظيمي في الضيافة.'],
+    ['Introduction to Hospitality Management', 'John R. Walker', 'حديث/متداول', 'مدخل عملي لإدارة الفنادق والضيافة.'],
+    ['Tourism: Principles and Practice', 'John Fletcher et al.', 'حديث/متداول', 'يغطي مبادئ السياحة والأسواق والسياسات.'],
+    ['Strategic Management for Tourism, Hospitality and Events', 'Nigel Evans', 'حديث/متداول', 'يركز على الاستراتيجية في السياحة والفعاليات.'],
+    ['Marketing for Hospitality and Tourism', 'Philip Kotler, John Bowen & James Makens', 'حديث/متداول', 'مهم للتسويق السياحي والفندقي.'],
+    ['The Business of Tourism', 'J. Christopher Holloway & Claire Humphreys', 'حديث/متداول', 'يعرض صناعة السياحة ومكوناتها.'],
+    ['Sustainable Tourism', 'David Weaver', 'حديث/متداول', 'مفيد لفهم الاستدامة في السياحة.'],
+  ],
+  'office-management': [
+    ['Administrative Office Management', 'Pattie Odgers', 'حديث/متداول', 'مرجع في تنظيم العمل المكتبي والإداري.'],
+    ['Records Management', 'Judith Read & Mary Lea Ginn', 'حديث/متداول', 'أساسي في إدارة السجلات والمعلومات.'],
+    ['Office Management', 'R. K. Chopra', 'حديث/متداول', 'يغطي وظائف المكتب والسكرتارية الحديثة.'],
+    ['The Administrative Professional', 'Patsy Fulton-Calkins', 'حديث/متداول', 'يعالج مهارات السكرتارية والاحتراف الإداري.'],
+    ['Business Communication', 'Mary Ellen Guffey & Dana Loewy', 'حديث/متداول', 'مهم للمراسلات والاتصال الإداري.'],
+    ['Time Management', 'Brian Tracy', 'حديث/متداول', 'يدعم تنظيم الأولويات والإنتاجية المكتبية.'],
+    ['Document and Record Management Systems', 'Michael J. D. Sutton', 'حديث/متداول', 'يربط إدارة الوثائق بالتحول الرقمي.'],
+    ['Office 365 for Administrators', 'Various technical authors', 'حديث/متداول', 'يدعم جانب الأدوات الرقمية في إدارة المكاتب.'],
+  ],
+  'insurance-management': [
+    ['Principles of Risk Management and Insurance', 'George E. Rejda & Michael McNamara', 'حديث/متداول', 'مرجع أساسي في التأمين وإدارة المخاطر.'],
+    ['Risk Management and Insurance', 'Scott Harrington & Gregory Niehaus', 'حديث/متداول', 'يعالج نماذج المخاطر والأسواق التأمينية.'],
+    ['Fundamentals of Risk and Insurance', 'Emmett J. Vaughan & Therese Vaughan', 'حديث/متداول', 'مدخل شامل لمبادئ التأمين وإدارة المخاطر.'],
+    ['Enterprise Risk Management', 'James Lam', 'حديث/متداول', 'يربط المخاطر بالحوكمة والاستراتيجية.'],
+    ['Insurance Theory and Practice', 'Rob Thoyts', 'حديث/متداول', 'مناسب لفهم الصناعة والتطبيقات العملية.'],
+    ['Against the Gods: The Remarkable Story of Risk', 'Peter L. Bernstein', '1996', 'يعطي خلفية فكرية وتاريخية لإدارة المخاطر.'],
+    ['Risk Management and Financial Institutions', 'John C. Hull', 'حديث/متداول', 'مهم لمخاطر المؤسسات المالية.'],
+    ['Operational Risk Management', 'Ariane Chapelle', 'حديث/متداول', 'يركز على المخاطر التشغيلية والضوابط.'],
+  ],
+  'logistics-supply-chain': [
+    ['Supply Chain Management: Strategy, Planning, and Operation', 'Sunil Chopra', 'حديث/متداول', 'مرجع رئيسي في استراتيجية وتخطيط سلاسل الإمداد.'],
+    ['Logistics & Supply Chain Management', 'Martin Christopher', 'حديث/متداول', 'يعالج اللوجستيات والقيمة والتكامل.'],
+    ['Designing and Managing the Supply Chain', 'David Simchi-Levi, Philip Kaminsky & Edith Simchi-Levi', 'حديث/متداول', 'يركز على تصميم الشبكات والتحليلات.'],
+    ['The Goal', 'Eliyahu M. Goldratt', 'حديث/متداول', 'كلاسيكي في الاختناقات وتحسين التدفق.'],
+    ['Global Logistics and Supply Chain Management', 'John Mangan & Chandra Lalwani', 'حديث/متداول', 'يناسب البيئة الدولية للوجستيات.'],
+    ['Operations and Supply Chain Management', 'F. Robert Jacobs & Richard Chase', 'حديث/متداول', 'يربط العمليات بسلاسل الإمداد.'],
+    ['Supply Chain Risk Management', 'Donald Waters', 'حديث/متداول', 'يركز على مخاطر سلاسل الإمداد والمرونة.'],
+    ['Lean Supply Chain and Logistics Management', 'Paul Myerson', 'حديث/متداول', 'يعالج اللوجستيات الرشيقة وتقليل الهدر.'],
+  ],
+  'procurement-contracts': [
+    ['Purchasing and Supply Chain Management', 'Robert M. Monczka et al.', 'حديث/متداول', 'مرجع أساسي في المشتريات وسلاسل التوريد.'],
+    ['Contract Management Body of Knowledge (CMBOK)', 'National Contract Management Association', 'حديث/متداول', 'مرجع مهني في إدارة العقود والمشتريات.'],
+    ['World Class Contracting', 'Gregory A. Garrett', 'حديث/متداول', 'يركز على ممارسات التعاقد الفعالة.'],
+    ['Strategic Supply Management', 'Paul Cousins et al.', 'حديث/متداول', 'يعالج المشتريات كوظيفة استراتيجية.'],
+    ['Procurement Principles and Management', 'Peter Baily et al.', 'حديث/متداول', 'مدخل شامل لإدارة الشراء والتوريد.'],
+    ['Commercial Contract Management', 'Various contract management authors', 'حديث/متداول', 'يدعم صياغة ومتابعة العقود التجارية.'],
+    ['The Contract Negotiation Handbook', 'Stephen Guth', 'حديث/متداول', 'عملي في التفاوض وإدارة شروط العقود.'],
+    ['Category Management in Purchasing', 'Jonathan O’Brien', 'حديث/متداول', 'يركز على إدارة الفئات الشرائية وتحقيق القيمة.'],
+  ],
+  'governance-risk-compliance': [
+    ['Corporate Governance', 'Robert A. G. Monks & Nell Minow', 'حديث/متداول', 'مرجع أساسي في الحوكمة المؤسسية.'],
+    ['Enterprise Risk Management', 'James Lam', 'حديث/متداول', 'يربط المخاطر بالاستراتيجية والحوكمة.'],
+    ['COSO Enterprise Risk Management Framework', 'COSO', 'حديث/متداول', 'إطار مرجعي في إدارة المخاطر المؤسسية.'],
+    ['Governance, Risk Management, and Compliance', 'Richard M. Steinberg', 'حديث/متداول', 'يربط GRC بالرقابة والامتثال.'],
+    ['The Handbook of Board Governance', 'Richard Leblanc', 'حديث/متداول', 'مفيد في فهم مجالس الإدارة والرقابة.'],
+    ['IT Governance', 'Peter Weill & Jeanne W. Ross', '2004', 'يركز على حوكمة تقنية المعلومات ضمن المؤسسة.'],
+    ['Compliance 101', 'Debbie Troklus et al.', 'حديث/متداول', 'مدخل مهني لبرامج الامتثال.'],
+    ['Risk Management and Financial Institutions', 'John C. Hull', 'حديث/متداول', 'يعالج نماذج المخاطر والرقابة في المؤسسات المالية.'],
+  ],
+  'crisis-disaster-management': [
+    ['Crisis Management: Planning for the Inevitable', 'Steven Fink', 'حديث/متداول', 'مرجع كلاسيكي في التخطيط للأزمات.'],
+    ['Disaster Recovery', 'Brenda D. Phillips, Deborah S. K. Thomas et al.', 'حديث/متداول', 'يركز على التعافي وإدارة الكوارث.'],
+    ['Introduction to Emergency Management', 'George Haddow, Jane Bullock & Damon Coppola', 'حديث/متداول', 'مدخل شامل لإدارة الطوارئ.'],
+    ['The Human Side of Disaster', 'Thomas E. Drabek', 'حديث/متداول', 'يعالج السلوك الإنساني والاجتماعي أثناء الكوارث.'],
+    ['Managing Crises', 'Arnold M. Howitt & Herman B. Leonard', 'حديث/متداول', 'يربط القيادة والسياسات العامة بالأزمات.'],
+    ['Disaster Risk Reduction', 'Mark Pelling', 'حديث/متداول', 'مهم في تقليل المخاطر والجاهزية.'],
+    ['Crisis Communications', 'Kathleen Fearn-Banks', 'حديث/متداول', 'يركز على الاتصال أثناء الأزمات.'],
+    ['Handbook of Disaster Research', 'Havidán Rodríguez, William Donner & Joseph Trainor', 'حديث/متداول', 'مرجع بحثي متقدم في دراسات الكوارث.'],
+  ],
+  'diplomacy-international-relations': [
+    ['Diplomacy', 'Henry Kissinger', '1994', 'مرجع كلاسيكي في الدبلوماسية والعلاقات الدولية.'],
+    ['Global Diplomacy', 'Thierry Balzacq, Frédéric Charillon & Frédéric Ramel', 'حديث/متداول', 'يعرض الدبلوماسية الحديثة وتعدد الفاعلين.'],
+    ['The Globalization of World Politics', 'John Baylis, Steve Smith & Patricia Owens', 'حديث/متداول', 'مدخل شامل لنظريات وقضايا العلاقات الدولية.'],
+    ['International Relations Theories', 'Tim Dunne, Milja Kurki & Steve Smith', 'حديث/متداول', 'يبني الأساس النظري للتحليل الدولي.'],
+    ['Diplomacy: Theory and Practice', 'G. R. Berridge', 'حديث/متداول', 'مباشر في أدوات وممارسات الدبلوماسية.'],
+    ['The Oxford Handbook of Modern Diplomacy', 'Andrew F. Cooper, Jorge Heine & Ramesh Thakur', '2013', 'مرجع متقدم في الدبلوماسية المعاصرة.'],
+    ['Man, the State, and War', 'Kenneth N. Waltz', '1959', 'كلاسيكي في أسباب الصراع الدولي.'],
+    ['Theories of International Politics and Zombies', 'Daniel W. Drezner', 'حديث/متداول', 'مدخل مبسط ومفيد لنظريات العلاقات الدولية.'],
+  ],
+  entrepreneurship: [
+    ['The Lean Startup', 'Eric Ries', '2011', 'مرجع محوري في بناء المشاريع الناشئة والتحقق من السوق.'],
+    ['Entrepreneurship', 'William D. Bygrave & Andrew Zacharakis', 'حديث/متداول', 'مرجع أكاديمي شامل في ريادة الأعمال.'],
+    ['Business Model Generation', 'Alexander Osterwalder & Yves Pigneur', '2010', 'عملي في تصميم نماذج الأعمال.'],
+    ['Disciplined Entrepreneurship', 'Bill Aulet', 'حديث/متداول', 'منهج خطوة بخطوة لتأسيس المشاريع.'],
+    ['The Startup Owner’s Manual', 'Steve Blank & Bob Dorf', '2012', 'يركز على تطوير العملاء وبناء الشركة الناشئة.'],
+    ['Effectual Entrepreneurship', 'Stuart Read et al.', 'حديث/متداول', 'يعرض منطق الريادة بالموارد المتاحة.'],
+    ['Zero to One', 'Peter Thiel & Blake Masters', '2014', 'مفيد في التفكير الابتكاري والميزة الفريدة.'],
+    ['Innovation and Entrepreneurship', 'Peter F. Drucker', '1985', 'كلاسيكي في ربط الابتكار بالفرص الريادية.'],
+  ],
+  general: [
+    ['Research Design: Qualitative, Quantitative, and Mixed Methods Approaches', 'John W. Creswell & J. David Creswell', 'حديث/متداول', 'مرجع منهجي أساسي للبحوث الأكاديمية والمهنية.'],
+    ['Research Methodology: Methods and Techniques', 'C. R. Kothari', '2004', 'مرجع واضح في تصميم البحث وجمع البيانات وتحليلها.'],
+    ['How to Write a Master’s Thesis', 'Yvonne N. Bui', 'حديث/متداول', 'يساعد الطالب في بناء البحث والمشروع النهائي.'],
+    ['Doing Your Research Project', 'Judith Bell & Stephen Waters', 'حديث/متداول', 'دليل تطبيقي لتخطيط وتنفيذ البحث.'],
+    ['Case Study Research and Applications', 'Robert K. Yin', 'حديث/متداول', 'مهم للبحوث التطبيقية ودراسات الحالة.'],
+    ['The Craft of Research', 'Wayne C. Booth, Gregory G. Colomb & Joseph M. Williams', 'حديث/متداول', 'يبني مهارات صياغة الحجج والكتابة البحثية.'],
+    ['Qualitative Inquiry and Research Design', 'John W. Creswell & Cheryl N. Poth', 'حديث/متداول', 'يعالج البحث النوعي بتفصيل مناسب للدراسات العليا.'],
+    ['Practical Research: Planning and Design', 'Paul D. Leedy & Jeanne Ellis Ormrod', 'حديث/متداول', 'ينظم خطوات التخطيط والمنهجية وتحليل البيانات.'],
+  ],
+}
+
+const COMPATIBLE_DOMAINS: Partial<Record<ProgramDomain, ProgramDomain[]>> = {
+  'business-administration': ['strategic-management', 'human-resources', 'marketing-management', 'project-management', 'accounting-finance', 'leadership-management', 'quality-management'],
+  'public-administration': ['leadership-management', 'strategic-management', 'governance-risk-compliance'],
+  'management-information-systems': ['business-analytics', 'artificial-intelligence', 'cybersecurity'],
+  'governance-risk-compliance': ['insurance-management', 'cybersecurity'],
+}
+
+function isCompatibleDomain(programDomain: ProgramDomain, bookDomain: ProgramDomain): boolean {
+  if (programDomain === 'general' || bookDomain === 'general') return true
+  return programDomain === bookDomain || (COMPATIBLE_DOMAINS[programDomain] || []).includes(bookDomain)
+}
+
+function isSuggestionRelevantToDomain(s: BookSuggestion, programDomain: ProgramDomain): boolean {
+  if (programDomain === 'general') return true
+  const titleBlob = `${s.title} ${s.titleEn}`
+  const bookDomain = detectProgramDomain(titleBlob)
+  if (bookDomain !== 'general') return isCompatibleDomain(programDomain, bookDomain)
+
+  const domainSeeds = DOMAIN_BOOKS[programDomain] || []
+  const title = norm(titleBlob)
+  return domainSeeds.some(([seedTitle]) => {
+    const main = norm(seedTitle).split(':')[0].slice(0, 26)
+    return main.length >= 8 && title.includes(main)
+  })
+}
+
 async function completeJsonWithFallback(args: {
   system: string
   prompt: string
