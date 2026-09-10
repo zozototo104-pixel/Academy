@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
           orderBy: { order: 'asc' },
           include: { exam: { select: { id: true, title: true, passScore: true } } },
         },
+        books: { orderBy: { createdAt: 'asc' }, select: { id: true, title: true, titleEn: true, semester: true, source: true } },
+        programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, status: true, _count: { select: { questions: true } } } },
       },
     })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
