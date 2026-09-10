@@ -41,6 +41,7 @@ interface AppState {
   setAuthChecked: (v: boolean) => void
   navigate: (view: View) => void
   openProgram: (id: string) => void
+  openProgramDetails: (id: string) => void
   openUnit: (id: string) => void
   openExam: (id: string, kind?: 'unit' | 'final') => void
   openApply: (programTitle?: string) => void
