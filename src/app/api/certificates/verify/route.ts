@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
           category: program.category,
           hours: program.hours,
           unitsCount: program._count.units,
+          academicProfile: academicProfileFromRules(program.admissionRules),
         })
       : null
     return NextResponse.json({
