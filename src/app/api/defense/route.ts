@@ -249,6 +249,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, note: null })
     }
 
+    // ===== 12.3: دور صوتي متدفق عبر Gemini Live داخل المناقشة =====
+    if (action === 'live-turn') {
+      if (thesis.defenseStatus !== 'IN_PROGRESS') {
+        return NextResponse.json({ error: 'ابدأ جلسة المناقشة أولاً' }, { status: 400 })
+      }
+      const u = String(userText || '').trim()
+      const a = String(aiText || '').trim()
+      const created: any[] = []
+      if (u) {
+        created.push(await db.defenseMessage.create({
+          data: { thesisId: thesis.id, role: 'TRANSCRIPT', content: `محادثة صوتية مباشرة: ${u.slice(0, 3000)}` },
+        }))
+      }
+      if (a) {
+        created.push(await db.defenseMessage.create({
+          data: { thesisId: thesis.id, role: 'AI_NOTE', content: `مداخلة صوتية مباشرة: ${a.slice(0, 3000)}` },
+        }))
+      }
+      await audit({ id: user.id, name: user.name }, 'DEFENSE_LIVE_VOICE_TURN', 'ThesisSubmission', thesis.id, `${String(model || 'Gemini Live')} — ${u.slice(0, 120)}`).catch(() => {})
+      return NextResponse.json({ ok: true, messages: created })
+    }
+
     // ===== 12.3: أرشفة تسجيل الجلسة (فيديو + صوت) في ملف الطالب =====
     if (action === 'save-recording') {
       if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
