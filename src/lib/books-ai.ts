@@ -1471,9 +1471,9 @@ ${plannedTypes}
   for (const q of arr) {
     const rawType = String(q.type || '').toUpperCase()
     const type = rawType === 'CASE_MCQ' ? 'MCQ' : rawType
-    const text = String(q.text || '').trim()
-    const bookEvidence = cleanText(q.bookEvidence || q.evidence || q.sourceEvidence || q.referenceEvidence || '', 700)
-    const modelAnswerBase = cleanText(q.modelAnswer || '', 3000)
+    const text = stripExamKnowledgeMeta(q.text || '', 2000)
+    const bookEvidence = stripExamKnowledgeMeta(q.bookEvidence || q.evidence || q.sourceEvidence || q.referenceEvidence || '', 700)
+    const modelAnswerBase = stripExamKnowledgeMeta(q.modelAnswer || '', 3000)
     if (!text || !bookEvidence || bookEvidence.length < 18 || hasForbiddenExamMetadata(text) || hasForbiddenExamMetadata(bookEvidence) || mentionsUnsupportedExternalReference(`${text} ${modelAnswerBase}`, books) || !evidenceGroundedInBooks(bookEvidence, books)) continue
     const modelAnswer = modelAnswerBase.includes('مرجع التصحيح')
       ? modelAnswerBase
