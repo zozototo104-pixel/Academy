@@ -469,18 +469,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
     let order = maxOrder._max.order || existingCount || 0
     await db.programQuestion.createMany({
-      data: batch.map((q) => ({
-        examId,
-        order: ++order,
-        type: q.type,
-        text: q.text,
-        options: q.options ? JSON.stringify(q.options) : null,
-        correctAnswer: q.correct ?? null,
-        modelAnswer: q.modelAnswer ?? (q.bookEvidence ? `مرجع التصحيح: ${q.bookEvidence}` : null),
-        sourceEvidence: q.bookEvidence || null,
-        points: q.points || 2,
-        status: 'PENDING_REVIEW',
-      })),
+      data: batch.map((q) => createProgramQuestionData(examId, ++order, q)),
     })
 
     const totals = await examTotals(examId)
