@@ -170,7 +170,7 @@ export function QuestionReviewDialog({
             <Badge className="bg-amber-100 text-[10px] text-amber-700 hover:bg-amber-100">{pendingCount} بانتظار المراجعة</Badge>
           </DialogTitle>
           <DialogDescription>
-            {examTitle} — راجع الأسئلة المولّدة بالذكاء الاصطناعي: عدّل ما يلزم، اعتمد السليم، وارفض غير الملائم. لا يرى الطالب إلا الأسئلة المعتمدة.
+            {examTitle} — راجع الأسئلة المولّدة بالذكاء الاصطناعي: عدّل ما يلزم، اعتمد السليم، ارفض غير الملائم، أو احذف السؤال نهائياً. لا يرى الطالب إلا الأسئلة المعتمدة.
           </DialogDescription>
         </DialogHeader>
 
