@@ -61,6 +61,8 @@ export async function PUT(req: NextRequest) {
     if (Number.isFinite(Number(r.minAge))) clean.minAge = Math.max(12, Math.min(80, Math.round(Number(r.minAge))))
     if (typeof r.customRules === 'string') clean.customRules = r.customRules.slice(0, 3000)
     if (typeof r.displayNote === 'string') clean.displayNote = r.displayNote.slice(0, 600)
+    const academicProfile = normalizeAcademicProfileOverride(r.academicProfile)
+    if (academicProfile) clean.academicProfile = academicProfile
 
     const saved = await db.program.update({ where: { id: programId }, data: { admissionRules: JSON.parse(JSON.stringify(clean)) } })
     await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ قواعد قبول مخصصة لبرنامج «${program.titleAr}»`)
