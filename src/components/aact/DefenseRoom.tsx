@@ -203,10 +203,11 @@ export function DefenseRoom({
 
   // ===== نطق رسائل خبير الذكاء الاصطناعي (مع تعليق التفريغ أثناء النطق) =====
   const speak = useCallback(async (text: string) => {
+    let wasTranscribing = false
     try {
       audioRef.current?.pause()
       // أثناء نطق الخبير نوقف التفريغ الحي حتى لا يلتقط صوت المكبرات ولا يعيد تشغيل نفسه قبل انتهاء الصوت.
-      const wasTranscribing = transcriptResumeRef.current
+      wasTranscribing = transcriptResumeRef.current
       if (wasTranscribing) {
         transcriptPausedForSpeechRef.current = true
         transcriptRecRef.current?.stop()
