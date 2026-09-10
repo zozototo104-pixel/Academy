@@ -360,11 +360,16 @@ export function AdminRulesTab() {
                       </h4>
                       <p className="mt-1 text-[10px] leading-5 text-slate-500">هذه البيانات تظهر في تفاصيل البرنامج، بوابة الطالب، السجل الأكاديمي، والتحقق من الشهادة. اترك الحقول فارغة ليستخدم النظام الملف التلقائي.</p>
                     </div>
-                    {draft.academicProfile && (
-                      <Button size="sm" variant="outline" onClick={clearAcademicProfile} className="border-red-200 text-xs text-red-600 hover:bg-red-50">
-                        مسح التخصيص الأكاديمي
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={fillAcademicFromDefault} className="border-[#c9a227]/40 text-xs font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        ملء من الملف التلقائي
                       </Button>
-                    )}
+                      {draft.academicProfile && (
+                        <Button size="sm" variant="outline" onClick={clearAcademicProfile} className="border-red-200 text-xs text-red-600 hover:bg-red-50">
+                          مسح التخصيص الأكاديمي
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
