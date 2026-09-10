@@ -130,6 +130,16 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         parts.push(`الكتب المقررة المعتمدة لهذا التخصص (يُمتحَن بها الطالب):\n${bookBlocks.join('\n')}`)
       }
 
+      const knowledgeItems = await getProgramKnowledgeItems(p.id, undefined, 30).catch(() => [])
+      if (knowledgeItems.length > 0) {
+        parts.push(
+          `بنك المعرفة الأكاديمي المستخرج من كتب هذا التخصص (استخدمه في الشرح والأسئلة والمناقشة):\n${knowledgeItems
+            .slice(0, 24)
+            .map((k, i) => `${i + 1}. [${k.category}] ${k.title}: ${k.summary.slice(0, 260)}${k.bookTitle ? ` — من «${k.bookTitle}»` : ''}`)
+            .join('\n')}`
+        )
+      }
+
       const readyExams = p.programExams.filter((e) => e.status === 'READY')
       if (readyExams.length > 0) {
         parts.push(
