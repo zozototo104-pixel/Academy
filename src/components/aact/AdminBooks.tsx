@@ -432,6 +432,7 @@ export function AdminBooksTab() {
                   setProgramId('')
                   setBooks([])
                   setExams([])
+                  setAssignments([])
                   setSuggestions([])
                 }}
               >
