@@ -1003,31 +1003,79 @@ function fallbackExamConcepts(
   ], 50, 340)
 }
 
+function conceptLabel(concept: string, max = 150): string {
+  return cleanText(concept
+    .replace(/^من كتاب\s+«[^»]+»:?\s*/u, '')
+    .replace(/^(مقطع|فصل|باب)\s+\d+[:：]?\s*/u, ''), max)
+}
+
+function rotateCorrectOption(options: string[], correctIndex: number): { options: string[]; correct: string } {
+  const cleanOptions = uniqueStrings(options, 4, 220)
+  while (cleanOptions.length < 4) cleanOptions.push(`خيار مشتت غير مكتمل رقم ${cleanOptions.length + 1}`)
+  const correct = cleanOptions[0]
+  const distractors = cleanOptions.slice(1, 4)
+  const idx = Math.max(0, Math.min(3, correctIndex % 4))
+  const ordered = [...distractors]
+  ordered.splice(idx, 0, correct)
+  return { options: ordered.slice(0, 4), correct: String(idx) }
+}
+
 function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i = 0): GeneratedQuestion {
-  const intro = caseBased
-    ? `في حالة عملية داخل مؤسسة تريد تحسين ${specAr}، أي إجراء يعكس فهماً صحيحاً لمفهوم ${concept}؟`
-    : `أي العبارات الآتية أدق في تفسير مفهوم ${concept} ضمن تخصص ${specAr}؟`
+  const idea = conceptLabel(concept, 170)
+  const stems = caseBased
+    ? [
+        `تواجه مؤسسة حالة مرتبطة بمحور «${idea}». ما القرار الأكثر اتساقاً مع معالجة مهنية في تخصص ${specAr}؟`,
+        `في سيناريو تطبيقي يستند إلى فكرة «${idea}»، ما أول إجراء منهجي ينبغي اختياره؟`,
+        `إذا ظهرت مشكلة مهنية تماثل ما يعالجه محور «${idea}»، فأي بديل يعكس فهماً جامعياً صحيحاً؟`,
+      ]
+    : [
+        `بالاستناد إلى محور «${idea}» في الكتاب المقرر، أي تفسير أدق ضمن تخصص ${specAr}؟`,
+        `أي عبارة تعبّر بصورة أصح عن الفكرة العلمية في محور «${idea}»؟`,
+        `ما الاستنتاج الأكثر سلامة عند دراسة محور «${idea}» ضمن ${specAr}؟`,
+      ]
+  const correctTemplates = [
+    `ربط «${idea}» بالسياق العملي ثم تحويله إلى إجراءات ومؤشرات قياس واضحة`,
+    `تحليل أسباب «${idea}» وآثاره قبل اختيار أداة أو حل تنفيذي`,
+    `مقارنة «${idea}» بالمفاهيم القريبة منه ثم تطبيقه وفق ضوابط الكتاب`,
+    `استخدام «${idea}» لبناء قرار مهني قائم على الأدلة لا على الانطباع`,
+    `تحديد شروط تطبيق «${idea}» وحدوده قبل تعميمه على حالات مختلفة`,
+  ]
+  const distractorBank = [
+    `الاكتفاء بتعريف «${idea}» تعريفاً لفظياً دون ربطه بالتطبيق أو القياس`,
+    `اختيار أداة تقنية أو إدارية جاهزة قبل فهم المشكلة والسياق`,
+    `تأجيل التقويم والتحقق إلى نهاية العمل فقط`,
+    `الاعتماد على رأي شخصي أو خبرة فردية بدلاً من الأدلة ومحتوى الكتاب`,
+    `تجاهل أصحاب المصلحة والبيئة التنظيمية عند تطبيق المفهوم`,
+    `اعتبار «${idea}» إجراءً ثابتاً يصلح لكل الحالات دون تكييف`,
+  ]
+  const correct = correctTemplates[i % correctTemplates.length]
+  const distractors = [distractorBank[(i + 1) % distractorBank.length], distractorBank[(i + 3) % distractorBank.length], distractorBank[(i + 5) % distractorBank.length]]
+  const rotated = rotateCorrectOption([correct, ...distractors], i)
   return {
     type: 'MCQ',
-    text: intro,
-    options: [
-      `تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة`,
-      'تطبيق أداة تقنية واحدة دون تحليل البيئة أو أصحاب المصلحة',
-      'الاعتماد على الانطباع الشخصي بدلاً من الأدلة والمؤشرات',
-      'تأجيل التقييم إلى نهاية البرنامج أو المشروع فقط',
-    ],
-    correct: '0',
+    text: stems[i % stems.length],
+    options: rotated.options,
+    correct: rotated.correct,
     points: 2,
   }
 }
 
 function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQuestion {
+  const idea = conceptLabel(concept, 160)
   const truthy = i % 2 === 0
+  const trueStems = [
+    `يساعد محور «${idea}» في تخصص ${specAr} على الانتقال من المعرفة النظرية إلى قرار عملي قابل للقياس.`,
+    `لا يكتمل فهم «${idea}» إلا بربطه بالسياق والأدلة ومؤشرات النجاح كما تفعل الأسئلة الجامعية.`,
+    `يمكن تحويل فكرة «${idea}» إلى سؤال تطبيقي أو حالة عملية تقيس الفهم وليس الحفظ فقط.`,
+  ]
+  const falseStems = [
+    `يكفي في دراسة «${idea}» حفظ المصطلح دون فهم تطبيقاته أو حدوده العملية.`,
+    `يمكن اعتماد قرار مهني حول «${idea}» دون الرجوع إلى بيانات أو تحليل أو سياق الكتاب.`,
+    `كل الأفكار المرتبطة بـ «${idea}» تصلح للتطبيق بالطريقة نفسها في كل المؤسسات دون تكييف.`,
+  ]
   return {
     type: 'TF',
-    text: truthy
-      ? `في تخصص ${specAr}، لا تكفي المعرفة النظرية بمفهوم ${concept} ما لم ترتبط بتطبيق عملي ومؤشرات تحقق.`
-      : `في تخصص ${specAr}، يمكن اعتماد قرار مهني متعلق بـ ${concept} دون تحليل مخاطر أو أدلة أو سياق المؤسسة.`,
+    text: truthy ? trueStems[i % trueStems.length] : falseStems[i % falseStems.length],
     options: ['صح', 'خطأ'],
     correct: truthy ? '0' : '1',
     points: 2,
@@ -1035,19 +1083,31 @@ function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQu
 }
 
 function makeFallbackShort(concept: string, specAr: string, i: number): GeneratedQuestion {
+  const idea = conceptLabel(concept, 180)
+  const stems = [
+    `اشرح بإيجاز كيف يساهم محور «${idea}» في فهم مشكلة مهنية داخل تخصص ${specAr}.`,
+    `قارن بين الفهم النظري لمحور «${idea}» وتطبيقه العملي في مجال ${specAr}.`,
+    `اذكر خطوتين عمليتين لاستخدام فكرة «${idea}» في تحليل حالة مهنية.`,
+  ]
   return {
     type: 'SHORT',
-    text: `اشرح بإيجاز كيف يمكن توظيف مفهوم ${concept} في معالجة مشكلة مهنية ضمن تخصص ${specAr}.`,
-    modelAnswer: `الإجابة الجيدة تربط ${concept} بالمشكلة المهنية، وتحدد خطوات تشخيص الوضع، ثم تقترح إجراءً عملياً قابلاً للقياس. يجب أن تتضمن الإجابة مؤشرات متابعة أو معايير نجاح، وأن تبيّن أثر القرار على المؤسسة أو المستفيدين.`,
+    text: stems[i % stems.length],
+    modelAnswer: `مرجع التصحيح: محور «${idea}» من محتوى الكتاب المقرر. الإجابة الجيدة تشرح الفكرة بلغتها العلمية، تربطها بمشكلة واقعية في ${specAr}، وتذكر خطوات أو مؤشرات قياس واضحة بدلاً من الاكتفاء بتعريف عام.`,
     points: 5,
   }
 }
 
 function makeFallbackEssay(concept: string, specAr: string, i: number): GeneratedQuestion {
+  const idea = conceptLabel(concept, 180)
+  const stems = [
+    `حلل نقدياً محور «${idea}» كما ورد في الكتاب المقرر، وبيّن أثره في تطوير الممارسة المهنية في ${specAr}.`,
+    `صمّم إطاراً تطبيقياً يعتمد على فكرة «${idea}» لمعالجة تحدٍ واقعي في تخصص ${specAr}.`,
+    `ناقش حدود تطبيق محور «${idea}» ومخاطره وشروط نجاحه في بيئة مهنية حقيقية.`,
+  ]
   return {
     type: 'ESSAY',
-    text: `حلل نقدياً دور ${concept} في تطوير الأداء المهني في مجال ${specAr}، مع اقتراح إطار تطبيقي مناسب.`,
-    modelAnswer: `تتناول الإجابة النموذجية تعريف ${concept} وعلاقته بمجال ${specAr}، ثم تحلل نقاط القوة والقيود والمخاطر العملية. يجب أن تقترح إطاراً تطبيقياً يتضمن تشخيصاً أولياً، إجراءات تنفيذ، مؤشرات قياس، ومسؤوليات واضحة. كما ينبغي ربط التحليل بمحتوى الكتب المقررة أو مصادر البرنامج وعدم الاكتفاء بالتعميم.`,
+    text: stems[i % stems.length],
+    modelAnswer: `مرجع التصحيح: محور «${idea}» من الكتاب المقرر. الإجابة الممتازة تعرّف المحور بدقة، تستخرج عناصره الرئيسة، تربطه بسيناريو مهني في ${specAr}، تقارن بين البدائل، وتختم بمؤشرات قياس أو توصية قابلة للتنفيذ مع بيان القيود والمخاطر.`,
     points: 10,
   }
 }
@@ -1060,21 +1120,77 @@ export function fallbackExamQuestionBatch(
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const specAr = specialtyName(program).ar
   const concepts = fallbackExamConcepts(program, books)
-  const pick = (i: number) => concepts[i % Math.max(concepts.length, 1)] || specAr
+  const pick = (i: number) => concepts[(i + batchIndex * 7) % Math.max(concepts.length, 1)] || specAr
+  const plan = batchQuestionPlan(spec.kind, spec.count)
+  return plan.map((kind, i) => {
+    const concept = pick(i)
+    if (kind === 'TF') return makeFallbackTf(concept, specAr, i + batchIndex)
+    if (kind === 'SHORT') return makeFallbackShort(concept, specAr, i + batchIndex)
+    if (kind === 'ESSAY') return makeFallbackEssay(concept, specAr, i + batchIndex)
+    return makeFallbackMcq(concept, specAr, kind === 'CASE_MCQ', i + batchIndex)
+  }).slice(0, spec.count)
+}
+
+function optionSignature(q: GeneratedQuestion): string {
+  return q.options ? q.options.map((o) => norm(o)).join('|') : ''
+}
+
+function isWeakMcq(q: GeneratedQuestion): boolean {
+  if (q.type !== 'MCQ' || !q.options || q.options.length !== 4) return q.type === 'MCQ'
+  const sig = optionSignature(q)
+  const genericSignals = [
+    'تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة',
+    'تطبيق اداة تقنية واحدة دون تحليل البيئة او اصحاب المصلحة',
+    'الاعتماد على الانطباع الشخصي بدلا من الادلة والمؤشرات',
+    'تاجيل التقييم الى نهاية البرنامج او المشروع فقط',
+  ].map(norm)
+  const genericHits = genericSignals.filter((x) => sig.includes(x)).length
+  const distinct = new Set(q.options.map((o) => norm(o))).size
+  return distinct < 4 || genericHits >= 3
+}
+
+function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }): GeneratedQuestion[] {
+  const plan = batchQuestionPlan(spec.kind, spec.count)
+  const usedTexts = new Set<string>()
+  const usedOptionSigs = new Set<string>()
+  const byType = new Map<string, GeneratedQuestion[]>()
+
+  for (const q of aiQuestions) {
+    const type = q.type === 'MCQ' || q.type === 'TF' || q.type === 'SHORT' || q.type === 'ESSAY' ? q.type : 'MCQ'
+    const textKey = norm(q.text).slice(0, 180)
+    if (!textKey || usedTexts.has(textKey)) continue
+    if (type === 'MCQ') {
+      if (isWeakMcq(q)) continue
+      const sig = optionSignature(q)
+      if (!sig || usedOptionSigs.has(sig)) continue
+      usedOptionSigs.add(sig)
+    }
+    usedTexts.add(textKey)
+    const list = byType.get(type) || []
+    list.push(q)
+    byType.set(type, list)
+  }
+
   const out: GeneratedQuestion[] = []
-
-  if (spec.kind === 'MIX_TF_MCQ') {
-    for (let i = 0; i < 15; i++) out.push(makeFallbackTf(pick(i), specAr, i))
-    for (let i = 15; i < spec.count; i++) out.push(makeFallbackMcq(pick(i), specAr, false, i))
-    return out.slice(0, spec.count)
+  const take = (kind: PlannedQuestionKind): GeneratedQuestion | undefined => {
+    const type = kind === 'CASE_MCQ' ? 'MCQ' : kind
+    const list = byType.get(type) || []
+    return list.shift()
   }
 
-  for (let i = 0; i < spec.count; i++) {
-    if (spec.kind === 'MCQ') out.push(makeFallbackMcq(pick(i), specAr, false, i))
-    else if (spec.kind === 'CASE_MCQ') out.push(makeFallbackMcq(pick(i), specAr, true, i))
-    else if (spec.kind.startsWith('SHORT')) out.push(makeFallbackShort(pick(i), specAr, i))
-    else if (spec.kind.startsWith('ESSAY')) out.push(makeFallbackEssay(pick(i), specAr, i))
+  const fallbackQueue = [...fallback]
+  for (const wanted of plan) {
+    const fromAi = take(wanted)
+    if (fromAi) {
+      out.push(fromAi)
+      continue
+    }
+    const wantedType = wanted === 'CASE_MCQ' ? 'MCQ' : wanted
+    const idx = fallbackQueue.findIndex((q) => q.type === wantedType)
+    const fb = idx >= 0 ? fallbackQueue.splice(idx, 1)[0] : fallbackQueue.shift()
+    if (fb) out.push(fb)
   }
+
   return out.slice(0, spec.count)
 }
 
