@@ -89,6 +89,13 @@ export function ProgramsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (programsFilter) {
+      setFilter(programsFilter)
+      setSearch('')
+    }
+  }, [programsFilter])
+
   // الالتحاق بالبرنامج يتم عبر إجراءات الالتحاق الرسمية (دليل الإجراءات):
   // بيانات كاملة → رفع الوثائق → الإقرار → سداد رسوم التقديم 30$ → دراسة الإدارة → بعد القبول سداد الرسوم كاملة
   const startAdmission = (p: Program) => {
