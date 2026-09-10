@@ -441,7 +441,7 @@ async function aiRecommendation(title: string, name: string, aiScore: number, an
         { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.` },
         {
           role: 'user',
-          content: `اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
+          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
 - التقييم العام عبر الأسئلة: ${aiScore}/100 (${answered} أسئلة)
 - آخر ملاحظة: ${lastFeedback}
 - الحكم العام: ${verdict}
