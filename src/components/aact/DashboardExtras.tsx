@@ -820,6 +820,7 @@ export function TranscriptTab() {
               category: p.category,
               hours: p.hours,
               unitsCount: p.unitsCount,
+              academicProfile: p.academicProfile,
             })
             return (
             <div key={p.enrollmentId} className="overflow-hidden rounded-xl border border-[#0f2b46]/15">
