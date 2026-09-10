@@ -106,6 +106,7 @@ async function existingOptionSignatures(examId: string): Promise<Set<string>> {
 function filterNewQuestions<T extends { text: string; options?: string[] | null }>(questions: T[], keys: Set<string>, optionSigs?: Set<string>): T[] {
   const out: T[] = []
   for (const q of questions) {
+    if (hasBadExamMetadata(`${q.text} ${(q.options || []).join(' ')}`)) continue
     const key = normalizeQuestionText(q.text).slice(0, 160)
     if (!key || keys.has(key)) continue
     const optSig = optionSignatureFromArray(q.options)
