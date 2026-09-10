@@ -31,6 +31,7 @@ interface ReviewQuestion {
   options: string[] | null
   correctAnswer: string | null
   modelAnswer: string | null
+  sourceEvidence?: string | null
   points: number
   status: string
 }
