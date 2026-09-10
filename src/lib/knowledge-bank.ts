@@ -203,7 +203,7 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
 
 async function aiKnowledgeItems(
   program: { titleAr: string; titleEn?: string | null; category?: string | null; description?: string | null },
-  book: RawBookForHydration,
+  book: RawBookForHydration & { semester?: number | null },
   text: string,
   semester?: number | null
 ): Promise<KnowledgeItemDraft[] | null> {
