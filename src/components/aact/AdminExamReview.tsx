@@ -155,8 +155,31 @@ export function QuestionReviewDialog({
       })
       await load()
       onPublished()
+      onClose()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message || 'تعذر إعادة بناء الامتحان', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const continueGeneration = async () => {
+    if (!confirm(`هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي. متابعة؟`)) return
+    setBusy(true)
+    try {
+      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+        method: 'POST',
+        body: JSON.stringify({ examId, action: 'kick' }),
+      })
+      toast({
+        title: 'تم تحريك استكمال الامتحان',
+        description: `أصبح العدد ${d.questionCount || questions.length} سؤالاً، وستكمل صفحة الكتب بقية الدفعات إذا بقيت مفتوحة`,
+      })
+      await load()
+      onPublished()
+      if (d.status === 'GENERATING') onClose()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message || 'تعذر استكمال التوليد', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
