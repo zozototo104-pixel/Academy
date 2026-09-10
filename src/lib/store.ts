@@ -41,6 +41,7 @@ interface AppState {
   setUser: (u: AppUser | null) => void
   setAuthChecked: (v: boolean) => void
   navigate: (view: View) => void
+  openPrograms: (filter?: string) => void
   openProgram: (id: string) => void
   openProgramDetails: (id: string) => void
   openUnit: (id: string) => void
