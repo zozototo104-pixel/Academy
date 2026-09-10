@@ -878,6 +878,7 @@ function buildBooksKnowledgeSection(books: ExamSourceBook[], programDomain: Prog
 function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: ProgramDomain, max = 60): string[] {
   const concepts: string[] = []
   for (const book of books) {
+    const before = concepts.length
     const title = cleanText(book.title, 90)
     const full = sanitizeExamText(book.textContent || '')
     const sentences = topImportantSentences(full, programDomain, 18)
@@ -890,6 +891,14 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
     for (const excerpt of distributedBookExcerpts(full, 0, 6)) {
       for (const s of splitSentences(excerpt).slice(0, 5)) {
         if (!hasForbiddenExamMetadata(s)) concepts.push(`من كتاب «${title}»: ${s}`)
+      }
+    }
+
+    // احتياطي للنصوص السردية ذات الجمل القصيرة: خذ مقاطع خام من النص بدل الرجوع لمفاهيم التخصص العامة.
+    if (concepts.length === before && full.length >= 160) {
+      for (const ratio of [0, 0.18, 0.36, 0.54, 0.72, 0.9]) {
+        const chunk = pickWindow(full, ratio, 360)
+        if (chunk && !hasForbiddenExamMetadata(chunk)) concepts.push(`من كتاب «${title}»: ${chunk}`)
       }
     }
   }
