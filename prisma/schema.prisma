@@ -430,6 +430,30 @@ model Book {
   semester    Int?     // الفصل الدراسي الذي يدرس فيه الكتاب (1 | 2 | null = عام للبرنامج)
   source      String   @default("ADMIN") // ADMIN | AI
   createdAt   DateTime @default(now())
+  knowledgeItems BookKnowledgeItem[]
+}
+
+model BookKnowledgeItem {
+  id          String   @id @default(cuid())
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  bookId      String?
+  book        Book?    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  semester    Int?
+  category    String   @default("CONCEPT") // CONCEPT | THEORY | METHOD | CASE | DEFINITION | QUESTION_SEED | SUMMARY
+  title       String
+  summary     String
+  excerpt     String?
+  keywords    String?  // JSON array كلمات مفتاحية
+  importance  Int      @default(50) // 0-100: أهمية العنصر في الامتحان والمناقشة
+  sourceNote  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([programId])
+  @@index([bookId])
+  @@index([programId, semester])
+  @@index([category])
 }
 
 model ProgramAssignment {
