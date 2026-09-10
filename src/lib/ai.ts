@@ -260,9 +260,10 @@ function shouldAnswerLocally(last: string): boolean {
 
 export async function chatComplete(
   messages: { role: string; content: string }[],
-  context?: string
+  context?: string,
+  persona: SupervisorPersona = 'CHAT'
 ): Promise<string> {
-  const systemPrompt = buildSupervisorSystemPrompt(context)
+  const systemPrompt = buildSupervisorSystemPrompt(context, persona)
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
 
   // أسئلة المنصة العامة نجيب عليها فورياً من بيانات الأكاديمية حتى لا ينتظر الطالب Gemini طويلاً.
