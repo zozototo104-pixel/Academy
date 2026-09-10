@@ -15,6 +15,7 @@ import { AdminBooksTab } from '@/components/aact/AdminBooks'
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import { AdminSystemTab } from '@/components/aact/AdminSystemTab'
 import { AdminRulesTab } from '@/components/aact/AdminRulesTab'
+import { AdminQualityTab } from '@/components/aact/AdminQualityTab'
 import {
   Users2, ClipboardCheck, Bot, Globe2, Loader2, TrendingUp,
   CheckCircle2, XCircle, Clock3, GraduationCap, BarChart3, ClipboardList, Search,
