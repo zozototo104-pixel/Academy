@@ -398,6 +398,76 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {assignments.length > 0 && (
+                  <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-black text-[#0f2b46]">واجباتي وتكليفاتي</h3>
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">سلّم الواجبات المطلوبة لكل فصل؛ التصحيح يظهر هنا ويدخل في ملفك الأكاديمي.</p>
+                      </div>
+                      <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{assignments.length} واجب</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {assignments.map((a) => {
+                        const submission = a.submission
+                        const graded = submission?.status === 'GRADED'
+                        const needsRevision = submission?.status === 'NEEDS_REVISION'
+                        const submitted = !!submission && !needsRevision
+                        return (
+                          <article key={a.id} className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {graded ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <CircleDashed className="h-4 w-4 text-slate-300" />}
+                                  <h4 className="text-sm font-black text-[#0f2b46]">{a.title}</h4>
+                                  <Badge variant="outline" className="text-[9px] font-black">{a.semester === 2 ? 'الفصل الثاني' : a.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}</Badge>
+                                  <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">{a.points} نقاط</Badge>
+                                  {a.weight > 0 && <Badge className="bg-emerald-50 text-[9px] font-black text-emerald-700 hover:bg-emerald-50">وزن {a.weight}%</Badge>}
+                                </div>
+                                <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
+                                {a.rubric && <p className="mt-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
+                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد مقترح: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                              </div>
+                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${graded ? 'bg-emerald-100 text-emerald-700' : needsRevision ? 'bg-amber-100 text-amber-700' : submitted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                                {graded ? `مصحح ${submission?.score ?? '-'}/${a.points}` : needsRevision ? 'يحتاج تعديل' : submitted ? 'تم التسليم' : 'لم يسلّم بعد'}
+                              </span>
+                            </div>
+
+                            {submission && (
+                              <div className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-[11px] font-bold leading-5 text-slate-600">
+                                <p className="font-black text-[#0f2b46]">تسليمك الحالي</p>
+                                {submission.answerText && <p className="mt-1 rounded-lg bg-white p-2 ring-1 ring-slate-100">{submission.answerText}</p>}
+                                {submission.fileName && <p className="mt-1 text-[#a8841a]">ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}</p>}
+                                {submission.feedback && <p className={`mt-1 ${needsRevision ? 'text-amber-700' : 'text-emerald-700'}`}>ملاحظة التصحيح: {submission.feedback}</p>}
+                              </div>
+                            )}
+
+                            {!graded && (
+                              <div className="mt-3 grid gap-2 md:grid-cols-[1fr_220px]">
+                                <Textarea
+                                  rows={3}
+                                  value={assignmentDrafts[a.id] || ''}
+                                  onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                                  placeholder={needsRevision ? 'أعد كتابة/تعديل إجابتك هنا...' : 'اكتب إجابتك أو ملخص واجبك هنا...'}
+                                  className="text-xs"
+                                />
+                                <div className="space-y-2">
+                                  <Input type="file" onChange={(e) => setAssignmentFiles((prev) => ({ ...prev, [a.id]: e.target.files?.[0] || null }))} className="text-xs" />
+                                  {assignmentFiles[a.id] && <p className="text-[10px] font-bold text-slate-500">الملف المختار: {assignmentFiles[a.id]?.name}</p>}
+                                  <Button onClick={() => submitAssignment(a.id)} disabled={submittingAssignmentId === a.id} className="w-full bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
+                                    {submittingAssignmentId === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="ml-1 h-3.5 w-3.5" />}
+                                    {submission ? 'إعادة التسليم' : 'تسليم الواجب'}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </article>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
+
                 {/* Units */}
                 <div className="mt-5 space-y-3">
                   {active.units.map((u) => (
