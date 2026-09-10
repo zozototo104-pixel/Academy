@@ -195,6 +195,7 @@ export function DefenseRoom({
     return () => {
       recognitionRef.current?.abort()
       transcriptRecRef.current?.abort()
+      liveAdvisorRef.current?.stop()
       streamRef.current?.getTracks().forEach((t) => t.stop())
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       audioRef.current?.pause()
