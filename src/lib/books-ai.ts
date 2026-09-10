@@ -141,7 +141,7 @@ function detectProgramDomain(input: { titleAr?: string | null; titleEn?: string 
   return checks.find(([, re]) => re.test(text))?.[0] || 'general'
 }
 
-const DOMAIN_BOOKS: Record<ProgramDomain, BookSeed[]> = {
+const DOMAIN_BOOKS: Partial<Record<ProgramDomain, BookSeed[]>> & { general: BookSeed[] } = {
   cybersecurity: [
     ['Security Engineering: A Guide to Building Dependable Distributed Systems', 'Ross J. Anderson', '2020', 'مرجع محوري في بناء الأنظمة الآمنة وتحليل المخاطر الأمنية عملياً.'],
     ['Computer Security: Principles and Practice', 'William Stallings & Lawrie Brown', 'حديث/متداول', 'يغطي مبادئ أمن الحاسوب والتهديدات والضوابط الأمنية بمستوى مناسب للماجستير.'],
