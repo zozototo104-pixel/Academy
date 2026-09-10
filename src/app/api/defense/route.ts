@@ -416,6 +416,9 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
           role: 'user',
           content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
 
+آخر كلام مباشر قاله الطالب الآن:
+${latest || 'غير متوفر'}
+
 أحدث ما جرى في الجلسة:
 ${dialog.slice(0, 4500)}
 
