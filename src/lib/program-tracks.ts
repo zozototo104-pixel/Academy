@@ -155,6 +155,8 @@ export interface AcademicProgramInput {
   category?: string | null
   hours?: number | null
   unitsCount?: number | null
+  /** تخصيص إداري اختياري محفوظ داخل admissionRules.academicProfile بدون الحاجة لتعديل قاعدة البيانات. */
+  academicProfile?: PartialAcademicProgramProfile | null
 }
 
 export interface AcademicPlanStage {
