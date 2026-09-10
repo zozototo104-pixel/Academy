@@ -133,6 +133,28 @@ interface KnowledgeItemRow {
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
 
+interface StudyGuideSection {
+  title: string
+  summary: string
+  outcomes?: string[]
+  sourceTitles?: string[]
+}
+
+interface StudyGuideRow {
+  id: string
+  programId: string
+  semester: number
+  title: string
+  overview: string
+  objectives: string[]
+  keyTerms: string[]
+  sections: StudyGuideSection[]
+  activities: string[]
+  discussionQuestions: string[]
+  status: string
+  updatedAt: string
+}
+
 const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ', SHORT: 'إجابة قصيرة', ESSAY: 'مقالي' }
 const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
   CONCEPT: 'مفاهيم',
