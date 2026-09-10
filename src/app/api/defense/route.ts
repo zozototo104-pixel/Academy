@@ -453,7 +453,7 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: 'أنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.' },
+        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.` },
         {
           role: 'user',
           content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
