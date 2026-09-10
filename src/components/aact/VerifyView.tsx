@@ -10,7 +10,16 @@ import { ShieldCheck, Search, Loader2, BadgeCheck, XCircle, Eye } from 'lucide-r
 
 interface VerifyResult {
   valid: boolean
-  certificate?: CertificateData & { valid: boolean }
+  certificate?: CertificateData & {
+    valid: boolean
+    academicProfile?: {
+      academicTitle: string
+      durationLabel: string
+      creditHoursLabel: string
+      learningOutcomes: string[]
+      qualityControls: string[]
+    } | null
+  }
   message: string
 }
 
