@@ -110,6 +110,15 @@ const AI_VERDICT_META: Record<string, { label: string; cls: string; border: stri
   INSUFFICIENT_DATA: { label: 'خبير الذكاء الاصطناعي: بيانات غير كافية للتحليل', cls: 'bg-slate-100 text-slate-600', border: 'border-slate-300' },
 }
 
+const DOC_RECOMMENDATION_AR: Record<string, string> = {
+  ACCEPT_AS_EVIDENCE: 'يُقبل كدليل',
+  REQUEST_CLEARER_COPY: 'اطلب نسخة أوضح',
+  REQUEST_REPLACEMENT: 'اطلب استبدال المرفق',
+  IGNORE_AS_NON_ADMISSION: 'لا يُحتسب كمرفق قبول',
+}
+
+const TRI_STATE_AR: Record<string, string> = { YES: 'نعم', NO: 'لا', UNVERIFIED: 'غير متحقق' }
+
 const CHECK_STATUS_META: Record<string, { icon: typeof CheckCircle2; cls: string }> = {
   FOUND: { icon: CheckCircle2, cls: 'text-emerald-600' },
   MISSING: { icon: XCircle, cls: 'text-red-500' },
