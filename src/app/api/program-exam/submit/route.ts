@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const passed = percentage >= exam.passScore
 
-    const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints)
+    const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
 
     const roundedScore = Math.round(percentage * 10) / 10
 
