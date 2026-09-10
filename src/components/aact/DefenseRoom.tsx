@@ -1059,7 +1059,7 @@ export function DefenseRoom({
                 <div key={m.id} className="flex items-start gap-2">
                   <div className="shrink-0 rounded-full bg-purple-500/25 p-1.5 text-purple-200"><Bot className="h-3.5 w-3.5" /></div>
                   <div className="max-w-[85%] rounded-2xl border border-purple-400/40 bg-purple-500/10 px-3.5 py-2 text-xs leading-relaxed text-purple-100">
-                    <span className="mr-1.5 rounded bg-purple-500/30 px-1.5 py-0.5 text-[8px] font-black">ملاحظة المستشار الذكي للجنة</span>
+                    <span className="mr-1.5 rounded bg-purple-500/30 px-1.5 py-0.5 text-[8px] font-black">مداخلة المستشار الذكي</span>
                     <span className="mt-1 block whitespace-pre-line">{m.content}</span>
                   </div>
                 </div>
