@@ -10,7 +10,11 @@ export async function GET() {
     const rows = await db.program.findMany({
       where: { active: true },
       orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
-      include: { units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } } },
+      include: {
+        units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } },
+        books: { orderBy: { createdAt: 'asc' }, select: { id: true, title: true, titleEn: true, semester: true, source: true } },
+        programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, status: true, _count: { select: { questions: true } } } },
+      },
     })
 
     const programs = rows
