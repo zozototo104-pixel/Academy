@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, messages, completed: true, aiScore, aiRecommendation: rec, minutes })
     }
 
-    // ===== 12.3: تفريغ صوتي حي (Live Transcription) =====
+    // ===== 12.3: تفريغ صوتي حي (Live Transcription) + رد مباشر من المستشار الذكي =====
     if (action === 'transcript') {
       if (thesis.defenseStatus !== 'IN_PROGRESS') {
         return NextResponse.json({ error: 'ابدأ جلسة المناقشة أولاً' }, { status: 400 })
@@ -209,7 +209,24 @@ export async function POST(req: NextRequest) {
       await db.defenseMessage.create({
         data: { thesisId: thesis.id, role: 'TRANSCRIPT', content: transcriptText.slice(0, 3000) },
       })
-      return NextResponse.json({ ok: true })
+
+      // لا نترك الواجهة تنتظر طلباً ثانياً؛ بعد حفظ كلام الطالب نولّد مداخلة اللجنة هنا مباشرة.
+      let savedNote = null
+      const lastNote = await db.defenseMessage.findFirst({
+        where: { thesisId: thesis.id, role: 'AI_NOTE' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      const secondsFromLastNote = lastNote ? (Date.now() - new Date(lastNote.createdAt).getTime()) / 1000 : 999
+      if (secondsFromLastNote >= 8 && transcriptText.replace(/\s+/g, ' ').length >= 12) {
+        const note = await aiLiveNote(thesis.title, thesis.abstract, thesis.id, user.id, transcriptText)
+        if (note) {
+          savedNote = await db.defenseMessage.create({
+            data: { thesisId: thesis.id, role: 'AI_NOTE', content: note },
+          })
+        }
+      }
+      return NextResponse.json({ ok: true, note: savedNote })
     }
 
     // ===== 12.3: ملاحظة تحليلية حية من المستشار الذكي للجنة =====
