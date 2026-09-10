@@ -59,8 +59,10 @@ export async function GET() {
     await requireAdmin()
 
     const memoryStore = (db as any).studentAcademicMemory
+    const microCredentialStore = (db as any).microCredential
+    const microCredentialAwardStore = (db as any).userMicroCredential
 
-    const [studentsCount, programs, books, exams, questions, programAttempts, unitAttempts, chats, admissions, theses, memories] = await Promise.all([
+    const [studentsCount, programs, books, exams, questions, programAttempts, unitAttempts, chats, admissions, theses, memories, microCredentialsCount, microCredentialAwardsCount] = await Promise.all([
       db.user.count({ where: { role: 'STUDENT' } }),
       db.program.findMany({
         where: { active: true },
