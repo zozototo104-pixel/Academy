@@ -431,6 +431,48 @@ model Book {
   createdAt   DateTime @default(now())
 }
 
+model ProgramAssignment {
+  id          String   @id @default(cuid())
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  semester    Int      @default(1) // الفصل الدراسي المرتبط بالتكليف
+  type        String   @default("REPORT") // REPORT | CASE_STUDY | SUMMARY | PROJECT | REFLECTION
+  points      Int      @default(10)
+  weight      Int      @default(0)  // وزن الواجب داخل الدرجة النهائية إن قررت الإدارة احتسابه
+  dueDays     Int?     // عدد الأيام المتاحة من تاريخ تسجيل الطالب
+  rubric      String?  // JSON array أو نص معايير التصحيح
+  status      String   @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id            String   @id @default(cuid())
+  assignmentId  String
+  assignment    ProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answerText    String?
+  fileName      String?
+  mimeType      String?
+  size          Int?
+  data          String?  // base64 للملف المرفق في الواجب
+  status        String   @default("SUBMITTED") // SUBMITTED | GRADED | NEEDS_REVISION
+  score         Float?
+  feedback      String?
+  gradedBy      String?
+  submittedAt   DateTime @default(now())
+  gradedAt      DateTime?
+  updatedAt     DateTime @updatedAt
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+  @@index([assignmentId])
+}
+
 model ProgramExam {
   id           String   @id @default(cuid())
   programId    String
