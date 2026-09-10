@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { academicProfileFromRules } from '@/lib/program-tracks'
 
 /**
  * 14.1 — السجل الأكاديمي الرسمي للطالب (Academic Transcript)
