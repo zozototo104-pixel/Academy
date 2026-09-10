@@ -121,7 +121,7 @@ export async function GET() {
           part: `واجب الفصل ${a.semester === 2 ? 'الثاني' : a.semester === 3 ? 'المشروع/البحث' : 'الأول'}`,
           passScore: 60,
           bestScore: pct,
-          passed: sub?.status === 'GRADED' && pct != null && pct >= 60,
+          passed,
           date: sub?.gradedAt ?? sub?.submittedAt ?? null,
         }
       })
