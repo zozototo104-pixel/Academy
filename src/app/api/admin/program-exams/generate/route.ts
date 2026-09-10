@@ -377,6 +377,7 @@ export async function POST(req: NextRequest) {
         failedSemExam.id,
         `استكمال توليد امتحان فاشل سابقاً للفصل ${sem === 2 ? 'الثاني' : 'الأول'} من السؤال ${failedSemExam._count.questions + 1} لبرنامج ${program.titleAr}`
       )
+      const starter = await ensureStarterQuestions(failedSemExam.id)
       scheduleGeneration(failedSemExam.id)
       return NextResponse.json({
         ok: true,
@@ -384,7 +385,8 @@ export async function POST(req: NextRequest) {
         booksCount,
         semester: sem,
         resumed: true,
-        existingQuestions: failedSemExam._count.questions,
+        existingQuestions: starter.questionCount || failedSemExam._count.questions,
+        inserted: starter.inserted,
         requiredQuestions: totalRequiredQuestions(),
       })
     }
