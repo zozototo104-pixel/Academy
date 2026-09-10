@@ -811,7 +811,16 @@ export function TranscriptTab() {
         {data.programs.length === 0 ? (
           <div className="rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-500">لم تسجل في أي برنامج بعد — سجل في برنامجك الأول ليبني سجلك الأكاديمي تلقائياً</div>
         ) : (
-          data.programs.map((p) => (
+          data.programs.map((p) => {
+            const academic = buildAcademicProgramProfile({
+              titleAr: p.title,
+              titleEn: p.titleEn,
+              description: p.description,
+              category: p.category,
+              hours: p.hours,
+              unitsCount: p.unitsCount,
+            })
+            return (
             <div key={p.enrollmentId} className="overflow-hidden rounded-xl border border-[#0f2b46]/15">
               <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0f2b46] px-4 py-2.5 text-white">
                 <div className="flex items-center gap-2">
