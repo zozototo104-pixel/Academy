@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
         options: q.options ? JSON.parse(q.options) : null,
         correctAnswer: q.correctAnswer,
         modelAnswer: q.modelAnswer,
+        sourceEvidence: q.sourceEvidence,
         points: q.points,
         status: q.status,
       })),
