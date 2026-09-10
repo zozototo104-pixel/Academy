@@ -5,6 +5,8 @@ import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
 import { emailExamPublished } from '@/lib/mailer'
 
+const REQUIRED_PUBLISHED_QUESTIONS = 80
+
 // ===== 12.2 المراجعة البشرية للأسئلة المولدة بالذكاء الاصطناعي (Human-in-the-loop) =====
 // GET ?examId= → كل الأسئلة مع إجاباتها النموذجية (للإدارة فقط)
 // PATCH → تعديل سؤال / اعتماد / رفض / حذف سؤال
