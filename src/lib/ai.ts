@@ -342,7 +342,9 @@ export async function gradeEssayAnswer(
   maxPoints: number
 ): Promise<GradedAnswer> {
   const zai = await getZAI()
-  const prompt = `أنت مصحح أكاديمي محترف في ${ACADEMY_INFO.nameAr}. صحح إجابة مقالية لطالب وفق المعايير التالية:
+  const prompt = `${buildSupervisorPersonaBlock('EXAM')}
+
+أنت مصحح أكاديمي محترف في ${ACADEMY_INFO.nameAr}. صحح إجابة مقالية لطالب وفق المعايير التالية:
 
 السؤال: ${questionText}
 
