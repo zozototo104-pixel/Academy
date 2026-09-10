@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
+import { rebuildKnowledgeForBook } from '@/lib/knowledge-bank'
+
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const MAX_BOOK_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_BOOK_TEXT_CHARS = 180000
