@@ -80,13 +80,13 @@ export async function PATCH(req: NextRequest) {
 
     if (action === 'EDIT') {
       const data: any = {}
-      if (text != null && String(text).trim()) data.text = String(text).trim().slice(0, 3000)
+      if (text != null && String(text).trim()) data.text = cleanInternalExamMeta(text, 3000)
       if (options != null) {
-        const opts = (Array.isArray(options) ? options : []).map((o: any) => String(o).trim()).filter(Boolean)
+        const opts = (Array.isArray(options) ? options : []).map((o: any) => cleanInternalExamMeta(o, 500)).filter(Boolean)
         if (opts.length >= 2) data.options = JSON.stringify(opts)
       }
       if (correctAnswer != null) data.correctAnswer = String(correctAnswer)
-      if (modelAnswer != null) data.modelAnswer = String(modelAnswer).slice(0, 4000)
+      if (modelAnswer != null) data.modelAnswer = cleanInternalExamMeta(modelAnswer, 4000)
       if (points != null && Number(points) > 0) data.points = Math.max(1, Math.min(50, Math.round(Number(points))))
       await db.programQuestion.update({ where: { id: questionId }, data })
       await audit({ id: admin.id, name: admin.name }, 'EDIT_EXAM_QUESTION', 'ProgramQuestion', questionId, existing.exam.title)
