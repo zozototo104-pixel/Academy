@@ -719,6 +719,7 @@ export function AdminBooksTab() {
                   setAssignmentSuggestions([])
                   setKnowledgeItems([])
                   setKnowledgeStats({})
+                  setStudyGuides([])
                   setSuggestions([])
                 }}
               >
