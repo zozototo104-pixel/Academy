@@ -335,9 +335,16 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const previousQuestions = await db.programQuestion.findMany({
       where: { examId },
       orderBy: { order: 'asc' },
-      select: { text: true },
+      select: { text: true, options: true },
     })
-    const previousTexts = previousQuestions.map((q) => q.text)
+    const previousTexts = previousQuestions.map((q) => {
+      let optionsText = ''
+      try {
+        const opts = JSON.parse(q.options || '[]')
+        if (Array.isArray(opts) && opts.length) optionsText = ` | خيارات سابقة: ${opts.join(' / ')}`
+      } catch {}
+      return `${q.text}${optionsText}`
+    })
     const existingKeys = await existingQuestionKeys(examId)
     const existingOptions = await existingOptionSignatures(examId)
     const existingOptionWords = await existingOptionTexts(examId)
