@@ -224,6 +224,7 @@ export async function GET() {
         p._count.knowledgeItems < 8 ? 'بنك المعرفة ضعيف' : null,
         programReadyExams.length === 0 ? 'لا يوجد امتحان جاهز' : null,
         sourceCoverage < 70 && programQuestions.length > 0 ? 'مصادر الأسئلة غير مكتملة' : null,
+        metadataCoverage < 70 && programQuestions.length > 0 ? 'حقول القياس والتعليل غير مكتملة' : null,
         p._count.studyGuides === 0 ? 'لا يوجد دليل دراسة منشور' : null,
       ].filter(Boolean) as string[]
       return {
