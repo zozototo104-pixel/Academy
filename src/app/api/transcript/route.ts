@@ -145,7 +145,7 @@ export async function GET() {
         certificateNo: en.certificateNo,
         enrolledAt: en.createdAt,
         completedUnits,
-        rows: [...unitRows, ...semRows],
+        rows: [...unitRows, ...semRows, ...assignmentRows],
       })
     }
 
