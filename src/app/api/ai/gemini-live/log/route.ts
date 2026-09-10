@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
