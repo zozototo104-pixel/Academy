@@ -527,6 +527,8 @@ function buildDetailedTermPlans(program: AcademicProgramInput, category: string,
   const term2Books = booksForSemester(program, 2)
   const term1Exams = examsForSemester(program, 1)
   const term2Exams = examsForSemester(program, 2)
+  const term1Assignments = assignmentLabelsForSemester(program, 1)
+  const term2Assignments = assignmentLabelsForSemester(program, 2)
   const unitStage1 = unitsForStage(program, 1)
   const unitStage2 = unitsForStage(program, 2)
 
