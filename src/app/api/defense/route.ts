@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
 
 // ===== أدوات خبير الذكاء الاصطناعي =====
 
-async function aiOpening(title: string, abstract: string): Promise<string> {
+async function aiOpening(title: string, abstract: string, studentAcademicContext?: string): Promise<string> {
   try {
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
