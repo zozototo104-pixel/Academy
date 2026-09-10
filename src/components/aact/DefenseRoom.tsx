@@ -293,7 +293,14 @@ ${recent || 'بدأت الجلسة للتو.'}
 
   const startLiveAdvisor = useCallback((initialMessages?: DefenseMsg[]) => {
     if (!isStudent || finished || liveAdvisorRef.current) return
-    audioRef.current?.pause()
+    // ألغِ أي نطق TTS محلي قبل تشغيل Gemini Live حتى لا يظهر صوتان متداخلان.
+    ttsSerialRef.current++
+    try {
+      const a = audioRef.current || getSharedAudio()
+      a.pause()
+      a.removeAttribute('src')
+      a.load()
+    } catch {}
     try { window.speechSynthesis?.cancel() } catch {}
     setSpeaking(false)
     if (transcriptResumeRef.current) {
