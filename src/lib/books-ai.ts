@@ -1363,10 +1363,12 @@ export function fallbackExamQuestionBatch(
   const plan = batchQuestionPlan(spec.kind, spec.count)
   return plan.map((kind, i) => {
     const concept = pick(i)
-    if (kind === 'TF') return makeFallbackTf(concept, specAr, i + batchIndex)
-    if (kind === 'SHORT') return makeFallbackShort(concept, specAr, i + batchIndex)
-    if (kind === 'ESSAY') return makeFallbackEssay(concept, specAr, i + batchIndex)
-    return makeFallbackMcq(concept, specAr, kind === 'CASE_MCQ', i + batchIndex)
+    let q: GeneratedQuestion
+    if (kind === 'TF') q = makeFallbackTf(concept, specAr, i + batchIndex)
+    else if (kind === 'SHORT') q = makeFallbackShort(concept, specAr, i + batchIndex)
+    else if (kind === 'ESSAY') q = makeFallbackEssay(concept, specAr, i + batchIndex)
+    else q = makeFallbackMcq(concept, specAr, kind === 'CASE_MCQ', i + batchIndex)
+    return enrichQuestionMetadata(q, books, spec.kind)
   }).slice(0, spec.count)
 }
 
