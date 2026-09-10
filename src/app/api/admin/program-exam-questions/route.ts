@@ -167,7 +167,26 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { questionId, action, text, options, correctAnswer, modelAnswer, points } = await req.json()
+    const {
+      questionId,
+      action,
+      text,
+      options,
+      correctAnswer,
+      modelAnswer,
+      sourceEvidence,
+      sourceBookTitle,
+      sourceChapter,
+      sourceLocator,
+      cognitiveSkill,
+      difficulty,
+      correctRationale,
+      distractorRationales,
+      qualityFlags,
+      reviewNotes,
+      rejectedReason,
+      points,
+    } = await req.json()
     if (!questionId || !action) return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
 
     const existing = await db.programQuestion.findUnique({ where: { id: questionId }, include: { exam: { select: { id: true, title: true } } } })
