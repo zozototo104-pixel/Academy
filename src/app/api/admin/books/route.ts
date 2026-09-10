@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
           mimeType = fetched.mime || 'application/octet-stream'
           fileName = fetched.buffer ? (link!.split('/').pop() || 'book-file').slice(0, 180) : null
           size = fetched.buffer.length
-          const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, 40000)
+          const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
           textContent = extracted.text || null
           linkNote = extracted.readable ? extracted.note : `الرابط محفوظ، لكن لم نستخرج نصاً كافياً: ${extracted.note}`
         } else if (fetched.ok && fetched.htmlText) {
