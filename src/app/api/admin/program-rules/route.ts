@@ -17,7 +17,7 @@ export async function GET() {
   const programs = await db.program.findMany({
     where: { active: true },
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
-    select: { id: true, slug: true, titleAr: true, titleEn: true, category: true, admissionRules: true },
+    select: { id: true, slug: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
   })
   return NextResponse.json({
     programs: programs.map((p) => ({
