@@ -925,6 +925,7 @@ ${evidence}
         (rules.unverifiableRequired > 0 ? ` يوجد ${rules.unverifiableRequired} مرفق مطلوب غير قابل للتحقق.` : '') +
         ' (تعذر تحليل النموذج اللغوي — هذه نتيجة القواعد والقراءة الآلية فقط)',
       checklist: rules.checklist,
+      documentAnalyses,
       findings: rules.findings,
       strengths: rules.requiredFound > 0 ? ['توجد بعض المرفقات المطابقة والمقروءة'] : [],
       recommendedAction: rules.verdict === 'RECOMMEND_APPROVE' ? 'الملف مستوفٍ للقواعد — قرار الاعتماد للإدارة' : 'لا تعتمد الطلب قبل رفع مرفقات صحيحة ومقروءة وإعادة التحليل',
