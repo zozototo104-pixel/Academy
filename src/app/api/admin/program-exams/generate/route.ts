@@ -411,10 +411,22 @@ export async function POST(req: NextRequest) {
       `توليد امتحان الفصل ${semLabel} من ${booksCount} كتاب مقرر لبرنامج ${program.titleAr}`
     )
 
+    // نُنشئ دفعة أولية فوراً حتى لا يظهر الامتحان على صفر أسئلة إذا تأخر مزود الذكاء أو تعطّل الخلفي في Vercel
+    const starter = await ensureStarterQuestions(exam.id)
+
     // التوليد خلفياً — الاستجابة فورية والإدارة تتابع الحالة عبر polling
     scheduleGeneration(exam.id)
 
-    return NextResponse.json({ ok: true, examId: exam.id, booksCount, semester: sem, resumed: false, requiredQuestions: totalRequiredQuestions() })
+    return NextResponse.json({
+      ok: true,
+      examId: exam.id,
+      booksCount,
+      semester: sem,
+      resumed: false,
+      existingQuestions: starter.questionCount,
+      inserted: starter.inserted,
+      requiredQuestions: totalRequiredQuestions(),
+    })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam generate error:', e)
