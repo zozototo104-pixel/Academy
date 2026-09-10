@@ -129,6 +129,7 @@ async function runGeneration(examId: string) {
         batch = await generateExamQuestionBatch(exam.program, hydratedBooks, i)
       }
       if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${i + 1} من الأسئلة`)
+      if (!(await isExamStillGenerating(examId))) return
 
       await db.programQuestion.createMany({
         data: batch.map((q) => ({
