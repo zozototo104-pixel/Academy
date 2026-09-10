@@ -864,7 +864,7 @@ function buildBooksKnowledgeSection(books: ExamSourceBook[], programDomain: Prog
   let used = 0
   const parts: string[] = []
   for (let i = 0; i < books.length; i++) {
-    const part = buildBookExamDigest(books[i], i, programDomain, batchIndex)
+    const part = buildBookExamDigest(books[i], i, books.length, programDomain, batchIndex)
     if (!part.trim()) continue
     const remaining = EXAM_TOTAL_PROMPT_BOOK_CHARS - used
     if (remaining <= 1500) break
