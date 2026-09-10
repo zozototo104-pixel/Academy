@@ -205,9 +205,12 @@ export function DefenseRoom({
   const speak = useCallback(async (text: string) => {
     try {
       audioRef.current?.pause()
-      // أثناء نطق الخبير نوقف التفريغ الحي حتى لا يلتقط صوت المكبرات
+      // أثناء نطق الخبير نوقف التفريغ الحي حتى لا يلتقط صوت المكبرات ولا يعيد تشغيل نفسه قبل انتهاء الصوت.
       const wasTranscribing = transcriptResumeRef.current
-      if (wasTranscribing) transcriptRecRef.current?.stop()
+      if (wasTranscribing) {
+        transcriptPausedForSpeechRef.current = true
+        transcriptRecRef.current?.stop()
+      }
       const firstBlock = text.split('\n').filter(Boolean).slice(0, 4).join(' ').slice(0, 900)
       setSpeaking(true)
       const res = await fetch('/api/ai/tts', {
