@@ -174,12 +174,14 @@ export function AdminBooksTab() {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
     try {
-      const [b, e] = await Promise.all([
+      const [b, e, a] = await Promise.all([
         api<{ books: BookRow[] }>(`/api/admin/books?programId=${pid}`),
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
+        api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
       ])
       setBooks(b.books)
       setExams(e.exams)
+      setAssignments(a.assignments)
     } catch (err: any) {
       if (!silent) toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
