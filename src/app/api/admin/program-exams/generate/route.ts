@@ -131,15 +131,15 @@ async function cleanupDuplicatePendingQuestions(examId: string): Promise<number>
   const deleteIds: string[] = []
   for (const row of rows) {
     const textKey = normalizeQuestionText(row.text).slice(0, 180)
-    const optSig = optionSignatureFromJson(row.options)
+    const optSig = row.type === 'MCQ' ? optionSignatureFromJson(row.options) : ''
     const duplicatedText = !!textKey && seenTexts.has(textKey)
-    const duplicatedOptions = !!optSig && seenOptionSigs.has(optSig)
+    const duplicatedOptions = row.type === 'MCQ' && !!optSig && seenOptionSigs.has(optSig)
     if (duplicatedText || duplicatedOptions) {
       deleteIds.push(row.id)
       continue
     }
     if (textKey) seenTexts.add(textKey)
-    if (optSig) seenOptionSigs.add(optSig)
+    if (row.type === 'MCQ' && optSig) seenOptionSigs.add(optSig)
   }
   if (deleteIds.length) await db.programQuestion.deleteMany({ where: { id: { in: deleteIds } } })
   return rows.length - deleteIds.length
