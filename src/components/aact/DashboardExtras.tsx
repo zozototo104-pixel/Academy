@@ -872,7 +872,8 @@ export function TranscriptTab() {
                 </tbody>
               </table>
             </div>
-          ))
+            )
+          })
         )}
 
         {/* تذييل الوثيقة */}
