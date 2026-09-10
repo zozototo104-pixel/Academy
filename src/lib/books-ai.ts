@@ -1211,6 +1211,28 @@ function isWeakMcq(q: GeneratedQuestion): boolean {
   return distinct < 4 || genericHits >= 3
 }
 
+function evidenceTokens(value: unknown): string[] {
+  return norm(value)
+    .split(' ')
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 4 && !['الذي', 'التي', 'ذلك', 'هذه', 'هذا', 'داخل', 'علي', 'عند', 'ضمن', 'كتاب', 'مرجع', 'التصحيح'].includes(x))
+    .slice(0, 30)
+}
+
+function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boolean {
+  const ev = norm(evidence)
+  if (ev.length < 18 || hasForbiddenExamMetadata(ev)) return false
+  const tokens = evidenceTokens(ev)
+  if (tokens.length === 0) return false
+  for (const book of books) {
+    const text = norm(`${book.title} ${book.description || ''} ${sanitizeExamText(book.textContent || '', 40000)}`)
+    if (ev.length >= 30 && text.includes(ev.slice(0, Math.min(ev.length, 140)))) return true
+    const hits = tokens.filter((t) => text.includes(t)).length
+    if (hits >= Math.min(4, Math.max(2, Math.ceil(tokens.length * 0.35)))) return true
+  }
+  return false
+}
+
 function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }): GeneratedQuestion[] {
   const plan = batchQuestionPlan(spec.kind, spec.count)
   const usedTexts = new Set<string>()
