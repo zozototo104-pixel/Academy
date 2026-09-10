@@ -1244,16 +1244,22 @@ ${recent || 'بدأت الجلسة للتو.'}
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || !sttSupported || transcriptOn}
+              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || !sttSupported || transcriptOn || liveAdvisorOn}
                 className={`flex-1 border-white/25 font-bold ${listening ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-transparent text-white hover:bg-white/10'}`}>
                 {listening ? <Mic className="ml-1 h-3.5 w-3.5 animate-pulse" /> : <MicOff className="ml-1 h-3.5 w-3.5" />}
                 {listening ? 'أستمع إليك… تحدث الآن' : 'الإجابة صوتياً'}
               </Button>
-              <Button size="sm" variant={transcriptOn ? 'default' : 'outline'} onClick={toggleTranscript} disabled={!sttSupported}
+              <Button size="sm" variant={liveAdvisorOn ? 'default' : 'outline'} onClick={toggleLiveAdvisor}
+                className={`flex-1 border-white/25 font-black ${liveAdvisorOn ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]'}`}
+                title="تشغيل مشرف Gemini Live صوت-إلى-صوت داخل قاعة المناقشة؛ يتحدث معك بصوت متدفق مثل المكالمة">
+                {liveAdvisorOn ? <PhoneOff className="ml-1 h-3.5 w-3.5" /> : <Phone className="ml-1 h-3.5 w-3.5" />}
+                {liveAdvisorOn ? 'إيقاف المشرف المتدفق' : 'المشرف المتدفق'}
+              </Button>
+              <Button size="sm" variant={transcriptOn ? 'default' : 'outline'} onClick={toggleTranscript} disabled={!sttSupported || liveAdvisorOn}
                 className={`flex-1 border-white/25 font-bold ${transcriptOn ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-transparent text-white hover:bg-white/10'}`}
-                title="وضع تفاعلي: يسمع المستشار الذكي كلامك، يعلّق صوتياً، ويُحفظ التفريغ في المحضر">
+                title="وضع نصي احتياطي: يسمع المستشار كلامك ثم يقرأه بصوت TTS. الأفضل استخدم المشرف المتدفق.">
                 <Captions className="ml-1 h-3.5 w-3.5" />
-                {transcriptOn ? 'التفاعل الحي يعمل — تحدث' : 'تشغيل التفاعل الحي'}
+                {transcriptOn ? 'التفاعل النصي يعمل' : 'تفريغ نصي احتياطي'}
               </Button>
               <Button size="sm" variant="outline" onClick={toggleCam} className="border-white/25 bg-transparent font-bold text-white hover:bg-white/10">
                 {camOn ? <Video className="ml-1 h-3.5 w-3.5" /> : <VideoOff className="ml-1 h-3.5 w-3.5" />}
