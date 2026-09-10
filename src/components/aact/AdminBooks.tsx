@@ -308,6 +308,42 @@ export function AdminBooksTab() {
     }
   }
 
+  const rebuildKnowledge = async () => {
+    if (!programId) return
+    setRebuildingKnowledge(true)
+    try {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { totalInserted?: number } }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, action: 'rebuild' }),
+      })
+      setKnowledgeItems(d.items || [])
+      setKnowledgeStats(d.stats || {})
+      toast({ title: 'تم بناء بنك المعرفة', description: `استخرج النظام ${d.result?.totalInserted || d.count || 0} عنصر معرفة من الكتب المقررة` })
+    } catch (e: any) {
+      toast({ title: 'تعذر بناء بنك المعرفة', description: e.message, variant: 'destructive' })
+    } finally {
+      setRebuildingKnowledge(false)
+    }
+  }
+
+  const rebuildBookKnowledge = async (bookId: string) => {
+    if (!programId) return
+    setRebuildingBookId(bookId)
+    try {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { inserted?: number } }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ bookId, action: 'rebuild-book' }),
+      })
+      setKnowledgeItems(d.items || [])
+      setKnowledgeStats(d.stats || {})
+      toast({ title: 'تم تحليل الكتاب', description: `تم استخراج ${d.result?.inserted || 0} عنصر معرفة من هذا الكتاب` })
+    } catch (e: any) {
+      toast({ title: 'تعذر تحليل الكتاب', description: e.message, variant: 'destructive' })
+    } finally {
+      setRebuildingBookId(null)
+    }
+  }
+
   const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
 
   const editAssignment = (a: AssignmentRow) => {
