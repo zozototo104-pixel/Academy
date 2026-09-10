@@ -835,6 +835,20 @@ export function TranscriptTab() {
                   </Badge>
                 </div>
               </div>
+              <div className="grid gap-2 border-b border-[#c9a227]/20 bg-[#fffaf0] p-3 text-[10px] font-bold leading-5 text-slate-600 sm:grid-cols-3">
+                <div>
+                  <p className="font-black text-[#0f2b46]">المسمى الأكاديمي</p>
+                  <p>{academic.academicTitle}</p>
+                </div>
+                <div>
+                  <p className="font-black text-[#0f2b46]">خطة البرنامج</p>
+                  <p>{academic.durationLabel} · {academic.creditHoursLabel}</p>
+                </div>
+                <div>
+                  <p className="font-black text-[#0f2b46]">مخرجات مختصرة</p>
+                  <p>{academic.learningOutcomes.slice(0, 2).join(' ')}</p>
+                </div>
+              </div>
               <table className="w-full text-right text-[11px]">
                 <thead>
                   <tr className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 text-[10px] font-black text-[#5c4d1a]">
