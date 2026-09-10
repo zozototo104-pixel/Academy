@@ -357,8 +357,26 @@ export function AdminView() {
 
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
-      <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">لوحة إدارة الأكاديمية</h1>
-      <p className="mt-1 text-sm text-slate-500">نظرة شاملة على أداء المنصة — الطلاب، الامتحانات، المشرف الذكي، طلبات الالتحاق والاعتمادات</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">لوحة إدارة الأكاديمية</h1>
+          <p className="mt-1 text-sm text-slate-500">نظرة شاملة على أداء المنصة — الطلاب، الامتحانات، المشرف الذكي، طلبات الالتحاق والاعتمادات</p>
+        </div>
+        <Button
+          onClick={createDemoThesisStudent}
+          disabled={creatingDemoThesis}
+          className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#183c5f]"
+        >
+          {creatingDemoThesis ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Gavel className="ml-2 h-4 w-4" />}
+          تجهيز طالب بحث تجريبي
+        </Button>
+      </div>
+
+      <Card className="mt-4 border-[#c9a227]/35 bg-[#fffaf0]">
+        <CardContent className="p-4 text-xs font-bold leading-7 text-[#0f2b46] sm:text-sm">
+          زر التجهيز ينشئ طالباً تجريبياً مع طلب قبول مدفوع، مشرف أكاديمي، بحث تخرج مجدول الآن، ولجنة تشمل المستشار الذكي لاختبار قاعة الفيديو كونفرنس فوراً.
+        </CardContent>
+      </Card>
 
       {/* KPIs */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
