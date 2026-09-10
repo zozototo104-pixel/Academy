@@ -912,7 +912,7 @@ function makeFallbackEssay(concept: string, specAr: string, i: number): Generate
   }
 }
 
-function fallbackExamQuestionBatch(
+export function fallbackExamQuestionBatch(
   program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
   books: ExamSourceBook[],
   batchIndex: number
