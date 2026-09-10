@@ -1198,7 +1198,8 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
 export async function generateExamQuestionBatch(
   program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
   books: ExamSourceBook[],
-  batchIndex: number
+  batchIndex: number,
+  previousQuestionTexts: string[] = []
 ): Promise<GeneratedQuestion[]> {
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
