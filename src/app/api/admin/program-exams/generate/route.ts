@@ -411,7 +411,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       }
       for (let attempt = 0; attempt < EXAM_BATCH_COUNT && batch.length < EXAM_BATCH_SPECS[batchIndex].count; attempt++) {
         const fallback = filterNewQuestions(
-          fallbackExamQuestionBatch(exam.program, usableBooks, batchIndex + attempt),
+          fallbackExamQuestionBatch(exam.program, examKnowledgeBooks, batchIndex + attempt),
           fallbackKeys,
           fallbackOptions,
           fallbackOptionWords
