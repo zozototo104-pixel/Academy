@@ -168,6 +168,41 @@ export interface AcademicPlanStage {
   deliverable: string
 }
 
+export interface AcademicBookRef {
+  title: string
+  titleEn?: string | null
+  semester?: number | null
+}
+
+export interface AcademicExamRef {
+  title: string
+  semester?: number | null
+  status?: string | null
+  questionCount?: number | null
+}
+
+export interface AcademicEvaluationItem {
+  label: string
+  weight: number
+  description: string
+}
+
+export interface AcademicTermPlan {
+  id: string
+  order: number
+  title: string
+  phase: 'TERM' | 'THESIS' | 'PROJECT' | 'ACCREDITATION'
+  weight: number
+  description: string
+  learningOutcomes: string[]
+  requiredSkills: string[]
+  requiredBooks: AcademicBookRef[]
+  exams: AcademicExamRef[]
+  assignments: string[]
+  finalEvaluation: string
+  statusHint: string
+}
+
 export interface AcademicProgramProfile {
   degreeLabel: string
   specialization: string
