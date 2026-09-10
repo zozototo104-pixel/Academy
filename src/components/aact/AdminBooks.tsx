@@ -171,6 +171,7 @@ export function AdminBooksTab() {
   const [loadingBooks, setLoadingBooks] = useState(false)
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
+  const [suggestingAssignments, setSuggestingAssignments] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [stoppingExamId, setStoppingExamId] = useState<string | null>(null)
   const [form, setForm] = useState({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
