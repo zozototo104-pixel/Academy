@@ -612,7 +612,7 @@ export async function POST(req: NextRequest) {
     if (existingSemExam) {
       if (existingSemExam.status === 'REVIEW' && existingSemExam._count.questions < totalRequiredQuestions()) {
         await db.programExam.update({ where: { id: existingSemExam.id }, data: { status: 'GENERATING', errorNote: null } })
-        const step = await runGenerationSteps(existingSemExam.id, 2)
+        const step = await runGenerationSteps(existingSemExam.id, 1)
         return NextResponse.json({
           ok: step.ok,
           examId: existingSemExam.id,
