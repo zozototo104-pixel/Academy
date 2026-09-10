@@ -180,6 +180,8 @@ export function AdminView() {
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('admissions')
+  const [highlightAdmissionId, setHighlightAdmissionId] = useState<string | null>(null)
   // ===== التقييم الذكي للطلب قبل الاعتماد: خبير AI يحلل المدخلات والمرفقات ويقارنها بالمطلوب =====
   const [aiReviews, setAiReviews] = useState<Record<string, AdmissionAIReview | null>>({})
   const [aiLoading, setAiLoading] = useState<string | null>(null)
