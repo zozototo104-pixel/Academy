@@ -295,6 +295,63 @@ export function ProgramDetailsView() {
                 </div>
               </div>
 
+              {academicProfile.termPlans?.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
+                  <h3 className="mb-3 flex items-center gap-2 font-black text-[#0f2b46]">
+                    <ClipboardList className="h-5 w-5 text-[#a8841a]" />
+                    الخطة الفصلية التفصيلية
+                  </h3>
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {academicProfile.termPlans.map((term) => (
+                      <article key={term.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-[#0f2b46]/10">
+                        <div className="mb-3 flex items-start justify-between gap-2">
+                          <div>
+                            <span className="inline-flex rounded-full bg-[#0f2b46] px-2.5 py-1 text-[10px] font-black text-[#e0b83a]">{term.weight}% من التقييم</span>
+                            <h4 className="mt-2 font-black leading-snug text-[#0f2b46]">{term.title}</h4>
+                          </div>
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f7edd0] text-xs font-black text-[#0f2b46]">{term.order}</span>
+                        </div>
+                        <p className="text-xs font-bold leading-6 text-slate-600">{term.description}</p>
+                        <div className="mt-3 space-y-2 text-[11px] font-bold leading-5 text-slate-600">
+                          <div className="rounded-xl bg-slate-50 p-2">
+                            <p className="mb-1 font-black text-[#0f2b46]">الكتب المقررة</p>
+                            {term.requiredBooks.length ? term.requiredBooks.slice(0, 3).map((b) => <p key={`${term.id}-${b.title}`}>• {b.title}</p>) : <p>تحددها الإدارة أو تقرأ من روابط/ملفات الكتب عند إضافتها.</p>}
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-2">
+                            <p className="mb-1 font-black text-[#0f2b46]">مخرجات ومهارات</p>
+                            <p>{term.learningOutcomes.slice(0, 2).join(' ')}</p>
+                            <p className="mt-1 text-[#a8841a]">{term.requiredSkills.slice(0, 4).join(' · ')}</p>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-2">
+                            <p className="mb-1 font-black text-[#0f2b46]">الواجبات والامتحانات</p>
+                            {term.assignments.slice(0, 2).map((a, i) => <p key={i}>• {a}</p>)}
+                            {term.exams.length ? term.exams.slice(0, 2).map((e) => <p key={`${term.id}-${e.title}`} className="text-emerald-700">اختبار: {e.title} {e.questionCount ? `(${e.questionCount} سؤال)` : ''}</p>) : <p className="text-amber-700">لا يوجد امتحان منشور بعد لهذه المرحلة.</p>}
+                          </div>
+                        </div>
+                        <p className="mt-3 rounded-xl bg-[#0f2b46] p-2 text-[11px] font-bold leading-5 text-[#f5f0e1]">التقييم النهائي: {term.finalEvaluation}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {academicProfile.finalEvaluationFormula?.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+                  <h3 className="mb-3 font-black text-[#0f2b46]">توزيع الدرجة النهائية</h3>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {academicProfile.finalEvaluationFormula.map((item) => (
+                      <div key={item.label} className="rounded-xl bg-[#f8fafc] p-3 ring-1 ring-slate-100">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="text-xs font-black text-[#0f2b46]">{item.label}</p>
+                          <span className="rounded-full bg-[#c9a227] px-2 py-0.5 text-[10px] font-black text-[#0f2b46]">{item.weight}%</span>
+                        </div>
+                        <p className="text-[11px] font-bold leading-5 text-slate-600">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 grid gap-4 lg:grid-cols-3">
                 <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 lg:col-span-1">
                   <h3 className="mb-3 font-black text-[#0f2b46]">متطلب البحث/المشروع</h3>
