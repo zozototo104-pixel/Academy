@@ -1295,14 +1295,19 @@ ${plannedTypes}
 
   const cleaned: GeneratedQuestion[] = []
   for (const q of arr) {
-    const type = String(q.type || '').toUpperCase()
+    const rawType = String(q.type || '').toUpperCase()
+    const type = rawType === 'CASE_MCQ' ? 'MCQ' : rawType
     const text = String(q.text || '').trim()
     if (!text) continue
-    if (type === 'MCQ' || type === 'TF') {
-      const options = Array.isArray(q.options) ? q.options.map((o: any) => String(o)).slice(0, 6) : null
-      const correct = String(q.correct ?? '')
-      if (!options || options.length < 2 || correct === '' || Number.isNaN(Number(correct))) continue
-      cleaned.push({ type, text: text.slice(0, 2000), options, correct, points: Number(q.points) || 2 })
+    if (type === 'MCQ') {
+      const options = Array.isArray(q.options) ? uniqueStrings(q.options.map((o: any) => String(o)), 4, 240) : null
+      const correctNum = Number(q.correct ?? '')
+      if (!options || options.length !== 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
+      cleaned.push({ type: 'MCQ', text: text.slice(0, 2000), options, correct: String(correctNum), points: 2 })
+    } else if (type === 'TF') {
+      const correctNum = Number(q.correct ?? '')
+      if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
+      cleaned.push({ type: 'TF', text: text.slice(0, 2000), options: ['صح', 'خطأ'], correct: String(correctNum), points: 2 })
     } else if (type === 'SHORT' || type === 'ESSAY') {
       const modelAnswer = String(q.modelAnswer || q.correct || '').trim()
       if (!modelAnswer) continue
@@ -1314,19 +1319,10 @@ ${plannedTypes}
       })
     }
   }
-  if (cleaned.length < spec.count) {
-    const fallback = fallbackExamQuestionBatch(program, books, batchIndex)
-    const existing = new Set(cleaned.map((q) => norm(q.text)))
-    for (const q of fallback) {
-      if (cleaned.length >= spec.count) break
-      const key = norm(q.text)
-      if (existing.has(key)) continue
-      existing.add(key)
-      cleaned.push(q)
-    }
-  }
 
-  return cleaned.length > 0 ? cleaned.slice(0, spec.count) : fallbackExamQuestionBatch(program, books, batchIndex)
+  const fallback = fallbackExamQuestionBatch(program, books, batchIndex)
+  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec)
+  return balanced.length > 0 ? balanced : fallback
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
