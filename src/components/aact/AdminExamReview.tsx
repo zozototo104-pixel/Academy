@@ -157,10 +157,37 @@ export function QuestionReviewDialog({
           options: current?.type === 'TF' ? ['صح', 'خطأ'] : draft.options,
           correctAnswer: draft.correctAnswer,
           modelAnswer: draft.modelAnswer,
+          sourceEvidence: draft.sourceEvidence,
+          sourceBookTitle: draft.sourceBookTitle,
+          sourceChapter: draft.sourceChapter,
+          sourceLocator: draft.sourceLocator,
+          cognitiveSkill: draft.cognitiveSkill,
+          difficulty: draft.difficulty,
+          correctRationale: draft.correctRationale,
+          distractorRationales: draft.distractorRationales,
+          qualityFlags: draft.qualityFlags,
+          reviewNotes: draft.reviewNotes,
           points: draft.points,
         }),
       })
-      setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, text: draft.text, options: draft.options, correctAnswer: draft.correctAnswer, modelAnswer: draft.modelAnswer, points: draft.points } : q)))
+      setQuestions((prev) => prev.map((q) => (q.id === id ? {
+        ...q,
+        text: draft.text,
+        options: draft.options,
+        correctAnswer: draft.correctAnswer,
+        modelAnswer: draft.modelAnswer,
+        sourceEvidence: draft.sourceEvidence,
+        sourceBookTitle: draft.sourceBookTitle,
+        sourceChapter: draft.sourceChapter,
+        sourceLocator: draft.sourceLocator,
+        cognitiveSkill: draft.cognitiveSkill,
+        difficulty: draft.difficulty,
+        correctRationale: draft.correctRationale,
+        distractorRationales: draft.distractorRationales,
+        qualityFlags: draft.qualityFlags,
+        reviewNotes: draft.reviewNotes,
+        points: draft.points,
+      } : q)))
       setEditing(null)
       setDraft(null)
       toast({ title: 'تم حفظ التعديل' })
