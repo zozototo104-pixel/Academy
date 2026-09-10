@@ -141,6 +141,7 @@ export function DashboardView() {
 
   const myProgramIds = new Set(enrollments.map((e) => e.programId))
   const available = programs.filter((p) => !myProgramIds.has(p.id))
+  const activeAcademicProfile = active ? buildAcademicProgramProfile(active.program) : null
 
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
