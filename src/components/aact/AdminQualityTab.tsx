@@ -75,6 +75,7 @@ interface AcademicQualityData {
     readyExams: number
     totalQuestions: number
     questionSourceCoverage: number
+    assessmentMetadataCoverage: number
     duplicateQuestionGroups: number
     atRiskStudents: number
     pendingAppeals: number
