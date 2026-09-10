@@ -284,6 +284,96 @@ export function AdminBooksTab() {
     }
   }
 
+  const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
+
+  const editAssignment = (a: AssignmentRow) => {
+    setAssignmentForm({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      semester: String(a.semester || 1),
+      type: a.type || 'REPORT',
+      points: String(a.points || 10),
+      weight: String(a.weight || 0),
+      dueDays: a.dueDays ? String(a.dueDays) : '',
+      rubric: a.rubric || '',
+      status: a.status || 'PUBLISHED',
+    })
+  }
+
+  const saveAssignment = async () => {
+    if (!programId) return
+    if (!assignmentForm.title.trim() || !assignmentForm.description.trim()) {
+      toast({ title: 'تنبيه', description: 'اكتب عنوان الواجب ووصفه قبل الحفظ', variant: 'destructive' })
+      return
+    }
+    setSavingAssignment(true)
+    try {
+      await api('/api/admin/assignments', {
+        method: 'POST',
+        body: JSON.stringify({ ...assignmentForm, programId }),
+      })
+      resetAssignmentForm()
+      await loadProgramData(programId, true)
+      toast({ title: 'تم حفظ الواجب', description: 'ظهر الواجب ضمن خطة الطالب الفصلية ويمكن للطلاب تسليمه من بوابتهم' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setSavingAssignment(false)
+    }
+  }
+
+  const deleteAssignment = async (id: string) => {
+    if (!programId || !confirm('حذف هذا الواجب وكل تسليماته؟ هذا الإجراء نهائي.')) return
+    try {
+      await api(`/api/admin/assignments?id=${id}`, { method: 'DELETE' })
+      await loadProgramData(programId, true)
+      toast({ title: 'تم حذف الواجب' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const gradeSubmission = async (submission: AssignmentSubmissionRow, assignment: AssignmentRow) => {
+    if (!programId) return
+    const rawScore = window.prompt(`درجة الطالب من ${assignment.points}`, submission.score != null ? String(submission.score) : '')
+    if (rawScore === null) return
+    const rawFeedback = window.prompt('ملاحظة التصحيح أو التغذية الراجعة', submission.feedback || '')
+    if (rawFeedback === null) return
+    setGradingSubmissionId(submission.id)
+    try {
+      await api('/api/admin/assignments', {
+        method: 'PATCH',
+        body: JSON.stringify({ submissionId: submission.id, score: rawScore, feedback: rawFeedback, status: 'GRADED' }),
+      })
+      await loadProgramData(programId, true)
+      toast({ title: 'تم تصحيح الواجب', description: `${submission.studentName || 'الطالب'} — ${rawScore}/${assignment.points}` })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setGradingSubmissionId(null)
+    }
+  }
+
+  const requestAssignmentRevision = async (submission: AssignmentSubmissionRow) => {
+    if (!programId) return
+    const rawFeedback = window.prompt('اكتب سبب طلب التعديل للطالب', submission.feedback || '')
+    if (rawFeedback === null) return
+    setGradingSubmissionId(submission.id)
+    try {
+      await api('/api/admin/assignments', {
+        method: 'PATCH',
+        body: JSON.stringify({ submissionId: submission.id, feedback: rawFeedback, status: 'NEEDS_REVISION' }),
+      })
+      await loadProgramData(programId, true)
+      toast({ title: 'تم طلب تعديل الواجب' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setGradingSubmissionId(null)
+    }
+  }
+
   const suggest = async () => {
     if (!programId) return
     setSuggesting(true)
