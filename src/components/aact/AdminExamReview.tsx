@@ -357,6 +357,9 @@ export function QuestionReviewDialog({
                           ))}
                         </ul>
                       )}
+                      {q.sourceEvidence && (
+                        <p className="mt-1.5 rounded-lg bg-[#fffaf0] p-2 text-[10px] font-bold leading-5 text-[#a8841a]"><strong>دليل السؤال من الكتاب/بنك المعرفة:</strong> {q.sourceEvidence}</p>
+                      )}
                       {q.modelAnswer && (
                         <p className="mt-1.5 line-clamp-2 text-[10px] text-slate-500"><strong>نموذج الإجابة:</strong> {q.modelAnswer}</p>
                       )}
