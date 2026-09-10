@@ -164,9 +164,19 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         parts.push(
           `بنك المعرفة الأكاديمي المستخرج من كتب هذا التخصص (استخدمه في الشرح والأسئلة والمناقشة):\n${knowledgeItems
             .slice(0, 24)
-            .map((k, i) => `${i + 1}. [${k.category}] ${k.title}: ${k.summary.slice(0, 260)}${k.bookTitle ? ` — من «${k.bookTitle}»` : ''}`)
+            .map((k, i) => `${i + 1}. ${labelKnowledgeCategory(k.category)} — ${k.title}: ${k.summary.slice(0, 260)}${k.bookTitle ? ` — من «${k.bookTitle}»` : ''}`)
             .join('\n')}`
         )
+      }
+
+      if (p.studyGuides.length > 0) {
+        const guides = p.studyGuides.slice(0, 3).map((g) => {
+          const objectives = parseArray(g.objectives).slice(0, 4)
+          const terms = parseArray(g.keyTerms).slice(0, 6)
+          const qs = parseArray(g.discussionQuestions).slice(0, 4)
+          return `- ${g.title} — ${g.semester === 2 ? 'الفصل الثاني' : g.semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'}: ${g.overview.slice(0, 360)}${objectives.length ? `\n  أهداف: ${objectives.join('؛ ')}` : ''}${terms.length ? `\n  مصطلحات: ${terms.join('، ')}` : ''}${qs.length ? `\n  أسئلة نقاش: ${qs.join(' | ')}` : ''}`
+        })
+        parts.push(`أدلة الدراسة المنشورة للطالب (استند إليها في توجيه القراءة والمناقشة):\n${guides.join('\n')}`)
       }
 
       const readyExams = p.programExams.filter((e) => e.status === 'READY')
