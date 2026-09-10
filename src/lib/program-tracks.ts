@@ -569,7 +569,7 @@ function buildDetailedTermPlans(program: AcademicProgramInput, category: string,
         requiredSkills: focus.skills.slice(0, 4),
         requiredBooks: term1Books,
         exams: term1Exams,
-        assignments: [
+        assignments: term1Assignments.length ? term1Assignments : [
           'تلخيص تحليلي لأهم مفاهيم الكتب المقررة.',
           ...(unitStage1.length ? [`تطبيق مفاهيم: ${unitStage1.join('، ')}.`] : ['تطبيق المفاهيم على حالة عملية قصيرة.']),
         ],
