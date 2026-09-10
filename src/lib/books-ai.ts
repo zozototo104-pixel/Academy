@@ -1341,10 +1341,10 @@ ${plannedTypes}
 
 أجب بصيغة JSON فقط — مصفوفة من ${spec.count} أسئلة مختلطة حسب التسلسل أعلاه، أمثلة شكلية فقط:
 [
-{"type":"MCQ","text":"...","options":["خيار مرتبط بالكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","points":2},
-{"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","points":2},
-{"type":"SHORT","text":"...","modelAnswer":"مرجع التصحيح: ...","points":5},
-{"type":"ESSAY","text":"...","modelAnswer":"مرجع التصحيح: ...","points":10}
+{"type":"MCQ","text":"...","options":["خيار مستند إلى دليل الكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":2},
+{"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":2},
+{"type":"SHORT","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":5},
+{"type":"ESSAY","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","points":10}
 ]`
 
   let raw = ''
