@@ -8,6 +8,19 @@ import { hydrateBookContentForExam } from '@/lib/book-content'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
+function totalRequiredQuestions(): number {
+  return EXAM_BATCH_SPECS.reduce((sum, b) => sum + b.count, 0)
+}
+
+function firstMissingBatchIndex(existingCount: number): number {
+  let cumulative = 0
+  for (let i = 0; i < EXAM_BATCH_SPECS.length; i++) {
+    cumulative += EXAM_BATCH_SPECS[i].count
+    if (existingCount < cumulative) return i
+  }
+  return EXAM_BATCH_COUNT
+}
+
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
 // 12.2: كل برنامج له امتحانان (فصل أول + فصل ثانٍ) — الأسئلة تولد بحالة "بانتظار مراجعة الإدارة"
 // (Human-in-the-loop) ولا تُنشر للطلاب إلا بعد اعتماد الإدارة.
