@@ -1204,6 +1204,17 @@ ${recent || 'بدأت الجلسة للتو.'}
             )
           })
         )}
+        {liveUserCaption && (
+          <div className="flex flex-row-reverse items-start gap-2">
+            <div className="max-w-[85%] rounded-2xl border border-dashed border-emerald-400/60 bg-emerald-500/10 px-3.5 py-2 text-xs italic text-emerald-100">أنت الآن: {liveUserCaption}…</div>
+          </div>
+        )}
+        {liveAiCaption && (
+          <div className="flex items-start gap-2">
+            <div className="shrink-0 rounded-full bg-[#c9a227] p-1.5 text-[#0f2b46]"><Bot className="h-3.5 w-3.5" /></div>
+            <div className="max-w-[85%] rounded-2xl border border-[#c9a227]/50 bg-[#c9a227]/10 px-3.5 py-2 text-xs leading-relaxed text-[#f7edd0]">المشرف يتكلم: {liveAiCaption}</div>
+          </div>
+        )}
         {interim && (
           <div className="flex flex-row-reverse items-start gap-2">
             <div className="max-w-[85%] rounded-2xl border border-dashed border-[#c9a227]/60 px-3.5 py-2 text-xs italic text-white/70">{interim}…</div>
