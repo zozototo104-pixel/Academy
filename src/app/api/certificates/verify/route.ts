@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
         country: cert.country,
         issuedAt: cert.issuedAt,
         valid: cert.valid,
+        academicProfile,
       },
       message: cert.valid
         ? 'شهادة صحيحة ومسجلة رسمياً في سجلات الأكاديمية الأمريكية للاستشارات والتدريب'
