@@ -188,6 +188,8 @@ export function AdminBooksTab() {
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
+  const [studyGuides, setStudyGuides] = useState<StudyGuideRow[]>([])
+  const [generatingGuideSemester, setGeneratingGuideSemester] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingBooks, setLoadingBooks] = useState(false)
