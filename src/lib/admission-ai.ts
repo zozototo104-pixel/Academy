@@ -13,6 +13,8 @@ export interface AdmissionRules {
   minAge?: number
   customRules?: string
   displayNote?: string
+  /** ملف أكاديمي مخصص للبرنامج محفوظ داخل نفس JSON لتجنب Migration إضافي. */
+  academicProfile?: unknown
 }
 
 export const DEFAULT_REQUIRED_DOCS = ['DEGREE', 'ID', 'PHOTO', 'CV']
