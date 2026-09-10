@@ -103,7 +103,29 @@ async function existingOptionSignatures(examId: string): Promise<Set<string>> {
   return new Set(rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean))
 }
 
-function filterNewQuestions<T extends { text: string; options?: string[] | null }>(questions: T[], keys: Set<string>, optionSigs?: Set<string>): T[] {
+async function existingOptionTexts(examId: string): Promise<Set<string>> {
+  const rows = await db.programQuestion.findMany({ where: { examId, type: 'MCQ' }, select: { options: true } })
+  const out = new Set<string>()
+  for (const row of rows) {
+    try {
+      const arr = JSON.parse(row.options || '[]')
+      if (Array.isArray(arr)) {
+        for (const opt of arr) {
+          const n = normalizeQuestionText(opt)
+          if (n) out.add(n)
+        }
+      }
+    } catch {}
+  }
+  return out
+}
+
+function filterNewQuestions<T extends { text: string; options?: string[] | null }>(
+  questions: T[],
+  keys: Set<string>,
+  optionSigs?: Set<string>,
+  optionTexts?: Set<string>
+): T[] {
   const out: T[] = []
   for (const q of questions) {
     if (hasBadExamMetadata(`${q.text} ${(q.options || []).join(' ')}`)) continue
@@ -111,8 +133,14 @@ function filterNewQuestions<T extends { text: string; options?: string[] | null 
     if (!key || keys.has(key)) continue
     const optSig = optionSignatureFromArray(q.options)
     if (optSig && optionSigs?.has(optSig)) continue
+    const opts = Array.isArray(q.options) ? q.options.map((o) => normalizeQuestionText(o)).filter(Boolean) : []
+    if (opts.length && optionTexts) {
+      const repeatedOptionCount = opts.filter((o) => optionTexts.has(o)).length
+      if (repeatedOptionCount >= 2) continue
+    }
     keys.add(key)
     if (optSig) optionSigs?.add(optSig)
+    for (const opt of opts) optionTexts?.add(opt)
     out.push(q)
   }
   return out
