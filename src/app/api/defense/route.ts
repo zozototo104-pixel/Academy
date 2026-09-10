@@ -206,6 +206,17 @@ export async function POST(req: NextRequest) {
       await db.defenseMessage.create({
         data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة — تقييم على الأسئلة المجاب عنها: ${aiScore}/100 — تم توليد محضر الجلسة وأرشفته في ملف البحث` },
       })
+      await updateStudentAcademicMemory(user.id, {
+        kind: 'DEFENSE',
+        persona: 'DEFENSE',
+        thesisTitle: thesis.title,
+        score: aiScore,
+        passed: aiScore >= 60,
+        summary: rec,
+        weaknesses: ['جلسة مناقشة منتهية مبكراً؛ يحتاج المشرف إلى مراجعة المحضر قبل القرار النهائي'],
+        concepts: ['إدارة وقت المناقشة', 'عرض المنهجية والنتائج بإيجاز'],
+        nextActions: ['مراجعة سبب إنهاء الجلسة مبكراً وتحديد هل يحتاج الطالب إلى موعد متابعة'],
+      }).catch(() => {})
       await notify(user.id, 'DEFENSE', 'أنهيت جلسة المناقشة', `تقييم أولي ${aiScore}/100 — محضر الجلسة تولّد تلقائياً وأُرشف في ملف بحثك مع تسجيل الجلسة.`, 'dashboard')
       const messages = await db.defenseMessage.findMany({ where: { thesisId: thesis.id }, orderBy: { createdAt: 'asc' } })
       return NextResponse.json({ ok: true, messages, completed: true, aiScore, aiRecommendation: rec, minutes })
