@@ -163,7 +163,30 @@ export function AdminThesisTab() {
 
   return (
     <div className="mt-4 space-y-4">
-      {theses.length === 0 ? (
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+            تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
+          </p>
+        </div>
+        <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
+          <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
+        </Button>
+      </div>
+
+      {loadError ? (
+        <Card className="border-red-100 bg-red-50">
+          <CardContent className="p-6 text-center">
+            <XCircle className="mx-auto mb-2 h-8 w-8 text-red-500" />
+            <p className="text-sm font-black text-red-700">تعذر تحميل أبحاث التخرج</p>
+            <p className="mt-1 text-xs font-bold text-red-600">{loadError}</p>
+            <Button onClick={load} className="mt-4 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]">
+              إعادة المحاولة
+            </Button>
+          </CardContent>
+        </Card>
+      ) : theses.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث تخرج مسلَّمة بعد</CardContent></Card>
       ) : (
         theses.map((t) => {
