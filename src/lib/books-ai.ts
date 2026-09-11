@@ -732,20 +732,25 @@ function parseLoose(raw: string): any[] {
   return objs.length >= byLine.length ? objs : byLine
 }
 
-function normalizeSuggestion(b: any): BookSuggestion | null {
+function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggestion | null {
   const title = cleanText(b?.title, 300)
   const titleEn = cleanText(b?.titleEn || b?.englishTitle || b?.originalTitle, 300)
   if (!title && !titleEn) return null
   const searchTitle = titleEn || title
   const rawLink = cleanText(b?.link || b?.url, 600)
   const link = /^https?:\/\//i.test(rawLink) ? rawLink : googleBooksSearch(searchTitle)
+  const sem = Number(b?.semester ?? b?.term ?? '')
   return {
     title: title || titleEn,
     titleEn,
     author: cleanText(b?.author, 200) || 'مرجع أكاديمي متخصص',
     year: cleanText(b?.year, 20) || 'حديث/متداول',
-    reason: cleanText(b?.reason, 600) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
+    reason: cleanText(b?.reason, 900) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
     link,
+    semester: Number.isInteger(sem) && sem >= 1 && sem <= 3 ? sem : null,
+    levelPolicy: cleanText(b?.levelPolicy || b?.academicLevelPolicy, 900) || policy?.levelPolicy,
+    readingDepth: cleanText(b?.readingDepth || b?.readingPlan, 900) || policy?.readingDepth,
+    assessmentOrientation: cleanText(b?.assessmentOrientation || b?.examOrientation, 900) || policy?.assessmentOrientation,
   }
 }
 
