@@ -296,7 +296,7 @@ export async function POST(req: NextRequest) {
 
     const exam = await db.programExam.findUnique({
       where: { id: examId },
-      include: { questions: { select: { id: true, status: true } } },
+      include: { program: { select: { category: true, titleAr: true } }, questions: { select: { id: true, status: true } } },
     })
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
 
