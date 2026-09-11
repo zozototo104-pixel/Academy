@@ -103,14 +103,31 @@ function downsampleTo16k(input: Float32Array, inputRate: number): Int16Array {
 
 class Pcm24Player {
   private ctx: AudioContext | null = null
+  private recorderDest: MediaStreamAudioDestinationNode | null = null
   private nextTime = 0
   private readonly volumeBoost = 1.7
+  private onOutputStream?: (stream: MediaStream | null) => void
+
+  constructor(onOutputStream?: (stream: MediaStream | null) => void) {
+    this.onOutputStream = onOutputStream
+  }
+
+  private ensureRecorderDestination() {
+    if (!this.ctx || this.recorderDest) return
+    try {
+      this.recorderDest = this.ctx.createMediaStreamDestination()
+      this.onOutputStream?.(this.recorderDest.stream)
+    } catch {
+      this.recorderDest = null
+    }
+  }
 
   async play(b64: string) {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
     if (!Ctx) throw new Error('AudioContext غير مدعوم في هذا المتصفح')
     if (!this.ctx) this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
+    this.ensureRecorderDestination()
 
     const pcm = b64ToInt16(b64)
     const buf = this.ctx.createBuffer(1, pcm.length, 24000)
@@ -123,6 +140,7 @@ class Pcm24Player {
     src.buffer = buf
     src.connect(gain)
     gain.connect(this.ctx.destination)
+    if (this.recorderDest) gain.connect(this.recorderDest)
 
     const now = this.ctx.currentTime
     if (this.nextTime < now + 0.03) this.nextTime = now + 0.03
@@ -132,6 +150,8 @@ class Pcm24Player {
 
   stop() {
     this.nextTime = 0
+    this.onOutputStream?.(null)
+    this.recorderDest = null
     try { this.ctx?.close() } catch {}
     this.ctx = null
   }
