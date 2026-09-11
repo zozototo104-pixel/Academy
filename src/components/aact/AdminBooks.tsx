@@ -367,11 +367,13 @@ export function AdminBooksTab() {
       await loadProgramData(programId, true)
       toast({
         title: 'تمت إضافة الكتاب',
-        description: d.knowledgeItemsInserted
-          ? `تمت قراءة الكتاب وبناء ${d.knowledgeItemsInserted} عنصر معرفة للامتحانات والمشرف الذكي`
-          : d.textExtracted
-            ? 'تمت قراءة محتوى الملف/الرابط — ويمكنك تحديث بنك المعرفة عند الحاجة'
-            : d.linkNote || 'أُضيف إلى الكتب المقررة للتخصص',
+        description: d.linkReadStatus === 'SEARCH_LINK_ONLY'
+          ? 'أُضيف الرابط كفهرس/بحث فقط. لكي يقرأه المشرف والامتحانات فعلياً ارفع ملف الكتاب أو ضع رابط PDF/نص مباشر.'
+          : d.knowledgeItemsInserted && (d.linkReadStatus === 'FILE_EXTRACTED' || d.linkReadStatus === 'TEXT_EXTRACTED')
+            ? `تمت قراءة الكتاب وبناء ${d.knowledgeItemsInserted} عنصر معرفة للامتحانات والمشرف الذكي`
+            : d.textExtracted
+              ? 'تمت قراءة محتوى الملف/الرابط — ويمكنك تحديث بنك المعرفة عند الحاجة'
+              : d.linkNote || 'أُضيف إلى الكتب المقررة للتخصص',
       })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
