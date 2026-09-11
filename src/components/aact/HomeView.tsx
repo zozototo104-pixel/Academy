@@ -92,7 +92,7 @@ export function HomeView() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api<{ programs: ProgramLite[] }>('/api/programs')
+    api<{ programs: ProgramLite[] }>('/api/programs?summary=1')
       .then((d) => setPrograms(d.programs))
       .catch(() => {})
       .finally(() => setLoading(false))
