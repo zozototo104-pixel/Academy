@@ -91,7 +91,7 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { action } = await req.json()
+    const { action, model: selectedLiveModel } = await req.json()
     if (action === 'test-email') {
       const ok = await sendEmail({
         to: admin.email,
