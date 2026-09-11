@@ -75,6 +75,18 @@ export default function Home() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!authChecked || !user) return
+    const q = new URLSearchParams(window.location.search)
+    if (q.has('view')) return
+    const state = useAppStore.getState()
+    if (user.role === 'ADMIN' && (view === 'home' || view === 'auth')) {
+      state.navigate('admin')
+    } else if (user.role !== 'ADMIN' && view === 'auth') {
+      state.navigate('dashboard')
+    }
+  }, [authChecked, user, view])
+
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
       <PWARegister />
