@@ -42,6 +42,7 @@ function PWARegister() {
 
 export default function Home() {
   const { view, user, setUser, authChecked, setAuthChecked } = useAppStore()
+  const didAutoRouteRef = useRef(false)
 
   // Load current user on mount
   useEffect(() => {
