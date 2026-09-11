@@ -220,23 +220,38 @@ export function AdminView() {
 
   const load = async () => {
     setLoading(true)
-    try {
-      const [s, a, st, ad] = await Promise.all([
-        api<Stats>('/api/admin/stats'),
-        api<{ applications: AgentApp[] }>('/api/admin/applications'),
-        api<{ students: StudentRow[] }>('/api/admin/students'),
-        api<{ applications: AdmissionApp[]; supervisors: SupervisorOption[] }>('/api/admin/admissions'),
-      ])
-      setData(s)
-      setApps(a.applications)
-      setStudents(st.students)
-      setAdmissions(ad.applications)
-      setSupervisors(ad.supervisors)
-    } catch (e: any) {
-      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
+    setAdmissionsLoading(true)
+    setStudentsLoading(true)
+    setAppsLoading(true)
+
+    const statsPromise = api<Stats>('/api/admin/stats')
+      .then((s) => setData(s))
+      .catch((e: any) => toast({ title: 'تعذر تحميل مؤشرات الإدارة', description: e.message, variant: 'destructive' }))
+      .finally(() => setLoading(false))
+
+    void api<{ applications: AgentApp[] }>('/api/admin/applications')
+      .then((a) => setApps(Array.isArray(a.applications) ? a.applications : []))
+      .catch(() => setApps([]))
+      .finally(() => setAppsLoading(false))
+
+    void api<{ students: StudentRow[] }>('/api/admin/students')
+      .then((st) => setStudents(Array.isArray(st.students) ? st.students : []))
+      .catch(() => setStudents([]))
+      .finally(() => setStudentsLoading(false))
+
+    void api<{ applications: AdmissionApp[]; supervisors: SupervisorOption[] }>('/api/admin/admissions')
+      .then((ad) => {
+        setAdmissions(Array.isArray(ad.applications) ? ad.applications : [])
+        setSupervisors(Array.isArray(ad.supervisors) ? ad.supervisors : [])
+      })
+      .catch((e: any) => {
+        setAdmissions([])
+        setSupervisors([])
+        toast({ title: 'تعذر تحميل طلبات الالتحاق', description: e.message, variant: 'destructive' })
+      })
+      .finally(() => setAdmissionsLoading(false))
+
+    await statsPromise
   }
 
   useEffect(() => {
