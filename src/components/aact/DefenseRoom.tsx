@@ -268,11 +268,12 @@ export function DefenseRoom({
       recognitionRef.current?.abort()
       transcriptRecRef.current?.abort()
       liveAdvisorRef.current?.stop()
+      cleanupRecordingMixer()
       streamRef.current?.getTracks().forEach((t) => t.stop())
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       audioRef.current?.pause()
     }
-  }, [])
+  }, [cleanupRecordingMixer])
 
   // فتح قناة الصوت بأول لمسة داخل القاعة — لضمان نطق الخبير على iOS
   useEffect(() => {
