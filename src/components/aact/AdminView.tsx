@@ -489,7 +489,15 @@ export function AdminView() {
         {/* Admissions applications */}
         <TabsContent value="admissions">
           <div className="mt-4 space-y-4">
-            {admissions.length === 0 ? (
+            {admissionsLoading ? (
+              <Card className="border-[#0f2b46]/10">
+                <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center">
+                  <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
+                  <p className="text-sm font-black text-[#0f2b46]">جاري تحميل طلبات الالتحاق...</p>
+                  <p className="text-xs font-bold text-slate-400">تفتح لوحة الإدارة الآن بينما تُحمّل التفاصيل في الخلفية.</p>
+                </CardContent>
+              </Card>
+            ) : admissions.length === 0 ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات التحقق بعد</CardContent>
               </Card>
