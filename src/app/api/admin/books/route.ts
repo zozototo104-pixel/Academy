@@ -278,8 +278,22 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      book: { id: book.id, title: book.title, author: book.author, fileName: book.fileName, link: book.link, source: book.source },
+      book: {
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        fileName: book.fileName,
+        link: book.link,
+        source: book.source,
+        semester: book.semester,
+        levelPolicy: book.levelPolicy,
+        readingDepth: book.readingDepth,
+        assessmentOrientation: book.assessmentOrientation,
+        linkReadStatus: book.linkReadStatus,
+        linkReadNote: book.linkReadNote,
+      },
       textExtracted: !!textContent,
+      linkReadStatus,
       linkNote,
       knowledgeItemsInserted: knowledgeBuild?.inserted || 0,
       notifiedStudents: enrolled.length,
