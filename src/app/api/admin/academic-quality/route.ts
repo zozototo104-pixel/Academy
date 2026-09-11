@@ -133,6 +133,8 @@ export async function GET() {
           title: true,
           semester: true,
           textContent: true,
+          linkReadStatus: true,
+          linkReadNote: true,
           program: { select: { id: true, titleAr: true } },
           _count: { select: { knowledgeItems: true } },
         },
