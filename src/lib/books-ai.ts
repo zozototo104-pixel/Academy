@@ -1563,6 +1563,7 @@ export async function generateExamQuestionBatch(
 ): Promise<GeneratedQuestion[]> {
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
+  const policy = academicPolicyForCategory(program.category)
   const specialty = specialtyName(program)
   const domain = detectProgramDomain(program)
   const booksSection = buildBooksKnowledgeSection(books, domain, batchIndex)
