@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Mail, MessageSquareText, Loader2, Send, CheckCircle2, Phone, Globe } from 'lucide-react'
+import { Mail, MessageSquareText, Loader2, Send, CheckCircle2, Phone, Globe, Code2 } from 'lucide-react'
 
 export function ContactView() {
   const { toast } = useToast()
