@@ -306,6 +306,151 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// PATCH /api/admin/books — تحديث مصدر قراءة كتاب موجود: رفع ملف أو إضافة رابط رسمي مباشر
+export async function PATCH(req: NextRequest) {
+  try {
+    const admin = await requireAdmin()
+    const form = await req.formData()
+    const bookId = String(form.get('bookId') || '').trim()
+    if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
+
+    const book = await db.book.findUnique({ where: { id: bookId }, include: { program: true } })
+    if (!book) return NextResponse.json({ error: 'الكتاب غير موجود' }, { status: 404 })
+
+    const file = form.get('file') as File | null
+    const linkRaw = String(form.get('link') || '').trim()
+    if ((!file || file.size === 0) && !linkRaw) {
+      return NextResponse.json({ error: 'ارفع ملف الكتاب أو أدخل رابط قراءة رسمي مباشر' }, { status: 400 })
+    }
+
+    let link = book.link
+    let fileName = book.fileName
+    let mimeType = book.mimeType
+    let size = book.size
+    let data = book.data
+    let textContent: string | null = null
+    let linkNote: string | null = null
+    let linkReadStatus = book.linkReadStatus || 'NOT_ATTEMPTED'
+
+    if (linkRaw) {
+      try {
+        const u = new URL(linkRaw)
+        if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
+        link = linkRaw.slice(0, 600)
+      } catch {
+        return NextResponse.json({ error: 'رابط القراءة غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
+      }
+    }
+
+    if (file && file.size > 0) {
+      if (file.size > MAX_BOOK_SIZE) {
+        return NextResponse.json({ error: 'حجم الملف يتجاوز 10 ميجابايت' }, { status: 400 })
+      }
+      const buf = Buffer.from(await file.arrayBuffer())
+      fileName = file.name
+      mimeType = file.type || 'application/octet-stream'
+      size = file.size
+      data = buf.toString('base64')
+      const extracted = await extractDocumentText(buf, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
+      if (extracted.text) textContent = extracted.text
+      linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'FILE_EXTRACTED' : 'FAILED'
+      linkNote = extracted.readable
+        ? `تم استخراج نص من الملف المرفوع: ${extracted.note}`
+        : extracted.note
+    } else if (linkRaw) {
+      if (isCatalogOrSearchLink(link!)) {
+        linkReadStatus = 'SEARCH_LINK_ONLY'
+        linkNote = 'هذا رابط معاينة/فهرس مثل Google Books؛ حُفظ للتحقق فقط ولن يدخل بنك المعرفة أو الامتحانات حتى ترفع ملفاً أو تضيف رابط PDF/TXT/HTML مفتوح.'
+      } else {
+        const fetched = await fetchLinkContent(link!)
+        if (fetched.ok && fetched.buffer) {
+          mimeType = fetched.mime || 'application/octet-stream'
+          fileName = (link!.split('/').pop() || 'book-file').slice(0, 180)
+          size = fetched.buffer.length
+          data = fetched.buffer.toString('base64')
+          const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
+          textContent = extracted.text || null
+          linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'TEXT_EXTRACTED' : 'FAILED'
+          linkNote = extracted.readable
+            ? `تم استخراج نص مباشر من رابط القراءة الرسمي: ${extracted.note}`
+            : `الرابط محفوظ، لكن لم نستخرج نصاً كافياً: ${extracted.note}`
+        } else if (fetched.ok && fetched.htmlText) {
+          textContent = fetched.htmlText
+          linkReadStatus = fetched.htmlText.length >= 1200 ? 'TEXT_EXTRACTED' : 'FAILED'
+          linkNote = fetched.htmlText.length >= 1200
+            ? 'تم استخراج نص صفحة قراءة مفتوحة من الرابط وسيستخدمها بنك المعرفة.'
+            : 'تم الوصول للرابط لكن النص المستخرج قصير ولا يكفي لاعتماده ككتاب مقروء.'
+        } else {
+          linkReadStatus = fetched.mime ? 'UNSUPPORTED' : 'FAILED'
+          linkNote = fetched.note || 'تعذر استخراج نص آلي من رابط القراءة — الرابط محفوظ كمرجع فقط'
+        }
+      }
+    }
+
+    const updated = await db.book.update({
+      where: { id: bookId },
+      data: {
+        link,
+        fileName,
+        mimeType,
+        size,
+        data,
+        ...(textContent && textContent.length >= 160 ? { textContent: textContent.slice(0, MAX_BOOK_TEXT_CHARS) } : {}),
+        linkReadStatus,
+        linkReadNote: linkNote,
+      },
+    })
+
+    let knowledgeBuild: Awaited<ReturnType<typeof rebuildKnowledgeForBook>> | null = null
+    if (textContent && textContent.length >= 900) {
+      knowledgeBuild = await rebuildKnowledgeForBook(bookId).catch((err) => {
+        console.error('book source update knowledge build failed:', err)
+        return null
+      })
+    }
+
+    await audit(
+      { id: admin.id, name: admin.name },
+      'UPDATE_BOOK_SOURCE',
+      'Book',
+      bookId,
+      `تحديث مصدر قراءة كتاب مقرر: ${book.title} — ${linkReadStatus}`
+    )
+
+    return NextResponse.json({
+      ok: true,
+      book: {
+        id: updated.id,
+        title: updated.title,
+        titleEn: updated.titleEn,
+        author: updated.author,
+        year: updated.year,
+        description: updated.description,
+        fileName: updated.fileName,
+        mimeType: updated.mimeType,
+        size: updated.size,
+        link: updated.link,
+        source: updated.source,
+        semester: updated.semester,
+        levelPolicy: updated.levelPolicy,
+        readingDepth: updated.readingDepth,
+        assessmentOrientation: updated.assessmentOrientation,
+        linkReadStatus: updated.linkReadStatus,
+        linkReadNote: updated.linkReadNote,
+        hasFile: !!updated.fileName,
+      },
+      textExtracted: !!textContent && textContent.length >= 900,
+      linkReadStatus,
+      linkNote,
+      knowledgeItemsInserted: knowledgeBuild?.inserted || 0,
+    })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('admin books PATCH error:', e)
+    return NextResponse.json({ error: 'تعذر تحديث مصدر قراءة الكتاب' }, { status: 500 })
+  }
+}
+
 // DELETE /api/admin/books?bookId=xxx — حذف كتاب
 export async function DELETE(req: NextRequest) {
   try {
