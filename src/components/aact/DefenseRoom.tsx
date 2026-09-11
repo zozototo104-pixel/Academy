@@ -316,6 +316,10 @@ export function DefenseRoom({
       // العنصر الصوتي الدائم المشترك — يسمح به iOS بعد فتحه بأول لمسة
       const audio = getSharedAudio()
       audioRef.current = audio
+      try {
+        const captured = (audio as any).captureStream?.() || (audio as any).mozCaptureStream?.()
+        if (captured) addAudioStreamToRecording(captured, 'ai:tts-shared', 1.2)
+      } catch {}
       const resume = () => {
         URL.revokeObjectURL(url)
         if (ttsSerial === ttsSerialRef.current) setSpeaking(false)
