@@ -192,6 +192,9 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
 }
 
 async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: string; note: string; quality: HydratedExamBook['contentQuality'] }> {
+  if (book.linkReadStatus === 'SEARCH_LINK_ONLY') {
+    return { text: '', note: book.linkReadNote || 'هذا رابط بحث/فهرس محفوظ للطلاب وليس رابط كتاب مباشر قابل للقراءة', quality: 'LINK_TEXT' }
+  }
   const url = safeUrl(book.link)
   if (!url) return { text: '', note: 'لا يوجد رابط صالح للكتاب', quality: 'LINK_TEXT' }
   const parsedUrl = new URL(url)
