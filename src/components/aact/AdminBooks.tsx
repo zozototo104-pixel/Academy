@@ -1390,6 +1390,47 @@ export function AdminBooksTab() {
                             <Link2 className="h-3 w-3" /> {isCatalogLikeUiLink(b.link) || b.linkReadStatus === 'SEARCH_LINK_ONLY' ? 'فتح رابط تحقق فقط' : 'فتح رابط القراءة'}
                           </a>
                         )}
+                        {bookNeedsReadableSource(b) && (
+                          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                            <p className="text-[10px] font-black leading-5 text-amber-800">
+                              هذا الكتاب يحتاج مصدر قراءة فعلي حتى يقرأه المشرف الذكي ويدخله بنك المعرفة والامتحانات. ارفع ملف الكتاب أو ضع رابطه الرسمي المباشر.
+                            </p>
+                            <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_auto]">
+                              <Input
+                                value={sourceLinks[b.id] || ''}
+                                onChange={(e) => setSourceLinks((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                                placeholder="رابط PDF/TXT/HTML رسمي مفتوح — وليس Google Books"
+                                className="h-8 bg-white text-[10px]"
+                                dir="ltr"
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => updateBookSource(b)}
+                                disabled={updatingSourceBookId === b.id}
+                                className="h-8 bg-[#0f2b46] text-[10px] font-black text-[#e0b83a] hover:bg-[#12365c]"
+                              >
+                                {updatingSourceBookId === b.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                                تحديث وقراءة الكتاب
+                              </Button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <input
+                                type="file"
+                                accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+                                onChange={(e) => setSourceFiles((prev) => ({ ...prev, [b.id]: e.target.files?.[0] || null }))}
+                                className="block w-full max-w-md text-[10px] text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-[#0f2b46] file:px-3 file:py-1.5 file:text-[10px] file:font-black file:text-[#e0b83a]"
+                              />
+                              {sourceFiles[b.id] && (
+                                <Badge className="bg-emerald-100 text-[9px] text-emerald-700 hover:bg-emerald-100">
+                                  <Upload className="ml-1 h-3 w-3" /> {sourceFiles[b.id]?.name}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-2 text-[10px] font-bold leading-5 text-amber-700">
+                              عند نجاح القراءة سيعيد النظام بناء بنك المعرفة تلقائياً، ثم تصبح أسئلة الامتحان والمشرف الذكي مبنية على نص الكتاب لا على عنوانه فقط.
+                            </p>
+                          </div>
+                        )}
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => deleteBook(b.id)} className="shrink-0 text-red-400 hover:bg-red-50 hover:text-red-600">
                         <Trash2 className="h-3.5 w-3.5" />
