@@ -495,6 +495,11 @@ model Book {
   link        String?  // رابط الكتاب على الإنترنت (للقراءة أو التحميل من المصدر)
   textContent String?  // نص مستخرج من الملف أو من الرابط (لتحليل خبير الذكاء الاصطناعي)
   semester    Int?     // الفصل الدراسي الذي يدرس فيه الكتاب (1 | 2 | null = عام للبرنامج)
+  levelPolicy String?  // سياسة المستوى: دبلوم/ماجستير/دكتوراه/اعتماد — لماذا يناسب الكتاب هذه الدرجة
+  readingDepth String? // كيف يجب أن يقرأ الطالب الكتاب حسب الدرجة والتخصص
+  assessmentOrientation String? // طبيعة الامتحان/التقييم المبني على الكتاب
+  linkReadStatus String? @default("NOT_ATTEMPTED") // NOT_ATTEMPTED | SEARCH_LINK_ONLY | TEXT_EXTRACTED | FILE_EXTRACTED | FAILED | UNSUPPORTED
+  linkReadNote String? // توضيح هل قرأ النظام الرابط فعلاً أم حفظه كمرجع فقط
   source      String   @default("ADMIN") // ADMIN | AI
   createdAt   DateTime @default(now())
   knowledgeItems BookKnowledgeItem[]
