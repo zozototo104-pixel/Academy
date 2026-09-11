@@ -386,7 +386,7 @@ model AgentApplication {
   country           String
   territory         String?
   experience        String?
-  status            String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  status            String   @default("PENDING") // PENDING | APPROVED | REJECTED | REVOKED
   // بيانات العقد (تُملأ عند القبول وفق اتفاقية التمثيل والتفويض الدولي)
   contractNo        String?  // رقم العقد AACT-AG-2026-XX
   commissionRate    Float?   // نسبة العمولة 25% من إيرادات البرامج
@@ -394,6 +394,9 @@ model AgentApplication {
   exclusive         Boolean  @default(false) // هل التمثيل حصري
   startDate         DateTime?
   endDate           DateTime? // مدة سنة قابلة للتجديد
+  revokedAt         DateTime?
+  revokedReason     String?
+  revokedById       String?
   createdAt         DateTime @default(now())
   documents         AgentDocument[]
   payments          Payment[]
