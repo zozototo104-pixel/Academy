@@ -909,7 +909,14 @@ export function AdminView() {
         {/* Agent applications */}
         <TabsContent value="agents">
           <div className="mt-4 space-y-4">
-            {apps.length === 0 ? (
+            {appsLoading ? (
+              <Card className="border-[#0f2b46]/10">
+                <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center text-sm text-slate-500">
+                  <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
+                  جاري تحميل طلبات الوكالة والاعتماد...
+                </CardContent>
+              </Card>
+            ) : apps.length === 0 ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات وكالة بعد</CardContent>
               </Card>
