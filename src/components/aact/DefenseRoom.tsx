@@ -1182,7 +1182,7 @@ ${recent || 'بدأت الجلسة للتو.'}
           )}
           <Badge className="bg-white/10 text-[10px] text-white hover:bg-white/10">
             <CalendarClock className="ml-1 h-3 w-3" />
-            {thesis.defenseDate ? new Date(thesis.defenseDate).toLocaleDateString('ar-EG') : '—'}
+            {safeArabicDate(thesis.defenseDate)}
           </Badge>
         </div>
       </div>
