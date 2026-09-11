@@ -77,19 +77,25 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (!authChecked || !user) return
+    if (!authChecked || !user || didAutoRouteRef.current) return
     const q = new URLSearchParams(window.location.search)
-    if (q.has('view')) return
+    if (q.has('view')) {
+      didAutoRouteRef.current = true
+      return
+    }
     const state = useAppStore.getState()
     if (user.role === 'ADMIN' && (view === 'home' || view === 'auth')) {
+      didAutoRouteRef.current = true
       state.navigate('admin')
     } else if (user.role !== 'ADMIN' && view === 'auth') {
+      didAutoRouteRef.current = true
       state.navigate('dashboard')
+    } else {
+      didAutoRouteRef.current = true
     }
   }, [authChecked, user, view])
 
-  const hasExplicitView = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('view')
-  const effectiveView = authChecked && user?.role === 'ADMIN' && !hasExplicitView && (view === 'home' || view === 'auth') ? 'admin' : view
+  const effectiveView = view
 
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
