@@ -983,6 +983,9 @@ export function AdminView() {
                           {a.status === 'REJECTED' && (
                             <Badge className="bg-red-100 text-red-600 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> مرفوض</Badge>
                           )}
+                          {a.status === 'REVOKED' && (
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><AlertTriangle className="ml-1 h-3 w-3" /> اعتماد ملغى</Badge>
+                          )}
                         </div>
                         <p className="mt-1 text-xs font-bold text-slate-600">
                           الممثل: {a.repName} — {a.country}{a.territory ? ` — نطاق التمثيل: ${a.territory}` : ''}
