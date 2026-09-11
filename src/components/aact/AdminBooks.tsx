@@ -1334,7 +1334,19 @@ export function AdminBooksTab() {
                           <div className="min-w-0">
                             <h4 className="text-xs font-extrabold text-[#0f2b46]">{s.title}</h4>
                             <p className="mt-0.5 text-[10px] font-bold text-slate-500" dir="auto">{s.titleEn} — {s.author} {s.year && `(${s.year})`}</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {s.semester && <Badge variant="outline" className="border-[#c9a227]/40 text-[9px] text-[#a8841a]">الفصل {s.semester}</Badge>}
+                              {s.levelPolicy && <Badge className="bg-[#0f2b46] text-[9px] text-[#e0b83a] hover:bg-[#0f2b46]">مخصص للدرجة</Badge>}
+                              {s.assessmentOrientation && <Badge className="bg-blue-100 text-[9px] text-blue-700 hover:bg-blue-100">تقييم متخصص</Badge>}
+                            </div>
                             <p className="mt-1 text-[10px] leading-relaxed text-slate-600">{s.reason}</p>
+                            {(s.levelPolicy || s.readingDepth || s.assessmentOrientation) && (
+                              <div className="mt-1.5 rounded-lg bg-[#f8fafc] p-2 text-[10px] font-bold leading-5 text-slate-600">
+                                {s.levelPolicy && <p><strong className="text-[#0f2b46]">سياسة المستوى:</strong> {s.levelPolicy}</p>}
+                                {s.readingDepth && <p><strong className="text-[#0f2b46]">عمق القراءة:</strong> {s.readingDepth}</p>}
+                                {s.assessmentOrientation && <p><strong className="text-[#0f2b46]">طبيعة الامتحان:</strong> {s.assessmentOrientation}</p>}
+                              </div>
+                            )}
                             {s.link && (
                               <a href={s.link} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 hover:bg-blue-100">
                                 <Link2 className="h-3 w-3" /> رابط الكتاب — تحقق منه قبل الإضافة
