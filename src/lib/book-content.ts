@@ -25,6 +25,11 @@ export interface RawBookForHydration {
   data?: string | null
   link?: string | null
   textContent?: string | null
+  linkReadStatus?: string | null
+  linkReadNote?: string | null
+  levelPolicy?: string | null
+  readingDepth?: string | null
+  assessmentOrientation?: string | null
 }
 
 export interface HydratedExamBook {
