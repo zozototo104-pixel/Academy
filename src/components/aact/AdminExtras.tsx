@@ -35,6 +35,7 @@ interface Thesis {
   defenseMinutes?: string | null
   recordingSize?: number | null
   recordingDurationSec?: number | null
+  hasRecording?: boolean | null
   resultScore?: number | null
   passed?: boolean | null
   createdAt: string
