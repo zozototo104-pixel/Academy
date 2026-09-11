@@ -273,7 +273,7 @@ export function AdminThesisTab() {
                       </>
                     )}
                     {t.status === 'RESULT_APPROVED' && (t.defenseMinutes || t.recordingSize) && (
-                      <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
+                      <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="w-full justify-center border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
                         <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة
                       </Button>
                     )}
