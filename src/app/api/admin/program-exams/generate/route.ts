@@ -375,7 +375,11 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
         await db.book.update({
           where: { id: hydrated.id },
-          data: { textContent: hydrated.textContent.slice(0, 180000) },
+          data: {
+            textContent: hydrated.textContent.slice(0, 180000),
+            linkReadStatus: hydrated.contentQuality === 'LINK_TEXT' ? 'TEXT_EXTRACTED' : hydrated.contentQuality === 'NO_CONTENT' ? 'FAILED' : 'FILE_EXTRACTED',
+            linkReadNote: hydrated.sourceNote,
+          },
         }).catch(() => {})
       }
     }
