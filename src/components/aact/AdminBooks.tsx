@@ -41,6 +41,11 @@ interface BookRow {
   link?: string | null
   source: string
   semester?: number | null
+  levelPolicy?: string | null
+  readingDepth?: string | null
+  assessmentOrientation?: string | null
+  linkReadStatus?: string | null
+  linkReadNote?: string | null
   hasFile: boolean
 }
 
@@ -51,6 +56,10 @@ interface Suggestion {
   year: string
   reason: string
   link: string
+  semester?: number | null
+  levelPolicy?: string
+  readingDepth?: string
+  assessmentOrientation?: string
   added?: boolean
 }
 
