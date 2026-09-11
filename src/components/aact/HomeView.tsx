@@ -432,7 +432,7 @@ export function HomeView() {
           برامجنا التدريبية والاعتمادات
         </h2>
         <p className="mb-8 text-center text-sm text-slate-500">
-          {programs.length} برامج معتمدة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه واعتماد المؤسسات
+          {programCountLabel} برامج معتمدة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه واعتماد المؤسسات
         </p>
         {loading ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
