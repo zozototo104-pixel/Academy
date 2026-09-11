@@ -771,7 +771,7 @@ ${recent || 'بدأت الجلسة للتو.'}
           body: JSON.stringify({ action: 'save-recording', dataUrl, mime: 'video/webm', durationSec }),
         })
         setRecState('SAVED')
-        if (showToast) toast({ title: 'أُرشيف تسجيل الجلسة', description: 'حُفظ فيديو وصوت الجلسة في ملف بحثك للرجوع إليه' })
+        if (showToast) toast({ title: 'أُرشيف تسجيل الجلسة', description: 'حُفظ فيديو الجلسة مع صوت الطالب والمشرف الذكي وأعضاء اللجنة المتصلين' })
       } catch (e: any) {
         setRecState('FAILED')
       }
