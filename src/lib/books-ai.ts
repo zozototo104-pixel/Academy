@@ -11,6 +11,10 @@ export interface BookSuggestion {
   year: string
   reason: string
   link: string
+  semester?: number | null
+  levelPolicy?: string
+  readingDepth?: string
+  assessmentOrientation?: string
 }
 
 export type CognitiveSkill = 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE'
