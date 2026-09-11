@@ -223,9 +223,10 @@ export async function POST(req: NextRequest) {
       data = buf.toString('base64')
       const extracted = await extractDocumentText(buf, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
       if (extracted.text) textContent = extracted.text
-      if (!extracted.readable) {
-        linkNote = extracted.note
-      }
+      linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'FILE_EXTRACTED' : 'FAILED'
+      linkNote = extracted.readable
+        ? `تم استخراج نص من الملف المرفوع: ${extracted.note}`
+        : extracted.note
     }
 
     const semRaw = String(form.get('semester') || '')
