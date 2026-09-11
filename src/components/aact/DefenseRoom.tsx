@@ -97,6 +97,29 @@ function fmtTz(tz?: string | null): string {
   }
 }
 
+function safeText(value: unknown, fallback = ''): string {
+  const text = String(value ?? '').trim()
+  return text || fallback
+}
+
+function parseCommitteeNames(raw?: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 10)
+    if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 10)
+    if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 10)
+  } catch {}
+  return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 10)
+}
+
+function safeArabicDate(value?: string | null): string {
+  if (!value) return 'قريباً'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'موعد يحتاج إعادة جدولة'
+  return date.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 export function DefenseRoom({
   thesis,
   onFinished,
