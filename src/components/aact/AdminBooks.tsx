@@ -667,7 +667,13 @@ export function AdminBooksTab() {
   }
 
   const suggestAll = async () => {
-    for (const s of suggestions.filter((x) => !x.added)) {
+    const pending = suggestions.filter((x) => !x.added)
+    const withoutDirect = pending.filter((x) => !x.link || x.linkType === 'CATALOG_SEARCH' || x.linkType === 'MISSING_DIRECT_LINK')
+    if (withoutDirect.length > 0) {
+      const ok = confirm(`يوجد ${withoutDirect.length} كتاباً بلا رابط قراءة مباشر. ستُضاف كمراجع مقررة فقط ولن تدخل بنك المعرفة أو الامتحانات حتى ترفع ملفاتها أو تضيف روابط PDF/TXT/HTML مفتوحة. متابعة؟`)
+      if (!ok) return
+    }
+    for (const s of pending) {
       await addBook(s)
       setSuggestions((prev) => prev.map((x) => (x.title === s.title ? { ...x, added: true } : x)))
     }
