@@ -11,6 +11,8 @@ export interface BookSuggestion {
   year: string
   reason: string
   link: string
+  linkType?: 'DIRECT_READABLE' | 'CATALOG_SEARCH' | 'UNKNOWN'
+  linkReadHint?: string
   semester?: number | null
   levelPolicy?: string
   readingDepth?: string
