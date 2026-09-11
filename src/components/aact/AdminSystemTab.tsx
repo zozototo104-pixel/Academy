@@ -35,6 +35,16 @@ interface SystemData {
   emails: EmailLog[]
 }
 
+const GEMINI_LIVE_MODEL_CHOICES = [
+  { value: 'gemini-3.1-flash-live-preview', label: 'Gemini 3.1 Flash Live Preview — افتراضي حديث' },
+  { value: 'gemini-2.5-flash-native-audio-preview-12-2025', label: 'Gemini 2.5 Flash Native Audio — صوت طبيعي/احتياطي' },
+  { value: 'gemini-2.5-flash-live-preview', label: 'Gemini 2.5 Flash Live Preview — توافق قديم' },
+]
+
+const GEMINI_VOICE_CHOICES = [
+  'Charon', 'Aoede', 'Puck', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Zephyr', 'Achernar', 'Algenib', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Iapetus', 'Laomedeia', 'Pulcherrima', 'Rasalgethi', 'Sadachbia', 'Schedar', 'Sulafat', 'Umbriel', 'Vindemiatrix', 'Zubenelgenubi'
+]
+
 // تبويب «النظام: البريد والدفع» في لوحة الإدارة — مركز واحد لكل تكاملات المنصة الخارجية
 export function AdminSystemTab() {
   const { toast } = useToast()
