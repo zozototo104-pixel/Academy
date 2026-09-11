@@ -169,13 +169,24 @@ export async function PATCH(req: NextRequest) {
         )
       } else if (status === 'REJECTED') {
         await notify(owner.id, 'AGENT', 'نتيجة طلبك', `نأسف — لم يُعتمد طلب ${app.kind === 'AGENCY' ? 'الوكالة' : 'الاعتماد'} المقدم باسم ${app.orgName}.`)
+      } else if (status === 'REVOKED') {
+        await notify(
+          owner.id,
+          'AGENT',
+          app.kind === 'AGENCY' ? 'تم إلغاء الوكالة الدولية' : 'تم سحب الاعتماد',
+          `تم إلغاء ${app.kind === 'AGENCY' ? 'الوكالة' : 'الاعتماد'} باسم ${app.orgName} وفق مراجعة إدارية بسبب: ${String(revokedReason || '').slice(0, 260)}. يمكنكم التواصل مع الإدارة لطلب مراجعة القرار.`,
+          'agent'
+        )
       }
     }
 
-    await audit(admin, status === 'APPROVED' ? 'APPROVE_AGENT' : 'REJECT_AGENT', 'AgentApplication', id,
-      `${app.orgName} — ${app.kind === 'AGENCY' ? `عقد ${contractNo}` : `شهادة ${certSerial}`}`)
+    const auditAction = status === 'APPROVED' ? 'APPROVE_AGENT' : status === 'REVOKED' ? 'REVOKE_AGENT_ACCREDITATION' : 'REJECT_AGENT'
+    const auditDetails = status === 'REVOKED'
+      ? `${app.orgName} — سحب اعتماد/وكالة — سبب: ${String(revokedReason || '').slice(0, 500)} — شهادات معطلة: ${revokedCertificates}`
+      : `${app.orgName} — ${app.kind === 'AGENCY' ? `عقد ${contractNo}` : `شهادة ${certSerial}`}`
+    await audit(admin, auditAction, 'AgentApplication', id, auditDetails)
 
-    return NextResponse.json({ ok: true, application: updated, contractNo, certSerial })
+    return NextResponse.json({ ok: true, application: updated, contractNo, certSerial, revokedCertificates })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
