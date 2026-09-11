@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
+import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, ShieldCheck, Download } from 'lucide-react'
 
