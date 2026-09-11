@@ -144,7 +144,15 @@ export function AdminThesisTab() {
     }
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+  if (loading) return (
+    <Card className="mt-4 border-[#0f2b46]/10">
+      <CardContent className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تحميل أبحاث التخرج والمناقشات...</p>
+        <p className="text-xs font-bold text-slate-400">يتم الآن جلب الملخصات فقط بدون تحميل تسجيلات الفيديو الثقيلة.</p>
+      </CardContent>
+    </Card>
+  )
 
   const ST: Record<string, { label: string; cls: string }> = {
     SUBMITTED: { label: 'مسلَّم — بانتظار الجدولة', cls: 'bg-amber-100 text-amber-700' },
