@@ -315,8 +315,8 @@ export function AdminSystemTab() {
             {F('GEMINI_API_KEY', 'مفتاح Gemini API', data.secretsSet.GEMINI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'AIza...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
             {F('GEMINI_TEXT_MODEL', 'نموذج النصوص', 'gemini-3.8-flash', 'text', 'اتركه فارغاً للتلقائي؛ لا تضع نموذج Live هنا')}
             {F('GEMINI_TTS_MODEL', 'نموذج TTS', 'gemini-3.1-flash-tts-preview', 'text', 'للردود النصية فقط عند استخدام TTS')}
-            {F('GEMINI_TTS_VOICE', 'نبرة الصوت', 'Charon', 'text', 'مثال: Charon')}
-            {F('GEMINI_LIVE_MODEL', 'نموذج Gemini Live', 'gemini-3.1-flash-live-preview', 'text', 'القيمة الصحيحة كاملة: gemini-3.1-flash-live-preview')}
+            {SelectF('GEMINI_TTS_VOICE', 'صوت Gemini Live / TTS', GEMINI_VOICE_CHOICES.map((v) => ({ value: v, label: v })), 'اختر الصوت من القائمة بدلاً من كتابته يدوياً. سيُستخدم في Gemini Live وفي TTS النصي.')}
+            {SelectF('GEMINI_LIVE_MODEL', 'نموذج Gemini Live', GEMINI_LIVE_MODEL_CHOICES, 'اختر النموذج من القائمة. إذا لم يكن متاحاً لمشروعك فسيظهر ذلك عند اختبار Gemini Live.')}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
