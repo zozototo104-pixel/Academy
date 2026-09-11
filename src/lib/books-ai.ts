@@ -1596,8 +1596,8 @@ export async function generateExamQuestionBatch(
   const contentConcepts = contentConceptsFromBooks(books, domain, 28).join('\n- ')
   const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
   const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
-  const requiredDistribution = batchDistributionText(spec.kind, spec.count)
-  const plannedTypes = batchQuestionPlan(spec.kind, spec.count)
+  const requiredDistribution = batchDistributionText(spec.kind, spec.count, program.category)
+  const plannedTypes = batchQuestionPlan(spec.kind, spec.count, program.category)
     .map((t, i) => `${i + 1}. ${t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t}`)
     .join('\n')
   const previousSection = previousQuestionTexts.length
