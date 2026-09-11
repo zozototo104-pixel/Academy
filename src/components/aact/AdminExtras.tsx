@@ -195,9 +195,9 @@ export function AdminThesisTab() {
           const programName = safeText(t.admission?.program, 'برنامج غير محدد')
           const abstractText = safeText(t.abstract, 'لا يوجد ملخص محفوظ لهذا البحث')
           return (
-            <Card key={t.id} className="border-[#0f2b46]/10">
-              <CardContent className="p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <Card key={t.id} className="overflow-hidden border-[#0f2b46]/10">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="text-sm font-black text-[#0f2b46]">{t.title}</h4>
