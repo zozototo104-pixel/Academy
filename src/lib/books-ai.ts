@@ -788,6 +788,7 @@ export async function suggestBooksForProgram(program: {
   const spec = specialtyName(program)
   const domain = detectProgramDomain(program)
   const fallback = fallbackBookSuggestions(program)
+  const policy = academicPolicyForCategory(program.category)
   const domainSeedTitles = (DOMAIN_BOOKS[domain] || DOMAIN_BOOKS.general).map(([title]) => title).join(' | ')
   const prompt = `أنت خبير ذكاء اصطناعي أكاديمي متخصص في تحليل مناهج الدراسات العليا وواقع التخصصات في العالم.
 
