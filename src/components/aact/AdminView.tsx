@@ -298,14 +298,6 @@ export function AdminView() {
       </div>
     )
   }
-  if (loading) {
-    return (
-      <div className="flex h-72 items-center justify-center">
-        <Loader2 className="h-9 w-9 animate-spin text-[#c9a227]" />
-      </div>
-    )
-  }
-
   const setAppStatus = async (id: string, status: string) => {
     try {
       await api('/api/admin/applications', { method: 'PATCH', body: JSON.stringify({ id, status }) })
