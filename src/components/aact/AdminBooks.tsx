@@ -1282,6 +1282,21 @@ export function AdminBooksTab() {
                           <p className="mt-0.5 text-[10px] font-bold text-slate-500">{b.author}{b.year ? ` — ${b.year}` : ''}{b.titleEn ? ` · ${b.titleEn}` : ''}</p>
                         )}
                         {b.description && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{b.description}</p>}
+                        {(b.levelPolicy || b.readingDepth || b.assessmentOrientation) && (
+                          <div className="mt-2 rounded-xl bg-[#f8fafc] p-2 text-[10px] font-bold leading-5 text-slate-600">
+                            {b.levelPolicy && <p><strong className="text-[#0f2b46]">سياسة المستوى:</strong> {b.levelPolicy}</p>}
+                            {b.readingDepth && <p><strong className="text-[#0f2b46]">عمق القراءة:</strong> {b.readingDepth}</p>}
+                            {b.assessmentOrientation && <p><strong className="text-[#0f2b46]">طبيعة التقييم:</strong> {b.assessmentOrientation}</p>}
+                          </div>
+                        )}
+                        {b.linkReadStatus && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <Badge className={`${LINK_READ_META[b.linkReadStatus]?.cls || 'bg-slate-100 text-slate-600'} text-[9px] hover:bg-inherit`}>
+                              {LINK_READ_META[b.linkReadStatus]?.label || b.linkReadStatus}
+                            </Badge>
+                            {b.linkReadNote && <span className="text-[10px] font-bold text-slate-400">{b.linkReadNote}</span>}
+                          </div>
+                        )}
                         {b.hasFile && (
                           <a href={`/api/books/${b.id}/file`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">
                             <FileText className="h-3 w-3" /> {b.fileName} ({Math.ceil((b.size || 0) / 1024)} ك.ب)
