@@ -199,10 +199,11 @@ async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: stri
   if (!url) return { text: '', note: 'لا يوجد رابط صالح للكتاب', quality: 'LINK_TEXT' }
   const parsedUrl = new URL(url)
   if (
-    parsedUrl.hostname.includes('google.') &&
-    (parsedUrl.pathname.includes('/search') || parsedUrl.searchParams.has('tbm') || parsedUrl.searchParams.has('q'))
+    parsedUrl.hostname === 'books.google.com' ||
+    (parsedUrl.hostname.includes('google.') &&
+      (parsedUrl.pathname.includes('/search') || parsedUrl.searchParams.has('tbm') || parsedUrl.searchParams.has('q')))
   ) {
-    return { text: '', note: 'هذا رابط بحث Google وليس رابط كتاب مباشر قابل للقراءة', quality: 'LINK_TEXT' }
+    return { text: '', note: 'هذا رابط بحث/فهرس Google Books وليس رابط كتاب مباشر قابل للقراءة', quality: 'LINK_TEXT' }
   }
 
   try {
