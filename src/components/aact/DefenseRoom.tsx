@@ -1154,7 +1154,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         <div className="flex items-center gap-2">
           {isStudent && recState === 'RECORDING' && (
             <Badge className="gap-1 bg-red-500/20 text-[9px] font-black text-red-300 hover:bg-red-500/20">
-              <Disc className="h-3 w-3 animate-pulse" /> تسجيل الجلسة جارٍ — تُؤرشف تلقائياً
+              <Disc className="h-3 w-3 animate-pulse" /> تسجيل الجلسة كامل: الطالب + المشرف الذكي + أعضاء اللجنة
             </Badge>
           )}
           <Badge className="bg-white/10 text-[10px] text-white hover:bg-white/10">
