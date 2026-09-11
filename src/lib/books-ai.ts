@@ -828,7 +828,7 @@ export async function suggestBooksForProgram(program: {
       retries: 3,
     })
     const cleaned = extractJsonArray(raw)
-      .map(normalizeSuggestion)
+      .map((item) => normalizeSuggestion(item, policy))
       .filter(Boolean) as BookSuggestion[]
 
     const relevant = cleaned.filter((b) => isSuggestionRelevantToDomain(b, domain))
