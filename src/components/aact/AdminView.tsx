@@ -1000,6 +1000,13 @@ export function AdminView() {
                           </div>
                         )}
                         {a.experience && <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">{a.experience}</p>}
+                        {a.status === 'REVOKED' && (
+                          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                            <p className="font-black">تم سحب الاعتماد/الوكالة وفق قرار إداري موثق.</p>
+                            {a.revokedAt && <p>تاريخ السحب: {new Date(a.revokedAt).toLocaleDateString('ar-EG')}</p>}
+                            {a.revokedReason && <p>السبب: {a.revokedReason}</p>}
+                          </div>
+                        )}
                         {/* وثائق الاعتماد الرسمية المرفوعة (وفق دليل الإجراءات) + فاتورة رسوم التقديم */}
                         {a.kind === 'ACCREDITATION' && (
                           <div className="mt-3 rounded-xl border bg-slate-50/70 p-3">
