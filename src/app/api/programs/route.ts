@@ -63,31 +63,39 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      programs: programs.map((p) => ({
-        id: p.id,
-        slug: p.slug,
-        titleAr: p.titleAr,
-        titleEn: p.titleEn,
-        description: p.description,
-        category: p.category,
-        categoryLabel: PROGRAM_CATEGORY_AR[p.category] || p.category,
-        specialty: programSpecialtyLabel(p),
-        hours: p.hours,
-        price: p.price,
-        icon: p.icon,
-        features: JSON.parse(p.features || '[]'),
-        unitsCount: p.units.length,
-        units: p.units,
-        books: p.books,
-        assignments: p.assignments,
-        studyGuides: p.studyGuides,
-        exams: p.programExams.map((e) => ({ id: e.id, title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
-        enrolled: enrolledProgramIds.includes(p.id),
-        // قواعد قبول مخصصة يعرضها نموذج الالتحاق للمتقدم (شروط إضافية تضبطها الإدارة)
-        admissionRules: p.admissionRules || null,
-        // الملف الأكاديمي المخصص الذي تضبطه الإدارة لكل برنامج، إن وجد.
-        academicProfile: academicProfileFromRules(p.admissionRules),
-      })),
+      programs: programs.map((p) => {
+        const row = p as any
+        const units = Array.isArray(row.units) ? row.units : []
+        const books = Array.isArray(row.books) ? row.books : []
+        const assignments = Array.isArray(row.assignments) ? row.assignments : []
+        const studyGuides = Array.isArray(row.studyGuides) ? row.studyGuides : []
+        const programExams = Array.isArray(row.programExams) ? row.programExams : []
+        return {
+          id: row.id,
+          slug: row.slug,
+          titleAr: row.titleAr,
+          titleEn: row.titleEn,
+          description: row.description,
+          category: row.category,
+          categoryLabel: PROGRAM_CATEGORY_AR[row.category] || row.category,
+          specialty: programSpecialtyLabel(row),
+          hours: row.hours,
+          price: row.price,
+          icon: row.icon,
+          features: JSON.parse(row.features || '[]'),
+          unitsCount: summaryOnly ? Number(row._count?.units || 0) : units.length,
+          units,
+          books,
+          assignments,
+          studyGuides,
+          exams: programExams.map((e: any) => ({ id: e.id, title: e.title, semester: e.semester, status: e.status, questionCount: e._count?.questions || 0 })),
+          enrolled: enrolledProgramIds.includes(row.id),
+          // قواعد قبول مخصصة يعرضها نموذج الالتحاق للمتقدم (شروط إضافية تضبطها الإدارة)
+          admissionRules: row.admissionRules || null,
+          // الملف الأكاديمي المخصص الذي تضبطه الإدارة لكل برنامج، إن وجد.
+          academicProfile: academicProfileFromRules(row.admissionRules),
+        }
+      }),
     })
   } catch (e) {
     console.error('Programs error:', e)
