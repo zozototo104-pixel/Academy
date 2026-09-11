@@ -1419,8 +1419,11 @@ export function AdminBooksTab() {
                     <Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} className="mt-1 h-9 text-xs" />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label className="text-[10px] font-black text-slate-600">رابط الكتاب على الإنترنت (للقراءة أو التحميل — يقرأه خبير الذكاء الاصطناعي إن كان PDF أو صفحة نصية)</Label>
-                    <Input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://example.com/book.pdf أو رابط صفحة الكتاب" className="mt-1 h-9 text-xs" dir="ltr" />
+                    <Label className="text-[10px] font-black text-slate-600">رابط قراءة مباشر للكتاب (PDF / TXT / HTML نصي مفتوح)</Label>
+                    <Input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://example.com/book.pdf — وليس رابط Google Books أو صفحة بحث" className="mt-1 h-9 text-xs" dir="ltr" />
+                    <p className="mt-1 text-[10px] font-bold leading-5 text-amber-700">
+                      تنبيه: روابط Google Books وGoodreads وWorldCat وروابط البحث تُحفظ كمرجع فقط ولا يقرأها المشرف ككتاب. لبناء بنك المعرفة ارفع الملف أو ضع رابطاً مباشراً مفتوحاً.
+                    </p>
                   </div>
                   <div>
                     <Label className="text-[10px] font-black text-slate-600">سنة النشر</Label>
