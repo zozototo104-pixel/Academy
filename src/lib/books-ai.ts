@@ -10,8 +10,11 @@ export interface BookSuggestion {
   author: string
   year: string
   reason: string
+  /** رابط قراءة مباشر فقط: PDF/TXT/HTML نصي مفتوح. لا نضع هنا Google Books أو صفحات البحث. */
   link: string
-  linkType?: 'DIRECT_READABLE' | 'CATALOG_SEARCH' | 'UNKNOWN'
+  /** رابط تحقق/فهرس اختياري لا يُستخدم لبناء بنك المعرفة أو الامتحان. */
+  referenceLink?: string
+  linkType?: 'DIRECT_READABLE' | 'CATALOG_SEARCH' | 'UNKNOWN' | 'MISSING_DIRECT_LINK'
   linkReadHint?: string
   semester?: number | null
   levelPolicy?: string
