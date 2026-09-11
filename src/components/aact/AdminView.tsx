@@ -446,10 +446,10 @@ export function AdminView() {
               <UserCheck className="h-3.5 w-3.5" /> القبول والتسجيل
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
-              <TabsTrigger value="admissions" className="gap-1 text-[10px] font-bold sm:text-xs">الالتحاق ({admissions.length})</TabsTrigger>
+              <TabsTrigger value="admissions" className="gap-1 text-[10px] font-bold sm:text-xs">الالتحاق ({admissionsLoading ? '…' : admissions.length})</TabsTrigger>
               <TabsTrigger value="rules" className="gap-1 text-[10px] font-bold sm:text-xs">قواعد القبول</TabsTrigger>
-              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({students.length})</TabsTrigger>
-              <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({apps.length})</TabsTrigger>
+              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({studentsLoading ? '…' : students.length})</TabsTrigger>
+              <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({appsLoading ? '…' : apps.length})</TabsTrigger>
             </TabsList>
           </div>
           <div className="border-t border-dashed border-slate-100 pt-2.5">
