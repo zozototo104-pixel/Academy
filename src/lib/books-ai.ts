@@ -747,7 +747,7 @@ function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggest
     year: cleanText(b?.year, 20) || 'حديث/متداول',
     reason: cleanText(b?.reason, 900) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
     link,
-    semester: Number.isInteger(sem) && sem >= 1 && sem <= 3 ? sem : null,
+    semester: Number.isInteger(sem) && sem >= 1 && sem <= 2 ? sem : null,
     levelPolicy: cleanText(b?.levelPolicy || b?.academicLevelPolicy, 900) || policy?.levelPolicy,
     readingDepth: cleanText(b?.readingDepth || b?.readingPlan, 900) || policy?.readingDepth,
     assessmentOrientation: cleanText(b?.assessmentOrientation || b?.examOrientation, 900) || policy?.assessmentOrientation,
