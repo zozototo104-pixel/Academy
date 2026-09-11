@@ -131,6 +131,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, title: true, titleEn: true, author: true, year: true, description: true,
         fileName: true, mimeType: true, size: true, source: true, semester: true, link: true,
+        levelPolicy: true, readingDepth: true, assessmentOrientation: true, linkReadStatus: true, linkReadNote: true,
         createdAt: true,
       },
     })
