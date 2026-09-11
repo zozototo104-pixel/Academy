@@ -253,10 +253,10 @@ export function AdminThesisTab() {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
                     {['SUBMITTED', 'NEEDS_REVISION'].includes(t.status) && (
                       <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
-                        className="bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
+                        className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
                         <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
                       </Button>
                     )}
