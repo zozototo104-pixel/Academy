@@ -9,14 +9,39 @@ import { emailDefenseScheduled } from '@/lib/mailer'
 export async function GET() {
   try {
     await requireAdmin()
-    const theses = await db.thesisSubmission.findMany({
+    const rows = await db.thesisSubmission.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
+      take: 60,
+      select: {
+        id: true,
+        title: true,
+        abstract: true,
+        status: true,
+        defenseDate: true,
+        committee: true,
+        agentMember: true,
+        defenseStatus: true,
+        aiScore: true,
+        aiRecommendation: true,
+        defenseMinutes: true,
+        recordingSize: true,
+        recordingDurationSec: true,
+        resultScore: true,
+        passed: true,
+        createdAt: true,
+        updatedAt: true,
         user: { select: { id: true, name: true, email: true, country: true } },
         admission: { select: { id: true, reference: true, program: true, status: true, approvedAt: true, thesisDeadline: true } },
       },
     })
+    const theses = rows.map((t) => ({
+      ...t,
+      abstract: t.abstract?.length > 700 ? `${t.abstract.slice(0, 700)}...` : t.abstract,
+      aiRecommendation: t.aiRecommendation?.length && t.aiRecommendation.length > 900 ? `${t.aiRecommendation.slice(0, 900)}...` : t.aiRecommendation,
+      defenseMinutes: t.defenseMinutes?.length && t.defenseMinutes.length > 2500 ? `${t.defenseMinutes.slice(0, 2500)}...` : t.defenseMinutes,
+      hasRecording: !!t.recordingSize,
+      // مهم: لا نعيد recordingData هنا لأنه فيديو Base64 ثقيل جداً ويؤخر فتح تبويب الإدارة.
+    }))
     return NextResponse.json({ theses })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
