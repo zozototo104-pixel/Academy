@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
-import { ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
+import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
 import { toast, useToast } from '@/hooks/use-toast'
 import { AgentPortalTab } from '@/components/aact/AgentPortalTab'
 import { Button } from '@/components/ui/button'
