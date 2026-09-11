@@ -111,7 +111,7 @@ export function AdminSystemTab() {
     try {
       const d = await api<{ ok: boolean; title?: string; message: string }>('/api/admin/system', {
         method: 'POST',
-        body: JSON.stringify({ action: 'test-gemini-live' }),
+        body: JSON.stringify({ action: 'test-gemini-live', model: form.GEMINI_LIVE_MODEL, voice: form.GEMINI_TTS_VOICE }),
       })
       toast({ title: d.title || (d.ok ? 'Gemini Live يعمل' : 'فشل Gemini Live'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
     } catch (e: any) {
