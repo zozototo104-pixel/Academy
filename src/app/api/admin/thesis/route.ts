@@ -5,6 +5,8 @@ import { notify, audit } from '@/lib/notify'
 import { getSettings } from '@/lib/settings'
 import { emailDefenseScheduled } from '@/lib/mailer'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/admin/thesis — كل أبحاث التخرج (لجدولة المناقشات واللجان)
 export async function GET() {
   try {
