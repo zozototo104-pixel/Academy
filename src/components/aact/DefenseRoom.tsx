@@ -205,9 +205,9 @@ export function DefenseRoom({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const thesisIdRef = useRef(thesis.id)
 
-  const committee = parseCommitteeNames(thesis.committee)
-  const thesisTitle = safeText(thesis.title, 'بحث تخرج بدون عنوان')
-  const thesisAbstract = safeText(thesis.abstract, 'لا يوجد ملخص محفوظ للبحث')
+  const committee = useMemo(() => parseCommitteeNames(thesis.committee), [thesis.committee])
+  const thesisTitle = useMemo(() => safeText(thesis.title, 'بحث تخرج بدون عنوان'), [thesis.title])
+  const thesisAbstract = useMemo(() => safeText(thesis.abstract, 'لا يوجد ملخص محفوظ للبحث'), [thesis.abstract])
   const isStudent = mode === 'student'
 
   const cleanupRecordingMixer = useCallback(() => {
