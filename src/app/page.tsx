@@ -16,6 +16,21 @@ import { Loader2 } from 'lucide-react'
 import { api } from '@/lib/store'
 import { unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 
+function LazyViewLoader() {
+  return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <Loader2 className="h-9 w-9 animate-spin text-[#c9a227]" />
+    </div>
+  )
+}
+
+const DashboardView = dynamic(() => import('@/components/aact/DashboardView').then((m) => m.DashboardView), { ssr: false, loading: LazyViewLoader })
+const UnitView = dynamic(() => import('@/components/aact/UnitView').then((m) => m.UnitView), { ssr: false, loading: LazyViewLoader })
+const ExamView = dynamic(() => import('@/components/aact/ExamView').then((m) => m.ExamView), { ssr: false, loading: LazyViewLoader })
+const AIChatView = dynamic(() => import('@/components/aact/AIChatView').then((m) => m.AIChatView), { ssr: false, loading: LazyViewLoader })
+const AgentView = dynamic(() => import('@/components/aact/AgentView').then((m) => m.AgentView), { ssr: false, loading: LazyViewLoader })
+const AdminView = dynamic(() => import('@/components/aact/AdminView').then((m) => m.AdminView), { ssr: false, loading: LazyViewLoader })
+
 function PWARegister() {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
