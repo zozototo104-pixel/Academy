@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
-import { DefenseRoom } from '@/components/aact/DefenseRoom'
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
