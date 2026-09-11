@@ -33,11 +33,11 @@ export function FloatingActions() {
       </button>
       {/* واتساب — تواصل فوري مع الأكاديمية */}
       <a
-        href={`https://wa.me/14748677271?text=${encodeURIComponent('مرحباً، أرغب في الاستفسار عن برامج الأكاديمية الأمريكية للاستشارات والتدريب')}`}
+        href={`https://wa.me/${whatsappDigits}?text=${encodeURIComponent('مرحباً دكتور أحمد معروف، أرغب في الاستفسار عن برامج الأكاديمية الأمريكية للاستشارات والتدريب')}`}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="تواصل معنا عبر واتساب"
-        title="تواصل معنا عبر واتساب — +1 (474) 867-7271"
+        aria-label={`تواصل عبر واتساب مع ${ACADEMY_INFO.whatsappContactName}`}
+        title={`تواصل عبر واتساب مع ${ACADEMY_INFO.whatsappContactName} — ${ACADEMY_INFO.whatsappDisplay}`}
         className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
       >
         <span className="absolute inset-0 animate-ping rounded-full bg-[#25d366]/40" aria-hidden="true" />
