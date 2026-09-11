@@ -1364,9 +1364,19 @@ export function AdminBooksTab() {
                                 {s.assessmentOrientation && <p><strong className="text-[#0f2b46]">طبيعة الامتحان:</strong> {s.assessmentOrientation}</p>}
                               </div>
                             )}
+                            {s.linkReadHint && (
+                              <p className={`mt-1.5 rounded-lg p-2 text-[10px] font-bold leading-5 ${s.linkType === 'DIRECT_READABLE' ? 'bg-emerald-50 text-emerald-700' : s.linkType === 'UNKNOWN' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                                {s.linkReadHint}
+                              </p>
+                            )}
                             {s.link && (
-                              <a href={s.link} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 hover:bg-blue-100">
-                                <Link2 className="h-3 w-3" /> رابط الكتاب — تحقق منه قبل الإضافة
+                              <a href={s.link} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">
+                                <Link2 className="h-3 w-3" /> فتح رابط القراءة المباشر
+                              </a>
+                            )}
+                            {!s.link && s.referenceLink && (
+                              <a href={s.referenceLink} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">
+                                <Link2 className="h-3 w-3" /> رابط تحقق فقط — لا يقرأه النظام ككتاب
                               </a>
                             )}
                           </div>
