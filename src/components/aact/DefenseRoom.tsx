@@ -404,6 +404,10 @@ ${recent || 'بدأت الجلسة للتو.'}
       onLevel: (lvl) => setLiveAdvisorLevel((prev) => prev * 0.55 + lvl * 0.45),
       onUserCaption: (t) => setLiveUserCaption(t),
       onAiCaption: (t) => setLiveAiCaption(t),
+      onOutputStream: (stream) => {
+        advisorAudioStreamRef.current = stream
+        if (stream) addAudioStreamToRecording(stream, 'ai:gemini-live', 1.25)
+      },
       onTurnComplete: ({ userText, aiText }) => {
         const nowIso = new Date().toISOString()
         const items: DefenseMsg[] = []
