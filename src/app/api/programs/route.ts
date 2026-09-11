@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
     if (!summaryOnly) await ensureCoreSeed()
 
-    const rows = summaryOnly
+    const rows: any[] = summaryOnly
       ? await db.program.findMany({
           where: { active: true },
           orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
