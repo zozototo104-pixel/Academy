@@ -373,7 +373,7 @@ export function AgentView() {
                   الإلكتروني خلال أيام العمل لاستكمال إجراءات توقيع اتفاقية التمثيل والتفويض الدولي.
                 </p>
                 <p className="mt-4 text-xs font-bold text-emerald-600">
-                  للاستفسار: aact.academy2@gmail.com — واتساب: +14748677271
+                  للاستفسار: {ACADEMY_INFO.email} — واتساب {ACADEMY_INFO.whatsappContactName}: {ACADEMY_INFO.whatsappDisplay}
                 </p>
                 <Button className="mt-6 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => setDone(null)}>
                   إرسال طلب آخر
