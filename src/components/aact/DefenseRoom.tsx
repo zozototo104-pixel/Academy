@@ -775,7 +775,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         setRecState('FAILED')
       }
     },
-    [toast]
+    [cleanupRecordingMixer, toast]
   )
 
   // ===== 12.3: التفريغ الصوتي الحي (يغذي المستشار الذكي للتحليل الفوري) =====
