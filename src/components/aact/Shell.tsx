@@ -487,8 +487,9 @@ export function Footer() {
         <div>
           <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">تواصل معنا</h4>
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
-            <li dir="ltr" className="text-right">البريد: aact.academy2@gmail.com</li>
-            <li dir="ltr" className="text-right">واتساب: +1 (474) 867-7271</li>
+            <li dir="ltr" className="text-right">البريد: {ACADEMY_INFO.email}</li>
+            <li dir="ltr" className="text-right">واتساب: {ACADEMY_INFO.whatsappDisplay}</li>
+            <li>مسؤول التواصل: {ACADEMY_INFO.whatsappContactName}</li>
             <li>بناء القيادات، صقل المهارات</li>
             <li>Building Leaders, Refining Skills</li>
           </ul>
