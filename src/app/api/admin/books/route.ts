@@ -11,6 +11,58 @@ export const maxDuration = 300
 const MAX_BOOK_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_BOOK_TEXT_CHARS = 180000
 
+function academicBookPolicy(category: string, programTitle: string) {
+  if (category === 'DOCTORATE') {
+    return {
+      levelPolicy: `دكتوراه مهنية في ${programTitle}: يعتمد الكتاب فقط إذا كان بحثياً/نقدياً متقدماً ويدعم المنهجية والتحليل العميق وبحث التخرج.`,
+      readingDepth: 'قراءة نقدية معمقة: نقد أطر ونماذج، مقارنة منهجيات، تحليل فجوات، وربط بالبحث المهني التطبيقي.',
+      assessmentOrientation: 'أسئلة تقييم ونقد ومنهجية وحالات مركبة ومقالات تحليلية مرتبطة بنتائج بحثية.',
+    }
+  }
+  if (category === 'MASTERS') {
+    return {
+      levelPolicy: `ماجستير مهني في ${programTitle}: يعتمد الكتاب إذا جمع بين النظرية الحديثة والتطبيق المهني والحالات العملية.`,
+      readingDepth: 'قراءة تحليلية تطبيقية: فهم النماذج، تطبيقها على حالات، المقارنة بين الأدوات، وبناء حلول مهنية مبررة.',
+      assessmentOrientation: 'أسئلة تطبيق وتحليل وحالات عملية وإجابات قصيرة ومقالات محدودة مدعومة بالدليل.',
+    }
+  }
+  if (category === 'DIPLOMA') {
+    return {
+      levelPolicy: `دبلوم مهني في ${programTitle}: يعتمد الكتاب إذا كان تأسيسياً عملياً واضحاً ويقدم أدوات وأمثلة مباشرة.`,
+      readingDepth: 'قراءة تأسيسية تشغيلية: تعريف المفاهيم، خطوات العمل، أمثلة مباشرة، وأخطاء شائعة في التطبيق.',
+      assessmentOrientation: 'أسئلة فهم وتطبيق مباشر واختيار من متعدد وصح/خطأ وسيناريوهات قصيرة.',
+    }
+  }
+  if (category === 'ACCREDITATION' || category === 'INTL_CERT') {
+    return {
+      levelPolicy: `اعتماد/شهادة مهنية في ${programTitle}: يعتمد الكتاب إذا ارتبط بالمعايير والكفايات والتحقق من الجاهزية المهنية.`,
+      readingDepth: 'قراءة معيارية: متطلبات، كفايات، قوائم تحقق، وأدلة امتثال أو اعتماد.',
+      assessmentOrientation: 'أسئلة تحقق من الكفاية وسيناريوهات معيارية وحالات امتثال وتقييم جاهزية.',
+    }
+  }
+  return {
+    levelPolicy: `مرجع مهني متخصص في ${programTitle} يجب أن يخدم الدرجة والتخصص لا أن يكون عاماً.`,
+    readingDepth: 'قراءة مهنية منظمة تربط المفاهيم بالتطبيق والحالات.',
+    assessmentOrientation: 'تقييم متوازن بين الفهم والتطبيق والتحليل.',
+  }
+}
+
+function isCatalogOrSearchLink(url: string): boolean {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.toLowerCase()
+    const path = u.pathname.toLowerCase()
+    const query = u.search.toLowerCase()
+    if (host.includes('google.') || host === 'books.google.com') return true
+    if (host.includes('bing.com') || host.includes('duckduckgo.com')) return true
+    if (host.includes('openlibrary.org') && (path.includes('/search') || query.includes('q='))) return true
+    if (host.includes('worldcat.org') || host.includes('goodreads.com')) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
 /** استخراج نص من ملف PDF — احتياطي قديم؛ المسار الأساسي يستخدم extractDocumentText لكل الصيغ */
 async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
