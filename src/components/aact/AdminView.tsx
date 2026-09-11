@@ -843,7 +843,12 @@ export function AdminView() {
           <Card className="mt-4 border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
-                {students.length === 0 ? (
+                {studentsLoading ? (
+                  <div className="flex h-40 flex-col items-center justify-center gap-3 p-10 text-center text-sm text-slate-500">
+                    <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
+                    جاري تحميل الطلاب...
+                  </div>
+                ) : students.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب بعد</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
