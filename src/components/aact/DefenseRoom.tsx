@@ -752,6 +752,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         rec.stop()
       })
       recorderRef.current = null
+      cleanupRecordingMixer()
       try {
         const blob = new Blob(recChunksRef.current, { type: 'video/webm' })
         if (blob.size > 20 * 1024 * 1024) {
