@@ -205,6 +205,13 @@ async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: stri
   ) {
     return { text: '', note: 'هذا رابط بحث/فهرس Google Books وليس رابط كتاب مباشر قابل للقراءة', quality: 'LINK_TEXT' }
   }
+  if (
+    (parsedUrl.hostname.includes('openlibrary.org') && (parsedUrl.pathname.includes('/search') || parsedUrl.searchParams.has('q'))) ||
+    parsedUrl.hostname.includes('worldcat.org') ||
+    parsedUrl.hostname.includes('goodreads.com')
+  ) {
+    return { text: '', note: 'هذا رابط فهرسة/وصف كتاب وليس ملفاً أو نصاً مباشراً قابلاً للقراءة', quality: 'LINK_TEXT' }
+  }
 
   try {
     const ctrl = new AbortController()
