@@ -420,6 +420,39 @@ export function AdminBooksTab() {
     }
   }
 
+  const updateBookSource = async (book: BookRow) => {
+    const link = (sourceLinks[book.id] || '').trim()
+    const selectedFile = sourceFiles[book.id]
+    if (!link && !selectedFile) {
+      toast({ title: 'مصدر القراءة مطلوب', description: 'ارفع ملف الكتاب أو أدخل رابط PDF/TXT/HTML رسمي مفتوح.', variant: 'destructive' })
+      return
+    }
+    setUpdatingSourceBookId(book.id)
+    try {
+      const fd = new FormData()
+      fd.append('bookId', book.id)
+      if (link) fd.append('link', link)
+      if (selectedFile) fd.append('file', selectedFile)
+      const d = await api<{ book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'PATCH', body: fd })
+      setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, ...d.book, hasFile: !!d.book.fileName } : b))
+      setSourceLinks((prev) => ({ ...prev, [book.id]: '' }))
+      setSourceFiles((prev) => ({ ...prev, [book.id]: null }))
+      await loadProgramData(programId, true)
+      toast({
+        title: d.textExtracted ? 'تمت قراءة الكتاب وتحديث بنك المعرفة' : 'تم تحديث مصدر الكتاب',
+        description: d.knowledgeItemsInserted
+          ? `استخرج النظام النص وبنى ${d.knowledgeItemsInserted} عنصر معرفة جديداً.`
+          : d.linkReadStatus === 'SEARCH_LINK_ONLY'
+            ? 'الرابط المضاف ما زال رابط معاينة/فهرس، ولن يستخدمه بنك المعرفة حتى ترفع ملفاً أو رابطاً مباشراً.'
+            : d.linkNote || 'تم حفظ المصدر، ويمكنك مراجعة حالة القراءة داخل بطاقة الكتاب.',
+      })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setUpdatingSourceBookId(null)
+    }
+  }
+
   const deleteBook = async (id: string) => {
     if (!confirm('حذف هذا الكتاب من الكتب المقررة؟')) return
     try {
