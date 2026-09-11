@@ -818,8 +818,9 @@ function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggest
   const titleEn = cleanText(b?.titleEn || b?.englishTitle || b?.originalTitle, 300)
   if (!title && !titleEn) return null
   const searchTitle = titleEn || title
-  const rawLink = cleanText(b?.link || b?.url, 600)
-  const link = /^https?:\/\//i.test(rawLink) ? rawLink : googleBooksSearch(searchTitle)
+  const readableCandidate = cleanText(b?.directReadableLink || b?.readableLink || b?.readingLink || b?.pdfLink || b?.link || b?.url, 700)
+  const referenceCandidate = cleanText(b?.referenceLink || b?.catalogLink || b?.verificationLink || b?.googleBooksLink || '', 700) || googleBooksSearch(searchTitle)
+  const linkInfo = classifySuggestionLink(readableCandidate, referenceCandidate)
   const sem = Number(b?.semester ?? b?.term ?? '')
   return {
     title: title || titleEn,
@@ -827,7 +828,7 @@ function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggest
     author: cleanText(b?.author, 200) || 'مرجع أكاديمي متخصص',
     year: cleanText(b?.year, 20) || 'حديث/متداول',
     reason: cleanText(b?.reason, 900) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
-    link,
+    ...linkInfo,
     semester: Number.isInteger(sem) && sem >= 1 && sem <= 2 ? sem : null,
     levelPolicy: cleanText(b?.levelPolicy || b?.academicLevelPolicy, 900) || policy?.levelPolicy,
     readingDepth: cleanText(b?.readingDepth || b?.readingPlan, 900) || policy?.readingDepth,
