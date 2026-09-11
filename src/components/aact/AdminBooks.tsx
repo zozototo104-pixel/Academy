@@ -1343,8 +1343,8 @@ export function AdminBooksTab() {
                           </a>
                         )}
                         {b.link && (
-                          <a href={b.link} target="_blank" rel="noreferrer" className="ml-1.5 mt-1.5 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 hover:bg-blue-100">
-                            <Link2 className="h-3 w-3" /> فتح رابط الكتاب
+                          <a href={b.link} target="_blank" rel="noreferrer" className={`ml-1.5 mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-black ${isCatalogLikeUiLink(b.link) || b.linkReadStatus === 'SEARCH_LINK_ONLY' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+                            <Link2 className="h-3 w-3" /> {isCatalogLikeUiLink(b.link) || b.linkReadStatus === 'SEARCH_LINK_ONLY' ? 'فتح رابط تحقق فقط' : 'فتح رابط القراءة'}
                           </a>
                         )}
                       </div>
