@@ -222,6 +222,10 @@ async function aiKnowledgeItems(
 الكتاب: ${book.title}${book.titleEn ? ` / ${book.titleEn}` : ''}
 المؤلف: ${book.author || '-'}
 الفصل الدراسي: ${semester || book.semester || 'عام'}
+سياسة مستوى الكتاب: ${book.levelPolicy || '-'}
+عمق القراءة المتوقع: ${book.readingDepth || '-'}
+طبيعة التقييم المبني على الكتاب: ${book.assessmentOrientation || '-'}
+حالة قراءة الرابط/الملف: ${book.linkReadStatus || '-'} — ${book.linkReadNote || '-'}
 
 مقاطع موزعة من الكتاب:
 ${sample}
