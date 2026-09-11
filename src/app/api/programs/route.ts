@@ -4,20 +4,43 @@ import { getCurrentUser } from '@/lib/auth'
 import { ensureCoreSeed } from '@/lib/bootstrap'
 import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CATEGORY_AR, programSpecialtyLabel } from '@/lib/program-tracks'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    await ensureCoreSeed()
-    const rows = await db.program.findMany({
-      where: { active: true },
-      orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
-      include: {
-        units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } },
-        books: { orderBy: { createdAt: 'asc' }, select: { id: true, title: true, titleEn: true, semester: true, source: true } },
-        assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { id: true, title: true, semester: true, points: true, status: true } },
-        studyGuides: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], select: { id: true, title: true, semester: true, overview: true } },
-        programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, status: true, _count: { select: { questions: true } } } },
-      },
-    })
+    const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
+    if (!summaryOnly) await ensureCoreSeed()
+
+    const rows = summaryOnly
+      ? await db.program.findMany({
+          where: { active: true },
+          orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
+          select: {
+            id: true,
+            slug: true,
+            titleAr: true,
+            titleEn: true,
+            description: true,
+            category: true,
+            hours: true,
+            price: true,
+            icon: true,
+            features: true,
+            order: true,
+            active: true,
+            admissionRules: true,
+            _count: { select: { units: true } },
+          },
+        })
+      : await db.program.findMany({
+          where: { active: true },
+          orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
+          include: {
+            units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } },
+            books: { orderBy: { createdAt: 'asc' }, select: { id: true, title: true, titleEn: true, semester: true, source: true } },
+            assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { id: true, title: true, semester: true, points: true, status: true } },
+            studyGuides: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], select: { id: true, title: true, semester: true, overview: true } },
+            programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, status: true, _count: { select: { questions: true } } } },
+          },
+        })
 
     const programs = rows
       .filter((p) => !isGenericAllSpecializationsProgram(p))
