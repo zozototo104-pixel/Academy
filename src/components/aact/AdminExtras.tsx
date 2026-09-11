@@ -38,8 +38,31 @@ interface Thesis {
   resultScore?: number | null
   passed?: boolean | null
   createdAt: string
-  user: { id: string; name: string; email: string; country?: string | null }
+  user?: { id: string; name: string; email: string; country?: string | null } | null
   admission?: { id: string; reference: string; program: string; status: string } | null
+}
+
+function safeText(value: unknown, fallback = ''): string {
+  const text = String(value ?? '').trim()
+  return text || fallback
+}
+
+function parseCommitteeNames(raw?: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 8)
+    if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
+    if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 8)
+  } catch {}
+  return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
+}
+
+function formatArabicDate(value?: string | null): string {
+  if (!value) return 'موعد غير محدد'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'موعد غير صالح يحتاج إعادة جدولة'
+  return date.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 export function AdminThesisTab() {
