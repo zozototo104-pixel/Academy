@@ -187,6 +187,70 @@ export function DefenseRoom({
   })()
   const isStudent = mode === 'student'
 
+  const cleanupRecordingMixer = useCallback(() => {
+    recordingAudioNodesRef.current.forEach((node) => { try { node.disconnect() } catch {} })
+    recordingAudioNodesRef.current = []
+    recordingAudioKeysRef.current.clear()
+    recordingMixedStreamRef.current?.getTracks().forEach((track) => {
+      // لا نوقف كاميرا/مايك الطالب أو Streams المشاركين؛ نوقف فقط مسارات الخلط الداخلية.
+      if (track.readyState === 'live' && track.kind === 'audio') { try { track.stop() } catch {} }
+    })
+    recordingMixedStreamRef.current = null
+    try { recordingAudioCtxRef.current?.close() } catch {}
+    recordingAudioCtxRef.current = null
+    recordingAudioDestRef.current = null
+  }, [])
+
+  const ensureRecordingMixer = useCallback((): MediaStreamAudioDestinationNode | null => {
+    if (recordingAudioDestRef.current) return recordingAudioDestRef.current
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      if (!Ctx) return null
+      const ctx = new Ctx() as AudioContext
+      recordingAudioCtxRef.current = ctx
+      recordingAudioDestRef.current = ctx.createMediaStreamDestination()
+      if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
+      return recordingAudioDestRef.current
+    } catch {
+      return null
+    }
+  }, [])
+
+  const addAudioStreamToRecording = useCallback((stream: MediaStream | null | undefined, key: string, gainValue = 1) => {
+    if (!stream || recorderRef.current?.state !== 'recording') return
+    if (!stream.getAudioTracks().some((track) => track.readyState === 'live')) return
+    if (recordingAudioKeysRef.current.has(key)) return
+    const dest = ensureRecordingMixer()
+    const ctx = recordingAudioCtxRef.current
+    if (!dest || !ctx) return
+    try {
+      const source = ctx.createMediaStreamSource(stream)
+      const gain = ctx.createGain()
+      gain.gain.value = gainValue
+      source.connect(gain)
+      gain.connect(dest)
+      recordingAudioNodesRef.current.push(source, gain)
+      recordingAudioKeysRef.current.add(key)
+    } catch {}
+  }, [ensureRecordingMixer])
+
+  const buildRecordingStream = useCallback((): MediaStream | null => {
+    const videoSource = sharing && screenStreamRef.current ? screenStreamRef.current : streamRef.current
+    const mixed = new MediaStream()
+    videoSource?.getVideoTracks().slice(0, 1).forEach((track) => mixed.addTrack(track))
+
+    const dest = ensureRecordingMixer()
+    if (dest) {
+      // بعد إنشاء MediaRecorder سنعيد استدعاء addAudioStreamToRecording، لكن نضيف مسار الوجهة الآن إلى التسجيل.
+      dest.stream.getAudioTracks().forEach((track) => mixed.addTrack(track))
+    } else {
+      streamRef.current?.getAudioTracks().slice(0, 1).forEach((track) => mixed.addTrack(track))
+    }
+
+    recordingMixedStreamRef.current = mixed
+    return mixed.getTracks().length ? mixed : streamRef.current
+  }, [ensureRecordingMixer, sharing])
+
   // دعم التعرف الصوتي + جلب خوادم ICE/TURN من إعدادات المنصة (عبر NAT)
   useEffect(() => {
     const w = window as any
