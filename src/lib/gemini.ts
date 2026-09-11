@@ -154,13 +154,14 @@ export function getGemini(): GoogleGenAI | null {
 
 async function textModelChain(): Promise<string[]> {
   await refreshFromDb()
-  const custom = normalizeGeminiModelName(process.env.GEMINI_TEXT_MODEL || dbTextModelCache)
+  // إعدادات لوحة الإدارة لها الأولوية على متغيرات البيئة حتى يستطيع المدير تغيير النموذج دون إعادة نشر.
+  const custom = normalizeGeminiModelName(dbTextModelCache || process.env.GEMINI_TEXT_MODEL)
   return [...new Set([custom, activeTextModel, ...TEXT_MODELS].filter(Boolean) as string[])]
 }
 
 async function ttsModelChain(): Promise<string[]> {
   await refreshFromDb()
-  const custom = normalizeGeminiModelName(process.env.GEMINI_TTS_MODEL || dbTtsModelCache)
+  const custom = normalizeGeminiModelName(dbTtsModelCache || process.env.GEMINI_TTS_MODEL)
   return [...new Set([custom, activeTtsModel, ...TTS_MODELS].filter(Boolean) as string[])]
 }
 
