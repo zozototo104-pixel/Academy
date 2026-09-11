@@ -191,9 +191,9 @@ export function DefenseRoom({
     recordingAudioNodesRef.current.forEach((node) => { try { node.disconnect() } catch {} })
     recordingAudioNodesRef.current = []
     recordingAudioKeysRef.current.clear()
-    recordingMixedStreamRef.current?.getTracks().forEach((track) => {
-      // لا نوقف كاميرا/مايك الطالب أو Streams المشاركين؛ نوقف فقط مسارات الخلط الداخلية.
-      if (track.readyState === 'live' && track.kind === 'audio') { try { track.stop() } catch {} }
+    recordingAudioDestRef.current?.stream.getTracks().forEach((track) => {
+      // لا نوقف كاميرا/مايك الطالب أو Streams المشاركين؛ نوقف فقط مسار الخلط الداخلي.
+      try { track.stop() } catch {}
     })
     recordingMixedStreamRef.current = null
     try { recordingAudioCtxRef.current?.close() } catch {}
