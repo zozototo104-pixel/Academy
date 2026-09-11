@@ -84,8 +84,11 @@ export function AdminThesisTab() {
 
   const load = () => {
     api<{ theses: Thesis[] }>('/api/admin/thesis')
-      .then((d) => setTheses(d.theses))
-      .catch(() => {})
+      .then((d) => setTheses(Array.isArray(d.theses) ? d.theses : []))
+      .catch((e) => {
+        setTheses([])
+        toast({ title: 'تعذر تحميل أبحاث التخرج', description: e?.message || 'حدث خطأ أثناء تحميل بيانات المناقشات', variant: 'destructive' })
+      })
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
