@@ -220,6 +220,13 @@ function isCatalogLikeUiLink(raw?: string | null): boolean {
   }
 }
 
+function bookNeedsReadableSource(book: BookRow): boolean {
+  return !book.hasFile ||
+    !book.linkReadStatus ||
+    ['SEARCH_LINK_ONLY', 'FAILED', 'UNSUPPORTED', 'NOT_ATTEMPTED'].includes(book.linkReadStatus) ||
+    (!!book.link && isCatalogLikeUiLink(book.link))
+}
+
 export function AdminBooksTab() {
   const { toast } = useToast()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
