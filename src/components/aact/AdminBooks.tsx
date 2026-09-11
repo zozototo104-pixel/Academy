@@ -197,6 +197,12 @@ const LINK_READ_META: Record<string, { label: string; cls: string }> = {
   UNSUPPORTED: { label: 'نوع غير مدعوم', cls: 'bg-red-100 text-red-700' },
   NOT_ATTEMPTED: { label: 'لم تُجر قراءة', cls: 'bg-slate-100 text-slate-600' },
 }
+const SUGGESTION_LINK_META: Record<string, { label: string; cls: string }> = {
+  DIRECT_READABLE: { label: 'رابط قراءة مباشر', cls: 'bg-emerald-100 text-emerald-700' },
+  UNKNOWN: { label: 'سيُختبر عند الإضافة', cls: 'bg-blue-100 text-blue-700' },
+  CATALOG_SEARCH: { label: 'رابط تحقق فقط', cls: 'bg-amber-100 text-amber-700' },
+  MISSING_DIRECT_LINK: { label: 'بلا رابط مباشر', cls: 'bg-red-100 text-red-700' },
+}
 
 export function AdminBooksTab() {
   const { toast } = useToast()
