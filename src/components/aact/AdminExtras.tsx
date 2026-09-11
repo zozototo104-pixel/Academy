@@ -164,14 +164,14 @@ export function AdminThesisTab() {
                       )}
                     </div>
                     <p className="mt-1 text-xs font-bold text-slate-600">
-                      الباحث: {t.user.name} — {t.admission?.program || 'برنامج غير محدد'}
+                      الباحث: {studentName} — {programName}
                     </p>
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{t.abstract}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
                     {t.status === 'SCHEDULED' && t.defenseDate && (
                       <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-700">
                         <CalendarClock className="h-3.5 w-3.5" />
-                        {new Date(t.defenseDate).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        — اللجنة: {committee.join('، ')}
+                        {formatArabicDate(t.defenseDate)}
+                        — اللجنة: {committee.length ? committee.join('، ') : 'لم تُحفظ أسماء اللجنة'}
                         {t.agentMember ? ` + عضو الوكيل (${t.agentMember})` : ''}
                       </p>
                     )}
