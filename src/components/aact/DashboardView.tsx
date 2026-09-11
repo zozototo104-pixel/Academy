@@ -182,7 +182,7 @@ export function DashboardView() {
   const loadList = useCallback(async () => {
     try {
       const [p, e, c, m, mc] = await Promise.all([
-        api<{ programs: any[] }>('/api/programs'),
+        api<{ programs: any[] }>('/api/programs?summary=1'),
         api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => ({ enrollments: [] as any[] })),
         api<{ messages: ChatMsg[] }>('/api/chat').catch(() => ({ messages: [] as ChatMsg[] })),
         api<{ memory: AcademicMemorySnapshot | null }>('/api/my/academic-memory').catch(() => ({ memory: null })),
