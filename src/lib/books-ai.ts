@@ -118,6 +118,82 @@ function googleBooksSearch(title: string): string {
   return `https://books.google.com/books?q=${encodeURIComponent(title)}`
 }
 
+function isCatalogBookLink(raw?: string | null): boolean {
+  const u = cleanText(raw, 700)
+  if (!u) return false
+  try {
+    const parsed = new URL(u)
+    const host = parsed.hostname.toLowerCase()
+    const path = parsed.pathname.toLowerCase()
+    if (host === 'books.google.com' || host.endsWith('.books.google.com')) return true
+    if (host.includes('google.') && (path.includes('/search') || parsed.searchParams.has('tbm') || parsed.searchParams.has('q'))) return true
+    if (host.includes('openlibrary.org') && (path.includes('/search') || parsed.searchParams.has('q'))) return true
+    if (host.includes('worldcat.org') || host.includes('goodreads.com')) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+function looksDirectReadableBookLink(raw?: string | null): boolean {
+  const u = cleanText(raw, 700)
+  if (!/^https?:\/\//i.test(u) || isCatalogBookLink(u)) return false
+  try {
+    const parsed = new URL(u)
+    const host = parsed.hostname.toLowerCase()
+    const path = decodeURIComponent(parsed.pathname.toLowerCase())
+    if (/\.(pdf|txt|html|htm|docx|xlsx|csv)(?:$|[?#])/i.test(u)) return true
+    if (host.includes('gutenberg.org') && (path.includes('/files/') || path.includes('/ebooks/'))) return true
+    if (host.includes('openstax.org') && path.includes('/books/')) return true
+    if (host.includes('pressbooks.pub')) return true
+    if (host.includes('libretexts.org')) return true
+    if (host.includes('wikibooks.org')) return true
+    if (host.includes('oapen.org')) return true
+    if (host.includes('doabooks.org')) return true
+    if (host.includes('archive.org') && (path.includes('/download/') || path.includes('/stream/'))) return true
+    if (host.includes('nist.gov') || host.includes('csrc.nist.gov')) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+function classifySuggestionLink(readableCandidate?: string | null, referenceCandidate?: string | null): Pick<BookSuggestion, 'link' | 'referenceLink' | 'linkType' | 'linkReadHint'> {
+  const direct = cleanText(readableCandidate, 700)
+  const reference = cleanText(referenceCandidate, 700)
+  if (direct && looksDirectReadableBookLink(direct)) {
+    return {
+      link: direct,
+      referenceLink: reference && reference !== direct ? reference : undefined,
+      linkType: 'DIRECT_READABLE',
+      linkReadHint: 'رابط قراءة مباشر؛ سيحاول النظام استخراج النص منه وبناء بنك المعرفة والامتحانات.',
+    }
+  }
+  if (direct && !isCatalogBookLink(direct) && /^https?:\/\//i.test(direct)) {
+    return {
+      link: direct,
+      referenceLink: reference && reference !== direct ? reference : undefined,
+      linkType: 'UNKNOWN',
+      linkReadHint: 'الرابط ليس فهرساً معروفاً وسيختبره النظام عند الإضافة؛ إذا لم يستخرج نصاً كافياً فلن تُبنى عليه أسئلة.',
+    }
+  }
+  const catalog = direct || reference
+  if (catalog && isCatalogBookLink(catalog)) {
+    return {
+      link: '',
+      referenceLink: catalog,
+      linkType: 'CATALOG_SEARCH',
+      linkReadHint: 'هذا رابط تحقق/فهرس مثل Google Books، وليس رابط قراءة مباشر؛ لن يستخدمه النظام لبناء بنك معرفة أو امتحان.',
+    }
+  }
+  return {
+    link: '',
+    referenceLink: reference || undefined,
+    linkType: 'MISSING_DIRECT_LINK',
+    linkReadHint: 'لم يعثر الذكاء على رابط قراءة مباشر موثوق؛ ارفع ملف PDF/Word أو ضع رابط PDF/TXT/HTML مفتوح قبل توليد المعرفة والامتحان.',
+  }
+}
+
 type ProgramDomain =
   | 'cybersecurity'
   | 'artificial-intelligence'
