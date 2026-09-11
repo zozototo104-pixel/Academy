@@ -1126,22 +1126,48 @@ const BATCH_SPECS: {
 
 type PlannedQuestionKind = 'MCQ' | 'CASE_MCQ' | 'TF' | 'SHORT' | 'ESSAY'
 
-function batchQuestionPlan(kind: string, count: number): PlannedQuestionKind[] {
+function batchQuestionPlan(kind: string, count: number, category = 'MASTERS'): PlannedQuestionKind[] {
   const plan: PlannedQuestionKind[] = []
   const add = (type: PlannedQuestionKind, n: number) => { for (let i = 0; i < n; i++) plan.push(type) }
-  if (kind === 'MIX_CORE') { add('MCQ', 8); add('TF', 6); add('SHORT', 4); add('ESSAY', 2) }
-  else if (kind === 'MIX_APPLICATION') { add('MCQ', 7); add('TF', 5); add('SHORT', 5); add('ESSAY', 3) }
-  else if (kind === 'MIX_ANALYSIS') { add('MCQ', 4); add('TF', 3); add('SHORT', 3); add('ESSAY', 2) }
-  else if (kind === 'MIX_CASE') { add('CASE_MCQ', 6); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
-  else if (kind === 'MIX_RESEARCH') { add('MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
-  else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
-  else { add('MCQ', count) }
-  while (plan.length < count) plan.push('SHORT')
+
+  if (category === 'DIPLOMA') {
+    if (kind === 'MIX_CORE') { add('MCQ', 10); add('TF', 6); add('SHORT', 3); add('ESSAY', 1) }
+    else if (kind === 'MIX_APPLICATION') { add('MCQ', 8); add('TF', 5); add('SHORT', 5); add('ESSAY', 2) }
+    else if (kind === 'MIX_ANALYSIS') { add('MCQ', 5); add('TF', 3); add('SHORT', 3); add('ESSAY', 1) }
+    else if (kind === 'MIX_CASE') { add('CASE_MCQ', 7); add('TF', 2); add('SHORT', 2); add('ESSAY', 1) }
+    else if (kind === 'MIX_RESEARCH') { add('MCQ', 3); add('TF', 2); add('SHORT', 2); add('ESSAY', 1) }
+    else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 3); add('TF', 2); add('SHORT', 2); add('ESSAY', 1) }
+  } else if (category === 'DOCTORATE') {
+    if (kind === 'MIX_CORE') { add('MCQ', 5); add('TF', 3); add('SHORT', 6); add('ESSAY', 6) }
+    else if (kind === 'MIX_APPLICATION') { add('MCQ', 5); add('TF', 2); add('SHORT', 6); add('ESSAY', 7) }
+    else if (kind === 'MIX_ANALYSIS') { add('MCQ', 2); add('TF', 1); add('SHORT', 4); add('ESSAY', 5) }
+    else if (kind === 'MIX_CASE') { add('CASE_MCQ', 4); add('TF', 1); add('SHORT', 3); add('ESSAY', 4) }
+    else if (kind === 'MIX_RESEARCH') { add('MCQ', 1); add('TF', 1); add('SHORT', 2); add('ESSAY', 4) }
+    else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 1); add('TF', 1); add('SHORT', 2); add('ESSAY', 4) }
+  } else if (category === 'ACCREDITATION' || category === 'INTL_CERT') {
+    if (kind === 'MIX_CORE') { add('MCQ', 10); add('TF', 5); add('SHORT', 4); add('ESSAY', 1) }
+    else if (kind === 'MIX_APPLICATION') { add('CASE_MCQ', 8); add('TF', 4); add('SHORT', 6); add('ESSAY', 2) }
+    else if (kind === 'MIX_ANALYSIS') { add('MCQ', 4); add('TF', 3); add('SHORT', 4); add('ESSAY', 1) }
+    else if (kind === 'MIX_CASE') { add('CASE_MCQ', 8); add('TF', 2); add('SHORT', 1); add('ESSAY', 1) }
+    else if (kind === 'MIX_RESEARCH') { add('MCQ', 3); add('TF', 2); add('SHORT', 2); add('ESSAY', 1) }
+    else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 4); add('TF', 2); add('SHORT', 1); add('ESSAY', 1) }
+  }
+
+  if (plan.length === 0) {
+    if (kind === 'MIX_CORE') { add('MCQ', 8); add('TF', 6); add('SHORT', 4); add('ESSAY', 2) }
+    else if (kind === 'MIX_APPLICATION') { add('MCQ', 7); add('TF', 5); add('SHORT', 5); add('ESSAY', 3) }
+    else if (kind === 'MIX_ANALYSIS') { add('MCQ', 4); add('TF', 3); add('SHORT', 3); add('ESSAY', 2) }
+    else if (kind === 'MIX_CASE') { add('CASE_MCQ', 6); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+    else if (kind === 'MIX_RESEARCH') { add('MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+    else if (kind === 'MIX_FINAL') { add('CASE_MCQ', 2); add('TF', 2); add('SHORT', 2); add('ESSAY', 2) }
+    else { add('MCQ', count) }
+  }
+  while (plan.length < count) plan.push(category === 'DOCTORATE' ? 'ESSAY' : 'SHORT')
   return plan.slice(0, count)
 }
 
-function batchDistributionText(kind: string, count: number): string {
-  const plan = batchQuestionPlan(kind, count)
+function batchDistributionText(kind: string, count: number, category = 'MASTERS'): string {
+  const plan = batchQuestionPlan(kind, count, category)
   const counts = plan.reduce((acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }), {} as Record<string, number>)
   return Object.entries(counts).map(([k, v]) => `${v} ${k === 'CASE_MCQ' ? 'MCQ حالة عملية' : k}`).join(' + ')
 }
