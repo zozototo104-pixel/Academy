@@ -567,6 +567,11 @@ async function runGeneration(examId: string) {
         size: true,
         data: true,
         textContent: true,
+        levelPolicy: true,
+        readingDepth: true,
+        assessmentOrientation: true,
+        linkReadStatus: true,
+        linkReadNote: true,
       },
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${semester === 2 ? 'الثاني' : 'الأول'}`)
