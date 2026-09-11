@@ -204,6 +204,22 @@ const SUGGESTION_LINK_META: Record<string, { label: string; cls: string }> = {
   MISSING_DIRECT_LINK: { label: 'بلا رابط مباشر', cls: 'bg-red-100 text-red-700' },
 }
 
+function isCatalogLikeUiLink(raw?: string | null): boolean {
+  if (!raw) return false
+  try {
+    const u = new URL(raw)
+    const host = u.hostname.toLowerCase()
+    const path = u.pathname.toLowerCase()
+    const query = u.search.toLowerCase()
+    return host === 'books.google.com' || host.startsWith('books.google.') ||
+      ((host === 'google.com' || host.endsWith('.google.com')) && (path.includes('/books') || path.includes('/search') || query.includes('q=') || query.includes('tbm=bks'))) ||
+      host.includes('goodreads.com') || host.includes('worldcat.org') ||
+      (host.includes('openlibrary.org') && (path.includes('/search') || query.includes('q=')))
+  } catch {
+    return false
+  }
+}
+
 export function AdminBooksTab() {
   const { toast } = useToast()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
