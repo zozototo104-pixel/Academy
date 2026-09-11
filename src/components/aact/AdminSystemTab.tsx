@@ -309,7 +309,7 @@ export function AdminSystemTab() {
         {/* ===== Gemini Live ===== */}
         <TabsContent value="gemini" className="mt-4 space-y-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800">
-            <Radio className="ml-1 inline h-4 w-4" /> Gemini Live هنا صوت إلى صوت حقيقي عبر WebSocket، وليس Text→TTS. احفظ الاسم الإنجليزي الكامل للنموذج؛ العرض العربي لا يُستخدم كقيمة محفوظة.
+            <Radio className="ml-1 inline h-4 w-4" /> Gemini Live هنا صوت إلى صوت حقيقي عبر WebSocket، وليس Text→TTS. اختر النموذج والصوت من القوائم، ثم اضغط حفظ إعدادات Gemini واختبر الاتصال.
           </div>
           <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
             {F('GEMINI_API_KEY', 'مفتاح Gemini API', data.secretsSet.GEMINI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'AIza...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
