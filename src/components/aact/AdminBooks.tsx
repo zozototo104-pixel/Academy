@@ -221,10 +221,10 @@ function isCatalogLikeUiLink(raw?: string | null): boolean {
 }
 
 function bookNeedsReadableSource(book: BookRow): boolean {
-  return !book.hasFile ||
-    !book.linkReadStatus ||
-    ['SEARCH_LINK_ONLY', 'FAILED', 'UNSUPPORTED', 'NOT_ATTEMPTED'].includes(book.linkReadStatus) ||
-    (!!book.link && isCatalogLikeUiLink(book.link))
+  const status = book.linkReadStatus || 'NOT_ATTEMPTED'
+  const alreadyReadable = status === 'FILE_EXTRACTED' || status === 'TEXT_EXTRACTED'
+  if (alreadyReadable) return false
+  return status === 'SEARCH_LINK_ONLY' || status === 'FAILED' || status === 'UNSUPPORTED' || status === 'NOT_ATTEMPTED' || (!!book.link && isCatalogLikeUiLink(book.link))
 }
 
 export function AdminBooksTab() {
