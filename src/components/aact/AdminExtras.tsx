@@ -70,6 +70,7 @@ export function AdminThesisTab() {
   const { toast } = useToast()
   const [theses, setTheses] = useState<Thesis[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [sched, setSched] = useState<Thesis | null>(null)
   const [date, setDate] = useState('')
   const [members, setMembers] = useState('')
