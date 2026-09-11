@@ -101,20 +101,20 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {view === 'home' && <HomeView />}
-            {view === 'programs' && <ProgramsView />}
-            {view === 'program-detail' && <ProgramDetailsView />}
-            {view === 'apply' && <ApplyView />}
-            {view === 'auth' && <AuthView />}
-            {view === 'dashboard' && <DashboardView />}
-            {view === 'unit' && <UnitView />}
-            {view === 'exam' && <ExamView />}
-            {view === 'chat' && <AIChatView />}
-            {view === 'agent' && <AgentView />}
-            {view === 'admin' && <AdminView />}
-            {view === 'verify' && <VerifyView />}
-            {view === 'directory' && <DirectoryView />}
-            {view === 'contact' && <ContactView />}
+            {effectiveView === 'home' && <HomeView />}
+            {effectiveView === 'programs' && <ProgramsView />}
+            {effectiveView === 'program-detail' && <ProgramDetailsView />}
+            {effectiveView === 'apply' && <ApplyView />}
+            {effectiveView === 'auth' && <AuthView />}
+            {effectiveView === 'dashboard' && <DashboardView />}
+            {effectiveView === 'unit' && <UnitView />}
+            {effectiveView === 'exam' && <ExamView />}
+            {effectiveView === 'chat' && <AIChatView />}
+            {effectiveView === 'agent' && <AgentView />}
+            {effectiveView === 'admin' && <AdminView />}
+            {effectiveView === 'verify' && <VerifyView />}
+            {effectiveView === 'directory' && <DirectoryView />}
+            {effectiveView === 'contact' && <ContactView />}
           </>
         )}
       </main>
