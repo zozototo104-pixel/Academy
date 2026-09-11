@@ -183,19 +183,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'رابط الكتاب غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
       }
       if (!file || file.size === 0) {
-        const fetched = await fetchLinkContent(link!)
-        if (fetched.ok && fetched.buffer) {
-          mimeType = fetched.mime || 'application/octet-stream'
-          fileName = fetched.buffer ? (link!.split('/').pop() || 'book-file').slice(0, 180) : null
-          size = fetched.buffer.length
-          const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
-          textContent = extracted.text || null
-          linkNote = extracted.readable ? extracted.note : `الرابط محفوظ، لكن لم نستخرج نصاً كافياً: ${extracted.note}`
-        } else if (fetched.ok && fetched.htmlText) {
-          textContent = fetched.htmlText
-          linkNote = 'تم استخراج نص الصفحة من الرابط'
+        if (isCatalogOrSearchLink(link!)) {
+          linkReadStatus = 'SEARCH_LINK_ONLY'
+          linkNote = 'الرابط صفحة بحث/فهرس أو معاينة عامة؛ تم حفظه للطلاب والإدارة، لكنه لا يُعد نص كتاب مقروءاً ولا تُبنى عليه أسئلة إلا بعد رفع ملف أو رابط مباشر قابل للقراءة.'
         } else {
-          linkNote = fetched.note || 'تعذر استخراج نص آلي من الرابط — الرابط محفوظ للطلاب'
+          const fetched = await fetchLinkContent(link!)
+          if (fetched.ok && fetched.buffer) {
+            mimeType = fetched.mime || 'application/octet-stream'
+            fileName = fetched.buffer ? (link!.split('/').pop() || 'book-file').slice(0, 180) : null
+            size = fetched.buffer.length
+            const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
+            textContent = extracted.text || null
+            linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'TEXT_EXTRACTED' : 'FAILED'
+            linkNote = extracted.readable
+              ? `تم استخراج نص مباشر من رابط الكتاب: ${extracted.note}`
+              : `الرابط محفوظ، لكن لم نستخرج نصاً كافياً: ${extracted.note}`
+          } else if (fetched.ok && fetched.htmlText) {
+            textContent = fetched.htmlText
+            linkReadStatus = fetched.htmlText.length >= 1200 ? 'TEXT_EXTRACTED' : 'FAILED'
+            linkNote = fetched.htmlText.length >= 1200
+              ? 'تم استخراج نص صفحة قابلة للقراءة من الرابط وسيستخدمها بنك المعرفة بحذر.'
+              : 'تم الوصول للرابط لكن النص المستخرج قصير ولا يكفي لاعتماده ككتاب مقروء.'
+          } else {
+            linkReadStatus = fetched.mime ? 'UNSUPPORTED' : 'FAILED'
+            linkNote = fetched.note || 'تعذر استخراج نص آلي من الرابط — الرابط محفوظ للطلاب فقط'
+          }
         }
       }
     }
