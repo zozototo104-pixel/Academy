@@ -8,6 +8,8 @@ export interface AgentCallbacks {
   onTimings?: (rows: { event: string; atMs: number }[]) => void
   onTurnComplete?: (turn: { userText: string; aiText: string; messageId?: string }) => void
   onInterrupted?: (info: { spokenPartial: string }) => void
+  /** مسار صوت المشرف الخارج من Gemini Live حتى يمكن خلطه داخل تسجيل جلسة المناقشة. */
+  onOutputStream?: (stream: MediaStream | null) => void
   onError?: (msg: string) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
