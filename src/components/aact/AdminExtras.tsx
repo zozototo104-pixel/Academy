@@ -147,8 +147,10 @@ export function AdminThesisTab() {
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث تخرج مسلَّمة بعد</CardContent></Card>
       ) : (
         theses.map((t) => {
-          let committee: string[] = []
-          try { committee = JSON.parse(t.committee || '[]') } catch {}
+          const committee = parseCommitteeNames(t.committee)
+          const studentName = safeText(t.user?.name, 'طالب غير محدد')
+          const programName = safeText(t.admission?.program, 'برنامج غير محدد')
+          const abstractText = safeText(t.abstract, 'لا يوجد ملخص محفوظ لهذا البحث')
           return (
             <Card key={t.id} className="border-[#0f2b46]/10">
               <CardContent className="p-5">
