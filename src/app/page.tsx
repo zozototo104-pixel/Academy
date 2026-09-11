@@ -87,6 +87,9 @@ export default function Home() {
     }
   }, [authChecked, user, view])
 
+  const hasExplicitView = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('view')
+  const effectiveView = authChecked && user?.role === 'ADMIN' && !hasExplicitView && (view === 'home' || view === 'auth') ? 'admin' : view
+
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
       <PWARegister />
