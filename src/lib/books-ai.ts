@@ -125,8 +125,8 @@ function isCatalogBookLink(raw?: string | null): boolean {
     const parsed = new URL(u)
     const host = parsed.hostname.toLowerCase()
     const path = parsed.pathname.toLowerCase()
-    if (host === 'books.google.com' || host.endsWith('.books.google.com')) return true
-    if (host.includes('google.') && (path.includes('/search') || parsed.searchParams.has('tbm') || parsed.searchParams.has('q'))) return true
+    if (host === 'books.google.com' || host.startsWith('books.google.') || host.endsWith('.books.google.com')) return true
+    if (host.includes('google.') && (path.includes('/books') || path.includes('/search') || parsed.searchParams.has('tbm') || parsed.searchParams.has('q'))) return true
     if (host.includes('openlibrary.org') && (path.includes('/search') || parsed.searchParams.has('q'))) return true
     if (host.includes('worldcat.org') || host.includes('goodreads.com')) return true
     return false
