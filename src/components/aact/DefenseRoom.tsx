@@ -162,6 +162,12 @@ export function DefenseRoom({
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recChunksRef = useRef<Blob[]>([])
   const recStartRef = useRef(0)
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null)
+  const recordingAudioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
+  const recordingAudioNodesRef = useRef<AudioNode[]>([])
+  const recordingAudioKeysRef = useRef<Set<string>>(new Set())
+  const recordingMixedStreamRef = useRef<MediaStream | null>(null)
+  const advisorAudioStreamRef = useRef<MediaStream | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
