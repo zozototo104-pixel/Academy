@@ -75,7 +75,7 @@ export function ProgramsView() {
 
   const load = async () => {
     try {
-      const d = await api<{ programs: Program[] }>('/api/programs')
+      const d = await api<{ programs: Program[] }>('/api/programs?summary=1')
       setPrograms(d.programs)
     } catch {
       toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' })
