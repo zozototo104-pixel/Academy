@@ -73,7 +73,14 @@ function normalizeQuestionText(value: unknown): string {
     .trim()
 }
 
-function validatePublicationReadiness(questions: any[]): string[] {
+function minTypeDistributionForDegree(category?: string | null): Record<string, number> {
+  if (category === 'DOCTORATE') return { MCQ: 16, TF: 8, SHORT: 18, ESSAY: 22 }
+  if (category === 'DIPLOMA') return { MCQ: 30, TF: 18, SHORT: 18, ESSAY: 6 }
+  if (category === 'ACCREDITATION' || category === 'INTL_CERT') return { MCQ: 30, TF: 16, SHORT: 16, ESSAY: 5 }
+  return DEFAULT_MIN_TYPE_DISTRIBUTION
+}
+
+function validatePublicationReadiness(questions: any[], category?: string | null): string[] {
   const errors: string[] = []
   const candidates = questions.filter((q) => q.status !== 'REJECTED')
   if (candidates.length < REQUIRED_PUBLISHED_QUESTIONS) {
