@@ -1135,7 +1135,7 @@ ${recent || 'بدأت الجلسة للتو.'}
             <p className="mt-1.5 text-xs leading-relaxed text-white/80">
               مناقشتك تتم داخل المنصة عبر قاعة فيديو كونفرنس متعددة الأطراف: أنت + أعضاء اللجنة متصلون من دول مختلفة +
               خبير ذكاء اصطناعي يشارك بالأسئلة والتحليل الحي — موعدك:{' '}
-              <strong>{thesis.defenseDate ? new Date(thesis.defenseDate).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'قريباً'}</strong>
+              <strong>{safeArabicDate(thesis.defenseDate)}</strong>
               {' '}— اللجنة: {committee.join('، ') || 'ستُعلن'}{thesis.agentMember ? ` + عضو الوكيل` : ''}
             </p>
             {finished && aiScore != null && (
