@@ -68,8 +68,12 @@ interface AgentApp {
   exclusive?: boolean
   startDate?: string | null
   endDate?: string | null
+  revokedAt?: string | null
+  revokedReason?: string | null
+  revokedById?: string | null
   // وثائق الاعتماد الرسمية المرفوعة + فاتورة رسوم التقديم
   documents?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
+  certificates?: { id: string; serial: string; valid: boolean; issuedAt: string }[]
   applicationFee?: { invoiceNo: string; amount: number; status: string } | null
 }
 
