@@ -759,15 +759,20 @@ function fallbackBookSuggestions(program: { titleAr: string; titleEn?: string | 
   const spec = specialtyName(program)
   const topic = cleanText(spec.en || spec.ar || program.titleAr, 180)
   const level = LEVEL_AR[program.category] || 'الدراسات المهنية'
+  const policy = academicPolicyForCategory(program.category)
   const base = (DOMAIN_BOOKS[domain] && DOMAIN_BOOKS[domain]!.length ? DOMAIN_BOOKS[domain]! : DOMAIN_BOOKS.general)
 
-  return base.map(([titleEn, author, year, reason]) => ({
+  return base.map(([titleEn, author, year, reason], index) => ({
     title: `${level} في ${spec.ar}: ${titleEn}`.slice(0, 300),
     titleEn,
     author,
     year,
     reason: `${reason} اختير لأنه مرتبط مباشرة بتخصص ${spec.ar} ومستوى ${level}، وليس اقتراحاً عاماً لكل التخصصات.`,
     link: googleBooksSearch(`${titleEn} ${topic}`),
+    semester: policy.suggestedSemesters[index % policy.suggestedSemesters.length] || null,
+    levelPolicy: policy.levelPolicy,
+    readingDepth: policy.readingDepth,
+    assessmentOrientation: policy.assessmentOrientation,
   }))
 }
 
