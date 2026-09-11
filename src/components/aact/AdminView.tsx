@@ -16,6 +16,30 @@ import {
   Paperclip, FileText, BookMarked, AlertTriangle, Sparkles,
 } from 'lucide-react'
 
+function AdminTabLoader() {
+  return (
+    <Card className="mt-4 border-[#0f2b46]/10">
+      <CardContent className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تحميل هذا القسم...</p>
+        <p className="text-xs font-bold text-slate-400">تم فصل التبويبات الثقيلة لتفتح لوحة الإدارة بسرعة أكبر.</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+const AdminThesisTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
+const AdminFinanceTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
+const AdminCertificatesTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminCertificatesTab), { ssr: false, loading: AdminTabLoader })
+const AdminSettingsTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminSettingsTab), { ssr: false, loading: AdminTabLoader })
+const AdminAuditTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
+const AdminMessagesTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminBooksTab = dynamic(() => import('@/components/aact/AdminBooks').then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
+const AdminAITab = dynamic(() => import('@/components/aact/AdminAITab').then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
+const AdminSystemTab = dynamic(() => import('@/components/aact/AdminSystemTab').then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
+const AdminRulesTab = dynamic(() => import('@/components/aact/AdminRulesTab').then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
+const AdminQualityTab = dynamic(() => import('@/components/aact/AdminQualityTab').then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
+
 interface Stats {
   stats: {
     totalStudents: number
