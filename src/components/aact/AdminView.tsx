@@ -1049,6 +1049,16 @@ export function AdminView() {
                           </Button>
                         </div>
                       )}
+                      {a.status === 'APPROVED' && (
+                        <div className="grid w-full grid-cols-1 gap-2 sm:w-56">
+                          <Button size="sm" variant="outline" onClick={() => revokeApp(a)} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
+                            <AlertTriangle className="ml-1 h-3.5 w-3.5" /> إلغاء الاعتماد
+                          </Button>
+                          <p className="rounded-lg bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-700">
+                            يستخدم فقط عند إخلال عقدي/مهني موثق. سيعطل صفحة التحقق لأي شهادة مرتبطة.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
