@@ -41,7 +41,7 @@ export async function GET() {
       include: {
         supervisor: { select: { id: true, name: true } },
         payments: { select: { id: true, purpose: true, status: true, amount: true } },
-        theses: { orderBy: { createdAt: 'desc' }, take: 1 },
+        theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
         files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
       },
     })
