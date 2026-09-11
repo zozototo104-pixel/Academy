@@ -166,6 +166,12 @@ export async function POST(req: NextRequest) {
     let data: string | null = null
     let textContent: string | null = null
     let linkNote: string | null = null
+    let linkReadStatus = 'NOT_ATTEMPTED'
+    const defaultPolicy = academicBookPolicy(program.category, program.titleAr)
+    const levelPolicy = String(form.get('levelPolicy') || '').trim().slice(0, 1000) || defaultPolicy.levelPolicy
+    const readingDepth = String(form.get('readingDepth') || '').trim().slice(0, 1000) || defaultPolicy.readingDepth
+    const assessmentOrientation = String(form.get('assessmentOrientation') || '').trim().slice(0, 1000) || defaultPolicy.assessmentOrientation
+    const source = String(form.get('source') || '').trim() === 'AI' ? 'AI' : 'ADMIN'
 
     // رابط الكتاب على الإنترنت (بديل أو مكمّل للملف المرفوع) — يُجلب نصه آلياً ليقرأه خبير الذكاء الاصطناعي
     if (linkRaw) {
