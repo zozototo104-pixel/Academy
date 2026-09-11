@@ -652,7 +652,11 @@ export function AdminBooksTab() {
         body: JSON.stringify({ programId }),
       })
       setSuggestions(d.suggestions)
-      toast({ title: 'اقتراحات خبير الذكاء الاصطناعي جاهزة', description: `${d.suggestions.length} كتاباً مقترحاً وفق واقع التخصص عالمياً` })
+      const directCount = d.suggestions.filter((s) => s.linkType === 'DIRECT_READABLE' || (s.link && s.linkType !== 'CATALOG_SEARCH')).length
+      toast({
+        title: 'اقتراحات خبير الذكاء الاصطناعي جاهزة',
+        description: `${d.suggestions.length} كتاباً مقترحاً وفق واقع التخصص — ${directCount} منها تحمل رابط قراءة مباشر قابل للاختبار`,
+      })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
