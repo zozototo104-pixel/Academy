@@ -302,14 +302,40 @@ export function AdminView() {
       </div>
     )
   }
-  const setAppStatus = async (id: string, status: string) => {
+  const setAppStatus = async (id: string, status: string, extra?: Record<string, any>) => {
     try {
-      await api('/api/admin/applications', { method: 'PATCH', body: JSON.stringify({ id, status }) })
-      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
-      toast({ title: 'تم التحديث', description: `حالة الطلب أصبحت: ${status === 'APPROVED' ? 'مقبول' : status === 'REJECTED' ? 'مرفوض' : 'معلق'}` })
+      const d = await api<{ application?: AgentApp; revokedCertificates?: number }>('/api/admin/applications', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, status, ...(extra || {}) }),
+      })
+      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...(d.application || {}), status } : a)))
+      const label = status === 'APPROVED' ? 'مقبول' : status === 'REJECTED' ? 'مرفوض' : status === 'REVOKED' ? 'ملغى/مسحوب' : 'معلق'
+      toast({
+        title: 'تم التحديث',
+        description: status === 'REVOKED'
+          ? `تم سحب الاعتماد وتعطيل ${d.revokedCertificates || 0} شهادة مرتبطة.`
+          : `حالة الطلب أصبحت: ${label}`,
+      })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     }
+  }
+
+  const revokeApp = async (a: AgentApp) => {
+    const reason = window.prompt(
+      `اكتب سبب إلغاء ${a.kind === 'AGENCY' ? 'الوكالة' : 'الاعتماد'} باسم ${a.orgName}.\n\nيجب أن يكون السبب موثقاً مثل إخلال بالعقد، مخالفة شروط التمثيل، إساءة استخدام الشهادة، أو مخالفة مهنية.`
+    )
+    if (reason == null) return
+    const cleanReason = reason.replace(/\s+/g, ' ').trim()
+    if (cleanReason.length < 25) {
+      toast({ title: 'سبب غير كافٍ', description: 'اكتب سبباً واضحاً لا يقل عن 25 حرفاً حتى يظهر في سجل التدقيق.', variant: 'destructive' })
+      return
+    }
+    const ok = window.confirm(
+      `تأكيد سحب الاعتماد/الوكالة؟\n\nسيتم تغيير الحالة إلى ملغى، وتعطيل أي شهادة اعتماد مرتبطة في صفحة التحقق.\n\nالسبب: ${cleanReason}`
+    )
+    if (!ok) return
+    await setAppStatus(a.id, 'REVOKED', { revokedReason: cleanReason, revocationAcknowledged: true })
   }
 
   const setAdmissionStatus = async (id: string, status: string) => {
