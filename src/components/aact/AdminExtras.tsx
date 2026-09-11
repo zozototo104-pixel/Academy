@@ -85,11 +85,18 @@ export function AdminThesisTab() {
   const [showRecording, setShowRecording] = useState<Thesis | null>(null)
 
   const load = () => {
+    setLoading(true)
+    setLoadError(null)
     api<{ theses: Thesis[] }>('/api/admin/thesis')
-      .then((d) => setTheses(Array.isArray(d.theses) ? d.theses : []))
+      .then((d) => {
+        setTheses(Array.isArray(d.theses) ? d.theses : [])
+        setLoadError(null)
+      })
       .catch((e) => {
         setTheses([])
-        toast({ title: 'تعذر تحميل أبحاث التخرج', description: e?.message || 'حدث خطأ أثناء تحميل بيانات المناقشات', variant: 'destructive' })
+        const msg = e?.message || 'حدث خطأ أثناء تحميل بيانات المناقشات'
+        setLoadError(msg)
+        toast({ title: 'تعذر تحميل أبحاث التخرج', description: msg, variant: 'destructive' })
       })
       .finally(() => setLoading(false))
   }
