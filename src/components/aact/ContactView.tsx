@@ -144,6 +144,22 @@ export function ContactView() {
             </CardContent>
           </Card>
           <Card className="border-[#0f2b46]/10">
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-center gap-3">
+                <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Code2 className="h-4 w-4" /></span>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400">تعريف بالمبرمج</p>
+                  <h3 className="text-sm font-black text-[#0f2b46]">{ACADEMY_INFO.developer.name} "{ACADEMY_INFO.developer.kunya}"</h3>
+                </div>
+              </div>
+              <p className="text-xs font-bold leading-6 text-slate-600">{ACADEMY_INFO.developer.bio}</p>
+              <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-xs font-black text-[#0f2b46]">
+                <a href={`tel:${ACADEMY_INFO.developer.phone}`} dir="ltr" className="text-right hover:text-[#a8841a]">جوال: {ACADEMY_INFO.developer.phoneDisplay}</a>
+                <a href={`mailto:${ACADEMY_INFO.developer.email}`} dir="ltr" className="text-right hover:text-[#a8841a]">Email: {ACADEMY_INFO.developer.email}</a>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5">
               <h3 className="mb-2 text-sm font-black text-[#0f2b46]">أوقات الرد</h3>
               <ul className="space-y-1.5 text-xs leading-relaxed text-slate-600">
