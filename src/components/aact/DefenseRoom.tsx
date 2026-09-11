@@ -335,7 +335,7 @@ export function DefenseRoom({
       if (wasTranscribing && !liveAdvisorRef.current && ttsSerial === ttsSerialRef.current) { try { transcriptRecRef.current?.start() } catch {} }
       if (ttsSerial === ttsSerialRef.current) setSpeaking(false)
     }
-  }, [])
+  }, [addAudioStreamToRecording])
 
   const buildDefenseVoiceContext = useCallback((overrideMessages?: DefenseMsg[]) => {
     const recent = (overrideMessages || messages)
