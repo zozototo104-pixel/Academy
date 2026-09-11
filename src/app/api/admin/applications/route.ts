@@ -52,19 +52,40 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id, status, exclusive } = await req.json()
-    if (!id || !['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+    const { id, status, exclusive, revokedReason, revocationAcknowledged } = await req.json()
+    if (!id || !['PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].includes(status)) {
       return NextResponse.json({ error: 'بيانات غير صحيحة' }, { status: 400 })
     }
     const app = await db.agentApplication.findUnique({
       where: { id },
-      include: { certificates: true }, // ضروري لحارس التكرار
+      include: { certificates: true }, // ضروري لحارس التكرار وتعطيل شهادة الاعتماد عند السحب
     })
     if (!app) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
 
     const data: any = { status }
     let contractNo: string | null = null
     let certSerial: string | null = null
+    let revokedCertificates = 0
+
+    if (status === 'REVOKED') {
+      if (app.status !== 'APPROVED') {
+        return NextResponse.json({ error: 'لا يمكن سحب الاعتماد إلا من طلب مقبول/معتمد فعلياً' }, { status: 400 })
+      }
+      const reason = String(revokedReason || '').replace(/\s+/g, ' ').trim()
+      if (reason.length < 25) {
+        return NextResponse.json({ error: 'سبب إلغاء الاعتماد مطلوب ويجب أن يكون واضحاً ومفصلاً' }, { status: 400 })
+      }
+      if (!revocationAcknowledged) {
+        return NextResponse.json({ error: 'يجب تأكيد أن الإلغاء مبني على مخالفة عقدية/مهنية موثقة وأن القرار قابل للمراجعة إدارياً' }, { status: 400 })
+      }
+      data.revokedAt = new Date()
+      data.revokedReason = reason.slice(0, 1200)
+      data.revokedById = admin.id
+      revokedCertificates = await db.certificate.updateMany({
+        where: { agentId: app.id, valid: true },
+        data: { valid: false },
+      }).then((r) => r.count)
+    }
 
     if (status === 'APPROVED' && !app.contractNo && !app.certificates?.length) {
       if (app.kind === 'AGENCY') {
