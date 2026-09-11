@@ -357,7 +357,7 @@ export function AdminBooksTab() {
       fd.append('assessmentOrientation', payload?.assessmentOrientation || '')
       fd.append('source', payload ? 'AI' : 'ADMIN')
       if (!payload && file) fd.append('file', file)
-      const d = await api<{ book: BookRow; textExtracted: boolean; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'POST', body: fd })
+      const d = await api<{ book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'POST', body: fd })
       setBooks((prev) => [...prev, { ...d.book, hasFile: !!d.book.fileName, source: d.book.source || 'ADMIN' }])
       if (!payload) {
         setForm({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
