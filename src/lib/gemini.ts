@@ -175,18 +175,18 @@ export async function geminiActiveTTSModel(): Promise<string> {
 
 export async function geminiActiveLiveModel(): Promise<string> {
   await refreshFromDb()
-  const custom = normalizeGeminiModelName(process.env.GEMINI_LIVE_MODEL || dbLiveModelCache)
+  const custom = normalizeGeminiModelName(dbLiveModelCache || process.env.GEMINI_LIVE_MODEL)
   return custom || GEMINI_LIVE_MODEL_FALLBACKS[0]
 }
 
 export async function geminiModelSource(): Promise<'custom' | 'auto'> {
   await refreshFromDb()
-  return process.env.GEMINI_TEXT_MODEL?.trim() || dbTextModelCache ? 'custom' : 'auto'
+  return dbTextModelCache || process.env.GEMINI_TEXT_MODEL?.trim() ? 'custom' : 'auto'
 }
 
 export async function geminiTTSVoice(): Promise<string> {
   await refreshFromDb()
-  const v = process.env.GEMINI_TTS_VOICE?.trim() || dbVoiceCache || 'Charon'
+  const v = dbVoiceCache || process.env.GEMINI_TTS_VOICE?.trim() || 'Charon'
   return /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(v) ? v : 'Charon'
 }
 
