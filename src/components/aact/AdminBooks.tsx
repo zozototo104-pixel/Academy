@@ -55,7 +55,11 @@ interface Suggestion {
   author: string
   year: string
   reason: string
+  /** رابط قراءة مباشر فقط؛ أما Google Books فيظهر كمرجع ولا يُرسل كبنك معرفة */
   link: string
+  referenceLink?: string
+  linkType?: 'DIRECT_READABLE' | 'CATALOG_SEARCH' | 'UNKNOWN' | 'MISSING_DIRECT_LINK'
+  linkReadHint?: string
   semester?: number | null
   levelPolicy?: string
   readingDepth?: string
