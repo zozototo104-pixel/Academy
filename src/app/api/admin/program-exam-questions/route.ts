@@ -87,9 +87,9 @@ function validatePublicationReadiness(questions: any[], category?: string | null
     errors.push(`عدد الأسئلة القابلة للنشر (${candidates.length}) أقل من المطلوب (${REQUIRED_PUBLISHED_QUESTIONS}).`)
   }
 
-  for (const [type, min] of Object.entries(MIN_TYPE_DISTRIBUTION)) {
+  for (const [type, min] of Object.entries(minTypeDistributionForDegree(category))) {
     const count = candidates.filter((q) => q.type === type).length
-    if (count < min) errors.push(`تنوع الأسئلة غير كافٍ: نوع ${type} عدده ${count} والمطلوب على الأقل ${min}.`)
+    if (count < min) errors.push(`تنوع الأسئلة غير كافٍ لهذه الدرجة: نوع ${type} عدده ${count} والمطلوب على الأقل ${min}.`)
   }
 
   const seen = new Map<string, number>()
