@@ -1350,6 +1350,11 @@ export function AdminBooksTab() {
                               {s.semester && <Badge variant="outline" className="border-[#c9a227]/40 text-[9px] text-[#a8841a]">الفصل {s.semester}</Badge>}
                               {s.levelPolicy && <Badge className="bg-[#0f2b46] text-[9px] text-[#e0b83a] hover:bg-[#0f2b46]">مخصص للدرجة</Badge>}
                               {s.assessmentOrientation && <Badge className="bg-blue-100 text-[9px] text-blue-700 hover:bg-blue-100">تقييم متخصص</Badge>}
+                              {s.linkType && (
+                                <Badge className={`${SUGGESTION_LINK_META[s.linkType]?.cls || 'bg-slate-100 text-slate-600'} text-[9px] hover:bg-inherit`}>
+                                  {SUGGESTION_LINK_META[s.linkType]?.label || s.linkType}
+                                </Badge>
+                              )}
                             </div>
                             <p className="mt-1 text-[10px] leading-relaxed text-slate-600">{s.reason}</p>
                             {(s.levelPolicy || s.readingDepth || s.assessmentOrientation) && (
