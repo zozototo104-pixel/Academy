@@ -110,9 +110,10 @@ export async function POST(req: NextRequest) {
       if (!hasGemini()) {
         return NextResponse.json({ ok: false, title: 'مفتاح Gemini غير موجود', message: 'مفتاح Gemini غير موجود أو غير صالح.' })
       }
-      const model = await geminiActiveLiveModel()
+      const selected = normalizeGeminiModelName(selectedLiveModel)
+      const model = selected || await geminiActiveLiveModel()
       if (!isValidGeminiLiveModel(model)) {
-        return NextResponse.json({ ok: false, title: 'اسم نموذج Gemini Live غير صحيح', message: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.' })
+        return NextResponse.json({ ok: false, title: 'اسم نموذج Gemini Live غير صحيح', message: 'اسم نموذج Gemini Live غير صحيح، اختر نموذجاً من القائمة ثم احفظ/اختبر.' })
       }
       try {
         const apiKey = await geminiApiKey()
