@@ -735,6 +735,12 @@ ${recent || 'بدأت الجلسة للتو.'}
     }
   }, [addAudioStreamToRecording, buildRecordingStream, cleanupRecordingMixer, isStudent, remoteStreams])
 
+  useEffect(() => {
+    if (recorderRef.current?.state !== 'recording') return
+    Object.entries(remoteStreams).forEach(([peerId, stream]) => addAudioStreamToRecording(stream, `remote:${peerId}`, 1))
+    addAudioStreamToRecording(advisorAudioStreamRef.current, 'ai:gemini-live', 1.25)
+  }, [addAudioStreamToRecording, remoteStreams])
+
   const stopAndSaveRecording = useCallback(
     async (showToast = true) => {
       const rec = recorderRef.current
