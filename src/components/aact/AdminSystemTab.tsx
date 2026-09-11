@@ -151,6 +151,23 @@ export function AdminSystemTab() {
     </div>
   )
 
+  const SelectF = (k: string, label: string, options: { value: string; label: string }[], hint = '') => (
+    <div key={k} className="space-y-1">
+      <Label className="text-[11px] font-black text-[#0f2b46]">{label}</Label>
+      <Select value={form[k] || options[0]?.value || ''} onValueChange={(v) => set(k, v)}>
+        <SelectTrigger className="h-9 bg-white text-sm" dir="ltr">
+          <SelectValue placeholder="اختر" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value} dir="ltr">{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {hint && <p className="text-[10px] leading-relaxed text-slate-400">{hint}</p>}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mail" dir="rtl">
