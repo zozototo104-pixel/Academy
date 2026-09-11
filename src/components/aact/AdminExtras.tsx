@@ -19,6 +19,19 @@ import {
   FileSignature, Video, RefreshCw,
 } from 'lucide-react'
 
+const DefenseRoom = dynamic(
+  () => import('@/components/aact/DefenseRoom').then((mod) => mod.DefenseRoom),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-2xl bg-slate-50 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تجهيز قاعة المناقشة...</p>
+      </div>
+    ),
+  }
+)
+
 // ============ جدولة المناقشات واللجان ============
 
 interface Thesis {
