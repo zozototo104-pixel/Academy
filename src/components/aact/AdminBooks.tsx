@@ -185,6 +185,14 @@ const ASSIGNMENT_TYPE_AR: Record<string, string> = {
 const assignmentTypeLabel = (type: string) => ASSIGNMENT_TYPE_AR[String(type || '').toUpperCase()] || type
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
+const LINK_READ_META: Record<string, { label: string; cls: string }> = {
+  FILE_EXTRACTED: { label: 'مقروء من ملف', cls: 'bg-emerald-100 text-emerald-700' },
+  TEXT_EXTRACTED: { label: 'مقروء من رابط مباشر', cls: 'bg-emerald-100 text-emerald-700' },
+  SEARCH_LINK_ONLY: { label: 'رابط بحث فقط', cls: 'bg-amber-100 text-amber-700' },
+  FAILED: { label: 'لم يُقرأ آلياً', cls: 'bg-red-100 text-red-700' },
+  UNSUPPORTED: { label: 'نوع غير مدعوم', cls: 'bg-red-100 text-red-700' },
+  NOT_ATTEMPTED: { label: 'لم تُجر قراءة', cls: 'bg-slate-100 text-slate-600' },
+}
 
 export function AdminBooksTab() {
   const { toast } = useToast()
