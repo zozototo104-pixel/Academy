@@ -89,14 +89,32 @@ function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: st
 export function HomeView() {
   const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    try {
+      const cached = Number(localStorage.getItem('aact_program_count') || '')
+      if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+    } catch {}
+
     api<{ programs: ProgramLite[] }>('/api/programs?summary=1')
-      .then((d) => setPrograms(d.programs))
-      .catch(() => {})
+      .then((d) => {
+        const list = Array.isArray(d.programs) ? d.programs : []
+        setPrograms(list)
+        setProgramCount(list.length)
+        if (list.length > 0) {
+          try { localStorage.setItem('aact_program_count', String(list.length)) } catch {}
+        }
+      })
+      .catch(() => {
+        setProgramCount((current) => current ?? null)
+      })
       .finally(() => setLoading(false))
   }, [])
+
+  const visibleProgramCount = programCount ?? programs.length
+  const programCountLabel = loading && programCount == null ? '...' : visibleProgramCount.toLocaleString('ar-EG')
 
   // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
   // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
