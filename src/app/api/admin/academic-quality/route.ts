@@ -336,7 +336,7 @@ export async function GET() {
       .slice(0, 10)
 
     const weakBooks = books
-      .filter((b) => !b.textContent || b.textContent.trim().length < 1200 || b._count.knowledgeItems < 5)
+      .filter((b) => b.linkReadStatus === 'SEARCH_LINK_ONLY' || !b.textContent || b.textContent.trim().length < 1200 || b._count.knowledgeItems < 5)
       .slice(0, 12)
       .map((b) => ({
         id: b.id,
@@ -345,9 +345,11 @@ export async function GET() {
         semester: b.semester,
         knowledgeItems: b._count.knowledgeItems,
         hasText: !!b.textContent && b.textContent.trim().length >= 1200,
-        reason: !b.textContent || b.textContent.trim().length < 1200
-          ? 'لم يتحول إلى نص معرفي كافٍ بعد'
-          : 'عدد عناصر بنك المعرفة المستخرجة قليل',
+        reason: b.linkReadStatus === 'SEARCH_LINK_ONLY'
+          ? 'رابط الكتاب فهرس/بحث فقط؛ ارفع ملفاً أو رابطاً مباشراً ليقرأه الذكاء فعلياً'
+          : !b.textContent || b.textContent.trim().length < 1200
+            ? 'لم يتحول إلى نص معرفي كافٍ بعد'
+            : 'عدد عناصر بنك المعرفة المستخرجة قليل',
       }))
 
     const appealsCount = programAttempts.filter((a) => a.appealStatus === 'PENDING').length
