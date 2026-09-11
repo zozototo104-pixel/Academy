@@ -244,7 +244,12 @@ export async function POST(req: NextRequest) {
         fileName, mimeType, size, data, textContent,
         link,
         semester,
-        source: 'ADMIN',
+        levelPolicy,
+        readingDepth,
+        assessmentOrientation,
+        linkReadStatus,
+        linkReadNote: linkNote,
+        source,
       },
     })
 
