@@ -53,8 +53,8 @@ function isCatalogOrSearchLink(url: string): boolean {
     const host = u.hostname.toLowerCase()
     const path = u.pathname.toLowerCase()
     const query = u.search.toLowerCase()
-    if (host === 'books.google.com') return true
-    if ((host === 'google.com' || host.endsWith('.google.com')) && (path.includes('/search') || query.includes('q=') || query.includes('tbm=bks'))) return true
+    if (host === 'books.google.com' || host.startsWith('books.google.')) return true
+    if ((host === 'google.com' || host.endsWith('.google.com')) && (path.includes('/books') || path.includes('/search') || query.includes('q=') || query.includes('tbm=bks'))) return true
     if (host.includes('bing.com') || host.includes('duckduckgo.com')) return true
     if (host.includes('openlibrary.org') && (path.includes('/search') || query.includes('q='))) return true
     if (host.includes('worldcat.org') || host.includes('goodreads.com')) return true
