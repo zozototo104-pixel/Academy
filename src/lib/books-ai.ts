@@ -1462,7 +1462,7 @@ export function fallbackExamQuestionBatch(
   const specAr = specialtyName(program).ar
   const concepts = fallbackExamConcepts(program, books)
   const pick = (i: number) => concepts[(i + batchIndex * 7) % Math.max(concepts.length, 1)] || specAr
-  const plan = batchQuestionPlan(spec.kind, spec.count)
+  const plan = batchQuestionPlan(spec.kind, spec.count, program.category)
   return plan.map((kind, i) => {
     const concept = pick(i)
     let q: GeneratedQuestion
