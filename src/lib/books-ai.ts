@@ -816,7 +816,7 @@ export async function suggestBooksForProgram(program: {
 - لكل كتاب أضف رابطاً واقعياً آمناً. إذا لم تكن متأكداً من رابط مباشر دقيق، استخدم رابط بحث Google Books أو Open Library ولا تخترع رابطاً مكسوراً.
 
 أجب بصيغة JSON فقط بدون أي نص إضافي — مصفوفة من 8 عناصر:
-[{"title":"<العنوان بالعربية>","titleEn":"<العنوان بالإنجليزية>","author":"<المؤلف>","year":"<سنة>","reason":"<سبب الاختيار>","link":"<رابط الكتاب أو رابط بحث عنه>"}]`
+[{"title":"<العنوان بالعربية>","titleEn":"<العنوان بالإنجليزية>","author":"<المؤلف>","year":"<سنة>","reason":"<سبب الاختيار>","link":"<رابط الكتاب أو رابط بحث عنه>","semester":1,"levelPolicy":"<لماذا يناسب هذا الكتاب درجة ${level}>","readingDepth":"<كيف يقرأه الطالب في هذا المستوى>","assessmentOrientation":"<طبيعة الأسئلة أو التقييم المبني عليه>"}]`
 
   try {
     const raw = await completeJsonWithFallback({
