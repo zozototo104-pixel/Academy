@@ -705,15 +705,17 @@ ${recent || 'بدأت الجلسة للتو.'}
     [isStudent, finished] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  // ===== 12.3: تسجيل الجلسة (كاميرا الطالب + صوته) وأرشفتها =====
+  // ===== 12.3: تسجيل الجلسة كاملة: فيديو الطالب + صوته + صوت المشرف الذكي + أصوات أعضاء اللجنة عبر WebRTC =====
   const startRecording = useCallback(() => {
     if (!isStudent || !streamRef.current) {
       setRecState('NA')
       return
     }
     try {
+      const recordStream = buildRecordingStream()
+      if (!recordStream) throw new Error('لا يوجد مسار قابل للتسجيل')
       const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm'
-      const rec = new MediaRecorder(streamRef.current, { mimeType: mime, videoBitsPerSecond: 250000, audioBitsPerSecond: 64000 })
+      const rec = new MediaRecorder(recordStream, { mimeType: mime, videoBitsPerSecond: 250000, audioBitsPerSecond: 96000 })
       recChunksRef.current = []
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) recChunksRef.current.push(e.data)
@@ -722,11 +724,16 @@ ${recent || 'بدأت الجلسة للتو.'}
       rec.start(2000)
       recStartRef.current = Date.now()
       recorderRef.current = rec
+      // بعد بدء MediaRecorder يصبح المكسر نشطاً، فنضيف كل مصادر الصوت المتاحة حالياً.
+      addAudioStreamToRecording(streamRef.current, 'local:student', 1)
+      Object.entries(remoteStreams).forEach(([peerId, stream]) => addAudioStreamToRecording(stream, `remote:${peerId}`, 1))
+      addAudioStreamToRecording(advisorAudioStreamRef.current, 'ai:gemini-live', 1.25)
       setRecState('RECORDING')
     } catch {
+      cleanupRecordingMixer()
       setRecState('NA')
     }
-  }, [isStudent])
+  }, [addAudioStreamToRecording, buildRecordingStream, cleanupRecordingMixer, isStudent, remoteStreams])
 
   const stopAndSaveRecording = useCallback(
     async (showToast = true) => {
