@@ -16,7 +16,7 @@ import { AdminAITab } from '@/components/aact/AdminAITab'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
-  FileSignature, Video,
+  FileSignature, Video, RefreshCw,
 } from 'lucide-react'
 
 // ============ جدولة المناقشات واللجان ============
