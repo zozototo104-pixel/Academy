@@ -129,9 +129,21 @@ export function hasGemini(): boolean {
 }
 
 export function geminiKeySource(): 'env' | 'db' | 'none' {
-  if (process.env.GEMINI_API_KEY?.trim()) return 'env'
   if (dbKeyCache) return 'db'
+  if (process.env.GEMINI_API_KEY?.trim()) return 'env'
   return 'none'
+}
+
+export async function geminiKeyDiagnostics(): Promise<{ source: 'env' | 'db' | 'none'; adminKeySet: boolean; envKeySet: boolean; activeMask: string }> {
+  await refreshFromDb(true)
+  const key = resolvedKey()
+  const maskKey = (v: string) => v ? `${v.slice(0, 4)}••••${v.slice(-4)}` : ''
+  return {
+    source: geminiKeySource(),
+    adminKeySet: !!dbKeyCache,
+    envKeySet: !!process.env.GEMINI_API_KEY?.trim(),
+    activeMask: maskKey(key),
+  }
 }
 
 export function invalidateGeminiKeyCache(): void {
