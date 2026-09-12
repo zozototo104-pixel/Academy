@@ -39,6 +39,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
         supervisor: { select: { id: true, name: true } },
         payments: { select: { id: true, purpose: true, status: true, amount: true } },
         theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
