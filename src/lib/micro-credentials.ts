@@ -15,7 +15,7 @@ const DEFAULT_SPECS: DefaultMicroCredentialSpec[] = [
   {
     suffix: 'FOUNDATIONS',
     titlePrefix: 'شهادة مهارة في أساسيات',
-    skillArea: 'PROFESSIONAL_FOUNDATIONS',
+    skillArea: 'أساسيات مهنية',
     description: 'وحدة مهارية قصيرة تثبت امتلاك الطالب أساسيات المجال ومفاهيمه المركزية داخل البرنامج.',
     learningOutcome: 'يفسر الطالب المفاهيم الأساسية ويطبقها على مواقف مهنية مباشرة.',
     minExamScore: 70,
