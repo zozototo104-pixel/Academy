@@ -1024,6 +1024,12 @@ export function AdminView() {
                           الممثل: {a.repName} — {a.country}{a.territory ? ` — نطاق التمثيل: ${a.territory}` : ''}
                         </p>
                         <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} {a.phone ? `· ${a.phone}` : ''}</p>
+                        {submittedByStaff && (
+                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                            <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
+                            هذا الطلب مرتبط بحساب إدارة/مشرف ({a.user?.role || 'مطابق للبريد'}). لا يُعتمد كوكالة/اعتماد رسمي. الإجراء الصحيح: تقديم طلب جديد من حساب جهة/وكيل منفصل أو كزائر، ثم إغلاق هذا الطلب كتجريبي.
+                          </div>
+                        )}
                         {a.contractNo && (
                           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5 text-[11px] font-bold text-[#0f2b46]">
                             <span className="font-mono" dir="ltr">{a.contractNo}</span>
