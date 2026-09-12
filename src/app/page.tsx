@@ -72,7 +72,7 @@ export default function Home() {
     // دعم فتح الصفحات مباشرة برابط: /?view=admin أو /?view=verify&serial=...
     const q = new URLSearchParams(window.location.search)
     const v = q.get('view')
-    const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'student-preview', 'verify', 'directory', 'contact']
+    const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'student-preview', 'agent-preview', 'verify', 'directory', 'contact']
     if (v && validViews.includes(v)) {
       const programId = q.get('programId') || q.get('program') || q.get('slug')
       if (v === 'program-detail' && programId) {
