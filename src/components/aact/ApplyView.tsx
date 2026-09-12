@@ -747,6 +747,7 @@ export function ApplyView() {
                       </span>
                     </div>
                     {tracked.supervisorName && <p className="mt-2 text-xs font-bold text-purple-600">المشرف الأكاديمي: {tracked.supervisorName}</p>}
+                    {tracked.nextAction && <p className="mt-3 rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-[#5c4d1a]">الخطوة التالية: {tracked.nextAction}</p>}
                   </div>
 
                   {tracked.payments?.length > 0 && (
