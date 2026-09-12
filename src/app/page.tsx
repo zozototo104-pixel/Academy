@@ -110,7 +110,12 @@ export default function Home() {
     }
   }, [authChecked, user, view])
 
-  const effectiveView = view
+  const studentOnlyViews = ['dashboard', 'unit', 'exam', 'chat']
+  const effectiveView = authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
+    ? (user?.role === 'ADMIN' ? 'admin' : 'home')
+    : authChecked && view === 'student-preview' && user?.role !== 'ADMIN'
+      ? 'home'
+      : view
 
   useEffect(() => {
     if (!authChecked) return
