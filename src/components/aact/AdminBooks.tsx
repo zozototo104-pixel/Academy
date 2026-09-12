@@ -1348,7 +1348,9 @@ export function AdminBooksTab() {
               </div>
             </CardContent>
           </Card>
+          </TabsContent>
 
+          <TabsContent value="books" className="mt-0 space-y-4">
           {/* الكتب المقررة */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
