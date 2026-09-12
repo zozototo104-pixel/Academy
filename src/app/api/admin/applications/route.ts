@@ -74,6 +74,16 @@ export async function PATCH(req: NextRequest) {
       include: { certificates: true }, // ضروري لحارس التكرار وتعطيل شهادة الاعتماد عند السحب
     })
     if (!app) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
+    const submitter = app.userId
+      ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, email: true } })
+      : await db.user.findUnique({ where: { email: app.email }, select: { id: true, role: true, email: true } }).catch(() => null)
+    const submittedByStaff = !!submitter && ['ADMIN', 'SUPERVISOR'].includes(submitter.role)
+    if (submittedByStaff && status === 'APPROVED') {
+      return NextResponse.json(
+        { error: 'هذا الطلب مرتبط بحساب إدارة/مشرف، لذلك لا يمكن اعتماده كوكالة أو اعتماد رسمي. أنشئ حساب جهة/وكيل منفصل أو اطلب تقديمه كزائر، ثم أغلق هذا الطلب كتجريبي.' },
+        { status: 400 }
+      )
+    }
 
     const data: any = { status }
     let contractNo: string | null = null
