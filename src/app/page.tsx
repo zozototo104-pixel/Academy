@@ -108,6 +108,15 @@ export default function Home() {
 
   const effectiveView = view
 
+  useEffect(() => {
+    if (!authChecked) return
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    })
+  }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter])
+
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
       <PWARegister />
