@@ -40,9 +40,17 @@ export async function GET() {
       ? await db.user.findMany({ where: { email: { in: emails } }, select: { id: true, name: true, email: true, role: true } })
       : []
     const userMap = new Map(usersByEmail.map((u) => [u.email, u]))
+    const submitAudits = agentIds.length
+      ? await db.auditLog.findMany({
+          where: { entity: 'AgentApplication', entityId: { in: agentIds }, action: { in: ['AGENCY_SUBMITTED', 'ACCREDITATION_SUBMITTED'] } },
+          orderBy: { createdAt: 'asc' },
+          select: { entityId: true, actor: { select: { id: true, name: true, email: true, role: true } } },
+        })
+      : []
+    const auditSubmitterMap = new Map(submitAudits.filter((a) => a.entityId && a.actor).map((a) => [a.entityId as string, a.actor!]))
     return NextResponse.json({
       applications: applications.map((a) => {
-        const submitter = a.user || userMap.get(a.email) || null
+        const submitter = a.user || userMap.get(a.email) || auditSubmitterMap.get(a.id) || null
         const submittedByStaff = !!submitter && ['ADMIN', 'SUPERVISOR'].includes(submitter.role)
         return {
           ...a,
