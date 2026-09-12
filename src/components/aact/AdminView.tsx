@@ -82,6 +82,7 @@ interface AdmissionApp {
   country: string; education: string; program: string; documents: string; notes?: string | null
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
   status: string; createdAt: string
+  user?: { id: string; name: string; email: string; role: string } | null
   supervisor?: { id: string; name: string } | null
   supervisorId?: string | null
   thesisDeadline?: string | null
