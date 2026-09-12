@@ -81,12 +81,12 @@ export function AdminSystemTab() {
   const save = async () => {
     setSaving(true)
     try {
-      const d = await api<{ ok: boolean; values: Record<string, string> }>('/api/admin/system', {
+      const d = await api<{ ok: boolean; values: Record<string, string>; gemini?: SystemData['gemini'] }>('/api/admin/system', {
         method: 'PATCH',
         body: JSON.stringify(form),
       })
-      toast({ title: 'تم الحفظ', description: 'أُعيد تحميل الإعدادات — الأسرار المخفية بقيت كما هي', variant: 'default' as any })
-      setData((prev) => (prev ? { ...prev, values: d.values } : prev))
+      toast({ title: 'تم الحفظ', description: 'تم تطبيق الإعدادات. الحقول السرية لا تتغير إلا إذا كتبت قيمة جديدة فيها.', variant: 'default' as any })
+      setData((prev) => (prev ? { ...prev, values: d.values, gemini: d.gemini || prev.gemini } : prev))
       setForm(d.values)
       load()
     } catch (e: any) {
