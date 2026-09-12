@@ -394,7 +394,7 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
   const detected = [f.ocrRead?.docTypeDetected, f.ocrRead?.matchNote, f.ocrRead?.qualityNote].filter(Boolean).join(' ')
   const n = normalize(`${detected} ${blob}`)
 
-  if (hasAny(blob, KEYWORDS.logo)) {
+  if (hasAny(blob, KEYWORDS.logo) && !hasOfficialAdmissionDocumentSignals(`${detected} ${blob}`)) {
     return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
   }
 
