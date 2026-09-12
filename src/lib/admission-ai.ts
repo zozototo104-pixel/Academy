@@ -596,6 +596,63 @@ function buildDocumentAnalyses(app: { fullName: string; program: string }, files
   })
 }
 
+function docAnalysisSatisfiesRequirement(expectedType: string, a: AdmissionDocumentAnalysis): boolean {
+  if (a.declaredType === expectedType) return true
+  if (expectedType === 'DEGREE') return a.detectedKind === 'DEGREE_CERTIFICATE' || a.detectedKind === 'TRANSCRIPT'
+  if (expectedType === 'ID') return a.detectedKind === 'ID'
+  if (expectedType === 'CV') return a.detectedKind === 'CV'
+  if (expectedType === 'PHOTO') return a.detectedKind === 'PHOTO'
+  return false
+}
+
+function requirementWeight(type: string): number {
+  if (type === 'DEGREE') return 35
+  if (type === 'ID') return 25
+  if (type === 'CV') return 15
+  if (type === 'PHOTO') return 10
+  if (type === 'TRANSCRIPT') return 20
+  return 10
+}
+
+function requirementCoverageMap(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): Record<string, number> {
+  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const out: Record<string, number> = {}
+  for (const req of reqs) {
+    const best = analyses
+      .filter((a) => docAnalysisSatisfiesRequirement(req, a))
+      .reduce((m, a) => Math.max(m, Number(a.coverage) || 0), 0)
+    out[req] = best
+  }
+  return out
+}
+
+function weightedDocumentFitScore(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): number {
+  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  if (!reqs.length) return 0
+  const coverage = requirementCoverageMap(reqs, analyses)
+  let totalWeight = 0
+  let sum = 0
+  for (const req of reqs) {
+    const w = requirementWeight(req)
+    totalWeight += w
+    sum += (coverage[req] || 0) * w
+  }
+  return Math.round(sum / Math.max(1, totalWeight))
+}
+
+function criticalAdmissionDocsOk(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): boolean {
+  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const coverage = requirementCoverageMap(reqs, analyses)
+  const critical = reqs.filter((r) => r === 'DEGREE' || r === 'ID')
+  return critical.every((r) => (coverage[r] || 0) >= 65)
+}
+
+function weakRequiredDocumentsCount(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): number {
+  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const coverage = requirementCoverageMap(reqs, analyses)
+  return reqs.filter((r) => (coverage[r] || 0) < 60).length
+}
+
 function worseVerdict(a: Verdict, b: Verdict): Verdict {
   const order: Verdict[] = ['RECOMMEND_APPROVE', 'INSUFFICIENT_DATA', 'NEEDS_CLARIFICATION', 'RECOMMEND_REJECT']
   return order.indexOf(a) >= order.indexOf(b) ? a : b
