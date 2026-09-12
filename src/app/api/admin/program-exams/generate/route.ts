@@ -216,6 +216,10 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('مصدره') ||
     n.includes('عنوان الكتاب') ||
     n.includes('العنوان الاصلي') ||
+    n.includes('محور معرفي مهم') ||
+    n.includes('دليل من المحتوي') ||
+    n.includes('كلمات مفتاحيه') ||
+    n.includes('بنك المعرفه الاكاديمي المستخرج من الكتب') ||
     n.includes('ملاحظه قراءه المحتوي') ||
     n.includes('google com search') ||
     n.includes('books google') ||
