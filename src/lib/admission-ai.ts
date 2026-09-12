@@ -365,7 +365,9 @@ function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string 
   ].filter(Boolean).join(' ')
   const n = normalize(visible)
 
-  if (hasAny(visible, KEYWORDS.platformUi) || /لقطه شاشه|لقطة شاشة|سكرين|screenshot|webpage|website|صفحه ويب|صفحة ويب|واجهه نظام|واجهة نظام|لوحه تحكم|لوحة تحكم|vercel|deployments|environment variables/.test(n)) {
+  const officialDocInsideScreenshot = hasOfficialAdmissionDocumentSignals(visible)
+
+  if ((hasAny(visible, KEYWORDS.platformUi) || /لقطه شاشه|لقطة شاشة|سكرين|screenshot|webpage|website|صفحه ويب|صفحة ويب|واجهه نظام|واجهة نظام|لوحه تحكم|لوحة تحكم|vercel|deployments|environment variables/.test(n)) && !officialDocInsideScreenshot) {
     return 'المرفق عبارة عن لقطة شاشة من موقع/منصة/واجهة نظام، وليس شهادة أو هوية أو صورة شخصية أو سيرة ذاتية؛ لا يُحتسب ضمن مرفقات القبول.'
   }
 
