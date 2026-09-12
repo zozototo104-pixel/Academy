@@ -1106,6 +1106,13 @@ export function AdminView() {
                           </p>
                         </div>
                       )}
+                      {a.status !== 'PENDING' && a.status !== 'APPROVED' && (
+                        <div className="grid w-full grid-cols-1 gap-2 sm:w-40">
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
