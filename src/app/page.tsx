@@ -55,6 +55,7 @@ export default function Home() {
     activeExamId,
     programsFilter,
     studentPreviewId,
+    agentPreviewId,
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
 
