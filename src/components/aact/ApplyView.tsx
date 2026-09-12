@@ -137,6 +137,8 @@ export function ApplyView() {
   const [trackError, setTrackError] = useState('')
   const [trackPayTarget, setTrackPayTarget] = useState<TrackedInvoice | null>(null)
   const [trackPaying, setTrackPaying] = useState(false)
+  const [myAdmissionLoading, setMyAdmissionLoading] = useState(false)
+  const [myAdmission, setMyAdmission] = useState<any | null>(null)
 
   const [form, setForm] = useState({
     fullName: '',
