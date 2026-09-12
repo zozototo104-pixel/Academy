@@ -129,11 +129,29 @@ export default function Home() {
   }, [authChecked, user, view])
 
   const studentOnlyViews = ['dashboard', 'unit', 'exam', 'chat']
-  const effectiveView = authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
-    ? (user?.role === 'ADMIN' ? 'admin' : 'home')
-    : authChecked && (view === 'student-preview' || view === 'agent-preview') && user?.role !== 'ADMIN'
-      ? 'home'
-      : view
+  const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'student-preview', 'agent-preview']
+  const needsAuthRecovery = authChecked && authRecovering && protectedViews.includes(view)
+  const effectiveView = needsAuthRecovery
+    ? view
+    : authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
+      ? (user?.role === 'ADMIN' ? 'admin' : 'home')
+      : authChecked && (view === 'student-preview' || view === 'agent-preview') && user?.role !== 'ADMIN'
+        ? 'home'
+        : view
+
+  const retryAuthCheck = async () => {
+    setAuthRecovering(false)
+    setAuthChecked(false)
+    try {
+      const d = await api<{ user: any }>('/api/auth/me')
+      setUser(d.user)
+    } catch {
+      if (getToken() && protectedViews.includes(view)) setAuthRecovering(true)
+      else setUser(null)
+    } finally {
+      setAuthChecked(true)
+    }
+  }
 
   useEffect(() => {
     if (!authChecked) return
