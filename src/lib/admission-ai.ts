@@ -1069,17 +1069,27 @@ ${evidence}
 
     const rulesFullySatisfied = rules.requiredFound === rules.requiredTotal && rules.hardProblems === 0 && rules.unverifiableRequired === 0 && rules.verdict === 'RECOMMEND_APPROVE'
     const mostlySatisfied = rules.requiredFound >= Math.max(1, rules.requiredTotal - 1) && rules.hardProblems === 0 && rules.deterministicScore >= 70
+    const documentFitScore = weightedDocumentFitScore(programRules.requiredDocuments, documentAnalyses)
+    const weakReqCount = weakRequiredDocumentsCount(programRules.requiredDocuments, documentAnalyses)
+    const oneWeakNonCriticalDoc =
+      criticalAdmissionDocsOk(programRules.requiredDocuments, documentAnalyses) &&
+      weakReqCount <= 1 &&
+      rules.requiredFound >= Math.max(1, rules.requiredTotal - 1) &&
+      rules.hardProblems <= 1 &&
+      documentFitScore >= 65
+
     let finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
-    if (mostlySatisfied) {
+    if (mostlySatisfied || oneWeakNonCriticalDoc) {
       // الدرجة النهائية تمثل ملف القبول كله، وليست أقل مرفق منفرد.
-      // إذا أخطأ النموذج وخفّض الطلب كله بسبب سيرة ذاتية/صورة واحدة، نحافظ على نتيجة موزونة قريبة من القواعد
-      // ونترك المرفق الضعيف كملاحظة تفصيلية أو طلب استبدال، لا كحكم على كامل الطلب.
-      const weightedFloor = rulesFullySatisfied ? 78 : 68
-      const maxReasonablePenalty = rulesFullySatisfied ? 10 : 16
-      finalScore = Math.max(finalScore, Math.max(weightedFloor, rules.deterministicScore - maxReasonablePenalty))
-      finalScore = Math.min(finalScore, rules.deterministicScore)
+      // إذا كانت الهوية والشهادة سليمتين وباقي الملفات قوية، لا نسمح لسيرة ذاتية ضعيفة/غير متحققة أن تسحب الطلب كله إلى 32%.
+      // يبقى ضعف السيرة ملاحظة تفصيلية أو طلب استبدال، لكنه يخفض النتيجة بوزنه فقط.
+      const weightedFloor = rulesFullySatisfied ? 78 : oneWeakNonCriticalDoc ? Math.max(65, Math.min(82, documentFitScore)) : 68
+      const maxReasonablePenalty = rulesFullySatisfied ? 10 : oneWeakNonCriticalDoc ? 0 : 16
+      finalScore = Math.max(finalScore, Math.max(weightedFloor, rules.deterministicScore - maxReasonablePenalty, documentFitScore))
+      finalScore = Math.min(finalScore, 94)
     }
     let finalVerdict: Verdict = worseVerdict(rules.verdict, aiVerdict)
+    if (oneWeakNonCriticalDoc && finalVerdict === 'RECOMMEND_REJECT') finalVerdict = 'NEEDS_CLARIFICATION'
     if (rulesFullySatisfied && aiVerdict !== 'RECOMMEND_REJECT') finalVerdict = 'RECOMMEND_APPROVE'
     if (rulesFullySatisfied && aiVerdict === 'RECOMMEND_REJECT') finalVerdict = 'NEEDS_CLARIFICATION'
     if (finalScore < 25) finalVerdict = app.files.length === 0 ? 'INSUFFICIENT_DATA' : 'RECOMMEND_REJECT'
