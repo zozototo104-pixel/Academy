@@ -99,6 +99,14 @@ export function AgentView() {
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
+    if (!canSubmitAgentApplication) {
+      toast({
+        title: 'حساب الإدارة لا يقدم طلب وكالة أو اعتماد',
+        description: 'استخدم حساب جهة/وكيل منفصل أو قدّم الطلب كزائر، ثم راجعه من لوحة الإدارة ومعاينة الوكيل.',
+        variant: 'destructive',
+      })
+      return
+    }
     // قاعدة الدليل الرسمي: طلبات الاعتماد لا تُقبل بدون الوثائق الأربع
     if (kind === 'ACCREDITATION') {
       const missing = AGENT_DOCS.filter((d) => !files[d.type])
