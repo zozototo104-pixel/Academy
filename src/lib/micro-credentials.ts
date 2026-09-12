@@ -23,7 +23,7 @@ const DEFAULT_SPECS: DefaultMicroCredentialSpec[] = [
   {
     suffix: 'APPLIED_ANALYSIS',
     titlePrefix: 'شهادة مهارة في التحليل والتطبيق المهني في',
-    skillArea: 'APPLIED_ANALYSIS',
+    skillArea: 'التحليل والتطبيق المهني',
     description: 'وحدة مهارية تثبت قدرة الطالب على تحليل حالات مهنية وربطها بالكتب المقررة ومخرجات التعلم.',
     learningOutcome: 'يحلل الطالب حالة تطبيقية ويقترح قراراً أو إجراءً مهنياً مبرراً.',
     minExamScore: 80,
