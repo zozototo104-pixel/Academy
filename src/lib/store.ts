@@ -128,6 +128,19 @@ export const useAppStore = create<AppState>((set) => ({
     updateBrowserRoute('exam', { examId: id, kind })
     set({ activeExamId: id, activeExamKind: kind, view: 'exam' })
   },
+  openStudentPreview: (studentId) => {
+    updateBrowserRoute('student-preview', { studentId })
+    set({
+      studentPreviewId: studentId,
+      view: 'student-preview',
+      mobileMenuOpen: false,
+      programsFilter: null,
+      programDetailsId: null,
+      activeProgramId: null,
+      activeUnitId: null,
+      activeExamId: null,
+    })
+  },
   openApply: (programTitle) => {
     updateBrowserRoute('apply')
     set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false })
