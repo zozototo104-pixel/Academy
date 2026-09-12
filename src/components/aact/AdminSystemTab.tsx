@@ -112,6 +112,22 @@ export function AdminSystemTab() {
     }
   }
 
+  const testGeminiText = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ ok: boolean; title?: string; message: string; gemini?: SystemData['gemini'] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'test-gemini-text' }),
+      })
+      if (d.gemini) setData((prev) => (prev ? { ...prev, gemini: d.gemini } : prev))
+      toast({ title: d.title || (d.ok ? 'Gemini يعمل' : 'فشل Gemini'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const testGeminiLive = async () => {
     setTesting(true)
     try {
