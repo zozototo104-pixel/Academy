@@ -53,6 +53,7 @@ export default function Home() {
     activeUnitId,
     activeExamId,
     programsFilter,
+    studentPreviewId,
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
 
