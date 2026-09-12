@@ -1650,6 +1650,7 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
       !textKey ||
       !evidenceKey ||
       usedTexts.has(textKey) ||
+      isWeakGeneratedQuestion(q) ||
       hasForbiddenExamMetadata(q.text) ||
       hasForbiddenExamMetadata(evidenceValue) ||
       mentionsUnsupportedExternalReference(q.text, books) ||
