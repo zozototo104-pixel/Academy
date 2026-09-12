@@ -1561,7 +1561,10 @@ export function fallbackExamQuestionBatch(
     else if (kind === 'ESSAY') q = makeFallbackEssay(concept, specAr, i + batchIndex)
     else q = makeFallbackMcq(concept, specAr, kind === 'CASE_MCQ', i + batchIndex)
     return enrichQuestionMetadata(q, books, spec.kind)
-  }).slice(0, spec.count)
+  })
+    .filter((q) => !isWeakGeneratedQuestion(q))
+    .filter((q) => !books.length || evidenceGroundedInBooks(String(q.bookEvidence || q.modelAnswer || ''), books))
+    .slice(0, spec.count)
 }
 
 function optionSignature(q: GeneratedQuestion): string {
