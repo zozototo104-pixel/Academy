@@ -57,6 +57,7 @@ export default function Home() {
     agentPreviewId,
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
+  const [authRecovering, setAuthRecovering] = useState(false)
 
   // Load current user on mount
   useEffect(() => {
