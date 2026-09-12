@@ -15,6 +15,7 @@ export type View =
   | 'agent'
   | 'admin'
   | 'student-preview'
+  | 'agent-preview'
   | 'verify'
   | 'directory'
   | 'contact'
