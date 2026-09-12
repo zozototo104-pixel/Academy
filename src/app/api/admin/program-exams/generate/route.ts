@@ -398,19 +398,8 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       console.error('knowledge context for exam failed:', String(e?.message || e).slice(0, 300))
       return ''
     })
-    const examKnowledgeBooks: ExamSourceBook[] = knowledgeContext
-      ? [
-          {
-            title: 'بنك المعرفة الأكاديمي المستخرج من الكتب',
-            titleEn: 'Academic Knowledge Bank',
-            description: 'عناصر معرفة منظمة: مفاهيم، نظريات، حالات، منهجيات، وبذور أسئلة مستخرجة من الكتب المقررة.',
-            textContent: knowledgeContext,
-            sourceNote: 'بنك معرفة مبني من محتوى الكتب',
-            contentQuality: 'STORED_TEXT',
-          },
-          ...usableBooks,
-        ]
-      : usableBooks
+    // بنك المعرفة يستخدم كمرشد تنظيمي منفصل فقط، ولا يعامل ككتاب مصدر حتى لا تتسرب عبارات داخلية مثل «محور معرفي مهم» إلى نص السؤال.
+    const examSourceBooks: ExamSourceBook[] = usableBooks
 
     // لا نحذف الدفعات السابقة هنا حتى لو كانت بحاجة مراجعة؛ نمنع السيئ في الدفعات الجديدة ونترك القديم للمراجعة أو زر إعادة البناء.
     const batchIndex = firstMissingBatchIndex(existingCount)
