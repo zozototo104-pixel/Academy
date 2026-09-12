@@ -1010,8 +1010,15 @@ ${evidence}
       : 'NEEDS_CLARIFICATION') as Verdict
     const aiScore = Math.max(0, Math.min(100, Math.round(Number(parsed.fitScore) || 0)))
 
-    const finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
+    const rulesFullySatisfied = rules.requiredFound === rules.requiredTotal && rules.hardProblems === 0 && rules.unverifiableRequired === 0 && rules.verdict === 'RECOMMEND_APPROVE'
+    let finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
+    if (rulesFullySatisfied && finalScore < 78) {
+      // لا نسمح بخفض ملف مستوفٍ قواعدياً فقط بسبب اختلاف لغة الاسم أو كون الشهادة مصورة/ملتَقطة من شاشة.
+      finalScore = Math.min(rules.deterministicScore, 78)
+    }
     let finalVerdict: Verdict = worseVerdict(rules.verdict, aiVerdict)
+    if (rulesFullySatisfied && aiVerdict !== 'RECOMMEND_REJECT') finalVerdict = 'RECOMMEND_APPROVE'
+    if (rulesFullySatisfied && aiVerdict === 'RECOMMEND_REJECT') finalVerdict = 'NEEDS_CLARIFICATION'
     if (finalScore < 25) finalVerdict = app.files.length === 0 ? 'INSUFFICIENT_DATA' : 'RECOMMEND_REJECT'
     if (rules.hardProblems > 0 && finalVerdict === 'RECOMMEND_APPROVE') finalVerdict = 'NEEDS_CLARIFICATION'
 
