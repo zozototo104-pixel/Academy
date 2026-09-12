@@ -304,7 +304,7 @@ export function Header() {
           >
             طلب الالتحاق
           </button>
-          {user && <GroupMenu label="بوابة الدراسة" items={studentItems} groupTargets={['dashboard', 'chat', 'unit', 'exam']} />}
+          {canUseStudentPortal && <GroupMenu label="بوابة الدراسة" items={studentItems} groupTargets={['dashboard', 'chat', 'unit', 'exam']} />}
           <GroupMenu label="الأكاديمية" items={academyItems} groupTargets={['agent', 'directory', 'verify', 'contact']} />
           {user?.role === 'ADMIN' && (
             <button
