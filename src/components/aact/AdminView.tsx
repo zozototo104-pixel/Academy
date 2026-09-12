@@ -605,6 +605,12 @@ export function AdminView() {
                             </p>
                           )}
                           {a.notes && <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">ملاحظات: {a.notes}</p>}
+                          {ownerIsStaffAccount && (
+                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                              <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
+                              هذا الطلب مرتبط بحساب إداري/غير طالب ({a.user?.role}). لا يُعتمد كقيد دراسة ولا تُصدر له فاتورة دراسية أو شهادة. الإجراء الصحيح: إنشاء حساب طالب منفصل ببريد الطالب الحقيقي ثم إعادة تقديم الطلب، أو رفض هذا الطلب كتجريبي.
+                            </div>
+                          )}
 
                           {/* ===== التقييم الذكي للطلب — يعرض قبل زر الاعتماد للمراجعة ===== */}
                           <div className={`mt-3 rounded-xl border p-3 ${(() => {
