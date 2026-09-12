@@ -640,6 +640,8 @@ export function DashboardView() {
                     </div>
                   ))}
                 </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           ) : null}
