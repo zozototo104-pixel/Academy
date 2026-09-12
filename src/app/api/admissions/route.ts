@@ -129,8 +129,21 @@ export async function POST(req: NextRequest) {
     }
 
     // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد (توحيد مطابقة البريد lowercase)
+    // حسابات الإدارة/المشرفين لا تُستخدم كطلاب حتى لا تختلط صلاحيات الإدارة بالسجل الأكاديمي والدفع.
     const me = await getCurrentUser()
+    if (me && me.role !== 'STUDENT') {
+      return NextResponse.json(
+        { error: 'حساب الإدارة أو المشرف لا يقدم طلب التحاق كطالب. استخدم حساب طالب منفصل ببريد الطالب الحقيقي، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.' },
+        { status: 403 }
+      )
+    }
     const owner = me ? me : await db.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+    if (owner && owner.role !== 'STUDENT') {
+      return NextResponse.json(
+        { error: 'البريد المدخل مرتبط بحساب إداري/غير طالب. أنشئ حساب طالب منفصل أو استخدم بريد الطالب الحقيقي قبل تقديم الطلب.' },
+        { status: 400 }
+      )
+    }
 
     // البحث عن كائن البرنامج للتسعير والتسجيل النهائي التلقائي
     const programRec = programId
