@@ -305,9 +305,9 @@ export function AgentView() {
           رسوم تقديم طلب الاعتماد: {ACCREDITATION_GUIDE.applicationFee}$ (غير مستردة) — تُصدر فاتورة فور التقديم وتُسدد من نفس الصفحة، ثم تُدرس الإدارة الملف ويصدر الاعتماد وفق الدليل.
         </p>
       )}
-      <Button type="submit" disabled={loading} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+      <Button type="submit" disabled={loading || !canSubmitAgentApplication} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
         {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4 rotate-180" />}
-        {kind === 'AGENCY' ? 'إرسال طلب الوكالة الدولية' : 'إرسال طلب الاعتماد'}
+        {canSubmitAgentApplication ? (kind === 'AGENCY' ? 'إرسال طلب الوكالة الدولية' : 'إرسال طلب الاعتماد') : 'يتطلب حساب جهة/وكيل منفصل'}
       </Button>
     </form>
   )
