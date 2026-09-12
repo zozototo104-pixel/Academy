@@ -87,6 +87,8 @@ export default function Home() {
         useAppStore.getState().openExam(q.get('examId') || '', q.get('kind') === 'final' ? 'final' : 'unit')
       } else if (v === 'student-preview' && q.get('studentId')) {
         useAppStore.getState().openStudentPreview(q.get('studentId') || '')
+      } else if (v === 'agent-preview' && q.get('agentId')) {
+        useAppStore.getState().openAgentPreview(q.get('agentId') || '')
       } else {
         useAppStore.getState().navigate(v as any)
       }
