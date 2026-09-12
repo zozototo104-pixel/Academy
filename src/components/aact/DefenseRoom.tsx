@@ -306,6 +306,34 @@ export function DefenseRoom({
     unlockAudioOnFirstGesture()
   }, [])
 
+  // إذا أغلق الهاتف/المتصفح الجلسة مؤقتاً، نعرض تنبيهاً للرجوع للقاعة بدل أن يضيع الطالب.
+  useEffect(() => {
+    try { setResumeHint(!!sessionStorage.getItem(roomSessionKey)) } catch {}
+  }, [roomSessionKey])
+
+  // إبقاء الشاشة مستيقظة أثناء الفيديو قدر الإمكان على الأجهزة التي تدعم Wake Lock.
+  useEffect(() => {
+    if (!roomOpen) return
+    let cancelled = false
+    const requestWakeLock = async () => {
+      try {
+        const lock = await (navigator as any).wakeLock?.request?.('screen')
+        if (!cancelled && lock) wakeLockRef.current = lock
+      } catch {}
+    }
+    requestWakeLock()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && roomOpen) requestWakeLock()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      try { wakeLockRef.current?.release?.() } catch {}
+      wakeLockRef.current = null
+    }
+  }, [roomOpen])
+
   // تمرير تلقائي
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
