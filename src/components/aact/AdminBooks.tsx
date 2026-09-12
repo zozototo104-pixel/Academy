@@ -911,7 +911,29 @@ export function AdminBooksTab() {
       </Card>
 
       {programId && (
-        <>
+        <Tabs defaultValue="overview" dir="rtl" className="space-y-4">
+          <div className="sticky top-2 z-20 rounded-2xl border border-[#0f2b46]/10 bg-white/95 p-3 shadow-sm backdrop-blur">
+            <p className="mb-2 text-[10px] font-black text-slate-500">مساحة العمل الأكاديمية — اختر الباب المطلوب بدل التمرير الطويل</p>
+            <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
+              <TabsTrigger value="overview" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> نظرة عامة</TabsTrigger>
+              <TabsTrigger value="books" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> الكتب والإضافة ({books.length})</TabsTrigger>
+              <TabsTrigger value="suggestions" className="text-[10px] font-black sm:text-xs"><Sparkles className="ml-1 h-3.5 w-3.5" /> توليد كتب AI ({suggestions.length})</TabsTrigger>
+              <TabsTrigger value="knowledge" className="text-[10px] font-black sm:text-xs"><Layers className="ml-1 h-3.5 w-3.5" /> بنك المعرفة ({knowledgeItems.length})</TabsTrigger>
+              <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><FileText className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({studyGuides.length})</TabsTrigger>
+              <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><FileCheck2 className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
+              <TabsTrigger value="exams" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> الامتحانات ({exams.length})</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="mt-0 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center"><BookMarked className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{books.length}</p><p className="text-[10px] font-bold text-slate-500">كتب مقررة</p></CardContent></Card>
+              <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center"><Layers className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{knowledgeItems.length}</p><p className="text-[10px] font-bold text-slate-500">عناصر معرفة</p></CardContent></Card>
+              <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center"><FileText className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{studyGuides.length}</p><p className="text-[10px] font-bold text-slate-500">أدلة دراسة</p></CardContent></Card>
+              <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center"><FileCheck2 className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{assignments.length}</p><p className="text-[10px] font-bold text-slate-500">واجبات</p></CardContent></Card>
+              <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center"><ClipboardList className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{exams.length}</p><p className="text-[10px] font-bold text-slate-500">امتحانات</p></CardContent></Card>
+            </div>
+
           {academicPlanPreview && (
             <Card className="border-[#c9a227]/35 bg-[#fffaf0]">
               <CardContent className="p-5 sm:p-6">
