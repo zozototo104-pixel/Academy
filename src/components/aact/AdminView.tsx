@@ -220,7 +220,7 @@ interface StudentRow {
 }
 
 export function AdminView() {
-  const { user, navigate } = useAppStore()
+  const { user, navigate, openStudentPreview } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<Stats | null>(null)
   const [apps, setApps] = useState<AgentApp[]>([])
