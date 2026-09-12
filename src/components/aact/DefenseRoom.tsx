@@ -1179,6 +1179,11 @@ ${recent || 'بدأت الجلسة للتو.'}
             {finished && aiScore != null && (
               <p className="mt-1.5 text-xs font-black text-[#e0b83a]">انتهت جلستك — تقييم خبير الذكاء: {aiScore}/100 (النتيجة النهائية لدى اللجنة البشرية)</p>
             )}
+            {resumeHint && !finished && (
+              <p className="mt-3 rounded-xl border border-[#e0b83a]/40 bg-[#e0b83a]/15 p-3 text-[11px] font-bold leading-5 text-[#fff3c4]">
+                يبدو أن جلسة مناقشة كانت مفتوحة ثم انقطع الاتصال أو علّق المتصفح. اضغط «العودة إلى القاعة» لاستكمال الجلسة دون تحويلك للرئيسية.
+              </p>
+            )}
           </div>
           <Button
             onClick={() => {
