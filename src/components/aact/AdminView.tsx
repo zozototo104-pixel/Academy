@@ -1080,11 +1080,16 @@ export function AdminView() {
                       </div>
                       {a.status === 'PENDING' && (
                         <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
-                          <Button size="sm" onClick={() => setAppStatus(a.id, 'APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
-                            <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> قبول
-                          </Button>
+                          {!submittedByStaff && (
+                            <Button size="sm" onClick={() => setAppStatus(a.id, 'APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                              <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> قبول
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => setAppStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
-                            <XCircle className="ml-1 h-3.5 w-3.5" /> رفض
+                            <XCircle className="ml-1 h-3.5 w-3.5" /> {submittedByStaff ? 'إغلاق تجريبي' : 'رفض'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
                           </Button>
                         </div>
                       )}
