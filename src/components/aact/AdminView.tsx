@@ -991,7 +991,9 @@ export function AdminView() {
                 <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات وكالة بعد</CardContent>
               </Card>
             ) : (
-              apps.map((a) => (
+              apps.map((a) => {
+                const submittedByStaff = !!a.submittedByStaff || (!!a.user && ['ADMIN', 'SUPERVISOR'].includes(a.user.role))
+                return (
                 <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
                   <CardContent className="p-4 sm:p-5">
                     <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
