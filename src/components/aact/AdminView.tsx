@@ -13,7 +13,7 @@ import {
   Users2, ClipboardCheck, Bot, Globe2, Loader2, TrendingUp,
   CheckCircle2, XCircle, Clock3, GraduationCap, BarChart3, ClipboardList, Search,
   Gavel, Banknote, Award, Settings2, ScrollText, Mail, UserCheck,
-  Paperclip, FileText, BookMarked, AlertTriangle, Sparkles,
+  Paperclip, FileText, BookMarked, AlertTriangle, Sparkles, Eye,
 } from 'lucide-react'
 
 function AdminTabLoader() {
