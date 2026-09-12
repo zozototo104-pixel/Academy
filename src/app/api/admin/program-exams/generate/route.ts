@@ -604,10 +604,10 @@ async function runGeneration(examId: string) {
     for (let i = startBatch; i < EXAM_BATCH_COUNT; i++) {
       if (!(await isExamStillGenerating(examId))) return
       const spec = EXAM_BATCH_SPECS[i]
-      let batch = await generateExamQuestionBatch(exam.program, examKnowledgeBooks, i)
+      let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
       if (batch.length === 0) {
         // إعادة محاولة واحدة عند فشل الدفعة
-        batch = await generateExamQuestionBatch(exam.program, examKnowledgeBooks, i)
+        batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
       }
       if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${i + 1} من الأسئلة`)
       if (!(await isExamStillGenerating(examId))) return
