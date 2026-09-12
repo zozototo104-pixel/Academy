@@ -50,6 +50,9 @@ export async function GET(req: NextRequest) {
       },
     })
     if (!student) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
+    if (student.role !== 'STUDENT') {
+      return NextResponse.json({ error: 'المعاينة الإدارية مخصصة لحسابات الطلاب فقط، وليست لحسابات الإدارة أو المشرفين.' }, { status: 400 })
+    }
 
     const [admissions, enrollments, programAttempts, unitAttempts, assignments, theses, payments, certificates, microCredentials, chats] = await Promise.all([
       db.admissionApplication.findMany({
