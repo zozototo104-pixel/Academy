@@ -814,6 +814,13 @@ export function AdminView() {
                             </div>
                           </div>
                         )}
+                        {ownerIsStaffAccount && a.status !== 'REJECTED' && (
+                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-64">
+                            <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
+                              <XCircle className="ml-1 h-3.5 w-3.5" /> إغلاقه كطلب تجريبي/إداري
+                            </Button>
+                          </div>
+                        )}
                         {a.status === 'CERTIFIED' && (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
                             <Award className="ml-1 h-3.5 w-3.5" /> شهادة صادرة — ظاهرة في تبويب الشهادات
