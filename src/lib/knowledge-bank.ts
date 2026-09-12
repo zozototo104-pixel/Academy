@@ -366,10 +366,10 @@ export async function buildKnowledgeContextForExam(programId: string, semester?:
   if (!items.length) return ''
   return items
     .map((item, i) => {
-      const kw = item.keywords?.length ? ` — كلمات مفتاحية: ${item.keywords.slice(0, 5).join('، ')}` : ''
-      const source = item.bookTitle ? ` — من كتاب: ${item.bookTitle}` : ''
-      // لا نُظهر رموز التصنيف التقنية مثل CONCEPT/THEORY داخل سياق الامتحان حتى لا تتسرب إلى نص السؤال.
-      return `${i + 1}. محور معرفي مهم: ${cleanText(item.title, 170)}. الفكرة: ${cleanText(item.summary, 420)}${item.excerpt ? ` — دليل من المحتوى: ${cleanText(item.excerpt, 260)}` : ''}${kw}${source}`
+      const kw = item.keywords?.length ? ` — مصطلحات مرتبطة: ${item.keywords.slice(0, 5).join('، ')}` : ''
+      const source = item.bookTitle ? ` — الكتاب: ${item.bookTitle}` : ''
+      // نستخدم صياغة طبيعية حتى لا تتسرب عناوين داخلية مثل «محور معرفي مهم» إلى نص السؤال.
+      return `${i + 1}. ${cleanText(item.title, 170)}. خلاصة أكاديمية: ${cleanText(item.summary, 420)}${item.excerpt ? ` — مقتطف داعم: ${cleanText(item.excerpt, 260)}` : ''}${kw}${source}`
     })
     .join('\n')
 }
