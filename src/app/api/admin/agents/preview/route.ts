@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       note: 'هذه معاينة إدارية للمتابعة فقط؛ لا تعني دخولاً كصاحب الطلب ولا تسمح بتقديم الطلب أو دفع الرسوم نيابة عنه من حساب الإدارة.',
       application: {
         ...app,
-        user: submitterByEmail,
+        user: effectiveSubmitter,
         submittedByStaff,
         accreditationLabel: app.kind === 'ACCREDITATION' ? (ACC_TYPE_LABEL[app.accreditationType || ''] || 'اعتماد') : 'وكالة دولية',
       },
