@@ -1192,7 +1192,7 @@ ${recent || 'بدأت الجلسة للتو.'}
             }}
             className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
           >
-            <Video className="ml-2 h-4 w-4" /> {finished ? (isStudent ? 'مراجعة الجلسة والمحضر' : 'عرض سجل الجلسة') : 'الدخول إلى القاعة'}
+            <Video className="ml-2 h-4 w-4" /> {finished ? (isStudent ? 'مراجعة الجلسة والمحضر' : 'عرض سجل الجلسة') : resumeHint ? 'العودة إلى القاعة' : 'الدخول إلى القاعة'}
           </Button>
         </div>
       </div>
