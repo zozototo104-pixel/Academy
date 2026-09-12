@@ -110,7 +110,7 @@ function score(value: unknown) {
   return typeof value === 'number' ? `${Math.round(value)}%` : '—'
 }
 
-function Section({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
+function Section({ title, icon: Icon, children }: { title: string; icon: any; children: ReactNode }) {
   return (
     <Card className="border-[#0f2b46]/10">
       <CardContent className="p-4 sm:p-5">
