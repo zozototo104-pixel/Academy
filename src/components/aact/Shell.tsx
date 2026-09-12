@@ -209,6 +209,7 @@ function NotificationBell() {
 
 export function Header() {
   const { user, setUser, navigate, view, mobileMenuOpen, setMobileMenuOpen } = useAppStore()
+  const canUseStudentPortal = user?.role === 'STUDENT'
 
   // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
   const studentItems: { label: string; target: any; desc: string }[] = [
