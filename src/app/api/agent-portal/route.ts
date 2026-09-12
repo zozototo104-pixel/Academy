@@ -8,6 +8,9 @@ export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ portal: null })
+    if (['ADMIN', 'SUPERVISOR'].includes(user.role)) {
+      return NextResponse.json({ portal: null, restricted: true, reason: 'بوابة الوكيل مخصصة لصاحب الطلب فقط، وليست لحساب الإدارة أو المشرف.' })
+    }
     const app = await db.agentApplication.findFirst({
       where: { email: user.email, status: 'APPROVED' },
       orderBy: { createdAt: 'desc' },
