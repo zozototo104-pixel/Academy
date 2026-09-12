@@ -898,6 +898,7 @@ export function AdminView() {
                         <th className="p-3 font-black">أفضل نتيجة</th>
                         <th className="p-3 font-black">محادثات AI</th>
                         <th className="hidden p-3 font-black sm:table-cell">التسجيل</th>
+                        <th className="p-3 font-black">متابعة</th>
                       </tr>
                     </thead>
                     <tbody>
