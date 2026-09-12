@@ -544,6 +544,7 @@ export function AdminView() {
             ) : (
               admissions.map((a) => {
                 const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
+                const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
                 const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
                 return (
                   <Card
