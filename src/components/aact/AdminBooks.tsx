@@ -1558,10 +1558,16 @@ export function AdminBooksTab() {
                     ))}
                   </div>
                 </div>
+              ) : (
+                <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                  اضغط زر «اقترح كتباً بالذكاء الاصطناعي» لتظهر هنا الكتب المقترحة حسب الدرجة والتخصص، ثم أضف المناسب منها للمنهج.
+                </div>
               )}
+                </TabsContent>
 
+                <TabsContent value="add" className="mt-0">
               {/* نموذج إضافة كتاب */}
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                 <h3 className="mb-3 flex items-center gap-1.5 text-xs font-black text-[#0f2b46]">
                   <Plus className="h-4 w-4 text-[#a8841a]" /> إضافة كتاب مقرر جديد
                 </h3>
