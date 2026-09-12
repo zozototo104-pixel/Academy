@@ -251,43 +251,73 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/admissions?ref=AACT-2026-1234 — تتبع طلب بالكود المرجعي
+// GET /api/admissions?mine=1 — آخر طلبات الطالب الحالي بدون إدخال كود التتبع
 export async function GET(req: NextRequest) {
   try {
     const ref = req.nextUrl.searchParams.get('ref')?.trim()
+    const mine = req.nextUrl.searchParams.get('mine') === '1'
+    const include = {
+      supervisor: { select: { name: true } },
+      files: { select: { id: true, docType: true, fileName: true, size: true } },
+      payments: {
+        select: {
+          invoiceNo: true, purpose: true, amount: true, status: true,
+          description: true, receiptNo: true, paidAt: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' as const },
+      },
+    }
+    const serialize = (app: any) => ({
+      reference: app.reference,
+      fullName: app.fullName,
+      program: app.program,
+      status: app.status,
+      statusLabel: STATUS_LABEL[app.status] || app.status,
+      supervisorName: app.supervisor?.name || null,
+      thesisDeadline: app.thesisDeadline,
+      createdAt: app.createdAt,
+      documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
+      payments: app.payments || [],
+      nextAction: app.status === 'AWAITING_FEE'
+        ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.'
+        : app.status === 'UNDER_REVIEW'
+          ? 'ملفك قيد دراسة الإدارة. ستصلك رسالة عند صدور قرار القبول.'
+          : app.status === 'AWAITING_TUITION'
+            ? 'تمت الموافقة المبدئية. يرجى سداد الرسوم الدراسية لاستكمال التسجيل النهائي والدخول للبرنامج.'
+            : app.status === 'SUPERVISOR_ASSIGNED' || app.status === 'THESIS'
+              ? 'تم تفعيل قيدك الدراسي. يمكنك متابعة البرنامج من بوابة الطالب.'
+              : app.status === 'REJECTED'
+                ? 'تم رفض الطلب. يمكنك التواصل مع الإدارة لمعرفة السبب أو تقديم طلب جديد عند السماح.'
+                : 'تابع تعليمات الإدارة في بوابة الطالب.',
+    })
+
+    if (mine) {
+      const user = await getCurrentUser()
+      if (!user) return NextResponse.json({ applications: [], application: null })
+      if (user.role !== 'STUDENT') {
+        return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق تخص حسابات الطلاب فقط.' })
+      }
+      const apps = await db.admissionApplication.findMany({
+        where: { OR: [{ userId: user.id }, { email: user.email }] },
+        orderBy: [{ createdAt: 'desc' }],
+        take: 10,
+        include,
+      })
+      const serialized = apps.map(serialize)
+      return NextResponse.json({ applications: serialized, application: serialized[0] || null })
+    }
+
     if (!ref) {
       return NextResponse.json({ error: 'يرجى إدخال كود التتبع' }, { status: 400 })
     }
     const app = await db.admissionApplication.findUnique({
       where: { reference: ref },
-      include: {
-        supervisor: { select: { name: true } },
-        files: { select: { id: true, docType: true, fileName: true, size: true } },
-        payments: {
-          select: {
-            invoiceNo: true, purpose: true, amount: true, status: true,
-            description: true, receiptNo: true, paidAt: true, createdAt: true,
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
+      include,
     })
     if (!app) {
       return NextResponse.json({ error: 'لا يوجد طلب بهذا الكود المرجعي' }, { status: 404 })
     }
-    return NextResponse.json({
-      application: {
-        reference: app.reference,
-        fullName: app.fullName,
-        program: app.program,
-        status: app.status,
-        statusLabel: STATUS_LABEL[app.status] || app.status,
-        supervisorName: app.supervisor?.name || null,
-        thesisDeadline: app.thesisDeadline,
-        createdAt: app.createdAt,
-        documents: app.files.map((f) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
-        payments: app.payments,
-      },
-    })
+    return NextResponse.json({ application: serialize(app) })
   } catch (e: any) {
     console.error('admissions GET error:', e)
     return NextResponse.json({ error: 'حدث خطأ أثناء البحث عن الطلب' }, { status: 500 })
