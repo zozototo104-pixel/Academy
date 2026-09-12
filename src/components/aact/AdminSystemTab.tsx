@@ -196,6 +196,13 @@ export function AdminSystemTab() {
     )
   }
 
+  const geminiDiag = data.gemini
+  const geminiSourceLabel = geminiDiag?.source === 'db'
+    ? 'مفتاح لوحة الإدارة'
+    : geminiDiag?.source === 'env'
+      ? 'مفتاح Vercel الافتراضي'
+      : 'لا يوجد مفتاح فعّال'
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mail" dir="rtl">
