@@ -1365,6 +1365,14 @@ export function AdminBooksTab() {
                 </Button>
               </div>
 
+              <Tabs defaultValue="current" dir="rtl" className="space-y-4">
+                <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
+                  <TabsTrigger value="current" className="text-[10px] font-black sm:text-xs">الكتب الحالية ({books.length})</TabsTrigger>
+                  <TabsTrigger value="add" className="text-[10px] font-black sm:text-xs">إضافة كتاب</TabsTrigger>
+                  <TabsTrigger value="ai" className="text-[10px] font-black sm:text-xs">توليد/اقتراح كتب AI ({suggestions.length})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="current" className="mt-0">
               {loadingBooks ? (
                 <div className="flex h-24 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
               ) : books.length === 0 ? (
