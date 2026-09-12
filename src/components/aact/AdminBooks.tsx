@@ -973,7 +973,9 @@ export function AdminBooksTab() {
               </CardContent>
             </Card>
           )}
+          </TabsContent>
 
+          <TabsContent value="knowledge" className="mt-0 space-y-4">
           {/* بنك المعرفة الأكاديمي */}
           <Card className="border-[#c9a227]/35 bg-gradient-to-br from-white to-[#fffaf0]">
             <CardContent className="p-5 sm:p-6">
