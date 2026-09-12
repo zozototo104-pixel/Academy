@@ -128,7 +128,7 @@ export default function Home() {
       document.documentElement.scrollTop = 0
       document.body.scrollTop = 0
     })
-  }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter, studentPreviewId])
+  }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter, studentPreviewId, agentPreviewId])
 
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
