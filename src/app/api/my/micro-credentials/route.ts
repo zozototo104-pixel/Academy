@@ -31,7 +31,7 @@ function toCard(award: any) {
     credentialId: credential.id,
     titleAr: credential.titleAr,
     titleEn: credential.titleEn,
-    skillArea: credential.skillArea,
+    skillArea: microSkillLabel(credential.skillArea),
     description: credential.description,
     learningOutcome: credential.learningOutcome,
     badgeCode: credential.badgeCode,
