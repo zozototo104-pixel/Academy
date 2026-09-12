@@ -512,15 +512,15 @@ function fileDetail(f: AdmissionFileEvidence, extra?: string): string {
 }
 
 function sharedNameStatus(fullName: string, f: AdmissionFileEvidence): AdmissionDocumentAnalysis['belongsToStudent'] {
+  const actual = detectAdmissionDocumentKind(f)
+  if (actual.kind === 'PHOTO') {
+    // الصورة الشخصية لا تحتوي عادة اسماً مكتوباً؛ تُقبل كصورة ولا نجعل عدم وجود الاسم سبباً لرفضها.
+    return 'UNVERIFIED'
+  }
   const nameOnDoc = f.ocrRead?.nameOnDoc || ''
   const content = `${safeVisibleContent(f)} ${nameOnDoc}`
-  if (!fullName.trim()) return 'UNVERIFIED'
-  if (!content.trim()) return 'UNVERIFIED'
-  const words = normalize(fullName).split(' ').filter((w) => w.length > 1)
-  if (words.length === 0) return 'UNVERIFIED'
-  const shared = words.filter((w) => normalize(content).includes(w)).length
-  if (shared >= Math.max(1, Math.ceil(words.length / 2))) return 'YES'
-  return nameOnDoc || safeVisibleContent(f).length > 40 ? 'NO' : 'UNVERIFIED'
+  const matched = flexibleNameMatch(fullName, content)
+  return matched.status
 }
 
 function programRelevanceStatus(program: string, expectedType: string, f: AdmissionFileEvidence, detected: DetectedDocKind): AdmissionDocumentAnalysis['relatedToProgram'] {
