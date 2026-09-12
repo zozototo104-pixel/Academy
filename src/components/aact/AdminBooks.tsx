@@ -1478,10 +1478,25 @@ export function AdminBooksTab() {
                   ))}
                 </div>
               )}
+                </TabsContent>
+
+                <TabsContent value="ai" className="mt-0 space-y-4">
+                  <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Sparkles className="h-4 w-4 text-[#a8841a]" /> توليد/اقتراح كتب بالذكاء الاصطناعي</h3>
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">يقترح كتباً بحسب الدرجة والتخصص، ثم تضيف الإدارة ما يناسب المنهج. الروابط غير المباشرة تبقى مراجع فقط حتى ترفع ملف الكتاب أو رابط قراءة مباشر.</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={suggest} disabled={suggesting} className="border-[#c9a227] font-bold text-[#a8841a]">
+                        {suggesting ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                        اقترح كتباً بالذكاء الاصطناعي
+                      </Button>
+                    </div>
+                  </div>
 
               {/* اقتراحات خبير الذكاء الاصطناعي */}
-              {suggestions.length > 0 && (
-                <div className="mt-4 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-4">
+              {suggestions.length > 0 ? (
+                <div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="flex items-center gap-1.5 text-xs font-black text-[#0f2b46]">
                       <Bot className="h-4 w-4 text-[#a8841a]" /> اقتراحات خبير الذكاء الاصطناعي وفق واقع التخصص عالمياً
