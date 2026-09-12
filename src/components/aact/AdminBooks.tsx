@@ -1150,7 +1150,9 @@ export function AdminBooksTab() {
               )}
             </CardContent>
           </Card>
+          </TabsContent>
 
+          <TabsContent value="assignments" className="mt-0 space-y-4">
           {/* الواجبات والتكليفات */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
