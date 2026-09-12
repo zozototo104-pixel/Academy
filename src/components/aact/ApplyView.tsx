@@ -197,6 +197,7 @@ export function ApplyView() {
   )
   const selectedProgramId = selectedProgram?.id || ''
   const selectedRules = selectedProgram?.admissionRules || null
+  const canSubmitStudentApplication = !user || user.role === 'STUDENT'
 
   const pickFile = (type: string, f: File | null) => {
     setMissingDocs([])
