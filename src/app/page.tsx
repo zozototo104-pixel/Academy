@@ -153,6 +153,7 @@ export default function Home() {
             {effectiveView === 'agent' && <AgentView />}
             {effectiveView === 'admin' && <AdminView />}
             {effectiveView === 'student-preview' && <AdminStudentPreview />}
+            {effectiveView === 'agent-preview' && <AdminAgentPreview />}
             {effectiveView === 'verify' && <VerifyView />}
             {effectiveView === 'directory' && <DirectoryView />}
             {effectiveView === 'contact' && <ContactView />}
