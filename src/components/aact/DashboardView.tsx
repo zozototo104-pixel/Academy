@@ -161,6 +161,19 @@ interface MicroCredentialCard {
   evidence?: any
 }
 
+function microSkillLabel(value?: string | null): string {
+  const raw = String(value || '').trim()
+  const map: Record<string, string> = {
+    PROFESSIONAL_FOUNDATIONS: 'أساسيات مهنية',
+    FOUNDATIONS: 'أساسيات مهنية',
+    APPLIED_ANALYSIS: 'التحليل والتطبيق المهني',
+    CAPSTONE_PROJECT: 'المشروع أو البحث التطبيقي',
+    CAPSTONE_READY: 'المشروع أو البحث التطبيقي',
+  }
+  if (!raw) return 'مهارة مهنية'
+  return map[raw] || raw.replace(/_/g, ' ')
+}
+
 export function DashboardView() {
   const { user, navigate, openUnit, openExam, openProgramDetails } = useAppStore()
   const { toast } = useToast()
