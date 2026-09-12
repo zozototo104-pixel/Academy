@@ -33,6 +33,7 @@ model User {
   programExamAttempts ProgramExamAttempt[]
   assignmentSubmissions AssignmentSubmission[]
   microCredentialAwards UserMicroCredential[]
+  ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
 }
 
 model Session {
