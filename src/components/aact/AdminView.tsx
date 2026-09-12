@@ -1095,7 +1095,7 @@ export function AdminView() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
+              )})
             )}
           </div>
         </TabsContent>
