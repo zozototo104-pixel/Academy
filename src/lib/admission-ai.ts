@@ -136,10 +136,10 @@ export const EDU_LABEL = EDUCATION_AR
 
 const KEYWORDS = {
   highSchool: ['ثانويه', 'الثانويه', 'الشهاده الثانويه', 'high school', 'secondary school', 'secondary certificate'],
-  bachelor: ['بكالوريوس', 'بكلوريوس', 'بكلاريوس', 'اجازه', 'ليسانس', 'bachelor', 'b.sc', 'bsc', 'b.a', 'ba degree'],
-  master: ['ماجستير', 'master', 'm.sc', 'msc', 'm.a', 'mba', 'master degree'],
+  bachelor: ['بكالوريوس', 'بكلوريوس', 'بكلاريوس', 'اجازه', 'ليسانس', 'bachelor', 'bachelor degree', 'bachelor of', 'b.sc', 'bsc', 'b.a', 'ba degree'],
+  master: ['ماجستير', 'master', 'master degree', 'm.sc', 'msc', 'm.a', 'mba'],
   phd: ['دكتوراه', 'دكتوراة', 'phd', 'doctorate'],
-  degreeDoc: ['شهاده', 'شهادة', 'certificate', 'diploma', 'degree', 'graduation', 'awarded', 'granted', 'تشهد', 'منح', 'حصل على'],
+  degreeDoc: ['شهاده', 'شهادة', 'certificate', 'diploma', 'degree', 'graduation', 'awarded', 'granted', 'faculty of', 'deanery of admission', 'registration', 'dean of faculty', 'تشهد', 'منح', 'حصل على'],
   transcriptDoc: ['كشف علامات', 'كشف درجات', 'transcript', 'academic record', 'grade report', 'gpa', 'المعدل', 'الساعات المعتمده', 'الساعات المعتمدة', 'course title', 'semester'],
   idDoc: ['هويه', 'هوية', 'جواز', 'passport', 'national id', 'identity', 'id card', 'بطاقه', 'بطاقة'],
   cvDoc: ['سيره ذاتيه', 'سيرة ذاتية', 'cv', 'resume', 'curriculum vitae', 'خبره', 'خبرات', 'experience', 'skills', 'مهارات'],
