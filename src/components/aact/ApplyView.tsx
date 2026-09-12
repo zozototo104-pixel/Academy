@@ -183,6 +183,30 @@ export function ApplyView() {
     if (p) setSelectedCategory(p.category)
   }, [programs, form.program, selectedCategory])
 
+  useEffect(() => {
+    if (!user || user.role !== 'STUDENT') {
+      setMyAdmission(null)
+      setMyAdmissionLoading(false)
+      return
+    }
+    let alive = true
+    setMyAdmissionLoading(true)
+    api<{ application: any | null; applications?: any[] }>('/api/admissions?mine=1')
+      .then((d) => {
+        if (!alive) return
+        const app = d.application || null
+        setMyAdmission(app)
+        if (app?.reference) setTrackRef((v) => v || app.reference)
+      })
+      .catch(() => {
+        if (alive) setMyAdmission(null)
+      })
+      .finally(() => {
+        if (alive) setMyAdmissionLoading(false)
+      })
+    return () => { alive = false }
+  }, [user?.id, user?.role])
+
   const availableCategories = useMemo(() => {
     const set = new Set(programs.map((p) => p.category).filter(Boolean))
     return PROGRAM_CATEGORY_ORDER.filter((c) => set.has(c)).concat([...set].filter((c) => !PROGRAM_CATEGORY_ORDER.includes(c)))
