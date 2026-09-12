@@ -4,6 +4,18 @@ import { awardEligibleMicroCredentials } from '@/lib/micro-credentials'
 
 export const dynamic = 'force-dynamic'
 
+function microSkillLabel(value?: string | null): string {
+  const raw = String(value || '').trim()
+  const map: Record<string, string> = {
+    PROFESSIONAL_FOUNDATIONS: 'أساسيات مهنية',
+    FOUNDATIONS: 'أساسيات مهنية',
+    APPLIED_ANALYSIS: 'التحليل والتطبيق المهني',
+    CAPSTONE_PROJECT: 'المشروع أو البحث التطبيقي',
+    CAPSTONE_READY: 'المشروع أو البحث التطبيقي',
+  }
+  return raw ? (map[raw] || raw.replace(/_/g, ' ')) : 'مهارة مهنية'
+}
+
 function toCard(award: any) {
   const credential = award.microCredential || award
   const program = credential.program || award.microCredential?.program
