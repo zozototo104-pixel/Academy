@@ -1855,7 +1855,8 @@ export function AdminBooksTab() {
 
           {/* 12.2: الاعتراضات على النتائج */}
           <AdminAppealsSection />
-        </>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* حوار مراجعة الأسئلة قبل النشر */}
