@@ -364,6 +364,113 @@ export function ApplyView() {
     }
   }
 
+  const renderAdmissionStatusCard = (app: any) => {
+    const status = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+    const invoices: TrackedInvoice[] = Array.isArray(app.payments) ? app.payments : []
+    const unpaid = invoices.filter((p) => p.status !== 'PAID')
+    const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
+    const tuition = unpaid.find((p) => p.purpose === 'TUITION') || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
+    const payable = app.status === 'AWAITING_TUITION' ? tuition : app.status === 'AWAITING_FEE' ? applicationFee : (tuition || applicationFee)
+    const isFinalActive = ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
+    const headline = app.status === 'AWAITING_TUITION'
+      ? 'تمت الموافقة المبدئية على طلبك'
+      : app.status === 'UNDER_REVIEW'
+        ? 'طلبك قيد دراسة الإدارة'
+        : app.status === 'AWAITING_FEE'
+          ? 'تم استلام طلبك — بانتظار رسوم التقديم'
+          : isFinalActive
+            ? 'تم تفعيل قيدك الدراسي'
+            : app.status === 'REJECTED'
+              ? 'تمت مراجعة طلبك'
+              : 'حالة طلب الالتحاق'
+
+    return (
+      <Card className="mx-auto mt-6 max-w-3xl border-[#c9a227]/40 bg-white shadow-xl">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <Badge className={`${status.cls} hover:${status.cls}`}>{status.text}</Badge>
+              <h2 className="mt-3 text-xl font-black text-[#0f2b46]">{headline}</h2>
+              <p className="mt-2 text-sm font-bold leading-7 text-slate-600">{app.nextAction || 'تابع تعليمات الإدارة لإكمال ملفك.'}</p>
+            </div>
+            <div className="rounded-xl bg-[#0f2b46] px-4 py-3 text-center text-[#f5f0e1]">
+              <p className="text-[10px] font-bold opacity-70">كود الطلب</p>
+              <p className="font-mono text-lg font-black text-[#e0b83a]" dir="ltr">{app.reference}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#c9a227]/20 bg-[#f7edd0]/40 p-4">
+            <div className="grid gap-3 text-xs font-bold text-slate-600 sm:grid-cols-2">
+              <p><b className="text-[#0f2b46]">الطالب:</b> {app.fullName}</p>
+              <p><b className="text-[#0f2b46]">البرنامج:</b> {app.program}</p>
+              <p><b className="text-[#0f2b46]">تاريخ الطلب:</b> {app.createdAt ? new Date(app.createdAt).toLocaleDateString('ar-EG') : '—'}</p>
+              <p><b className="text-[#0f2b46]">المشرف:</b> {app.supervisorName || 'لم يعين بعد'}</p>
+            </div>
+          </div>
+
+          {app.status === 'AWAITING_TUITION' && (
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-800">
+              <CheckCircle2 className="ml-1 inline h-5 w-5" />
+              مبروك، تمت الموافقة على طلبك بعد دراسة الملف. الخطوة التالية هي سداد الرسوم الدراسية لاستكمال التسجيل النهائي وفتح البرنامج والكتب والاختبارات.
+            </div>
+          )}
+
+          {payable && (
+            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-[#0f2b46]">{payable.description}</p>
+                <p className="mt-1 text-xs font-bold text-amber-700">المبلغ المطلوب: {payable.amount}$ — الفاتورة <span dir="ltr">{payable.invoiceNo}</span></p>
+              </div>
+              <Button
+                onClick={() => {
+                  setPayMethod('PAYMOB')
+                  setTracked(app)
+                  setTrackPayTarget(payable)
+                }}
+                className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
+              >
+                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'TUITION' ? 'ادفع باقي الرسوم الآن' : 'ادفع رسوم التقديم الآن'}
+              </Button>
+            </div>
+          )}
+
+          {isFinalActive && (
+            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold leading-7 text-emerald-800">تم استكمال التسجيل. يمكنك متابعة الدراسة والكتب والاختبارات من بوابة الطالب.</p>
+              <Button onClick={() => navigate('dashboard')} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+                <GraduationCap className="ml-2 h-4 w-4" /> دخول بوابة الطالب
+              </Button>
+            </div>
+          )}
+
+          {invoices.length > 0 && (
+            <div className="mt-5 space-y-2">
+              <h3 className="text-sm font-black text-[#0f2b46]">فواتير الطلب</h3>
+              {invoices.map((inv) => (
+                <div key={inv.invoiceNo} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${inv.status === 'PAID' ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+                  <div>
+                    <p className="text-xs font-black text-[#0f2b46]">{inv.description}</p>
+                    <p className="mt-1 font-mono text-[10px] font-bold text-slate-500" dir="ltr">{inv.invoiceNo}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-[#0f2b46]">{inv.amount}$</span>
+                    <Badge className={inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{inv.status === 'PAID' ? 'مسددة' : 'بانتظار السداد'}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {app.status === 'REJECTED' && (
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold leading-6 text-red-700">
+              يمكنك التواصل مع الإدارة لمعرفة سبب القرار أو تقديم طلب جديد عند السماح بذلك.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="aact-fade-in mx-auto max-w-6xl px-4 py-10">
       <div className="mb-8 text-center">
