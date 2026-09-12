@@ -178,6 +178,7 @@ export function DefenseRoom({
   const [liveAdvisorLevel, setLiveAdvisorLevel] = useState(0)
   const [liveUserCaption, setLiveUserCaption] = useState('')
   const [liveAiCaption, setLiveAiCaption] = useState('')
+  const [resumeHint, setResumeHint] = useState(false)
   const liveAdvisorRef = useRef<VoiceAgent | null>(null)
 
   // ===== 12.3: تسجيل الجلسة وأرشفتها =====
