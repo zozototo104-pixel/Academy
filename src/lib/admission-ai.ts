@@ -309,6 +309,17 @@ function isVisionUnavailable(f?: AdmissionFileEvidence | null): boolean {
   return !f.ocrRead.readable && /لم تقرا الصوره اليا|لم يكتمل تحليله|خدمه قراءه الصور مشغوله|انتهت حصه قراءه الصور|تعذر تشغيل قارئ الصور|gemini vision|legacy vision|503|high demand/.test(raw)
 }
 
+function hasOfficialAdmissionDocumentSignals(visible: string): boolean {
+  const n = normalize(visible)
+  const degreeSignal = hasAny(visible, KEYWORDS.degreeDoc) || hasAny(visible, KEYWORDS.bachelor) || hasAny(visible, KEYWORDS.master) || hasAny(visible, KEYWORDS.phd) || hasAny(visible, KEYWORDS.highSchool)
+  const transcriptSignal = hasAny(visible, KEYWORDS.transcriptDoc)
+  const idSignal = hasAny(visible, KEYWORDS.idDoc)
+  const cvSignal = hasAny(visible, KEYWORDS.cvDoc)
+  const photoSignal = hasAny(visible, KEYWORDS.photoDoc)
+  const institutionalSignal = /university|faculty|deanery|admission|registration|جامعه|جامعة|كليه|كلية|عماده|عمادة|قبول|تسجيل|ختم|dean|president/.test(n)
+  return degreeSignal || transcriptSignal || idSignal || cvSignal || photoSignal || (institutionalSignal && /degree|bachelor|master|phd|شهاده|شهادة|كشف|هوية|جواز|سيره|سيرة/.test(n))
+}
+
 function safeVisibleContent(f: AdmissionFileEvidence): string {
   if (isVisionUnavailable(f)) return ''
   return [
