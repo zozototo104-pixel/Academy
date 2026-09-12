@@ -62,6 +62,8 @@ interface AgentApp {
   orgName: string; repName: string; email: string; phone?: string | null
   country: string; territory?: string | null; experience?: string | null
   status: string; createdAt: string
+  user?: { id: string; name: string; email: string; role: string } | null
+  submittedByStaff?: boolean
   contractNo?: string | null
   commissionRate?: number | null
   committeeFee?: number | null
