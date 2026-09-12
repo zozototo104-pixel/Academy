@@ -1897,7 +1897,7 @@ ${plannedTypes}
         distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
         qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
         points: 2,
-      }, books, spec.kind))
+      }, evidenceBooks, spec.kind))
     } else if (type === 'TF') {
       const correctNum = Number(q.correct ?? '')
       if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
