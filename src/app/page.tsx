@@ -117,7 +117,7 @@ export default function Home() {
   const studentOnlyViews = ['dashboard', 'unit', 'exam', 'chat']
   const effectiveView = authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
     ? (user?.role === 'ADMIN' ? 'admin' : 'home')
-    : authChecked && view === 'student-preview' && user?.role !== 'ADMIN'
+    : authChecked && (view === 'student-preview' || view === 'agent-preview') && user?.role !== 'ADMIN'
       ? 'home'
       : view
 
