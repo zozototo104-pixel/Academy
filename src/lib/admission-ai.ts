@@ -1011,10 +1011,16 @@ ${evidence}
     const aiScore = Math.max(0, Math.min(100, Math.round(Number(parsed.fitScore) || 0)))
 
     const rulesFullySatisfied = rules.requiredFound === rules.requiredTotal && rules.hardProblems === 0 && rules.unverifiableRequired === 0 && rules.verdict === 'RECOMMEND_APPROVE'
+    const mostlySatisfied = rules.requiredFound >= Math.max(1, rules.requiredTotal - 1) && rules.hardProblems === 0 && rules.deterministicScore >= 70
     let finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
-    if (rulesFullySatisfied && finalScore < 78) {
-      // لا نسمح بخفض ملف مستوفٍ قواعدياً فقط بسبب اختلاف لغة الاسم أو كون الشهادة مصورة/ملتَقطة من شاشة.
-      finalScore = Math.min(rules.deterministicScore, 78)
+    if (mostlySatisfied) {
+      // الدرجة النهائية تمثل ملف القبول كله، وليست أقل مرفق منفرد.
+      // إذا أخطأ النموذج وخفّض الطلب كله بسبب سيرة ذاتية/صورة واحدة، نحافظ على نتيجة موزونة قريبة من القواعد
+      // ونترك المرفق الضعيف كملاحظة تفصيلية أو طلب استبدال، لا كحكم على كامل الطلب.
+      const weightedFloor = rulesFullySatisfied ? 78 : 68
+      const maxReasonablePenalty = rulesFullySatisfied ? 10 : 16
+      finalScore = Math.max(finalScore, Math.max(weightedFloor, rules.deterministicScore - maxReasonablePenalty))
+      finalScore = Math.min(finalScore, rules.deterministicScore)
     }
     let finalVerdict: Verdict = worseVerdict(rules.verdict, aiVerdict)
     if (rulesFullySatisfied && aiVerdict !== 'RECOMMEND_REJECT') finalVerdict = 'RECOMMEND_APPROVE'
