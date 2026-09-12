@@ -375,7 +375,7 @@ function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string 
     return 'المرفق يظهر جهازاً/أداة إلكترونية أو كتابة تقنية على جهاز، وليس صورة شخصية أو مستند قبول.'
   }
 
-  if (/محادثه|محادثة|chat|رساله|رسالة|whatsapp|واتساب|browser|safari|chrome/.test(n)) {
+  if (/محادثه|محادثة|chat|رساله|رسالة|whatsapp|واتساب|browser|safari|chrome/.test(n) && !officialDocInsideScreenshot) {
     return 'المرفق يبدو لقطة محادثة أو متصفح، وليس مستند قبول رسمي.'
   }
 
