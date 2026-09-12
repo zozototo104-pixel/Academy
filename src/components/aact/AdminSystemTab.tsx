@@ -32,6 +32,12 @@ interface SystemData {
   smtpEnabled: boolean
   paymentMode: string
   turnConfigured: boolean
+  gemini?: {
+    source: 'env' | 'db' | 'none'
+    adminKeySet: boolean
+    envKeySet: boolean
+    activeMask: string
+  }
   emails: EmailLog[]
 }
 
