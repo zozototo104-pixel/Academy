@@ -1932,12 +1932,12 @@ ${plannedTypes}
         correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
         qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
         points: Number(q.points) || (type === 'ESSAY' ? 10 : 5),
-      }, books, spec.kind))
+      }, evidenceBooks, spec.kind))
     }
   }
 
-  const fallback = fallbackExamQuestionBatch(program, books, batchIndex)
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec, books, program.category)
+  const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
+  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec, evidenceBooks, program.category)
   return balanced.length > 0 ? balanced : fallback
 }
 
