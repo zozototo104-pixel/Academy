@@ -384,6 +384,13 @@ export function ApplyView() {
                 <h2 className="mb-1 text-lg font-black text-[#0f2b46]">نموذج طلب القبول الإلكتروني</h2>
                 <p className="mb-6 text-xs text-slate-500">أكمل البيانات التالية بدقة لدراسة ملفك والالتحاق بالبرنامج.</p>
 
+                {!canSubmitStudentApplication && (
+                  <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-6 text-red-700">
+                    <FileWarning className="ml-1 inline h-4 w-4" />
+                    أنت داخل بحساب إدارة/مشرف. لا يتم تقديم طلبات الطلاب أو الدفع من حساب الإدارة حتى لا تختلط صلاحيات الإدارة بالسجل الأكاديمي. سجّل خروجك ثم أنشئ/ادخل بحساب طالب منفصل، وبعدها يمكن للإدارة متابعة الطالب من صفحة معاينة طالب.
+                  </div>
+                )}
+
                 <form onSubmit={submit} className="space-y-5">
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">
                     <div className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 px-4 py-2.5">
