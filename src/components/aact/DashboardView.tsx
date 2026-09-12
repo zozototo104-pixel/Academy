@@ -461,6 +461,7 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {/* تنظيم محتوى البرنامج داخل تبويبات فرعية حتى لا تتكدس أدلة الدراسة والواجبات والوحدات في صفحة واحدة */}
                 <Tabs defaultValue="guides" dir="rtl" className="mt-5 space-y-4">
                   <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
                     <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({studyGuides.length})</TabsTrigger>
