@@ -386,7 +386,7 @@ export function Header() {
                 {n.label}
               </button>
             ))}
-            {user && (
+            {canUseStudentPortal && (
               <>
                 <p className="mb-1 mt-3 text-[10px] font-black text-[#c9a227]/70">بوابة الدراسة</p>
                 {studentItems.map((n) => (
