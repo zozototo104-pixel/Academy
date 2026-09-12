@@ -61,10 +61,23 @@ export default function Home() {
 
   // Load current user on mount
   useEffect(() => {
+    let alive = true
+    const currentView = new URLSearchParams(window.location.search).get('view') || view
+    const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'student-preview', 'agent-preview']
     api<{ user: any }>('/api/auth/me')
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null))
-      .finally(() => setAuthChecked(true))
+      .then((d) => {
+        if (!alive) return
+        setAuthRecovering(false)
+        setUser(d.user)
+      })
+      .catch(() => {
+        if (!alive) return
+        // عند رجوع Safari/Chrome من كاميرا الفيديو أو ضعف الشبكة قد يفشل فحص الجلسة لحظياً.
+        // لا نرمي المستخدم للرئيسية إذا كان معه رمز جلسة ويحاول فتح صفحة محمية، بل نعرض شاشة إعادة اتصال.
+        if (getToken() && protectedViews.includes(currentView)) setAuthRecovering(true)
+        else setUser(null)
+      })
+      .finally(() => { if (alive) setAuthChecked(true) })
 
     // فتح قناة الصوت عالمياً بأول لمسة — يضمن عمل النطق (TTS) على iOS Safari
     unlockAudioOnFirstGesture()
