@@ -406,6 +406,13 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر' }
   }
 
+  const strongDegreeSignal =
+    (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.bachelor) || hasAny(blob, KEYWORDS.master) || hasAny(blob, KEYWORDS.phd) || hasAny(blob, KEYWORDS.highSchool)) &&
+    /university|faculty|deanery|admission|registration|dean|president|جامعه|جامعة|كليه|كلية|عماده|عمادة|قبول|تسجيل|شهادة|شهاده/.test(n)
+  if (strongDegreeSignal) {
+    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي حتى لو كان مصوراً أو ملتقطاً من شاشة' }
+  }
+
   if (hasAny(blob, KEYWORDS.cvDoc) || /education|work experience|professional experience|الموارد البشريه|الخبرات العمليه|المؤهلات العلميه|المهارات|objective|profile/.test(n)) {
     return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات' }
   }
