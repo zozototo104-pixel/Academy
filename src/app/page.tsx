@@ -106,6 +106,7 @@ export default function Home() {
         useAppStore.getState().navigate(v as any)
       }
     }
+    return () => { alive = false }
   }, [])
 
   useEffect(() => {
