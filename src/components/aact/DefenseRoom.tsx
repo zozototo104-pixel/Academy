@@ -715,9 +715,12 @@ ${recent || 'بدأت الجلسة للتو.'}
       setConnected(true)
       startPolling()
     } catch (e: any) {
+      setRoomOpen(false)
+      setConnected(false)
+      try { sessionStorage.removeItem(roomSessionKey) } catch {}
       toast({ title: 'تعذر الانضمام للقاعة', description: e.message, variant: 'destructive' })
     }
-  }, [isStudent, startPolling, toast])
+  }, [isStudent, roomSessionKey, startPolling, toast])
 
   // مغادرة القاعة نظيفة
   const leaveRoom = useCallback(
