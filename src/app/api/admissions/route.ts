@@ -256,7 +256,7 @@ export async function GET(req: NextRequest) {
   try {
     const ref = req.nextUrl.searchParams.get('ref')?.trim()
     const mine = req.nextUrl.searchParams.get('mine') === '1'
-    const include = {
+    const include: any = {
       supervisor: { select: { name: true } },
       files: { select: { id: true, docType: true, fileName: true, size: true } },
       payments: {
