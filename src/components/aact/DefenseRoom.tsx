@@ -686,6 +686,8 @@ ${recent || 'بدأت الجلسة للتو.'}
   // الانضمام الفعلي للقاعة بعد التجهيز
   const joinNow = useCallback(async () => {
     setPreJoin(false)
+    setResumeHint(false)
+    try { sessionStorage.setItem(roomSessionKey, new Date().toISOString()) } catch {}
     setRoomOpen(true)
     if (streamRef.current) {
       setTimeout(() => {
