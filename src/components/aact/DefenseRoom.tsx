@@ -727,6 +727,8 @@ ${recent || 'بدأت الجلسة للتو.'}
     async (silent = false) => {
       setRoomOpen(false)
       setConnected(false)
+      setResumeHint(false)
+      try { sessionStorage.removeItem(roomSessionKey) } catch {}
       if (pollRef.current) {
         clearInterval(pollRef.current)
         pollRef.current = null
