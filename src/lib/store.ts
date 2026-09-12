@@ -95,6 +95,7 @@ export const useAppStore = create<AppState>((set) => ({
       programsFilter: null,
       ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
       ...(view !== 'student-preview' ? { studentPreviewId: null } : {}),
+      ...(view !== 'agent-preview' ? { agentPreviewId: null } : {}),
     })
   },
   openPrograms: (filter) => {
