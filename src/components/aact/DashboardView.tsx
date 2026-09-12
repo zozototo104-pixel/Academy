@@ -511,10 +511,16 @@ export function DashboardView() {
                       ))}
                     </div>
                   </section>
+                ) : (
+                  <section className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                    لا توجد أدلة دراسة منشورة لهذا البرنامج بعد.
+                  </section>
                 )}
+                  </TabsContent>
 
-                {assignments.length > 0 && (
-                  <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                  <TabsContent value="assignments" className="mt-0">
+                {assignments.length > 0 ? (
+                  <section className="rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h3 className="text-sm font-black text-[#0f2b46]">واجباتي وتكليفاتي</h3>
