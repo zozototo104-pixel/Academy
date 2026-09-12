@@ -1530,9 +1530,9 @@ function makeFallbackEssay(concept: string, specAr: string, i: number): Generate
   const evidence = stripExamKnowledgeMeta(concept, 520)
   const idea = conceptLabel(concept, 190)
   const stems = [
-    `حلل نقدياً فكرة «${idea}» من الكتاب، ثم بيّن كيف يمكن تحويلها إلى حالة دراسية في ${specAr}.`,
-    `صمّم إطاراً تطبيقياً في ${specAr} مستلهماً من الحدث/الفكرة «${idea}» الواردة في الكتاب.`,
-    `ناقش حدود ومخاطر إسقاط «${idea}» من الكتاب على بيئة مهنية حقيقية في ${specAr}.`,
+    `اكتب تحليلاً نقدياً للمقطع «${idea}»، ثم بيّن كيف يتحول إلى حالة دراسية قابلة للتقييم في ${specAr}.`,
+    `صمّم إطار تطبيق مهني في ${specAr} يبدأ من الدليل النصي «${idea}» وينتهي بمؤشرات قياس واضحة.`,
+    `ناقش حدود ومخاطر تعميم الدرس المستخرج من «${idea}» على مؤسسة أو مشروع حقيقي في ${specAr}.`,
   ]
   return {
     type: 'ESSAY',
