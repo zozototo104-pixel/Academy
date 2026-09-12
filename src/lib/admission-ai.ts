@@ -178,6 +178,103 @@ function matchKeywords(haystack: string, list: string[]): string | null {
   return null
 }
 
+function latinizeArabicNameToken(token: string): string[] {
+  const t = normalize(token).replace(/[^\u0600-\u06ff]/g, '')
+  if (!t) return []
+  const aliases: Record<string, string[]> = {
+    محمد: ['mohammed', 'mohamed', 'muhammad', 'mohammad'],
+    محمود: ['mahmoud', 'mahmood', 'mahmod'],
+    احمد: ['ahmad', 'ahmed'],
+    علي: ['ali'],
+    حسن: ['hasan', 'hassan'],
+    حسين: ['hussein', 'hussain'],
+    ابراهيم: ['ibrahim', 'ebrahim'],
+    اسماعيل: ['ismail', 'ismael'],
+    درويش: ['darwish', 'darweesh', 'derwish'],
+    الهندي: ['hindi', 'hendy', 'hendi', 'alhindi', 'al-hindi', 'elhendi', 'el-hendi'],
+    هندي: ['hindi', 'hendy', 'hendi'],
+  }
+  if (aliases[t]) return aliases[t]
+
+  let out = t
+    .replace(/^ال/, 'al')
+    .replace(/ا/g, 'a')
+    .replace(/ب/g, 'b')
+    .replace(/ت/g, 't')
+    .replace(/ث/g, 'th')
+    .replace(/ج/g, 'j')
+    .replace(/ح/g, 'h')
+    .replace(/خ/g, 'kh')
+    .replace(/د/g, 'd')
+    .replace(/ذ/g, 'th')
+    .replace(/ر/g, 'r')
+    .replace(/ز/g, 'z')
+    .replace(/س/g, 's')
+    .replace(/ش/g, 'sh')
+    .replace(/ص/g, 's')
+    .replace(/ض/g, 'd')
+    .replace(/ط/g, 't')
+    .replace(/ظ/g, 'z')
+    .replace(/ع/g, 'a')
+    .replace(/غ/g, 'gh')
+    .replace(/ف/g, 'f')
+    .replace(/ق/g, 'q')
+    .replace(/ك/g, 'k')
+    .replace(/ل/g, 'l')
+    .replace(/م/g, 'm')
+    .replace(/ن/g, 'n')
+    .replace(/ه/g, 'h')
+    .replace(/و/g, 'w')
+    .replace(/ي/g, 'y')
+  out = out.replace(/[^a-z]/g, '')
+  return out.length >= 2 ? [out] : []
+}
+
+function normalizeLatinName(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, ' ')
+    .replace(/\b(al|el)\s+/g, '$1')
+    .replace(/-/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function flexibleNameMatch(appName: string, docText: string): { status: AdmissionDocumentAnalysis['belongsToStudent']; reason: string } {
+  const full = String(appName || '').trim()
+  const content = String(docText || '').trim()
+  if (!full || !content) return { status: 'UNVERIFIED', reason: 'لا يوجد اسم كافٍ للمطابقة' }
+
+  const appHasArabic = /[\u0600-\u06ff]/.test(full)
+  const docHasLatin = /[a-z]/i.test(content)
+  const directWords = normalize(full).split(' ').filter((w) => w.length > 1)
+  const directContent = normalize(content)
+  const directShared = directWords.filter((w) => directContent.includes(w)).length
+  if (directWords.length && directShared >= Math.max(1, Math.ceil(directWords.length / 2))) {
+    return { status: 'YES', reason: 'تطابق مباشر بين الاسم المعلن والاسم المقروء' }
+  }
+
+  if (appHasArabic && docHasLatin) {
+    const latinContent = normalizeLatinName(content)
+    const arabicTokens = normalize(full).split(' ').filter((w) => w.length > 1)
+    const matchedTokens = arabicTokens.filter((token) => {
+      const variants = latinizeArabicNameToken(token)
+      return variants.some((v) => latinContent.includes(v.replace(/[^a-z]/g, '')))
+    })
+    const initials = arabicTokens.map((t) => latinizeArabicNameToken(t)[0]?.[0]).filter(Boolean)
+    const latinWords = latinContent.split(' ').filter(Boolean)
+    const initialHits = initials.filter((i) => latinWords.includes(i as string) || latinWords.some((w) => w.length === 1 && w === i)).length
+    if (matchedTokens.length >= 2 || (matchedTokens.length >= 1 && initialHits >= 2)) {
+      return { status: 'YES', reason: 'تطابق مرن بين الاسم العربي والاسم الإنجليزي/الأحرف الأولى في المستند' }
+    }
+    if (matchedTokens.length >= 1 && latinWords.length <= 5) {
+      return { status: 'UNVERIFIED', reason: 'وجد جزء من الاسم بالإنجليزية لكنه لا يكفي للجزم' }
+    }
+  }
+
+  return { status: content.length > 40 ? 'NO' : 'UNVERIFIED', reason: 'لم تظهر مطابقة كافية للاسم' }
+}
+
 type DetectedDocKind =
   | 'DEGREE_CERTIFICATE'
   | 'TRANSCRIPT'
