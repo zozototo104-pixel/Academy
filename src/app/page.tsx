@@ -119,7 +119,7 @@ export default function Home() {
       document.documentElement.scrollTop = 0
       document.body.scrollTop = 0
     })
-  }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter])
+  }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter, studentPreviewId])
 
   return (
     <div className="flex min-h-screen flex-col bg-[#faf6ea]">
