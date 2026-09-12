@@ -205,6 +205,8 @@ export function DefenseRoom({
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const thesisIdRef = useRef(thesis.id)
+  const wakeLockRef = useRef<any>(null)
+  const roomSessionKey = useMemo(() => `aact-defense-room:${thesis.id}:${mode}`, [thesis.id, mode])
 
   const committee = useMemo(() => parseCommitteeNames(thesis.committee), [thesis.committee])
   const thesisTitle = useMemo(() => safeText(thesis.title, 'بحث تخرج بدون عنوان'), [thesis.title])
