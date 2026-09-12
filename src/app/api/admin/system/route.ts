@@ -45,6 +45,7 @@ export async function GET() {
       smtpEnabled: smtp.enabled,
       paymentMode: (await db.setting.findUnique({ where: { key: 'PAYMENT_MODE' } }))?.value || 'SANDBOX',
       turnConfigured: !!(values.TURN_URL && (values.TURN_USERNAME || process.env.TURN_USERNAME)),
+      gemini,
       emails,
     })
   } catch (e: any) {
