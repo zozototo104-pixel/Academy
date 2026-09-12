@@ -587,10 +587,16 @@ export function DashboardView() {
                       })}
                     </div>
                   </section>
+                ) : (
+                  <section className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                    لا توجد واجبات منشورة لهذا البرنامج بعد.
+                  </section>
                 )}
+                  </TabsContent>
 
+                  <TabsContent value="units" className="mt-0">
                 {/* Units */}
-                <div className="mt-5 space-y-3">
+                <div className="space-y-3">
                   {active.units.map((u) => (
                     <div
                       key={u.id}
