@@ -222,6 +222,10 @@ export function ApplyView() {
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
+    if (!canSubmitStudentApplication) {
+      toast({ title: 'حساب إداري غير مخصص للدراسة', description: 'استخدم حساب طالب منفصل لتقديم طلب الالتحاق والدفع، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.', variant: 'destructive' })
+      return
+    }
     if (!selectedCategory) {
       toast({ title: 'تنبيه', description: 'يرجى اختيار نوع البرنامج أولاً: ماجستير / دكتوراه / دبلوم', variant: 'destructive' })
       return
