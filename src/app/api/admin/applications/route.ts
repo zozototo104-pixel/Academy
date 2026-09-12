@@ -34,11 +34,23 @@ export async function GET() {
           select: { agentId: true, invoiceNo: true, amount: true, status: true },
         })
       : []
+    // معالجة السجلات القديمة قبل إضافة userId: إذا كان بريد الطلب يطابق حساب إدارة/مشرف نعلّمه كطلب إداري/تجريبي.
+    const emails = [...new Set(applications.map((a) => a.email).filter(Boolean))]
+    const usersByEmail = emails.length
+      ? await db.user.findMany({ where: { email: { in: emails } }, select: { id: true, name: true, email: true, role: true } })
+      : []
+    const userMap = new Map(usersByEmail.map((u) => [u.email, u]))
     return NextResponse.json({
-      applications: applications.map((a) => ({
-        ...a,
-        applicationFee: fees.find((f) => f.agentId === a.id) || null,
-      })),
+      applications: applications.map((a) => {
+        const submitter = a.user || userMap.get(a.email) || null
+        const submittedByStaff = !!submitter && ['ADMIN', 'SUPERVISOR'].includes(submitter.role)
+        return {
+          ...a,
+          user: submitter,
+          submittedByStaff,
+          applicationFee: fees.find((f) => f.agentId === a.id) || null,
+        }
+      }),
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
