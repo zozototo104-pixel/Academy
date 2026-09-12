@@ -54,6 +54,7 @@ interface AppState {
   activeExamId: string | null
   activeExamKind: 'unit' | 'final'
   studentPreviewId: string | null
+  agentPreviewId: string | null
   applyProgramTitle: string | null // برنامج محدد مسبقاً لنموذج طلب الالتحاق
   mobileMenuOpen: boolean
   setUser: (u: AppUser | null) => void
