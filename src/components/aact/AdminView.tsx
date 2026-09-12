@@ -1095,6 +1095,9 @@ export function AdminView() {
                       )}
                       {a.status === 'APPROVED' && (
                         <div className="grid w-full grid-cols-1 gap-2 sm:w-56">
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => revokeApp(a)} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
                             <AlertTriangle className="ml-1 h-3.5 w-3.5" /> إلغاء الاعتماد
                           </Button>
