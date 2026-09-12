@@ -853,7 +853,7 @@ export function DashboardView() {
                   <p className="text-[11px] font-black text-[#a8841a]">متاحة عند الاستحقاق</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {availableMicroCredentials.slice(0, 4).map((mc) => (
-                      <span key={mc.credentialId} className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#0f2b46]">{mc.skillArea}</span>
+                      <span key={mc.credentialId} className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#0f2b46]">{microSkillLabel(mc.skillArea)}</span>
                     ))}
                   </div>
                 </div>
