@@ -81,6 +81,7 @@ export function AgentView() {
   const [form, setForm] = useState({
     orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
   })
+  const canSubmitAgentApplication = !user || !['ADMIN', 'SUPERVISOR'].includes(user.role)
 
   const setFile = (type: string, f: File | null) => {
     if (f && f.size > MAX_FILE_MB * 1024 * 1024) {
