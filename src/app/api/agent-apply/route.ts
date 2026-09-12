@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
 
     const application = await db.agentApplication.create({
       data: {
+        userId: owner?.id || null,
         kind: isAccreditation ? 'ACCREDITATION' : 'AGENCY',
         accreditationType: isAccreditation ? String(accreditationType) : null,
         orgName: orgName.trim(),
