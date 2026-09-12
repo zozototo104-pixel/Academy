@@ -41,7 +41,18 @@ function PWARegister() {
 }
 
 export default function Home() {
-  const { view, user, setUser, authChecked, setAuthChecked } = useAppStore()
+  const {
+    view,
+    user,
+    setUser,
+    authChecked,
+    setAuthChecked,
+    programDetailsId,
+    activeProgramId,
+    activeUnitId,
+    activeExamId,
+    programsFilter,
+  } = useAppStore()
   const didAutoRouteRef = useRef(false)
 
   // Load current user on mount
