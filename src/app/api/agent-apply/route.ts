@@ -94,6 +94,18 @@ export async function POST(req: NextRequest) {
     }
 
     const owner = await getCurrentUser().catch(() => null)
+    if (owner && owner.role === 'ADMIN') {
+      return NextResponse.json(
+        { error: 'حساب الإدارة لا يقدم طلب وكالة أو اعتماد. استخدم حساب جهة/وكيل منفصل أو قدّم الطلب كزائر، ثم راجعه من لوحة الإدارة.' },
+        { status: 403 }
+      )
+    }
+    if (owner && owner.role === 'SUPERVISOR') {
+      return NextResponse.json(
+        { error: 'حساب المشرف لا يقدم طلب وكالة أو اعتماد. استخدم حساب جهة/وكيل منفصل حتى لا تختلط صلاحيات الإشراف بملف الاعتماد.' },
+        { status: 403 }
+      )
+    }
 
     const application = await db.agentApplication.create({
       data: {
