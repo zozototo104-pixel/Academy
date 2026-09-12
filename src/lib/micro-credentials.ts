@@ -31,7 +31,7 @@ const DEFAULT_SPECS: DefaultMicroCredentialSpec[] = [
   {
     suffix: 'CAPSTONE_READY',
     titlePrefix: 'شهادة مهارة في المشروع أو البحث التطبيقي في',
-    skillArea: 'CAPSTONE_PROJECT',
+    skillArea: 'المشروع أو البحث التطبيقي',
     description: 'وحدة مهارية مرتبطة بالواجبات التطبيقية أو بحث التخرج أو المناقشة النهائية.',
     learningOutcome: 'ينجز الطالب مخرجاً تطبيقياً قابلاً للتقييم والربط بنتائج البرنامج.',
     minExamScore: 70,
