@@ -343,7 +343,17 @@ export function AgentView() {
 
         {/* ===== تبويب بوابة الوكيل ===== */}
         <TabsContent value="portal">
-          <AgentPortalTab />
+          {!canSubmitAgentApplication ? (
+            <Card className="mt-6 border-red-200 bg-red-50">
+              <CardContent className="p-8 text-center">
+                <FileWarning className="mx-auto mb-3 h-10 w-10 text-red-500" />
+                <h3 className="text-base font-black text-red-700">بوابة الوكيل ليست لحساب الإدارة</h3>
+                <p className="mx-auto mt-2 max-w-md text-xs font-bold leading-6 text-red-600">
+                  حساب الإدارة يراجع ويوافق ويراقب الطلبات فقط. لمتابعة وكيل أو جهة اعتماد استخدم زر «معاينة» من لوحة الإدارة، أما صاحب الطلب فيدخل من حساب منفصل أو البريد الذي قدم منه الطلب.
+                </p>
+              </CardContent>
+            </Card>
+          ) : <AgentPortalTab />}
         </TabsContent>
 
         {/* ===== تبويب الوكالة ===== */}
