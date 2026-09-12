@@ -365,6 +365,11 @@ function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string 
   ].filter(Boolean).join(' ')
   const n = normalize(visible)
 
+  const admissionReviewUiScreen = /تحليل كل مرفق|ملاحظات وتقييم خبير|تقييم خبير الذكاء|درجه توافق الملف|درجة توافق الملف|توصيه خبير|توصية خبير|لا يحتسب كمرفق قبول|واجهه نظام|واجهة نظام/.test(n)
+  if (admissionReviewUiScreen) {
+    return 'المرفق عبارة عن لقطة شاشة من واجهة النظام أو تقرير التحليل نفسه، وليس المستند الأصلي؛ لا يُحتسب ضمن مرفقات القبول.'
+  }
+
   const officialDocInsideScreenshot = hasOfficialAdmissionDocumentSignals(visible)
 
   if ((hasAny(visible, KEYWORDS.platformUi) || /لقطه شاشه|لقطة شاشة|سكرين|screenshot|webpage|website|صفحه ويب|صفحة ويب|واجهه نظام|واجهة نظام|لوحه تحكم|لوحة تحكم|vercel|deployments|environment variables/.test(n)) && !officialDocInsideScreenshot) {
