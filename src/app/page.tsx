@@ -1,7 +1,7 @@
 'use client'
 
-import { useAppStore } from '@/lib/store'
-import { useEffect, useRef } from 'react'
+import { api, getToken, useAppStore } from '@/lib/store'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Header, Footer, FloatingActions } from '@/components/aact/Shell'
 import { HomeView } from '@/components/aact/HomeView'
