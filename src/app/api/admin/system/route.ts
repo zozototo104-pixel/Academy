@@ -61,8 +61,15 @@ export async function PATCH(req: NextRequest) {
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
       let value = String(body[key] ?? '').trim()
-      // الحقول السرية: أرسل قيمة مقنعة أو فارغة = لا تغيير
-      if (SECRET_KEYS.has(key) && (value.includes('••••') || value === '')) continue
+      // الحقول السرية: القيمة المقنعة = لا تغيير. أمّا مفتاح Gemini تحديداً فيمكن تفريغه للرجوع إلى مفتاح Vercel الافتراضي.
+      if (SECRET_KEYS.has(key) && value.includes('••••')) continue
+      if (SECRET_KEYS.has(key) && value === '') {
+        if (key === 'GEMINI_API_KEY') {
+          await db.setting.delete({ where: { key } }).catch(() => null)
+          updates.push(key)
+        }
+        continue
+      }
       if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL'].includes(key)) {
         value = normalizeGeminiModelName(value)
         if (key === 'GEMINI_LIVE_MODEL' && value && !isValidGeminiLiveModel(value)) value = 'gemini-3.1-flash-live-preview'
