@@ -114,7 +114,9 @@ export function isValidGeminiLiveModel(value: unknown): boolean {
 }
 
 function resolvedKey(): string {
-  return process.env.GEMINI_API_KEY?.trim() || dbKeyCache || ''
+  // مفتاح لوحة الإدارة له الأولوية حتى يستطيع المدير تبديل المفتاح فوراً عند انتهاء الحصة.
+  // إذا تُركت الخانة فارغة أو حُذف المفتاح من الإعدادات، يعود النظام تلقائياً إلى مفتاح البيئة في Vercel.
+  return dbKeyCache || process.env.GEMINI_API_KEY?.trim() || ''
 }
 
 export async function ensureGeminiKey(): Promise<boolean> {
