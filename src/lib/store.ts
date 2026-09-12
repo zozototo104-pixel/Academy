@@ -78,6 +78,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeUnitId: null,
   activeExamId: null,
   activeExamKind: 'unit',
+  studentPreviewId: null,
   mobileMenuOpen: false,
   applyProgramTitle: null,
   setUser: (u) => set({ user: u }),
