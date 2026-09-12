@@ -66,6 +66,7 @@ interface AppState {
   openUnit: (id: string) => void
   openExam: (id: string, kind?: 'unit' | 'final') => void
   openStudentPreview: (studentId: string) => void
+  openAgentPreview: (agentId: string) => void
   openApply: (programTitle?: string) => void
   setMobileMenuOpen: (v: boolean) => void
 }
