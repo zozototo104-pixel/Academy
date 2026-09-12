@@ -89,7 +89,8 @@ export async function PATCH(req: NextRequest) {
     const values: Record<string, string> = {}
     for (const k of SYSTEM_KEYS) values[k] = ''
     for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
-    return NextResponse.json({ ok: true, values })
+    const gemini = await geminiKeyDiagnostics()
+    return NextResponse.json({ ok: true, values, gemini })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر حفظ الإعدادات' }, { status: 500 })
