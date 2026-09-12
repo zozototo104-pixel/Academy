@@ -1670,6 +1670,22 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
   return out.slice(0, spec.count)
 }
 
+function sanitizeKnowledgeContextForExamPrompt(value: unknown, max = 12000): string {
+  return sanitizeExamText(value, max)
+    .split('\n')
+    .map((line) => stripExamKnowledgeMeta(line, 760)
+      .replace(/^\s*\d+\s*[).\-–—]?\s*/u, '')
+      .replace(/(?:^|\s)(?:من\s+كتاب|الكتاب|المصدر)\s*[:：]\s*/giu, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim())
+    .filter((line) => line.length >= 50)
+    .filter((line) => !/محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|مصدر\s+القراءة|جودة\s+المحتوى|جودة\s+المحتوي|رابط\s+الكتاب/iu.test(line))
+    .slice(0, 34)
+    .map((line, i) => `${i + 1}. ${line}`)
+    .join('\n')
+    .slice(0, max)
+}
+
 /** توليد دفعة أسئلة من الكتب المقررة وفق مواصفة الدفعة */
 export async function generateExamQuestionBatch(
   program: { titleAr: string; titleEn?: string | null; category: string; description?: string | null },
