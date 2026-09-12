@@ -115,6 +115,21 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ ok, message: ok ? 'أُرسلت رسالة الاختبار إلى بريدك — افحص صندوق الوارد' : 'لم يُرسل البريد — راجع الإعدادات وسجل البريد أدناه' })
     }
+    if (action === 'test-gemini-text') {
+      await ensureGeminiKey()
+      const diag = await geminiKeyDiagnostics()
+      if (!hasGemini()) {
+        return NextResponse.json({ ok: false, title: 'مفتاح Gemini غير موجود', message: 'لا يوجد مفتاح Gemini فعّال في لوحة الإدارة أو Vercel.', gemini: diag })
+      }
+      const test = await geminiTestConnection()
+      if (test.ok) {
+        return NextResponse.json({ ok: true, title: 'Gemini يعمل', message: `تم اختبار نموذج النصوص بنجاح: ${test.model || 'تلقائي'} — المفتاح المستخدم: ${diag.source === 'db' ? 'لوحة الإدارة' : 'Vercel'} ${diag.activeMask}`, gemini: diag, model: test.model })
+      }
+      if (test.quotaExhausted) {
+        return NextResponse.json({ ok: false, title: 'انتهت حصة Gemini', message: `المفتاح المستخدم الآن: ${diag.source === 'db' ? 'لوحة الإدارة' : diag.source === 'env' ? 'Vercel' : 'لا يوجد'} ${diag.activeMask}. الخطأ من الحصة/429 وليس من حفظ الإعدادات.`, gemini: diag })
+      }
+      return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini', message: String(test.error || 'تعذر الاتصال بـ Gemini').slice(0, 300), gemini: diag })
+    }
     if (action === 'test-gemini-live') {
       await ensureGeminiKey()
       if (!hasGemini()) {
