@@ -392,7 +392,7 @@ export function ApplyView() {
         <CardContent className="p-6 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <Badge className={`${status.cls} hover:${status.cls}`}>{status.text}</Badge>
+              <Badge className={`${status.cls} hover:opacity-100`}>{status.text}</Badge>
               <h2 className="mt-3 text-xl font-black text-[#0f2b46]">{headline}</h2>
               <p className="mt-2 text-sm font-bold leading-7 text-slate-600">{app.nextAction || 'تابع تعليمات الإدارة لإكمال ملفك.'}</p>
             </div>
