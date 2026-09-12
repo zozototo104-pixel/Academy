@@ -512,6 +512,16 @@ export function ApplyView() {
                 {paidRef && <p className="mt-4 text-sm font-bold text-emerald-700">تم الدفع بنجاح — ملفك الآن قيد دراسة الإدارة.</p>}
               </CardContent>
             </Card>
+          ) : myAdmissionLoading ? (
+            <Card className="mx-auto mt-6 max-w-2xl border-[#0f2b46]/10">
+              <CardContent className="flex h-44 flex-col items-center justify-center gap-3 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+                <p className="text-sm font-black text-[#0f2b46]">جاري فحص طلبك الحالي...</p>
+                <p className="text-xs font-bold text-slate-400">إذا كان لديك طلب سابق ستظهر حالته والخطوة التالية بدلاً من نموذج جديد.</p>
+              </CardContent>
+            </Card>
+          ) : myAdmission && myAdmission.status !== 'REJECTED' ? (
+            renderAdmissionStatusCard(myAdmission)
           ) : (
             <Card className="mx-auto mt-6 max-w-3xl border-[#0f2b46]/15 shadow-xl">
               <CardContent className="p-6 sm:p-8">
