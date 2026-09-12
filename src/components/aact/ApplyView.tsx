@@ -319,9 +319,12 @@ export function ApplyView() {
     if (!done?.invoice) return
     setPaying(true)
     try {
-      await payInvoice(done.invoice.invoiceNo, () => {
+      await payInvoice(done.invoice.invoiceNo, async () => {
         setPayOpen(false)
         setPaidRef(done.reference)
+        const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(done.reference)}`)
+        setMyAdmission(d.application)
+        setTracked(d.application)
       })
       toast({ title: 'تم سداد رسوم التقديم بنجاح', description: 'أُحوِّل ملفك للإدارة للدراسة' })
     } catch (e: any) {
