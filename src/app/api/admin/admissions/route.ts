@@ -71,6 +71,15 @@ export async function PATCH(req: NextRequest) {
 
     const app = await db.admissionApplication.findUnique({ where: { id } })
     if (!app) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
+    const owner = app.userId ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, name: true, email: true } }) : null
+    const ownerIsStudent = !owner || owner.role === 'STUDENT'
+
+    if (!ownerIsStudent && (supervisorId !== undefined || ['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(status || '')))) {
+      return NextResponse.json(
+        { error: 'هذا الطلب مرتبط بحساب إداري/غير طالب. لا يمكن اعتماده كقيد دراسة. أنشئ حساب طالب منفصل بنفس بيانات الدارس ثم قدّم الطلب من حساب الطالب أو ارفض هذا الطلب كتجريبي.' },
+        { status: 400 }
+      )
+    }
 
     // تعيين مشرف أكاديمي (في أي مرحلة قبل الشهادة)
     if (supervisorId !== undefined) {
