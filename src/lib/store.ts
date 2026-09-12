@@ -90,6 +90,7 @@ export const useAppStore = create<AppState>((set) => ({
       mobileMenuOpen: false,
       programsFilter: null,
       ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
+      ...(view !== 'student-preview' ? { studentPreviewId: null } : {}),
     })
   },
   openPrograms: (filter) => {
