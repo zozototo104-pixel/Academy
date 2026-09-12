@@ -35,7 +35,15 @@ export async function GET(req: NextRequest) {
       where: { email: app.email },
       select: { id: true, name: true, email: true, role: true, country: true, phone: true, createdAt: true },
     }).catch(() => null)
-    const submittedByStaff = !!submitterByEmail && ['ADMIN', 'SUPERVISOR'].includes(submitterByEmail.role)
+    const submitAudit = !submitterByEmail
+      ? await db.auditLog.findFirst({
+          where: { entity: 'AgentApplication', entityId: app.id, action: { in: ['AGENCY_SUBMITTED', 'ACCREDITATION_SUBMITTED'] } },
+          orderBy: { createdAt: 'asc' },
+          select: { actor: { select: { id: true, name: true, email: true, role: true, country: true, phone: true, createdAt: true } } },
+        }).catch(() => null)
+      : null
+    const effectiveSubmitter = submitterByEmail || submitAudit?.actor || null
+    const submittedByStaff = !!effectiveSubmitter && ['ADMIN', 'SUPERVISOR'].includes(effectiveSubmitter.role)
     const paidTotal = app.payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount || 0), 0)
     const unpaidTotal = app.payments.filter((p) => p.status !== 'PAID').reduce((sum, p) => sum + Number(p.amount || 0), 0)
     const dueRevenue = app.revenueShares.filter((r) => r.status === 'DUE').reduce((sum, r) => sum + Number(r.amount || 0), 0)
