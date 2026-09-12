@@ -353,6 +353,7 @@ export function ApplyView() {
       await payInvoice(trackPayTarget.invoiceNo, async () => {
         const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(tracked.reference)}`)
         setTracked(d.application)
+        setMyAdmission((current: any) => current?.reference === d.application?.reference ? d.application : current)
         setTrackPayTarget(null)
       })
       toast({ title: 'تم الدفع بنجاح', description: 'تم تحديث حالة الطلب' })
