@@ -30,6 +30,7 @@ const ExamView = dynamic(() => import('@/components/aact/ExamView').then((m) => 
 const AIChatView = dynamic(() => import('@/components/aact/AIChatView').then((m) => m.AIChatView), { ssr: false, loading: LazyViewLoader })
 const AgentView = dynamic(() => import('@/components/aact/AgentView').then((m) => m.AgentView), { ssr: false, loading: LazyViewLoader })
 const AdminView = dynamic(() => import('@/components/aact/AdminView').then((m) => m.AdminView), { ssr: false, loading: LazyViewLoader })
+const AdminStudentPreview = dynamic(() => import('@/components/aact/AdminStudentPreview').then((m) => m.AdminStudentPreview), { ssr: false, loading: LazyViewLoader })
 
 function PWARegister() {
   useEffect(() => {
