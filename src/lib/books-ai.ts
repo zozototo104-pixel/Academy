@@ -951,10 +951,12 @@ const EXAM_TOTAL_PROMPT_BOOK_CHARS = 72000
 
 function stripExamKnowledgeMeta(value: unknown, max = 1000): string {
   return cleanText(value, max)
-    // لا يجوز أن تتسرب تسميات بنك المعرفة التقنية إلى نص السؤال مثل [CONCEPT | أهمية 60].
+    // لا يجوز أن تتسرب تسميات بنك المعرفة التقنية أو عناوين الحقول إلى نص السؤال مثل [CONCEPT | أهمية 60].
     .replace(/^\s*\d+\.\s*/u, '')
     .replace(/[«"]?\s*\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|\s*(?:أهمية|اهمية)\s*\d{1,3})?\s*\]\s*[»"]?/giu, '')
     .replace(/\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/giu, '')
+    .replace(/(?:^|[\n\s.؛،-])(?:محور\s+معرفي\s+مهم|الفكرة|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|مصدر\s+القراءة|جودة\s+المحتوى|جودة\s+المحتوي)\s*[:：]\s*/giu, ' ')
+    .replace(/(?:^|\s)(?:عنوان\s+الفكرة|شرح\s+الفكرة|الدليل\s+الأكاديمي|الدليل\s+الاكاديمي|موضع\s+الدليل)\s*[:：]\s*/giu, ' ')
     .replace(/\s{2,}/g, ' ')
     .replace(/^[\s:：\-–—،؛]+|[\s:：\-–—،؛]+$/gu, '')
     .trim()
