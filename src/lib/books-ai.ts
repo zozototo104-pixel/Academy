@@ -1605,12 +1605,29 @@ function isWeakMcq(q: GeneratedQuestion): boolean {
   const genericSignals = [
     'تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة',
     'تطبيق اداة تقنية واحدة دون تحليل البيئة او اصحاب المصلحة',
-    'الاعتماد على الانطباع الشخصي بدلا من الادلة والمؤشرات',
-    'تاجيل التقييم الى نهاية البرنامج او المشروع فقط',
+    'الاعتماد على الانطباع الشخصي بدلا من الادله والمؤشرات',
+    'تاجيل التقييم الى نهايه البرنامج او المشروع فقط',
+    'خيار مشتت غير مكتمل',
   ].map(norm)
   const genericHits = genericSignals.filter((x) => sig.includes(x)).length
   const distinct = new Set(q.options.map((o) => norm(o))).size
-  return distinct < 4 || genericHits >= 3
+  return distinct < 4 || genericHits >= 2
+}
+
+function isWeakGeneratedQuestion(q: GeneratedQuestion): boolean {
+  const text = stripExamKnowledgeMeta(q.text, 2200)
+  const raw = `${text} ${(q.options || []).join(' ')} ${q.modelAnswer || ''} ${q.bookEvidence || ''}`
+  const n = norm(raw)
+  const letters = (text.match(/[\p{L}]/gu) || []).length
+  if (letters < 18) return true
+  if (hasForbiddenExamMetadata(raw)) return true
+  if (/محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|بنك\s+المعرفة\s+الأكاديمي\s+المستخرج/iu.test(raw)) return true
+  if (/كيف\s+يمكن\s+فهم\s+فكرة|أي\s+عبارة\s+تفسر\s+بصورة\s+أدق\s+دلالة|ما\s+الاستنتاج\s+الأكثر\s+صحة\s+من\s+الفكرة\s+الآتية\s+في\s+الكتاب/iu.test(raw)) return true
+  if ((q.type === 'MCQ' || q.type === 'TF') && text.length > 720) return true
+  if (q.type === 'MCQ' && !/[؟?]/.test(text)) return true
+  if (q.type === 'TF' && /^(?:ما|كيف|لماذا|أي|اذكر|اشرح)\b/u.test(text.trim())) return true
+  if (n.includes(norm('يعرف الإستراتيجية كسياسة في إطار الفعل أو التطبيق، إهنا')) && !n.includes(norm('حالة')) && !n.includes(norm('مؤسسة'))) return true
+  return false
 }
 
 function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boolean {
