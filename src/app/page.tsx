@@ -171,6 +171,19 @@ export default function Home() {
           <div className="flex h-[60vh] items-center justify-center">
             <Loader2 className="h-9 w-9 animate-spin text-[#c9a227]" />
           </div>
+        ) : needsAuthRecovery ? (
+          <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-4">
+            <div className="rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg">
+              <Loader2 className="mx-auto mb-3 h-9 w-9 animate-spin text-[#c9a227]" />
+              <h1 className="text-lg font-black text-[#0f2b46]">جاري استعادة الجلسة</h1>
+              <p className="mt-2 text-sm font-bold leading-7 text-slate-600">
+                حدث انقطاع مؤقت أثناء فتح صفحة محمية مثل قاعة المناقشة أو بوابة الطالب. لن يتم تحويلك للرئيسية تلقائياً؛ أعد المحاولة أو انتظر ثواني حتى يعود الاتصال.
+              </p>
+              <button onClick={retryAuthCheck} className="mt-5 rounded-xl bg-[#0f2b46] px-5 py-3 text-sm font-black text-[#f5f0e1] shadow hover:bg-[#12365c]">
+                إعادة الاتصال بالجلسة
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             {effectiveView === 'home' && <HomeView />}
