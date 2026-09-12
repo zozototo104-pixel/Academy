@@ -229,6 +229,12 @@ export function AgentView() {
 
   const formFields = (
     <form onSubmit={submit} className="space-y-4">
+      {!canSubmitAgentApplication && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-6 text-red-700">
+          <FileWarning className="ml-1 inline h-4 w-4" />
+          أنت داخل بحساب إدارة/مشرف. لا يتم تقديم طلبات الوكالة أو الاعتماد من حساب الإدارة حتى لا تختلط صلاحية القرار بصاحب الطلب. استخدم حساب جهة/وكيل منفصل أو قدم الطلب كزائر، ثم تابعه من لوحة الإدارة.
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="agent-org">
