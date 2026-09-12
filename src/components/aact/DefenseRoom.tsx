@@ -764,7 +764,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       setSpeaking(false)
       if (!silent) setInterim('')
     },
-    [isStudent, finished] // eslint-disable-line react-hooks/exhaustive-deps
+    [isStudent, finished, roomSessionKey] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   // ===== 12.3: تسجيل الجلسة كاملة: فيديو الطالب + صوته + صوت المشرف الذكي + أصوات أعضاء اللجنة عبر WebRTC =====
