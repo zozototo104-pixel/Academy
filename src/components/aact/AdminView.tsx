@@ -936,6 +936,19 @@ export function AdminView() {
                           <td className="hidden p-3 text-slate-400 sm:table-cell">
                             {new Date(s.createdAt).toLocaleDateString('ar')}
                           </td>
+                          <td className="p-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openStudentPreview(s.id)
+                              }}
+                              className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a] hover:bg-[#fff7df]"
+                            >
+                              <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
