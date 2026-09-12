@@ -220,6 +220,9 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('دليل من المحتوي') ||
     n.includes('كلمات مفتاحيه') ||
     n.includes('بنك المعرفه الاكاديمي المستخرج من الكتب') ||
+    n.includes('كيف يمكن فهم فكره') ||
+    n.includes('اي عباره تفسر بصوره ادق دلاله') ||
+    n.includes('ما الاستنتاج الاكثر صحه من الفكره الاتيه في الكتاب') ||
     n.includes('ملاحظه قراءه المحتوي') ||
     n.includes('google com search') ||
     n.includes('books google') ||
