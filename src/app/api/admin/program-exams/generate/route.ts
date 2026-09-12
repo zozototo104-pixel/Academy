@@ -218,6 +218,9 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('العنوان الاصلي') ||
     n.includes('محور معرفي مهم') ||
     n.includes('دليل من المحتوي') ||
+    n.includes('خلاصه اكاديميه') ||
+    n.includes('مقتطف داعم') ||
+    n.includes('مصطلحات مرتبطه') ||
     n.includes('كلمات مفتاحيه') ||
     n.includes('بنك المعرفه الاكاديمي المستخرج من الكتب') ||
     n.includes('كيف يمكن فهم فكره') ||
