@@ -1513,9 +1513,9 @@ function makeFallbackShort(concept: string, specAr: string, i: number): Generate
   const evidence = stripExamKnowledgeMeta(concept, 480)
   const idea = conceptLabel(concept, 190)
   const stems = [
-    `اشرح بإيجاز كيف يمكن إسقاط فكرة «${idea}» من الكتاب على موقف مهني في ${specAr}.`,
-    `استخرج من «${idea}» درساً عملياً في ${specAr}، واذكر كيف يمكن التحقق من نجاح تطبيقه.`,
-    `ما العلاقة بين الحدث/الفكرة «${idea}» وبين إدارة القرار أو المخاطر أو أصحاب المصلحة في ${specAr}؟`,
+    `حلل المقطع «${idea}» في فقرة قصيرة، ثم حوّله إلى إجراء مهني قابل للتنفيذ في ${specAr}.`,
+    `استخرج من الدليل النصي «${idea}» درساً عملياً في ${specAr}، واذكر مؤشراً واحداً للتحقق من نجاح تطبيقه.`,
+    `حدّد المشكلة أو القرار الذي يلمّح إليه المقطع «${idea}»، ثم اربطه بالمخاطر أو أصحاب المصلحة في ${specAr}.`,
   ]
   return {
     type: 'SHORT',
