@@ -14,6 +14,7 @@ export type View =
   | 'chat'
   | 'agent'
   | 'admin'
+  | 'student-preview'
   | 'verify'
   | 'directory'
   | 'contact'
