@@ -1631,9 +1631,13 @@ export function AdminBooksTab() {
                   إضافة الكتاب للكتب المقررة
                 </Button>
               </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
+          </TabsContent>
 
+          <TabsContent value="exams" className="mt-0 space-y-4">
           {/* الاختبارات الشاملة المولدة */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
