@@ -13,7 +13,6 @@ import { VerifyView } from '@/components/aact/VerifyView'
 import { DirectoryView } from '@/components/aact/DirectoryView'
 import { ContactView } from '@/components/aact/ContactView'
 import { Loader2 } from 'lucide-react'
-import { api } from '@/lib/store'
 import { unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 
 function LazyViewLoader() {
