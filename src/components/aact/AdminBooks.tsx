@@ -1050,7 +1050,9 @@ export function AdminBooksTab() {
               </div>
             </CardContent>
           </Card>
+          </TabsContent>
 
+          <TabsContent value="guides" className="mt-0 space-y-4">
           {/* أدلة الدراسة والمحاضرات */}
           <Card className="border-[#0f2b46]/10 bg-white">
             <CardContent className="p-5 sm:p-6">
