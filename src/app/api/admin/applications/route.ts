@@ -85,7 +85,15 @@ export async function PATCH(req: NextRequest) {
     const submitter = app.userId
       ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, email: true } })
       : await db.user.findUnique({ where: { email: app.email }, select: { id: true, role: true, email: true } }).catch(() => null)
-    const submittedByStaff = !!submitter && ['ADMIN', 'SUPERVISOR'].includes(submitter.role)
+    const submitAudit = !submitter
+      ? await db.auditLog.findFirst({
+          where: { entity: 'AgentApplication', entityId: app.id, action: { in: ['AGENCY_SUBMITTED', 'ACCREDITATION_SUBMITTED'] } },
+          orderBy: { createdAt: 'asc' },
+          select: { actor: { select: { id: true, role: true, email: true } } },
+        }).catch(() => null)
+      : null
+    const effectiveSubmitter = submitter || submitAudit?.actor || null
+    const submittedByStaff = !!effectiveSubmitter && ['ADMIN', 'SUPERVISOR'].includes(effectiveSubmitter.role)
     if (submittedByStaff && status === 'APPROVED') {
       return NextResponse.json(
         { error: 'هذا الطلب مرتبط بحساب إدارة/مشرف، لذلك لا يمكن اعتماده كوكالة أو اعتماد رسمي. أنشئ حساب جهة/وكيل منفصل أو اطلب تقديمه كزائر، ثم أغلق هذا الطلب كتجريبي.' },
