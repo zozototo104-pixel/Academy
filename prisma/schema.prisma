@@ -378,6 +378,8 @@ model DefenseMessage {
 
 model AgentApplication {
   id                String   @id @default(cuid())
+  userId            String?
+  user              User?    @relation("AgentApplicationOwner", fields: [userId], references: [id], onDelete: SetNull)
   kind              String   @default("AGENCY") // AGENCY | ACCREDITATION
   accreditationType String? // COMPANY | CONSULTANT | TRAINER | QUALITY
   orgName           String
