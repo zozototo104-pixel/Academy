@@ -916,8 +916,7 @@ export function AdminBooksTab() {
             <p className="mb-2 text-[10px] font-black text-slate-500">مساحة العمل الأكاديمية — اختر الباب المطلوب بدل التمرير الطويل</p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="overview" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> نظرة عامة</TabsTrigger>
-              <TabsTrigger value="books" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> الكتب والإضافة ({books.length})</TabsTrigger>
-              <TabsTrigger value="suggestions" className="text-[10px] font-black sm:text-xs"><Sparkles className="ml-1 h-3.5 w-3.5" /> توليد كتب AI ({suggestions.length})</TabsTrigger>
+              <TabsTrigger value="books" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> الكتب/الإضافة/AI ({books.length})</TabsTrigger>
               <TabsTrigger value="knowledge" className="text-[10px] font-black sm:text-xs"><Layers className="ml-1 h-3.5 w-3.5" /> بنك المعرفة ({knowledgeItems.length})</TabsTrigger>
               <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><FileText className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({studyGuides.length})</TabsTrigger>
               <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><FileCheck2 className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
