@@ -461,8 +461,16 @@ export function DashboardView() {
                   </section>
                 )}
 
-                {studyGuides.length > 0 && (
-                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                <Tabs defaultValue="guides" dir="rtl" className="mt-5 space-y-4">
+                  <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
+                    <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({studyGuides.length})</TabsTrigger>
+                    <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
+                    <TabsTrigger value="units" className="text-[10px] font-black sm:text-xs"><BookOpen className="ml-1 h-3.5 w-3.5" /> الوحدات ({active.units.length})</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="guides" className="mt-0">
+                {studyGuides.length > 0 ? (
+                  <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><BookMarked className="h-4 w-4 text-[#a8841a]" /> أدلة الدراسة والمحاضرات</h3>
