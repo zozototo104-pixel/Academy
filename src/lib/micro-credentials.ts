@@ -81,6 +81,7 @@ async function ensureDefaultProgramMicroCredentials(program: { id: string; title
       },
       update: {
         titleAr: `${spec.titlePrefix} ${program.titleAr}`,
+        skillArea: spec.skillArea,
         description: spec.description,
         learningOutcome: spec.learningOutcome,
         criteria: {
