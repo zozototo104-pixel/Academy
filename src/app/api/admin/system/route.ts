@@ -31,6 +31,7 @@ export async function GET() {
     for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
+    const gemini = await geminiKeyDiagnostics()
     return NextResponse.json({
       values,
       secretsSet: {
