@@ -20,7 +20,8 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        revenueShares: { orderBy: { createdAt: 'desc' } },
+        user: { select: { id: true, name: true, email: true, role: true } },
+        revenueShares: { orderBy: { createdAt: 'desc' }, take: 20 },
         certificates: { orderBy: { issuedAt: 'desc' } },
         documents: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
       },
