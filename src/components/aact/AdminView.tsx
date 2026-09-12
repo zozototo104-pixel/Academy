@@ -764,7 +764,7 @@ export function AdminView() {
                         </div>
 
                         {/* أزرار آلة الحالات وفق الترتيب الرسمي: سداد 30$ ← دراسة الإدارة والإقرار ← سداد الرسوم الدراسية ← تسجيل نهائي */}
-                        {a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
+                        {!ownerIsStaffAccount && a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
                           <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
                             <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
                               {a.status === 'AWAITING_FEE' && (
