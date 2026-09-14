@@ -39,6 +39,7 @@ const AdminAITab = dynamic(() => import('@/components/aact/AdminAITab').then((m)
 const AdminSystemTab = dynamic(() => import('@/components/aact/AdminSystemTab').then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
 const AdminRulesTab = dynamic(() => import('@/components/aact/AdminRulesTab').then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
 const AdminQualityTab = dynamic(() => import('@/components/aact/AdminQualityTab').then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
+const AdminSupervisorsTab = dynamic(() => import('@/components/aact/AdminSupervisors').then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
