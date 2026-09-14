@@ -280,8 +280,11 @@ export async function GET(req: NextRequest) {
       supervisorName: app.supervisor?.name || null,
       thesisDeadline: app.thesisDeadline,
       createdAt: app.createdAt,
+      email: app.email,
+      phone: app.phone,
       documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
       payments: app.payments || [],
+      theses: app.theses || [],
       nextAction: app.status === 'AWAITING_FEE'
         ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.'
         : app.status === 'UNDER_REVIEW'
