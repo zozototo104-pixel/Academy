@@ -729,10 +729,12 @@ export function AIChatView() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)} className="border-[#c9a227] font-bold text-[#a8841a]" title="تحليل مسودة بحث التخرج">
-            <FileSearch className="h-4 w-4" />
-            <span className="hidden text-[11px] font-bold sm:inline">تحليل مسودة بحثي</span>
-          </Button>
+          {user.role === 'STUDENT' && (
+            <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)} className="border-[#c9a227] font-bold text-[#a8841a]" title="تحليل مسودة بحث التخرج">
+              <FileSearch className="h-4 w-4" />
+              <span className="hidden text-[11px] font-bold sm:inline">تحليل مسودة بحثي</span>
+            </Button>
+          )}
           <Button
             size="sm" variant="outline"
             onClick={() => setAutoSpeak(!autoSpeak)}
