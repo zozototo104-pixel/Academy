@@ -416,6 +416,57 @@ export function AdminSystemTab() {
           </div>
         </TabsContent>
 
+        {/* ===== الوكيل الذكي المفتوح المصدر ===== */}
+        <TabsContent value="agent" className="mt-4 space-y-4">
+          <div className="rounded-xl border border-[#c9a227]/30 bg-[#fffaf0] p-4 text-[11px] font-bold leading-relaxed text-[#5c4d1a]">
+            <Bot className="ml-1 inline h-4 w-4 text-[#a8841a]" />
+            هذا هو عقل الوكيل الذكي المتكامل للمنصة. إذا ضبطت نموذجاً مفتوح المصدر محلياً عبر Ollama أو أي OpenAI-compatible endpoint فسيستخدمه الوكيل أولاً، ويظل المشرف الذكي الأكاديمي شخصية داخل هذا الوكيل. إذا لم تضبطه، يرجع النظام إلى Gemini/الاحتياطات الحالية.
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 text-xs font-bold sm:grid-cols-4">
+            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <p className="text-[10px] text-slate-500">حالة الوكيل المحلي</p>
+              <p className={agentDiag?.enabled ? 'mt-1 font-black text-emerald-700' : 'mt-1 font-black text-amber-700'}>{agentDiag?.enabled ? 'مفعل ويستخدم نموذجاً مفتوح المصدر' : 'غير مفعل — يستخدم Gemini/الاحتياطي'}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <p className="text-[10px] text-slate-500">مصدر الإعداد</p>
+              <p className="mt-1 font-black text-[#0f2b46]">{agentSourceLabel}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <p className="text-[10px] text-slate-500">النموذج</p>
+              <p className="mt-1 truncate font-mono text-[11px] font-black text-[#a8841a]" dir="ltr">{agentDiag?.model || '—'}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <p className="text-[10px] text-slate-500">Endpoint</p>
+              <p className="mt-1 truncate font-mono text-[10px] font-bold text-slate-500" dir="ltr">{agentDiag?.baseUrl || '—'}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
+            {SelectF('AI_AGENT_PROVIDER', 'محرك الوكيل الرئيسي', [
+              { value: 'AUTO', label: 'AUTO — استخدم المحلي إن وجد وإلا Gemini' },
+              { value: 'LOCAL_OPENAI', label: 'LOCAL_OPENAI — نموذج مفتوح المصدر محلي/ذاتي' },
+              { value: 'GEMINI', label: 'GEMINI — تعطيل المحلي واستخدام Gemini' },
+            ], 'للتشغيل المجاني اضبط LOCAL_OPENAI مع Ollama أو LM Studio أو vLLM.')}
+            {F('AI_AGENT_MODEL', 'اسم نموذج الوكيل المحلي', 'qwen2.5:7b-instruct', 'text', 'مثال Ollama: qwen2.5:7b-instruct أو llama3.1:8b-instruct أو mistral:7b')}
+            {F('AI_AGENT_BASE_URL', 'رابط خادم النموذج OpenAI-compatible', 'http://localhost:11434/v1', 'text', 'على Vercel لا يمكن استخدام localhost؛ يجب أن يكون رابط VPS/خادم عام آمن يشغل Ollama أو vLLM.')}
+            {F('AI_AGENT_API_KEY', 'API Key اختياري للوكيل المحلي', data.secretsSet.AI_AGENT_API_KEY ? 'محفوظ — اكتب جديداً للتغيير' : 'اتركه فارغاً مع Ollama غالباً', 'password', 'مع Ollama غالباً أي قيمة مثل ollama تكفي؛ مع vLLM/خادم محمي ضع المفتاح هنا.')}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات الوكيل
+            </Button>
+            <Button onClick={testLocalAgent} disabled={testing} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a] hover:bg-[#fffaf0]">
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار الوكيل المحلي
+            </Button>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-3 text-[10px] font-bold leading-relaxed text-slate-500">
+            لتشغيل مجاني فعلياً تحتاج خادماً أو جهازاً يبقى متصلاً بالإنترنت ويشغل النموذج. المشاريع المفتوحة المصدر مجانية ككود، لكن التشغيل على آلاف الطلاب يحتاج موارد CPU/GPU وذاكرة واتصال مستقر.
+          </div>
+        </TabsContent>
+
         {/* ===== TURN ===== */}
         <TabsContent value="turn" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
