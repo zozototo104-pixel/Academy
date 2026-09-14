@@ -3,7 +3,7 @@
 import { useAppStore, api, clearToken } from '@/lib/store'
 import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, ShieldCheck, Download } from 'lucide-react'
+import { Bot, ChevronDown, ChevronUp, ShieldCheck, Download } from 'lucide-react'
 
 // أزرار عائمة: واتساب مباشر + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
