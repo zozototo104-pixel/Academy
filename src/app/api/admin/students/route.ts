@@ -4,9 +4,19 @@ import { hashPassword, requireAdmin } from '@/lib/auth'
 import { audit, AUDIT_ACTIONS } from '@/lib/notify'
 
 // GET /api/admin/students — قائمة الطلاب مع تسجيلاتهم ونتائجهم
-export async function GET() {
+// GET /api/admin/students?role=supervisors — قائمة المشرفين البشريين
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
+    if (req.nextUrl.searchParams.get('role') === 'supervisors') {
+      const supervisors = await db.user.findMany({
+        where: { role: 'SUPERVISOR' },
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { supervisedAdmissions: true } } },
+      })
+      return NextResponse.json({ supervisors: supervisors.map(publicSupervisor) })
+    }
+
     const students = await db.user.findMany({
       where: { role: 'STUDENT' },
       orderBy: { createdAt: 'desc' },
