@@ -138,7 +138,9 @@ export default function Home() {
   const effectiveView = needsAuthRecovery
     ? view
     : authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
-      ? (user?.role === 'ADMIN' ? 'admin' : 'home')
+      ? (user?.role === 'ADMIN' ? 'admin' : user?.role === 'SUPERVISOR' ? 'supervisor' : 'home')
+      : authChecked && effectiveView !== 'supervisor' && view === 'supervisor' && user?.role !== 'SUPERVISOR'
+        ? 'home'
       : authChecked && (view === 'student-preview' || view === 'agent-preview') && user?.role !== 'ADMIN'
         ? 'home'
         : view
