@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     await updateStudentAcademicMemory(user.id, {
       kind: 'CHAT',
-      persona: 'CHAT',
+      persona: agentResult.agent === 'EXAMS' ? 'EXAM' : agentResult.agent === 'THESIS_DEFENSE' ? 'DEFENSE' : 'CHAT',
       mode: chatMode,
       userMessage: message.trim(),
       assistantReply: reply,
