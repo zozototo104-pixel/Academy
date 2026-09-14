@@ -414,6 +414,17 @@ export function Header() {
                 ))}
               </>
             )}
+            {user && !canUseStudentPortal && (
+              <button
+                onClick={() => navigate('chat')}
+                className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
+                  view === 'chat' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1] hover:bg-white/10'
+                }`}
+              >
+                <Bot className="h-4 w-4" />
+                الوكيل الذكي المتكامل
+              </button>
+            )}
             <p className="mb-1 mt-3 text-[10px] font-black text-[#c9a227]/70">الأكاديمية والخدمات</p>
             {academyItems.map((n) => (
               <button
