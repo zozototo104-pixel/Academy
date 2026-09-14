@@ -245,6 +245,9 @@ export function AdminSystemTab() {
           <TabsTrigger value="gemini" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Bot className="h-3.5 w-3.5" /> Gemini Live
           </TabsTrigger>
+          <TabsTrigger value="agent" className="gap-1.5 text-[11px] font-bold sm:text-xs">
+            <Bot className="h-3.5 w-3.5" /> الوكيل المفتوح
+          </TabsTrigger>
           <TabsTrigger value="turn" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Network className="h-3.5 w-3.5" /> TURN للفيديو
           </TabsTrigger>
