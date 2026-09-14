@@ -30,7 +30,7 @@ export function AuthView() {
       if (d.token) saveToken(d.token)
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
-      navigate(d.user.role === 'ADMIN' ? 'admin' : 'dashboard')
+      navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
     } catch (err: any) {
       toast({ title: 'خطأ في الدخول', description: err.message, variant: 'destructive' })
     } finally {
