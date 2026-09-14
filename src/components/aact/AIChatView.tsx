@@ -708,7 +708,7 @@ export function AIChatView() {
             <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
           </div>
           <div>
-            <h1 className="text-base font-black text-[#0f2b46] sm:text-lg">المشرف الذكي — AACT AI</h1>
+            <h1 className="text-base font-black text-[#0f2b46] sm:text-lg">{chatTitle}</h1>
             <div className="flex items-center gap-1.5">
               {/* الشفافية الإلزامية: تعريف الطالب بأنه يتحدث مع مشرف ذكاء اصطناعي */}
               <Badge className="gap-1 bg-emerald-100 text-[9px] font-black text-emerald-700 hover:bg-emerald-100">
