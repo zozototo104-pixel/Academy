@@ -978,6 +978,11 @@ export function AdminView() {
           </Card>
         </TabsContent>
 
+        {/* إدارة حسابات المشرفين البشريين */}
+        <TabsContent value="supervisors">
+          <AdminSupervisorsTab />
+        </TabsContent>
+
         {/* Agent applications */}
         <TabsContent value="agents">
           <div className="mt-4 space-y-4">
