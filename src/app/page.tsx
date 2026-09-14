@@ -121,7 +121,10 @@ export default function Home() {
     if (user.role === 'ADMIN' && (view === 'home' || view === 'auth')) {
       didAutoRouteRef.current = true
       state.navigate('admin')
-    } else if (user.role !== 'ADMIN' && view === 'auth') {
+    } else if (user.role === 'SUPERVISOR' && (view === 'home' || view === 'auth')) {
+      didAutoRouteRef.current = true
+      state.navigate('supervisor')
+    } else if (user.role !== 'ADMIN' && user.role !== 'SUPERVISOR' && view === 'auth') {
       didAutoRouteRef.current = true
       state.navigate('dashboard')
     } else {
