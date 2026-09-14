@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { hashPassword, requireAdmin } from '@/lib/auth'
+import { audit, AUDIT_ACTIONS } from '@/lib/notify'
 
 // GET /api/admin/students — قائمة الطلاب مع تسجيلاتهم ونتائجهم
 export async function GET() {
