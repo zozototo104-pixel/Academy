@@ -235,7 +235,7 @@ export function AdminSystemTab() {
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mail" dir="rtl">
-        <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl bg-[#f1f5f9] p-1">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-[#f1f5f9] p-1 sm:grid-cols-5">
           <TabsTrigger value="mail" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Mail className="h-3.5 w-3.5" /> الإشعارات البريدية
           </TabsTrigger>
