@@ -305,6 +305,18 @@ export function Header() {
             طلب الالتحاق
           </button>
           {canUseStudentPortal && <GroupMenu label="بوابة الدراسة" items={studentItems} groupTargets={['dashboard', 'chat', 'unit', 'exam']} />}
+          {user && !canUseStudentPortal && (
+            <button
+              onClick={() => navigate('chat')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                view === 'chat' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+              }`}
+              title="الوكيل الذكي المتكامل للمنصة"
+            >
+              <Bot className="h-4 w-4" />
+              الوكيل الذكي
+            </button>
+          )}
           <GroupMenu label="الأكاديمية" items={academyItems} groupTargets={['agent', 'directory', 'verify', 'contact']} />
           {user?.role === 'ADMIN' && (
             <button
