@@ -133,7 +133,7 @@ export default function Home() {
   }, [authChecked, user, view])
 
   const studentOnlyViews = ['dashboard', 'unit', 'exam', 'chat']
-  const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'student-preview', 'agent-preview']
+  const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
   const needsAuthRecovery = authChecked && authRecovering && protectedViews.includes(view)
   const effectiveView = needsAuthRecovery
     ? view
