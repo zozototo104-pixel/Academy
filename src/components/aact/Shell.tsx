@@ -214,7 +214,7 @@ export function Header() {
   // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
   const studentItems: { label: string; target: any; desc: string }[] = [
     { label: 'بوابة الطالب', target: 'dashboard', desc: 'برامجك، دفعاتك، بحثك، شهاداتك' },
-    { label: 'المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
+    { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
   const academyItems: { label: string; target: any; desc: string }[] = [
     { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
