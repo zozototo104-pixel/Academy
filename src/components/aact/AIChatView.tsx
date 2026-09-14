@@ -284,7 +284,7 @@ export function AIChatView() {
         const unitCtx = activeUnitRef.current
           ? `الطالب يقرأ الآن وحدة دراسية في منصة الأكاديمية (معرف الوحدة: ${activeUnitRef.current}) — إن كان سؤاله عن درسه الحالي فاربط إجابتك به.`
           : undefined
-        const d = await api<{ reply: string; messageId: string }>('/api/chat', {
+        const d = await api<{ reply: string; messageId: string; agent?: string; engine?: string }>('/api/chat', {
           method: 'POST',
           body: JSON.stringify({ message: text, mode: voice ? 'VOICE' : 'TEXT', context: unitCtx }),
         })
