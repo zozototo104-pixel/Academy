@@ -119,6 +119,22 @@ export function AdminSystemTab() {
     }
   }
 
+  const testLocalAgent = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ ok: boolean; title?: string; message: string; agent?: SystemData['agent'] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'test-local-agent' }),
+      })
+      if (d.agent) setData((prev) => (prev ? { ...prev, agent: d.agent } : prev))
+      toast({ title: d.title || (d.ok ? 'الوكيل يعمل' : 'فشل الوكيل'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const testGeminiText = async () => {
     setTesting(true)
     try {
