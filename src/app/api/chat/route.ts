@@ -31,8 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
 
-    // 12.1: قاعدة معرفة التخصص (RAG) — ملف الطالب + منهجه + كتبه المعتمدة + تقدمه ومواعيده
-    const ragContext = await buildSupervisorContext(user.id)
+    // وكيل المنصة المتكامل: يختار الشخصية المناسبة، ويجعل المشرف الذكي جزءاً من العقل العام.
     const chatMode = mode === 'VOICE' ? 'VOICE' : 'TEXT'
 
     // حفظ رسالة الطالب (نصية أو نسخة صوتية مفرّغة)
