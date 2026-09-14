@@ -26,7 +26,20 @@ interface Msg {
   content: string
   mode?: string // TEXT | VOICE
   kind?: string | null // THESIS_REVIEW
+  agent?: string | null
+  engine?: string | null
   time?: string
+}
+
+const AGENT_LABELS: Record<string, string> = {
+  ACADEMIC_SUPERVISOR: 'المشرف الأكاديمي',
+  ADMISSIONS: 'وكيل القبول',
+  EXAMS: 'وكيل الامتحانات',
+  THESIS_DEFENSE: 'وكيل البحث والمناقشة',
+  CERTIFICATES: 'وكيل الشهادات',
+  ADMIN_QUALITY: 'وكيل الجودة',
+  AGENCY_ACCREDITATION: 'وكيل الوكالة والاعتماد',
+  SUPPORT: 'وكيل الدعم',
 }
 
 // ===== Web Speech API typings =====
