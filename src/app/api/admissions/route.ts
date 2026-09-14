@@ -301,6 +301,16 @@ export async function GET(req: NextRequest) {
     if (mine) {
       const user = await getCurrentUser()
       if (!user) return NextResponse.json({ applications: [], application: null })
+      if (user.role === 'SUPERVISOR') {
+        const apps = await db.admissionApplication.findMany({
+          where: { supervisorId: user.id },
+          orderBy: [{ supervisorAt: 'desc' }, { createdAt: 'desc' }],
+          take: 50,
+          include,
+        })
+        const serialized = apps.map(serialize)
+        return NextResponse.json({ applications: serialized, application: serialized[0] || null, supervisorMode: true })
+      }
       if (user.role !== 'STUDENT') {
         return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق تخص حسابات الطلاب فقط.' })
       }
