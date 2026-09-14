@@ -755,9 +755,8 @@ export function AIChatView() {
             </div>
             <h2 className="text-lg font-black text-[#0f2b46]">أهلاً {user.name}!</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              أنا <strong>مشرفك الذكي</strong> — مشرف ذكاء اصطناعي مخصص لك ويرافقك بالتوازي مع مشرفك الأكاديمي البشري.
-              أعرف تخصصك وبرنامجك وكتبك المقررة ودرجاتك ومواعيدك، وأستطيع تحليل مسودة بحثك.
-              ابدأ <strong>محادثة صوتية حية</strong> من الزر العلوي أو اسألني كتابةً.
+              {welcomeText}
+              {' '}ابدأ <strong>محادثة صوتية حية</strong> من الزر العلوي أو اسألني كتابةً.
             </p>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               {QUICK_QUESTIONS.map((qq) => (
