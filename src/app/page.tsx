@@ -203,6 +203,7 @@ export default function Home() {
             {effectiveView === 'chat' && <AIChatView />}
             {effectiveView === 'agent' && <AgentView />}
             {effectiveView === 'admin' && <AdminView />}
+            {effectiveView === 'supervisor' && <SupervisorView />}
             {effectiveView === 'student-preview' && <AdminStudentPreview />}
             {effectiveView === 'agent-preview' && <AdminAgentPreview />}
             {effectiveView === 'verify' && <VerifyView />}
