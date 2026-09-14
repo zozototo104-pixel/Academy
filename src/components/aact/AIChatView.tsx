@@ -293,6 +293,8 @@ export function AIChatView() {
           role: 'assistant',
           content: d.reply,
           mode: voice ? 'VOICE' : 'TEXT',
+          agent: d.agent || null,
+          engine: d.engine || null,
           time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
         }
 
