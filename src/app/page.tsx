@@ -64,7 +64,7 @@ export default function Home() {
   useEffect(() => {
     let alive = true
     const currentView = new URLSearchParams(window.location.search).get('view') || view
-    const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'student-preview', 'agent-preview']
+    const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     api<{ user: any }>('/api/auth/me')
       .then((d) => {
         if (!alive) return
