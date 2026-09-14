@@ -121,6 +121,18 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ ok, message: ok ? 'أُرسلت رسالة الاختبار إلى بريدك — افحص صندوق الوارد' : 'لم يُرسل البريد — راجع الإعدادات وسجل البريد أدناه' })
     }
+    if (action === 'test-local-agent') {
+      const diag = await localAgentDiagnostics()
+      const test = await testLocalAgentConnection()
+      return NextResponse.json({
+        ok: test.ok,
+        title: test.ok ? 'الوكيل المحلي يعمل' : 'فشل اختبار الوكيل المحلي',
+        message: test.ok
+          ? `تم الاتصال بالنموذج المفتوح المصدر بنجاح: ${test.model || diag.model}`
+          : `${test.message}${test.error ? ` — ${test.error}` : ''}`,
+        agent: diag,
+      })
+    }
     if (action === 'test-gemini-text') {
       await ensureGeminiKey()
       const diag = await geminiKeyDiagnostics()
