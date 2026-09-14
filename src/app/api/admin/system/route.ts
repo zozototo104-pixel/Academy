@@ -34,6 +34,7 @@ export async function GET() {
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
+    const agent = await localAgentDiagnostics()
     return NextResponse.json({
       values,
       secretsSet: {
