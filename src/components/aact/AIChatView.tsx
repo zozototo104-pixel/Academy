@@ -774,11 +774,18 @@ export function AIChatView() {
                     : 'rounded-bl-sm bg-[#f7edd0] text-[#0f2b46]'
                 }`}
               >
-                {m.kind === 'THESIS_REVIEW' && (
-                  <Badge className="mb-1.5 gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]">
-                    <FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث
-                  </Badge>
-                )}
+                <div className="mb-1.5 flex flex-wrap gap-1">
+                  {m.kind === 'THESIS_REVIEW' && (
+                    <Badge className="gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]">
+                      <FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث
+                    </Badge>
+                  )}
+                  {m.role === 'assistant' && m.agent && (
+                    <Badge className="gap-1 bg-white/60 text-[9px] font-black text-[#0f2b46] hover:bg-white/60">
+                      <Bot className="h-2.5 w-2.5" /> {AGENT_LABELS[m.agent] || 'الوكيل الذكي'}
+                    </Badge>
+                  )}
+                </div>
                 <div className="whitespace-pre-wrap">{m.content}</div>
                 <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${m.role === 'user' ? 'text-white/50' : 'text-[#a8841a]/70'}`}>
                   <span className="flex items-center gap-1.5">
