@@ -52,13 +52,15 @@ export async function POST(req: NextRequest) {
     })
     const ordered = history.reverse().slice(0, -1) // استبعاد الرسالة الحالية (مضافة سابقاً)
 
-    const reply = await chatComplete(
-      [...ordered.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message.trim() }],
-      mergeContext(ragContext, context),
-      'CHAT'
-    )
+    const agentResult = await platformAgentComplete({
+      userId: user.id,
+      messages: [...ordered.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message.trim() }],
+      uiContext: context,
+      mode: chatMode,
+    })
+    const reply = agentResult.reply
 
-    // حفظ رد المشرف
+    // حفظ رد الوكيل/المشرف
     const saved = await db.chatMessage.create({
       data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
     })
