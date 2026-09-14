@@ -266,6 +266,10 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: 'asc' as const },
       },
+      theses: {
+        select: { id: true, title: true, status: true, createdAt: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' as const },
+      },
     }
     const serialize = (app: any) => ({
       reference: app.reference,
