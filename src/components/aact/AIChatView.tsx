@@ -712,9 +712,9 @@ export function AIChatView() {
             <div className="flex items-center gap-1.5">
               {/* الشفافية الإلزامية: تعريف الطالب بأنه يتحدث مع مشرف ذكاء اصطناعي */}
               <Badge className="gap-1 bg-emerald-100 text-[9px] font-black text-emerald-700 hover:bg-emerald-100">
-                <ShieldCheck className="h-2.5 w-2.5" /> مشرف ذكاء اصطناعي
+                <ShieldCheck className="h-2.5 w-2.5" /> وكيل ذكاء اصطناعي
               </Badge>
-              <span className="text-[10px] font-bold text-slate-400">مرفوق بمشرفك البشري</span>
+              <span className="text-[10px] font-bold text-slate-400">{chatSubtitle}</span>
             </div>
           </div>
         </div>
