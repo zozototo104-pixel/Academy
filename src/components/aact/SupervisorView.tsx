@@ -30,7 +30,7 @@ export function SupervisorView() {
   const load = async () => {
     setLoading(true)
     try {
-      const d = await api<{ applications: SupervisedAdmission[] }>('/api/admissions?supervised=1')
+      const d = await api<{ applications: SupervisedAdmission[] }>('/api/admissions?mine=1')
       setStudents(d.applications || [])
     } catch (e: any) {
       toast({ title: 'تعذر تحميل طلابك', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
