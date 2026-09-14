@@ -225,6 +225,12 @@ export function AdminSystemTab() {
     : geminiDiag?.source === 'env'
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
+  const agentDiag = data.agent
+  const agentSourceLabel = agentDiag?.source === 'settings'
+    ? 'إعدادات لوحة الإدارة'
+    : agentDiag?.source === 'env'
+      ? 'متغيرات السيرفر/Vercel'
+      : 'غير مضبوط'
 
   return (
     <div className="space-y-4">
