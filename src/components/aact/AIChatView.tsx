@@ -563,6 +563,16 @@ export function AIChatView() {
     INTERRUPTED: 'سمعتك — تفضل…',
   }
   const listeningForUI = voiceState === 'LISTENING' || voiceState === 'USER_SPEAKING' || voiceState === 'INTERRUPTED'
+  const chatTitle = user.role === 'ADMIN'
+    ? 'الوكيل الذكي للإدارة والجودة'
+    : user.role === 'SUPERVISOR'
+      ? 'الوكيل الذكي للمشرف البشري'
+      : 'الوكيل/المشرف الذكي — AACT AI'
+  const chatSubtitle = user.role === 'ADMIN'
+    ? 'مؤشرات وتشغيل وجودة أكاديمية'
+    : user.role === 'SUPERVISOR'
+      ? 'متابعة الطلاب والأبحاث المعيّنة لك'
+      : 'مرفوق بمشرفك البشري'
 
   return (
     <>
