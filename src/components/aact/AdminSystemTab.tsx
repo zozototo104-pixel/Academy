@@ -38,6 +38,13 @@ interface SystemData {
     envKeySet: boolean
     activeMask: string
   }
+  agent?: {
+    enabled: boolean
+    provider: 'LOCAL_OPENAI' | 'GEMINI' | 'AUTO'
+    source: 'settings' | 'env' | 'none'
+    baseUrl: string
+    model: string
+  }
   emails: EmailLog[]
 }
 
