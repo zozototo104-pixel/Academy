@@ -47,6 +47,7 @@ function includesAny(n: string, words: string[]) {
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات'])) return 'ADMIN_QUALITY'
+  if (role === 'SUPERVISOR' && includesAny(n, ['طلابي', 'طلاب', 'طالب', 'بحث', 'ابحاث', 'مناقشة', 'منهجيه', 'متابعة', 'متعثر'])) return 'THESIS_DEFENSE'
   if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
   if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
   if (includesAny(n, ['بحث', 'رسالة', 'اطروحة', 'مشروع تخرج', 'مناقشة', 'لجنة', 'منهجية', 'نتائج'])) return 'THESIS_DEFENSE'
