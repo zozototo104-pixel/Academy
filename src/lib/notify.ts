@@ -65,6 +65,7 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   UPDATE_STUDY_GUIDE: 'تعديل دليل دراسة',
   DELETE_STUDY_GUIDE: 'حذف دليل دراسة',
   UPDATE_SETTINGS: 'تحديث إعدادات/رسوم المنصة',
+  SYSTEM_UPDATE: 'تحديث نظام/صلاحيات',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل',
   MARK_SHARE_PAID: 'تأكيد تحويل مستحقات وكيل',
   RESOLVE_MESSAGE: 'معالجة رسالة تواصل',
