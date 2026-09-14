@@ -764,7 +764,7 @@ export function AIChatView() {
               {' '}ابدأ <strong>محادثة صوتية حية</strong> من الزر العلوي أو اسألني كتابةً.
             </p>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              {QUICK_QUESTIONS.map((qq) => (
+              {quickQuestions.map((qq) => (
                 <button
                   key={qq}
                   onClick={() => send(qq)}
