@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       assistantReply: reply,
     }).catch(() => {})
 
-    return NextResponse.json({ reply, messageId: saved.id })
+    return NextResponse.json({ reply, messageId: saved.id, agent: agentResult.agent, engine: agentResult.engine })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
