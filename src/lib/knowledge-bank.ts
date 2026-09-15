@@ -518,7 +518,10 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
-  return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: hydrated.sourceNote }
+  const qualityNote = sourceText.length >= 900
+    ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص منظف قبل التوليد.`
+    : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف؛ لم يتم استخدام المقاطع المشوهة في بنك المعرفة.`
+  return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: qualityNote }
 }
 
 export async function rebuildProgramKnowledge(programId: string, semester?: number | null): Promise<{ programId: string; results: KnowledgeBuildResult[]; totalInserted: number; totalDeleted: number }> {
