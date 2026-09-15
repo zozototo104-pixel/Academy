@@ -346,7 +346,7 @@ export function Header() {
               الوكيل الذكي
             </button>
           )}
-          <GroupMenu label="الأكاديمية" items={academyItems} groupTargets={['agent', 'directory', 'verify', 'contact']} />
+          <GroupMenu label="الاعتمادات والعضويات" items={academyItems} groupTargets={['about', 'agent', 'directory', 'verify', 'contact']} />
           {user?.role === 'ADMIN' && (
             <button
               onClick={() => navigate('admin')}
