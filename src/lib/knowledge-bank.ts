@@ -608,7 +608,12 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, fallback, semester)
-    return normalized.length ? normalized : fallback
+    const out = normalized.length ? normalized : fallback
+    return out.map((item) => ({
+      ...item,
+      excerpt: null,
+      sourceNote: item.sourceNote || 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+    }))
   } catch (e: any) {
     console.error('aiMetadataKnowledgeItems fallback:', String(e?.message || e).slice(0, 240))
     return fallback
