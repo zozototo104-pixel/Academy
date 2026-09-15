@@ -206,6 +206,20 @@ function labelForCategory(category: string) {
   return labels[safeCategory(category)] || 'عنصر معرفة من النص'
 }
 
+function categoryDiversity(items: Pick<KnowledgeItemDraft, 'category'>[]) {
+  return new Set(items.map((item) => safeCategory(item.category))).size
+}
+
+function targetFromFallback(fallback: KnowledgeItemDraft[]) {
+  if (fallback.length >= RICH_ITEMS_PER_BOOK_TARGET) return RICH_ITEMS_PER_BOOK_TARGET
+  if (fallback.length >= MIN_ACCEPTABLE_AI_ITEMS) return fallback.length
+  return Math.min(MAX_ITEMS_PER_BOOK, Math.max(MIN_ACCEPTABLE_AI_ITEMS, fallback.length || 0))
+}
+
+function hasBalancedKnowledgeShape(items: KnowledgeItemDraft[], minItems = MIN_ACCEPTABLE_AI_ITEMS) {
+  return items.length >= minItems && categoryDiversity(items) >= MIN_AI_CATEGORY_DIVERSITY
+}
+
 function safeImportance(value: unknown, fallback = 55) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
