@@ -331,7 +331,7 @@ export function HomeView() {
                 onClick={() => navigate('programs')}
                 className="border-[#f5f0e1]/40 bg-transparent text-[#f5f0e1] hover:bg-white/10 hover:text-[#f5f0e1]"
               >
-                استكشف البرامج ({programCountLabel})
+                استكشف الخدمات والبرامج ({programCountLabel})
               </Button>
               <Button
                 size="lg"
