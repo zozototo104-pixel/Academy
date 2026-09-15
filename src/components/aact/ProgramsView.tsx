@@ -11,7 +11,9 @@ import { Input } from '@/components/ui/input'
 import { Search, ChevronLeft, Users2, Loader2 } from 'lucide-react'
 import {
   GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
-  Clock3, BadgeCheck, CheckCircle2, ClipboardList,
+  Clock3, BadgeCheck, CheckCircle2, ClipboardList, FileCheck2, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, Users, Sparkles,
 } from 'lucide-react'
 
 const ICONS: Record<string, any> = {
