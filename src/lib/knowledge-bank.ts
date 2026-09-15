@@ -951,6 +951,7 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
 - اجعل CASE وQUESTION_SEED قابلة للتحويل مباشرة إلى واجب أو امتحان.
 - لا تخترع اقتباسات حرفية أو فصولاً محددة من الكتاب.
 - لا تكتب رموزاً تقنية داخل العنوان أو الشرح.
+- title عنوان دلالي قصير من 3 إلى 8 كلمات، لا يبدأ باسم الفئة ولا بعبارات «من النص» أو «مستخرجة من النص» ولا يحتوي Markdown.
 
 أجب JSON فقط كمصفوفة، وكل عنصر:
 {"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان أكاديمي قصير","summary":"شرح مهني واضح","excerpt":"إعادة صياغة منهجية لا اقتباس حرفي","keywords":["كلمة"],"importance":75,"semester":${semester ?? 'null'},"sourceNote":"خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل"}`
