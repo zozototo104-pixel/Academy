@@ -226,7 +226,7 @@ export function StudentSupervisionTab() {
           <Card className="border-[#c9a227]/30 bg-[#fffaf0]"><CardContent className="p-5">
             <h3 className="mb-3 text-base font-black text-[#0f2b46]"><Bot className="ml-1 inline h-4 w-4 text-[#a8841a]" /> إشراف ذكي فقط</h3>
             <p className="rounded-2xl bg-white p-4 text-sm font-bold leading-7 text-slate-600 ring-1 ring-[#c9a227]/15">
-              هذا الطالب مضبوط حالياً على الإشراف الذكي، لذلك لا تظهر مراسلة المشرف البشري ولا المكالمة الصوتية المباشرة. عند تعيين مشرف بشري من الإدارة ستظهر أدوات المحادثة والصوت تلقائياً.
+              هذا الطلب مضبوط حالياً على الإشراف الذكي، لذلك لا تظهر مراسلة المشرف البشري ولا المكالمة الصوتية المباشرة. عند تعيين مشرف بشري من الإدارة ستظهر أدوات المحادثة والصوت تلقائياً.
             </p>
           </CardContent></Card>
         )}
