@@ -90,6 +90,7 @@ export async function PATCH(req: NextRequest) {
         data: {
           supervisorId,
           supervisorAt: new Date(),
+          supervisionMode: sup.role === 'SUPERVISOR' ? 'HYBRID' : 'HUMAN',
           // إذا كان الطلب قيد الدراسة فالتعيين لا يغيّر حالته — يبقى بانتظار الإقرار بالقبول
           status: app.status,
         },
