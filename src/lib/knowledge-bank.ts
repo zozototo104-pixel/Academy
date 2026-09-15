@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { geminiCompleteJson, geminiVisionJson } from '@/lib/gemini'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
-import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput } from '@/lib/academic-output-quality'
+import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput, conciseAcademicLabel } from '@/lib/academic-output-quality'
 
 export interface KnowledgeItemDraft {
   category: string
