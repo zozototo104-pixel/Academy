@@ -402,10 +402,10 @@ export function ProgramDetailsView() {
           <Tabs defaultValue="overview" dir="rtl" className="mt-6 space-y-5">
             <div className="sticky top-2 z-20 rounded-2xl border border-[#0f2b46]/10 bg-white/95 p-2 shadow-sm backdrop-blur">
               <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
-                <TabsTrigger value="overview" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> نبذة البرنامج</TabsTrigger>
-                <TabsTrigger value="academic" className="text-[10px] font-black sm:text-xs"><Landmark className="ml-1 h-3.5 w-3.5" /> النظام الأكاديمي</TabsTrigger>
-                <TabsTrigger value="content" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> المحتوى والكتب</TabsTrigger>
-                <TabsTrigger value="admission" className="text-[10px] font-black sm:text-xs"><ShieldCheck className="ml-1 h-3.5 w-3.5" /> الالتحاق والرسوم</TabsTrigger>
+                <TabsTrigger value="overview" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> {isService ? 'نبذة الخدمة' : 'نبذة البرنامج'}</TabsTrigger>
+                {!isService && <TabsTrigger value="academic" className="text-[10px] font-black sm:text-xs"><Landmark className="ml-1 h-3.5 w-3.5" /> النظام الأكاديمي</TabsTrigger>}
+                {!isService && <TabsTrigger value="content" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> المحتوى والكتب</TabsTrigger>}
+                <TabsTrigger value="admission" className="text-[10px] font-black sm:text-xs"><ShieldCheck className="ml-1 h-3.5 w-3.5" /> {isService ? 'طلب الخدمة' : 'الالتحاق والرسوم'}</TabsTrigger>
               </TabsList>
             </div>
 
