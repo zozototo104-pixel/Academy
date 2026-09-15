@@ -543,8 +543,8 @@ export function ApplyView() {
           ) : (
             <Card className="mx-auto mt-6 max-w-3xl border-[#0f2b46]/15 shadow-xl">
               <CardContent className="p-6 sm:p-8">
-                <h2 className="mb-1 text-lg font-black text-[#0f2b46]">نموذج طلب القبول الإلكتروني</h2>
-                <p className="mb-6 text-xs text-slate-500">أكمل البيانات التالية بدقة لدراسة ملفك والالتحاق بالبرنامج.</p>
+                <h2 className="mb-1 text-lg font-black text-[#0f2b46]">{isServiceRequest ? 'نموذج طلب الخدمة الإلكتروني' : 'نموذج طلب القبول الإلكتروني'}</h2>
+                <p className="mb-6 text-xs text-slate-500">{isServiceRequest ? 'أكمل بياناتك واشرح احتياجك لتتمكن الإدارة من دراسة الطلب والمتابعة.' : 'أكمل البيانات التالية بدقة لدراسة ملفك والالتحاق بالبرنامج.'}</p>
 
                 {!canSubmitStudentApplication && (
                   <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-6 text-red-700">
