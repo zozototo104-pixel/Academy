@@ -352,11 +352,13 @@ export function SupervisorView() {
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <Card><CardContent className="p-4 text-center"><GraduationCap className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.attemptsCount}</p><p className="text-xs font-bold text-slate-500">محاولات امتحان</p></CardContent></Card>
+                  <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <Card><CardContent className="p-4 text-center"><GraduationCap className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.attemptsCount}</p><p className="text-xs font-bold text-slate-500">محاولات مسلّمة</p></CardContent></Card>
+                    <Card><CardContent className="p-4 text-center"><ClipboardCheck className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.pendingProgramExamsCount ?? 0}/{selected.metrics.availableProgramExamsCount ?? 0}</p><p className="text-xs font-bold text-slate-500">امتحانات غير مسلّمة</p></CardContent></Card>
+                    <Card><CardContent className="p-4 text-center"><BookOpen className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.pendingUnitExamsCount ?? 0}/{selected.metrics.availableUnitExamsCount ?? 0}</p><p className="text-xs font-bold text-slate-500">اختبارات يومية غير مسلّمة</p></CardContent></Card>
                     <Card><CardContent className="p-4 text-center"><AlertTriangle className="mx-auto mb-2 h-5 w-5 text-amber-600" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.failedCount}</p><p className="text-xs font-bold text-slate-500">محاولات ضعيفة</p></CardContent></Card>
                     <Card><CardContent className="p-4 text-center"><Brain className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.knowledgeCount}</p><p className="text-xs font-bold text-slate-500">عناصر معرفة</p></CardContent></Card>
-                    <Card><CardContent className="p-4 text-center"><CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-emerald-600" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.assignmentsGraded}/{selected.metrics.assignmentsCount}</p><p className="text-xs font-bold text-slate-500">واجبات مصححة</p></CardContent></Card>
+                    <Card><CardContent className="p-4 text-center"><CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-emerald-600" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.assignmentsGraded}/{selected.metrics.availableAssignmentsCount ?? selected.metrics.assignmentsCount}</p><p className="text-xs font-bold text-slate-500">واجبات مصححة</p></CardContent></Card>
                   </div>
                   <Card><CardContent className="p-5">
                     <h3 className="mb-3 text-base font-black text-[#0f2b46]">نقاط تحتاج متابعة</h3>
