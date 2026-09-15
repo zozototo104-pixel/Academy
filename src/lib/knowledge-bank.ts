@@ -691,7 +691,8 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
     })
     if (out.length >= MAX_ITEMS_PER_BOOK) break
   }
-  if (out.length >= 8) return out
+  const desired = fallback.length ? targetFromFallback(fallback) : MIN_ACCEPTABLE_AI_ITEMS
+  if (out.length >= desired || fallback.length === 0) return out
   for (const fb of fallback) {
     const title = safeGeneratedOrFallback(fb.title, 'محور معرفي من الكتاب المقرر', 180, true)
     const summary = safeGeneratedOrFallback(fb.summary, 'محور أكاديمي منظّم من الكتاب المقرر صالح للدراسة والامتحان.', 900)
@@ -700,7 +701,7 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
     if (!key || seen.has(key)) continue
     seen.add(key)
     out.push({ ...fb, title, summary, excerpt, keywords: safeGeneratedList(fb.keywords, tokenizeKeywords(`${title} ${summary}`), 10, 50) })
-    if (out.length >= MAX_ITEMS_PER_BOOK) break
+    if (out.length >= desired || out.length >= MAX_ITEMS_PER_BOOK) break
   }
   return out
 }
