@@ -210,19 +210,71 @@ function looksLikeBrokenKnowledgeSource(value: unknown) {
   return false
 }
 
-function cleanKnowledgeSourceText(text: string, maxChars = 90000) {
+function isPotentialBookContent(value: unknown) {
+  const raw = cleanText(value, 2400)
+  if (!raw) return false
+  const n = norm(raw)
+  if (/google books|books google|goodreads|worldcat|tbm bks|رابط الكتاب|لم يتوفر نص|لا يوجد نص/u.test(n)) return false
+  const chars = raw.replace(/\s/g, '').length
+  const letters = countMatches(raw, /[\p{L}]/gu)
+  const words = countMatches(raw, /[\p{L}]{3,}/gu)
+  const digits = countMatches(raw, /\d/g)
+  if (raw.length < 120 || letters < 80 || words < 16) return false
+  if (chars > 60 && letters / Math.max(1, chars) < 0.42) return false
+  if (digits > letters * 1.1 && words < 70) return false
+  if (/(?:عام|سنة|سنه|حوالي)\s*(?:[3-9]\d{3}|\d{5,})/u.test(raw) && /(كتاب|استراتيجي|الفكر|الحرب|منهج)/u.test(raw)) return false
+  if (countMatches(raw, /[A-Za-zÀ-ÖØ-öø-ÿ]/g) > letters * 0.45 && /(libro|tratado|guerra|lehrs|krieg|vellena)/i.test(raw)) return false
+  return true
+}
+
+function chunkBookSourceText(text: string, maxItems = 28): string[] {
   const cleaned = cleanText(text, 160000)
-  const parts = cleaned
+  if (!cleaned) return []
+  const initial = cleaned
     .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
     .map((p) => cleanText(p, 1600))
-    .filter((p) => {
-      const letters = countMatches(p, /[\p{L}]/gu)
-      const words = countMatches(p, /[\p{L}]{3,}/gu)
-      return p.length >= 90 && letters >= 65 && words >= 14 && !looksLikeBrokenKnowledgeSource(p)
-    })
+    .filter((p) => isPotentialBookContent(p) && !looksLikeBrokenKnowledgeSource(p))
+
+  const chunks = [...initial]
+  if (chunks.length < 6) {
+    const lines = cleaned.split(/\n+/).map((x) => cleanText(x, 700)).filter(Boolean)
+    let buf = ''
+    for (const line of lines) {
+      if ((buf + ' ' + line).length > 900) {
+        const c = cleanText(buf, 1000)
+        if (isPotentialBookContent(c) && !looksLikeBrokenKnowledgeSource(c)) chunks.push(c)
+        buf = line
+      } else {
+        buf = `${buf} ${line}`.trim()
+      }
+    }
+    const last = cleanText(buf, 1000)
+    if (isPotentialBookContent(last) && !looksLikeBrokenKnowledgeSource(last)) chunks.push(last)
+  }
+
+  if (chunks.length < 4 && cleaned.length >= 900) {
+    const windowSize = 1000
+    const step = Math.max(550, Math.floor(cleaned.length / Math.max(5, maxItems)))
+    for (let i = 0; i < cleaned.length && chunks.length < maxItems; i += step) {
+      const c = cleanText(cleaned.slice(i, i + windowSize), 1000)
+      if (isPotentialBookContent(c) && !looksLikeBrokenKnowledgeSource(c)) chunks.push(c)
+    }
+  }
+
+  const seen = new Set<string>()
+  return chunks.filter((c) => {
+    const key = norm(c).slice(0, 180)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, maxItems)
+}
+
+function cleanKnowledgeSourceText(text: string, maxChars = 90000) {
+  const chunks = chunkBookSourceText(text, MAX_ITEMS_PER_BOOK)
   const out: string[] = []
   let total = 0
-  for (const p of parts) {
+  for (const p of chunks) {
     if (total + p.length > maxChars) break
     out.push(p)
     total += p.length + 2
