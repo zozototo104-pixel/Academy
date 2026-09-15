@@ -410,7 +410,7 @@ function normalizeGuide(
       outcomes: cleanGuideList(s?.outcomes, fb.outcomes || [`شرح المحور وربطه بسياق ${programTitle}`], 5, 200),
       sourceTitles: cleanGuideList(s?.sourceTitles, fb.sourceTitles || ['بنك المعرفة الأكاديمي'], 5, 160),
     }
-  }).filter((s: GuideSection) => s.title && s.summary && labelIsDisplayable(s.title) && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`)).slice(0, 8)
+  }).filter((s: GuideSection) => sectionIsUseful(s)).slice(0, 8)
 
   const activities = cleanGuideList(raw?.activities, [
     'اختر ثلاثة محاور من الدليل واكتب لكل محور معنى الفكرة، دليلها من الكتاب، وتطبيقها المهني.',
