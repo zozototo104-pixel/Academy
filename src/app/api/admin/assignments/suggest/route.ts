@@ -3,7 +3,8 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { geminiCompleteJson } from '@/lib/gemini'
-import { ensureProgramKnowledge, getProgramKnowledgeItems, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
+import { ensureProgramKnowledge, getProgramKnowledgeItems, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { conciseAcademicLabel, sanitizeAcademicLabelList } from '@/lib/academic-output-quality'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
