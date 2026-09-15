@@ -538,7 +538,9 @@ function mapGuide(g: any) {
   const rawSections = jsonArray(g.sections)
   const keyTermsFromStored = sanitizeAcademicLabelList(jsonArray(g.keyTerms), [], 14, 72).filter(labelIsDisplayable)
   const keyTermsFromSections = sanitizeAcademicLabelList(rawSections.map((s: any) => s?.title), [], 14, 72).filter(labelIsDisplayable)
-  const keyTerms = keyTermsFromStored.length ? keyTermsFromStored : keyTermsFromSections
+  const keyTerms = keyTermsFromStored.length >= 6
+    ? keyTermsFromStored
+    : sanitizeAcademicLabelList([...keyTermsFromSections, ...keyTermsFromStored], [], 14, 72).filter(labelIsDisplayable)
   const sections = rawSections.map((s: any, i: number) => ({
     title: conciseAcademicLabel(s?.title, keyTerms[i] || `محور دراسي ${i + 1}`, 120),
     summary: cleanGuideText(s?.summary, 'محور دراسي منظم من الكتب المقررة.', 1600),
