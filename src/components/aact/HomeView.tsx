@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/lib/store'
-import { ADMISSION_FEES } from '@/lib/academyData'
+import { ADMISSION_FEES, SERVICE_OFFERINGS } from '@/lib/academyData'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useEffect, useRef, useState } from 'react'
