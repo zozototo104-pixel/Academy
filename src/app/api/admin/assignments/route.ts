@@ -25,11 +25,15 @@ function asType(value: unknown) {
 }
 
 function mapAssignment(a: any) {
+  const title = cleanAcademicOutput(a.title, 220)
+  const description = cleanAcademicOutput(a.description, 6000)
+  const rubric = a.rubric ? cleanAcademicOutput(a.rubric, 4000) : null
+  if (looksLikeBrokenGeneratedArabic(`${title}. ${description}`)) return null
   return {
     id: a.id,
     programId: a.programId,
-    title: a.title,
-    description: a.description,
+    title,
+    description,
     semester: a.semester,
     type: a.type,
     points: a.points,
