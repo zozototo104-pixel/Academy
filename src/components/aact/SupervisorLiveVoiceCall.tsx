@@ -199,6 +199,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
           const pc = pcRef.current
           if (pc && !pc.remoteDescription) {
             await pc.setRemoteDescription(new RTCSessionDescription(payload))
+            await flushPendingIce()
             setPhase('connecting')
           }
         }
