@@ -616,7 +616,7 @@ export function ApplyView() {
                               setForm((f) => ({ ...f, program: '' }))
                             }}
                           >
-                            <SelectTrigger><SelectValue placeholder="اختر ماجستير/دكتوراه/دبلوم" /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="اختر برنامجاً دراسياً أو خدمة مهنية" /></SelectTrigger>
                             <SelectContent>
                               {availableCategories.map((c) => <SelectItem key={c} value={c}>{PROGRAM_CATEGORY_LABEL[c] || c}</SelectItem>)}
                             </SelectContent>
