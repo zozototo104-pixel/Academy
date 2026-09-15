@@ -82,16 +82,15 @@ function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: str
   const seen = new Set<string>()
   const out: AssignmentSuggestion[] = []
   for (const item of raw) {
-    const title = clean(item?.title, 180)
-    const description = clean(item?.description, 5000)
+    const title = cleanAssignmentText(item?.title, '', 180, true)
+    const description = cleanAssignmentText(item?.description, '', 5000)
     if (!title || !description) continue
+    if (looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
     seen.add(key)
     const type = TYPE_SET.has(String(item?.type || '').toUpperCase()) ? String(item.type).toUpperCase() : 'CASE_STUDY'
-    const src = Array.isArray(item?.sourceKnowledgeTitles)
-      ? item.sourceKnowledgeTitles.map((x: unknown) => clean(x, 140)).filter(Boolean).slice(0, 6)
-      : knowledgeTitles.slice(0, 4)
+    const src = cleanAssignmentList(item?.sourceKnowledgeTitles, knowledgeTitles.slice(0, 4), 6)
     out.push({
       title,
       description,
