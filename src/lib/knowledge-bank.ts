@@ -231,11 +231,14 @@ function fallbackKnowledgeTitle(bookTitle: string, category: string, index: numb
     QUESTION_SEED: 'بذرة سؤال',
     SUMMARY: 'خلاصة دراسية',
   }
-  return `${labels[category] || 'محور معرفي'} من كتاب «${cleanText(bookTitle, 90)}» (${index + 1})`
+  const rawBookName = cleanText(bookTitle, 90)
+  const bookName = rawBookName && !looksLikeBrokenAcademicOutput(rawBookName, { allowShort: true }) ? rawBookName : 'الكتاب المقرر'
+  return `${labels[category] || 'محور معرفي'} من «${bookName}» (${index + 1})`
 }
 
 function fallbackKnowledgeSummary(bookTitle: string, category: string) {
-  const bookName = cleanText(bookTitle, 120) || 'الكتاب المقرر'
+  const rawBookName = cleanText(bookTitle, 120)
+  const bookName = rawBookName && !looksLikeBrokenAcademicOutput(rawBookName, { allowShort: true }) ? rawBookName : 'الكتاب المقرر'
   if (category === 'CASE' || category === 'QUESTION_SEED') {
     return `يعالج هذا المحور موقفاً أو فكرة قابلة للتحويل إلى حالة مهنية من كتاب «${bookName}». يستخدمه المشرف والامتحان لربط المحتوى بالتخصص عبر تحليل القرار، الأطراف المؤثرة، المخاطر، والنتائج المتوقعة.`
   }
