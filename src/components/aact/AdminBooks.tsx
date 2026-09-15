@@ -291,6 +291,49 @@ export function AdminBooksTab() {
     [programs, programId]
   )
 
+  const displayKnowledgeItems = useMemo(() => {
+    return knowledgeItems
+      .map((item) => {
+        const title = cleanAcademicOutput(item.title, 220)
+        const summary = cleanAcademicOutput(item.summary, 1600)
+        const excerpt = item.excerpt ? cleanAcademicOutput(item.excerpt, 1200) : null
+        const keywords = sanitizeAcademicList(item.keywords || [], [], 10, 60)
+        return { ...item, title, summary, excerpt, keywords }
+      })
+      .filter((item) => item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt)))
+  }, [knowledgeItems])
+
+  const displayKnowledgeStats = useMemo(() => {
+    const stats: KnowledgeStats = {}
+    for (const item of displayKnowledgeItems) {
+      const cur = stats[item.category] || { count: 0, avgImportance: 0 }
+      cur.count += 1
+      cur.avgImportance += item.importance || 0
+      stats[item.category] = cur
+    }
+    Object.keys(stats).forEach((key) => {
+      stats[key].avgImportance = Math.round(stats[key].avgImportance / Math.max(1, stats[key].count))
+    })
+    return stats
+  }, [displayKnowledgeItems])
+
+  const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
+    ...guide,
+    title: cleanAcademicOutput(guide.title, 220),
+    overview: cleanAcademicOutput(guide.overview, 5000),
+    objectives: sanitizeAcademicList(guide.objectives, ['فهم محاور البرنامج وربطها بالتطبيق المهني'], 10, 220),
+    keyTerms: sanitizeAcademicList(guide.keyTerms, [], 18, 90),
+    activities: sanitizeAcademicList(guide.activities, ['اقرأ المحاور المحددة واكتب ملخصاً تطبيقياً قصيراً.'], 8, 300),
+    discussionQuestions: sanitizeAcademicList(guide.discussionQuestions, ['كيف يمكن توظيف هذا المحور في حالة مهنية؟'], 10, 320),
+    sections: (guide.sections || []).map((section, i) => ({
+      ...section,
+      title: cleanAcademicOutput(section.title || `محور دراسي ${i + 1}`, 180),
+      summary: cleanAcademicOutput(section.summary || 'محور منظم من الكتب المقررة.', 1600),
+      outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
+      sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
+    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
+  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [studyGuides])
+
   const academicPlanPreview = useMemo(() => {
     if (!selectedProgram) return null
     return buildAcademicProgramProfile({
