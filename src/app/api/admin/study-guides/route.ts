@@ -30,6 +30,26 @@ function clean(value: unknown, max = 3000) {
     .slice(0, max)
 }
 
+function cleanGuideText(value: unknown, fallback: string, max = 3000, allowShort = false) {
+  const cleaned = cleanAcademicGeneratedText(value, max)
+  return cleaned && !looksLikeBrokenAcademicOutput(cleaned, { allowShort }) ? cleaned : fallback
+}
+
+function cleanGuideList(values: unknown, fallback: string[], maxItems: number, maxChars: number) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const raw = Array.isArray(values) ? values : []
+  for (const item of [...raw, ...fallback]) {
+    const cleaned = cleanAcademicGeneratedText(item, maxChars)
+    const key = cleaned.toLowerCase().replace(/\s+/g, ' ')
+    if (!key || seen.has(key) || looksLikeBrokenAcademicOutput(cleaned, { allowShort: true })) continue
+    seen.add(key)
+    out.push(cleaned)
+    if (out.length >= maxItems) break
+  }
+  return out
+}
+
 function asInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
