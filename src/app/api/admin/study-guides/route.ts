@@ -273,61 +273,63 @@ function deriveGuideTerms(knowledge: any[], programTitle: string) {
   return sanitizeAcademicLabelList([...semantic, ...raw], fallback, 14, 72).filter(labelIsDisplayable)
 }
 
-function fallbackGuideSections(programTitle: string, semester: number, knowledge: any[]): GuideSection[] {
+function fallbackGuideSections(programTitle: string, semester: number, knowledge: any[], level = 'الدراسات المهنية'): GuideSection[] {
   const cleanKnowledge = knowledge
     .map((k, i) => ({
       ...k,
       category: String(k?.category || 'CONCEPT').toUpperCase(),
-      title: conciseAcademicLabel(k?.title, `محور دراسي ${i + 1}`, 92),
-      summary: cleanGuideText(k?.summary, `محور معرفي منظم من الكتب المقررة في ${programTitle}.`, 1800),
+      title: conciseAcademicLabel(k?.title || k?.summary || k?.excerpt, `محور دراسي ${i + 1}`, 92),
+      evidence: knowledgeEvidenceText(k, 360),
     }))
-    .filter((k) => labelIsDisplayable(k.title) && k.summary && !looksLikeBrokenAcademicOutput(k.summary))
+    .filter((k) => labelIsDisplayable(k.title))
 
-  const picked: any[] = []
-  for (const cat of ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']) {
-    const found = cleanKnowledge.find((k) => k.category === cat && !picked.some((p) => p.id === k.id))
-    if (found) picked.push(found)
-  }
-  for (const item of cleanKnowledge) {
-    if (picked.length >= 8) break
-    if (!picked.some((p) => p.id === item.id || normalizeAcademic(p.title) === normalizeAcademic(item.title))) picked.push(item)
+  let terms = deriveGuideTerms(cleanKnowledge.length ? cleanKnowledge : knowledge, programTitle).slice(0, 8)
+  if (terms.length < 6) {
+    terms = sanitizeAcademicLabelList([
+      ...terms,
+      ...domainTermsForGuide(programTitle, knowledge),
+      'تحليل الحالات',
+      'التطبيق المهني',
+      'التقييم النقدي',
+      'مؤشرات الأداء',
+    ], [], 8, 72).filter(labelIsDisplayable)
   }
 
-  if (picked.length === 0) {
-    return [
-      'الخريطة المفاهيمية للبرنامج',
-      'الأطر والنظريات الحاكمة',
-      'منهجيات التطبيق والتحليل',
-      'الحالات المهنية والقرارات',
-      'أخطاء الفهم الشائعة',
-      'أسئلة المراجعة والامتحان',
-    ].map((title) => ({
+  const base = terms.length ? terms : [
+    'الخريطة المفاهيمية للبرنامج',
+    'الأطر والنظريات الحاكمة',
+    'منهجيات التطبيق والتحليل',
+    'الحالات المهنية والقرارات',
+    'أخطاء الفهم الشائعة',
+    'أسئلة المراجعة والامتحان',
+  ]
+
+  const findRelated = (title: string, index: number) => {
+    const titleTokens = normalizeAcademic(title).split(' ').filter((w) => w.length >= 4)
+    const scored = cleanKnowledge.map((k, i) => {
+      const hay = normalizeAcademic(`${k.title} ${k.summary || ''} ${k.excerpt || ''} ${Array.isArray(k.keywords) ? k.keywords.join(' ') : ''}`)
+      const score = titleTokens.reduce((sum, token) => sum + (hay.includes(token) ? 1 : 0), 0) + (k.evidence ? 0.5 : 0)
+      return { k, i, score }
+    }).sort((a, b) => b.score - a.score || a.i - b.i)
+    return scored[0]?.score ? scored[0].k : cleanKnowledge[index % Math.max(1, cleanKnowledge.length)]
+  }
+
+  return base.slice(0, 8).map((rawTitle, i) => {
+    const title = conciseAcademicLabel(rawTitle, `محور دراسي ${i + 1}`, 92)
+    const related = findRelated(title, i) || { category: 'CONCEPT', bookTitle: 'بنك المعرفة الأكاديمي' }
+    return {
       title,
-      summary: `يعالج هذا المحور جانباً أساسياً في ${programTitle} ويحوّله إلى قراءة منظمة: تعريف الفكرة، تحديد علاقتها بالتخصص، تطبيقها على حالة مهنية، ثم وضع معيار للتحقق في الواجب أو الامتحان.`,
-      outcomes: [`شرح ${title}`, `تطبيق ${title} في ${programTitle}`],
-      sourceTitles: ['بنك المعرفة الأكاديمي'],
-    }))
-  }
-
-  return picked.slice(0, 8).map((k, i) => ({
-    title: k.title,
-    summary: cleanGuideText(
-      `${k.summary} يدرس الطالب هذا المحور بوصفه جزءاً من ${programTitle} في الفصل ${semester}، مع التركيز على المعنى، شروط التطبيق، حدود التعميم، ومؤشرات التحقق في الواجب أو الامتحان.`,
-      `محور دراسي تطبيقي في ${programTitle}.`,
-      1700
-    ),
-    outcomes: cleanGuideList([], [
-      `شرح ${k.title} بلغة أكاديمية واضحة`,
-      `ربط ${k.title} بحالة مهنية في ${programTitle}`,
-      'تمييز شروط التطبيق وحدود التعميم',
-    ], 4, 180),
-    sourceTitles: cleanGuideList([], [k.bookTitle || 'بنك المعرفة الأكاديمي'], 4, 160),
-  }))
+      summary: analyticalGuideSummary(title, related, programTitle, level, semester),
+      outcomes: outcomesForSection(title, programTitle, related?.category),
+      sourceTitles: cleanGuideList([], [related?.bookTitle || 'بنك المعرفة الأكاديمي'], 4, 160),
+    }
+  }).filter(sectionIsUseful)
 }
 
 function guideLooksStrong(guide: GeneratedGuide) {
-  const deepSections = guide.sections.filter((s) => s.summary.length >= 140 && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
-  return guide.objectives.length >= 3 && guide.keyTerms.length >= 6 && deepSections.length >= 5 && guide.discussionQuestions.length >= 3
+  const deepSections = guide.sections.filter((s) => s.summary.length >= 180 && sectionIsUseful(s))
+  const uniqueSectionTitles = new Set(deepSections.map((s) => normalizeAcademic(s.title))).size
+  return guide.objectives.length >= 3 && guide.keyTerms.length >= 6 && deepSections.length >= 5 && uniqueSectionTitles >= 5 && guide.discussionQuestions.length >= 3
 }
 
 function asInt(value: unknown, fallback: number, min: number, max: number) {
