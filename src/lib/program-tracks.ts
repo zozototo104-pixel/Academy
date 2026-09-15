@@ -20,7 +20,7 @@ type SeedLike = {
 
 export const GENERIC_ALL_SPECIALIZATIONS_SLUGS = ['professional-masters', 'professional-doctorate']
 
-export const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
+export const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
 
 export const PROGRAM_CATEGORY_AR: Record<string, string> = {
   MASTERS: 'الماجستير المهني',
@@ -28,6 +28,7 @@ export const PROGRAM_CATEGORY_AR: Record<string, string> = {
   DIPLOMA: 'الدبلومات المهنية',
   INTL_CERT: 'الشهادات الدولية',
   ACCREDITATION: 'الاعتمادات المهنية',
+  SERVICE: 'الخدمات المهنية',
 }
 
 export interface DegreeSpecialization {
