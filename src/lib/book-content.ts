@@ -110,6 +110,31 @@ function looksLikeMetadataOnlyText(text: string): boolean {
   )
 }
 
+function looksLikeBrokenArabicBookExtraction(text: string): boolean {
+  const sample = normalizeExtractedText(text, 14000)
+  if (!sample) return true
+  const n = normalizeAcademic(sample)
+  const tokens = n.split(' ').filter(Boolean)
+  const arabicLetters = (sample.match(/[\u0600-\u06FF]/g) || []).length
+  const latinLetters = (sample.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/g) || []).length
+  const arabicWords = tokens.filter((t) => /[\u0600-\u06FF]/.test(t)).length
+  const weirdTokens = new Set(['يف', 'ويف', 'الثاين', 'اختاذ', 'اختاد', 'القررا', 'القرا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'املبادي', 'االستراتيجيه'])
+  const weirdCount = tokens.filter((t) => weirdTokens.has(t)).length
+  const badFragments = [
+    'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
+    'كتاب اطلب', 'كتاب احرب', 'كتاب الثاين', 'الكتاب ويف', 'يف اسبانيا', 'كتاب حرب هو',
+    'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
+    'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'vellena',
+  ]
+  if (badFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
+  if (arabicWords >= 60 && weirdCount >= 3) return true
+  if (arabicWords >= 20 && weirdCount >= 1 && /(القرار|الاداره|الاستراتيجي|الكتاب|المحتوى|المحتوي|المهني)/u.test(n)) return true
+  if (arabicLetters >= 80 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena|lucien\s+poirier)/i.test(sample)) return true
+  if (/(?:عام|سنة|سنه|حوالي)\s*(?:[3-9]\d{3}|\d{5,})/u.test(sample) && /(كتاب|استراتيجي|الفكر|الحرب|منهج)/u.test(sample)) return true
+  return false
+}
+
 function isUsableBookText(text: string, minChars = MIN_USABLE_TEXT): boolean {
   const cleaned = normalizeExtractedText(text, MAX_BOOK_CONTEXT_CHARS)
   if (cleaned.length < minChars || looksLikeMetadataOnlyText(cleaned)) return false
