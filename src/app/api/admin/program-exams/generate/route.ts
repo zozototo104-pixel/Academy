@@ -239,6 +239,11 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('عنوان الكتاب') ||
     n.includes('العنوان الاصلي') ||
     n.includes('محور معرفي مهم') ||
+    n.includes('حاله تطبيقيه من النص') ||
+    n.includes('منهجيه مستخرجه من النص') ||
+    n.includes('نظريه او اطار من النص') ||
+    n.includes('تعريف من النص') ||
+    n.includes('بذره سوال من النص') ||
     n.includes('دليل من المحتوي') ||
     n.includes('خلاصه اكاديميه') ||
     n.includes('مقتطف داعم') ||
