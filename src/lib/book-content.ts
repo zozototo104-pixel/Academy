@@ -277,7 +277,7 @@ async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: stri
     }
 
     const html = await res.text()
-    const text = normalizeExtractedText(stripHtml(html), MAX_BOOK_CONTEXT_CHARS)
+    const text = repairExtractedAcademicText(stripHtml(html), MAX_BOOK_CONTEXT_CHARS)
     if (isUsableBookText(text, MIN_USABLE_TEXT)) {
       return { text, note: 'تم استخراج نص صفحة/رابط الكتاب', quality: 'LINK_TEXT' }
     }
