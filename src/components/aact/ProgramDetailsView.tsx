@@ -394,8 +394,8 @@ export function ProgramDetailsView() {
             </div>
             <div className="rounded-2xl border border-[#0f2b46]/10 bg-[#faf6ea] p-4">
               <Users2 className="mb-2 h-5 w-5 text-[#a8841a]" />
-              <p className="text-xs font-bold text-slate-500">المحتوى</p>
-              <p className="mt-1 text-lg font-black text-[#0f2b46]">{program.unitsCount > 0 ? `${program.unitsCount} وحدات` : 'اعتماد مباشر'}</p>
+              <p className="text-xs font-bold text-slate-500">{isService ? 'المتابعة' : 'المحتوى'}</p>
+              <p className="mt-1 text-lg font-black text-[#0f2b46]">{program.unitsCount > 0 ? `${program.unitsCount} وحدات` : isService ? 'طلب خدمة ومتابعة' : 'اعتماد مباشر'}</p>
             </div>
           </div>
 
