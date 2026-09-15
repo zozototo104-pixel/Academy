@@ -1332,7 +1332,8 @@ function conceptLabel(concept: string, max = 150): string {
   const cleaned = stripExamKnowledgeMeta(concept
     .replace(/^من كتاب\s+«[^»]+»:?\s*/u, '')
     .replace(/^(مقطع|فصل|باب)\s+\d+[:：]?\s*/u, ''), max)
-  return cleaned && !isBrokenAcademicExamText(cleaned, true) ? cleaned : 'فكرة تطبيقية واضحة من الكتاب المقرر'
+  const label = conciseAcademicLabel(cleaned, 'فكرة تطبيقية واضحة من الكتاب المقرر', Math.min(max, 90))
+  return label && !isBrokenAcademicExamText(label, true) ? label : 'فكرة تطبيقية واضحة من الكتاب المقرر'
 }
 
 function sourceBookFromEvidence(evidence: string, books: ExamSourceBook[]): string | null {
