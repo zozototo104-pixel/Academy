@@ -525,7 +525,7 @@ export function AdminBooksTab() {
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      toast({ title: 'تم بناء بنك المعرفة', description: `استخرج النظام ${d.result?.totalInserted || d.count || 0} عنصر معرفة من الكتب المقررة` })
+      toast({ title: 'تم بناء بنك المعرفة', description: `بنى النظام ${d.result?.totalInserted || d.count || 0} عنصر معرفة من النص المقروء أو من توصيف الكتاب عند غياب النص المباشر` })
     } catch (e: any) {
       toast({ title: 'تعذر بناء بنك المعرفة', description: e.message, variant: 'destructive' })
     } finally {
