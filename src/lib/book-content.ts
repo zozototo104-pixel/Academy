@@ -115,7 +115,7 @@ function looksLikeMetadataOnlyText(text: string): boolean {
 }
 
 function looksLikeBrokenArabicBookExtraction(text: string): boolean {
-  const sample = normalizeExtractedText(text, 14000)
+  const sample = repairExtractedAcademicText(text, 14000)
   if (!sample) return true
   if (looksLikeBrokenGeneratedArabic(sample)) return true
   const n = normalizeAcademic(sample)
