@@ -300,7 +300,7 @@ export function ApplyView() {
       }
       const d = await api<{ reference: string; message: string; invoice: any }>('/api/admissions', { method: 'POST', body: fd })
       setDone({ reference: d.reference, invoice: d.invoice || null })
-      toast({ title: 'تم استلام الطلب', description: 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
+      toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)
       toast({ title: 'تعذر تقديم الطلب', description: err.message || 'حدث خطأ غير متوقع', variant: 'destructive' })
