@@ -70,8 +70,14 @@ interface SupervisedStudent {
     attemptsCount: number
     programExamAttemptsCount?: number
     unitExamAttemptsCount?: number
+    availableProgramExamsCount?: number
+    pendingProgramExamsCount?: number
+    availableUnitExamsCount?: number
+    pendingUnitExamsCount?: number
     failedCount: number
     assignmentsCount: number
+    availableAssignmentsCount?: number
+    pendingAssignmentsCount?: number
     assignmentsGraded: number
     privateAssessmentsCount: number
     privateAssessmentsSubmitted: number
