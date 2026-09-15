@@ -674,7 +674,7 @@ export function ApplyView() {
                                   {f ? (
                                     <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-emerald-700"><Paperclip className="h-3 w-3" /> {f.name} ({fmtSize(f.size)})</p>
                                   ) : (
-                                    <p className="mt-1 text-[11px] font-bold text-red-500">لم يُرفع بعد — مطلوب</p>
+                                    <p className={`mt-1 text-[11px] font-bold ${isServiceRequest ? 'text-slate-400' : 'text-red-500'}`}>{isServiceRequest ? 'لم يُرفع بعد — اختياري' : 'لم يُرفع بعد — مطلوب'}</p>
                                   )}
                                 </div>
                                 <div className="flex shrink-0 flex-col gap-1.5">
