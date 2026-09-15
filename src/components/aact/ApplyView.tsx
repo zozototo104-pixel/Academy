@@ -99,8 +99,9 @@ const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
   DIPLOMA: 'الدبلومات المهنية',
   INTL_CERT: 'الشهادات الدولية',
   ACCREDITATION: 'الاعتمادات المهنية',
+  SERVICE: 'الخدمات المهنية',
 }
-const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
+const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
