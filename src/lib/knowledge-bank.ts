@@ -314,10 +314,13 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
   }
   if (out.length >= 8) return out
   for (const fb of fallback) {
-    const key = norm(`${fb.title} ${fb.summary}`).slice(0, 180)
+    const title = safeGeneratedOrFallback(fb.title, 'محور معرفي من الكتاب المقرر', 180, true)
+    const summary = safeGeneratedOrFallback(fb.summary, 'محور أكاديمي منظّم من الكتاب المقرر صالح للدراسة والامتحان.', 900)
+    const excerpt = fb.excerpt && !looksLikeBrokenAcademicOutput(fb.excerpt) ? cleanText(fb.excerpt, 900) : null
+    const key = norm(`${title} ${summary}`).slice(0, 180)
     if (!key || seen.has(key)) continue
     seen.add(key)
-    out.push(fb)
+    out.push({ ...fb, title, summary, excerpt, keywords: safeGeneratedList(fb.keywords, tokenizeKeywords(`${title} ${summary}`), 10, 50) })
     if (out.length >= MAX_ITEMS_PER_BOOK) break
   }
   return out
