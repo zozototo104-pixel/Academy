@@ -1,5 +1,6 @@
 import { extractDocumentText, normalizeExtractedText } from '@/lib/document-extract'
 import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
+import { normalizeAcademic } from '@/lib/academic-output-quality'
 
 // ===== قراءة محتوى الكتب للامتحانات =====
 // لا نعتمد على textContent فقط. إذا كان النص غير مستخرج، نحاول قراءة الملف المخزن، ثم الرابط،
