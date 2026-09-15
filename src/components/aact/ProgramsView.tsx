@@ -74,13 +74,35 @@ export function ProgramsView() {
   const { toast } = useToast()
 
   const load = async () => {
+    let hadCache = false
     try {
-      const d = await api<{ programs: Program[] }>('/api/programs?summary=1')
-      setPrograms(d.programs)
+      const cached = JSON.parse(localStorage.getItem('aact_programs_summary_v2') || '[]')
+      if (Array.isArray(cached) && cached.length > 0) {
+        hadCache = true
+        setPrograms(cached)
+        setLoading(false)
+      }
+    } catch {}
+
+    try {
+      const d = user
+        ? await api<{ programs: Program[] }>('/api/programs?summary=1')
+        : await fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } }).then(async (res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            return res.json() as Promise<{ programs: Program[] }>
+          })
+      const list = Array.isArray(d.programs) ? d.programs : []
+      setPrograms(list)
+      if (list.length > 0) {
+        try {
+          localStorage.setItem('aact_program_count', String(list.length))
+          localStorage.setItem('aact_programs_summary_v2', JSON.stringify(list.slice(0, 60)))
+        } catch {}
+      }
     } catch {
-      toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' })
+      if (!hadCache) toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' })
     } finally {
-      setLoading(false)
+      if (!hadCache) setLoading(false)
     }
   }
 
