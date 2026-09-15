@@ -1119,7 +1119,7 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
     if (concepts.length - before < 4 && full.length >= 160) {
       for (const ratio of [0, 0.18, 0.36, 0.54, 0.72, 0.9]) {
         const chunk = stripExamKnowledgeMeta(pickWindow(full, ratio, 360), 360)
-        if (chunk && !hasForbiddenExamMetadata(chunk)) concepts.push(`من كتاب «${title}»: ${chunk}`)
+        if (chunk && !hasForbiddenExamMetadata(chunk) && !isBrokenAcademicExamText(chunk)) concepts.push(`من كتاب «${title}»: ${chunk}`)
       }
     }
   }
