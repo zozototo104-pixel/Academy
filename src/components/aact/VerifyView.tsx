@@ -81,6 +81,7 @@ export function VerifyView() {
         <div className="mx-auto mb-4 w-fit rounded-2xl bg-[#0f2b46] p-4 text-[#e0b83a]">
           <ShieldCheck className="h-9 w-9" />
         </div>
+        <div className="mb-2 inline-flex rounded-full bg-[#f7edd0] px-3 py-1 text-[11px] font-black text-[#a8841a]">نظام التحقق الرسمي</div>
         <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">التحقق من صحة الشهادات</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
           صفحة التحقق الرسمية من شهادات الأكاديمية الأمريكية للاستشارات والتدريب. أدخل الرقم
