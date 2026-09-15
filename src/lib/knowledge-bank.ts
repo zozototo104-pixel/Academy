@@ -369,20 +369,74 @@ function tokenizeKeywords(text: string, max = 9) {
   return out
 }
 
+function splitLongSeedBlock(block: string, maxChars = 1400) {
+  const source = cleanText(block, 6000)
+  if (!source) return []
+  if (source.length <= maxChars) return [source]
+
+  const chunks: string[] = []
+  const sentences = source
+    .split(/(?<=[.!؟؛])\s+|\n+/gu)
+    .map((s) => cleanText(s, 700))
+    .filter(Boolean)
+
+  if (sentences.length > 1) {
+    let cur = ''
+    for (const sentence of sentences) {
+      if ((cur + ' ' + sentence).trim().length > maxChars && cur.length >= 360) {
+        chunks.push(cur)
+        cur = sentence
+      } else {
+        cur = `${cur} ${sentence}`.trim()
+      }
+    }
+    if (cur.length >= 180) chunks.push(cur)
+  }
+
+  if (chunks.length === 0) {
+    const words = source.split(/\s+/).filter(Boolean)
+    const windowSize = 120
+    const step = 90
+    for (let i = 0; i < words.length; i += step) {
+      const chunk = cleanText(words.slice(i, i + windowSize).join(' '), maxChars)
+      if (chunk.length >= 180) chunks.push(chunk)
+    }
+  }
+
+  return chunks
+}
+
 function splitBookIntoSeeds(text: string, maxItems = MAX_ITEMS_PER_BOOK) {
   const cleaned = cleanText(text, 160000)
-  const paragraphs = cleaned
-    .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
-    .map((p) => cleanText(p, 1400))
-    .filter((p) => p.length >= 120 && (p.match(/[\p{L}]/gu) || []).length > 70 && !looksLikeBrokenKnowledgeSource(p))
+  if (!cleaned) return []
 
-  if (paragraphs.length === 0) return []
-  const indexes = new Set<number>()
-  const take = Math.min(maxItems, paragraphs.length)
-  for (let i = 0; i < take; i++) {
-    indexes.add(Math.floor((i * paragraphs.length) / take))
+  const candidates: string[] = []
+  const seen = new Set<string>()
+  const add = (value: string) => {
+    const chunk = cleanText(value, 1500)
+    const letters = (chunk.match(/[\p{L}]/gu) || []).length
+    if (chunk.length < 120 || letters < 70 || looksLikeBrokenKnowledgeSource(chunk)) return
+    const key = norm(chunk).slice(0, 180)
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    candidates.push(chunk)
   }
-  return Array.from(indexes).map((i) => paragraphs[i]).filter(Boolean).slice(0, maxItems)
+
+  for (const block of cleaned.split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)) {
+    for (const chunk of splitLongSeedBlock(block)) add(chunk)
+  }
+
+  if (candidates.length < Math.min(12, maxItems)) {
+    for (const chunk of splitLongSeedBlock(cleaned, 1500)) add(chunk)
+  }
+
+  if (candidates.length === 0) return []
+  const indexes = new Set<number>()
+  const take = Math.min(maxItems, candidates.length)
+  for (let i = 0; i < take; i++) {
+    indexes.add(Math.floor((i * candidates.length) / take))
+  }
+  return Array.from(indexes).map((i) => candidates[i]).filter(Boolean).slice(0, maxItems)
 }
 
 function inferCategory(seed: string, index: number): string {
