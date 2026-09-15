@@ -136,7 +136,9 @@ function looksLikeBrokenArabicBookExtraction(text: string): boolean {
     'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'vellena',
   ]
-  if (badFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
+  const badHits = badFragments.filter((x) => n.includes(normalizeAcademic(x))).length
+  // لا نرفض كتاباً كاملاً إلا إذا تكررت مؤشرات التشوه؛ وجود عبارة فهرسية واحدة داخل كتاب لا يعني أن الملف غير مقروء.
+  if ((sample.length < 2500 && badHits >= 1) || badHits >= 3) return true
   if (arabicWords >= 60 && weirdCount >= 3) return true
   if (arabicWords >= 20 && weirdCount >= 1 && /(القرار|الاداره|الاستراتيجي|الكتاب|المحتوى|المحتوي|المهني)/u.test(n)) return true
   if (arabicLetters >= 80 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena)/i.test(sample)) return true
