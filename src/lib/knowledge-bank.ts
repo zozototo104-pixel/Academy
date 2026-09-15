@@ -210,7 +210,34 @@ function inferCategory(seed: string, index: number): string {
 
 function titleFromSeed(seed: string, index: number) {
   const first = cleanText(seed.split(/[.!؟؛\n]/u).find((x) => cleanText(x).length > 20) || seed, 110)
-  return first.length > 12 ? first : `محور معرفي رقم ${index + 1}`
+  return first.length > 12 && !looksLikeBrokenAcademicOutput(first, { allowShort: true }) ? first : `محور معرفي رقم ${index + 1}`
+}
+
+function fallbackKnowledgeTitle(bookTitle: string, category: string, index: number) {
+  const labels: Record<string, string> = {
+    CONCEPT: 'مفهوم تطبيقي',
+    THEORY: 'إطار نظري',
+    METHOD: 'منهجية عمل',
+    CASE: 'حالة تطبيقية',
+    DEFINITION: 'تعريف مهني',
+    QUESTION_SEED: 'بذرة سؤال',
+    SUMMARY: 'خلاصة دراسية',
+  }
+  return `${labels[category] || 'محور معرفي'} من كتاب «${cleanText(bookTitle, 90)}» (${index + 1})`
+}
+
+function fallbackKnowledgeSummary(bookTitle: string, category: string) {
+  const bookName = cleanText(bookTitle, 120) || 'الكتاب المقرر'
+  if (category === 'CASE' || category === 'QUESTION_SEED') {
+    return `يعالج هذا المحور موقفاً أو فكرة قابلة للتحويل إلى حالة مهنية من كتاب «${bookName}». يستخدمه المشرف والامتحان لربط المحتوى بالتخصص عبر تحليل القرار، الأطراف المؤثرة، المخاطر، والنتائج المتوقعة.`
+  }
+  if (category === 'METHOD') {
+    return `يعرض هذا المحور طريقة عمل أو تسلسل إجراءات من كتاب «${bookName}». يركز الاستخدام الأكاديمي له على فهم الخطوات، شروط التطبيق، مؤشرات النجاح، والأخطاء الشائعة عند نقلها إلى بيئة مهنية.`
+  }
+  if (category === 'THEORY') {
+    return `يلخص هذا المحور إطاراً أو نموذجاً نظرياً من كتاب «${bookName}». يتم توظيفه في الدراسة للمقارنة والتحليل وبناء تفسير مهني مدعوم بدليل بدلاً من الحفظ العام.`
+  }
+  return `يلخص هذا المحور فكرة أساسية من كتاب «${bookName}» بطريقة صالحة للدراسة والامتحان. يركز على المعنى المهني للفكرة، علاقتها بالتخصص، وكيف يمكن استخدامها في سؤال تطبيقي أو واجب تحليلي.`
 }
 
 function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: number | null }, text: string, semester?: number | null): KnowledgeItemDraft[] {
