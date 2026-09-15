@@ -35,6 +35,26 @@ function normalizeType(t: any): GeneratedQuestion['type'] {
   return 'MCQ'
 }
 
+function cleanQuestionPart(value: unknown, fallback = '', max = 1200, allowShort = false) {
+  const cleaned = cleanAcademicGeneratedText(value, max)
+  return cleaned && !looksLikeBrokenAcademicOutput(cleaned, { allowShort }) ? cleaned : fallback
+}
+
+function cleanQuestionOptions(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const v of values) {
+    const cleaned = cleanQuestionPart(v, '', 260, true)
+    const key = cleaned.toLowerCase().replace(/\s+/g, ' ')
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(cleaned)
+    if (out.length >= 5) break
+  }
+  return out.length >= 2 ? out : undefined
+}
+
 function fallbackQuestions(knowledge: any[], books: any[], count: number, level: string, specialty: string): GeneratedQuestion[] {
   const items = knowledge.length ? knowledge : books.map((b: any) => ({ title: b.title, summary: b.description || b.readingDepth || b.assessmentOrientation || b.title, sourceNote: b.title, book: b }))
   const out: GeneratedQuestion[] = []
