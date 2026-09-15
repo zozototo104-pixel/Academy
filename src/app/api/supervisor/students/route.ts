@@ -29,7 +29,9 @@ async function buildStudentCard(app: any) {
       include: {
         books: { select: { id: true, title: true, semester: true, linkReadStatus: true, source: true } },
         knowledgeItems: { select: { id: true, category: true, title: true, importance: true }, orderBy: { importance: 'desc' }, take: 12 },
-        programExams: { select: { id: true, title: true, semester: true, status: true, passScore: true, durationMin: true, totalPoints: true, _count: { select: { questions: true } } } },
+        programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, status: true, passScore: true, durationMin: true, totalPoints: true, _count: { select: { questions: true } } } },
+        units: { orderBy: { order: 'asc' }, select: { id: true, title: true, order: true, exam: { select: { id: true, title: true, passScore: true, _count: { select: { questions: true } } } } } },
+        assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { id: true, title: true, semester: true, type: true, points: true, weight: true, dueDays: true, status: true } },
       },
     }) : null,
     userId ? db.programExamAttempt.findMany({
