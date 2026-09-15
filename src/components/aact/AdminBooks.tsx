@@ -562,7 +562,7 @@ export function AdminBooksTab() {
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      toast({ title: 'تم تحليل الكتاب', description: `تم استخراج ${d.result?.inserted || 0} عنصر معرفة من هذا الكتاب` })
+      toast({ title: 'تم تحليل الكتاب', description: d.result?.sourceNote || `تم استخراج ${d.result?.inserted || 0} عنصر معرفة من هذا الكتاب` })
     } catch (e: any) {
       toast({ title: 'تعذر تحليل الكتاب', description: e.message, variant: 'destructive' })
     } finally {
