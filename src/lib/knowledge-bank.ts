@@ -73,6 +73,9 @@ function countMatches(value: string, re: RegExp) {
 export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort?: boolean } = {}) {
   const raw = cleanAcademicGeneratedText(value, 5000)
   if (!raw) return true
+  // استخدم الحارس المركزي أولاً حتى يكون الحكم موحداً بين التوليد والعرض والتنظيف.
+  // في النصوص القصيرة نسمح للحارس المحلي بالقرار حتى لا يحذف مصطلحاً صحيحاً من كلمة أو كلمتين.
+  if ((!opts.allowShort || raw.length > 45) && sharedLooksBrokenAcademicOutput(raw)) return true
   const n = norm(raw)
   const chars = raw.replace(/\s/g, '')
   const letters = countMatches(raw, /[\p{L}]/gu)
