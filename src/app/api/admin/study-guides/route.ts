@@ -353,8 +353,11 @@ ${context}
 }
 
 function mapGuide(g: any) {
-  const keyTerms = sanitizeAcademicLabelList(jsonArray(g.keyTerms), [], 14, 72).filter(labelIsDisplayable)
-  const sections = jsonArray(g.sections).map((s: any, i: number) => ({
+  const rawSections = jsonArray(g.sections)
+  const keyTermsFromStored = sanitizeAcademicLabelList(jsonArray(g.keyTerms), [], 14, 72).filter(labelIsDisplayable)
+  const keyTermsFromSections = sanitizeAcademicLabelList(rawSections.map((s: any) => s?.title), [], 14, 72).filter(labelIsDisplayable)
+  const keyTerms = keyTermsFromStored.length ? keyTermsFromStored : keyTermsFromSections
+  const sections = rawSections.map((s: any, i: number) => ({
     title: conciseAcademicLabel(s?.title, keyTerms[i] || `محور دراسي ${i + 1}`, 120),
     summary: cleanGuideText(s?.summary, 'محور دراسي منظم من الكتب المقررة.', 1600),
     outcomes: cleanGuideList(s?.outcomes, ['فهم المحور وربطه بالتطبيق المهني'], 5, 180),
