@@ -817,11 +817,11 @@ ${sample}
         { role: 'assistant', content: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.' },
         { role: 'user', content: prompt },
       ], 2),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ZAI_TIMEOUT')), 30000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ZAI_TIMEOUT')), 36000)),
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, [], semester)
-    return normalized.length >= 6 ? normalized : null
+    return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
     return null
