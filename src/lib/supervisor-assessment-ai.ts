@@ -209,7 +209,7 @@ export async function generateSupervisorQuestions(opts: {
   } catch (e) {
     console.error('supervisor assessment AI generation failed', e)
   }
-  return fallbackQuestions(knowledge, books, count, level, specialty)
+  return fallbackQuestions(cleanKnowledge, books, count, level, specialty)
 }
 
 export async function gradeSupervisorAttemptWithAi(opts: {
