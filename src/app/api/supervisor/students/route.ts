@@ -260,7 +260,7 @@ async function buildStudentCard(app: any) {
       programExamAttemptsCount: attempts.length,
       unitExamAttemptsCount: unitAttempts.length,
       availableProgramExamsCount: availableProgramExams.length,
-      pendingProgramExamsCount: availableProgramExams.filter((x: any) => !x.submitted).length,
+      pendingProgramExamsCount: availableProgramExams.filter((x: any) => x.studentAvailable && !x.submitted).length,
       availableUnitExamsCount: availableUnitExams.length,
       pendingUnitExamsCount: availableUnitExams.filter((x: any) => !x.submitted).length,
       failedCount: failed.length + unitFailed.length,
