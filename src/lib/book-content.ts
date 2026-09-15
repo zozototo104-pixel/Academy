@@ -52,6 +52,10 @@ function extOf(fileName?: string | null): string {
   return m?.[1] || ''
 }
 
+function repairExtractedAcademicText(text: string, max = MAX_BOOK_CONTEXT_CHARS): string {
+  return cleanAcademicOutput(normalizeExtractedText(text, max), max)
+}
+
 function inferMime(fileName?: string | null, fallback?: string | null): string {
   const mime = String(fallback || '').toLowerCase()
   if (mime && mime !== 'application/octet-stream') return mime
