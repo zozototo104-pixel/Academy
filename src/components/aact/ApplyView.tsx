@@ -270,7 +270,7 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
-    if (!form.nationalId.trim()) {
+    if (!isServiceRequest && !form.nationalId.trim()) {
       toast({ title: 'تنبيه', description: 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر', variant: 'destructive' })
       return
     }
