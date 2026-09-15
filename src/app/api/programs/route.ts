@@ -98,6 +98,12 @@ export async function GET(req: NextRequest) {
           academicProfile: academicProfileFromRules(row.admissionRules),
         }
       }),
+    }
+
+    return NextResponse.json(payload, {
+      headers: publicOnly
+        ? { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' }
+        : { 'Cache-Control': 'private, no-store' },
     })
   } catch (e) {
     console.error('Programs error:', e)
