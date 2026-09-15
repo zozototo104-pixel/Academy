@@ -1,5 +1,5 @@
 // AACT Platform Service Worker — PWA support for Android installation
-const CACHE_NAME = 'aact-v60'
+const CACHE_NAME = 'aact-v61'
 const CORE_ASSETS = ['/', '/manifest.json', '/logo.png', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
