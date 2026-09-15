@@ -121,6 +121,22 @@ function fallbackGuideSections(programTitle: string, semester: number, knowledge
     if (!picked.some((p) => p.id === item.id || normalizeAcademic(p.title) === normalizeAcademic(item.title))) picked.push(item)
   }
 
+  if (picked.length === 0) {
+    return [
+      'الخريطة المفاهيمية للبرنامج',
+      'الأطر والنظريات الحاكمة',
+      'منهجيات التطبيق والتحليل',
+      'الحالات المهنية والقرارات',
+      'أخطاء الفهم الشائعة',
+      'أسئلة المراجعة والامتحان',
+    ].map((title) => ({
+      title,
+      summary: `يعالج هذا المحور جانباً أساسياً في ${programTitle} ويحوّله إلى قراءة منظمة: تعريف الفكرة، تحديد علاقتها بالتخصص، تطبيقها على حالة مهنية، ثم وضع معيار للتحقق في الواجب أو الامتحان.`,
+      outcomes: [`شرح ${title}`, `تطبيق ${title} في ${programTitle}`],
+      sourceTitles: ['بنك المعرفة الأكاديمي'],
+    }))
+  }
+
   return picked.slice(0, 8).map((k, i) => ({
     title: k.title,
     summary: cleanGuideText(
