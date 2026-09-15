@@ -1057,7 +1057,7 @@ export function AdminBooksTab() {
                   <p className="mb-2 text-xs font-black text-[#0f2b46]">تحليل الكتب فردياً</p>
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
-                      const countForBook = knowledgeItems.filter((k) => k.bookId === b.id).length
+                      const countForBook = displayKnowledgeItems.filter((k) => k.bookId === b.id).length
                       return (
                         <div key={b.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
                           <div className="min-w-0">
