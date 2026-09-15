@@ -542,6 +542,8 @@ export function Footer() {
           <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">روابط سريعة</h4>
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('programs')}>البرامج والخدمات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>الشهادات والتحقق</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('about')}>من نحن</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('apply')}>طلب الالتحاق وتتبعه</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('agent')}>الوكالة الدولية والاعتمادات</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('directory')}>دليل المعتمدين والوكلاء</button></li>
