@@ -274,7 +274,7 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر', variant: 'destructive' })
       return
     }
-    const missing = REQUIRED_DOCS.filter((d) => !files[d.type])
+    const missing = requiredDocs.filter((d) => !files[d.type])
     if (missing.length > 0) {
       setMissingDocs(missing.map((m) => m.label))
       toast({ title: 'المستندات غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
