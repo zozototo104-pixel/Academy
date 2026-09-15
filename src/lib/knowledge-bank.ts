@@ -257,7 +257,7 @@ function splitBookIntoSeeds(text: string, maxItems = MAX_ITEMS_PER_BOOK) {
   const paragraphs = cleaned
     .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
     .map((p) => cleanText(p, 1400))
-    .filter((p) => p.length >= 120 && (p.match(/[\p{L}]/gu) || []).length > 70 && !looksLikeBrokenAcademicOutput(p))
+    .filter((p) => p.length >= 120 && (p.match(/[\p{L}]/gu) || []).length > 70 && !looksLikeBrokenKnowledgeSource(p))
 
   if (paragraphs.length === 0) return []
   const indexes = new Set<number>()
