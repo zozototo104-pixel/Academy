@@ -1087,9 +1087,19 @@ export async function rebuildProgramKnowledge(programId: string, semester?: numb
 export async function ensureProgramKnowledge(programId: string, semester?: number | null, minItems = MIN_CONTEXT_KNOWLEDGE_ITEMS) {
   const where: any = { programId }
   if (semester) where.OR = [{ semester: null }, { semester }]
+  const books = await db.book.findMany({
+    where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) },
+    select: { id: true, fileName: true, linkReadStatus: true, link: true },
+  })
+  const hasReadableBackingSource = books.some((book) =>
+    !!book.fileName || ['FILE_EXTRACTED', 'TEXT_EXTRACTED'].includes(String(book.linkReadStatus || ''))
+  )
+  const effectiveMinItems = books.length <= 1 && !hasReadableBackingSource
+    ? Math.min(minItems, METADATA_ITEMS_TARGET)
+    : minItems
   const rawCount = await db.bookKnowledgeItem.count({ where })
-  const validItems = await getProgramKnowledgeItems(programId, semester, Math.max(40, minItems * 4)).catch(() => [])
-  if (validItems.length >= minItems) return { rebuilt: false, count: validItems.length, rawCount }
+  const validItems = await getProgramKnowledgeItems(programId, semester, Math.max(40, effectiveMinItems * 4)).catch(() => [])
+  if (validItems.length >= effectiveMinItems) return { rebuilt: false, count: validItems.length, rawCount }
   const rebuilt = await rebuildProgramKnowledge(programId, semester)
   return { rebuilt: true, count: rebuilt.totalInserted, rawCount }
 }
