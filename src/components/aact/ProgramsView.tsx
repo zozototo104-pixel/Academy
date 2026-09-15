@@ -19,6 +19,11 @@ import {
 const ICONS: Record<string, any> = {
   briefcase: Briefcase, award: Award, 'book-open': BookOpen,
   'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
+  'file-check-2': FileCheck2, 'package-check': PackageCheck, 'messages-square': MessagesSquare,
+  presentation: Presentation, headphones: Headphones, megaphone: Megaphone, calendar: Calendar,
+  'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
+  compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
+  gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
