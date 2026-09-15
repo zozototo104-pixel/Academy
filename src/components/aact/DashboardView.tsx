@@ -193,6 +193,23 @@ export function DashboardView() {
   const [earnedMicroCredentials, setEarnedMicroCredentials] = useState<MicroCredentialCard[]>([])
   const [availableMicroCredentials, setAvailableMicroCredentials] = useState<MicroCredentialCard[]>([])
 
+  const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
+    ...guide,
+    title: cleanAcademicOutput(guide.title, 220),
+    overview: cleanAcademicOutput(guide.overview, 5000),
+    objectives: sanitizeAcademicList(guide.objectives, ['فهم محاور البرنامج وربطها بالتطبيق المهني'], 10, 220),
+    keyTerms: sanitizeAcademicList(guide.keyTerms, [], 18, 90),
+    activities: sanitizeAcademicList(guide.activities, ['اقرأ المحاور المحددة واكتب ملخصاً تطبيقياً قصيراً.'], 8, 300),
+    discussionQuestions: sanitizeAcademicList(guide.discussionQuestions, ['كيف يمكن توظيف هذا المحور في حالة مهنية؟'], 10, 320),
+    sections: (guide.sections || []).map((section, i) => ({
+      ...section,
+      title: cleanAcademicOutput(section.title || `محور دراسي ${i + 1}`, 180),
+      summary: cleanAcademicOutput(section.summary || 'محور منظم من الكتب المقررة.', 1600),
+      outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
+      sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
+    })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
+  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [studyGuides])
+
   // Load my programs
   const loadList = useCallback(async () => {
     try {
