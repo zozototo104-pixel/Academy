@@ -85,7 +85,7 @@ export function ProgramsView() {
   const load = async () => {
     let hadCache = false
     try {
-      const cached = JSON.parse(localStorage.getItem('aact_programs_summary_v2') || '[]')
+      const cached = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
       if (Array.isArray(cached) && cached.length > 0) {
         hadCache = true
         setPrograms(cached)
