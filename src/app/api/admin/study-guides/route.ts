@@ -556,7 +556,7 @@ function mapGuide(g: any) {
     keyTerms,
     sections: safeSections,
     activities: cleanGuideList(jsonArray(g.activities), ['قراءة المحاور ثم كتابة ملخص تطبيقي قصير.'], 8, 300),
-    discussionQuestions: cleanGuideList(jsonArray(g.discussionQuestions), ['كيف تربط محتوى الدليل بحالة مهنية واقعية؟'], 10, 320),
+    discussionQuestions: cleanGuideQuestionList(jsonArray(g.discussionQuestions), discussionQuestionsFromSections(safeSections, 'البرنامج'), 10),
     sourceKnowledgeIds: jsonArray(g.sourceKnowledgeIds),
     status: g.status,
     generatedBy: g.generatedBy,
