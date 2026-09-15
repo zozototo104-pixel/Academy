@@ -60,15 +60,13 @@ const LABEL_STOP_WORDS = new Set([
 ].map(normalizeAcademic))
 
 function compactLabel(value: string, max: number) {
-  return value
+  const compacted = value
     .replace(/\([^)]{1,90}\)/g, ' ')
     .replace(/^["'«»]+|["'«»]+$/g, ' ')
     .replace(/^(?:و?هو|و?هي|و?ذلك|إذ|اذ|حيث|وقد|كما|لذلك|وبذلك|إن|ان|أن|أنّ)\s+/u, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, max)
-    .replace(/\s+\S*$/u, '')
-    .trim()
+  return compacted.length <= max ? compacted : compacted.slice(0, max).replace(/\s+\S*$/u, '').trim()
 }
 
 export function conciseAcademicLabel(value: unknown, fallback = 'محور أكاديمي', max = 80): string {
