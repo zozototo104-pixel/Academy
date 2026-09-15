@@ -137,7 +137,7 @@ function looksLikeBrokenArabicBookExtraction(text: string): boolean {
   if (badFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
   if (arabicWords >= 60 && weirdCount >= 3) return true
   if (arabicWords >= 20 && weirdCount >= 1 && /(القرار|الاداره|الاستراتيجي|الكتاب|المحتوى|المحتوي|المهني)/u.test(n)) return true
-  if (arabicLetters >= 80 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena|lucien\s+poirier)/i.test(sample)) return true
+  if (arabicLetters >= 80 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena)/i.test(sample)) return true
   if (/(?:عام|سنة|سنه|حوالي)\s*(?:[3-9]\d{3}|\d{5,})/u.test(sample) && /(كتاب|استراتيجي|الفكر|الحرب|منهج)/u.test(sample)) return true
   return false
 }
