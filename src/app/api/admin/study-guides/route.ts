@@ -52,6 +52,96 @@ function cleanGuideList(values: unknown, fallback: string[], maxItems: number, m
   return out
 }
 
+function guideCategoryLabel(category: string) {
+  const labels: Record<string, string> = {
+    SUMMARY: 'الخلاصة الدراسية',
+    CONCEPT: 'المفاهيم المركزية',
+    DEFINITION: 'المصطلحات والتعريفات',
+    THEORY: 'النظريات والأطر',
+    METHOD: 'منهجيات التطبيق',
+    CASE: 'الحالات العملية',
+    QUESTION_SEED: 'أسئلة المراجعة',
+  }
+  return labels[String(category || '').toUpperCase()] || 'محور دراسي'
+}
+
+function levelLabel(category?: string | null) {
+  const c = String(category || '').toUpperCase()
+  if (c.includes('DIPLOMA')) return 'الدبلوم المهني'
+  if (c.includes('MASTER')) return 'الماجستير المهني'
+  if (c.includes('DOCTOR')) return 'الدكتوراه المهنية'
+  return 'الدراسات المهنية'
+}
+
+function labelIsDisplayable(value: string) {
+  const n = normalizeAcademic(value)
+  if (!n) return false
+  if (/\b(?:concept|theory|method|case|definition|question_seed|summary)\b/i.test(value)) return false
+  if (/(?:من النص|من الكتاب|مستخرجه من النص|مستخرجة من النص|بذره سؤال|بذرة سؤال|حاله تطبيقيه من|حالة تطبيقية من)/u.test(n)) return false
+  const words = value.split(/\s+/).filter(Boolean)
+  return words.length >= 2 && words.length <= 8 && value.length <= 90 && !looksLikeBrokenAcademicOutput(value, { allowShort: true })
+}
+
+function deriveGuideTerms(knowledge: any[], programTitle: string) {
+  const raw: string[] = []
+  for (const k of knowledge) {
+    const title = conciseAcademicLabel(k?.title, '', 80)
+    if (title) raw.push(title)
+    const kws = Array.isArray(k?.keywords) ? k.keywords.map((x: any) => cleanAcademicGeneratedText(x, 40)).filter(Boolean) : []
+    for (let i = 0; i < Math.min(kws.length - 1, 6); i += 2) raw.push(`${kws[i]} و${kws[i + 1]}`)
+  }
+  const fallback = [
+    `محاور ${programTitle}`,
+    'التطبيق المهني',
+    'تحليل الحالات',
+    'مؤشرات الأداء',
+    'أسئلة الامتحان',
+    'التقييم النقدي',
+  ]
+  return sanitizeAcademicLabelList(raw, fallback, 14, 72).filter(labelIsDisplayable)
+}
+
+function fallbackGuideSections(programTitle: string, semester: number, knowledge: any[]): GuideSection[] {
+  const cleanKnowledge = knowledge
+    .map((k, i) => ({
+      ...k,
+      category: String(k?.category || 'CONCEPT').toUpperCase(),
+      title: conciseAcademicLabel(k?.title, `محور دراسي ${i + 1}`, 92),
+      summary: cleanGuideText(k?.summary, `محور معرفي منظم من الكتب المقررة في ${programTitle}.`, 1800),
+    }))
+    .filter((k) => labelIsDisplayable(k.title) && k.summary && !looksLikeBrokenAcademicOutput(k.summary))
+
+  const picked: any[] = []
+  for (const cat of ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']) {
+    const found = cleanKnowledge.find((k) => k.category === cat && !picked.some((p) => p.id === k.id))
+    if (found) picked.push(found)
+  }
+  for (const item of cleanKnowledge) {
+    if (picked.length >= 8) break
+    if (!picked.some((p) => p.id === item.id || normalizeAcademic(p.title) === normalizeAcademic(item.title))) picked.push(item)
+  }
+
+  return picked.slice(0, 8).map((k, i) => ({
+    title: k.category === 'SUMMARY' ? k.title : `${guideCategoryLabel(k.category)}: ${k.title}`,
+    summary: cleanGuideText(
+      `${k.summary} يدرس الطالب هذا المحور بوصفه جزءاً من ${programTitle} في الفصل ${semester}، مع التركيز على المعنى، شروط التطبيق، حدود التعميم، ومؤشرات التحقق في الواجب أو الامتحان.`,
+      `محور دراسي تطبيقي في ${programTitle}.`,
+      1700
+    ),
+    outcomes: cleanGuideList([], [
+      `شرح ${k.title} بلغة أكاديمية واضحة`,
+      `ربط ${k.title} بحالة مهنية في ${programTitle}`,
+      'تمييز شروط التطبيق وحدود التعميم',
+    ], 4, 180),
+    sourceTitles: cleanGuideList([], [k.bookTitle || 'بنك المعرفة الأكاديمي'], 4, 160),
+  }))
+}
+
+function guideLooksStrong(guide: GeneratedGuide) {
+  const deepSections = guide.sections.filter((s) => s.summary.length >= 140 && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
+  return guide.objectives.length >= 3 && guide.keyTerms.length >= 6 && deepSections.length >= 5 && guide.discussionQuestions.length >= 3
+}
+
 function asInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
