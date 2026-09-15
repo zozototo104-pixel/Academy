@@ -1395,7 +1395,7 @@ function normalizeDistractorRationales(value: unknown, q: GeneratedQuestion): Di
     const optionIndex = Number((item as any)?.optionIndex ?? (item as any)?.index)
     const option = cleanText((item as any)?.option ?? q.options?.[optionIndex] ?? '', 240)
     const reason = cleanText((item as any)?.reason ?? (item as any)?.rationale ?? '', 500)
-    if (Number.isInteger(optionIndex) && optionIndex >= 0 && option && reason) out.push({ optionIndex, option, reason })
+    if (Number.isInteger(optionIndex) && optionIndex >= 0 && option && reason && !isBrokenAcademicExamText(option, true) && !isBrokenAcademicExamText(reason)) out.push({ optionIndex, option, reason })
   }
   return out.length ? out.slice(0, 4) : fallback
 }
