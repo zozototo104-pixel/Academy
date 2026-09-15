@@ -212,6 +212,21 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       )
     }
 
+    if (supervisorMessages.length > 0) {
+      parts.push(
+        `آخر مراسلات المشرف البشري مع الطالب:\n${supervisorMessages.slice().reverse().map((m) => `${m.senderRole}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`).join('\n')}`
+      )
+    }
+
+    if (privateAssessments.length > 0) {
+      parts.push(
+        `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
+          const attempt = a.attempts?.[0]
+          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة${attempt ? ` — آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.feedback ? compactText(attempt.feedback, 180) : attempt.status}` : ' — لم يسلّم بعد'}`
+        }).join('\n')}`
+      )
+    }
+
     if (activePrograms.length > 0) {
       const programLines = activePrograms.map((p, i) => {
         const hours = p.hours ? ` — ${p.hours} ساعة` : ''
