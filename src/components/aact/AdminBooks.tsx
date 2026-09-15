@@ -530,6 +530,24 @@ export function AdminBooksTab() {
     }
   }
 
+  const sanitizeKnowledge = async () => {
+    if (!programId) return
+    setSanitizingKnowledge(true)
+    try {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; deleted?: number; updated?: number }>('/api/admin/knowledge-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, action: 'sanitize' }),
+      })
+      setKnowledgeItems(d.items || [])
+      setKnowledgeStats(d.stats || {})
+      toast({ title: 'تم تنظيف بنك المعرفة', description: `حُذف ${d.deleted || 0} عنصر مشوه، وتحدّث ${d.updated || 0} عنصر. العناصر النظيفة الآن: ${d.count || 0}` })
+    } catch (e: any) {
+      toast({ title: 'تعذر تنظيف بنك المعرفة', description: e.message, variant: 'destructive' })
+    } finally {
+      setSanitizingKnowledge(false)
+    }
+  }
+
   const rebuildBookKnowledge = async (bookId: string) => {
     if (!programId) return
     setRebuildingBookId(bookId)
