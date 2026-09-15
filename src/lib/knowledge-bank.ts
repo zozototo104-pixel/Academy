@@ -30,12 +30,16 @@ const MAX_ITEMS_PER_BOOK = 36
 const RICH_ITEMS_PER_BOOK_TARGET = 28
 const MIN_ACCEPTABLE_AI_ITEMS = 18
 const MIN_CONTEXT_KNOWLEDGE_ITEMS = 24
+const MIN_AI_CATEGORY_DIVERSITY = 5
+const AI_SAMPLE_SEEDS = 30
+const METADATA_ITEMS_TARGET = 20
 
 export const KNOWLEDGE_BANK_LIMITS = {
   maxItemsPerBook: MAX_ITEMS_PER_BOOK,
   targetItemsPerBook: RICH_ITEMS_PER_BOOK_TARGET,
   minAcceptableAiItems: MIN_ACCEPTABLE_AI_ITEMS,
   minContextItems: MIN_CONTEXT_KNOWLEDGE_ITEMS,
+  minAiCategoryDiversity: MIN_AI_CATEGORY_DIVERSITY,
 }
 
 export function cleanAcademicGeneratedText(value: unknown, max = 1600) {
