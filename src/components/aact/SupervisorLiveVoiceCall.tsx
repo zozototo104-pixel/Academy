@@ -216,7 +216,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
         setLastError(e.message || 'تعذر معالجة إشارة الاتصال')
       }
     }
-  }, [closePeer, initPeer, postSignal, role])
+  }, [closePeer, flushPendingIce, initPeer, postSignal, role])
 
   const pollCall = useCallback(async () => {
     if (!admissionId || busy) return
