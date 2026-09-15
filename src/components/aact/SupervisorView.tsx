@@ -416,6 +416,26 @@ export function SupervisorView() {
                   </CardContent></Card>
 
                   <Card><CardContent className="p-5">
+                    <h3 className="mb-3 text-base font-black text-[#0f2b46]">الاختبارات اليومية/اختبارات الوحدات</h3>
+                    {selected.unitAttempts?.length ? <div className="space-y-3">{selected.unitAttempts.map((a) => (
+                      <div key={a.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="font-black text-[#0f2b46]">{a.examTitle}</h4>
+                          <Badge className={(a.score ?? 0) >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{a.score ?? '—'}%</Badge>
+                        </div>
+                        <p className="mt-1 text-[11px] font-bold text-slate-500">{a.unitTitle ? `الوحدة: ${a.unitTitle}` : 'اختبار وحدة'} — {dateAr(a.submittedAt)}</p>
+                        {a.weakAnswers?.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{a.weakAnswers.map((w: any, i: number) => (
+                          <div key={i} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-700 ring-1 ring-amber-100">
+                            <p className="font-black text-amber-700">نقطة قصور</p>
+                            <p>{w.question}</p>
+                            {w.aiFeedback && <p className="mt-1 text-amber-700">{w.aiFeedback}</p>}
+                          </div>
+                        ))}</div>}
+                      </div>
+                    ))}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد اختبارات وحدات/يومية مسلّمة بعد.</p>}
+                  </CardContent></Card>
+
+                  <Card><CardContent className="p-5">
                     <h3 className="mb-3 text-base font-black text-[#0f2b46]">الواجبات والتكليفات</h3>
                     {selected.assignments.length ? <div className="grid gap-2 md:grid-cols-2">{selected.assignments.map((a) => (
                       <div key={a.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">
