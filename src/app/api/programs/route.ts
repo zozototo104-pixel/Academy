@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         return oa - ob || a.order - b.order || a.titleAr.localeCompare(b.titleAr, 'ar')
       })
 
-    const user = await getCurrentUser()
+    const user = publicOnly ? null : await getCurrentUser()
     let enrolledProgramIds: string[] = []
     if (user) {
       const enrolls = await db.enrollment.findMany({
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
       enrolledProgramIds = enrolls.map((e) => e.programId)
     }
 
-    return NextResponse.json({
+    const payload = {
       programs: programs.map((p) => {
         const row = p as any
         const units = Array.isArray(row.units) ? row.units : []
