@@ -325,10 +325,10 @@ ${context}
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_ZAI_TIMEOUT')), 30000)),
     ])
     const parsed = parseJsonObject(raw)
-    return normalizeGuide(parsed || {}, program.titleAr, semester, knowledge)
+    return normalizeGuide(parsed || {}, program, semester, knowledge)
   } catch (e: any) {
     console.error('study guide AI fallback:', String(e?.message || e).slice(0, 300))
-    return normalizeGuide({}, program.titleAr, semester, knowledge)
+    return normalizeGuide({}, program, semester, knowledge)
   }
 }
 
