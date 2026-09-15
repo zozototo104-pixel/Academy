@@ -1753,19 +1753,17 @@ export async function generateExamQuestionBatch(
     : 'لا توجد أسئلة سابقة في هذا الامتحان.'
   const bridgeInstruction = bookToSpecialtyBridgeInstruction(books, specialty.ar)
   const knowledgePrompt = sanitizeKnowledgeContextForExamPrompt(knowledgeContext)
-  const evidenceBooks: ExamSourceBook[] = knowledgePrompt
-    ? [
-        ...books,
-        {
-          title: 'بنك المعرفة الأكاديمي المستخرج من قراءة الكتب',
-          titleEn: 'Academic Knowledge Bank extracted from assigned books',
-          description: 'معرفة منظمة مولدة من قراءة الكتب المقررة: مفاهيم، نظريات، حالات، منهجيات، وبذور أسئلة.',
-          textContent: knowledgePrompt,
-          sourceNote: 'معرفة منظمة من تحليل الكتب المقررة',
-          contentQuality: 'KNOWLEDGE_BANK',
-        },
-      ]
-    : books
+  const knowledgeBook: ExamSourceBook | null = knowledgePrompt
+    ? {
+        title: 'بنك المعرفة الأكاديمي المنظم للبرنامج',
+        titleEn: 'Structured Academic Knowledge Bank',
+        description: 'معرفة منظمة من الكتب المقررة أو من توصيفها الأكاديمي عند غياب نص مباشر: مفاهيم، نظريات، حالات، منهجيات، وبذور أسئلة.',
+        textContent: knowledgePrompt,
+        sourceNote: 'معرفة منظمة صالحة لبناء أسئلة عندما لا يكفي النص الخام وحده',
+        contentQuality: 'KNOWLEDGE_BANK',
+      }
+    : null
+  const evidenceBooks: ExamSourceBook[] = knowledgeBook ? [...books, knowledgeBook] : books
 
   const prompt = `أنت لجنة امتحانات عليا في ${ACADEMY_INFO.nameAr}. أنت لا تكتب أسئلة عشوائية، بل تبني امتحاناً جامعياً يمثل ملخصاً علمياً لأهم ما في الكتب المقررة.
 
