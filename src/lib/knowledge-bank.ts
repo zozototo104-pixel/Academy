@@ -1127,7 +1127,7 @@ export async function getProgramKnowledgeItems(programId: string, semester?: num
 }
 
 export async function buildKnowledgeContextForExam(programId: string, semester?: number | null, limit = 48): Promise<string> {
-  await ensureProgramKnowledge(programId, semester, 8).catch(() => null)
+  await ensureProgramKnowledge(programId, semester, MIN_CONTEXT_KNOWLEDGE_ITEMS).catch(() => null)
   const items = await getProgramKnowledgeItems(programId, semester, limit)
   if (!items.length) return ''
   return items
