@@ -75,6 +75,10 @@ export function StudentSupervisionTab() {
   const chunksRef = useRef<Blob[]>([])
 
   const active = useMemo(() => rows.find((r) => r.admission.id === activeId) || rows[0] || null, [rows, activeId])
+  const hasHumanSupervisor = useMemo(() => {
+    const mode = String(active?.admission.supervisionMode || 'AI').toUpperCase()
+    return !!active?.admission.supervisor?.id && (mode === 'HUMAN' || mode === 'HYBRID')
+  }, [active])
 
   const load = async () => {
     setLoading(true)
