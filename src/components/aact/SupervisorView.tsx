@@ -56,6 +56,7 @@ interface SupervisedStudent {
   knowledgeItems: { id: string; title: string; category: string; importance: number }[]
   exams: any[]
   attempts: any[]
+  unitAttempts: any[]
   assignments: any[]
   privateAssessments: any[]
   theses: any[]
