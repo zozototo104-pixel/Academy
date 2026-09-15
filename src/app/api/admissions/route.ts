@@ -100,9 +100,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
     }
 
-    // ===== الخطوة 2: المستندات الرسمية كاملة إلزامياً =====
+    // البحث عن كائن البرنامج/الخدمة للتسعير ونوع الطلب قبل فحص المستندات.
+    const programRec = programId
+      ? await db.program.findUnique({ where: { id: programId } })
+      : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
+    const isServiceRequest = programRec?.category === 'SERVICE'
+
+    // ===== الخطوة 2: المستندات الرسمية كاملة إلزامياً للبرامج الدراسية، واختيارية للخدمات المهنية =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
-    const missing = REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
+    const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json(
         {
