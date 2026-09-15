@@ -84,6 +84,9 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
   if (!opts.allowShort && letters < 18) return true
   if (chars.length > 30 && letters / Math.max(1, chars.length) < 0.46) return true
   if (digits >= 6 && letters < 55) return true
+  // مخرجات المنصة للطالب يجب أن تكون عربية. نسمح بالعناوين الأجنبية القصيرة،
+  // لكن لا نقبل فقرة معرفة/دليل/سؤال طويلة بلغة أجنبية دون صياغة عربية.
+  if (!opts.allowShort && arabicLetters < 10 && latinLetters > 35) return true
 
   const forbidden = [
     'محور معرفي مهم', 'دليل من المحتوي', 'دليل من المحتوى', 'خلاصه اكاديميه', 'خلاصة اكاديمية',
