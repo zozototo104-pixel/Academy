@@ -241,7 +241,7 @@ export function ProgramsView() {
                     <Accordion type="single" collapsible className="mt-4">
                       <AccordionItem value="features" className="border-slate-100">
                         <AccordionTrigger className="py-2.5 text-xs font-extrabold text-[#0f2b46] hover:no-underline">
-                          مميزات البرنامج ({p.features.length})
+                          {p.category === 'SERVICE' ? 'مكونات الخدمة' : 'مميزات البرنامج'} ({p.features.length})
                         </AccordionTrigger>
                         <AccordionContent>
                           <ul className="space-y-2 pb-1">
