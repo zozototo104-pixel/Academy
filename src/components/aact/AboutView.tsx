@@ -136,15 +136,18 @@ export function AboutView() {
             <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">المبادئ التي تحكم برامجنا وخدماتنا</h2>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {VALUES.map((v) => (
-              <Card key={v.title} className="aact-card border-[#0f2b46]/10 bg-white">
-                <CardContent className="p-5">
-                  <span className="mb-4 inline-flex rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]"><v.icon className="h-6 w-6" /></span>
-                  <h3 className="font-black text-[#0f2b46]">{v.title}</h3>
-                  <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{v.text}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {VALUES.map((v) => {
+              const Icon = v.icon
+              return (
+                <Card key={v.title} className="aact-card border-[#0f2b46]/10 bg-white">
+                  <CardContent className="p-5">
+                    <span className="mb-4 inline-flex rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]"><Icon className="h-6 w-6" /></span>
+                    <h3 className="font-black text-[#0f2b46]">{v.title}</h3>
+                    <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{v.text}</p>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
