@@ -43,6 +43,8 @@ export const ACADEMY_INFO = {
   nameAr: 'الأكاديمية الأمريكية للاستشارات والتدريب',
   nameEn: 'AMERICAN ACADEMY FOR CONSULTING AND TRAINING',
   officialSite: 'https://www.aactacademy.com/ar',
+  officialEmail: 'info@americanacademy.com',
+  officialPhone: '+1 (307) 206-5544',
   locationAr: 'الولايات المتحدة الأمريكية - ولاية وايومنغ',
   founded: 2016,
   taglineAr: 'بناء القيادات، صقل المهارات',
