@@ -451,6 +451,32 @@ function metadataKnowledgeBlueprint(program: ProgramMeta, book: RawBookForHydrat
   }).slice(0, MAX_ITEMS_PER_BOOK)
 }
 
+function evidenceFromSeed(seed: string, max = 520) {
+  const sentences = cleanText(seed, 1400)
+    .split(/(?<=[.!؟؛])\s+|\n+/gu)
+    .map((s) => cleanText(s, max))
+    .filter((s) => s.length >= 35 && !looksLikeBrokenAcademicOutput(s))
+  return cleanText(sentences.slice(0, 3).join(' '), max) || cleanText(seed, max)
+}
+
+function topicFromSeed(seed: string, index: number) {
+  const first = cleanText(seed.split(/[.!؟؛\n]/u).find((x) => cleanText(x).length > 22) || seed, 95)
+  if (first && !looksLikeBrokenAcademicOutput(first, { allowShort: true })) return first
+  const kw = tokenizeKeywords(seed, 4).join('، ')
+  return kw ? `محور: ${kw}` : `محور معرفي من النص (${index + 1})`
+}
+
+function realTextKnowledgeSummary(category: string, seed: string, programTitle: string) {
+  const evidence = evidenceFromSeed(seed, 430)
+  if (category === 'DEFINITION') return `يضبط هذا العنصر معنى مصطلح أو مفهوم ورد في النص ويبين حدوده العملية. الدليل المقروء: ${evidence}. يطلب من الطالب ربط التعريف بسياق ${programTitle} لا حفظه مجرداً.`
+  if (category === 'THEORY') return `يعرض هذا العنصر إطاراً أو مدخلاً تفسيرياً مستفاداً من النص. الدليل المقروء: ${evidence}. يستخدم في ${programTitle} للمقارنة بين الفرضيات وحدود التطبيق.`
+  if (category === 'METHOD') return `يحوّل هذا العنصر المقطع إلى طريقة عمل قابلة للتطبيق: تشخيص، تحليل، قرار، ثم مؤشر متابعة. الدليل المقروء: ${evidence}.`
+  if (category === 'CASE') return `يحوّل هذا العنصر الفكرة الواردة في النص إلى حالة مهنية قابلة للنقاش والتقييم. الدليل المقروء: ${evidence}. يركز التطبيق على الأطراف والقرار والقيود والنتائج.`
+  if (category === 'QUESTION_SEED') return `بذرة سؤال مبنية على المقطع المقروء: كيف يمكن تفسير الفكرة الآتية وتطبيقها في موقف مهني ضمن ${programTitle}؟ الدليل المقروء: ${evidence}.`
+  if (category === 'SUMMARY') return `خلاصة محورية من النص المقروء: ${evidence}. تصلح كبداية لمحور دراسة أو مراجعة قبل الاختبار في ${programTitle}.`
+  return `يعرض هذا العنصر مفهوماً مركزياً كما ظهر في النص المقروء. الدليل المقروء: ${evidence}. المطلوب فهم علاقته بسياق ${programTitle} وتحويله إلى تطبيق مهني واضح.`
+}
+
 function deterministicKnowledgeItems(
   book: RawBookForHydration & { semester?: number | null },
   text: string,
@@ -461,29 +487,50 @@ function deterministicKnowledgeItems(
   const seeds = splitBookIntoSeeds(text, MAX_ITEMS_PER_BOOK)
   const seen = new Set<string>()
   const items: KnowledgeItemDraft[] = []
-  for (let i = 0; i < seeds.length; i++) {
-    const seed = seeds[i]
-    const category = inferCategory(seed, i)
-    const rawTitle = titleFromSeed(seed, i)
-    const rawSummary = cleanText(seed, 650)
-    const rawExcerpt = cleanText(seed, 900)
-    const broken = looksLikeBrokenAcademicOutput(`${rawTitle}. ${rawSummary}`)
-    const title = broken ? fallbackKnowledgeTitle(book.title, category, i) : rawTitle
-    const summary = broken ? fallbackKnowledgeSummary(book.title, category) : rawSummary
-    const excerpt = broken || looksLikeBrokenAcademicOutput(rawExcerpt) ? null : rawExcerpt
-    const key = norm(title).slice(0, 140)
-    if (!key || seen.has(key)) continue
+  const programTitle = cleanText(program?.titleAr || program?.titleEn || 'البرنامج الأكاديمي', 150)
+
+  const push = (category: string, seed: string, index: number, titlePrefix?: string, importance?: number) => {
+    const safeCat = safeCategory(category)
+    const topic = topicFromSeed(seed, index)
+    const title = cleanText(`${titlePrefix || labelForCategory(safeCat)}: ${topic}`, 180)
+    const summary = cleanText(realTextKnowledgeSummary(safeCat, seed, programTitle), 1000)
+    const excerpt = evidenceFromSeed(seed, 760)
+    const key = norm(`${safeCat} ${title} ${summary}`).slice(0, 190)
+    if (!key || seen.has(key)) return
+    if (looksLikeBrokenAcademicOutput(title, { allowShort: true }) || looksLikeBrokenAcademicOutput(summary) || looksLikeBrokenAcademicOutput(excerpt)) return
     seen.add(key)
     items.push({
-      category,
+      category: safeCat,
       title,
       summary,
       excerpt,
-      keywords: tokenizeKeywords(`${title} ${summary}`),
-      importance: category === 'QUESTION_SEED' || category === 'CASE' ? 78 : category === 'THEORY' || category === 'METHOD' ? 72 : 60,
+      keywords: tokenizeKeywords(`${title} ${summary} ${excerpt}`),
+      importance: importance ?? (safeCat === 'QUESTION_SEED' || safeCat === 'CASE' ? 82 : safeCat === 'THEORY' || safeCat === 'METHOD' ? 74 : 66),
       semester: semester ?? null,
-      sourceNote: `مستخرج آلياً من «${book.title}» بعد تنظيف جودة النص`,
+      sourceNote: `مبني مباشرة على مقطع مقروء من «${book.title}» بعد تنظيف جودة النص`,
     })
+  }
+
+  for (let i = 0; i < seeds.length && items.length < MAX_ITEMS_PER_BOOK; i++) {
+    const seed = seeds[i]
+    const primary = inferCategory(seed, i)
+    push(primary, seed, i)
+    if (items.length >= MAX_ITEMS_PER_BOOK) break
+    if (primary !== 'QUESTION_SEED') push('QUESTION_SEED', seed, i, 'بذرة سؤال من النص', 84)
+    if (items.length >= MAX_ITEMS_PER_BOOK) break
+    if (i % 2 === 0 && primary !== 'CASE') push('CASE', seed, i, 'حالة تطبيقية من النص', 80)
+    if (items.length >= MAX_ITEMS_PER_BOOK) break
+    if (i % 3 === 1 && primary !== 'METHOD') push('METHOD', seed, i, 'منهجية مستخرجة من النص', 76)
+  }
+
+  // ضمان حد أدنى غني من الكتاب الحقيقي عند وجود نص مقروء: لا نكتفي بعدد المقاطع، بل نحول المقطع الواحد إلى معرفة وسؤال وحالة.
+  let round = 0
+  while (items.length < Math.min(MAX_ITEMS_PER_BOOK, 18) && seeds.length > 0 && round < 4) {
+    for (let i = 0; i < seeds.length && items.length < Math.min(MAX_ITEMS_PER_BOOK, 18); i++) {
+      const cycle = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED', 'SUMMARY']
+      push(cycle[(i + round) % cycle.length], seeds[i], i + round * seeds.length)
+    }
+    round++
   }
 
   const blueprint = allowMetadataBlueprint && program ? metadataKnowledgeBlueprint(program, book, semester) : []
@@ -497,7 +544,7 @@ function deterministicKnowledgeItems(
     }
   }
 
-  if (items.length === 0 && (book.description || book.title)) {
+  if (items.length === 0 && allowMetadataBlueprint && (book.description || book.title)) {
     const seed = cleanText(`${book.title}. ${book.description || ''}`, 700)
     const summary = looksLikeBrokenAcademicOutput(seed) ? fallbackKnowledgeSummary(book.title, 'SUMMARY') : seed
     items.push({
