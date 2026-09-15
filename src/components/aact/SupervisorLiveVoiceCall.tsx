@@ -113,6 +113,16 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
     }
   }, [stopLocalMedia])
 
+  const flushPendingIce = useCallback(async () => {
+    const pc = pcRef.current
+    if (!pc || !pc.remoteDescription || pendingIceRef.current.length === 0) return
+    const pending = [...pendingIceRef.current]
+    pendingIceRef.current = []
+    for (const candidate of pending) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)) } catch (e) { console.warn('Pending ICE candidate skipped', e) }
+    }
+  }, [])
+
   const initPeer = useCallback(async (callId: string, config?: RTCConfiguration) => {
     if (!rtcAvailable) throw new Error('المتصفح لا يدعم WebRTC أو الميكروفون')
     if (pcRef.current) return pcRef.current
