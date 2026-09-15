@@ -821,7 +821,13 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
 
   // إذا كان هناك ملف مرفوع لكن الاستخراج النصي لم يعط معرفة حقيقية، اقرأ الملف نفسه مباشرة عبر Gemini.
   // هذا يمنع الرجوع إلى عناصر عامة مبنية على العنوان فقط بينما يوجد PDF/صورة مرفوعة فعلياً.
-  if ((!ai?.length || sourceText.length < 900) && canReadBookFileWithGemini(book)) {
+  const shouldReadUploadedFileDirectly = canReadBookFileWithGemini(book) && (
+    !ai?.length ||
+    sourceText.length < 1800 ||
+    hydrated.contentQuality === 'GEMINI_DOCUMENT' ||
+    hydrated.contentQuality === 'NO_CONTENT'
+  )
+  if (shouldReadUploadedFileDirectly) {
     const fromFile = await aiKnowledgeItemsFromUploadedFile(book.program, book, semester)
     if (fromFile?.length) {
       ai = fromFile
