@@ -827,17 +827,21 @@ function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggest
   const referenceCandidate = cleanText(b?.referenceLink || b?.catalogLink || b?.verificationLink || b?.googleBooksLink || '', 700) || googleBooksSearch(searchTitle)
   const linkInfo = classifySuggestionLink(readableCandidate, referenceCandidate)
   const sem = Number(b?.semester ?? b?.term ?? '')
+  const reason = cleanText(b?.reason, 900)
+  const levelPolicy = cleanText(b?.levelPolicy || b?.academicLevelPolicy, 900)
+  const readingDepth = cleanText(b?.readingDepth || b?.readingPlan, 900)
+  const assessmentOrientation = cleanText(b?.assessmentOrientation || b?.examOrientation, 900)
   return {
     title: title || titleEn,
     titleEn,
     author: cleanText(b?.author, 200) || 'مرجع أكاديمي متخصص',
     year: cleanText(b?.year, 20) || 'حديث/متداول',
-    reason: cleanText(b?.reason, 900) || 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
+    reason: reason && !isBrokenAcademicExamText(reason) ? reason : 'مرجع مناسب لبناء خلفية معرفية ومنهجية في التخصص.',
     ...linkInfo,
     semester: Number.isInteger(sem) && sem >= 1 && sem <= 2 ? sem : null,
-    levelPolicy: cleanText(b?.levelPolicy || b?.academicLevelPolicy, 900) || policy?.levelPolicy,
-    readingDepth: cleanText(b?.readingDepth || b?.readingPlan, 900) || policy?.readingDepth,
-    assessmentOrientation: cleanText(b?.assessmentOrientation || b?.examOrientation, 900) || policy?.assessmentOrientation,
+    levelPolicy: levelPolicy && !isBrokenAcademicExamText(levelPolicy) ? levelPolicy : policy?.levelPolicy,
+    readingDepth: readingDepth && !isBrokenAcademicExamText(readingDepth) ? readingDepth : policy?.readingDepth,
+    assessmentOrientation: assessmentOrientation && !isBrokenAcademicExamText(assessmentOrientation) ? assessmentOrientation : policy?.assessmentOrientation,
   }
 }
 
