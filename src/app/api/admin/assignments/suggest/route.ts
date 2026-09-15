@@ -172,8 +172,8 @@ export async function POST(req: NextRequest) {
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     const knowledgeSemester = semester === 3 ? null : semester
-    await ensureProgramKnowledge(programId, knowledgeSemester, 8).catch(() => null)
-    const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 36)
+    await ensureProgramKnowledge(programId, knowledgeSemester, KNOWLEDGE_BANK_LIMITS.minContextItems).catch(() => null)
+    const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 80)
     if (!knowledge.length) {
       return NextResponse.json({ error: 'لا يوجد بنك معرفة كافٍ. أضف كتاباً أو اضغط بناء/تحديث بنك المعرفة أولاً.' }, { status: 400 })
     }
