@@ -168,6 +168,51 @@ function safeImportance(value: unknown, fallback = 55) {
   return Math.max(10, Math.min(100, Math.round(n)))
 }
 
+function looksLikeBrokenKnowledgeSource(value: unknown) {
+  const raw = cleanText(value, 5000)
+  if (!raw) return true
+  const n = norm(raw)
+  const tokens = n.split(' ').filter(Boolean)
+  const arabicLetters = countMatches(raw, /[\u0600-\u06FF]/g)
+  const latinLetters = countMatches(raw, /[A-Za-zÀ-ÖØ-öø-ÿ]/g)
+  const arabicWords = tokens.filter((t) => /[\u0600-\u06FF]/.test(t)).length
+  const weirdTokens = new Set(['يف', 'ويف', 'الثاين', 'اختاذ', 'اختاد', 'القررا', 'القرا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'املبادي', 'االستراتيجيه'])
+  const weirdCount = tokens.filter((t) => weirdTokens.has(t)).length
+  const bad = [
+    'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
+    'كتاب اطلب', 'كتاب احرب', 'كتاب الثاين', 'الكتاب ويف', 'يف اسبانيا', 'كتاب حرب هو',
+    'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
+    'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'vellena',
+  ]
+  if (bad.some((x) => n.includes(norm(x)))) return true
+  if (arabicWords >= 50 && weirdCount >= 2) return true
+  if (arabicWords >= 12 && weirdCount >= 1 && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى)/u.test(n)) return true
+  if (arabicLetters >= 60 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena|lucien\s+poirier)/i.test(raw)) return true
+  if (/(?:عام|سنة|سنه|حوالي)\s*(?:[3-9]\d{3}|\d{5,})/u.test(raw) && /(كتاب|استراتيجي|الفكر|الحرب|منهج)/u.test(raw)) return true
+  return false
+}
+
+function cleanKnowledgeSourceText(text: string, maxChars = 90000) {
+  const cleaned = cleanText(text, 160000)
+  const parts = cleaned
+    .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
+    .map((p) => cleanText(p, 1600))
+    .filter((p) => {
+      const letters = countMatches(p, /[\p{L}]/gu)
+      const words = countMatches(p, /[\p{L}]{3,}/gu)
+      return p.length >= 90 && letters >= 65 && words >= 14 && !looksLikeBrokenKnowledgeSource(p)
+    })
+  const out: string[] = []
+  let total = 0
+  for (const p of parts) {
+    if (total + p.length > maxChars) break
+    out.push(p)
+    total += p.length + 2
+  }
+  return out.join('\n\n')
+}
+
 function extractJsonArray(raw: string): any[] {
   const body = String(raw || '').trim()
   try {
