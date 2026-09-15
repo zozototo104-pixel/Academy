@@ -310,7 +310,7 @@ ${context}
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_GEMINI_TIMEOUT')), 38000)),
     ])
     const parsed = parseJsonObject(raw)
-    return normalizeGuide(parsed || {}, program.titleAr, semester, knowledge)
+    return normalizeGuide(parsed || {}, program, semester, knowledge)
   } catch (e: any) {
     console.error('study guide Gemini fallback:', String(e?.message || e).slice(0, 300))
   }
