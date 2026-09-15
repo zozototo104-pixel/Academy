@@ -417,7 +417,8 @@ function normalizeGuide(
     'حوّل إحدى الحالات أو الأفكار إلى سيناريو مهني مع قرار، بدائل، ومؤشر نجاح.',
     'صمّم بطاقة مراجعة لكل محور: مصطلح، إطار، مثال، سؤال محتمل، ومعيار إجابة.',
   ], 8, 340)
-  const discussionQuestions = cleanGuideList(raw?.discussionQuestions, fallbackSections.slice(0, 8).map((s) => `كيف يغيّر محور «${conciseAcademicLabel(s.title, 'هذا المحور', 80)}» طريقة تحليل حالة مهنية في ${programTitle}؟`), 10, 340)
+  const fallbackQuestions = discussionQuestionsFromSections(fallbackSections, programTitle)
+  const discussionQuestions = cleanGuideQuestionList(raw?.discussionQuestions, fallbackQuestions, 10)
 
   const guide: GeneratedGuide = {
     title,
