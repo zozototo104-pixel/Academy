@@ -459,32 +459,20 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const existingOptions = await existingOptionSignatures(examId)
     const existingOptionWords = await existingOptionTexts(examId)
 
+    const window = currentBatchWindow(existingCount, batchIndex)
     let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, batchIndex, previousTexts, knowledgeContext)
-    batch = filterNewQuestions(batch, existingKeys, existingOptions, existingOptionWords)
-    if (batch.length < EXAM_BATCH_SPECS[batchIndex].count) {
-      const fallbackKeys = await existingQuestionKeys(examId)
-      const fallbackOptions = await existingOptionSignatures(examId)
-      const fallbackOptionWords = await existingOptionTexts(examId)
-      for (const q of batch) {
-        fallbackKeys.add(normalizeQuestionText(q.text).slice(0, 160))
-        const optSig = optionSignatureFromArray(q.options)
-        if (optSig) fallbackOptions.add(optSig)
-        for (const opt of q.options || []) {
-          const n = normalizeQuestionText(opt)
-          if (n) fallbackOptionWords.add(n)
-        }
-      }
-      for (let attempt = 0; attempt < EXAM_BATCH_COUNT && batch.length < EXAM_BATCH_SPECS[batchIndex].count; attempt++) {
-        const fallback = filterNewQuestions(
-          fallbackExamQuestionBatch(exam.program, examSourceBooks, batchIndex + attempt),
-          fallbackKeys,
-          fallbackOptions,
-          fallbackOptionWords
-        )
-        batch = [...batch, ...fallback].slice(0, EXAM_BATCH_SPECS[batchIndex].count)
+    batch = filterNewQuestions(prioritizeUnfilledCandidates(batch, window.offset), existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
+
+    if (batch.length < window.needed) {
+      // في الاستكمال الجزئي لا نطلب دفعة كاملة من جديد؛ نحتاج فقط الأسئلة الناقصة حتى لا يتكرر الفشل عند 63/80 مثلاً.
+      for (let attempt = 0; attempt < EXAM_BATCH_COUNT * 2 && batch.length < window.needed; attempt++) {
+        const seedBatchIndex = batchIndex + attempt
+        const rawFallback = prioritizeUnfilledCandidates(fallbackExamQuestionBatch(exam.program, examSourceBooks, seedBatchIndex), window.offset + attempt)
+        const fallback = filterNewQuestions(rawFallback, existingKeys, existingOptions, existingOptionWords)
+        batch = [...batch, ...fallback].slice(0, window.needed)
       }
     }
-    if (batch.length === 0) throw new Error(`فشل توليد أسئلة جديدة غير مكررة للدفعة ${batchIndex + 1}`)
+    if (batch.length === 0) throw new Error(`فشل توليد سؤال جديد غير مكرر للدفعة ${batchIndex + 1} بعد ${existingCount} سؤال محفوظ`)
 
     if (!(await isExamStillGenerating(examId))) {
       const totals = await examTotals(examId)
