@@ -503,10 +503,12 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   if (!book) throw new Error('الكتاب غير موجود')
 
   const hydrated = await hydrateBookContentForExam(book)
-  await persistBookTextIfNeeded(book.id, hydrated.textContent, hydrated.shouldPersistText)
+  const sourceText = cleanKnowledgeSourceText(hydrated.textContent || '')
+  await persistBookTextIfNeeded(book.id, sourceText || hydrated.textContent, hydrated.shouldPersistText && sourceText.length >= 160)
   const semester = book.semester ?? null
-  const fallback = deterministicKnowledgeItems(book, hydrated.textContent || `${book.title}. ${book.description || ''}`, semester)
-  const ai = await aiKnowledgeItems(book.program, book, hydrated.textContent, semester)
+  const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
+  const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester)
+  const ai = sourceText.length >= 900 ? await aiKnowledgeItems(book.program, book, sourceText, semester) : null
   const items = normalizeDrafts(ai || [], fallback, semester)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
