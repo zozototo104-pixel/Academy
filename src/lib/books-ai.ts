@@ -1111,7 +1111,7 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
     for (const excerpt of distributedBookExcerpts(full, 0, 6)) {
       for (const s of splitSentences(excerpt).slice(0, 5)) {
         const cleanSentence = stripExamKnowledgeMeta(s, 360)
-        if (cleanSentence && !hasForbiddenExamMetadata(cleanSentence)) concepts.push(`من كتاب «${title}»: ${cleanSentence}`)
+        if (cleanSentence && !hasForbiddenExamMetadata(cleanSentence) && !isBrokenAcademicExamText(cleanSentence)) concepts.push(`من كتاب «${title}»: ${cleanSentence}`)
       }
     }
 
