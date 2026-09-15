@@ -594,13 +594,14 @@ function semanticTopicFromSeed(category: string, seed: string, index: number) {
 
 function realTextKnowledgeSummary(category: string, seed: string, programTitle: string) {
   const evidence = evidenceFromSeed(seed, 430)
-  if (category === 'DEFINITION') return `يضبط هذا العنصر معنى مصطلح أو مفهوم ورد في النص ويبين حدوده العملية. الدليل المقروء: ${evidence}. يطلب من الطالب ربط التعريف بسياق ${programTitle} لا حفظه مجرداً.`
-  if (category === 'THEORY') return `يعرض هذا العنصر إطاراً أو مدخلاً تفسيرياً مستفاداً من النص. الدليل المقروء: ${evidence}. يستخدم في ${programTitle} للمقارنة بين الفرضيات وحدود التطبيق.`
-  if (category === 'METHOD') return `يحوّل هذا العنصر المقطع إلى طريقة عمل قابلة للتطبيق: تشخيص، تحليل، قرار، ثم مؤشر متابعة. الدليل المقروء: ${evidence}.`
-  if (category === 'CASE') return `يحوّل هذا العنصر الفكرة الواردة في النص إلى حالة مهنية قابلة للنقاش والتقييم. الدليل المقروء: ${evidence}. يركز التطبيق على الأطراف والقرار والقيود والنتائج.`
-  if (category === 'QUESTION_SEED') return `بذرة سؤال مبنية على المقطع المقروء: كيف يمكن تفسير الفكرة الآتية وتطبيقها في موقف مهني ضمن ${programTitle}؟ الدليل المقروء: ${evidence}.`
-  if (category === 'SUMMARY') return `خلاصة محورية من النص المقروء: ${evidence}. تصلح كبداية لمحور دراسة أو مراجعة قبل الاختبار في ${programTitle}.`
-  return `يعرض هذا العنصر مفهوماً مركزياً كما ظهر في النص المقروء. الدليل المقروء: ${evidence}. المطلوب فهم علاقته بسياق ${programTitle} وتحويله إلى تطبيق مهني واضح.`
+  const cleanEvidence = evidence ? `الإشارة المعرفية المستفادة من القراءة: ${evidence}` : 'الإشارة المعرفية مأخوذة من مقطع مقروء صالح بعد تنظيف النص.'
+  if (category === 'DEFINITION') return `يضبط هذا المحور معنى مصطلح أو مفهوم مركزي، ثم يحدد حدوده وشروط استخدامه في ${programTitle}. ${cleanEvidence}. المطلوب من الطالب تمييز المصطلح داخل حالة مهنية لا حفظه بمعزل عن سياقه.`
+  if (category === 'THEORY') return `يركز هذا المحور على إطار أو مدخل تفسيري يساعد الطالب على فهم العلاقات والافتراضات وحدود التطبيق. ${cleanEvidence}. يستخدم في ${programTitle} للمقارنة بين البدائل وبناء تفسير مهني مدعوم.`
+  if (category === 'METHOD') return `يعرض هذا المحور طريقة عمل قابلة للتحويل إلى خطوات: تشخيص المشكلة، تحليل العوامل، اختيار القرار، ثم تحديد مؤشر متابعة. ${cleanEvidence}.`
+  if (category === 'CASE') return `يمثل هذا المحور مادة صالحة لبناء حالة مهنية قابلة للنقاش والتقييم في ${programTitle}. ${cleanEvidence}. يركز التحليل على الأطراف المؤثرة، القيود، المخاطر، والنتائج المتوقعة.`
+  if (category === 'QUESTION_SEED') return `يفتح هذا المحور سؤال مراجعة تطبيقي: كيف تُفسَّر الفكرة وكيف تُستخدم في موقف مهني داخل ${programTitle}؟ ${cleanEvidence}.`
+  if (category === 'SUMMARY') return `يلخص هذا المحور فكرة مركزية تصلح لبناء مراجعة قبل الاختبار أو الواجب في ${programTitle}. ${cleanEvidence}.`
+  return `يعالج هذا المحور مفهوماً مركزياً يجب فهم علاقته بسياق ${programTitle} وتحويله إلى تطبيق مهني واضح. ${cleanEvidence}.`
 }
 
 function deterministicKnowledgeItems(
