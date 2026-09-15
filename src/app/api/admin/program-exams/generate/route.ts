@@ -22,6 +22,27 @@ function firstMissingBatchIndex(existingCount: number): number {
   return EXAM_BATCH_COUNT
 }
 
+function questionsBeforeBatch(batchIndex: number): number {
+  return EXAM_BATCH_SPECS.slice(0, Math.max(0, batchIndex)).reduce((sum, b) => sum + b.count, 0)
+}
+
+function currentBatchWindow(existingCount: number, batchIndex: number): { offset: number; needed: number; batchEnd: number } {
+  const spec = EXAM_BATCH_SPECS[batchIndex]
+  const start = questionsBeforeBatch(batchIndex)
+  const batchEnd = start + spec.count
+  const offset = Math.max(0, Math.min(spec.count, existingCount - start))
+  const needed = Math.max(1, Math.min(spec.count, batchEnd - existingCount))
+  return { offset, needed, batchEnd }
+}
+
+function prioritizeUnfilledCandidates<T>(questions: T[], offset: number): T[] {
+  if (offset <= 0 || questions.length <= 1) return questions
+  if (questions.length > offset) return [...questions.slice(offset), ...questions.slice(0, offset)]
+  return questions
+}
+
+const MANUAL_CONTINUE_STEPS = 3
+
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
   return row?.status === 'GENERATING'
