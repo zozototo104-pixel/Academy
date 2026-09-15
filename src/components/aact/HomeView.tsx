@@ -612,10 +612,10 @@ export function HomeView() {
       {/* Programs grid */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
-          برامجنا التدريبية والاعتمادات
+          أكاديميتنا وبرامجنا
         </h2>
         <p className="mb-8 text-center text-sm text-slate-500">
-          {programCountLabel} برامج معتمدة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه واعتماد المؤسسات
+          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
         </p>
         {loading ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
