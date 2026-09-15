@@ -99,7 +99,7 @@ function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: str
       points: asInt(item?.points, 15, 5, 100),
       weight: asInt(item?.weight, 0, 0, 100),
       dueDays: asInt(item?.dueDays, 14, 1, 365),
-      rubric: clean(item?.rubric, 1600) || 'وضوح الفكرة 20%، عمق التحليل 35%، الارتباط بالكتاب 25%، جودة العرض والاستنتاجات 20%',
+      rubric: cleanAssignmentText(item?.rubric, 'وضوح الفكرة 20%، عمق التحليل 35%، الارتباط بالكتاب 25%، جودة العرض والاستنتاجات 20%', 1600),
       sourceKnowledgeTitles: src,
     })
     if (out.length >= 6) break
