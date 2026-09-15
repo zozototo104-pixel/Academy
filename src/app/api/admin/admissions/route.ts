@@ -81,8 +81,17 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    // تعيين مشرف أكاديمي (في أي مرحلة قبل الشهادة)
+    // تعيين نوع الإشراف الأكاديمي: مشرف ذكي فقط أو مشرف بشري + ذكي
     if (supervisorId !== undefined) {
+      if (!supervisorId || supervisorId === 'AI_ONLY') {
+        const updated = await db.admissionApplication.update({
+          where: { id },
+          data: { supervisorId: null, supervisorAt: null, supervisionMode: 'AI', status: app.status },
+        })
+        await notify(app.userId || null, 'ADMISSION', 'تم ضبط إشرافك الأكاديمي', `تم ضبط طلبك (${app.reference}) على إشراف المشرف الذكي الأكاديمي.`, 'dashboard')
+        await audit(user, 'ASSIGN_SUPERVISOR', 'AdmissionApplication', id, `ضبط ${app.fullName} (${app.reference}) على مشرف ذكي فقط`)
+        return NextResponse.json({ ok: true, application: updated })
+      }
       const sup = await db.user.findUnique({ where: { id: supervisorId } })
       if (!sup) return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 404 })
       const updated = await db.admissionApplication.update({
