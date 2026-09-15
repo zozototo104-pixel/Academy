@@ -472,14 +472,21 @@ export function SupervisorView() {
                   </CardContent></Card>
 
                   <Card><CardContent className="p-5">
-                    <h3 className="mb-3 text-base font-black text-[#0f2b46]">الواجبات والتكليفات</h3>
-                    {selected.assignments.length ? <div className="grid gap-2 md:grid-cols-2">{selected.assignments.map((a) => (
-                      <div key={a.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">
-                        <p className="font-black text-[#0f2b46]">{a.title}</p>
-                        <p>الحالة: {a.status} — الدرجة: {a.score ?? 'لم تصحح'}/{a.points}</p>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-black text-[#0f2b46]">الواجبات والتكليفات</h3>
+                      <Badge className="bg-[#fffaf0] text-[#8a6614] hover:bg-[#fffaf0]">غير مسلّمة: {selected.metrics.pendingAssignmentsCount ?? 0}</Badge>
+                    </div>
+                    {selected.availableAssignments?.length ? <div className="grid gap-2 md:grid-cols-2">{selected.availableAssignments.map((a) => (
+                      <div key={a.id} className={`rounded-2xl border p-3 text-xs font-bold leading-6 ${a.submitted ? 'border-slate-100 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50/70 text-amber-900'}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-black text-[#0f2b46]">{a.title}</p>
+                          {a.submitted ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسلّم</Badge> : <Badge className="bg-red-100 text-red-700 hover:bg-red-100">لم يسلّم</Badge>}
+                        </div>
+                        <p>الفصل {a.semester} — النوع: {a.type} — النقاط: {a.points}</p>
+                        {a.submitted ? <p>الحالة: {a.submissionStatus} — الدرجة: {a.score ?? 'لم تصحح'}/{a.points} — {dateAr(a.submittedAt)}</p> : <p className="rounded-xl bg-white/70 p-2">واجب منشور للطالب ولم يتم تسليمه حتى الآن.</p>}
                         {a.feedback && <p className="text-emerald-700">ملاحظة: {a.feedback}</p>}
                       </div>
-                    ))}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد واجبات مسلّمة بعد.</p>}
+                    ))}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد واجبات منشورة لهذا الطالب حتى الآن.</p>}
                   </CardContent></Card>
 
                   <Card><CardContent className="p-5">
