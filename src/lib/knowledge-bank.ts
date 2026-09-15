@@ -179,6 +179,27 @@ function labelForCategory(category: string) {
   return labels[safeCategory(category)] || 'عنصر معرفة من النص'
 }
 
+function knowledgeTitleFallback(category: string, index: number) {
+  const labels: Record<string, string> = {
+    CONCEPT: 'مفهوم محوري',
+    THEORY: 'إطار تفسيري',
+    METHOD: 'منهجية تطبيق',
+    CASE: 'حالة مهنية',
+    DEFINITION: 'تعريف أساسي',
+    QUESTION_SEED: 'سؤال مراجعة',
+    SUMMARY: 'خلاصة دراسية',
+  }
+  return `${labels[safeCategory(category)] || 'محور معرفي'} ${index + 1}`
+}
+
+function safeKnowledgeTitle(value: unknown, summary: unknown, category: string, index: number) {
+  const fromTitle = conciseAcademicLabel(value, '', 90)
+  if (fromTitle && !looksLikeBrokenAcademicOutput(fromTitle, { allowShort: true })) return fromTitle
+  const fromSummary = conciseAcademicLabel(summary, '', 90)
+  if (fromSummary && !looksLikeBrokenAcademicOutput(fromSummary, { allowShort: true })) return fromSummary
+  return knowledgeTitleFallback(category, index)
+}
+
 function categoryDiversity(items: Pick<KnowledgeItemDraft, 'category'>[]) {
   return new Set(items.map((item) => safeCategory(item.category))).size
 }
