@@ -178,7 +178,7 @@ export function ProgramDetailsView() {
               </div>
             </div>
             <Button onClick={startAdmission} className="shrink-0 bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
-              {program.enrolled ? 'ادرس البرنامج' : 'قدّم طلب الالتحاق'}
+              {program.enrolled ? 'ادرس البرنامج' : isService ? 'اطلب الخدمة الآن' : 'قدّم طلب الالتحاق'}
               <ChevronLeft className="mr-1 h-4 w-4" />
             </Button>
           </div>
