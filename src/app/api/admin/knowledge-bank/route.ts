@@ -64,6 +64,30 @@ export async function POST(req: NextRequest) {
     const semRaw = body.semester
     const semester = semRaw ? Number(semRaw) || null : null
 
+    if (action === 'sanitize' || action === 'clean') {
+      if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+      const rows = await db.bookKnowledgeItem.findMany({ where: { programId }, take: 1200 })
+      const deleteIds: string[] = []
+      const updates: Promise<any>[] = []
+      for (const row of rows) {
+        const title = cleanAcademicGeneratedText(row.title, 220)
+        const summary = cleanAcademicGeneratedText(row.summary, 1600)
+        const excerpt = row.excerpt ? cleanAcademicGeneratedText(row.excerpt, 1800) : null
+        if (!title || !summary || looksLikeBrokenAcademicOutput(`${title}. ${summary}`) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) {
+          deleteIds.push(row.id)
+          continue
+        }
+        if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
+          updates.push(db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } }))
+        }
+      }
+      if (deleteIds.length) await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })
+      if (updates.length) await Promise.all(updates)
+      await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleteIds.length} عنصر مشوه وتحديث ${updates.length} عنصر`)
+      const items = await getProgramKnowledgeItems(programId, semester, 140)
+      return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, count: items.length, stats: categoryStats(items), items })
+    }
+
     if (action === 'rebuild-book') {
       if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
       const result = await rebuildKnowledgeForBook(bookId)
