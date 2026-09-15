@@ -113,7 +113,7 @@ export function ProgramDetailsView() {
       return
     }
     if (!user) {
-      toast({ title: 'تنبيه', description: 'سجّل دخولك أو أنشئ حساباً ثم قدّم طلب الالتحاق' })
+      toast({ title: 'تنبيه', description: isService ? 'سجّل دخولك أو أنشئ حساباً ثم قدّم طلب الخدمة' : 'سجّل دخولك أو أنشئ حساباً ثم قدّم طلب الالتحاق' })
       navigate('auth')
       return
     }
