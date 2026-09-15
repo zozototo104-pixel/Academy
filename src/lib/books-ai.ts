@@ -1103,7 +1103,7 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
     const sentences = topImportantSentences(full, programDomain, 18)
     for (const s of sentences) {
       const cleanSentence = stripExamKnowledgeMeta(s, 360)
-      if (cleanSentence && !hasForbiddenExamMetadata(cleanSentence)) concepts.push(`من كتاب «${title}»: ${cleanSentence}`)
+      if (cleanSentence && !hasForbiddenExamMetadata(cleanSentence) && !isBrokenAcademicExamText(cleanSentence)) concepts.push(`من كتاب «${title}»: ${cleanSentence}`)
     }
 
     // إذا كان الكتاب رواية أو نصاً أدبياً قد لا تظهر فيه مصطلحات التخصص مباشرة؛
