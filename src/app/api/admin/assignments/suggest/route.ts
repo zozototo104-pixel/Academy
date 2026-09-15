@@ -121,33 +121,38 @@ function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: str
 }
 
 function fallbackSuggestions(programTitle: string, semester: number, knowledge: Awaited<ReturnType<typeof getProgramKnowledgeItems>>): AssignmentSuggestion[] {
-  const top = knowledge.slice(0, 12)
-  const titles = top.map((k) => k.title).filter(Boolean)
+  const top = knowledge.slice(0, 18)
+  const titles = cleanAssignmentSourceTitles(top.map((k, i) => titleFromKnowledge(k, `محور ${i + 1}`)), [
+    'تحليل الحالات',
+    'التطبيق المهني',
+    'مؤشرات الأداء',
+    'التقييم النقدي',
+  ], 10)
   const first = top[0]
   const second = top.find((k) => k.category === 'CASE') || top[1]
   const third = top.find((k) => k.category === 'METHOD' || k.category === 'THEORY') || top[2]
-  const pick = (i: number) => top[i]?.title || `محور معرفي من ${programTitle}`
+  const pick = (i: number) => titleFromKnowledge(top[i], titles[i % Math.max(1, titles.length)] || `محور ${programTitle}`)
   return [
     {
-      title: `تحليل تطبيقي لأهم مفاهيم ${programTitle}`,
-      description: `اكتب تقريراً تحليلياً يربط بين محاور الكتاب/الكتب المقررة وبين واقع ${programTitle}. ابدأ بعرض مختصر للمفاهيم الأساسية مثل: ${titles.slice(0, 4).join('، ')}، ثم طبّقها على حالة مهنية واقعية، مع توضيح الفائدة العملية والقيود المحتملة.`,
+      title: `تقرير تحليل تطبيقي في ${programTitle}`,
+      description: `اكتب تقريراً تحليلياً يربط بين محاور الكتب المقررة وبين واقع ${programTitle}. ابدأ بتحديد ثلاثة محاور مثل: ${titles.slice(0, 4).join('، ')}، ثم اشرح معنى كل محور، دليله من الكتاب، تطبيقه المهني، وحدود استخدامه.`,
       type: 'REPORT', semester, points: 15, weight: 0, dueDays: 14,
-      rubric: 'دقة فهم المفاهيم 25%، الربط بالتخصص 30%، التطبيق العملي 25%، جودة اللغة والتنظيم 20%',
+      rubric: 'دقة فهم المحاور 25%، الاستناد للكتاب 25%، الربط بالتخصص 25%، جودة الاستنتاج والتوصيات 25%',
       sourceKnowledgeTitles: titles.slice(0, 5),
     },
     {
-      title: `دراسة حالة مبنية على ${second?.title || pick(1)}`,
-      description: `حوّل الفكرة أو الحالة الواردة في بنك المعرفة إلى سيناريو مهني قابل للنقاش. عرّف المشكلة، أصحاب المصلحة، القرارات المتاحة، المخاطر، ثم قدّم توصية مبررة مستندة إلى محتوى الكتاب وليس إلى رأي عام.`,
+      title: `دراسة حالة حول ${titleFromKnowledge(second, pick(1))}`,
+      description: `حوّل محوراً محدداً من بنك المعرفة إلى سيناريو مهني قابل للنقاش في ${programTitle}. عرّف المشكلة، أصحاب المصلحة، القرارات المتاحة، المخاطر، ثم قدّم توصية مبررة مستندة إلى محتوى الكتاب لا إلى رأي عام.`,
       type: 'CASE_STUDY', semester, points: 20, weight: 0, dueDays: 10,
-      rubric: 'بناء الحالة 20%، تحليل أصحاب المصلحة والمخاطر 30%، الاستناد للمصدر 25%، جودة التوصية 25%',
-      sourceKnowledgeTitles: [second?.title || pick(1), first?.title || pick(0)].filter(Boolean),
+      rubric: 'بناء الحالة 20%، تحليل أصحاب المصلحة والمخاطر 30%، الاستناد للمصدر 25%، جودة القرار والتبرير 25%',
+      sourceKnowledgeTitles: cleanAssignmentSourceTitles([titleFromKnowledge(second, pick(1)), titleFromKnowledge(first, pick(0))], titles, 5),
     },
     {
-      title: `خريطة مفاهيم ومنهجيات من الكتاب المقرر`,
-      description: `صمّم خريطة موجزة توضّح العلاقة بين المفاهيم والمنهجيات والنظريات المهمة مثل: ${[third?.title, pick(3), pick(4)].filter(Boolean).join('، ')}. أرفق شرحاً قصيراً يوضح كيف تساعد هذه الخريطة في فهم التخصص وتطبيقه.`,
+      title: `خريطة مفاهيم ومنهجيات تطبيقية`,
+      description: `صمّم خريطة موجزة توضّح العلاقة بين المفاهيم والمنهجيات والنظريات المهمة مثل: ${[titleFromKnowledge(third, pick(2)), pick(3), pick(4)].filter(Boolean).join('، ')}. أرفق شرحاً يبيّن كيف تساعد الخريطة في الدراسة والامتحان والتطبيق المهني.`,
       type: 'SUMMARY', semester, points: 10, weight: 0, dueDays: 7,
-      rubric: 'شمولية الخريطة 30%، صحة العلاقات 30%، الارتباط بالكتاب 25%، وضوح العرض 15%',
-      sourceKnowledgeTitles: [third?.title || pick(2), pick(3), pick(4)].filter(Boolean),
+      rubric: 'شمولية الخريطة 25%، صحة العلاقات 30%، الارتباط بالكتاب 25%، وضوح العرض 20%',
+      sourceKnowledgeTitles: cleanAssignmentSourceTitles([titleFromKnowledge(third, pick(2)), pick(3), pick(4)], titles, 6),
     },
   ]
 }
