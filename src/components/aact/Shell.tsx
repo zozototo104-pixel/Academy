@@ -305,6 +305,18 @@ export function Header() {
             طلب الالتحاق
           </button>
           {canUseStudentPortal && <GroupMenu label="بوابة الدراسة" items={studentItems} groupTargets={['dashboard', 'chat', 'unit', 'exam']} />}
+          {user?.role === 'SUPERVISOR' && (
+            <button
+              onClick={() => navigate('supervisor')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                view === 'supervisor' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+              }`}
+              title="الطلاب والأبحاث المعيّنة لك كمشرف بشري"
+            >
+              <Users2 className="h-4 w-4" />
+              طلابي تحت الإشراف
+            </button>
+          )}
           {user && !canUseStudentPortal && (
             <button
               onClick={() => navigate('chat')}
