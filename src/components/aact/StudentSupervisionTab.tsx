@@ -236,7 +236,9 @@ export function StudentSupervisionTab() {
           <div className="space-y-2">
             {active.admission.books.length ? active.admission.books.map((b) => <div key={b.id} className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600 ring-1 ring-[#c9a227]/15">{b.title}</div>) : <p className="text-xs font-bold text-slate-500">لا توجد كتب مقررة ظاهرة بعد.</p>}
           </div>
-          <div className="mt-4 rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">المشرف يستطيع إنشاء اختبار خاص لك من هذه الكتب وبنك المعرفة، وتصحيحه آلياً أو مراجعته بشرياً.</div>
+          <div className="mt-4 rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">
+            {hasHumanSupervisor ? 'المشرف يستطيع إنشاء اختبار خاص لك من هذه الكتب وبنك المعرفة، وتصحيحه آلياً أو مراجعته بشرياً.' : 'المشرف الذكي يستخدم هذه الكتب وبنك المعرفة في الإرشاد الأكاديمي والتحضير للاختبارات.'}
+          </div>
         </CardContent></Card>
       </div>
 
