@@ -468,10 +468,11 @@ export async function rebuildProgramKnowledge(programId: string, semester?: numb
 export async function ensureProgramKnowledge(programId: string, semester?: number | null, minItems = 10) {
   const where: any = { programId }
   if (semester) where.OR = [{ semester: null }, { semester }]
-  const count = await db.bookKnowledgeItem.count({ where })
-  if (count >= minItems) return { rebuilt: false, count }
+  const rawCount = await db.bookKnowledgeItem.count({ where })
+  const validItems = await getProgramKnowledgeItems(programId, semester, Math.max(40, minItems * 4)).catch(() => [])
+  if (validItems.length >= minItems) return { rebuilt: false, count: validItems.length, rawCount }
   const rebuilt = await rebuildProgramKnowledge(programId, semester)
-  return { rebuilt: true, count: rebuilt.totalInserted }
+  return { rebuilt: true, count: rebuilt.totalInserted, rawCount }
 }
 
 export async function getProgramKnowledgeItems(programId: string, semester?: number | null, limit = 80) {
