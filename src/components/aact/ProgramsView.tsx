@@ -233,7 +233,7 @@ export function ProgramsView() {
                       </span>
                     )}
                     <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
-                      <Users2 className="h-3.5 w-3.5" /> {p.unitsCount > 0 ? `${p.unitsCount} وحدات` : 'برنامج اعتماد'}
+                      <Users2 className="h-3.5 w-3.5" /> {p.unitsCount > 0 ? `${p.unitsCount} وحدات` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'برنامج اعتماد'}
                     </span>
                   </div>
 
