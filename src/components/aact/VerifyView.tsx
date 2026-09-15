@@ -210,7 +210,7 @@ export function VerifyView() {
                             {result.certificate.academicRecord.comprehensiveExams.slice(0, 4).map((e, i) => (
                               <div key={i} className="rounded-lg bg-white p-2 text-[10px] font-bold text-slate-600">
                                 <p className="font-black text-[#0f2b46]">{e.title}</p>
-                                <p>الفصل {e.semester} — {e.score ?? '—'}% — {e.passed ? 'ناجح' : e.passed === false ? 'غير مجتاز' : e.status}</p>
+                                <p>الفصل {e.semester} — {e.score ?? '—'}% — {e.passed ? 'ناجح' : e.passed === false ? 'غير مجتاز' : 'قيد المراجعة'}</p>
                               </div>
                             ))}
                           </div>
