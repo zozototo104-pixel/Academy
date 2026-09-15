@@ -740,6 +740,10 @@ export function DashboardView() {
           )}
             </TabsContent>
 
+            <TabsContent value="supervision" className="mt-6">
+              <StudentSupervisionTab />
+            </TabsContent>
+
             <TabsContent value="payments" className="mt-6">
               <PaymentsTab />
             </TabsContent>
