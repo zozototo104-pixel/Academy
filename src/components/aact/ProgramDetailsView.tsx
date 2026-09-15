@@ -435,7 +435,7 @@ export function ProgramDetailsView() {
               <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                 <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-5">
                   <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-[#0f2b46]">
-                    <ClipboardList className="h-5 w-5 text-[#a8841a]" /> تفاصيل البرنامج
+                    <ClipboardList className="h-5 w-5 text-[#a8841a]" /> {isService ? 'تفاصيل الخدمة' : 'تفاصيل البرنامج'}
                   </h2>
                   <p className="text-sm leading-8 text-slate-600">{program.description}</p>
                 </section>
