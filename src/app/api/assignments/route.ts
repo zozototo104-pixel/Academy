@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ assignments: assignments.map((a) => mapAssignment(a, enrollmentMap.get(a.programId) || new Date())) })
+    return NextResponse.json({ assignments: assignments.map((a) => mapAssignment(a, enrollmentMap.get(a.programId) || new Date())).filter(Boolean) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     console.error('student assignments GET error:', e)
