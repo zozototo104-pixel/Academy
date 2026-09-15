@@ -129,9 +129,15 @@ export async function GET(req: NextRequest) {
       }),
     }
 
+    if (publicOnly && summaryOnly) {
+      const now = Date.now()
+      publicProgramsSummaryCache = { payload, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+      publicProgramsCountCache = { count: payload.programs.length, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+    }
+
     return NextResponse.json(payload, {
       headers: publicOnly
-        ? { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' }
+        ? publicCacheHeaders()
         : { 'Cache-Control': 'private, no-store' },
     })
   } catch (e) {
