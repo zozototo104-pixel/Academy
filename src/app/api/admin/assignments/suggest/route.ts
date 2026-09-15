@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getZAI, chatWithRetry } from '@/lib/ai'
+import { geminiCompleteJson } from '@/lib/gemini'
 import { ensureProgramKnowledge, getProgramKnowledgeItems, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
