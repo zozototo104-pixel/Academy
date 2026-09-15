@@ -14,7 +14,7 @@ import {
   Users2, FileText, Loader2, Layers, BookMarked, FileCheck2, Landmark,
   PackageCheck, MessagesSquare, Presentation, Headphones, Megaphone, Calendar,
   HardHat, HeartPulse, Calculator, Monitor, Compass, Library, Newspaper, Plane,
-  ShoppingCart, Gauge, Sparkles,
+  ShoppingCart, Gauge, Sparkles, TrendingUp, Network, School, Clipboard, Languages, Globe,
 } from 'lucide-react'
 
 interface Program {
