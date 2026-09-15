@@ -1721,7 +1721,7 @@ function sanitizeKnowledgeContextForExamPrompt(value: unknown, max = 16000): str
       .trim())
     .filter((line) => line.length >= 50)
     .filter((line) => !/محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|مصدر\s+القراءة|جودة\s+المحتوى|جودة\s+المحتوي|رابط\s+الكتاب/iu.test(line))
-    .slice(0, 34)
+    .slice(0, 48)
     .map((line, i) => `${i + 1}. ${line}`)
     .join('\n')
     .slice(0, max)
