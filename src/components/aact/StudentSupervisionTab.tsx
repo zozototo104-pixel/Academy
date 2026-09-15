@@ -180,8 +180,8 @@ export function StudentSupervisionTab() {
             <h2 className="text-lg font-black text-[#0f2b46]"><UserCheck className="ml-1 inline h-5 w-5 text-[#a8841a]" /> إشرافي الأكاديمي</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">{active.admission.program} — <span dir="ltr">{active.admission.reference}</span></p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{active.admission.supervisor?.name ? `مشرفك: ${active.admission.supervisor.name}` : 'مشرف ذكي فقط حالياً'}</Badge>
-              <Badge variant="outline">{active.admission.supervisionMode === 'HUMAN' ? 'إشراف بشري' : active.admission.supervisionMode === 'HYBRID' ? 'إشراف بشري وذكي' : 'إشراف ذكي'}</Badge>
+              <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{hasHumanSupervisor ? `مشرفك: ${active.admission.supervisor?.name}` : 'المشرف الذكي الأكاديمي'}</Badge>
+              <Badge variant="outline">{hasHumanSupervisor ? (active.admission.supervisionMode === 'HYBRID' ? 'إشراف بشري وذكي' : 'إشراف بشري') : 'إشراف ذكي'}</Badge>
             </div>
           </div>
           {rows.length > 1 && (
