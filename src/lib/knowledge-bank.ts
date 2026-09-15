@@ -838,9 +838,11 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
-  const qualityNote = sourceText.length >= 900
-    ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص منظف قبل التوليد.`
-    : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
+  const qualityNote = buildMode === 'TEXT'
+    ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص الكتاب المنظف قبل التوليد.`
+    : buildMode === 'FILE'
+      ? 'تم بناء بنك المعرفة من قراءة مباشرة لملف الكتاب المرفوع عبر الذكاء البصري، بعد فشل الاستخراج النصي التقليدي أو عدم كفايته.'
+      : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف ولا قراءة ملف كافية؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
   return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: qualityNote }
 }
 
