@@ -626,7 +626,7 @@ export function ApplyView() {
                         <div className="space-y-2">
                           <Label>{selectedCategory === 'SERVICE' ? 'الخدمة المطلوبة *' : selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص المطلوب *' : 'البرنامج / الدبلوم *'}</Label>
                           <Select value={form.program} onValueChange={(v) => setForm({ ...form, program: v })} disabled={!selectedCategory}>
-                            <SelectTrigger><SelectValue placeholder={selectedCategory ? 'اختر التخصص' : 'اختر نوع البرنامج أولاً'} /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder={selectedCategory === 'SERVICE' ? 'اختر الخدمة المطلوبة' : selectedCategory ? 'اختر التخصص أو البرنامج' : 'اختر نوع الطلب أولاً'} /></SelectTrigger>
                             <SelectContent className="max-h-72">
                               {filteredPrograms.map((p) => (
                                 <SelectItem key={p.id} value={p.titleAr}>
