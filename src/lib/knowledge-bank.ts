@@ -205,7 +205,7 @@ function looksLikeBrokenKnowledgeSource(value: unknown) {
   if (bad.some((x) => n.includes(norm(x)))) return true
   if (arabicWords >= 50 && weirdCount >= 2) return true
   if (arabicWords >= 12 && weirdCount >= 1 && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى)/u.test(n)) return true
-  if (arabicLetters >= 60 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena|lucien\s+poirier)/i.test(raw)) return true
+  if (arabicLetters >= 60 && latinLetters >= 35 && /(libro|tratado|guerra|lehrs|krieg|vellena)/i.test(raw)) return true
   if (/(?:عام|سنة|سنه|حوالي)\s*(?:[3-9]\d{3}|\d{5,})/u.test(raw) && /(كتاب|استراتيجي|الفكر|الحرب|منهج)/u.test(raw)) return true
   return false
 }
