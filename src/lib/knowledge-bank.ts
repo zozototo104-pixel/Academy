@@ -329,7 +329,71 @@ function fallbackKnowledgeSummary(bookTitle: string, category: string) {
   return `يلخص هذا المحور فكرة أساسية من كتاب «${bookName}» بطريقة صالحة للدراسة والامتحان. يركز على المعنى المهني للفكرة، علاقتها بالتخصص، وكيف يمكن استخدامها في سؤال تطبيقي أو واجب تحليلي.`
 }
 
-function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: number | null }, text: string, semester?: number | null): KnowledgeItemDraft[] {
+type ProgramMeta = { titleAr: string; titleEn?: string | null; category?: string | null; description?: string | null }
+
+function levelLabel(category?: string | null) {
+  const c = String(category || '').toUpperCase()
+  if (c.includes('DIPLOMA')) return 'الدبلوم المهني'
+  if (c.includes('MASTER')) return 'الماجستير المهني'
+  if (c.includes('DOCTOR')) return 'الدكتوراه المهنية'
+  if (c.includes('ACCREDIT')) return 'مسار الاعتماد المهني'
+  return 'المسار المهني الأكاديمي'
+}
+
+function cleanBookName(book: RawBookForHydration) {
+  const raw = cleanText(book.title || book.titleEn || 'الكتاب المقرر', 110)
+  return raw && !looksLikeBrokenAcademicOutput(raw, { allowShort: true }) ? raw : 'الكتاب المقرر'
+}
+
+function metadataKnowledgeBlueprint(program: ProgramMeta, book: RawBookForHydration & { semester?: number | null }, semester?: number | null): KnowledgeItemDraft[] {
+  const bookName = cleanBookName(book)
+  const programTitle = cleanText(program.titleAr || program.titleEn || 'البرنامج الأكاديمي', 160)
+  const level = levelLabel(program.category)
+  const purpose = cleanText(book.description || book.levelPolicy || program.description || `توظيف الكتاب في بناء معرفة مهنية متدرجة داخل ${programTitle}.`, 520)
+  const readingDepth = cleanText(book.readingDepth || `قراءة تحليلية تناسب ${level}: فهم المفاهيم، ربطها بسياقات العمل، وتحويلها إلى قرارات وحالات تطبيقية.`, 420)
+  const assessment = cleanText(book.assessmentOrientation || 'أسئلة فهم وتحليل وتطبيق، مع حالات عملية وإجابات قصيرة مدعومة بالدليل.', 420)
+  const note = 'خطة معرفة منهجية مبنية على توصيف الكتاب والبرنامج لأن النص الكامل غير متاح أو غير مقروء بما يكفي؛ لا تُعامل كاقتباس حرفي من الكتاب.'
+  const baseKeywords = tokenizeKeywords(`${bookName} ${programTitle} ${purpose}`, 6)
+  const mk = (category: string, title: string, summary: string, importance = 65, keywords: string[] = []): KnowledgeItemDraft => ({
+    category,
+    title: cleanText(title, 190),
+    summary: cleanText(summary, 1000),
+    excerpt: null,
+    keywords: safeGeneratedList([...keywords, ...baseKeywords], baseKeywords, 9, 55),
+    importance,
+    semester: semester ?? book.semester ?? null,
+    sourceNote: note,
+  })
+
+  const items: KnowledgeItemDraft[] = [
+    mk('SUMMARY', `الخريطة الدراسية لكتاب «${bookName}»`, `يمثل هذا العنصر خريطة أولية لاستخدام كتاب «${bookName}» داخل ${programTitle}. سبب الاعتماد: ${purpose}. يتعامل الطالب مع الكتاب بوصفه مرجعاً لتكوين لغة مهنية، ثم تحويل المفاهيم إلى مخرجات قابلة للقياس في الاختبار والواجب والمناقشة.`, 62, ['خريطة دراسية', 'مخرجات تعلم']),
+    mk('CONCEPT', `الفكرة المحورية في «${bookName}»`, `الفكرة المحورية هي تحويل موضوع الكتاب إلى أداة فهم داخل ${programTitle}: تحديد المفاهيم الأساسية، علاقتها بالممارسة المهنية، وما الذي يجب أن يستطيع الطالب تفسيره أو تطبيقه بعد القراءة.`, 76, ['مفهوم محوري', 'تطبيق مهني']),
+    mk('DEFINITION', `مصطلحات أساسية مرتبطة بكتاب «${bookName}»`, `يبني هذا العنصر قاموساً مبدئياً للمصطلحات التي يجب ضبطها قبل الامتحان: المصطلح، تعريفه العملي، حدوده، ومثال استخدامه داخل تخصص ${programTitle}. لا يعتمد على حفظ التعريف وحده بل على القدرة على تمييزه في حالة مهنية.`, 66, ['مصطلحات', 'تعريفات']),
+    mk('THEORY', `النماذج والنظريات المتوقعة في محور الكتاب`, `على الطالب أن يقرأ الكتاب بحثاً عن النماذج أو الأطر أو المدارس الفكرية التي تفسر الظاهرة المهنية. في ${level} لا يكفي ذكر النظرية؛ يجب بيان فرضياتها وحدودها وما الذي تضيفه عند تحليل حالة واقعية في ${programTitle}.`, 74, ['نظريات', 'نماذج']),
+    mk('METHOD', `منهجية قراءة الكتاب وتحويله إلى معرفة`, `منهجية التعامل مع الكتاب تبدأ بتحديد المفاهيم، ثم العلاقات بينها، ثم استخراج إجراءات أو خطوات تطبيق، ثم اختبارها على حالة عملية. ${readingDepth}`, 78, ['منهجية', 'تحليل']),
+    mk('METHOD', `خطوات التطبيق المهني المستخرجة من محور الكتاب`, `يستخدم الطالب الكتاب لبناء تسلسل عملي: تشخيص المشكلة، تحديد أصحاب العلاقة أو المتغيرات، اختيار أداة تحليل مناسبة، صياغة بدائل، ثم تحديد مؤشرات نجاح قابلة للمتابعة.`, 72, ['خطوات تطبيق', 'مؤشرات']),
+    mk('CASE', `حالة تطبيقية مبنية على موضوع «${bookName}»`, `يمكن تحويل موضوع الكتاب إلى حالة تطبيقية في ${programTitle}: موقف مهني يتضمن قراراً، مخاطرة أو تعارض مصالح، ثم يطلب من الطالب تحليل البدائل وتبرير الاختيار وفق مفاهيم الكتاب.`, 82, ['حالة عملية', 'قرار']),
+    mk('CASE', `تحليل الأطراف والمخاطر في تطبيق أفكار الكتاب`, `يركز هذا العنصر على تحويل القراءة إلى تحليل مهني: من يتأثر بالقرار؟ ما المخاطر أو القيود؟ ما الموارد المطلوبة؟ وكيف تُقاس النتيجة؟`, 78, ['أصحاب مصلحة', 'مخاطر']),
+    mk('CONCEPT', `العلاقة بين محتوى الكتاب ومخرجات التعلم`, `يربط هذا العنصر الكتاب بمخرجات التعلم: الفهم، التحليل، التطبيق، والتقييم. كل فكرة يجب أن تتحول إلى مهارة يمكن ملاحظتها في إجابة الطالب أو مشروعه التطبيقي.`, 70, ['مخرجات تعلم', 'مهارات']),
+    mk('QUESTION_SEED', `بذرة سؤال فهم من «${bookName}»`, `سؤال مناسب: اشرح مفهوماً مركزياً من الكتاب، ثم بيّن كيف يغير فهم هذا المفهوم طريقة التعامل مع مشكلة في ${programTitle}. يجب أن تتضمن الإجابة تعريفاً موجزاً ومثالاً مهنياً.`, 80, ['سؤال فهم', 'مثال']),
+    mk('QUESTION_SEED', `بذرة سؤال تحليل وتطبيق`, `سؤال مناسب: أمام حالة مهنية مرتبطة بموضوع الكتاب، حدّد المشكلة، حلل البدائل، اختر قراراً مبرراً، ثم اربط قرارك بمؤشر نجاح أو خطر محتمل. طبيعة التقييم: ${assessment}`, 86, ['سؤال تطبيقي', 'تحليل']),
+    mk('QUESTION_SEED', `بذرة سؤال تقييم نقدي`, `سؤال مناسب لمرحلة ${level}: قيّم حدود تطبيق فكرة من الكتاب في بيئة مهنية معقدة، واذكر متى تصبح الفكرة غير كافية أو تحتاج إلى نموذج مكمّل.`, 84, ['تقييم نقدي', 'حدود التطبيق']),
+    mk('THEORY', `المقارنة بين الأطر والمداخل`, `يوجه هذا العنصر الطالب إلى المقارنة بين أكثر من مدخل: ما الافتراضات؟ ما نقاط القوة؟ ما حدود الاستخدام؟ وكيف تؤثر طبيعة المؤسسة أو المشكلة على اختيار المدخل؟`, 72, ['مقارنة', 'أطر']),
+    mk('METHOD', `تحويل القراءة إلى واجب أكاديمي`, `يمكن تكليف الطالب بتقرير قصير يستخرج ثلاث أفكار من الكتاب، يربط كل فكرة بحالة مهنية، ثم يضع توصية تطبيقية مدعومة بسبب واضح ومؤشر قياس.`, 69, ['واجب', 'تقرير']),
+    mk('CONCEPT', `أخطاء الفهم الشائعة في محور الكتاب`, `من الأخطاء الشائعة تحويل الكتاب إلى حفظ عناوين أو تعريفات فقط. المطلوب في ${programTitle} هو قراءة نقدية تفهم السياق، تميز الشروط، وتربط المفهوم بنتيجة قابلة للقياس.`, 68, ['أخطاء شائعة', 'فهم نقدي']),
+    mk('CASE', `مناقشة شفوية حول تطبيق الكتاب`, `في المناقشة يستطيع المشرف أن يطلب من الطالب الدفاع عن تطبيق فكرة من الكتاب على موقف عملي، ثم يسأله عن القيود والبدائل والمؤشرات. الهدف قياس الفهم العميق لا استرجاع النص.`, 74, ['مناقشة', 'دفاع علمي']),
+  ]
+
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = norm(`${item.category} ${item.title}`).slice(0, 160)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return !!item.title && !!item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary)
+  }).slice(0, MAX_ITEMS_PER_BOOK)
+}
+
+function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: number | null }, text: string, semester?: number | null, program?: ProgramMeta): KnowledgeItemDraft[] {
   const seeds = splitBookIntoSeeds(text, MAX_ITEMS_PER_BOOK)
   const seen = new Set<string>()
   const items: KnowledgeItemDraft[] = []
@@ -337,8 +401,8 @@ function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: nu
     const seed = seeds[i]
     const category = inferCategory(seed, i)
     const rawTitle = titleFromSeed(seed, i)
-    const rawSummary = cleanText(seed, 500)
-    const rawExcerpt = cleanText(seed, 700)
+    const rawSummary = cleanText(seed, 650)
+    const rawExcerpt = cleanText(seed, 900)
     const broken = looksLikeBrokenAcademicOutput(`${rawTitle}. ${rawSummary}`)
     const title = broken ? fallbackKnowledgeTitle(book.title, category, i) : rawTitle
     const summary = broken ? fallbackKnowledgeSummary(book.title, category) : rawSummary
@@ -356,6 +420,17 @@ function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: nu
       semester: semester ?? null,
       sourceNote: `مستخرج آلياً من «${book.title}» بعد تنظيف جودة النص`,
     })
+  }
+
+  const blueprint = program ? metadataKnowledgeBlueprint(program, book, semester) : []
+  if (items.length < 8) {
+    for (const fb of blueprint) {
+      const key = norm(`${fb.category} ${fb.title}`).slice(0, 160)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      items.push(fb)
+      if (items.length >= Math.min(MAX_ITEMS_PER_BOOK, 18)) break
+    }
   }
 
   if (items.length === 0 && (book.description || book.title)) {
