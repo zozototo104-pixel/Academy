@@ -44,7 +44,7 @@ function mapAssignment(a: any, enrollmentCreatedAt: Date) {
     weight: a.weight,
     dueDays: a.dueDays,
     dueAt,
-    rubric: a.rubric,
+    rubric,
     status: a.status,
     submitted: !!submission,
     submission: submission ? {
