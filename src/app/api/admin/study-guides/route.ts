@@ -78,7 +78,7 @@ function labelIsDisplayable(value: string) {
   if (!n) return false
   if (/\b(?:concept|theory|method|case|definition|question_seed|summary)\b/i.test(value)) return false
   if (/(?:من النص|من الكتاب|المقطع|الدليل المقروء|مستخرجه من النص|مستخرجة من النص|بذره سؤال|بذرة سؤال|حاله تطبيقيه من|حالة تطبيقية من|بلغه اكاديميه|بلغة أكاديمية|النص وال|المعرفه والامتحان|المعرفة والامتحان)/u.test(n)) return false
-  if (/^(?:يحول|يعرض|ينظم|شرح|يربط|ربط|يدرس|يستخدم|يركز|يوضح|يقدم|تحويل|يوظف|يصوغ|يشرح|تاثيره|تاثيرها)\b/u.test(n)) return false
+  if (/^(?:يحول|يعرض|ينظم|شرح|يربط|ربط|يدرس|يستخدم|يركز|يوضح|يقدم|تحويل|يوظف|يصوغ|يشرح|تاثيره|تاثيرها)(?:\s|$)/u.test(n)) return false
   if (/^حاله\s+و?تطبيقيه$/u.test(n)) return false
   if (n.includes('سلسله متتابعه') && !/(امداد|توريد|عمليات)/u.test(n)) return false
   if (/[A-Za-z]{4,}/.test(value) && /[\u0600-\u06FF]/.test(value)) return false
