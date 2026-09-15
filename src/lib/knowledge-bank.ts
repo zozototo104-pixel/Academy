@@ -490,6 +490,23 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
   return out
 }
 
+function ensureCategoryCoverage(items: KnowledgeItemDraft[], fallback: KnowledgeItemDraft[]): KnowledgeItemDraft[] {
+  const required = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']
+  const out = [...items]
+  const seen = new Set(out.map((item) => norm(`${item.category} ${item.title}`).slice(0, 180)).filter(Boolean))
+  for (const category of required) {
+    if (out.some((item) => safeCategory(item.category) === category)) continue
+    const fb = fallback.find((item) => safeCategory(item.category) === category)
+    if (!fb) continue
+    const key = norm(`${fb.category} ${fb.title}`).slice(0, 180)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(fb)
+    if (out.length >= MAX_ITEMS_PER_BOOK) break
+  }
+  return out.slice(0, MAX_ITEMS_PER_BOOK)
+}
+
 async function aiKnowledgeItems(
   program: { titleAr: string; titleEn?: string | null; category?: string | null; description?: string | null },
   book: RawBookForHydration & { semester?: number | null },
