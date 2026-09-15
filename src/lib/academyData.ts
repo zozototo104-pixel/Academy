@@ -42,6 +42,8 @@ export interface SeedProgram {
 export const ACADEMY_INFO = {
   nameAr: 'الأكاديمية الأمريكية للاستشارات والتدريب',
   nameEn: 'AMERICAN ACADEMY FOR CONSULTING AND TRAINING',
+  officialSite: 'https://www.aactacademy.com/ar',
+  locationAr: 'الولايات المتحدة الأمريكية - ولاية وايومنغ',
   founded: 2016,
   taglineAr: 'بناء القيادات، صقل المهارات',
   taglineEn: 'Building Leaders, Refining Skills',
