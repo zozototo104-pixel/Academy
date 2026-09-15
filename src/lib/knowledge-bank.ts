@@ -1151,9 +1151,9 @@ export async function getProgramKnowledgeItems(programId: string, semester?: num
     take: limit,
     include: { book: { select: { title: true, titleEn: true, semester: true } } },
   })
-  return rows.map((r) => {
-    const title = cleanText(r.title, 220)
+  return rows.map((r, i) => {
     const summary = cleanText(r.summary, 1600)
+    const title = cleanText(safeKnowledgeTitle(r.title, summary, r.category, i), 220)
     const excerpt = r.excerpt ? cleanText(r.excerpt, 1800) : null
     const rawKeywords = (() => { try { return JSON.parse(r.keywords || '[]') } catch { return [] } })() as string[]
     return {
