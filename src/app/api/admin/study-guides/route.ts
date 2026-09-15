@@ -103,6 +103,9 @@ function looksLikeWeakGuideText(value: unknown) {
     'شرح بلغه اكاديميه واضحه',
     'ربط بحاله مهنيه',
     'محور دراسي منظم يحتاج',
+    'ما شروط تطبيق محور',
+    'كيف يمكن تطبيق محور',
+    'كيف يمكن توظيف المحور',
     'لا حفظه مجردا',
   ]
   if (weak.some((x) => n.includes(normalizeAcademic(x)))) return true
