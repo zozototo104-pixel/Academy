@@ -562,15 +562,9 @@ const TITLE_STOP_WORDS = new Set([
 ].map(norm))
 
 function conciseSeedPhrase(seed: string) {
-  const first = cleanText(seed.split(/[.!؟؛\n]/u).find((x) => cleanText(x).length > 22) || seed, 220)
-  const candidates = [first.split(/[:：]/u)[0], first]
-  for (const value of candidates) {
-    const phrase = cleanText(value, 110)
-      .replace(/^(?:و?هو|و?هي|و?ذلك|إذ|اذ|حيث|وقد|كما|لذلك|وبذلك)\s+/u, '')
-      .trim()
-    const words = phrase.split(/\s+/).filter(Boolean)
-    if (words.length >= 2 && words.length <= 8 && phrase.length <= 90 && !looksLikeBrokenAcademicOutput(phrase, { allowShort: true })) return phrase
-  }
+  // نستخرج عنواناً دلالياً من المقطع عبر الحارس المركزي، لا أول جملة حرفية قد تكون OCR أو فعلاً عاماً مثل «ينظم...».
+  const label = conciseAcademicLabel(seed, '', 90)
+  if (label && !looksLikeBrokenAcademicOutput(label, { allowShort: true })) return label
   return ''
 }
 
