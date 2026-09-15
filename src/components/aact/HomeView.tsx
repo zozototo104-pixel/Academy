@@ -95,6 +95,8 @@ export function HomeView() {
   useEffect(() => {
     let alive = true
     let hasCachedList = false
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v2') || '[]')
       if (Array.isArray(cachedList) && cachedList.length > 0) {
@@ -109,37 +111,68 @@ export function HomeView() {
     } catch {}
 
     const controller = new AbortController()
-    fetch('/api/programs?summary=1&public=1', {
+
+    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
+    fetch('/api/programs?count=1&public=1', {
       signal: controller.signal,
+      cache: 'force-cache',
       headers: { Accept: 'application/json' },
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ programs: ProgramLite[] }>
+        return res.json() as Promise<{ count: number }>
       })
       .then((d) => {
         if (!alive) return
-        const list = Array.isArray(d.programs) ? d.programs : []
-        setPrograms(list)
-        if (list.length > 0) {
-          setProgramCount(list.length)
-          try {
-            localStorage.setItem('aact_program_count', String(list.length))
-            localStorage.setItem('aact_programs_summary_v2', JSON.stringify(list.slice(0, 80)))
-          } catch {}
+        if (Number.isFinite(d.count) && d.count > 0) {
+          setProgramCount(d.count)
+          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
         }
       })
-      .catch(() => {
-        if (!alive) return
-        setProgramCount((current) => current ?? null)
+      .catch(() => {})
+
+    const loadSummary = () => {
+      fetch('/api/programs?summary=1&public=1', {
+        signal: controller.signal,
+        cache: 'force-cache',
+        headers: { Accept: 'application/json' },
       })
-      .finally(() => {
-        if (alive && !hasCachedList) setLoading(false)
-      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json() as Promise<{ programs: ProgramLite[] }>
+        })
+        .then((d) => {
+          if (!alive) return
+          const list = Array.isArray(d.programs) ? d.programs : []
+          setPrograms(list)
+          if (list.length > 0) {
+            setProgramCount(list.length)
+            try {
+              localStorage.setItem('aact_program_count', String(list.length))
+              localStorage.setItem('aact_programs_summary_v2', JSON.stringify(list.slice(0, 80)))
+            } catch {}
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          setProgramCount((current) => current ?? null)
+        })
+        .finally(() => {
+          if (alive && !hasCachedList) setLoading(false)
+        })
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(loadSummary, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(loadSummary, 120)
+    }
 
     return () => {
       alive = false
       controller.abort()
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [])
 
