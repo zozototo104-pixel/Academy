@@ -405,11 +405,16 @@ async function aiKnowledgeItems(
   semester?: number | null
 ): Promise<KnowledgeItemDraft[] | null> {
   if (text.length < 700) return null
-  const sample = [
-    text.slice(0, 9000),
-    text.slice(Math.max(0, Math.floor(text.length / 2) - 4500), Math.floor(text.length / 2) + 4500),
-    text.slice(Math.max(0, text.length - 9000)),
-  ].join('\n\n--- مقطع من جزء آخر من الكتاب ---\n\n')
+  // لا نرسل النص الخام إلى الذكاء. أولاً نستخرج مقاطع عربية/أكاديمية نظيفة فقط،
+  // لأن إرسال OCR مشوه يجعل النموذج يعيد صياغة التشوه ويحفظه في بنك المعرفة.
+  const cleanSeeds = splitBookIntoSeeds(text, 18)
+    .map((s) => sharedCleanAcademicOutput(s, 1100))
+    .filter((s) => s.length >= 120 && !looksLikeBrokenAcademicOutput(s) && !looksLikeBrokenKnowledgeSource(s))
+  if (cleanSeeds.length < 4) return null
+  const sample = cleanSeeds
+    .slice(0, 18)
+    .map((s, i) => `مقطع نظيف ${i + 1}:\n${s}`)
+    .join('\n\n---\n\n')
 
   const prompt = `أنت تبني بنك معرفة أكاديمي رسمي لمنصة تعليم مهني. لا نريد ملخصاً عاماً؛ نريد عناصر معرفة قابلة للاستخدام في الامتحانات، الواجبات، والمشرف الذكي.
 
