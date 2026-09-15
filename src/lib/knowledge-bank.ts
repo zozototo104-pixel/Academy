@@ -631,6 +631,83 @@ ${sample}
   }
 }
 
+function bookMimeForVision(book: RawBookForHydration) {
+  const mime = String(book.mimeType || '').toLowerCase()
+  if (mime && mime !== 'application/octet-stream') return mime
+  const ext = String(book.fileName || '').toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || ''
+  if (ext === 'pdf') return 'application/pdf'
+  if (['jpg', 'jpeg'].includes(ext)) return 'image/jpeg'
+  if (ext === 'png') return 'image/png'
+  if (ext === 'webp') return 'image/webp'
+  return mime || 'application/octet-stream'
+}
+
+function canReadBookFileWithGemini(book: RawBookForHydration) {
+  const mime = bookMimeForVision(book)
+  return !!book.data && (mime.includes('pdf') || mime.startsWith('image/'))
+}
+
+async function aiKnowledgeItemsFromUploadedFile(
+  program: ProgramMeta,
+  book: RawBookForHydration & { semester?: number | null },
+  semester?: number | null
+): Promise<KnowledgeItemDraft[] | null> {
+  if (!canReadBookFileWithGemini(book)) return null
+  const mimeType = bookMimeForVision(book)
+  const dataBase64 = String(book.data || '')
+  if (!dataBase64 || dataBase64.length < 200) return null
+
+  const level = levelLabel(program.category)
+  const prompt = `أنت لجنة قراءة أكاديمية. أمامك ملف الكتاب المرفوع نفسه، وليس وصفاً ولا رابط معاينة. اقرأ الملف فعلياً واستخرج منه بنك معرفة مهني صالح للدراسة والامتحان والمشرف الذكي.
+
+البرنامج: ${program.titleAr}
+الدرجة: ${level}
+وصف البرنامج: ${program.description || '-'}
+الكتاب: ${book.title}${book.titleEn ? ` / ${book.titleEn}` : ''}
+المؤلف: ${book.author || '-'}
+الفصل: ${semester || book.semester || 'عام'}
+سياسة المستوى: ${book.levelPolicy || '-'}
+عمق القراءة المطلوب: ${book.readingDepth || '-'}
+طبيعة التقييم: ${book.assessmentOrientation || '-'}
+
+المطلوب من الملف المرفق فعلياً:
+- استخرج مفاهيم مركزية من نص الكتاب نفسه.
+- استخرج نظريات/أطر/نماذج إن وجدت، أو حدد الأطر الضمنية الواضحة من النص.
+- استخرج منهجيات وخطوات تطبيق، وحالات أو أمثلة أو سيناريوهات عملية.
+- استخرج تعريفات ومصطلحات وبذور أسئلة قابلة للاستخدام في الامتحان.
+- اربط كل عنصر بتخصص البرنامج والدرجة، لكن لا تجعل العناصر عامة فارغة.
+- إذا كان الملف رواية أو نصاً سردياً فحوّل الأحداث والشخصيات والقرارات والصراعات إلى حالات مهنية مرتبطة بالتخصص.
+
+قواعد صارمة:
+- لا تعتمد على عنوان الكتاب فقط.
+- لا تكتب عناصر عامة مثل "الفكرة المحورية" أو "خطوات التطبيق" إلا إذا ربطتها بفكرة محددة قرأتها من الملف.
+- إذا لم تتمكن من قراءة الملف فأجب بمصفوفة فارغة [] ولا تخترع معرفة.
+- اكتب بالعربية الأكاديمية السليمة، ويمكن ذكر مصطلح أجنبي بين قوسين إذا كان أساسياً.
+- لا تستخدم رموزاً تقنية داخل النص.
+- كل عنصر يجب أن يصلح للعرض مباشرة للطالب والمشرف.
+
+أجب JSON فقط كمصفوفة من 12 إلى ${MAX_ITEMS_PER_BOOK} عنصر، وكل عنصر بهذا الشكل:
+{"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان محدد من محتوى الكتاب","summary":"شرح أكاديمي واضح مبني على ما قرأته من الملف ومربوط بالتخصص","excerpt":"دليل مختصر أو إعادة صياغة أمينة من النص المقروء","keywords":["كلمة"],"importance":80,"semester":${semester ?? 'null'},"sourceNote":"قراءة مباشرة من ملف الكتاب المرفوع"}`
+
+  try {
+    const raw = await Promise.race([
+      geminiVisionJson({
+        prompt,
+        images: [{ mimeType, dataBase64 }],
+        temperature: 0.08,
+        maxOutputTokens: 8192,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_FILE_AI_TIMEOUT')), 36000)),
+    ])
+    const arr = extractJsonArray(raw)
+    const normalized = normalizeDrafts(arr, [], semester)
+    return normalized.length >= 6 ? normalized : null
+  } catch (e: any) {
+    console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
+    return null
+  }
+}
+
 async function aiMetadataKnowledgeItems(
   program: ProgramMeta,
   book: RawBookForHydration & { semester?: number | null },
