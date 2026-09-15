@@ -763,8 +763,9 @@ export function AdminView() {
                                   <SelectValue placeholder="تعيين مشرف أكاديمي للطالب..." />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="AI_ONLY">المشرف الذكي فقط</SelectItem>
                                   {supervisors.map((s) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name} {s.role === 'ADMIN' ? '(إدارة)' : ''}</SelectItem>
+                                    <SelectItem key={s.id} value={s.id}>{s.name} {s.role === 'ADMIN' ? '(إدارة)' : '(مشرف بشري)'}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
