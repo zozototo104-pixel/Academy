@@ -366,6 +366,7 @@ export function SupervisorView() {
                 </TabsContent>
 
                 <TabsContent value="chat" className="space-y-3">
+                  <SupervisorLiveVoiceCall admissionId={selected.id} role="SUPERVISOR" title="مكالمة صوتية حية مع الطالب" />
                   <Card><CardContent className="p-5">
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <h3 className="text-base font-black text-[#0f2b46]"><Headphones className="ml-1 inline h-4 w-4 text-[#a8841a]" /> محادثة مباشرة مع الطالب كتابةً وصوتاً</h3>
