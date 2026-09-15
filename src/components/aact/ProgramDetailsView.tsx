@@ -64,6 +64,12 @@ const ICONS: Record<string, any> = {
   gauge: Gauge,
   sparkles: Sparkles,
   'badge-check': BadgeCheck,
+  'trending-up': TrendingUp,
+  network: Network,
+  school: School,
+  clipboard: Clipboard,
+  languages: Languages,
+  globe: Globe,
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
