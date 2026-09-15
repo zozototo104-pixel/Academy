@@ -56,25 +56,28 @@ function asInt(value: unknown, fallback: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(n)))
 }
 
+function arrayFromJson(value: any): any[] {
+  if (Array.isArray(value)) return value
+  for (const key of ['suggestions', 'items', 'data', 'assignments', 'results']) {
+    if (Array.isArray(value?.[key])) return value[key]
+  }
+  return []
+}
+
 function parseJsonArray(raw: string): any[] {
   const body = clean(raw, 20000)
-  try {
-    const parsed = JSON.parse(body)
-    return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
-  } catch {}
+  try { return arrayFromJson(JSON.parse(body)) } catch {}
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
   if (fenced) {
-    try {
-      const parsed = JSON.parse(fenced)
-      return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
-    } catch {}
+    try { return arrayFromJson(JSON.parse(fenced)) } catch {}
   }
   const arr = body.match(/\[[\s\S]*\]/)?.[0]
   if (arr) {
-    try {
-      const parsed = JSON.parse(arr)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {}
+    try { return arrayFromJson(JSON.parse(arr)) } catch {}
+  }
+  const obj = body.match(/\{[\s\S]*\}/)?.[0]
+  if (obj) {
+    try { return arrayFromJson(JSON.parse(obj)) } catch {}
   }
   return []
 }
