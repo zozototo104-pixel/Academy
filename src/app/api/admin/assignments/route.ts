@@ -39,7 +39,7 @@ function mapAssignment(a: any) {
     points: a.points,
     weight: a.weight,
     dueDays: a.dueDays,
-    rubric: a.rubric,
+    rubric,
     status: a.status,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
