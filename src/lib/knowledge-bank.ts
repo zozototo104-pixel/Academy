@@ -536,6 +536,11 @@ export async function rebuildProgramKnowledge(programId: string, semester?: numb
   })
   if (books.length === 0) throw new Error('لا توجد كتب مقررة لبناء بنك المعرفة')
 
+  // تنظيف جذري قبل إعادة البناء: أي عناصر قديمة غير مرتبطة بكتاب أو من توليدات سابقة لا تبقى في بنك البرنامج.
+  const orphanWhere: any = { programId, bookId: null }
+  if (semester) orphanWhere.OR = [{ semester: null }, { semester }]
+  const orphanDeleted = await db.bookKnowledgeItem.deleteMany({ where: orphanWhere }).catch(() => ({ count: 0 }))
+
   const results: KnowledgeBuildResult[] = []
   for (const b of books) {
     results.push(await rebuildKnowledgeForBook(b.id))
@@ -544,7 +549,7 @@ export async function rebuildProgramKnowledge(programId: string, semester?: numb
     programId,
     results,
     totalInserted: results.reduce((s, r) => s + r.inserted, 0),
-    totalDeleted: results.reduce((s, r) => s + r.deleted, 0),
+    totalDeleted: Number(orphanDeleted.count || 0) + results.reduce((s, r) => s + r.deleted, 0),
   }
 }
 
