@@ -46,7 +46,7 @@ async function buildStudentCard(app: any) {
     userId ? db.examAttempt.findMany({
       where: { userId, ...(programId ? { exam: { unit: { programId } } } : {}) },
       orderBy: { submittedAt: 'desc' },
-      take: 20,
+      take: 100,
       include: {
         exam: { select: { id: true, title: true, passScore: true, unit: { select: { title: true, order: true, programId: true } } } },
         answers: { include: { question: { select: { text: true, modelAnswer: true, correctAnswer: true, points: true } } } },
