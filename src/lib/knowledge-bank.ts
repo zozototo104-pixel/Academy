@@ -892,13 +892,13 @@ async function aiKnowledgeItemsFromUploadedFile(
         prompt,
         images: [{ mimeType, dataBase64 }],
         temperature: 0.08,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 12288,
       }),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_FILE_AI_TIMEOUT')), 36000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_FILE_AI_TIMEOUT')), 52000)),
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, [], semester)
-    return normalized.length >= 6 ? normalized : null
+    return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
     return null
