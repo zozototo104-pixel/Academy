@@ -291,7 +291,7 @@ export function StudentSupervisionTab() {
           )
         })}</div> : (
           <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold leading-7 text-slate-500">
-            لم ينشر لك المشرف اختباراً خاصاً بعد. يمكنك مراسلته أو الاستمرار مع المشرف الذكي.
+            {hasHumanSupervisor ? 'لم ينشر لك المشرف البشري اختباراً خاصاً بعد. يمكنك مراسلته من قسم المراسلة عند الحاجة.' : 'أنت حالياً تحت إشراف ذكي فقط؛ عند تعيين مشرف بشري ستظهر هنا اختباراته الخاصة وأدوات التواصل معه.'}
             <br />
             <Bot className="ml-1 inline h-4 w-4 text-[#a8841a]" /> الاختبارات الخاصة ستظهر هنا فور نشرها.
           </div>
