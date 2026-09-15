@@ -1208,8 +1208,8 @@ export function AdminBooksTab() {
 
                       <div className="mt-3 grid gap-3 lg:grid-cols-3">
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
-                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أهداف التعلم</p>
-                          {guide.objectives.slice(0, 6).map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أهداف التعلم ({guide.objectives.length})</p>
+                          {guide.objectives.map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
                         </div>
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
                           <p className="mb-2 text-[11px] font-black text-[#0f2b46]">مصطلحات ومحاور ({guide.keyTerms.length})</p>
