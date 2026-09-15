@@ -2,7 +2,8 @@
 
 import { useAppStore, api } from '@/lib/store'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
-import { useCallback, useEffect, useState } from 'react'
+import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList } from '@/lib/academic-output-quality'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
