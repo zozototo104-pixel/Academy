@@ -668,7 +668,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
   const qualityNote = sourceText.length >= 900
     ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص منظف قبل التوليد.`
-    : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف؛ لم يتم استخدام المقاطع المشوهة في بنك المعرفة.`
+    : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
   return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: qualityNote }
 }
 
