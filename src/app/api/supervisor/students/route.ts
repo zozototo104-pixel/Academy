@@ -70,9 +70,12 @@ async function buildStudentCard(app: any) {
   ])
 
   const graded = attempts.filter((a: any) => a.score != null)
+  const unitGraded = unitAttempts.filter((a: any) => a.score != null)
+  const allGraded = [...graded, ...unitGraded]
   const failed = graded.filter((a: any) => (a.finalScore ?? a.score ?? 0) < (a.exam?.passScore ?? 60))
-  const avgScore = graded.length ? Math.round(graded.reduce((s: number, a: any) => s + Number(a.finalScore ?? a.score ?? 0), 0) / graded.length) : null
-  const weakSignals = attempts.flatMap((a: any) => (a.answers || [])
+  const unitFailed = unitGraded.filter((a: any) => Number(a.score ?? 0) < (a.exam?.passScore ?? 60))
+  const avgScore = allGraded.length ? Math.round(allGraded.reduce((s: number, a: any) => s + Number(a.finalScore ?? a.score ?? 0), 0) / allGraded.length) : null
+  const weakSignals = [...attempts, ...unitAttempts].flatMap((a: any) => (a.answers || [])
     .filter((ans: any) => ans.points != null && ans.maxPoints != null && Number(ans.points) < Number(ans.maxPoints) * 0.5)
     .slice(0, 5)
     .map((ans: any) => ({
