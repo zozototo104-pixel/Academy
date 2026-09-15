@@ -180,44 +180,72 @@ function parseJsonObject(raw: string): any | null {
   return null
 }
 
-function normalizeGuide(raw: any, programTitle: string, semester: number, knowledge: any[]): GeneratedGuide {
-  const top = knowledge.slice(0, 12)
-  const fallbackTitle = `دليل الدراسة — ${programTitle} — ${semester === 2 ? 'الفصل الثاني' : semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'}`
+function normalizeGuide(
+  raw: any,
+  program: { titleAr: string; titleEn?: string | null; category?: string | null; description?: string | null },
+  semester: number,
+  knowledge: any[]
+): GeneratedGuide {
+  const programTitle = cleanGuideText(program.titleAr || program.titleEn, 'البرنامج الأكاديمي', 220, true)
+  const level = levelLabel(program.category)
+  const top = knowledge.slice(0, 28)
+  const fallbackSections = fallbackGuideSections(programTitle, semester, top)
+  const fallbackTerms = deriveGuideTerms(top, programTitle)
+  const semLabel = semester === 2 ? 'الفصل الثاني' : semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'
+  const fallbackTitle = `دليل الدراسة التحليلي — ${programTitle} — ${semLabel}`
   const title = cleanGuideText(raw?.title, fallbackTitle, 220, true)
-  const overview = cleanGuideText(raw?.overview, `هذا الدليل يلخص أهم محاور ${programTitle} في هذا الفصل، ويربط محتوى الكتب المقررة بالتطبيق المهني والأسئلة المتوقعة.`, 5000)
-  const objectives = cleanGuideList(raw?.objectives, [`فهم محاور ${programTitle} الأساسية`, 'تحليل المحتوى وربطه بحالات مهنية', 'الاستعداد للواجبات والامتحانات الفصلية'], 10, 220)
-  const keyTerms = cleanGuideList(raw?.keyTerms, top.map((k: any) => k.title).slice(0, 12), 18, 90)
+  const overview = cleanGuideText(
+    raw?.overview,
+    `هذا الدليل يحوّل بنك المعرفة المستخرج من الكتب المقررة في ${programTitle} إلى خطة مذاكرة عملية بمستوى ${level}: مفاهيم مركزية، أطر تفسير، منهجيات تطبيق، حالات مهنية، وأسئلة مراجعة مرتبطة بالواجبات والامتحانات.`,
+    5000
+  )
+  const objectives = cleanGuideList(raw?.objectives, [
+    `تحليل محاور ${programTitle} كما ظهرت في الكتب المقررة`,
+    'تمييز المفاهيم والتعريفات عن الحالات والأسئلة التطبيقية',
+    `ربط المعرفة بمستوى ${level} من حيث العمق والتحليل والنقد`,
+    'تحويل القراءة إلى إجابات امتحانية وواجبات قابلة للقياس',
+  ], 10, 260)
+  const keyTerms = sanitizeAcademicLabelList(jsonArray(raw?.keyTerms), fallbackTerms, 14, 72).filter(labelIsDisplayable)
   const rawSections = jsonArray(raw?.sections)
   const sections = rawSections.map((s: any, i: number) => {
-    const fallbackSectionTitle = top[i]?.title || `محور دراسي ${i + 1}`
-    const fallbackSectionSummary = top[i]?.summary || `محور معرفي منظم من الكتب المقررة في ${programTitle}.`
-    return {
-      title: cleanGuideText(s?.title, fallbackSectionTitle, 180, true),
-      summary: cleanGuideText(s?.summary, fallbackSectionSummary, 1600),
-      outcomes: cleanGuideList(s?.outcomes, [`شرح الفكرة وربطها بسياق ${programTitle}`, 'استخدام الفكرة في تحليل حالة مهنية أو سؤال امتحاني'], 5, 180),
-      sourceTitles: cleanGuideList(s?.sourceTitles, [top[i]?.bookTitle || top[i]?.sourceNote || 'بنك المعرفة'].filter(Boolean), 5, 160),
+    const fb = fallbackSections[i] || fallbackSections[0] || {
+      title: `محور دراسي ${i + 1}`,
+      summary: `محور معرفي منظم من الكتب المقررة في ${programTitle}.`,
+      outcomes: [`شرح المحور وربطه بسياق ${programTitle}`],
+      sourceTitles: ['بنك المعرفة الأكاديمي'],
     }
-  }).filter((s: GuideSection) => s.title && s.summary && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`)).slice(0, 8)
+    return {
+      title: conciseAcademicLabel(s?.title, fb.title, 120),
+      summary: cleanGuideText(s?.summary, fb.summary, 1800),
+      outcomes: cleanGuideList(s?.outcomes, fb.outcomes || [`شرح المحور وربطه بسياق ${programTitle}`], 5, 200),
+      sourceTitles: cleanGuideList(s?.sourceTitles, fb.sourceTitles || ['بنك المعرفة الأكاديمي'], 5, 160),
+    }
+  }).filter((s: GuideSection) => s.title && s.summary && labelIsDisplayable(s.title) && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`)).slice(0, 8)
 
-  const fallbackSections = top.slice(0, 6).map((k: any) => ({
-    title: k.title,
-    summary: k.summary,
-    outcomes: [`شرح الفكرة وربطها بسياق ${programTitle}`, 'استخدام الفكرة في تحليل حالة مهنية أو سؤال امتحاني'],
-    sourceTitles: [k.bookTitle || k.sourceNote || 'بنك المعرفة'].filter(Boolean),
-  }))
+  const activities = cleanGuideList(raw?.activities, [
+    'اختر ثلاثة محاور من الدليل واكتب لكل محور معنى الفكرة، دليلها من الكتاب، وتطبيقها المهني.',
+    'حوّل إحدى الحالات أو الأفكار إلى سيناريو مهني مع قرار، بدائل، ومؤشر نجاح.',
+    'صمّم بطاقة مراجعة لكل محور: مصطلح، إطار، مثال، سؤال محتمل، ومعيار إجابة.',
+  ], 8, 340)
+  const discussionQuestions = cleanGuideList(raw?.discussionQuestions, fallbackSections.slice(0, 8).map((s) => `كيف يغيّر محور «${conciseAcademicLabel(s.title, 'هذا المحور', 80)}» طريقة تحليل حالة مهنية في ${programTitle}؟`), 10, 340)
 
-  const activities = cleanGuideList(raw?.activities, ['اقرأ المحاور المحددة ثم اكتب ملخصاً نقدياً من 300 كلمة.', 'حوّل إحدى الأفكار إلى حالة تطبيقية مرتبطة ببيئتك المهنية.', 'استخرج ثلاثة أسئلة نقاشية من كل محور رئيسي.'], 8, 300)
-  const discussionQuestions = cleanGuideList(raw?.discussionQuestions, top.slice(0, 8).map((k: any) => `كيف يمكن تطبيق فكرة «${k.title}» في سياق ${programTitle}؟`), 10, 320)
-
-  return {
+  const guide: GeneratedGuide = {
     title,
     overview,
     objectives,
-    keyTerms,
-    sections: sections.length ? sections : fallbackSections,
+    keyTerms: keyTerms.length >= 6 ? keyTerms : fallbackTerms,
+    sections: sections.length >= 5 ? sections : fallbackSections,
     activities,
     discussionQuestions,
     sourceKnowledgeIds: Array.isArray(raw?.sourceKnowledgeIds) ? raw.sourceKnowledgeIds.map((x: any) => clean(x, 80)).filter(Boolean).slice(0, 60) : top.map((k: any) => k.id).filter(Boolean),
+  }
+
+  if (guideLooksStrong(guide)) return guide
+  return {
+    ...guide,
+    keyTerms: fallbackTerms,
+    sections: fallbackSections.length ? fallbackSections : guide.sections,
+    discussionQuestions: guide.discussionQuestions.length >= 3 ? guide.discussionQuestions : cleanGuideList([], fallbackSections.slice(0, 6).map((s) => `ما شروط تطبيق محور «${conciseAcademicLabel(s.title, 'هذا المحور', 80)}» وما حدوده في ${programTitle}؟`), 8, 340),
   }
 }
 
