@@ -507,7 +507,7 @@ export function ApplyView() {
             <Card className="mx-auto mt-6 max-w-2xl border-emerald-200 bg-emerald-50/50">
               <CardContent className="p-8 text-center">
                 {paidRef ? <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" /> : <Banknote className="mx-auto mb-4 h-14 w-14 text-amber-500" />}
-                <h2 className="text-xl font-black text-[#0f2b46]">تم استلام طلب الالتحاق</h2>
+                <h2 className="text-xl font-black text-[#0f2b46]">{isServiceRequest ? 'تم استلام طلب الخدمة' : 'تم استلام طلب الالتحاق'}</h2>
                 <div className="mx-auto mt-4 w-fit rounded-xl border border-emerald-200 bg-white px-6 py-4">
                   <div className="text-xs font-bold text-slate-500">كود تتبع حالة طلبك</div>
                   <div className="mt-1 font-mono text-2xl font-black tracking-wider text-[#0f2b46]" dir="ltr">{done.reference}</div>
