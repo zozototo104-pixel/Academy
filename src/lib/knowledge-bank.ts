@@ -532,11 +532,47 @@ function evidenceFromSeed(seed: string, max = 520) {
   return cleanText(sentences.slice(0, 3).join(' '), max) || cleanText(seed, max)
 }
 
-function topicFromSeed(seed: string, index: number) {
-  const first = cleanText(seed.split(/[.!؟؛\n]/u).find((x) => cleanText(x).length > 22) || seed, 95)
-  if (first && !looksLikeBrokenAcademicOutput(first, { allowShort: true })) return first
-  const kw = tokenizeKeywords(seed, 4).join('، ')
-  return kw ? `محور: ${kw}` : `محور معرفي من النص (${index + 1})`
+const TITLE_STOP_WORDS = new Set([
+  'هذا', 'هذه', 'ذلك', 'الذي', 'التي', 'على', 'الى', 'إلى', 'في', 'من', 'عن', 'مع', 'داخل', 'ضمن', 'بين',
+  'كتاب', 'الكتاب', 'النص', 'المقطع', 'المقروء', 'الدليل', 'المحتوى', 'المحتوي', 'البرنامج', 'الفصل',
+  'يمكن', 'يجب', 'يعرض', 'يعالج', 'يوضح', 'يركز', 'يوجه', 'يبين', 'يحول', 'تحويل', 'مستخرجة', 'مستخرج',
+].map(norm))
+
+function conciseSeedPhrase(seed: string) {
+  const first = cleanText(seed.split(/[.!؟؛\n]/u).find((x) => cleanText(x).length > 22) || seed, 220)
+  const candidates = [first.split(/[:：]/u)[0], first]
+  for (const value of candidates) {
+    const phrase = cleanText(value, 110)
+      .replace(/^(?:و?هو|و?هي|و?ذلك|إذ|اذ|حيث|وقد|كما|لذلك|وبذلك)\s+/u, '')
+      .trim()
+    const words = phrase.split(/\s+/).filter(Boolean)
+    if (words.length >= 2 && words.length <= 8 && phrase.length <= 90 && !looksLikeBrokenAcademicOutput(phrase, { allowShort: true })) return phrase
+  }
+  return ''
+}
+
+function semanticTopicFromSeed(category: string, seed: string, index: number) {
+  const phrase = conciseSeedPhrase(seed)
+  if (phrase) return phrase
+
+  const words = norm(seed).split(' ')
+  const seen = new Set<string>()
+  const keywords: string[] = []
+  for (const token of words) {
+    if (token.length < 4 || TITLE_STOP_WORDS.has(token) || /^\d+$/.test(token) || seen.has(token)) continue
+    seen.add(token)
+    keywords.push(token)
+    if (keywords.length >= 4) break
+  }
+  const core = keywords.slice(0, 2).join(' و') || `المحور ${index + 1}`
+  const cat = safeCategory(category)
+  if (cat === 'DEFINITION') return `تعريف ${core}`
+  if (cat === 'THEORY') return `إطار ${core}`
+  if (cat === 'METHOD') return `منهجية تحليل ${core}`
+  if (cat === 'CASE') return `حالة تطبيقية في ${core}`
+  if (cat === 'QUESTION_SEED') return `سؤال تطبيقي حول ${core}`
+  if (cat === 'SUMMARY') return `خلاصة محور ${core}`
+  return `مفهوم ${core}`
 }
 
 function realTextKnowledgeSummary(category: string, seed: string, programTitle: string) {
