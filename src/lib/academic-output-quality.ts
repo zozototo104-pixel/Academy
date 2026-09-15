@@ -90,7 +90,7 @@ export function conciseAcademicLabel(value: unknown, fallback = 'محور أكا
   for (const candidate of candidates) {
     const phrase = compactLabel(cleanAcademicOutput(candidate, 150), max)
     const words = phrase.split(/\s+/).filter(Boolean)
-    if (words.length >= 2 && words.length <= 8 && phrase.length >= 6 && !looksLikeBrokenGeneratedArabic(phrase)) return phrase
+    if (words.length >= 2 && words.length <= 8 && phrase.length >= 6 && !isGenericLabelPhrase(phrase) && !looksLikeBrokenGeneratedArabic(phrase)) return phrase
   }
 
   const seen = new Set<string>()
