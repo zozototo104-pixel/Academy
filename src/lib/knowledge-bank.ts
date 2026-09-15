@@ -620,6 +620,25 @@ ${sample}
 
 أجب JSON فقط كمصفوفة عناصر.`
 
+  // المسار الأساسي: Gemini JSON mode لأنه يفرض application/json ويقلل فشل التحليل.
+  try {
+    const raw = await Promise.race([
+      geminiCompleteJson({
+        system: 'أنت محلل مناهج جامعية. أرجع JSON صالحاً فقط على شكل مصفوفة، بلا Markdown ولا شرح خارج JSON.',
+        history: [{ role: 'user', text: prompt }],
+        temperature: 0.08,
+        maxOutputTokens: 8192,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 42000)),
+    ])
+    const arr = extractJsonArray(raw)
+    const normalized = normalizeDrafts(arr, [], semester)
+    if (normalized.length >= 6) return normalized
+  } catch (e: any) {
+    console.error('aiKnowledgeItems Gemini JSON failed:', String(e?.message || e).slice(0, 300))
+  }
+
+  // مسار احتياطي فقط إذا تعذر Gemini، مع استمرار رفض أي مخرجات غير JSON صالحة.
   try {
     const zai = await getZAI()
     const raw = await Promise.race([
@@ -627,12 +646,13 @@ ${sample}
         { role: 'assistant', content: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.' },
         { role: 'user', content: prompt },
       ], 2),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_AI_TIMEOUT')), 30000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ZAI_TIMEOUT')), 30000)),
     ])
     const arr = extractJsonArray(raw)
-    return arr.length ? normalizeDrafts(arr, [], semester) : null
+    const normalized = normalizeDrafts(arr, [], semester)
+    return normalized.length >= 6 ? normalized : null
   } catch (e: any) {
-    console.error('aiKnowledgeItems fallback:', String(e?.message || e).slice(0, 300))
+    console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
     return null
   }
 }
