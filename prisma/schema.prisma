@@ -481,6 +481,114 @@ model AdmissionApplication {
   payments   Payment[]
   certificates Certificate[]
   files      AdmissionDocument[]
+  // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
+  supervisionMode String @default("AI")
+}
+
+// ===== الإشراف الأكاديمي البشري/الذكي الخاص بالطالب =====
+
+model SupervisorChannelMessage {
+  id           String   @id @default(cuid())
+  admissionId  String?
+  studentId    String
+  supervisorId String?
+  senderId     String?
+  senderRole   String   // STUDENT | SUPERVISOR | AI | ADMIN | SYSTEM
+  mode         String   @default("TEXT") // TEXT | VOICE
+  content      String
+  audioData    String?  // base64 لملاحظة صوتية قصيرة
+  audioMime    String?
+  createdAt    DateTime @default(now())
+
+  @@index([admissionId])
+  @@index([studentId, createdAt])
+  @@index([supervisorId, createdAt])
+}
+
+model SupervisorAssessment {
+  id               String   @id @default(cuid())
+  admissionId       String
+  studentId         String
+  supervisorId      String?
+  programId         String?
+  title             String
+  description       String?
+  type              String   @default("DAILY_TEST") // DAILY_TEST | EXAM | ORAL_PREP | ASSIGNMENT
+  semester          Int      @default(1)
+  status            String   @default("PUBLISHED") // DRAFT | PUBLISHED | CLOSED
+  aiGenerated       Boolean  @default(false)
+  aiGradingEnabled  Boolean  @default(true)
+  sourceBookIds     String?  // JSON array
+  durationMin       Int      @default(30)
+  passScore         Int      @default(60)
+  totalPoints       Int      @default(0)
+  createdById       String?
+  createdByRole     String   @default("SUPERVISOR") // SUPERVISOR | AI | ADMIN
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  questions         SupervisorAssessmentQuestion[]
+  attempts          SupervisorAssessmentAttempt[]
+
+  @@index([admissionId])
+  @@index([studentId, status])
+  @@index([supervisorId])
+  @@index([programId])
+}
+
+model SupervisorAssessmentQuestion {
+  id            String   @id @default(cuid())
+  assessmentId  String
+  assessment    SupervisorAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  order         Int
+  type          String   // MCQ | TF | SHORT | ESSAY
+  text          String
+  options       String?
+  correctAnswer String?
+  modelAnswer   String?
+  sourceEvidence String?
+  sourceBookTitle String?
+  cognitiveSkill String?
+  difficulty    String?
+  correctRationale String?
+  points        Int      @default(2)
+  answers       SupervisorAssessmentAnswer[]
+
+  @@index([assessmentId])
+}
+
+model SupervisorAssessmentAttempt {
+  id            String   @id @default(cuid())
+  assessmentId  String
+  assessment    SupervisorAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  studentId     String
+  status        String   @default("SUBMITTED") // SUBMITTED | GRADED | NEEDS_REVIEW
+  score         Float?
+  passed        Boolean?
+  feedback      String?
+  aiGraded      Boolean  @default(false)
+  submittedAt   DateTime @default(now())
+  gradedAt      DateTime?
+  answers       SupervisorAssessmentAnswer[]
+
+  @@index([assessmentId])
+  @@index([studentId, submittedAt])
+}
+
+model SupervisorAssessmentAnswer {
+  id          String   @id @default(cuid())
+  attemptId   String
+  attempt     SupervisorAssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    SupervisorAssessmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText  String?
+  selectedOption Int?
+  isCorrect   Boolean?
+  points      Float?
+  maxPoints   Int?
+  aiFeedback  String?
+
+  @@index([attemptId])
+  @@index([questionId])
 }
 
 // ===== الكتب المقررة والاختبارات الشاملة من الكتب =====
