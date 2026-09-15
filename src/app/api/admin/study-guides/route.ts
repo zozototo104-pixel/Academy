@@ -252,24 +252,25 @@ function sectionIsUseful(section: GuideSection) {
 function deriveGuideTerms(knowledge: any[], programTitle: string) {
   const raw: string[] = []
   for (const k of knowledge) {
-    const title = conciseAcademicLabel(k?.title, '', 80)
+    const title = conciseAcademicLabel(k?.title || k?.summary || k?.excerpt, '', 80)
     if (title) raw.push(title)
-    const kws = Array.isArray(k?.keywords) ? k.keywords.map((x: any) => cleanAcademicGeneratedText(x, 40)).filter(Boolean) : []
+    const evidence = knowledgeEvidenceText(k, 180)
+    const fromEvidence = conciseAcademicLabel(evidence, '', 80)
+    if (fromEvidence) raw.push(fromEvidence)
+    const kws = Array.isArray(k?.keywords) ? k.keywords.map((x: any) => conciseAcademicLabel(x, '', 40)).filter(labelIsDisplayable) : []
     for (let i = 0; i < Math.min(kws.length - 1, 6); i += 2) raw.push(`${kws[i]} و${kws[i + 1]}`)
   }
+  const semantic = domainTermsForGuide(programTitle, knowledge)
   const fallback = [
-    `محاور ${programTitle}`,
-    'التطبيق المهني',
+    ...semantic,
     'تحليل الحالات',
+    'التطبيق المهني',
     'مؤشرات الأداء',
-    'أسئلة الامتحان',
     'التقييم النقدي',
-    'مفاهيم مركزية',
-    'نماذج تفسيرية',
-    'منهجيات تطبيق',
+    'منهجيات التطبيق',
     'قرارات مهنية',
   ]
-  return sanitizeAcademicLabelList(raw, fallback, 14, 72).filter(labelIsDisplayable)
+  return sanitizeAcademicLabelList([...semantic, ...raw], fallback, 14, 72).filter(labelIsDisplayable)
 }
 
 function fallbackGuideSections(programTitle: string, semester: number, knowledge: any[]): GuideSection[] {
