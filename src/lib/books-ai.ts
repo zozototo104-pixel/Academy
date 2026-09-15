@@ -1863,7 +1863,7 @@ ${plannedTypes}
     })
   } catch (e: any) {
     console.error('generateExamQuestionBatch failed; using deterministic fallback:', String(e?.message || e).slice(0, 600))
-    return fallbackExamQuestionBatch(program, books, batchIndex)
+    return fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
   }
 
   let arr: any[] = []
