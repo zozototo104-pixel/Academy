@@ -719,6 +719,141 @@ const trainingDiplomas: CatalogEntry[] = [
   { slug: 'dip-tot', titleAr: 'دبلوم إعداد مدربين (TOT)', titleEn: 'Training of Trainers (TOT) Diploma', category: 'DIPLOMA', price: 250, icon: 'presentation' },
 ]
 
+export interface AcademyServiceOffering {
+  slug: string
+  titleAr: string
+  titleEn?: string
+  description: string
+  icon: string
+  highlights: string[]
+  order: number
+  cta: string
+}
+
+export const SERVICE_OFFERINGS: AcademyServiceOffering[] = [
+  {
+    slug: 'training-certificates-equivalency',
+    titleAr: 'الشهادات التدريبية ونظام معادلة الخبرات المهنية',
+    titleEn: 'Training Certificates & Professional Equivalency',
+    description: 'نظام متكامل لإصدار الشهادات التدريبية المهنية ومعادلة الخبرات والمهارات العملية للأفراد، مع ملف رقمي قابل للتحقق ودعم مسار الترقي الوظيفي.',
+    icon: 'file-check-2',
+    highlights: ['شهادات حضور واجتياز معتمدة', 'معادلة خبرات مهنية', 'رقم تحقق إلكتروني فريد'],
+    order: 60,
+    cta: 'طلب معادلة الشهادات والخبرات',
+  },
+  {
+    slug: 'accreditation-membership-license',
+    titleAr: 'الاعتماد والعضوية الأمريكية ورخصة التدريب الدولية',
+    titleEn: 'Accreditation, Membership & International Training License',
+    description: 'منح الاعتمادات والرخص المهنية للمدربين والمستشارين والمراكز التدريبية، مع إدراج المعتمدين في الدليل الرسمي ومنح وثائق عضوية قابلة للتحقق.',
+    icon: 'shield-check',
+    highlights: ['مدرب دولي ورخصة ITL', 'خبير أو مستشار دولي', 'اعتماد دورات وحقائب'],
+    order: 61,
+    cta: 'تقديم طلب الاعتماد والعضوية',
+  },
+  {
+    slug: 'ready-packages-self-learning',
+    titleAr: 'الحقائب التدريبية الجاهزة والدورات بنظام التعلم الذاتي',
+    titleEn: 'Ready Training Packages & Self-Learning Courses',
+    description: 'حقائب تدريبية جاهزة ومصنفة للتنزيل والتدريب الفوري، تشمل دليل المدرب والمتدرب والعروض والأنشطة والاختبارات والخرائط والمراجع.',
+    icon: 'package-check',
+    highlights: ['ملفات Word وPowerPoint قابلة للتعديل', 'اختبارات قبلية وبعدية', 'خرائط ذهنية ومراجع موثقة'],
+    order: 62,
+    cta: 'طلب حقيبة جاهزة أو دورة ذاتية',
+  },
+  {
+    slug: 'professional-experience-equivalency',
+    titleAr: 'نظام معادلة الخبرة المهني',
+    titleEn: 'Professional Experience Equivalency',
+    description: 'خدمة توثيق وتحكيم الخبرات العملية وتحويلها إلى شهادة مهنية أمريكية وفق ملف تقييم ومرفقات وسيرة ذاتية وخبرات مثبتة.',
+    icon: 'badge-check',
+    highlights: ['دراسة الملف خلال 48 ساعة', 'إصدار شهادة قابلة للتحقق', 'خيارات من 50$ إلى 350
+
+const catalogSeedPrograms: SeedProgram[] = [
+  // ترتيب الكتالوج الرسمي 2026-2027: (1) الماجستير والدكتوراه المهنية (2) الشهادات الدولية الخمس عشرة (3) الدبلومات التدريبية 16-47
+  ...intlCertificates.map((e, i) => ({
+    slug: e.slug,
+    titleAr: e.titleAr,
+    titleEn: e.titleEn,
+    description: catalogDescription(e),
+    category: e.category,
+    price: e.price,
+    icon: e.icon,
+    features: [
+      'شهادة معتمدة من الأكاديمية الأمريكية للاستشارات والتدريب (تدريب مهني)',
+      'مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة على مدار الساعة',
+      'اختبارات تفاعلية يصححها الذكاء الاصطناعي مع تغذية راجعة تفصيلية',
+      'مزايا تنافسية للأعضاء المعتمدين في سوق العمل المحلي والدولي',
+    ],
+    order: 3 + i,
+    units: [],
+  })),
+  ...trainingDiplomas.map((e, i) => ({
+    slug: e.slug,
+    titleAr: e.titleAr,
+    titleEn: e.titleEn,
+    description: catalogDescription(e),
+    category: e.category,
+    price: e.price,
+    icon: e.icon,
+    features: [
+      'شهادة معتمدة من الأكاديمية الأمريكية للاستشارات والتدريب (تدريب مهني)',
+      'مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة على مدار الساعة',
+      'اختبارات تفاعلية يصححها الذكاء الاصطناعي مع تغذية راجعة تفصيلية',
+      'مزايا تنافسية للأعضاء المعتمدين في سوق العمل المحلي والدولي',
+    ],
+    order: 18 + i,
+    units: [],
+  })),
+]
+
+export const allSeedPrograms: SeedProgram[] = [...seedPrograms, ...catalogSeedPrograms]
+],
+    order: 63,
+    cta: 'تقديم طلب معادلة الخبرة',
+  },
+  {
+    slug: 'preparing-new-packages',
+    titleAr: 'إعداد الحقائب التدريبية الجديدة',
+    titleEn: 'Custom Training Package Development',
+    description: 'تصميم حقائب تدريبية مخصصة بعلامتك التجارية في جميع التخصصات، تشمل الأدلة والعروض والأنشطة والاختبارات وقياس الأثر بصيغ مفتوحة.',
+    icon: 'presentation',
+    highlights: ['دليل مدرب ومتدرب', 'عرض PowerPoint احترافي', 'نماذج تقييم وقياس أثر'],
+    order: 64,
+    cta: 'اطلب حقيبتك المخصصة',
+  },
+  {
+    slug: 'training-courses-diplomas',
+    titleAr: 'الدورات التدريبية والدبلومات الدولية المعتمدة',
+    titleEn: 'Training Courses & International Diplomas',
+    description: 'دبلومات ومسارات مهنية تطبيقية في إدارة الأعمال والمالية والقيادة وريادة الأعمال، مع بيئة تدريب مرنة واختبارات تفاعلية ووثائق تخرج.',
+    icon: 'graduation-cap',
+    highlights: ['دبلوم إدارة الأعمال', 'دبلوم الإدارة المالية والاستثمار', 'دبلوم القيادة والريادة الإدارية'],
+    order: 65,
+    cta: 'تصفح الدورات والدبلومات',
+  },
+  {
+    slug: 'consulting-section',
+    titleAr: 'قسم الاستشارات المهنية والتطوير المؤسسي',
+    titleEn: 'Professional Consulting & Organizational Development',
+    description: 'استشارات إدارية ومالية وسلوكية نفسية وقانونية عبر جلسات فيديو مباشرة، مع حلول عملية للشركات ورواد الأعمال والأفراد.',
+    icon: 'messages-square',
+    highlights: ['استشارات إدارية وتطوير أعمال', 'استشارات مالية واستثمارية', 'استشارات قانونية وامتثال'],
+    order: 66,
+    cta: 'حجز استشارة مهنية',
+  },
+  {
+    slug: 'professional-doctorate-masters',
+    titleAr: 'برامج الدكتوراه والماجستير المهنية',
+    titleEn: 'Professional Master & Doctorate Programs',
+    description: 'مسارات ماجستير ودكتوراه مهنية مرنة للقادة والمديرين، تعتمد على الدراسة التطبيقية والأبحاث والمشاريع المهنية والتوثيق الرقمي للشهادات.',
+    icon: 'award',
+    highlights: ['إدارة الأعمال MBA / DBA', 'الإدارة المالية والاستثمار', 'إدارة الأزمات والقيادة'],
+    order: 67,
+    cta: 'استكشف الدراسات المهنية العليا',
+  },
+]
+
 function catalogDescription(e: CatalogEntry): string {
   const kind =
     e.category === 'INTL_CERT'
