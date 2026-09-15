@@ -1218,8 +1218,8 @@ export function AdminBooksTab() {
                           </div>
                         </div>
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
-                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أسئلة نقاش للمشرف</p>
-                          {guide.discussionQuestions.slice(0, 4).map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">أسئلة نقاش للمشرف ({guide.discussionQuestions.length})</p>
+                          {guide.discussionQuestions.map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
                         </div>
                       </div>
 
