@@ -379,7 +379,7 @@ function normalizeGuide(
   const programTitle = cleanGuideText(program.titleAr || program.titleEn, 'البرنامج الأكاديمي', 220, true)
   const level = levelLabel(program.category)
   const top = knowledge.slice(0, 28)
-  const fallbackSections = fallbackGuideSections(programTitle, semester, top)
+  const fallbackSections = fallbackGuideSections(programTitle, semester, top, level)
   const fallbackTerms = deriveGuideTerms(top, programTitle)
   const semLabel = semester === 2 ? 'الفصل الثاني' : semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'
   const fallbackTitle = `دليل الدراسة التحليلي — ${programTitle} — ${semLabel}`
