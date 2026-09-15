@@ -1272,7 +1272,7 @@ function uniqueStrings(values: string[], max = 30, itemMax = 260): string[] {
   const out: string[] = []
   for (const v of values.map((x) => cleanText(x, itemMax)).filter(Boolean)) {
     const key = norm(v)
-    if (!key || seen.has(key) || isBrokenAcademicExamText(v, itemMax <= 120)) continue
+    if (!key || seen.has(key) || isBrokenAcademicExamText(v, true)) continue
     seen.add(key)
     out.push(v)
     if (out.length >= max) break
