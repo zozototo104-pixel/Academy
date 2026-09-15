@@ -11,6 +11,7 @@ const MAX_FETCH_BYTES = 12 * 1024 * 1024
 // لا يُرسل كل هذا للنموذج دفعة واحدة؛ books-ai.ts يبني منه ملخصاً موزعاً ومقاطع مختارة.
 const MAX_BOOK_CONTEXT_CHARS = 180000
 const MIN_STRONG_TEXT = 700
+const MIN_RICH_STORED_TEXT = 3500
 const MIN_USABLE_TEXT = 160
 
 export interface RawBookForHydration {
