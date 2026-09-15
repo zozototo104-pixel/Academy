@@ -19,6 +19,7 @@ export type View =
   | 'agent-preview'
   | 'verify'
   | 'directory'
+  | 'about'
   | 'contact'
 
 function updateBrowserRoute(view: View, params: Record<string, string | null | undefined> = {}) {
