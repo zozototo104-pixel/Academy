@@ -204,7 +204,8 @@ export async function gradeSupervisorAttemptWithAi(opts: {
     const system = 'أنت مصحح أكاديمي عادل. أعد JSON فقط. صحح بإيجاز وفق الإجابة النموذجية ولا تجامل الطالب.'
     const prompt = `صحح الأسئلة المفتوحة في اختبار: ${opts.assessmentTitle}\nأعد: {"grades":[{"questionId":"...","points":0,"feedback":"..."}],"overall":"..."}\n\nالأسئلة والإجابات:\n${openQuestions.map((q) => {
       const ans = opts.answers.find((a) => a.questionId === q.id)
-      return `ID=${q.id}\nالسؤال: ${q.text}\nالنقاط: ${q.points}\nالإجابة النموذجية: ${q.modelAnswer || 'غير متاحة'}\nإجابة الطالب: ${ans?.answerText || ans?.selectedOption ?? 'لم يجب'}`
+      const studentAnswer = ans?.answerText || (ans?.selectedOption != null ? String(ans.selectedOption) : 'لم يجب')
+      return `ID=${q.id}\nالسؤال: ${q.text}\nالنقاط: ${q.points}\nالإجابة النموذجية: ${q.modelAnswer || 'غير متاحة'}\nإجابة الطالب: ${studentAnswer}`
     }).join('\n---\n')}`
     let parsed: any = null
     try { parsed = await completionJson(system, prompt) } catch (e) { console.error('ai grading failed', e) }
