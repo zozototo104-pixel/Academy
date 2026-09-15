@@ -926,7 +926,7 @@ async function aiMetadataKnowledgeItems(
 طبيعة التقييم: ${book.assessmentOrientation || '-'}
 الفصل: ${semester || book.semester || 'عام'}
 
-أنشئ 14 إلى 22 عنصر معرفة موزعة بذكاء على هذه الفئات:
+أنشئ ${MIN_ACCEPTABLE_AI_ITEMS} إلى ${METADATA_ITEMS_TARGET + 4} عنصر معرفة موزعة بذكاء على هذه الفئات:
 CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
 
 الشروط:
