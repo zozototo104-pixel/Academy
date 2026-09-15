@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { geminiCompleteJson, ensureGeminiKey } from '@/lib/gemini'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
+import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 
 type GeneratedQuestion = {
   type: 'MCQ' | 'TF' | 'SHORT' | 'ESSAY'
