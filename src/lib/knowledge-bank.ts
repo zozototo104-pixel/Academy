@@ -271,15 +271,16 @@ function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: nu
 
   if (items.length === 0 && (book.description || book.title)) {
     const seed = cleanText(`${book.title}. ${book.description || ''}`, 700)
+    const summary = looksLikeBrokenAcademicOutput(seed) ? fallbackKnowledgeSummary(book.title, 'SUMMARY') : seed
     items.push({
       category: 'SUMMARY',
-      title: cleanText(book.title, 160),
-      summary: seed,
-      excerpt: seed,
-      keywords: tokenizeKeywords(seed),
+      title: fallbackKnowledgeTitle(book.title, 'SUMMARY', 0),
+      summary,
+      excerpt: looksLikeBrokenAcademicOutput(seed) ? null : seed,
+      keywords: tokenizeKeywords(summary),
       importance: 40,
       semester: semester ?? null,
-      sourceNote: 'مبني على بيانات الكتاب لأن النص غير كافٍ',
+      sourceNote: 'مبني على بيانات الكتاب بعد تعذر استخراج نص أكاديمي نظيف',
     })
   }
   return items.slice(0, MAX_ITEMS_PER_BOOK)
