@@ -294,7 +294,7 @@ export function Header() {
               (view === 'programs' || view === 'program-detail') ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
             }`}
           >
-            البرامج
+            البرامج والخدمات
           </button>
           <button
             onClick={() => navigate('apply')}
