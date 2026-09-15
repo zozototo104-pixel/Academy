@@ -392,21 +392,28 @@ async function persistBookTextIfNeeded(bookId: string | undefined, text: string,
 
 async function createKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
   if (items.length === 0) return 0
-  await db.bookKnowledgeItem.createMany({
-    data: items.map((item) => ({
+  const data = items.map((item) => {
+    const title = cleanText(item.title, 220)
+    const summary = cleanText(item.summary, 1600)
+    const excerpt = item.excerpt ? cleanText(item.excerpt, 1800) : null
+    const keywords = safeGeneratedList(item.keywords, tokenizeKeywords(`${title} ${summary}`), 10, 60)
+    if (!title || !summary || looksLikeBrokenAcademicOutput(title, { allowShort: true }) || looksLikeBrokenAcademicOutput(summary) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) return null
+    return {
       programId,
       bookId,
       semester: item.semester ?? null,
       category: safeCategory(item.category),
-      title: cleanText(item.title, 220),
-      summary: cleanText(item.summary, 1600),
-      excerpt: item.excerpt ? cleanText(item.excerpt, 1800) : null,
-      keywords: JSON.stringify((item.keywords || tokenizeKeywords(`${item.title} ${item.summary}`)).slice(0, 10)),
+      title,
+      summary,
+      excerpt,
+      keywords: JSON.stringify(keywords),
       importance: safeImportance(item.importance),
       sourceNote: item.sourceNote ? cleanText(item.sourceNote, 400) : null,
-    })),
-  })
-  return items.length
+    }
+  }).filter(Boolean) as any[]
+  if (data.length === 0) return 0
+  await db.bookKnowledgeItem.createMany({ data })
+  return data.length
 }
 
 export async function rebuildKnowledgeForBook(bookId: string): Promise<KnowledgeBuildResult> {
