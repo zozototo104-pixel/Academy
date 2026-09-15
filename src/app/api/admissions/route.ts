@@ -151,11 +151,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // البحث عن كائن البرنامج للتسعير والتسجيل النهائي التلقائي
-    const programRec = programId
-      ? await db.program.findUnique({ where: { id: programId } })
-      : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
-
     // كود تتبع حالة الطلب AACT-2026-XXXX (15 محاولة لتفادي التصادم)
     let reference = ''
     for (let i = 0; i < 15; i++) {
