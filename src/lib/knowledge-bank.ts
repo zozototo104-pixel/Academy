@@ -598,10 +598,11 @@ function deterministicKnowledgeItems(
   const items: KnowledgeItemDraft[] = []
   const programTitle = cleanText(program?.titleAr || program?.titleEn || 'البرنامج الأكاديمي', 150)
 
-  const push = (category: string, seed: string, index: number, titlePrefix?: string, importance?: number) => {
+  const push = (category: string, seed: string, index: number, _titlePrefix?: string, importance?: number) => {
     const safeCat = safeCategory(category)
-    const topic = topicFromSeed(seed, index)
-    const title = cleanText(`${titlePrefix || labelForCategory(safeCat)}: ${topic}`, 180)
+    // التصنيف محفوظ في حقل category؛ العنوان نفسه يجب أن يكون مفهوماً/محوراً حقيقياً لا بادئة عرض مثل «حالة تطبيقية من النص».
+    const topic = semanticTopicFromSeed(safeCat, seed, index)
+    const title = cleanText(topic, 180)
     const summary = cleanText(realTextKnowledgeSummary(safeCat, seed, programTitle), 1000)
     const excerpt = evidenceFromSeed(seed, 760)
     const key = norm(`${safeCat} ${title} ${summary}`).slice(0, 190)
