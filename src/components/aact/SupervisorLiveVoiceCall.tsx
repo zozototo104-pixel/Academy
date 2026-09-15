@@ -207,7 +207,8 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
         if (signal.type === 'ICE') {
           const pc = pcRef.current
           if (pc && payload?.candidate) {
-            try { await pc.addIceCandidate(new RTCIceCandidate(payload)) } catch (e) { console.warn('ICE candidate skipped', e) }
+            if (!pc.remoteDescription) pendingIceRef.current.push(payload)
+            else try { await pc.addIceCandidate(new RTCIceCandidate(payload)) } catch (e) { console.warn('ICE candidate skipped', e) }
           }
         }
       } catch (e: any) {
