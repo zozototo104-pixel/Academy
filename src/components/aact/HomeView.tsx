@@ -365,6 +365,55 @@ export function HomeView() {
         </div>
       </section>
 
+      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
+          </Badge>
+          <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
+          </p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_OFFERINGS.map((s) => {
+            const Icon = ICONS[s.icon] || Briefcase
+            return (
+              <Card key={s.slug} className="aact-card border-[#0f2b46]/10 bg-white">
+                <CardContent className="flex h-full flex-col p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
+                      خدمة مهنية
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
+                  {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
+                  <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
+                  <div className="mt-3 space-y-1.5">
+                    {s.highlights.slice(0, 3).map((h) => (
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
+                      </p>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+                    onClick={() => openProgramDetails(s.slug)}
+                  >
+                    {s.cta}
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
 
       {/* AI Supervisor feature */}
       <section className="mx-auto max-w-7xl px-4 py-14">
