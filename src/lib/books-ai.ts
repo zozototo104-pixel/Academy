@@ -996,7 +996,7 @@ function splitSentences(text: string): string[] {
   return sanitizeExamText(text, 80000)
     .split(/(?<=[.!؟?؛;])\s+|\n+/u)
     .map((s) => cleanText(s, 320))
-    .filter((s) => s.length >= 45 && s.length <= 320)
+    .filter((s) => s.length >= 45 && s.length <= 320 && !isBrokenAcademicExamText(s, true))
 }
 
 function importanceScore(sentence: string, programDomain: ProgramDomain): number {
