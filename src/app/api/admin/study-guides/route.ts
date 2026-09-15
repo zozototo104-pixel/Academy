@@ -539,11 +539,11 @@ function mapGuide(g: any) {
     summary: cleanGuideText(s?.summary, 'محور دراسي منظم من الكتب المقررة.', 1600),
     outcomes: cleanGuideList(s?.outcomes, ['فهم المحور وربطه بالتطبيق المهني'], 5, 180),
     sourceTitles: cleanGuideList(s?.sourceTitles, ['بنك المعرفة'], 5, 160),
-  })).filter((s: GuideSection) => s.title && s.summary && labelIsDisplayable(s.title) && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
+  })).filter((s: GuideSection) => sectionIsUseful(s))
   const safeSections = sections.length ? sections : keyTerms.slice(0, 6).map((term) => ({
     title: term,
-    summary: `محور دراسي منظم يحتاج إلى ربطه بمحتوى الكتب المقررة والتطبيق المهني قبل الامتحان.`,
-    outcomes: ['شرح المحور بلغة واضحة', 'ربطه بحالة مهنية أو سؤال امتحاني'],
+    summary: `يركز هذا المحور على ${term} بوصفه فكرة يجب فهمها وربطها بقراءة الكتب المقررة والتطبيق المهني. المطلوب من الطالب أن يشرح المعنى، يحدد شروط التطبيق، ويقدم مثالاً أو مؤشراً يقيس الفهم قبل الامتحان.`,
+    outcomes: [`شرح ${term} بلغة واضحة`, 'ربطه بحالة مهنية أو سؤال امتحاني'],
     sourceTitles: ['بنك المعرفة'],
   }))
   return {
