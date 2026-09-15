@@ -346,7 +346,7 @@ function mapGuide(g: any) {
     title: cleanGuideText(g.title, 'دليل الدراسة', 220, true),
     overview: cleanGuideText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000),
     objectives: cleanGuideList(jsonArray(g.objectives), ['فهم محاور الدليل', 'ربط المعرفة بالتطبيق المهني'], 10, 220),
-    keyTerms: cleanGuideList(jsonArray(g.keyTerms), [], 18, 90),
+    keyTerms: sanitizeAcademicLabelList(jsonArray(g.keyTerms), [], 14, 72).filter(labelIsDisplayable),
     sections,
     activities: cleanGuideList(jsonArray(g.activities), ['قراءة المحاور ثم كتابة ملخص تطبيقي قصير.'], 8, 300),
     discussionQuestions: cleanGuideList(jsonArray(g.discussionQuestions), ['كيف تربط محتوى الدليل بحالة مهنية واقعية؟'], 10, 320),
