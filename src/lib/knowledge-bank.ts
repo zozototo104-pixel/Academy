@@ -798,13 +798,13 @@ ${sample}
         system: 'أنت محلل مناهج جامعية. أرجع JSON صالحاً فقط على شكل مصفوفة، بلا Markdown ولا شرح خارج JSON.',
         history: [{ role: 'user', text: prompt }],
         temperature: 0.08,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 12288,
       }),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 42000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 52000)),
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, [], semester)
-    if (normalized.length >= 6) return normalized
+    if (hasBalancedKnowledgeShape(normalized)) return normalized
   } catch (e: any) {
     console.error('aiKnowledgeItems Gemini JSON failed:', String(e?.message || e).slice(0, 300))
   }
