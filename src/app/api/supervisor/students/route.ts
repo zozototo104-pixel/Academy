@@ -55,7 +55,7 @@ async function buildStudentCard(app: any) {
     userId && programId ? db.assignmentSubmission.findMany({
       where: { userId, assignment: { programId } },
       orderBy: { submittedAt: 'desc' },
-      take: 20,
+      take: 100,
       include: { assignment: { select: { id: true, title: true, semester: true, points: true, weight: true, type: true } } },
     }) : [],
     userId ? db.supervisorAssessment.findMany({
