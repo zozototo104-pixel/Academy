@@ -152,7 +152,7 @@ export function ProgramDetailsView() {
         className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#0f2b46]/15 bg-white px-4 py-2 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46]/5"
       >
         <ArrowRight className="h-4 w-4" />
-        العودة إلى كل البرامج
+        العودة إلى كل الخدمات والبرامج
       </button>
 
       <Card className="overflow-hidden border-[#c9a227]/40 bg-white shadow-sm">
