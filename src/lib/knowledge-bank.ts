@@ -283,25 +283,30 @@ function cleanKnowledgeSourceText(text: string, maxChars = 90000) {
   return out.join('\n\n')
 }
 
+function arrayFromParsedJson(parsed: any): any[] {
+  if (Array.isArray(parsed)) return parsed
+  for (const key of ['items', 'knowledgeItems', 'knowledge', 'concepts', 'results', 'data']) {
+    if (Array.isArray(parsed?.[key])) return parsed[key]
+  }
+  return []
+}
+
 function extractJsonArray(raw: string): any[] {
   const body = String(raw || '').trim()
   try {
-    const parsed = JSON.parse(body)
-    return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : []
+    return arrayFromParsedJson(JSON.parse(body))
   } catch {}
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
   if (fenced) {
-    try {
-      const parsed = JSON.parse(fenced)
-      return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : []
-    } catch {}
+    try { return arrayFromParsedJson(JSON.parse(fenced)) } catch {}
   }
   const arr = body.match(/\[[\s\S]*\]/)?.[0]
   if (arr) {
-    try {
-      const parsed = JSON.parse(arr)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {}
+    try { return arrayFromParsedJson(JSON.parse(arr)) } catch {}
+  }
+  const obj = body.match(/\{[\s\S]*\}/)?.[0]
+  if (obj) {
+    try { return arrayFromParsedJson(JSON.parse(obj)) } catch {}
   }
   return []
 }
