@@ -254,8 +254,8 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
   if (!program) throw new Error('البرنامج غير موجود')
 
   const knowledgeSemester = semester === 3 ? null : semester
-  await ensureProgramKnowledge(programId, knowledgeSemester, 8).catch(() => null)
-  const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 60)
+  await ensureProgramKnowledge(programId, knowledgeSemester, KNOWLEDGE_BANK_LIMITS.minContextItems).catch(() => null)
+  const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 80)
   if (!knowledge.length) throw new Error('لا يوجد بنك معرفة كافٍ لتوليد دليل دراسة. أضف كتباً أو ابنِ بنك المعرفة أولاً.')
 
   const context = knowledge.slice(0, 36).map((k, i) => {
