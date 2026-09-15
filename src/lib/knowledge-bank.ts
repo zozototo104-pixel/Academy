@@ -699,10 +699,11 @@ function deterministicKnowledgeItems(
 function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semester?: number | null): KnowledgeItemDraft[] {
   const seen = new Set<string>()
   const out: KnowledgeItemDraft[] = []
-  for (const raw of rawItems) {
+  for (let i = 0; i < rawItems.length; i++) {
+    const raw = rawItems[i]
     const category = safeCategory(raw?.category)
-    const title = cleanText(raw?.title || raw?.name || raw?.concept, 180)
     const summary = cleanText(raw?.summary || raw?.description || raw?.explanation, 900)
+    const title = cleanText(safeKnowledgeTitle(raw?.title || raw?.name || raw?.concept, summary, category, i), 180)
     const excerpt = cleanText(raw?.excerpt || raw?.evidence || raw?.sourceEvidence || summary, 900)
     if (!title || !summary || summary.length < 30) continue
     if (looksLikeBrokenAcademicOutput(title, { allowShort: true }) || looksLikeBrokenAcademicOutput(summary) || looksLikeBrokenAcademicOutput(excerpt)) continue
