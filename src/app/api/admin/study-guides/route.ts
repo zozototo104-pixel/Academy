@@ -334,11 +334,11 @@ ${context}
 
 function mapGuide(g: any) {
   const sections = jsonArray(g.sections).map((s: any, i: number) => ({
-    title: cleanGuideText(s?.title, `محور دراسي ${i + 1}`, 180, true),
+    title: conciseAcademicLabel(s?.title, `محور دراسي ${i + 1}`, 120),
     summary: cleanGuideText(s?.summary, 'محور دراسي منظم من الكتب المقررة.', 1600),
     outcomes: cleanGuideList(s?.outcomes, ['فهم المحور وربطه بالتطبيق المهني'], 5, 180),
     sourceTitles: cleanGuideList(s?.sourceTitles, ['بنك المعرفة'], 5, 160),
-  })).filter((s: GuideSection) => s.title && s.summary && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
+  })).filter((s: GuideSection) => s.title && s.summary && labelIsDisplayable(s.title) && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
   return {
     id: g.id,
     programId: g.programId,
