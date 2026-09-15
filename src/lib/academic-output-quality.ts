@@ -80,8 +80,8 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
     'google com search', 'books google', 'tbm bks', 'لم يظهر فيه نص', 'رابط مفتوح لكن لم يظهر',
     'بنك المعرفه الاكاديمي المستخرج', 'اي عباره تفسر بصوره ادق دلاله', 'كيف يمكن فهم فكره', 'كيف يمكن تطبيق فكره',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
-    'vellena', 'bonapert', 'lucien poirier', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'عام 8121', 'عام 8115', 'عام 8518',
-    'انظر كتاب', 'صادر بالفرنسية', 'صادر بالانجليزية', 'صادر بالإنجليزية', 'تأليف lucien', 'تأليف lucien poirier',
+    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'عام 8121', 'عام 8115', 'عام 8518',
+    'انظر كتاب', 'صادر بالفرنسية', 'صادر بالانجليزية', 'صادر بالإنجليزية',
   ]
   if (forbidden.some((x) => n.includes(normalizeAcademic(x)))) return true
 
