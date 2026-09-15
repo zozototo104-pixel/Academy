@@ -952,7 +952,7 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, fallback, semester)
-    const out = normalized.length ? normalized : fallback
+    const out = ensureCategoryCoverage(normalized.length ? normalized : fallback, fallback)
     return out.map((item) => ({
       ...item,
       excerpt: null,
