@@ -28,12 +28,16 @@ function dueDateFrom(enrolledAt: Date, dueDays?: number | null) {
 function mapAssignment(a: any, enrollmentCreatedAt: Date) {
   const dueAt = dueDateFrom(enrollmentCreatedAt, a.dueDays)
   const submission = a.submissions?.[0] || null
+  const title = cleanAcademicOutput(a.title, 220)
+  const description = cleanAcademicOutput(a.description, 6000)
+  const rubric = a.rubric ? cleanAcademicOutput(a.rubric, 2200) : null
+  if (looksLikeBrokenGeneratedArabic(`${title}. ${description}`)) return null
   return {
     id: a.id,
     programId: a.programId,
     programTitle: a.program?.titleAr,
-    title: a.title,
-    description: a.description,
+    title,
+    description,
     semester: a.semester,
     type: a.type,
     points: a.points,
