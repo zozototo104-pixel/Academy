@@ -112,7 +112,11 @@ function academicPolicyForCategory(category: string): DegreeAcademicPolicy {
 }
 
 function cleanText(value: unknown, max = 1000): string {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+  return cleanAcademicGeneratedText(value, max).replace(/\s+/g, ' ').trim()
+}
+
+function isBrokenAcademicExamText(value: unknown, allowShort = false) {
+  return looksLikeBrokenAcademicOutput(value, { allowShort })
 }
 
 function googleBooksSearch(title: string): string {
