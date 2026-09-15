@@ -1153,6 +1153,12 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
+              {hiddenStudyGuidesCount > 0 && (
+                <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
+                  تم إخفاء {hiddenStudyGuidesCount} دليل دراسة يبدو مشوهاً. أعد توليد الدليل بعد تنظيف بنك المعرفة.
+                </div>
+              )}
+
               {displayStudyGuides.length === 0 ? (
                 <div className="rounded-2xl bg-[#f8fafc] p-6 text-center text-xs font-bold leading-6 text-slate-500">
                   لا توجد أدلة دراسة بعد. ابنِ بنك المعرفة ثم ولّد دليل الفصل المطلوب ليظهر للطالب داخل بوابته.
