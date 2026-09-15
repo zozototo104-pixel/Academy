@@ -397,7 +397,7 @@ function normalizeGuide(
     `ربط المعرفة بمستوى ${level} من حيث العمق والتحليل والنقد`,
     'تحويل القراءة إلى إجابات امتحانية وواجبات قابلة للقياس',
   ], 10, 260)
-  const keyTerms = sanitizeAcademicLabelList(jsonArray(raw?.keyTerms), fallbackTerms, 14, 72).filter(labelIsDisplayable)
+  const keyTerms = sanitizeAcademicLabelList([...fallbackTerms, ...jsonArray(raw?.keyTerms)], [], 14, 72).filter(labelIsDisplayable)
   const rawSections = jsonArray(raw?.sections)
   const sections = rawSections.map((s: any, i: number) => {
     const fb = fallbackSections[i] || fallbackSections[0] || {
