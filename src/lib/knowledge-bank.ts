@@ -178,6 +178,19 @@ function safeCategory(value: unknown) {
   return CATEGORY_SET.has(c) ? c : 'CONCEPT'
 }
 
+function labelForCategory(category: string) {
+  const labels: Record<string, string> = {
+    CONCEPT: 'مفهوم من النص',
+    THEORY: 'نظرية أو إطار من النص',
+    METHOD: 'منهجية من النص',
+    CASE: 'حالة تطبيقية من النص',
+    DEFINITION: 'تعريف من النص',
+    QUESTION_SEED: 'بذرة سؤال من النص',
+    SUMMARY: 'خلاصة من النص',
+  }
+  return labels[safeCategory(category)] || 'عنصر معرفة من النص'
+}
+
 function safeImportance(value: unknown, fallback = 55) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
