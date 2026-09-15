@@ -8,9 +8,10 @@ export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
     const publicOnly = req.nextUrl.searchParams.get('public') === '1'
-    if (!summaryOnly && !publicOnly) await ensureCoreSeed()
+    const liteOnly = summaryOnly || publicOnly
+    if (!liteOnly) await ensureCoreSeed()
 
-    const rows: any[] = summaryOnly
+    const rows: any[] = liteOnly
       ? await db.program.findMany({
           where: { active: true },
           orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
