@@ -25,6 +25,8 @@ const ICONS: Record<string, any> = {
   'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
   compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
   gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
+  'trending-up': TrendingUp, network: Network, school: School, clipboard: Clipboard,
+  languages: Languages, globe: Globe, 'file-text': FileText, star: Star, bot: Sparkles,
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
