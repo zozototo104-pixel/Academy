@@ -725,9 +725,10 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
   }
   const desired = fallback.length ? targetFromFallback(fallback) : MIN_ACCEPTABLE_AI_ITEMS
   if (out.length >= desired || fallback.length === 0) return out
-  for (const fb of fallback) {
-    const title = safeGeneratedOrFallback(fb.title, 'محور معرفي من الكتاب المقرر', 180, true)
+  for (let i = 0; i < fallback.length; i++) {
+    const fb = fallback[i]
     const summary = safeGeneratedOrFallback(fb.summary, 'محور أكاديمي منظّم من الكتاب المقرر صالح للدراسة والامتحان.', 900)
+    const title = safeKnowledgeTitle(fb.title, summary, fb.category, i)
     const excerpt = fb.excerpt && !looksLikeBrokenAcademicOutput(fb.excerpt) ? cleanText(fb.excerpt, 900) : null
     const key = norm(`${title} ${summary}`).slice(0, 180)
     if (!key || seen.has(key)) continue
