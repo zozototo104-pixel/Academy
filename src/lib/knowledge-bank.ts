@@ -246,20 +246,26 @@ function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: nu
   const items: KnowledgeItemDraft[] = []
   for (let i = 0; i < seeds.length; i++) {
     const seed = seeds[i]
-    const title = titleFromSeed(seed, i)
+    const category = inferCategory(seed, i)
+    const rawTitle = titleFromSeed(seed, i)
+    const rawSummary = cleanText(seed, 500)
+    const rawExcerpt = cleanText(seed, 700)
+    const broken = looksLikeBrokenAcademicOutput(`${rawTitle}. ${rawSummary}`)
+    const title = broken ? fallbackKnowledgeTitle(book.title, category, i) : rawTitle
+    const summary = broken ? fallbackKnowledgeSummary(book.title, category) : rawSummary
+    const excerpt = broken || looksLikeBrokenAcademicOutput(rawExcerpt) ? null : rawExcerpt
     const key = norm(title).slice(0, 140)
     if (!key || seen.has(key)) continue
     seen.add(key)
-    const category = inferCategory(seed, i)
     items.push({
       category,
       title,
-      summary: cleanText(seed, 500),
-      excerpt: cleanText(seed, 700),
-      keywords: tokenizeKeywords(`${title} ${seed}`),
+      summary,
+      excerpt,
+      keywords: tokenizeKeywords(`${title} ${summary}`),
       importance: category === 'QUESTION_SEED' || category === 'CASE' ? 78 : category === 'THEORY' || category === 'METHOD' ? 72 : 60,
       semester: semester ?? null,
-      sourceNote: `مستخرج آلياً من «${book.title}»`,
+      sourceNote: `مستخرج آلياً من «${book.title}» بعد تنظيف جودة النص`,
     })
   }
 
