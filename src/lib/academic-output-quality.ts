@@ -87,7 +87,7 @@ function isGenericLabelPhrase(value: string): boolean {
   if (!n) return true
   // المصطلح/عنوان المحور يجب أن يكون اسماً دلالياً، لا جملة فعلية أو بقايا تعليمات داخلية.
   if (/(?:النص|المقطع|الدليل المقروء|حاله تطبيقيه|حالة تطبيقية|مستخرجه|مستخرج|بلغه اكاديميه|بلغة أكاديمية|الدليل المقروء)/u.test(n)) return true
-  if (/^(?:يحول|يعرض|ينظم|شرح|يربط|ربط|يدرس|يستخدم|يركز|يوضح|يقدم|تحويل|يوظف|يصوغ|يشرح|تاثيره|تاثيرها)\b/u.test(n)) return true
+  if (/^(?:يحول|يعرض|ينظم|شرح|يربط|ربط|يدرس|يستخدم|يركز|يوضح|يقدم|تحويل|يوظف|يصوغ|يشرح|تاثيره|تاثيرها)(?:\s|$)/u.test(n)) return true
   if (/^حاله\s+و?تطبيقيه$/u.test(n)) return true
   if (/[A-Za-z]{4,}/.test(value) && /[\u0600-\u06FF]/.test(value)) return true
   if (/(?:strategicg|strategicq|logisticg|tacticg)/i.test(value)) return true
