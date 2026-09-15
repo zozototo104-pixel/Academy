@@ -1323,9 +1323,10 @@ function fallbackExamConcepts(
 }
 
 function conceptLabel(concept: string, max = 150): string {
-  return stripExamKnowledgeMeta(concept
+  const cleaned = stripExamKnowledgeMeta(concept
     .replace(/^من كتاب\s+«[^»]+»:?\s*/u, '')
     .replace(/^(مقطع|فصل|باب)\s+\d+[:：]?\s*/u, ''), max)
+  return cleaned && !isBrokenAcademicExamText(cleaned, true) ? cleaned : 'فكرة تطبيقية واضحة من الكتاب المقرر'
 }
 
 function sourceBookFromEvidence(evidence: string, books: ExamSourceBook[]): string | null {
