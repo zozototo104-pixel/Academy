@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ assignments: assignments.map(mapAssignment) })
+    return NextResponse.json({ assignments: assignments.map(mapAssignment).filter(Boolean) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin assignments GET error:', e)
