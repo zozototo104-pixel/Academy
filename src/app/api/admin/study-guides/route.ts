@@ -187,17 +187,23 @@ ${context}
 }
 
 function mapGuide(g: any) {
+  const sections = jsonArray(g.sections).map((s: any, i: number) => ({
+    title: cleanGuideText(s?.title, `محور دراسي ${i + 1}`, 180, true),
+    summary: cleanGuideText(s?.summary, 'محور دراسي منظم من الكتب المقررة.', 1600),
+    outcomes: cleanGuideList(s?.outcomes, ['فهم المحور وربطه بالتطبيق المهني'], 5, 180),
+    sourceTitles: cleanGuideList(s?.sourceTitles, ['بنك المعرفة'], 5, 160),
+  })).filter((s: GuideSection) => s.title && s.summary && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`))
   return {
     id: g.id,
     programId: g.programId,
     semester: g.semester,
-    title: g.title,
-    overview: g.overview,
-    objectives: jsonArray(g.objectives),
-    keyTerms: jsonArray(g.keyTerms),
-    sections: jsonArray(g.sections),
-    activities: jsonArray(g.activities),
-    discussionQuestions: jsonArray(g.discussionQuestions),
+    title: cleanGuideText(g.title, 'دليل الدراسة', 220, true),
+    overview: cleanGuideText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000),
+    objectives: cleanGuideList(jsonArray(g.objectives), ['فهم محاور الدليل', 'ربط المعرفة بالتطبيق المهني'], 10, 220),
+    keyTerms: cleanGuideList(jsonArray(g.keyTerms), [], 18, 90),
+    sections,
+    activities: cleanGuideList(jsonArray(g.activities), ['قراءة المحاور ثم كتابة ملخص تطبيقي قصير.'], 8, 300),
+    discussionQuestions: cleanGuideList(jsonArray(g.discussionQuestions), ['كيف تربط محتوى الدليل بحالة مهنية واقعية؟'], 10, 320),
     sourceKnowledgeIds: jsonArray(g.sourceKnowledgeIds),
     status: g.status,
     generatedBy: g.generatedBy,
