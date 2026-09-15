@@ -184,8 +184,8 @@ export async function POST(req: NextRequest) {
         acknowledged: true,
         acknowledgedAt: new Date(),
         userId: owner?.id || null,
-        // الطلب يبدأ بحالة «بانتظار سداد رسوم التقديم» — بعد السداد يُحوَّل تلقائياً للإدارة
-        status: 'AWAITING_FEE',
+        // البرامج الدراسية تبدأ برسوم تقديم، أما الخدمات المهنية فتدخل مباشرة لمراجعة الإدارة.
+        status: isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE',
         files: {
           create: uniqueFiles.map((f) => ({
             docType: f.docType,
