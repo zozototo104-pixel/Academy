@@ -14,6 +14,7 @@ import {
   Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
   Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
   Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText,
 } from 'lucide-react'
 
 interface ProgramLite {
