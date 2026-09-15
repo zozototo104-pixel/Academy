@@ -310,17 +310,19 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
   const stored = repairExtractedAcademicText(rawStored, MAX_BOOK_CONTEXT_CHARS)
   const storedLooksGenerated = looksLikeGeneratedStudyScaffold(stored)
   const hasReadableBackingSource = !!book.data || !!book.link
+  const storedFallbackAllowed = isUsableBookText(stored, MIN_STRONG_TEXT) && (!storedLooksGenerated || !hasReadableBackingSource)
   const storedIsRichEnough = stored.length >= MIN_RICH_STORED_TEXT || !hasReadableBackingSource
-  if (isUsableBookText(stored, MIN_STRONG_TEXT) && storedIsRichEnough && (!storedLooksGenerated || (!book.data && !book.link))) {
-    return {
-      ...book,
-      textContent: stored,
-      sourceNote: storedLooksGenerated
-        ? 'نص مخزن سابقاً على شكل خريطة معرفية؛ استُخدم مؤقتاً لعدم وجود ملف أو رابط مباشر'
-        : hadPageCounterArtifacts ? 'نص الكتاب مستخرج ومخزن سابقاً بعد تنظيف عدادات الصفحات' : 'نص الكتاب مستخرج ومخزن سابقاً',
-      contentQuality: 'STORED_TEXT',
-      shouldPersistText: hadPageCounterArtifacts,
-    }
+  const returnStored = (sourceNote: string): HydratedExamBook => ({
+    ...book,
+    textContent: stored,
+    sourceNote: hadPageCounterArtifacts ? `${sourceNote} بعد تنظيف عدادات الصفحات` : sourceNote,
+    contentQuality: 'STORED_TEXT',
+    shouldPersistText: hadPageCounterArtifacts,
+  })
+  if (storedFallbackAllowed && storedIsRichEnough) {
+    return returnStored(storedLooksGenerated
+      ? 'نص مخزن سابقاً على شكل خريطة معرفية؛ استُخدم مؤقتاً لعدم وجود ملف أو رابط مباشر'
+      : 'نص الكتاب مستخرج ومخزن سابقاً')
   }
 
   if (book.data) {
