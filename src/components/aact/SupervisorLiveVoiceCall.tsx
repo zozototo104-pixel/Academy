@@ -24,6 +24,7 @@ interface VoiceCall {
 
 interface VoiceSignal {
   id: string
+  callId: string
   fromRole: ParticipantRole | string
   type: 'OFFER' | 'ANSWER' | 'ICE' | 'HANGUP' | string
   payload: string
