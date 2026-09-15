@@ -659,7 +659,9 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const semester = book.semester ?? null
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
   const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester, book.program)
-  const ai = sourceText.length >= 900 ? await aiKnowledgeItems(book.program, book, sourceText, semester) : null
+  const ai = sourceText.length >= 900
+    ? await aiKnowledgeItems(book.program, book, sourceText, semester)
+    : await aiMetadataKnowledgeItems(book.program, book, semester)
   const items = normalizeDrafts(ai || [], fallback, semester)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
