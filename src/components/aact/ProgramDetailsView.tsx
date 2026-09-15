@@ -103,7 +103,8 @@ export function ProgramDetailsView() {
 
   const program = programs.find((p) => p.id === programDetailsId || p.slug === programDetailsId)
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
-  const academicProfile = program ? buildAcademicProgramProfile(program) : null
+  const isService = program?.category === 'SERVICE'
+  const academicProfile = program && !isService ? buildAcademicProgramProfile(program) : null
 
   const startAdmission = () => {
     if (!program) return
