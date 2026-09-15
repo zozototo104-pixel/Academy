@@ -209,6 +209,7 @@ export default function Home() {
             {effectiveView === 'agent-preview' && <AdminAgentPreview />}
             {effectiveView === 'verify' && <VerifyView />}
             {effectiveView === 'directory' && <DirectoryView />}
+            {effectiveView === 'about' && <AboutView />}
             {effectiveView === 'contact' && <ContactView />}
           </>
         )}
