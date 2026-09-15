@@ -258,9 +258,11 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
   const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 80)
   if (!knowledge.length) throw new Error('لا يوجد بنك معرفة كافٍ لتوليد دليل دراسة. أضف كتباً أو ابنِ بنك المعرفة أولاً.')
 
-  const context = knowledge.slice(0, 36).map((k, i) => {
-    const source = k.bookTitle ? ` — من كتاب ${k.bookTitle}` : ''
-    return `${i + 1}. ${k.title}: ${k.summary.slice(0, 380)}${k.excerpt ? ` — دليل: ${k.excerpt.slice(0, 220)}` : ''}${source}`
+  const context = knowledge.slice(0, 56).map((k, i) => {
+    const title = conciseAcademicLabel(k.title, `محور ${i + 1}`, 90)
+    const source = k.bookTitle ? ` — من كتاب ${cleanGuideText(k.bookTitle, 'الكتاب المقرر', 120, true)}` : ''
+    const evidence = k.excerpt ? ` — دليل/إشارة: ${cleanGuideText(k.excerpt, '', 240)}` : ''
+    return `${i + 1}. [${guideCategoryLabel(k.category)}] ${title}. ${cleanGuideText(k.summary, '', 460)}${evidence}${source}`
   }).join('\n')
 
   const guidePrompt = `أنشئ دليل دراسة عربي رسمي ومهني من بنك المعرفة التالي.
