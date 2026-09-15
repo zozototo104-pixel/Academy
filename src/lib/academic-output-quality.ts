@@ -52,6 +52,66 @@ export function cleanAcademicOutput(value: unknown, max = 1800): string {
     .slice(0, max)
 }
 
+const LABEL_STOP_WORDS = new Set([
+  'هذا', 'هذه', 'ذلك', 'الذي', 'التي', 'على', 'الى', 'إلى', 'في', 'من', 'عن', 'مع', 'داخل', 'ضمن', 'بين',
+  'كتاب', 'الكتاب', 'النص', 'المقطع', 'الدليل', 'المحتوى', 'المحتوي', 'البرنامج', 'الفصل', 'المحور', 'محور',
+  'يمكن', 'يجب', 'يعرض', 'يعالج', 'يوضح', 'يركز', 'يوجه', 'يبين', 'يحوّل', 'يحول', 'تحويل', 'مستخرجة', 'مستخرج',
+  'حالة', 'تطبيقية', 'منهجية', 'نظرية', 'إطار', 'تعريف', 'مفهوم', 'خلاصة', 'سؤال', 'بذرة',
+].map(normalizeAcademic))
+
+function compactLabel(value: string, max: number) {
+  return value
+    .replace(/\([^)]{1,90}\)/g, ' ')
+    .replace(/^["'«»]+|["'«»]+$/g, ' ')
+    .replace(/^(?:و?هو|و?هي|و?ذلك|إذ|اذ|حيث|وقد|كما|لذلك|وبذلك|إن|ان|أن|أنّ)\s+/u, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+    .replace(/\s+\S*$/u, '')
+    .trim()
+}
+
+export function conciseAcademicLabel(value: unknown, fallback = 'محور أكاديمي', max = 80): string {
+  const cleaned = cleanAcademicOutput(value, Math.max(260, max * 3))
+  if (!cleaned) return cleanAcademicOutput(fallback, max)
+
+  const first = cleaned.split(/[.!؟؛\n]/u).find((part) => cleanAcademicOutput(part, 220).length >= 6) || cleaned
+  const beforeColon = first.split(/[:：]/u)[0]
+  const candidates = [beforeColon, first]
+  for (const candidate of candidates) {
+    const phrase = compactLabel(cleanAcademicOutput(candidate, 150), max)
+    const words = phrase.split(/\s+/).filter(Boolean)
+    if (words.length >= 2 && words.length <= 8 && phrase.length >= 6 && !looksLikeBrokenGeneratedArabic(phrase)) return phrase
+  }
+
+  const seen = new Set<string>()
+  const tokens: string[] = []
+  for (const token of normalizeAcademic(cleaned).split(' ')) {
+    if (token.length < 4 || /^\d+$/.test(token) || LABEL_STOP_WORDS.has(token) || seen.has(token)) continue
+    seen.add(token)
+    tokens.push(token)
+    if (tokens.length >= 4) break
+  }
+  const fromTokens = compactLabel(tokens.join(' '), max)
+  if (fromTokens.length >= 6 && !looksLikeBrokenGeneratedArabic(fromTokens)) return fromTokens
+  return cleanAcademicOutput(fallback, max)
+}
+
+export function sanitizeAcademicLabelList(values: unknown, fallback: string[] = [], maxItems = 12, maxChars = 80): string[] {
+  const raw = Array.isArray(values) ? values : []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of [...raw, ...fallback]) {
+    const label = conciseAcademicLabel(item, '', maxChars)
+    const key = normalizeAcademic(label)
+    if (!key || seen.has(key) || looksLikeBrokenGeneratedArabic(label)) continue
+    seen.add(key)
+    out.push(label)
+    if (out.length >= maxItems) break
+  }
+  return out
+}
+
 function countMatches(value: string, re: RegExp): number {
   return (value.match(re) || []).length
 }
