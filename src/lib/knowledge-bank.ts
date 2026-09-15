@@ -446,7 +446,13 @@ function metadataKnowledgeBlueprint(program: ProgramMeta, book: RawBookForHydrat
   }).slice(0, MAX_ITEMS_PER_BOOK)
 }
 
-function deterministicKnowledgeItems(book: RawBookForHydration & { semester?: number | null }, text: string, semester?: number | null, program?: ProgramMeta): KnowledgeItemDraft[] {
+function deterministicKnowledgeItems(
+  book: RawBookForHydration & { semester?: number | null },
+  text: string,
+  semester?: number | null,
+  program?: ProgramMeta,
+  allowMetadataBlueprint = true
+): KnowledgeItemDraft[] {
   const seeds = splitBookIntoSeeds(text, MAX_ITEMS_PER_BOOK)
   const seen = new Set<string>()
   const items: KnowledgeItemDraft[] = []
