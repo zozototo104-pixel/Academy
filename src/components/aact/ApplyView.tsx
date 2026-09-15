@@ -71,6 +71,12 @@ const REQUIRED_DOCS = [
   { type: 'CV', label: 'السيرة الذاتية (C.V)' },
 ]
 
+const SERVICE_REQUEST_DOCS = [
+  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر عند الحاجة' },
+  { type: 'CV', label: 'السيرة الذاتية أو نبذة عن الخبرة' },
+  { type: 'SERVICE_FILE', label: 'ملف يوضح الاحتياج أو الوثائق الداعمة للخدمة' },
+]
+
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
 
