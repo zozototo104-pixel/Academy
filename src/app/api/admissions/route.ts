@@ -7,7 +7,7 @@ import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted } from '@/lib/mailer'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
-// لا يُقبل طلب الالتحاق إلا برفعها كاملة
+// لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
 export const REQUIRED_DOCS: { type: string; label: string }[] = [
   { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
   { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
@@ -27,8 +27,8 @@ const ALLOWED_MIME = [
 
 // آلة الحالات الرسمية (بالترتيب الصحيح وفق الدليل):
 // 1) تقديم الطلب ببيانات كاملة + المستندات + الإقرار
-// 2) سداد رسوم التقديم وحجز المقعد 30$ (غير مستردة)
-// 3) الملف يذهب للإدارة للدراسة وتعيين مشرف
+// 2) سداد رسوم التقديم وحجز المقعد 30$ (غير مستردة) للبرامج الدراسية
+// 3) الملف يذهب للإدارة للدراسة وتعيين مشرف أو متابعة خدمة مهنية
 // 4) بعد موافقة الإدارة: يسدد الطالب الرسوم الدراسية كاملة للدخول للبرنامج
 export const STATUS_LABEL: Record<string, string> = {
   AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
@@ -43,55 +43,71 @@ export const STATUS_LABEL: Record<string, string> = {
   PENDING: 'تم التقديم',
 }
 
-// POST /api/admissions — تقديم طلب التحاق (multipart/form-data)
-// الخطوات 1-3 من دليل الإجراءات: بيانات كاملة + رفع الوثائق + الإقرار ثم إصدار فاتورة رسوم التقديم 30$
+function normalizeDocType(key: string) {
+  return key.replace(/^doc_/, '').toUpperCase().slice(0, 40)
+}
+
+async function readAdmissionPayload(req: NextRequest) {
+  const ct = req.headers.get('content-type') || ''
+  let fields: Record<string, string> = {}
+  const files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[] = []
+
+  if (ct.includes('multipart/form-data')) {
+    const form = await req.formData()
+    for (const [k, v] of form.entries()) {
+      if (typeof v === 'string') {
+        fields[k] = v
+      } else if (v && typeof v === 'object' && 'arrayBuffer' in (v as any)) {
+        const f = v as File
+        if (!f.size) continue
+        const docType = normalizeDocType(k)
+        if (f.size > MAX_FILE_SIZE) {
+          throw new Response(JSON.stringify({ error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` }), {
+            status: 400,
+            headers: { 'content-type': 'application/json; charset=utf-8' },
+          })
+        }
+        const mime = f.type || 'application/octet-stream'
+        const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
+        if (!ALLOWED_MIME.includes(mime) && !nameOk) {
+          throw new Response(JSON.stringify({ error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` }), {
+            status: 400,
+            headers: { 'content-type': 'application/json; charset=utf-8' },
+          })
+        }
+        const buf = Buffer.from(await f.arrayBuffer())
+        files.push({ docType, fileName: f.name.slice(0, 180), mimeType: mime, size: f.size, data: buf.toString('base64') })
+      }
+    }
+  } else {
+    fields = await req.json()
+  }
+
+  return { fields, files }
+}
+
+function uniqueAdmissionFiles(files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[]) {
+  const seen = new Set<string>()
+  return files.filter((f) => {
+    if (!f.docType || seen.has(f.docType)) return false
+    seen.add(f.docType)
+    return true
+  })
+}
+
+// POST /api/admissions — تقديم طلب التحاق أو طلب خدمة مهنية (multipart/form-data)
 export async function POST(req: NextRequest) {
   try {
-    const ct = req.headers.get('content-type') || ''
-    let fields: Record<string, string> = {}
-    const files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[] = []
-
-    if (ct.includes('multipart/form-data')) {
-      const form = await req.formData()
-      for (const [k, v] of form.entries()) {
-        if (typeof v === 'string') {
-          fields[k] = v
-        } else if (v && typeof v === 'object' && 'arrayBuffer' in (v as any)) {
-          const f = v as File
-          if (!f.size) continue
-          const docType = k.replace(/^doc_/, '').toUpperCase()
-          if (f.size > MAX_FILE_SIZE) {
-            return NextResponse.json(
-              { error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` },
-              { status: 400 }
-            )
-          }
-          const mime = f.type || 'application/octet-stream'
-          const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
-          if (!ALLOWED_MIME.includes(mime) && !nameOk) {
-            return NextResponse.json(
-              { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` },
-              { status: 400 }
-            )
-          }
-          const buf = Buffer.from(await f.arrayBuffer())
-          files.push({ docType, fileName: f.name.slice(0, 180), mimeType: mime, size: f.size, data: buf.toString('base64') })
-        }
-      }
-    } else {
-      // توافق خلفي: JSON بدون ملفات (سيُرفض لعدم اكتمال المستندات)
-      fields = await req.json()
-    }
-
+    const { fields, files } = await readAdmissionPayload(req)
     const {
       fullName, email, phone, country, nationalId, birthDate, address,
       education, program, programId, notes, acknowledged,
     } = fields
 
-    // ===== الخطوة 1: بيانات كاملة إلزامية =====
-    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !program?.trim() || !nationalId?.trim()) {
+    // ===== الخطوة 1: بيانات أساسية إلزامية =====
+    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !program?.trim()) {
       return NextResponse.json(
-        { error: 'يرجى إكمال جميع حقول البيانات الإلزامية (الاسم، الهوية، البريد، الهاتف، الدولة، البرنامج)' },
+        { error: 'يرجى إكمال جميع حقول البيانات الإلزامية (الاسم، البريد، الهاتف، الدولة، البرنامج أو الخدمة)' },
         { status: 400 }
       )
     }
@@ -100,13 +116,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
     }
 
-    // البحث عن كائن البرنامج/الخدمة للتسعير ونوع الطلب قبل فحص المستندات.
+    // البحث عن البرنامج/الخدمة قبل فحص الهوية والمستندات حتى نفرق بين طلب الدراسة وطلب الخدمة المهنية.
     const programRec = programId
       ? await db.program.findUnique({ where: { id: programId } })
       : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
     const isServiceRequest = programRec?.category === 'SERVICE'
 
-    // ===== الخطوة 2: المستندات الرسمية كاملة إلزامياً للبرامج الدراسية، واختيارية للخدمات المهنية =====
+    if (!isServiceRequest && !String(nationalId || '').trim()) {
+      return NextResponse.json(
+        { error: 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر لطلبات الالتحاق الدراسية' },
+        { status: 400 }
+      )
+    }
+
+    // ===== الخطوة 2: المستندات الرسمية =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
     const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
@@ -118,13 +141,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    // رفض ملفات مكررة لنفس النوع (نقبل أول واحدة فقط)
-    const seen = new Set<string>()
-    const uniqueFiles = files.filter((f) => {
-      if (seen.has(f.docType)) return false
-      seen.add(f.docType)
-      return true
-    })
+    const uniqueFiles = uniqueAdmissionFiles(files)
 
     // ===== الخطوة 3: الإقرار الإلزامي =====
     if (acknowledged !== 'true' && acknowledged !== '1') {
@@ -134,8 +151,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد (توحيد مطابقة البريد lowercase)
-    // حسابات الإدارة/المشرفين لا تُستخدم كطلاب حتى لا تختلط صلاحيات الإدارة بالسجل الأكاديمي والدفع.
+    // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد. حسابات الإدارة/المشرفين لا تقدم كطلاب.
     const me = await getCurrentUser()
     if (me && me.role !== 'STUDENT') {
       return NextResponse.json(
@@ -166,6 +182,7 @@ export async function POST(req: NextRequest) {
       if (!isNaN(d.getTime())) birth = d
     }
 
+    const selectedTitle = programRec?.titleAr || program.trim()
     const app = await db.admissionApplication.create({
       data: {
         reference,
@@ -173,18 +190,17 @@ export async function POST(req: NextRequest) {
         email: email.trim(),
         phone: phone.trim(),
         country: country.trim(),
-        nationalId: nationalId.trim().slice(0, 40),
+        nationalId: String(nationalId || '').trim() ? String(nationalId).trim().slice(0, 40) : null,
         birthDate: birth,
         address: address?.trim().slice(0, 300) || null,
         education: String(education || 'OTHER'),
-        program: programRec?.titleAr || program.trim(),
+        program: selectedTitle,
         programId: programRec?.id || null,
         documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),
         notes: notes?.trim() ? String(notes).slice(0, 2000) : null,
         acknowledged: true,
         acknowledgedAt: new Date(),
         userId: owner?.id || null,
-        // البرامج الدراسية تبدأ برسوم تقديم، أما الخدمات المهنية فتدخل مباشرة لمراجعة الإدارة.
         status: isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE',
         files: {
           create: uniqueFiles.map((f) => ({
@@ -198,7 +214,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // ===== الخطوة 4: البرامج الدراسية لها فاتورة تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة =====
+    // البرامج الدراسية لها فاتورة رسوم تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة.
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
     const feeInvoice = isServiceRequest ? null : await db.payment.create({
       data: {
@@ -206,7 +222,7 @@ export async function POST(req: NextRequest) {
         userId: owner?.id || null,
         invoiceNo: await nextInvoiceNo(),
         purpose: 'APPLICATION_FEE',
-        description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${programRec?.titleAr || program.trim()}`,
+        description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
         amount: appFee,
         payerName: fullName.trim(),
         payerEmail: email.trim(),
@@ -220,221 +236,24 @@ export async function POST(req: NextRequest) {
         'ADMISSION',
         isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : 'تم استلام طلب الالتحاق — سدد رسوم التقديم (30$)',
         isServiceRequest
-          ? `طلبك (${reference}) لخدمة «${programRec?.titleAr || program.trim()}» وصل للإدارة مع ${uniqueFiles.length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
-          : `طلبك (${reference}) ببرنامج «${programRec?.titleAr || program.trim()}» مكتمل بالبيانات والمستندات (${uniqueFiles.length}/4) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة ويعطيك إشعار القبول.`,
+          ? `طلبك (${reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${uniqueFiles.length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
+          : `طلبك (${reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${uniqueFiles.length}/4) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة ويعطيك إشعار القبول.`,
         'apply'
       )
     }
-    // إشعار بريدي بكود التتبع وخطوات ما بعد التقديم
-    if (!isServiceRequest) emailAdmissionSubmitted(email.trim(), fullName.trim(), reference, programRec?.titleAr || program.trim(), appFee).catch(() => {})
+
+    // إشعار بريدي بكود التتبع وخطوات ما بعد التقديم للبرامج الدراسية؛ الخدمات تُراجع أولاً لتحديد المتطلبات.
+    if (!isServiceRequest) {
+      emailAdmissionSubmitted(email.trim(), fullName.trim(), reference, selectedTitle, appFee).catch(() => {})
+    }
     await audit(
       owner ? { id: owner.id, name: owner.name } : { name: fullName.trim() },
       isServiceRequest ? 'SUBMIT_SERVICE_REQUEST' : 'SUBMIT_ADMISSION',
       'AdmissionApplication',
       app.id,
       isServiceRequest
-        ? `${reference} — طلب خدمة: ${programRec?.titleAr || program.trim()} — مرفقات: ${uniqueFiles.length} + إقرار`
-        : `${reference} — ${programRec?.titleAr || program.trim()} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
-import { ADMISSION_FEES } from '@/lib/academyData'
-import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
-import { notify, audit } from '@/lib/notify'
-import { emailAdmissionSubmitted } from '@/lib/mailer'
-
-// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
-// لا يُقبل طلب الالتحاق إلا برفعها كاملة
-export const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
-]
-
-const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف
-const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-  'text/plain', 'text/csv', 'application/csv',
-]
-
-// آلة الحالات الرسمية (بالترتيب الصحيح وفق الدليل):
-// 1) تقديم الطلب ببيانات كاملة + المستندات + الإقرار
-// 2) سداد رسوم التقديم وحجز المقعد 30$ (غير مستردة)
-// 3) الملف يذهب للإدارة للدراسة وتعيين مشرف
-// 4) بعد موافقة الإدارة: يسدد الطالب الرسوم الدراسية كاملة للدخول للبرنامج
-export const STATUS_LABEL: Record<string, string> = {
-  AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
-  UNDER_REVIEW: 'قيد دراسة الإدارة',
-  AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
-  SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
-  THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
-  SCHEDULED: 'مجدول للمناقشة',
-  RESULT_APPROVED: 'تم اعتماد النتيجة',
-  CERTIFIED: 'تم إصدار الشهادة',
-  REJECTED: 'غير مقبول',
-  PENDING: 'تم التقديم',
-}
-
-// POST /api/admissions — تقديم طلب التحاق (multipart/form-data)
-// الخطوات 1-3 من دليل الإجراءات: بيانات كاملة + رفع الوثائق + الإقرار ثم إصدار فاتورة رسوم التقديم 30$
-export async function POST(req: NextRequest) {
-  try {
-    const ct = req.headers.get('content-type') || ''
-    let fields: Record<string, string> = {}
-    const files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[] = []
-
-    if (ct.includes('multipart/form-data')) {
-      const form = await req.formData()
-      for (const [k, v] of form.entries()) {
-        if (typeof v === 'string') {
-          fields[k] = v
-        } else if (v && typeof v === 'object' && 'arrayBuffer' in (v as any)) {
-          const f = v as File
-          if (!f.size) continue
-          const docType = k.replace(/^doc_/, '').toUpperCase()
-          if (f.size > MAX_FILE_SIZE) {
-            return NextResponse.json(
-              { error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` },
-              { status: 400 }
-            )
-          }
-          const mime = f.type || 'application/octet-stream'
-          const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
-          if (!ALLOWED_MIME.includes(mime) && !nameOk) {
-            return NextResponse.json(
-              { error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` },
-              { status: 400 }
-            )
-          }
-          const buf = Buffer.from(await f.arrayBuffer())
-          files.push({ docType, fileName: f.name.slice(0, 180), mimeType: mime, size: f.size, data: buf.toString('base64') })
-        }
-      }
-    } else {
-      // توافق خلفي: JSON بدون ملفات (سيُرفض لعدم اكتمال المستندات)
-      fields = await req.json()
-    }
-
-    const {
-      fullName, email, phone, country, nationalId, birthDate, address,
-      education, program, programId, notes, acknowledged,
-    } = fields
-
-    // ===== الخطوة 1: بيانات كاملة إلزامية =====
-    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !program?.trim() || !nationalId?.trim()) {
-      return NextResponse.json(
-        { error: 'يرجى إكمال جميع حقول البيانات الإلزامية (الاسم، الهوية، البريد، الهاتف، الدولة، البرنامج)' },
-        { status: 400 }
-      )
-    }
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRe.test(email.trim())) {
-      return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
-    }
-
-    // البحث عن كائن البرنامج/الخدمة للتسعير ونوع الطلب قبل فحص المستندات.
-    const programRec = programId
-      ? await db.program.findUnique({ where: { id: programId } })
-      : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
-    const isServiceRequest = programRec?.category === 'SERVICE'
-
-    // ===== الخطوة 2: المستندات الرسمية كاملة إلزامياً للبرامج الدراسية، واختيارية للخدمات المهنية =====
-    const uploadedTypes = new Set(files.map((f) => f.docType))
-    const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
-    if (missing.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'لا يمكن تقديم الطلب: المستندات المطلوبة غير مكتملة. يرجى رفع جميع الوثائق التالية أولاً',
-          missing: missing.map((m) => m.label),
-        },
-        { status: 400 }
-      )
-    }
-    // رفض ملفات مكررة لنفس النوع (نقبل أول واحدة فقط)
-    const seen = new Set<string>()
-    const uniqueFiles = files.filter((f) => {
-      if (seen.has(f.docType)) return false
-      seen.add(f.docType)
-      return true
-    })
-
-    // ===== الخطوة 3: الإقرار الإلزامي =====
-    if (acknowledged !== 'true' && acknowledged !== '1') {
-      return NextResponse.json(
-        { error: 'يجب الموافقة على الإقرار (صحة البيانات والالتزام بشروط الأكاديمية ورسوم التقديم غير مستردة) قبل التقديم' },
-        { status: 400 }
-      )
-    }
-
-    // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد (توحيد مطابقة البريد lowercase)
-    // حسابات الإدارة/المشرفين لا تُستخدم كطلاب حتى لا تختلط صلاحيات الإدارة بالسجل الأكاديمي والدفع.
-    const me = await getCurrentUser()
-    if (me && me.role !== 'STUDENT') {
-      return NextResponse.json(
-        { error: 'حساب الإدارة أو المشرف لا يقدم طلب التحاق كطالب. استخدم حساب طالب منفصل ببريد الطالب الحقيقي، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.' },
-        { status: 403 }
-      )
-    }
-    const owner = me ? me : await db.user.findUnique({ where: { email: email.trim().toLowerCase() } })
-    if (owner && owner.role !== 'STUDENT') {
-      return NextResponse.json(
-        { error: 'البريد المدخل مرتبط بحساب إداري/غير طالب. أنشئ حساب طالب منفصل أو استخدم بريد الطالب الحقيقي قبل تقديم الطلب.' },
-        { status: 400 }
-      )
-    }
-
-    // كود تتبع حالة الطلب AACT-2026-XXXX (15 محاولة لتفادي التصادم)
-    let reference = ''
-    for (let i = 0; i < 15; i++) {
-      const num = Math.floor(1000 + Math.random() * 9000)
-      reference = `AACT-2026-${num}`
-      const exists = await db.admissionApplication.findUnique({ where: { reference } })
-      if (!exists) break
-    }
-
-    let birth: Date | null = null
-    if (birthDate) {
-      const d = new Date(birthDate)
-      if (!isNaN(d.getTime())) birth = d
-    }
-
-    const app = await db.admissionApplication.create({
-      data: {
-        reference,
-        fullName: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        country: country.trim(),
-        nationalId: nationalId.trim().slice(0, 40),
-        birthDate: birth,
-        address: address?.trim().slice(0, 300) || null,
-        education: String(education || 'OTHER'),
-        program: programRec?.titleAr || program.trim(),
-        programId: programRec?.id || null,
-        documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),
-        notes: notes?.trim() ? String(notes).slice(0, 2000) : null,
-        acknowledged: true,
-        acknowledgedAt: new Date(),
-        userId: owner?.id || null,
-        // البرامج الدراسية تبدأ برسوم تقديم، أما الخدمات المهنية فتدخل مباشرة لمراجعة الإدارة.
-        status: isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE',
-        files: {
-          create: uniqueFiles.map((f) => ({
-            docType: f.docType,
-            fileName: f.fileName,
-            mimeType: f.mimeType,
-            size: f.size,
-            data: f.data,
-          })),
-        },
-      },
-    })
-
-
+        ? `${reference} — طلب خدمة: ${selectedTitle} — مرفقات: ${uniqueFiles.length} + إقرار`
+        : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
     )
 
     return NextResponse.json({
@@ -452,6 +271,7 @@ export async function POST(req: NextRequest) {
       } : null,
     })
   } catch (e: any) {
+    if (e instanceof Response) return e
     console.error('admissions POST error:', e)
     return NextResponse.json({ error: 'حدث خطأ أثناء تقديم الطلب، حاول مرة أخرى' }, { status: 500 })
   }
@@ -495,7 +315,7 @@ export async function GET(req: NextRequest) {
       nextAction: app.status === 'AWAITING_FEE'
         ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.'
         : app.status === 'UNDER_REVIEW'
-          ? 'ملفك قيد دراسة الإدارة. ستصلك رسالة عند صدور قرار القبول.'
+          ? 'ملفك قيد دراسة الإدارة. ستصلك رسالة عند صدور قرار القبول أو تعليمات المتابعة.'
           : app.status === 'AWAITING_TUITION'
             ? 'تمت الموافقة المبدئية. يرجى سداد الرسوم الدراسية لاستكمال التسجيل النهائي والدخول للبرنامج.'
             : app.status === 'SUPERVISOR_ASSIGNED' || app.status === 'THESIS'
@@ -519,7 +339,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ applications: serialized, application: serialized[0] || null, supervisorMode: true })
       }
       if (user.role !== 'STUDENT') {
-        return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق تخص حسابات الطلاب فقط.' })
+        return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق والخدمات تخص حسابات الطلاب/المتقدمين فقط.' })
       }
       const apps = await db.admissionApplication.findMany({
         where: { OR: [{ userId: user.id }, { email: user.email }] },
