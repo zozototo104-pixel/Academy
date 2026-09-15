@@ -1026,7 +1026,7 @@ export function AdminBooksTab() {
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
                     <Layers className="h-4.5 w-4.5 text-[#a8841a]" />
-                    بنك المعرفة الأكاديمي ({knowledgeItems.length})
+                    بنك المعرفة الأكاديمي ({displayKnowledgeItems.length})
                   </h2>
                   <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">
                     هذه هي المرحلة الثانية: تحويل الكتب إلى مفاهيم ونظريات وحالات ومنهجيات وبذور أسئلة. الامتحانات والمشرف الذكي يستخدمون هذه المعرفة بدلاً من الاعتماد على نص خام أو أسئلة عامة.
