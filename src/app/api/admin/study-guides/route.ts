@@ -122,7 +122,7 @@ function fallbackGuideSections(programTitle: string, semester: number, knowledge
   }
 
   return picked.slice(0, 8).map((k, i) => ({
-    title: k.category === 'SUMMARY' ? k.title : `${guideCategoryLabel(k.category)}: ${k.title}`,
+    title: k.title,
     summary: cleanGuideText(
       `${k.summary} يدرس الطالب هذا المحور بوصفه جزءاً من ${programTitle} في الفصل ${semester}، مع التركيز على المعنى، شروط التطبيق، حدود التعميم، ومؤشرات التحقق في الواجب أو الامتحان.`,
       `محور دراسي تطبيقي في ${programTitle}.`,
