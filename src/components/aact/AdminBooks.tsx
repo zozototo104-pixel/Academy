@@ -1212,9 +1212,9 @@ export function AdminBooksTab() {
                           {guide.objectives.slice(0, 6).map((x, i) => <p key={i} className="text-[11px] font-bold leading-5 text-slate-600">• {x}</p>)}
                         </div>
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
-                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">مصطلحات ومحاور</p>
+                          <p className="mb-2 text-[11px] font-black text-[#0f2b46]">مصطلحات ومحاور ({guide.keyTerms.length})</p>
                           <div className="flex flex-wrap gap-1">
-                            {guide.keyTerms.slice(0, 12).map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
+                            {guide.keyTerms.map((x, i) => <span key={i} className="rounded-full bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#a8841a]">{x}</span>)}
                           </div>
                         </div>
                         <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
