@@ -188,8 +188,8 @@ export function ProgramDetailsView() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-[#0f2b46]/10 bg-[#faf6ea] p-4">
               <Clock3 className="mb-2 h-5 w-5 text-[#a8841a]" />
-              <p className="text-xs font-bold text-slate-500">الساعات التدريبية</p>
-              <p className="mt-1 text-lg font-black text-[#0f2b46]">{program.hours ? `${program.hours} ساعة` : 'حسب مسار البرنامج'}</p>
+              <p className="text-xs font-bold text-slate-500">{isService ? 'مدة الخدمة' : 'الساعات التدريبية'}</p>
+              <p className="mt-1 text-lg font-black text-[#0f2b46]">{program.hours ? `${program.hours} ساعة` : isService ? 'حسب طبيعة الطلب' : 'حسب مسار البرنامج'}</p>
             </div>
             <div className="rounded-2xl border border-[#0f2b46]/10 bg-[#faf6ea] p-4">
               <BadgeCheck className="mb-2 h-5 w-5 text-[#a8841a]" />
