@@ -608,7 +608,7 @@ export function ApplyView() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>نوع البرنامج / الدرجة *</Label>
+                          <Label>نوع الطلب *</Label>
                           <Select
                             value={selectedCategory}
                             onValueChange={(v) => {
