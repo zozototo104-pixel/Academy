@@ -442,7 +442,7 @@ export function ProgramDetailsView() {
 
                 <section className="rounded-2xl border border-[#0f2b46]/10 bg-[#faf6ea] p-5">
                   <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-[#0f2b46]">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" /> لماذا هذا البرنامج؟
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" /> {isService ? 'مكونات وفوائد الخدمة' : 'لماذا هذا البرنامج؟'}
                   </h2>
                   {(program.features || []).length ? (
                     <div className="space-y-2">
