@@ -114,6 +114,18 @@ function looksLikeMetadataOnlyText(text: string): boolean {
   )
 }
 
+function looksLikeGeneratedStudyScaffold(text: string): boolean {
+  const n = normalizeAcademic(normalizeExtractedText(text, 8000))
+  const markers = [
+    'خريطه امتحانيه', 'خريطه معرفيه', 'ملخص معرفي طويل', 'بناء الامتحان والمشرف الذكي',
+    'صالح لبناء الامتحان', 'بذور اسئله', 'نقاط قابله للسؤال', 'خطة معرفة منهجية', 'خطة معرفه منهجيه',
+    'لا تعامل كاقتباس حرفي', 'لا تعامل كاقتباس', 'توصيف الكتاب والبرنامج', 'عند غياب النص المباشر',
+    'محور دراسي منظم', 'محور اكاديمي منظم', 'خريطة اولية لاستخدام كتاب', 'الفكرة المحورية هي تحويل موضوع الكتاب',
+  ]
+  const hits = markers.filter((m) => n.includes(normalizeAcademic(m))).length
+  return hits >= 2
+}
+
 function looksLikeBrokenArabicBookExtraction(text: string): boolean {
   const sample = repairExtractedAcademicText(text, 14000)
   if (!sample) return true
