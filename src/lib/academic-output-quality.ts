@@ -74,7 +74,7 @@ const LABEL_STOP_WORDS = new Set([
 function compactLabel(value: string, max: number) {
   const compacted = value
     .replace(/\([^)]{1,90}\)/g, ' ')
-    .replace(/^["'«»]+|["'«»]+$/g, ' ')
+    .replace(/^[\s\-–—•:："'«»]+|[\s\-–—•:："'«»]+$/g, ' ')
     .replace(/^(?:و?هو|و?هي|و?ذلك|إذ|اذ|حيث|وقد|كما|لذلك|وبذلك|إن|ان|أن|أنّ)\s+/u, ' ')
     .replace(/\s+/g, ' ')
     .trim()
