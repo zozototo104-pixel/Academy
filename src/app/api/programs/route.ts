@@ -7,7 +7,8 @@ import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_C
 export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
-    if (!summaryOnly) await ensureCoreSeed()
+    const publicOnly = req.nextUrl.searchParams.get('public') === '1'
+    if (!summaryOnly && !publicOnly) await ensureCoreSeed()
 
     const rows: any[] = summaryOnly
       ? await db.program.findMany({
