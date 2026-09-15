@@ -422,8 +422,10 @@ export function SupervisorView() {
                             <h4 className="font-black text-[#0f2b46]">{exam.title}</h4>
                             {exam.submitted ? (
                               <Badge className={(score ?? 0) >= exam.passScore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>مسلّم — {score ?? '—'}%</Badge>
-                            ) : (
+                            ) : exam.studentAvailable ? (
                               <Badge className="bg-red-100 text-red-700 hover:bg-red-100">لم يسلّم بعد</Badge>
+                            ) : (
+                              <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100">غير منشور للطالب</Badge>
                             )}
                           </div>
                           <p className="mt-1 text-[11px] font-bold text-slate-500">الفصل {exam.semester} — {exam.questionsCount} سؤال — الحالة: {exam.status} — مدة {exam.durationMin || 0} دقيقة</p>
