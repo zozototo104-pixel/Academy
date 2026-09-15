@@ -243,6 +243,20 @@ export function VerifyView() {
         </CardContent>
       </Card>
 
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        {[
+          { t: 'احصل على كودك', d: 'الكود موجود في شهادتك أو في ملفك الشخصي داخل المنصة.' },
+          { t: 'أدخل الكود', d: 'اكتب كود الشهادة كما هو مطبوع أو امسح رمز QR.' },
+          { t: 'تحقق فوراً', d: 'ستظهر بيانات الشهادة كاملة إذا كانت صحيحة وموثقة.' },
+        ].map((step, i) => (
+          <div key={step.t} className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 text-center shadow-sm">
+            <span className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#0f2b46] text-xs font-black text-[#e0b83a]">{i + 1}</span>
+            <p className="text-sm font-black text-[#0f2b46]">{step.t}</p>
+            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{step.d}</p>
+          </div>
+        ))}
+      </div>
+
       <p className="mt-6 text-center text-[11px] leading-relaxed text-slate-400">
         شهادات الأكاديمية شهادات معادلة خبرات تدريبية مهنية وليست شهادات أكاديمية حكومية —
         لأي استفسار تواصل معنا عبر{' '}
