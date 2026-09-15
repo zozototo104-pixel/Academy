@@ -335,6 +335,9 @@ export function AdminBooksTab() {
     })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
   })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [studyGuides])
 
+  const hiddenKnowledgeItemsCount = Math.max(0, knowledgeItems.length - displayKnowledgeItems.length)
+  const hiddenStudyGuidesCount = Math.max(0, studyGuides.length - displayStudyGuides.length)
+
   const academicPlanPreview = useMemo(() => {
     if (!selectedProgram) return null
     return buildAcademicProgramProfile({
