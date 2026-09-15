@@ -29,6 +29,26 @@ function clean(value: unknown, max = 2000) {
     .slice(0, max)
 }
 
+function cleanAssignmentText(value: unknown, fallback = '', max = 2000, allowShort = false) {
+  const cleaned = cleanAcademicGeneratedText(value, max).replace(/\s+/g, ' ').trim()
+  return cleaned && !looksLikeBrokenAcademicOutput(cleaned, { allowShort }) ? cleaned : fallback
+}
+
+function cleanAssignmentList(values: unknown, fallback: string[] = [], maxItems = 6) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const raw = Array.isArray(values) ? values : []
+  for (const item of [...raw, ...fallback]) {
+    const cleaned = cleanAssignmentText(item, '', 140, true)
+    const key = cleaned.toLowerCase().replace(/\s+/g, ' ')
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(cleaned)
+    if (out.length >= maxItems) break
+  }
+  return out
+}
+
 function asInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
