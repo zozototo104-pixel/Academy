@@ -169,7 +169,7 @@ function parseGeminiBookJson(raw: string): { text: string; note: string } {
       }
     } catch {}
   }
-  return { text: normalizeExtractedText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة Gemini غير JSON لكنها تحتوي نصاً قابلاً للاستخدام' }
+  return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة Gemini غير JSON لكنها تحتوي نصاً قابلاً للاستخدام' }
 }
 
 async function readVisualDocumentWithGemini(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
