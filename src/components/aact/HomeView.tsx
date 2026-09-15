@@ -11,7 +11,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
   Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
-  Banknote, ClipboardList, Users, Star, Quote, HelpCircle,
+  Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge,
 } from 'lucide-react'
 
 interface ProgramLite {
