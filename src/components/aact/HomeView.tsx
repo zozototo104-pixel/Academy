@@ -648,7 +648,7 @@ export function HomeView() {
                     </p>
                     <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                       <span className="text-[11px] font-bold text-slate-400">
-                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : 'اعتماد مباشر'}
+                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
                         التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
