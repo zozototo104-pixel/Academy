@@ -192,7 +192,7 @@ export function StudentSupervisionTab() {
         </div>
       </CardContent></Card>
 
-      {active.admission.supervisor && (
+      {hasHumanSupervisor && (
         <SupervisorLiveVoiceCall admissionId={active.admission.id} role="STUDENT" title="مكالمة صوتية حية مع المشرف" />
       )}
 
