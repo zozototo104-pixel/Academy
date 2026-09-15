@@ -184,6 +184,9 @@ async function buildStudentCard(app: any) {
     books: program?.books || [],
     knowledgeItems: program?.knowledgeItems || [],
     exams: program?.programExams || [],
+    availableProgramExams,
+    availableUnitExams,
+    availableAssignments,
     attempts: attempts.map((a: any) => ({
       id: a.id,
       kind: 'PROGRAM_EXAM',
