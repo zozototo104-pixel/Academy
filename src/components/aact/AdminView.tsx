@@ -756,7 +756,7 @@ export function AdminView() {
                             <div className="mt-3 flex max-w-md items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5">
                               <UserCheck className="h-4 w-4 shrink-0 text-[#a8841a]" />
                               <Select
-                                value={a.supervisor?.id || a.supervisorId || ''}
+                                value={a.supervisor?.id || a.supervisorId || 'AI_ONLY'}
                                 onValueChange={(v) => assignSupervisor(a.id, v)}
                               >
                                 <SelectTrigger className="h-8 flex-1 text-xs">
