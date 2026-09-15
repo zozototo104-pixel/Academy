@@ -255,6 +255,7 @@ export function AdminBooksTab() {
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [gradingSubmissionId, setGradingSubmissionId] = useState<string | null>(null)
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
+  const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [sourceLinks, setSourceLinks] = useState<Record<string, string>>({})
