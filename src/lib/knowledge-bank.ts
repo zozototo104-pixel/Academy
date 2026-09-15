@@ -883,7 +883,7 @@ async function aiKnowledgeItemsFromUploadedFile(
 - لا تستخدم رموزاً تقنية داخل النص.
 - كل عنصر يجب أن يصلح للعرض مباشرة للطالب والمشرف.
 
-أجب JSON فقط كمصفوفة من 12 إلى ${MAX_ITEMS_PER_BOOK} عنصر، وكل عنصر بهذا الشكل:
+أجب JSON فقط كمصفوفة من ${MIN_ACCEPTABLE_AI_ITEMS} إلى ${MAX_ITEMS_PER_BOOK} عنصر، ولا تكتفِ بعشرة عناصر أو بقراءة سطحية. كل عنصر بهذا الشكل:
 {"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان محدد من محتوى الكتاب","summary":"شرح أكاديمي واضح مبني على ما قرأته من الملف ومربوط بالتخصص","excerpt":"دليل مختصر أو إعادة صياغة أمينة من النص المقروء","keywords":["كلمة"],"importance":80,"semester":${semester ?? 'null'},"sourceNote":"قراءة مباشرة من ملف الكتاب المرفوع"}`
 
   try {
