@@ -144,12 +144,7 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
     return `${i + 1}. ${k.title}: ${k.summary.slice(0, 380)}${k.excerpt ? ` — دليل: ${k.excerpt.slice(0, 220)}` : ''}${source}`
   }).join('\n')
 
-  try {
-    const zai = await getZAI()
-    const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت مصمم دليل دراسة جامعي مهني. أعد JSON صالحاً فقط دون Markdown.' },
-        { role: 'user', content: `أنشئ دليل دراسة عربي رسمي ومهني من بنك المعرفة التالي.
+  const guidePrompt = `أنشئ دليل دراسة عربي رسمي ومهني من بنك المعرفة التالي.
 
 البرنامج: ${program.titleAr}
 التصنيف: ${program.category}
@@ -177,9 +172,33 @@ ${context}
 - اجعل الدليل صالحاً للطالب قبل الامتحان والواجبات.
 - لا تستخدم رموزاً تقنية مثل CONCEPT أو QUESTION_SEED.
 - لا تنقل أي جملة تبدو OCR مشوهة أو مختلطة اللغات، مثل أسماء كتب أجنبية داخل جملة عربية أو سنوات غير منطقية 8121/8115/8518.
-- إذا كان المصدر مشوشاً، أعد صياغة المعنى الأكاديمي المفهوم فقط أو تجاهل المقطع.` },
+- إذا كان المصدر مشوشاً، أعد صياغة المعنى الأكاديمي المفهوم فقط أو تجاهل المقطع.
+- لا تكتفِ بعناوين عامة؛ كل محور يجب أن يستند إلى عنصر معرفة محدد ظاهر في السياق.`
+
+  try {
+    const raw = await Promise.race([
+      geminiCompleteJson({
+        system: 'أنت مصمم دليل دراسة جامعي مهني. أعد JSON object صالحاً فقط دون Markdown.',
+        history: [{ role: 'user', text: guidePrompt }],
+        temperature: 0.12,
+        maxOutputTokens: 8192,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_GEMINI_TIMEOUT')), 38000)),
+    ])
+    const parsed = parseJsonObject(raw)
+    return normalizeGuide(parsed || {}, program.titleAr, semester, knowledge)
+  } catch (e: any) {
+    console.error('study guide Gemini fallback:', String(e?.message || e).slice(0, 300))
+  }
+
+  try {
+    const zai = await getZAI()
+    const raw = await Promise.race([
+      chatWithRetry(zai, [
+        { role: 'assistant', content: 'أنت مصمم دليل دراسة جامعي مهني. أعد JSON صالحاً فقط دون Markdown.' },
+        { role: 'user', content: guidePrompt },
       ], 2),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_TIMEOUT')), 30000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_ZAI_TIMEOUT')), 30000)),
     ])
     const parsed = parseJsonObject(raw)
     return normalizeGuide(parsed || {}, program.titleAr, semester, knowledge)
