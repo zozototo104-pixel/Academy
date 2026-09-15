@@ -714,7 +714,9 @@ export function ApplyView() {
 
                   <section className="rounded-xl border-2 border-[#c9a227]/60 bg-[#f7edd0]/60 p-4">
                     <p className="text-xs leading-relaxed text-[#5c4d1a]">
-                      أقر بأن البيانات والوثائق المقدمة صحيحة، وأوافق على شروط الأكاديمية وسداد رسوم التقديم وحجز المقعد ({ADMISSION_FEES.applicationFee}$ غير مستردة)، ثم سداد الرسوم الدراسية بعد القبول.
+                      {isServiceRequest
+                        ? 'أقر بأن بيانات طلب الخدمة صحيحة، وأوافق على أن تقوم الإدارة بدراسة الاحتياج وتحديد المتطلبات أو الرسوم أو موعد الاستشارة قبل اعتماد الطلب النهائي.'
+                        : `أقر بأن البيانات والوثائق المقدمة صحيحة، وأوافق على شروط الأكاديمية وسداد رسوم التقديم وحجز المقعد (${ADMISSION_FEES.applicationFee}$ غير مستردة)، ثم سداد الرسوم الدراسية بعد القبول.`}
                     </p>
                     <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl bg-white p-3">
                       <Checkbox checked={acknowledged} onCheckedChange={(v) => setAcknowledged(v === true)} className="mt-0.5" />
