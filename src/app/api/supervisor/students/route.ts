@@ -106,11 +106,13 @@ async function buildStudentCard(app: any) {
 
   const availableProgramExams = (program?.programExams || []).map((exam: any) => {
     const attempt = programExamAttemptByExamId.get(exam.id)
+    const studentAvailable = exam.status === 'READY'
     return {
       id: exam.id,
       title: exam.title,
       semester: exam.semester,
       status: exam.status,
+      studentAvailable,
       passScore: exam.passScore,
       durationMin: exam.durationMin,
       totalPoints: exam.totalPoints,
