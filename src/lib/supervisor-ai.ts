@@ -150,7 +150,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       }),
     ])
 
-    const [academicMemory, recentMessages, latestAssignments] = await Promise.all([
+    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments] = await Promise.all([
       db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
       db.chatMessage.findMany({
         where: { userId },
@@ -163,6 +163,18 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         orderBy: { submittedAt: 'desc' },
         take: 5,
         include: { assignment: { select: { title: true, type: true, semester: true, program: { select: { titleAr: true } } } } },
+      }).catch(() => []),
+      db.supervisorChannelMessage.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: { senderRole: true, mode: true, content: true, createdAt: true },
+      }).catch(() => []),
+      db.supervisorAssessment.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 1 } },
       }).catch(() => []),
     ])
 
