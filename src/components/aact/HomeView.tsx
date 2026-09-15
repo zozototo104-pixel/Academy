@@ -46,6 +46,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   MASTERS: 'ماجستير مهني',
   ACCREDITATION: 'اعتماد دولي',
   INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
 }
 
 // أبرز البرامج المميزة — الشريط المتحرك (الدكتوراة، الماجستير، الدبلومات، شهادات الاستشاريين)
