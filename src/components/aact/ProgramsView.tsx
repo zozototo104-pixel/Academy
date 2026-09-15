@@ -32,6 +32,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   MASTERS: 'ماجستير مهني',
   ACCREDITATION: 'اعتماد دولي',
   INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
 }
 
 const FILTERS: { key: string; label: string }[] = [
