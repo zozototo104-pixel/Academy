@@ -515,7 +515,7 @@ export function DashboardView() {
                       <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{displayStudyGuides.length} دليل</Badge>
                     </div>
                     <div className="space-y-3">
-                      {studyGuides.map((guide) => (
+                      {displayStudyGuides.map((guide) => (
                         <article key={guide.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
                           <div className="mb-2 flex flex-wrap items-center gap-2">
                             <Badge className="bg-[#0f2b46] text-[9px] font-black text-[#e0b83a] hover:bg-[#0f2b46]">
