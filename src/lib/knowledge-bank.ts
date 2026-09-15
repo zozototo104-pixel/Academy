@@ -852,9 +852,11 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
   const qualityNote = buildMode === 'TEXT'
     ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص الكتاب المنظف قبل التوليد.`
-    : buildMode === 'FILE'
-      ? 'تم بناء بنك المعرفة من قراءة مباشرة لملف الكتاب المرفوع عبر الذكاء البصري، بعد فشل الاستخراج النصي التقليدي أو عدم كفايته.'
-      : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف ولا قراءة ملف كافية؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
+    : buildMode === 'TEXT_DETERMINISTIC'
+      ? `${hydrated.sourceNote} — تم بناء بنك المعرفة مباشرة من مقاطع الكتاب المقروءة بعد تعذر توليد JSON ذكي صالح.`
+      : buildMode === 'FILE'
+        ? 'تم بناء بنك المعرفة من قراءة مباشرة لملف الكتاب المرفوع عبر الذكاء البصري، بعد فشل الاستخراج النصي التقليدي أو عدم كفايته.'
+        : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف ولا قراءة ملف كافية؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
   return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: qualityNote }
 }
 
