@@ -257,7 +257,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
       setCall(d.call)
       callIdRef.current = d.call.id
       const pc = await initPeer(d.call.id, d.rtcConfig)
-      const offer = await pc.createOffer({ offerToReceiveAudio: true })
+      const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       await postSignal(d.call.id, 'OFFER', offer)
       setPhase('calling')
