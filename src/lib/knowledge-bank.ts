@@ -771,7 +771,7 @@ async function aiKnowledgeItems(
 مقاطع موزعة من الكتاب:
 ${sample}
 
-استخرج 12 إلى ${MAX_ITEMS_PER_BOOK} عنصر معرفة. كل عنصر يجب أن يحتوي:
+استخرج ${MIN_ACCEPTABLE_AI_ITEMS} إلى ${MAX_ITEMS_PER_BOOK} عنصر معرفة موزعة على الفئات، ولا تكتفِ بعشرة عناصر أو بتلخيص عام. كل عنصر يجب أن يحتوي:
 - category واحدة من: CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
 - title عنوان قصير واضح
 - summary شرح أكاديمي دقيق للفكرة كما ظهرت في الكتاب
