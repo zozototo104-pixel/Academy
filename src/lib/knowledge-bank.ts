@@ -24,8 +24,19 @@ export interface KnowledgeBuildResult {
   sourceNote?: string | null
 }
 
-const CATEGORY_SET = new Set(['CONCEPT', 'THEORY', 'METHOD', 'CASE', 'DEFINITION', 'QUESTION_SEED', 'SUMMARY'])
-const MAX_ITEMS_PER_BOOK = 28
+const KNOWLEDGE_CATEGORIES = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED'] as const
+const CATEGORY_SET = new Set<string>(KNOWLEDGE_CATEGORIES)
+const MAX_ITEMS_PER_BOOK = 36
+const RICH_ITEMS_PER_BOOK_TARGET = 28
+const MIN_ACCEPTABLE_AI_ITEMS = 18
+const MIN_CONTEXT_KNOWLEDGE_ITEMS = 24
+
+export const KNOWLEDGE_BANK_LIMITS = {
+  maxItemsPerBook: MAX_ITEMS_PER_BOOK,
+  targetItemsPerBook: RICH_ITEMS_PER_BOOK_TARGET,
+  minAcceptableAiItems: MIN_ACCEPTABLE_AI_ITEMS,
+  minContextItems: MIN_CONTEXT_KNOWLEDGE_ITEMS,
+}
 
 export function cleanAcademicGeneratedText(value: unknown, max = 1600) {
   return String(value || '')
