@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
           price: row.price,
           icon: row.icon,
           features: JSON.parse(row.features || '[]'),
-          unitsCount: summaryOnly ? Number(row._count?.units || 0) : units.length,
+          unitsCount: liteOnly ? Number(row._count?.units || 0) : units.length,
           units,
           books,
           assignments,
