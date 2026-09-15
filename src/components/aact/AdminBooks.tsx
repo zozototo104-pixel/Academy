@@ -1125,7 +1125,7 @@ export function AdminBooksTab() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {studyGuides.map((guide) => (
+                  {displayStudyGuides.map((guide) => (
                     <article key={guide.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-4 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
