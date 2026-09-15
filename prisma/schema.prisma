@@ -505,6 +505,43 @@ model SupervisorChannelMessage {
   @@index([supervisorId, createdAt])
 }
 
+model SupervisorVoiceCall {
+  id           String   @id @default(cuid())
+  admissionId  String
+  studentId    String
+  supervisorId String?
+  initiatorId  String?
+  initiatorRole String  @default("SUPERVISOR") // SUPERVISOR | STUDENT | ADMIN
+  status       String   @default("RINGING") // RINGING | ACTIVE | ENDED | MISSED | DECLINED
+  startedAt    DateTime @default(now())
+  joinedAt     DateTime?
+  endedAt      DateTime?
+  endedById    String?
+  endedReason  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  signals      SupervisorVoiceSignal[]
+
+  @@index([admissionId, status])
+  @@index([studentId, status])
+  @@index([supervisorId, status])
+  @@index([createdAt])
+}
+
+model SupervisorVoiceSignal {
+  id        String   @id @default(cuid())
+  callId    String
+  call      SupervisorVoiceCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  fromId    String?
+  fromRole  String   // STUDENT | SUPERVISOR | ADMIN
+  type      String   // OFFER | ANSWER | ICE | HANGUP
+  payload   String   // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([callId, createdAt])
+  @@index([fromId])
+}
+
 model SupervisorAssessment {
   id               String   @id @default(cuid())
   admissionId       String
