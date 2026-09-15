@@ -103,7 +103,7 @@ function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: str
     if (seen.has(key)) continue
     seen.add(key)
     const type = TYPE_SET.has(String(item?.type || '').toUpperCase()) ? String(item.type).toUpperCase() : 'CASE_STUDY'
-    const src = cleanAssignmentList(item?.sourceKnowledgeTitles, knowledgeTitles.slice(0, 4), 6)
+    const src = cleanAssignmentSourceTitles(item?.sourceKnowledgeTitles, knowledgeTitles.slice(0, 4), 6)
     out.push({
       title,
       description,
