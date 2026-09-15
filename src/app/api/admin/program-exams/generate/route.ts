@@ -738,7 +738,7 @@ export async function POST(req: NextRequest) {
       })
       if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
       if (existing.status === 'GENERATING') {
-        const step = await runGenerationSteps(existing.id, 1)
+        const step = await runGenerationSteps(existing.id, MANUAL_CONTINUE_STEPS)
         return NextResponse.json({
           ok: step.ok,
           examId: existing.id,
