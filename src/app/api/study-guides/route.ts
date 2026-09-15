@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
     })
 
-    return NextResponse.json({ guides: guides.map(mapGuide) })
+    return NextResponse.json({ guides: guides.map(mapGuide).filter(Boolean) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     console.error('student study guides GET error:', e)
