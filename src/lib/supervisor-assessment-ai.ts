@@ -157,7 +157,7 @@ export async function generateSupervisorQuestions(opts: {
     `الفصل: ${opts.semester || 1}`,
     `الكتب: ${books.map((b) => b.title).join(' | ') || 'غير محدد'}`,
     `بنك المعرفة:` ,
-    ...knowledge.slice(0, 35).map((k, i) => `${i + 1}. [${k.category}] ${k.title}: ${k.summary}${k.excerpt ? ` — مقتطف: ${k.excerpt.slice(0, 240)}` : ''}${k.book?.title ? ` — المصدر: ${k.book.title}` : ''}`),
+    ...cleanKnowledge.slice(0, 35).map((k: any, i: number) => `${i + 1}. [${k.category}] ${k.title}: ${k.summary}${k.excerpt ? ` — مقتطف: ${k.excerpt.slice(0, 240)}` : ''}${k.book?.title ? ` — المصدر: ${k.book.title}` : ''}`),
   ].join('\n')
   const system = 'أنت خبير قياس وتقويم أكاديمي مهني. أعد JSON صالحاً فقط بدون Markdown. الأسئلة يجب أن تكون واضحة ومنطقية ومبنية حصراً على بنك المعرفة والكتب، وليست عبارات مشوهة أو مترجمة آلياً.'
   const prompt = `ولّد ${count} سؤالاً خاصاً بطالب واحد. راعِ أن أسئلة الدبلوم مباشرة وتطبيقية، الماجستير تحليلية، والدكتوراه نقدية ومتقدمة.\n\n${context}\n\nأعد الصيغة التالية فقط:\n{ "questions": [ { "type": "MCQ|TF|SHORT|ESSAY", "text": "...", "options": ["..."], "correctAnswer": "0", "modelAnswer": "...", "sourceEvidence": "دليل قصير من المعرفة", "sourceBookTitle": "اسم الكتاب", "cognitiveSkill": "UNDERSTAND|APPLY|ANALYZE|EVALUATE", "difficulty": "EASY|MEDIUM|ADVANCED", "correctRationale": "سبب الصحة", "points": 2 } ] }`
