@@ -77,7 +77,10 @@ function labelIsDisplayable(value: string) {
   const n = normalizeAcademic(value)
   if (!n) return false
   if (/\b(?:concept|theory|method|case|definition|question_seed|summary)\b/i.test(value)) return false
-  if (/(?:من النص|من الكتاب|مستخرجه من النص|مستخرجة من النص|بذره سؤال|بذرة سؤال|حاله تطبيقيه من|حالة تطبيقية من)/u.test(n)) return false
+  if (/(?:من النص|من الكتاب|المقطع|الدليل المقروء|مستخرجه من النص|مستخرجة من النص|بذره سؤال|بذرة سؤال|حاله تطبيقيه من|حالة تطبيقية من|بلغه اكاديميه|بلغة أكاديمية|النص وال|المعرفه والامتحان|المعرفة والامتحان)/u.test(n)) return false
+  if (/^(?:يحول|يعرض|ينظم|شرح|يربط|ربط|يدرس|يستخدم|يركز|يوضح|يقدم|تحويل|يوظف|يصوغ|يشرح)\b/u.test(n)) return false
+  if (/[A-Za-z]{4,}/.test(value) && /[\u0600-\u06FF]/.test(value)) return false
+  if (/(?:strategicg|strategicq|logisticg|tacticg)/i.test(value)) return false
   const words = value.split(/\s+/).filter(Boolean)
   return words.length >= 2 && words.length <= 8 && value.length <= 90 && !looksLikeBrokenAcademicOutput(value, { allowShort: true })
 }
