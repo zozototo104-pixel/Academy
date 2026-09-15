@@ -70,6 +70,16 @@ function compactLabel(value: string, max: number) {
   return compacted.length <= max ? compacted : compacted.slice(0, max).replace(/\s+\S*$/u, '').trim()
 }
 
+function isGenericLabelPhrase(value: string): boolean {
+  const n = normalizeAcademic(value)
+  const words = n.split(' ').filter(Boolean)
+  if (words.length <= 3 && /^(?:محور|محاور|مصطلحات|تعريفات|نظريات|اطر|مفاهيم|منهجيات|حالات|اسئله|خلاصه|المصطلحات|التعريفات|النظريات|الاطر|المفاهيم|المنهجيات|الحالات|الاسئله|الخلاصه)/u.test(n)) return true
+  return [
+    'المصطلحات والتعريفات', 'النظريات والاطر', 'منهجيات التطبيق', 'الحالات العمليه',
+    'اسئله المراجعه', 'المفاهيم المركزيه', 'الخلاصه الدراسيه', 'محور دراسي', 'محور اكاديمي',
+  ].includes(n)
+}
+
 export function conciseAcademicLabel(value: unknown, fallback = 'محور أكاديمي', max = 80): string {
   const cleaned = cleanAcademicOutput(value, Math.max(260, max * 3))
   if (!cleaned) return cleanAcademicOutput(fallback, max)
