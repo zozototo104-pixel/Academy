@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
     const description = asString(body.description, 6000)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     if (!title || !description) return NextResponse.json({ error: 'عنوان الواجب ووصفه مطلوبان' }, { status: 400 })
+    if (looksLikeBrokenGeneratedArabic(`${title}. ${description}`)) {
+      return NextResponse.json({ error: 'صياغة الواجب تبدو مشوهة أو مأخوذة من OCR غير صالح. أعد توليده أو حرره يدوياً.' }, { status: 400 })
+    }
 
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
