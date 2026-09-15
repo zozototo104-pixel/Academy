@@ -185,19 +185,26 @@ export async function generateSupervisorQuestions(opts: {
     const parsed = await completionJson(system, prompt)
     const arr = Array.isArray(parsed) ? parsed : parsed?.questions
     if (Array.isArray(arr) && arr.length) {
-      return arr.slice(0, count).map((q: any, idx: number) => ({
-        type: normalizeType(q.type),
-        text: String(q.text || '').trim() || `سؤال ${idx + 1}`,
-        options: Array.isArray(q.options) ? q.options.map((x: any) => String(x)).slice(0, 5) : undefined,
-        correctAnswer: String(q.correctAnswer ?? q.correct_answer ?? '').trim(),
-        modelAnswer: String(q.modelAnswer || q.model_answer || '').trim(),
-        sourceEvidence: String(q.sourceEvidence || q.source_evidence || '').trim(),
-        sourceBookTitle: String(q.sourceBookTitle || q.source_book_title || '').trim(),
-        cognitiveSkill: String(q.cognitiveSkill || q.skill || 'APPLY').trim(),
-        difficulty: String(q.difficulty || 'MEDIUM').trim(),
-        correctRationale: String(q.correctRationale || q.rationale || '').trim(),
-        points: Math.max(1, Math.min(10, Number(q.points || (normalizeType(q.type) === 'ESSAY' ? 6 : normalizeType(q.type) === 'SHORT' ? 4 : 2)))),
-      })).filter((q: GeneratedQuestion) => q.text.length > 8)
+      return arr.slice(0, count).map((q: any, idx: number) => {
+        const type = normalizeType(q.type)
+        const text = cleanQuestionPart(q.text, `سؤال تطبيقي رقم ${idx + 1} في ${specialty}`, 900)
+        const modelAnswer = cleanQuestionPart(q.modelAnswer || q.model_answer, `إجابة نموذجية تربط السؤال بمحتوى الكتاب وبسياق ${specialty}.`, 1200)
+        const sourceEvidence = cleanQuestionPart(q.sourceEvidence || q.source_evidence, '', 700, true)
+        const sourceBookTitle = cleanQuestionPart(q.sourceBookTitle || q.source_book_title, books[0]?.title || 'بنك المعرفة', 180, true)
+        return {
+          type,
+          text,
+          options: cleanQuestionOptions(q.options),
+          correctAnswer: String(q.correctAnswer ?? q.correct_answer ?? '').trim(),
+          modelAnswer,
+          sourceEvidence,
+          sourceBookTitle,
+          cognitiveSkill: String(q.cognitiveSkill || q.skill || 'APPLY').trim(),
+          difficulty: String(q.difficulty || 'MEDIUM').trim(),
+          correctRationale: cleanQuestionPart(q.correctRationale || q.rationale, 'الإجابة الصحيحة تربط الفكرة بدليل من الكتاب والسياق المهني.', 700),
+          points: Math.max(1, Math.min(10, Number(q.points || (type === 'ESSAY' ? 6 : type === 'SHORT' ? 4 : 2)))),
+        }
+      }).filter((q: GeneratedQuestion) => q.text.length > 8 && !looksLikeBrokenAcademicOutput(q.text) && !looksLikeBrokenAcademicOutput(q.modelAnswer || ''))
     }
   } catch (e) {
     console.error('supervisor assessment AI generation failed', e)
