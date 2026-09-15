@@ -77,6 +77,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
   const initiatorRef = useRef(false)
   const acceptedRef = useRef(false)
   const postingIceRef = useRef(false)
+  const pendingIceRef = useRef<RTCIceCandidateInit[]>([])
 
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { callIdRef.current = call?.id || '' }, [call?.id])
