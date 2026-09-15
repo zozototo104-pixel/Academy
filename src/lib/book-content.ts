@@ -164,7 +164,7 @@ function parseGeminiBookJson(raw: string): { text: string; note: string } {
     try {
       const parsed = JSON.parse(json)
       return {
-        text: normalizeExtractedText(String(parsed.textContent || parsed.summary || parsed.outline || ''), MAX_BOOK_CONTEXT_CHARS),
+        text: repairExtractedAcademicText(String(parsed.textContent || parsed.summary || parsed.outline || ''), MAX_BOOK_CONTEXT_CHARS),
         note: normalizeExtractedText(String(parsed.note || parsed.qualityNote || 'تم تلخيص المستند بواسطة Gemini'), 500),
       }
     } catch {}
