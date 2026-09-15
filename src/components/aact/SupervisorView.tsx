@@ -429,7 +429,7 @@ export function SupervisorView() {
                             )}
                           </div>
                           <p className="mt-1 text-[11px] font-bold text-slate-500">الفصل {exam.semester} — {exam.questionsCount} سؤال — الحالة: {exam.status} — مدة {exam.durationMin || 0} دقيقة</p>
-                          {exam.submitted ? <p className="mt-1 text-[11px] font-bold text-slate-500">تاريخ التسليم: {dateAr(exam.submittedAt)} — اعتراض: {exam.appealStatus || 'NONE'}</p> : <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-800">هذا الامتحان ظاهر للمتابعة لكنه غير مسلّم من الطالب حتى الآن.</p>}
+                          {exam.submitted ? <p className="mt-1 text-[11px] font-bold text-slate-500">تاريخ التسليم: {dateAr(exam.submittedAt)} — اعتراض: {exam.appealStatus || 'NONE'}</p> : exam.studentAvailable ? <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-800">هذا الامتحان مطلوب من الطالب ولم يسلّمه حتى الآن.</p> : <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-slate-600">هذا الامتحان موجود في النظام لكنه لم يعتمد/ينشر للطالب بعد.</p>}
                           {weak.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{weak.map((w: any, i: number) => (
                             <div key={i} className="rounded-xl bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
                               <p className="font-black text-[#0f2b46]">قصور في سؤال</p>
