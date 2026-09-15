@@ -1109,9 +1109,16 @@ export function AdminBooksTab() {
                 </div>
 
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
-                  <p className="mb-2 text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p>
-                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
-                    {displayKnowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل. إن كانت العناصر القديمة مشوهة فلن تُعرض؛ اضغط بناء/تحديث بنك المعرفة لإعادة استخراجها.</p> : displayKnowledgeItems.slice(0, 12).map((item) => (
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-black text-[#0f2b46]">كل عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
+                    {displayKnowledgeItems.length > 0 && (
+                      <Badge variant="outline" className="text-[9px] font-black text-slate-500">
+                        مرتبة بالأهمية — لا يتم قصّها إلى 12
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="max-h-[34rem] space-y-2 overflow-auto pr-1">
+                    {displayKnowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل. إن كانت العناصر القديمة مشوهة فلن تُعرض؛ اضغط بناء/تحديث بنك المعرفة لإعادة استخراجها.</p> : displayKnowledgeItems.map((item) => (
                       <article key={item.id} className="rounded-xl bg-[#f8fafc] p-3 text-[11px] font-bold leading-5 text-slate-600">
                         <div className="mb-1 flex flex-wrap items-center gap-1.5">
                           <Badge variant="outline" className="text-[9px] font-black">{knowledgeCategoryLabel(item.category)}</Badge>
