@@ -811,9 +811,29 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const semester = book.semester ?? null
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
   const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester, book.program)
-  const ai = sourceText.length >= 900
-    ? await aiKnowledgeItems(book.program, book, sourceText, semester)
-    : await aiMetadataKnowledgeItems(book.program, book, semester)
+  let ai: KnowledgeItemDraft[] | null = null
+  let buildMode: 'TEXT' | 'FILE' | 'METADATA' = 'METADATA'
+
+  if (sourceText.length >= 900) {
+    ai = await aiKnowledgeItems(book.program, book, sourceText, semester)
+    if (ai?.length) buildMode = 'TEXT'
+  }
+
+  // إذا كان هناك ملف مرفوع لكن الاستخراج النصي لم يعط معرفة حقيقية، اقرأ الملف نفسه مباشرة عبر Gemini.
+  // هذا يمنع الرجوع إلى عناصر عامة مبنية على العنوان فقط بينما يوجد PDF/صورة مرفوعة فعلياً.
+  if ((!ai?.length || sourceText.length < 900) && canReadBookFileWithGemini(book)) {
+    const fromFile = await aiKnowledgeItemsFromUploadedFile(book.program, book, semester)
+    if (fromFile?.length) {
+      ai = fromFile
+      buildMode = 'FILE'
+    }
+  }
+
+  if (!ai?.length) {
+    ai = await aiMetadataKnowledgeItems(book.program, book, semester)
+    buildMode = 'METADATA'
+  }
+
   const items = ensureCategoryCoverage(normalizeDrafts(ai || [], fallback, semester), fallback)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
