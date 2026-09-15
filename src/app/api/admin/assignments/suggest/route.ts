@@ -56,7 +56,7 @@ function cleanAssignmentSourceTitles(values: unknown, fallback: string[] = [], m
 }
 
 function titleFromKnowledge(item: any, fallback = 'محور معرفي') {
-  return conciseAcademicLabel(item?.title, fallback, 80)
+  return conciseAcademicLabel(item?.title || item?.summary || item, fallback, 80)
 }
 
 function asInt(value: unknown, fallback: number, min: number, max: number) {
