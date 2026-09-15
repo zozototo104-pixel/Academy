@@ -263,11 +263,11 @@ export function ApplyView() {
       return
     }
     if (!selectedCategory) {
-      toast({ title: 'تنبيه', description: 'يرجى اختيار نوع البرنامج أولاً: ماجستير / دكتوراه / دبلوم', variant: 'destructive' })
+      toast({ title: 'تنبيه', description: 'يرجى اختيار نوع الطلب أولاً: برنامج دراسي أو خدمة مهنية', variant: 'destructive' })
       return
     }
     if (!form.program || !selectedProgramId) {
-      toast({ title: 'تنبيه', description: 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
+      toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
     if (!form.nationalId.trim()) {
