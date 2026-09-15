@@ -727,7 +727,7 @@ function ensureCategoryCoverage(items: KnowledgeItemDraft[], fallback: Knowledge
 
   // لا نقبل بنك معرفة هزيل من كتاب مرفوع/مقروء. إذا أعاد النموذج 8 أو 10 عناصر فقط،
   // نُكملها بعناصر حتمية مبنية على مقاطع الكتاب نفسها، لا بعناوين عامة.
-  const minTarget = Math.min(MAX_ITEMS_PER_BOOK, fallback.length >= 18 ? 18 : Math.max(12, fallback.length))
+  const minTarget = targetFromFallback(fallback)
   if (out.length < minTarget) {
     for (const fb of fallback) {
       if (out.length >= minTarget) break
