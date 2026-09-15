@@ -187,6 +187,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
           const pc = await initPeer(signal.callId || callIdRef.current, config)
           if (!pc.remoteDescription) {
             await pc.setRemoteDescription(new RTCSessionDescription(payload))
+            await flushPendingIce()
             const answer = await pc.createAnswer()
             await pc.setLocalDescription(answer)
             await postSignal(callIdRef.current, 'ANSWER', answer)
