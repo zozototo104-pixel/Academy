@@ -114,23 +114,17 @@ function normalizeGuide(raw: any, programTitle: string, semester: number, knowle
     sourceTitles: [k.bookTitle || k.sourceNote || 'بنك المعرفة'].filter(Boolean),
   }))
 
-  const activities = jsonArray(raw?.activities)
-    .map((x) => clean(x, 300))
-    .filter(Boolean)
-    .slice(0, 8)
-  const discussionQuestions = jsonArray(raw?.discussionQuestions)
-    .map((x) => clean(x, 320))
-    .filter(Boolean)
-    .slice(0, 10)
+  const activities = cleanGuideList(raw?.activities, ['اقرأ المحاور المحددة ثم اكتب ملخصاً نقدياً من 300 كلمة.', 'حوّل إحدى الأفكار إلى حالة تطبيقية مرتبطة ببيئتك المهنية.', 'استخرج ثلاثة أسئلة نقاشية من كل محور رئيسي.'], 8, 300)
+  const discussionQuestions = cleanGuideList(raw?.discussionQuestions, top.slice(0, 8).map((k: any) => `كيف يمكن تطبيق فكرة «${k.title}» في سياق ${programTitle}؟`), 10, 320)
 
   return {
     title,
     overview,
-    objectives: objectives.length ? objectives : [`فهم محاور ${programTitle} الأساسية`, 'تحليل المحتوى وربطه بحالات مهنية', 'الاستعداد للواجبات والامتحانات الفصلية'],
-    keyTerms: keyTerms.length ? keyTerms : top.map((k: any) => k.title).slice(0, 12),
+    objectives,
+    keyTerms,
     sections: sections.length ? sections : fallbackSections,
-    activities: activities.length ? activities : ['اقرأ المحاور المحددة ثم اكتب ملخصاً نقدياً من 300 كلمة.', 'حوّل إحدى الأفكار إلى حالة تطبيقية مرتبطة ببيئتك المهنية.', 'استخرج ثلاثة أسئلة نقاشية من كل محور رئيسي.'],
-    discussionQuestions: discussionQuestions.length ? discussionQuestions : top.slice(0, 8).map((k: any) => `كيف يمكن تطبيق فكرة «${k.title}» في سياق ${programTitle}؟`),
+    activities,
+    discussionQuestions,
     sourceKnowledgeIds: Array.isArray(raw?.sourceKnowledgeIds) ? raw.sourceKnowledgeIds.map((x: any) => clean(x, 80)).filter(Boolean).slice(0, 60) : top.map((k: any) => k.id).filter(Boolean),
   }
 }
