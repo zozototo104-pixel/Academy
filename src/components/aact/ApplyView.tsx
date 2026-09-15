@@ -522,6 +522,11 @@ export function ApplyView() {
                     </Button>
                   </>
                 )}
+                {done.invoice === null && (
+                  <p className="mx-auto mt-4 max-w-md text-sm font-bold leading-relaxed text-emerald-700">
+                    طلبك الآن قيد دراسة الإدارة. ستصلك تعليمات المتابعة أو التسعير أو موعد الاستشارة حسب طبيعة الخدمة.
+                  </p>
+                )}
                 {paidRef && <p className="mt-4 text-sm font-bold text-emerald-700">تم الدفع بنجاح — ملفك الآن قيد دراسة الإدارة.</p>}
               </CardContent>
             </Card>
