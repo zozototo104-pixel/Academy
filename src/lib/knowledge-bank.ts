@@ -290,16 +290,18 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
   const seen = new Set<string>()
   const out: KnowledgeItemDraft[] = []
   for (const raw of rawItems) {
+    const category = safeCategory(raw?.category)
     const title = cleanText(raw?.title || raw?.name || raw?.concept, 180)
     const summary = cleanText(raw?.summary || raw?.description || raw?.explanation, 900)
     const excerpt = cleanText(raw?.excerpt || raw?.evidence || raw?.sourceEvidence || summary, 900)
     if (!title || !summary || summary.length < 30) continue
+    if (looksLikeBrokenAcademicOutput(title, { allowShort: true }) || looksLikeBrokenAcademicOutput(summary) || looksLikeBrokenAcademicOutput(excerpt)) continue
     const key = norm(`${title} ${summary}`).slice(0, 180)
     if (!key || seen.has(key)) continue
     seen.add(key)
-    const keywords = Array.isArray(raw?.keywords) ? raw.keywords.map((x: any) => cleanText(x, 50)).filter(Boolean).slice(0, 10) : tokenizeKeywords(`${title} ${summary}`)
+    const keywords = safeGeneratedList(raw?.keywords, tokenizeKeywords(`${title} ${summary}`), 10, 50)
     out.push({
-      category: safeCategory(raw?.category),
+      category,
       title,
       summary,
       excerpt,
