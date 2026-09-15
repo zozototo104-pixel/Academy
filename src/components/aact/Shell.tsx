@@ -397,7 +397,7 @@ export function Header() {
             <p className="mb-1 mt-2 text-[10px] font-black text-[#c9a227]/70">الرئيسية والبرامج</p>
             {[
               { label: 'الرئيسية', target: 'home' as const },
-              { label: 'البرامج التدريبية', target: 'programs' as const },
+              { label: 'البرامج والخدمات', target: 'programs' as const },
               { label: 'طلب الالتحاق وتتبعه', target: 'apply' as const },
             ].map((n) => (
               <button
