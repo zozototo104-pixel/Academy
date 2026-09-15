@@ -85,8 +85,16 @@ export async function POST(req: NextRequest) {
       if (deleteIds.length) await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })
       if (updates.length) await Promise.all(updates)
       await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleteIds.length} عنصر مشوه وتحديث ${updates.length} عنصر`)
-      const items = await getProgramKnowledgeItems(programId, semester, 140)
-      return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, count: items.length, stats: categoryStats(items), items })
+      let rebuilt: Awaited<ReturnType<typeof rebuildProgramKnowledge>> | null = null
+      let items = await getProgramKnowledgeItems(programId, semester, 140)
+      if (items.length < KNOWLEDGE_BANK_LIMITS.minContextItems) {
+        rebuilt = await rebuildProgramKnowledge(programId, semester).catch((err) => {
+          console.error('knowledge-bank sanitize auto rebuild failed:', err)
+          return null
+        })
+        if (rebuilt) items = await getProgramKnowledgeItems(programId, semester, 140)
+      }
+      return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, rebuilt, count: items.length, stats: categoryStats(items), items })
     }
 
     if (action === 'rebuild-book') {
