@@ -1051,10 +1051,16 @@ export function AdminBooksTab() {
                     هذه هي المرحلة الثانية: تحويل الكتب إلى مفاهيم ونظريات وحالات ومنهجيات وبذور أسئلة. الامتحانات والمشرف الذكي يستخدمون هذه المعرفة بدلاً من الاعتماد على نص خام أو أسئلة عامة.
                   </p>
                 </div>
-                <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
-                  {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
-                  بناء/تحديث بنك المعرفة
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={sanitizeKnowledge} disabled={sanitizingKnowledge || knowledgeItems.length === 0} variant="outline" className="border-amber-300 text-xs font-black text-amber-700">
+                    {sanitizingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="ml-2 h-4 w-4" />}
+                    تنظيف العناصر المشوهة
+                  </Button>
+                  <Button onClick={rebuildKnowledge} disabled={rebuildingKnowledge || books.length === 0} className="bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
+                    {rebuildingKnowledge ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
+                    بناء/تحديث بنك المعرفة
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-4">
