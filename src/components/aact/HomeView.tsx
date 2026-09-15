@@ -49,16 +49,18 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
-// أبرز البرامج المميزة — الشريط المتحرك (الدكتوراة، الماجستير، الدبلومات، شهادات الاستشاريين)
+// أبرز البرامج والخدمات المميزة — الشريط المتحرك
 const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
   { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
   { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
   { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
-  { icon: BadgeCheck, t: 'اعتماد المستشارين والمدربين', hint: 'اعتماد دولي', slug: 'accredit-consultants-trainers' },
+  { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
+  { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
+  { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
+  { icon: BadgeCheck, t: 'معادلة الخبرة المهنية', hint: 'توثيق وتحكيم خبرات', slug: 'professional-experience-equivalency' },
   { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
   { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
   { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
-  { icon: Users, t: 'دبلوم إعداد مدربين (TOT)', hint: '', slug: 'dip-tot' },
 ]
 
 /** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
