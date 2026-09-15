@@ -85,6 +85,170 @@ function labelIsDisplayable(value: string) {
   return words.length >= 2 && words.length <= 8 && value.length <= 90 && !looksLikeBrokenAcademicOutput(value, { allowShort: true })
 }
 
+function looksLikeWeakGuideText(value: unknown) {
+  const raw = cleanAcademicGeneratedText(value, 2600)
+  const n = normalizeAcademic(raw)
+  if (!raw || !n) return true
+  const weak = [
+    'يحول هذا العنصر',
+    'يعرض هذا العنصر',
+    'خلاصه محوريه من النص',
+    'خلاصة محورية من النص',
+    'الدليل المقروء',
+    'الاشاره المعرفيه المستفاده من القراءه',
+    'يدرس الطالب هذا المحور بوصفه جزءا',
+    'مؤشرات التحقق في الواجب او الامتحان',
+    'شرح بلغه اكاديميه واضحه',
+    'ربط بحاله مهنيه',
+    'محور دراسي منظم يحتاج',
+    'لا حفظه مجردا',
+  ]
+  if (weak.some((x) => n.includes(normalizeAcademic(x)))) return true
+  if ((n.match(/محور/g) || []).length >= 6 && raw.length < 1200) return true
+  if ((n.match(/المهني/g) || []).length >= 7 && (n.match(/الماجستير/g) || []).length >= 3) return true
+  return false
+}
+
+function stripGuideBoilerplate(value: unknown, max = 700) {
+  let text = cleanAcademicGeneratedText(value, max)
+  text = text
+    .replace(/^\s*(?:يحوّل|يحول|يعرض|يركز|يلخص|يفتح|يمثل|يضبط|يعالج)\s+هذا\s+(?:العنصر|المحور)[^:：.]{0,260}[:：.]\s*/u, '')
+    .replace(/(?:الدليل\s+المقروء|الإشارة\s+المعرفية\s+المستفادة\s+من\s+القراءة)\s*[:：]\s*/u, '')
+    .replace(/\s*يدرس\s+الطالب\s+هذا\s+المحور\s+بوصفه\s+جزءاً?.*$/u, '')
+    .replace(/\s*المطلوب\s+من\s+الطالب\s+.*$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return cleanAcademicGeneratedText(text, max)
+}
+
+function knowledgeEvidenceText(item: any, max = 360) {
+  const candidates = [item?.excerpt, item?.summary]
+  for (const candidate of candidates) {
+    const stripped = stripGuideBoilerplate(candidate, max)
+    if (stripped.length >= 50 && !looksLikeWeakGuideText(stripped) && !looksLikeBrokenAcademicOutput(stripped)) return stripped
+  }
+  return ''
+}
+
+function domainTermsForGuide(programTitle: string, knowledge: any[]) {
+  const corpus = normalizeAcademic([programTitle, ...knowledge.flatMap((k) => [k?.title, k?.summary, k?.excerpt, ...(Array.isArray(k?.keywords) ? k.keywords : [])])].join(' '))
+  const terms: string[] = []
+  const add = (term: string) => { if (!terms.some((x) => normalizeAcademic(x) === normalizeAcademic(term))) terms.push(term) }
+
+  if (/استراتيج|strategic|تكتيك|tactic/u.test(corpus)) {
+    add('الإدارة الاستراتيجية')
+    add('التفكير الاستراتيجي')
+    add('القرار الاستراتيجي')
+    add('مستويات الاستراتيجية')
+    add('الاستراتيجية والتكتيك')
+    add('النموذج الذهني الاستراتيجي')
+  }
+  if (/لوجست|امداد|توريد|موارد|عمليات|logistic/u.test(corpus)) {
+    add('اللوجستيات وسلاسل الإمداد')
+    add('إدارة الموارد والعمليات')
+  }
+  if (/حرب|عسكري|عسكرية|ثوره عسكريه|revolution in military/u.test(corpus)) {
+    add('المدارس العسكرية الاستراتيجية')
+    add('الثورة العسكرية والإدارة')
+    add('القيادة وصناعة القرار')
+  }
+  if (/اداره اعمال|إدارة أعمال|اعمال|منظمه|مؤسسه|مؤسسة|تنافس|سوق/u.test(corpus)) {
+    add('تحليل البيئة التنافسية')
+    add('الميزة التنافسية')
+    add('إدارة المخاطر')
+    add('مؤشرات الأداء')
+  }
+  add('تحليل الحالات')
+  add('التطبيق المهني')
+  add('التقييم النقدي')
+  return terms
+}
+
+function sectionRole(category?: string) {
+  const c = String(category || '').toUpperCase()
+  if (c === 'THEORY') return 'إطاراً تفسيرياً يساعد على قراءة العلاقات والافتراضات وحدود التعميم'
+  if (c === 'METHOD') return 'طريقة عمل تنقل الفكرة من التعريف إلى خطوات تشخيص وتحليل وقرار'
+  if (c === 'CASE') return 'مدخلاً لبناء حالة مهنية يختبر فيها الطالب القرار والبدائل والمخاطر'
+  if (c === 'DEFINITION') return 'مصطلحاً تأسيسياً لا يكتمل فهمه إلا بضبط حدوده وسياق استخدامه'
+  if (c === 'QUESTION_SEED') return 'مدخلاً لصياغة أسئلة مراجعة تقيس الفهم والتطبيق لا الحفظ'
+  if (c === 'SUMMARY') return 'خريطة مراجعة تربط المفهوم بالأدلة والأسئلة المتوقعة'
+  return 'مفهوماً مركزياً يستخدم لفهم محتوى الكتاب وتطبيقه مهنياً'
+}
+
+function applicationFrame(programTitle: string) {
+  const n = normalizeAcademic(programTitle)
+  if (n.includes('اداره اعمال')) return 'تحليل قرارات الأعمال، البيئة التنافسية، توزيع الموارد، المخاطر، ومؤشرات الأداء'
+  if (n.includes('مشاريع')) return 'تحليل نطاق المشروع، أصحاب المصلحة، المخاطر، الجدول، والتكلفة'
+  if (n.includes('قياده')) return 'تحليل القرار القيادي، التأثير، إدارة الفرق، ونتائج الأداء'
+  return 'تحليل حالة مهنية، اختيار بدائل، تبرير القرار، وقياس النتيجة'
+}
+
+function analyticalGuideSummary(title: string, item: any, programTitle: string, level: string, semester: number) {
+  const role = sectionRole(item?.category)
+  const evidence = knowledgeEvidenceText(item, 320)
+  const evidenceSentence = evidence ? `تظهر صلته بالمادة المقررة من خلال: ${evidence}.` : 'يرتبط بالمادة المقررة من خلال المفاهيم والأمثلة المحفوظة في بنك المعرفة.'
+  const depth = level.includes('الدكتوراه')
+    ? 'على الطالب نقد الافتراضات، مقارنة النماذج، وبيان حدود استخدامها البحثية.'
+    : level.includes('الماجستير')
+      ? 'على الطالب الانتقال من التعريف إلى التحليل والتطبيق، مع تبرير القرار وبيان حدوده.'
+      : 'على الطالب فهم الخطوات الأساسية وتطبيقها في مثال مهني مباشر.'
+  return cleanGuideText(
+    `يتناول هذا المحور «${title}» بوصفه ${role}. ${evidenceSentence} في ${programTitle}، لا يكفي حفظ المصطلح؛ بل يجب توظيفه في ${applicationFrame(programTitle)}. ${depth} يرتبط هذا المحور بالفصل ${semester} لأنه يصلح لبناء واجب تطبيقي أو سؤال امتحاني يقيس الفهم والتحليل.`,
+    `يتناول هذا المحور «${title}» بوصفه فكرة مركزية في ${programTitle}، مع ربطها بالتطبيق المهني والواجبات والامتحانات.`,
+    1600
+  )
+}
+
+function outcomesForSection(title: string, programTitle: string, category?: string) {
+  const c = String(category || '').toUpperCase()
+  const base = [
+    `شرح ${title} بلغة دقيقة ومختصرة`,
+    `تطبيق ${title} على حالة مهنية في ${programTitle}`,
+  ]
+  if (c === 'THEORY') base.push('مقارنة الافتراضات وحدود التعميم')
+  else if (c === 'METHOD') base.push('تحويل الفكرة إلى خطوات ومؤشرات متابعة')
+  else if (c === 'CASE') base.push('تحليل الأطراف والبدائل والمخاطر')
+  else base.push('تمييز المعنى عن الحفظ اللفظي')
+  return cleanGuideList([], base, 4, 190)
+}
+
+function discussionQuestionsFromSections(sections: GuideSection[], programTitle: string) {
+  const titles = sections.map((s) => conciseAcademicLabel(s.title, '', 80)).filter(labelIsDisplayable).slice(0, 6)
+  const first = titles[0] || 'المحور الرئيس'
+  const second = titles[1] || 'المحور الثاني'
+  const third = titles[2] || 'المحور الثالث'
+  return cleanGuideList([], [
+    `كيف يساعد محور «${first}» في تشخيص حالة مهنية داخل ${programTitle}؟`,
+    `ما الفرق العملي بين «${first}» و«${second}» عند تحليل قرار إداري أو مهني؟`,
+    `ما حدود تطبيق «${third}» عندما تتغير الموارد أو المخاطر أو بيئة العمل؟`,
+    `أي مؤشر أداء يثبت أن الطالب فهم «${first}» ولم يكتف بحفظ تعريفه؟`,
+    `كيف يمكن تحويل «${second}» إلى واجب تطبيقي أو سؤال امتحاني عادل؟`,
+    `ما الخطأ الشائع في استخدام هذه المحاور عند نقلها من الكتاب إلى الواقع المهني؟`,
+  ], 8, 340)
+}
+
+function cleanGuideQuestionList(values: unknown, fallback: string[], maxItems = 10) {
+  const raw = Array.isArray(values) ? values : []
+  const seen = new Set<string>()
+  const prefixSeen = new Set<string>()
+  const out: string[] = []
+  for (const item of [...raw, ...fallback]) {
+    const cleaned = cleanAcademicGeneratedText(item, 340)
+    const key = normalizeAcademic(cleaned)
+    const prefix = key.split(' ').slice(0, 4).join(' ')
+    if (!key || seen.has(key) || prefixSeen.has(prefix) || looksLikeWeakGuideText(cleaned) || looksLikeBrokenAcademicOutput(cleaned, { allowShort: true })) continue
+    seen.add(key)
+    prefixSeen.add(prefix)
+    out.push(cleaned)
+    if (out.length >= maxItems) break
+  }
+  return out
+}
+
+function sectionIsUseful(section: GuideSection) {
+  return !!section.title && !!section.summary && labelIsDisplayable(section.title) && !looksLikeWeakGuideText(section.summary) && !looksLikeBrokenAcademicOutput(`${section.title}. ${section.summary}`)
+}
+
 function deriveGuideTerms(knowledge: any[], programTitle: string) {
   const raw: string[] = []
   for (const k of knowledge) {
