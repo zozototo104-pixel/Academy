@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const app = await getAccessibleAdmission(admissionId, user)
     if (!app) return NextResponse.json({ error: 'لا تملك صلاحية قراءة هذه المحادثة' }, { status: 403 })
     const messages = await db.supervisorChannelMessage.findMany({
-      where: { OR: [{ admissionId }, ...(app.userId ? [{ studentId: app.userId }] : [])] },
+      where: { admissionId },
       orderBy: { createdAt: 'asc' },
       take: 250,
     })
