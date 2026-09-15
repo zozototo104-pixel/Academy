@@ -618,15 +618,29 @@ function ensureCategoryCoverage(items: KnowledgeItemDraft[], fallback: Knowledge
   const required = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']
   const out = [...items]
   const seen = new Set(out.map((item) => norm(`${item.category} ${item.title}`).slice(0, 180)).filter(Boolean))
+  const addFallback = (fb: KnowledgeItemDraft) => {
+    const key = norm(`${fb.category} ${fb.title}`).slice(0, 180)
+    if (!key || seen.has(key)) return false
+    if (!fb.title || !fb.summary || looksLikeBrokenAcademicOutput(fb.title, { allowShort: true }) || looksLikeBrokenAcademicOutput(fb.summary)) return false
+    seen.add(key)
+    out.push(fb)
+    return true
+  }
   for (const category of required) {
     if (out.some((item) => safeCategory(item.category) === category)) continue
     const fb = fallback.find((item) => safeCategory(item.category) === category)
-    if (!fb) continue
-    const key = norm(`${fb.category} ${fb.title}`).slice(0, 180)
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push(fb)
+    if (fb) addFallback(fb)
     if (out.length >= MAX_ITEMS_PER_BOOK) break
+  }
+
+  // لا نقبل بنك معرفة هزيل من كتاب مرفوع/مقروء. إذا أعاد النموذج 8 أو 10 عناصر فقط،
+  // نُكملها بعناصر حتمية مبنية على مقاطع الكتاب نفسها، لا بعناوين عامة.
+  const minTarget = Math.min(MAX_ITEMS_PER_BOOK, fallback.length >= 18 ? 18 : Math.max(12, fallback.length))
+  if (out.length < minTarget) {
+    for (const fb of fallback) {
+      if (out.length >= minTarget) break
+      addFallback(fb)
+    }
   }
   return out.slice(0, MAX_ITEMS_PER_BOOK)
 }
