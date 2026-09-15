@@ -441,23 +441,34 @@ export function SupervisorView() {
                   </CardContent></Card>
 
                   <Card><CardContent className="p-5">
-                    <h3 className="mb-3 text-base font-black text-[#0f2b46]">الاختبارات اليومية/اختبارات الوحدات</h3>
-                    {selected.unitAttempts?.length ? <div className="space-y-3">{selected.unitAttempts.map((a) => (
-                      <div key={a.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="font-black text-[#0f2b46]">{a.examTitle}</h4>
-                          <Badge className={(a.score ?? 0) >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{a.score ?? '—'}%</Badge>
-                        </div>
-                        <p className="mt-1 text-[11px] font-bold text-slate-500">{a.unitTitle ? `الوحدة: ${a.unitTitle}` : 'اختبار وحدة'} — {dateAr(a.submittedAt)}</p>
-                        {a.weakAnswers?.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{a.weakAnswers.map((w: any, i: number) => (
-                          <div key={i} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-700 ring-1 ring-amber-100">
-                            <p className="font-black text-amber-700">نقطة قصور</p>
-                            <p>{w.question}</p>
-                            {w.aiFeedback && <p className="mt-1 text-amber-700">{w.aiFeedback}</p>}
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-black text-[#0f2b46]">الاختبارات اليومية/اختبارات الوحدات</h3>
+                      <Badge className="bg-[#fffaf0] text-[#8a6614] hover:bg-[#fffaf0]">غير مسلّمة: {selected.metrics.pendingUnitExamsCount ?? 0}</Badge>
+                    </div>
+                    {selected.availableUnitExams?.length ? <div className="space-y-3">{selected.availableUnitExams.map((exam) => {
+                      const weak = selected.unitAttempts.find((a) => a.examId === exam.id)?.weakAnswers || []
+                      return (
+                        <div key={exam.id} className={`rounded-2xl border p-4 ${exam.submitted ? 'border-slate-100 bg-slate-50' : 'border-amber-200 bg-amber-50/70'}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="font-black text-[#0f2b46]">{exam.title}</h4>
+                            {exam.submitted ? (
+                              <Badge className={(exam.score ?? 0) >= exam.passScore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>مسلّم — {exam.score ?? '—'}%</Badge>
+                            ) : (
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">لم يسلّم بعد</Badge>
+                            )}
                           </div>
-                        ))}</div>}
-                      </div>
-                    ))}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد اختبارات وحدات/يومية مسلّمة بعد.</p>}
+                          <p className="mt-1 text-[11px] font-bold text-slate-500">الوحدة: {exam.unitTitle || 'غير محددة'} — {exam.questionsCount} سؤال — درجة النجاح {exam.passScore}%</p>
+                          {exam.submitted ? <p className="mt-1 text-[11px] font-bold text-slate-500">تاريخ التسليم: {dateAr(exam.submittedAt)}</p> : <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-800">هذا الاختبار اليومي/اختبار الوحدة مطلوب من الطالب ولم يسلّمه بعد.</p>}
+                          {weak.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{weak.map((w: any, i: number) => (
+                            <div key={i} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-700 ring-1 ring-amber-100">
+                              <p className="font-black text-amber-700">نقطة قصور</p>
+                              <p>{w.question}</p>
+                              {w.aiFeedback && <p className="mt-1 text-amber-700">{w.aiFeedback}</p>}
+                            </div>
+                          ))}</div>}
+                        </div>
+                      )
+                    })}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد اختبارات وحدات/يومية منشورة لهذا الطالب حتى الآن.</p>}
                   </CardContent></Card>
 
                   <Card><CardContent className="p-5">
