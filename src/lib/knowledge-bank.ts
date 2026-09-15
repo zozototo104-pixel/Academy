@@ -504,10 +504,10 @@ export async function buildKnowledgeContextForExam(programId: string, semester?:
   if (!items.length) return ''
   return items
     .map((item, i) => {
-      const kw = item.keywords?.length ? ` — مصطلحات مرتبطة: ${item.keywords.slice(0, 5).join('، ')}` : ''
-      const source = item.bookTitle ? ` — الكتاب: ${item.bookTitle}` : ''
-      // نستخدم صياغة طبيعية حتى لا تتسرب عناوين داخلية مثل «محور معرفي مهم» إلى نص السؤال.
-      return `${i + 1}. ${cleanText(item.title, 170)}. خلاصة أكاديمية: ${cleanText(item.summary, 420)}${item.excerpt ? ` — مقتطف داعم: ${cleanText(item.excerpt, 260)}` : ''}${kw}${source}`
+      const kw = item.keywords?.length ? ` — مصطلحات: ${item.keywords.slice(0, 5).join('، ')}` : ''
+      const source = item.bookTitle ? ` — المصدر: ${item.bookTitle}` : ''
+      // صياغة طبيعية بلا عناوين داخلية حتى لا تتحول إلى نص سؤال أو دليل دراسة.
+      return `${i + 1}. ${cleanText(item.title, 170)}. ${cleanText(item.summary, 420)}${item.excerpt ? ` — يستند إلى: ${cleanText(item.excerpt, 260)}` : ''}${kw}${source}`
     })
     .join('\n')
 }
