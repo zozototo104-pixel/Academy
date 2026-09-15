@@ -1103,7 +1103,7 @@ export function AdminBooksTab() {
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
                     <BookMarked className="h-4.5 w-4.5 text-[#a8841a]" />
-                    أدلة الدراسة والمحاضرات ({studyGuides.length})
+                    أدلة الدراسة والمحاضرات ({displayStudyGuides.length})
                   </h2>
                   <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">
                     يولد النظام دليلاً دراسياً من بنك المعرفة: محاور مذاكرة، أهداف تعلم، مصطلحات، أنشطة قراءة، وأسئلة نقاش يستخدمها الطالب والمشرف الذكي.
