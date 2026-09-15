@@ -565,8 +565,8 @@ export function ApplyView() {
                           <Input id="ad-name" required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="الاسم الثلاثي كما في الوثائق" />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر *</Label>
-                          <Input id="ad-nid" required dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
+                          <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {isServiceRequest ? '(اختياري)' : '*'}</Label>
+                          <Input id="ad-nid" required={!isServiceRequest} dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
                         </div>
                       </div>
 
