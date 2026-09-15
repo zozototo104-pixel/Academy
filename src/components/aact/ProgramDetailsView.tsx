@@ -12,6 +12,9 @@ import {
   GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
   Clock3, BadgeCheck, CheckCircle2, ClipboardList, ChevronLeft, ArrowRight,
   Users2, FileText, Loader2, Layers, BookMarked, FileCheck2, Landmark,
+  PackageCheck, MessagesSquare, Presentation, Headphones, Megaphone, Calendar,
+  HardHat, HeartPulse, Calculator, Monitor, Compass, Library, Newspaper, Plane,
+  ShoppingCart, Gauge, Sparkles,
 } from 'lucide-react'
 
 interface Program {
