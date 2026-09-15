@@ -353,20 +353,25 @@ export function AdminView() {
   }
 
   const assignSupervisor = async (id: string, supervisorId: string) => {
-    if (!supervisorId) return
     try {
       const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', {
         method: 'PATCH',
-        body: JSON.stringify({ id, supervisorId }),
+        body: JSON.stringify({ id, supervisorId: supervisorId === 'AI_ONLY' ? null : supervisorId }),
       })
+      const chosen = supervisors.find((s) => s.id === supervisorId) || null
       setAdmissions((prev) =>
         prev.map((a) =>
           a.id === id
-            ? { ...a, status: d.application.status, supervisor: supervisors.find((s) => s.id === supervisorId) || null, supervisorId }
+            ? { ...a, status: d.application.status, supervisor: chosen, supervisorId: chosen?.id || null }
             : a
         )
       )
-      toast({ title: 'تم التعيين', description: `عيّن ${supervisors.find((s) => s.id === supervisorId)?.name} مشرفاً أكاديمياً وأُبلغ الطالب` })
+      toast({
+        title: 'تم ضبط الإشراف',
+        description: supervisorId === 'AI_ONLY'
+          ? 'أصبح الطالب تحت إشراف المشرف الذكي فقط'
+          : `عيّن ${chosen?.name} مشرفاً أكاديمياً وأُبلغ الطالب`,
+      })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     }
