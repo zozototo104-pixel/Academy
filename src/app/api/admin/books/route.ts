@@ -401,8 +401,13 @@ export async function PATCH(req: NextRequest) {
       },
     })
 
+    const shouldRebuildKnowledge = Boolean(
+      (file && file.size > 0) ||
+      (textContent && textContent.length >= 160) ||
+      (linkRaw && ['TEXT_EXTRACTED', 'FILE_EXTRACTED'].includes(linkReadStatus))
+    )
     let knowledgeBuild: Awaited<ReturnType<typeof rebuildKnowledgeForBook>> | null = null
-    if (textContent && textContent.length >= 900) {
+    if (shouldRebuildKnowledge) {
       knowledgeBuild = await rebuildKnowledgeForBook(bookId).catch((err) => {
         console.error('book source update knowledge build failed:', err)
         return null
