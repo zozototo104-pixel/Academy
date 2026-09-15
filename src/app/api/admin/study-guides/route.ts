@@ -449,12 +449,16 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
   const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 80)
   if (!knowledge.length) throw new Error('لا يوجد بنك معرفة كافٍ لتوليد دليل دراسة. أضف كتباً أو ابنِ بنك المعرفة أولاً.')
 
-  const context = knowledge.slice(0, 56).map((k, i) => {
-    const title = conciseAcademicLabel(k.title, `محور ${i + 1}`, 90)
+  const contextRows = knowledge.slice(0, 56).map((k, i) => {
+    const title = conciseAcademicLabel(k.title || k.summary || k.excerpt, `محور ${i + 1}`, 90)
+    const summary = stripGuideBoilerplate(k.summary, 430)
+    const evidence = knowledgeEvidenceText(k, 260)
     const source = k.bookTitle ? ` — من كتاب ${cleanGuideText(k.bookTitle, 'الكتاب المقرر', 120, true)}` : ''
-    const evidence = k.excerpt ? ` — دليل/إشارة: ${cleanGuideText(k.excerpt, '', 240)}` : ''
-    return `${i + 1}. [${guideCategoryLabel(k.category)}] ${title}. ${cleanGuideText(k.summary, '', 460)}${evidence}${source}`
-  }).join('\n')
+    const body = [summary && !looksLikeWeakGuideText(summary) ? summary : '', evidence].filter(Boolean).join(' ')
+    if (!labelIsDisplayable(title) || !body || looksLikeBrokenAcademicOutput(body)) return ''
+    return `${i + 1}. [${guideCategoryLabel(k.category)}] ${title}. ${cleanGuideText(body, '', 620)}${source}`
+  }).filter(Boolean)
+  const context = contextRows.length >= 6 ? contextRows.join('\n') : fallbackGuideSections(program.titleAr, semester, knowledge, levelLabel(program.category)).map((s, i) => `${i + 1}. ${s.title}. ${s.summary}`).join('\n')
 
   const guidePrompt = `أنشئ دليل دراسة عربي رسمي ومهني من بنك المعرفة التالي.
 
