@@ -64,6 +64,8 @@ interface SupervisedStudent {
   metrics: {
     avgScore?: number | null
     attemptsCount: number
+    programExamAttemptsCount?: number
+    unitExamAttemptsCount?: number
     failedCount: number
     assignmentsCount: number
     assignmentsGraded: number
