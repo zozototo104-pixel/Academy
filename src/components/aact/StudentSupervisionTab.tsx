@@ -197,8 +197,9 @@ export function StudentSupervisionTab() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+        {hasHumanSupervisor ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
-          <h3 className="mb-3 text-base font-black text-[#0f2b46]"><MessageCircle className="ml-1 inline h-4 w-4 text-[#a8841a]" /> مراسلة المشرف</h3>
+          <h3 className="mb-3 text-base font-black text-[#0f2b46]"><MessageCircle className="ml-1 inline h-4 w-4 text-[#a8841a]" /> مراسلة المشرف البشري</h3>
           <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">
             {active.messages.length ? active.messages.map((m) => {
               const mine = m.senderRole === 'STUDENT'
