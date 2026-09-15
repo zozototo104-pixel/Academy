@@ -217,7 +217,8 @@ function filterNewQuestions<T extends { text: string; type?: string; options?: s
     const opts = isMcq && Array.isArray(q.options) ? q.options.map((o) => normalizeQuestionText(o)).filter(Boolean) : []
     if (isMcq && opts.length && optionTexts) {
       const repeatedOptionCount = opts.filter((o) => optionTexts.has(o)).length
-      if (repeatedOptionCount >= 2) continue
+      // لا نمنع السؤال لمجرد تكرار خيار أو خيارين شائعين عبر امتحان طويل؛ يكفي منع توقيع الخيارات الكامل أو أغلب الخيارات.
+      if (repeatedOptionCount >= Math.max(3, Math.ceil(opts.length * 0.75))) continue
     }
     keys.add(key)
     if (isMcq && optSig) optionSigs?.add(optSig)
