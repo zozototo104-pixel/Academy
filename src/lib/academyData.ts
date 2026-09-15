@@ -768,8 +768,7 @@ export const SERVICE_OFFERINGS: AcademyServiceOffering[] = [
     titleEn: 'Professional Experience Equivalency',
     description: 'خدمة توثيق وتحكيم الخبرات العملية وتحويلها إلى شهادة مهنية أمريكية وفق ملف تقييم ومرفقات وسيرة ذاتية وخبرات مثبتة.',
     icon: 'badge-check',
-    highlights: ['دراسة الملف خلال 48 ساعة', 'إصدار شهادة قابلة للتحقق', 'خيارات من 50$ إلى 350
-],
+    highlights: ['دراسة الملف خلال 48 ساعة', 'إصدار شهادة قابلة للتحقق', 'خيارات سعرية مرنة'],
     order: 63,
     cta: 'تقديم طلب معادلة الخبرة',
     price: 50,
