@@ -169,13 +169,7 @@ export async function POST(req: NextRequest) {
       return `${i + 1}. ${k.title}: ${k.summary.slice(0, 320)}${source}`
     }).join('\n')
 
-    let suggestions: AssignmentSuggestion[] = []
-    try {
-      const zai = await getZAI()
-      const raw = await Promise.race([
-        chatWithRetry(zai, [
-          { role: 'assistant', content: 'أنت مصمم تكليفات جامعية مهنية. أعد JSON صالحاً فقط.' },
-          { role: 'user', content: `صمم 4 إلى 6 واجبات أكاديمية مهنية من بنك المعرفة التالي.
+    const assignmentPrompt = `صمم 4 إلى 6 واجبات أكاديمية مهنية من بنك المعرفة التالي.
 
 البرنامج: ${program.titleAr}
 التصنيف: ${program.category}
@@ -192,15 +186,41 @@ ${knowledgeContext}
 - اكتب وصفاً واضحاً يصلح للطالب مباشرة.
 - اكتب Rubric قابل للتصحيح بالنسب.
 - لا تستخدم كلمات تقنية إنجليزية داخل العنوان والوصف إلا أسماء المصطلحات الضرورية.
+- لا تنشئ واجباً من عنوان البرنامج فقط؛ اربطه بعنصر معرفة محدد.
 
 أجب JSON فقط كمصفوفة، وكل عنصر بهذه الحقول:
-title, description, type, semester, points, weight, dueDays, rubric, sourceKnowledgeTitles` },
-        ], 2),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('ASSIGNMENT_SUGGEST_TIMEOUT')), 28000)),
+title, description, type, semester, points, weight, dueDays, rubric, sourceKnowledgeTitles`
+
+    let suggestions: AssignmentSuggestion[] = []
+    try {
+      const raw = await Promise.race([
+        geminiCompleteJson({
+          system: 'أنت مصمم تكليفات جامعية مهنية. أعد JSON array صالحاً فقط دون Markdown.',
+          history: [{ role: 'user', text: assignmentPrompt }],
+          temperature: 0.12,
+          maxOutputTokens: 6144,
+        }),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('ASSIGNMENT_GEMINI_TIMEOUT')), 32000)),
       ])
       suggestions = normalizeSuggestions(parseJsonArray(raw), semester, knowledgeTitles)
     } catch (e: any) {
-      console.error('assignment suggestions AI fallback:', String(e?.message || e).slice(0, 300))
+      console.error('assignment suggestions Gemini fallback:', String(e?.message || e).slice(0, 300))
+    }
+
+    if (suggestions.length < 3) {
+      try {
+        const zai = await getZAI()
+        const raw = await Promise.race([
+          chatWithRetry(zai, [
+            { role: 'assistant', content: 'أنت مصمم تكليفات جامعية مهنية. أعد JSON صالحاً فقط.' },
+            { role: 'user', content: assignmentPrompt },
+          ], 2),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('ASSIGNMENT_ZAI_TIMEOUT')), 28000)),
+        ])
+        suggestions = normalizeSuggestions([...suggestions, ...parseJsonArray(raw)], semester, knowledgeTitles)
+      } catch (e: any) {
+        console.error('assignment suggestions AI fallback:', String(e?.message || e).slice(0, 300))
+      }
     }
 
     if (suggestions.length < 3) {
