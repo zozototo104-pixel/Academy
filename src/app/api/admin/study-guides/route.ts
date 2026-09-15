@@ -90,16 +90,11 @@ function parseJsonObject(raw: string): any | null {
 
 function normalizeGuide(raw: any, programTitle: string, semester: number, knowledge: any[]): GeneratedGuide {
   const top = knowledge.slice(0, 12)
-  const title = clean(raw?.title, 220) || `دليل الدراسة — ${programTitle} — ${semester === 2 ? 'الفصل الثاني' : semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'}`
-  const overview = clean(raw?.overview, 5000) || `هذا الدليل يلخص أهم محاور ${programTitle} في هذا الفصل، ويربط محتوى الكتب المقررة بالتطبيق المهني والأسئلة المتوقعة.`
-  const objectives = jsonArray(raw?.objectives)
-    .map((x) => clean(x, 220))
-    .filter(Boolean)
-    .slice(0, 10)
-  const keyTerms = jsonArray(raw?.keyTerms)
-    .map((x) => clean(x, 90))
-    .filter(Boolean)
-    .slice(0, 18)
+  const fallbackTitle = `دليل الدراسة — ${programTitle} — ${semester === 2 ? 'الفصل الثاني' : semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'}`
+  const title = cleanGuideText(raw?.title, fallbackTitle, 220, true)
+  const overview = cleanGuideText(raw?.overview, `هذا الدليل يلخص أهم محاور ${programTitle} في هذا الفصل، ويربط محتوى الكتب المقررة بالتطبيق المهني والأسئلة المتوقعة.`, 5000)
+  const objectives = cleanGuideList(raw?.objectives, [`فهم محاور ${programTitle} الأساسية`, 'تحليل المحتوى وربطه بحالات مهنية', 'الاستعداد للواجبات والامتحانات الفصلية'], 10, 220)
+  const keyTerms = cleanGuideList(raw?.keyTerms, top.map((k: any) => k.title).slice(0, 12), 18, 90)
   const rawSections = jsonArray(raw?.sections)
   const sections = rawSections.map((s: any, i: number) => ({
     title: clean(s?.title, 180) || top[i]?.title || `محور دراسي ${i + 1}`,
