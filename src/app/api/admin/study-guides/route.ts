@@ -155,7 +155,7 @@ async function generateStudyGuide(programId: string, semester: number): Promise<
 الفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'البحث/المشروع' : 'الأول'}
 وصف البرنامج: ${program.description || '-'}
 
-بنك المعرفة المستخرج من الكتب:
+محتوى منظم من الكتب المقررة:
 ${context}
 
 المطلوب JSON object فقط بهذه الحقول:
