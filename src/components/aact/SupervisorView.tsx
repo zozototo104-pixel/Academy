@@ -417,7 +417,7 @@ export function SupervisorView() {
                       const weak = selected.attempts.find((a) => a.examId === exam.id)?.weakAnswers || []
                       const score = exam.finalScore ?? exam.score
                       return (
-                        <div key={exam.id} className={`rounded-2xl border p-4 shadow-sm ${exam.submitted ? 'border-slate-100 bg-white' : 'border-amber-200 bg-amber-50/70'}`}>
+                        <div key={exam.id} className={`rounded-2xl border p-4 shadow-sm ${exam.submitted ? 'border-slate-100 bg-white' : exam.studentAvailable ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <h4 className="font-black text-[#0f2b46]">{exam.title}</h4>
                             {exam.submitted ? (
