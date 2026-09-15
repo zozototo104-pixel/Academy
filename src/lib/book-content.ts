@@ -145,6 +145,8 @@ function isUsableBookText(text: string, minChars = MIN_USABLE_TEXT): boolean {
   if (letters < 120 || words < 25) return false
   if (rawCounters >= 10 && words < rawCounters * 3) return false
   if (digits > letters * 0.9 && words < 80) return false
+  // إذا كان الاستخراج العربي مقلوباً/مكسوراً لا نعتبره نصاً صالحاً؛ ننتقل إلى قراءة Gemini البصرية أو نوقف البناء.
+  if (looksLikeBrokenArabicBookExtraction(cleaned)) return false
   return true
 }
 
