@@ -41,7 +41,7 @@ function cleanAssignmentList(values: unknown, fallback: string[] = [], maxItems 
   const out: string[] = []
   const raw = Array.isArray(values) ? values : []
   for (const item of [...raw, ...fallback]) {
-    const cleaned = cleanAssignmentText(item, '', 140, true)
+    const cleaned = cleanAssignmentText(item, '', 180, true)
     const key = cleaned.toLowerCase().replace(/\s+/g, ' ')
     if (!key || seen.has(key)) continue
     seen.add(key)
@@ -49,6 +49,14 @@ function cleanAssignmentList(values: unknown, fallback: string[] = [], maxItems 
     if (out.length >= maxItems) break
   }
   return out
+}
+
+function cleanAssignmentSourceTitles(values: unknown, fallback: string[] = [], maxItems = 6) {
+  return sanitizeAcademicLabelList(values, fallback, maxItems, 72)
+}
+
+function titleFromKnowledge(item: any, fallback = 'محور معرفي') {
+  return conciseAcademicLabel(item?.title, fallback, 80)
 }
 
 function asInt(value: unknown, fallback: number, min: number, max: number) {
