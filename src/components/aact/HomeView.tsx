@@ -367,6 +367,67 @@ export function HomeView() {
         </div>
       </section>
 
+      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+              عن الأكاديمية الأمريكية
+            </Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
+              بناء قادة المستقبل من خلال التعليم المبتكر
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
+              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
+              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                'نخبة من المهنيين وخبراء التدريب والاستشارات',
+                'برامج وخدمات مهنية بمعايير دولية',
+                'مرونة في التعلم وتدريب عملي مكثف',
+                'دعم مستمر وإرشاد مهني بعد التخرج',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 rounded-2xl bg-white p-3 text-xs font-black leading-6 text-[#0f2b46] ring-1 ring-[#0f2b46]/10">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> {item}
+                </div>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+              onClick={() => navigate('about')}
+            >
+              اكتشف المزيد عنا
+              <ChevronLeft className="mr-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="relative">
+            <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-[#c9a227]/25 to-[#0f2b46]/10 blur-xl" aria-hidden="true" />
+            <div className="relative rounded-[2rem] border border-[#c9a227]/35 bg-white p-5 shadow-xl">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { v: '+15k', l: 'خريج ومتدرب' },
+                  { v: `${visibleProgramCount || 25}+`, l: 'برنامج وخدمة' },
+                  { v: '+50', l: 'خبير ومستشار' },
+                  { v: '100%', l: 'تدريب تطبيقي' },
+                ].map((s) => (
+                  <div key={s.l} className="rounded-2xl bg-[#faf6ea] p-4 text-center ring-1 ring-[#c9a227]/25">
+                    <p className="text-2xl font-black text-[#a8841a]">{s.v}</p>
+                    <p className="mt-1 text-xs font-black text-[#0f2b46]">{s.l}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-2xl bg-[#0f2b46] p-4 text-center text-[#f5f0e1]">
+                <AcademyLogo size={76} light className="mx-auto" />
+                <p className="mt-3 text-sm font-black text-[#e0b83a]">Leadership in Excellence</p>
+                <p className="mt-1 text-xs font-bold text-[#f5f0e1]/70">{ACADEMY_INFO.locationAr}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="mx-auto mb-8 max-w-3xl text-center">
