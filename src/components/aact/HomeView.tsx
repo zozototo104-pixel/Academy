@@ -93,28 +93,58 @@ export function HomeView() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let alive = true
+    let hasCachedList = false
     try {
-      const cached = Number(localStorage.getItem('aact_program_count') || '')
-      if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v2') || '[]')
+      if (Array.isArray(cachedList) && cachedList.length > 0) {
+        hasCachedList = true
+        setPrograms(cachedList)
+        setProgramCount(cachedList.length)
+        setLoading(false)
+      } else {
+        const cached = Number(localStorage.getItem('aact_program_count') || '')
+        if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      }
     } catch {}
 
-    api<{ programs: ProgramLite[] }>('/api/programs?summary=1')
+    const controller = new AbortController()
+    fetch('/api/programs?summary=1&public=1', {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ programs: ProgramLite[] }>
+      })
       .then((d) => {
+        if (!alive) return
         const list = Array.isArray(d.programs) ? d.programs : []
         setPrograms(list)
-        setProgramCount(list.length)
         if (list.length > 0) {
-          try { localStorage.setItem('aact_program_count', String(list.length)) } catch {}
+          setProgramCount(list.length)
+          try {
+            localStorage.setItem('aact_program_count', String(list.length))
+            localStorage.setItem('aact_programs_summary_v2', JSON.stringify(list.slice(0, 12)))
+          } catch {}
         }
       })
       .catch(() => {
+        if (!alive) return
         setProgramCount((current) => current ?? null)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (alive && !hasCachedList) setLoading(false)
+      })
+
+    return () => {
+      alive = false
+      controller.abort()
+    }
   }, [])
 
   const visibleProgramCount = programCount ?? programs.length
-  const programCountLabel = loading && programCount == null ? '...' : visibleProgramCount.toLocaleString('ar-EG')
+  const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
 
   // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
   // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
