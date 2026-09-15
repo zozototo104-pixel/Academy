@@ -13,7 +13,7 @@ import {
   Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
   Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
   Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
-  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
 } from 'lucide-react'
 
 interface ProgramLite {
