@@ -1066,6 +1066,12 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
+              {hiddenKnowledgeItemsCount > 0 && (
+                <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-800">
+                  تم إخفاء {hiddenKnowledgeItemsCount} عنصر معرفة يبدو مشوهاً أو مختلط اللغة من العرض. اضغط «تنظيف العناصر المشوهة» لحذفه من قاعدة البيانات، ثم أعد بناء بنك المعرفة.
+                </div>
+              )}
+
               <div className="grid gap-2 sm:grid-cols-4">
                 {Object.entries(displayKnowledgeStats).length ? Object.entries(displayKnowledgeStats).slice(0, 8).map(([cat, stat]) => (
                   <div key={cat} className="rounded-2xl bg-white p-3 text-center ring-1 ring-[#c9a227]/20">
