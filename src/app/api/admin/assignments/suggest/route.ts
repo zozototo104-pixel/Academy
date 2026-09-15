@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
 وصف البرنامج: ${program.description || '-'}
 الواجبات الموجودة مسبقاً لتجنب التكرار: ${existingTitles || 'لا يوجد'}
 
-بنك المعرفة:
+محتوى منظم من الكتب المقررة:
 ${knowledgeContext}
 
 الشروط:
