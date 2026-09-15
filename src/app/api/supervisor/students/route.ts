@@ -23,7 +23,7 @@ function statusLabel(status: string) {
 async function buildStudentCard(app: any) {
   const userId = app.userId
   const programId = app.programId
-  const [program, attempts, assignments, privateAssessments, messages] = await Promise.all([
+  const [program, attempts, unitAttempts, assignments, privateAssessments, messages] = await Promise.all([
     programId ? db.program.findUnique({
       where: { id: programId },
       include: {
