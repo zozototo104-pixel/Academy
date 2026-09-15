@@ -664,7 +664,7 @@ export function ApplyView() {
                     <div className="p-4">
                       <p className="mb-3 text-[11px] text-slate-500">الصيغ المسموحة: صور / PDF / Word DOCX / Excel / TXT / CSV — الحد الأقصى {MAX_FILE_MB} ميجابايت للملف.</p>
                       <div className="grid gap-2.5 sm:grid-cols-2">
-                        {REQUIRED_DOCS.map((d) => {
+                        {activeDocs.map((d) => {
                           const f = files[d.type]
                           return (
                             <div key={d.type} className={`rounded-xl border p-3 ${f ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 bg-white'}`}>
