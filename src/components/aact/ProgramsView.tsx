@@ -153,10 +153,9 @@ export function ProgramsView() {
 
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
-      <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">البرامج التدريبية والاعتمادات</h1>
+      <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">الخدمات والبرامج المهنية</h1>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-        جميع البرامج صادرة ومعتمدة من الأكاديمية الأمريكية للاستشارات والتدريب ضمن برامج العام 2026-2027، وتُصدر شهاداتها
-        خلال 30 يوماً من استلام كشوف الدرجات والرسوم المقررة وفق دليل الإجراءات الرسمي.
+        جميع المسارات صادرة عن الأكاديمية الأمريكية للاستشارات والتدريب: الدرجات المهنية، الدبلومات، الشهادات الدولية، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات المؤسسية.
       </p>
 
       {/* Filters + search */}
