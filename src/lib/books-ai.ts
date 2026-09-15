@@ -821,7 +821,7 @@ function parseLoose(raw: string): any[] {
 function normalizeSuggestion(b: any, policy?: DegreeAcademicPolicy): BookSuggestion | null {
   const title = cleanText(b?.title, 300)
   const titleEn = cleanText(b?.titleEn || b?.englishTitle || b?.originalTitle, 300)
-  if (!title && !titleEn) return null
+  if ((!title && !titleEn) || (title && isBrokenAcademicExamText(title, true)) || (titleEn && isBrokenAcademicExamText(titleEn, true))) return null
   const searchTitle = titleEn || title
   const readableCandidate = cleanText(b?.directReadableLink || b?.readableLink || b?.readingLink || b?.pdfLink || b?.link || b?.url, 700)
   const referenceCandidate = cleanText(b?.referenceLink || b?.catalogLink || b?.verificationLink || b?.googleBooksLink || '', 700) || googleBooksSearch(searchTitle)
