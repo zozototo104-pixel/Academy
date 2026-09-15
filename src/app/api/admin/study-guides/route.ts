@@ -97,6 +97,10 @@ function deriveGuideTerms(knowledge: any[], programTitle: string) {
     'مؤشرات الأداء',
     'أسئلة الامتحان',
     'التقييم النقدي',
+    'مفاهيم مركزية',
+    'نماذج تفسيرية',
+    'منهجيات تطبيق',
+    'قرارات مهنية',
   ]
   return sanitizeAcademicLabelList(raw, fallback, 14, 72).filter(labelIsDisplayable)
 }
