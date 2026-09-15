@@ -175,8 +175,10 @@ async function buildStudentCard(app: any) {
     messagesPreview: messages.reverse().map((m: any) => ({ id: m.id, senderRole: m.senderRole, content: m.content, mode: m.mode, createdAt: m.createdAt })),
     metrics: {
       avgScore,
-      attemptsCount: attempts.length,
-      failedCount: failed.length,
+      attemptsCount: attempts.length + unitAttempts.length,
+      programExamAttemptsCount: attempts.length,
+      unitExamAttemptsCount: unitAttempts.length,
+      failedCount: failed.length + unitFailed.length,
       assignmentsCount: assignments.length,
       assignmentsGraded: assignments.filter((s: any) => s.status === 'GRADED').length,
       privateAssessmentsCount: privateAssessments.length,
