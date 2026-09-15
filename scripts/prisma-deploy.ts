@@ -1,19 +1,22 @@
 import { spawnSync } from 'node:child_process'
 
-const candidates = [
-  'DATABASE_URL',
-  'DATABASE_POSTGRES_PRISMA_URL',
-  'POSTGRES_PRISMA_URL',
-  'DATABASE_POSTGRES_URL',
-  'POSTGRES_URL',
+const deployCandidates = [
+  // Prefer direct/unpooled URLs for Prisma schema operations such as db push.
+  'DIRECT_URL',
+  'DATABASE_URL_UNPOOLED',
   'DATABASE_POSTGRES_URL_NON_POOLING',
   'POSTGRES_URL_NON_POOLING',
+  'DATABASE_POSTGRES_URL',
+  'POSTGRES_URL',
+  'DATABASE_POSTGRES_PRISMA_URL',
+  'POSTGRES_PRISMA_URL',
+  'DATABASE_URL',
   'DATABASE_SUPABASE_URL',
   'SUPABASE_URL',
 ]
 
 function resolveDatabaseUrl() {
-  for (const key of candidates) {
+  for (const key of deployCandidates) {
     const value = process.env[key]
     if (value && /^postgres(ql)?:\/\//i.test(value.trim())) {
       if (key !== 'DATABASE_URL') {
@@ -23,7 +26,7 @@ function resolveDatabaseUrl() {
     }
   }
   throw new Error(
-    `Missing PostgreSQL connection string. Set DATABASE_URL or one of: ${candidates.filter((k) => k !== 'DATABASE_URL').join(', ')}`
+    `Missing PostgreSQL connection string. Set DATABASE_URL or one of: ${deployCandidates.filter((k) => k !== 'DATABASE_URL').join(', ')}`
   )
 }
 
