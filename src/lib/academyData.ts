@@ -30,7 +30,7 @@ export interface SeedProgram {
   titleAr: string
   titleEn?: string
   description: string
-  category: 'DOCTORATE' | 'MASTERS' | 'DIPLOMA' | 'ACCREDITATION'
+  category: 'DOCTORATE' | 'MASTERS' | 'DIPLOMA' | 'INTL_CERT' | 'ACCREDITATION' | 'SERVICE'
   hours?: number
   price?: number
   icon: string
