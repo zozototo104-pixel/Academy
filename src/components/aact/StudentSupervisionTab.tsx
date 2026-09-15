@@ -188,6 +188,10 @@ export function StudentSupervisionTab() {
         </div>
       </CardContent></Card>
 
+      {active.admission.supervisor && (
+        <SupervisorLiveVoiceCall admissionId={active.admission.id} role="STUDENT" title="مكالمة صوتية حية مع المشرف" />
+      )}
+
       <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
           <h3 className="mb-3 text-base font-black text-[#0f2b46]"><MessageCircle className="ml-1 inline h-4 w-4 text-[#a8841a]" /> مراسلة المشرف</h3>
