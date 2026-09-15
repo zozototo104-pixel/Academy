@@ -144,6 +144,12 @@ export async function generateSupervisorQuestions(opts: {
   ])
   const level = opts.levelLabel || (program?.category === 'DOCTORATE' ? 'دكتوراه مهنية' : program?.category === 'MASTERS' ? 'ماجستير مهني' : program?.category === 'DIPLOMA' ? 'دبلوم مهني' : 'برنامج مهني')
   const specialty = opts.specialty || program?.titleAr || 'تخصص الطالب'
+  const cleanKnowledge = knowledge.map((k: any) => ({
+    ...k,
+    title: cleanAcademicGeneratedText(k.title, 220),
+    summary: cleanAcademicGeneratedText(k.summary, 900),
+    excerpt: k.excerpt ? cleanAcademicGeneratedText(k.excerpt, 500) : '',
+  })).filter((k: any) => k.title && k.summary && !looksLikeBrokenAcademicOutput(k.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(k.summary) && (!k.excerpt || !looksLikeBrokenAcademicOutput(k.excerpt)))
   const context = [
     `البرنامج: ${program?.titleAr || specialty}`,
     `المستوى: ${level}`,
