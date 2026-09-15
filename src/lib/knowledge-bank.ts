@@ -958,7 +958,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const qualityNote = buildMode === 'TEXT'
     ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص الكتاب المنظف قبل التوليد.`
     : buildMode === 'TEXT_DETERMINISTIC'
-      ? `${hydrated.sourceNote} — تم بناء بنك المعرفة مباشرة من مقاطع الكتاب المقروءة بعد تعذر توليد JSON ذكي صالح.`
+      ? `${hydrated.sourceNote} — تم بناء بنك المعرفة مباشرة من مقاطع الكتاب المقروءة بصياغة أكاديمية داخلية عند عدم اكتمال تنسيق استجابة النموذج.`
       : buildMode === 'FILE'
         ? 'تم بناء بنك المعرفة من قراءة مباشرة لملف الكتاب المرفوع عبر الذكاء البصري، بعد فشل الاستخراج النصي التقليدي أو عدم كفايته.'
         : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف ولا قراءة ملف كافية؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
