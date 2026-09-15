@@ -436,7 +436,7 @@ function normalizeGuide(
     ...guide,
     keyTerms: fallbackTerms,
     sections: fallbackSections.length ? fallbackSections : guide.sections,
-    discussionQuestions: guide.discussionQuestions.length >= 3 ? guide.discussionQuestions : cleanGuideList([], fallbackSections.slice(0, 6).map((s) => `ما شروط تطبيق محور «${conciseAcademicLabel(s.title, 'هذا المحور', 80)}» وما حدوده في ${programTitle}؟`), 8, 340),
+    discussionQuestions: guide.discussionQuestions.length >= 3 ? guide.discussionQuestions : fallbackQuestions,
   }
 }
 
