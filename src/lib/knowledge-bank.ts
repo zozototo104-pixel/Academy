@@ -25,26 +25,112 @@ export interface KnowledgeBuildResult {
 const CATEGORY_SET = new Set(['CONCEPT', 'THEORY', 'METHOD', 'CASE', 'DEFINITION', 'QUESTION_SEED', 'SUMMARY'])
 const MAX_ITEMS_PER_BOOK = 28
 
-function cleanText(value: unknown, max = 1600) {
+export function cleanAcademicGeneratedText(value: unknown, max = 1600) {
   return String(value || '')
     .replace(/\u0000/g, ' ')
     .replace(/\r\n?/g, '\n')
+    .replace(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bpage\s+\d{1,5}\s+(?:of|\/|من)\s+\d{1,5}\b/gi, ' ')
+    .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
+    .replace(/\[?\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|[^\]\n]*)?\]?/gi, ' ')
+    .replace(/(?:محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|خلاصة\s+أكاديمية|خلاصة\s+اكاديمية|مقتطف\s+داعم|مصطلحات\s+مرتبطة|كلمات\s+مفتاحية|مصدر\s+القراءة)\s*[:：]?/giu, ' ')
+    .replace(/\s+([،؛؟.!])/g, '$1')
+    .replace(/([،؛؟.!]){2,}/g, '$1')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, max)
 }
 
-function norm(value: unknown) {
+function cleanText(value: unknown, max = 1600) {
+  return cleanAcademicGeneratedText(value, max)
+}
+
+export function normalizeAcademicGeneratedText(value: unknown) {
   return String(value || '')
     .toLowerCase()
     .replace(/[إأآا]/g, 'ا')
     .replace(/[ىي]/g, 'ي')
     .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
     .replace(/[ًٌٍَُِّْـ]/g, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function norm(value: unknown) {
+  return normalizeAcademicGeneratedText(value)
+}
+
+function countMatches(value: string, re: RegExp) {
+  return (String(value || '').match(re) || []).length
+}
+
+export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort?: boolean } = {}) {
+  const raw = cleanAcademicGeneratedText(value, 5000)
+  if (!raw) return true
+  const n = norm(raw)
+  const chars = raw.replace(/\s/g, '')
+  const letters = countMatches(raw, /[\p{L}]/gu)
+  const digits = countMatches(raw, /\d/g)
+  const arabicLetters = countMatches(raw, /[\u0600-\u06FF]/g)
+  const latinLetters = countMatches(raw, /[A-Za-zÀ-ÖØ-öø-ÿ]/g)
+  const tokens = raw.split(/\s+/).filter(Boolean)
+  const arabicWords = tokens.filter((w) => /[\u0600-\u06FF]/.test(w)).length
+  const latinWords = tokens.filter((w) => /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(w)).length
+
+  if (!opts.allowShort && letters < 18) return true
+  if (chars.length > 30 && letters / Math.max(1, chars.length) < 0.46) return true
+  if (digits >= 6 && letters < 55) return true
+
+  const forbidden = [
+    'محور معرفي مهم', 'دليل من المحتوي', 'دليل من المحتوى', 'خلاصه اكاديميه', 'خلاصة اكاديمية',
+    'مقتطف داعم', 'مصطلحات مرتبطه', 'كلمات مفتاحيه', 'مصدر القراءه', 'بنك المعرفه الاكاديمي المستخرج',
+    'اي عباره تفسر بصوره ادق دلاله', 'كيف يمكن فهم فكره', 'كيف يمكن تطبيق فكره', 'لا تستخدم رموزا تقنيه',
+    'google books', 'books google', 'goodreads', 'worldcat', 'tbm bks',
+  ]
+  if (forbidden.some((x) => n.includes(norm(x)))) return true
+
+  // سنوات أو أرقام مستحيلة تظهر غالباً من OCR مقلوب: 8121، 8115، 8518...
+  if (/(?:عام|سنة|سنه|حوالي|around|year)\s*(?:[3-9]\d{3}|\d{5,})/iu.test(raw)) return true
+  if (/\b(?:8[0-9]{3}|9[0-9]{3})\b/.test(raw) && /(كتاب|الفكر|استراتيجي|الحرب|العسكري|منهج)/u.test(raw)) return true
+
+  const noisyLatin = /(libro\s+de\s+la|tratado\s+de|perfecci[oó]n|vellena|lehrs[aä]tze|krieg(?:es)?|guerra|alfonso\s+hernandez)/i
+  if (noisyLatin.test(raw) && arabicWords >= 3) return true
+  if (arabicLetters >= 20 && latinLetters / Math.max(1, latinLetters + arabicLetters) > 0.38 && latinWords >= 4) return true
+
+  const brokenFragments = [
+    'كتاب اطلب', 'كتاب احرب', 'يف اسبانيا', 'في اسبانيا مع كتاب', 'هو يفتترض', 'يفترض اجتزال ان الاول',
+    'وان الثانيه ال', 'هذا المنهج منذ زمن بعيد حيث ظهر', 'بدات الاعلان عن نفسه', 'السيما عند موسسي الفكر',
+  ]
+  if (brokenFragments.some((x) => n.includes(norm(x)))) return true
+
+  const shortTokens = tokens.filter((w) => w.length <= 2).length
+  if (tokens.length >= 18 && shortTokens / tokens.length > 0.45) return true
+
+  return false
+}
+
+function safeGeneratedOrFallback(value: unknown, fallback: string, max = 1600, allowShort = false) {
+  const cleaned = cleanAcademicGeneratedText(value, max)
+  return cleaned && !looksLikeBrokenAcademicOutput(cleaned, { allowShort }) ? cleaned : cleanAcademicGeneratedText(fallback, max)
+}
+
+function safeGeneratedList(values: unknown, fallback: string[] = [], maxItems = 10, maxChars = 90) {
+  const raw = Array.isArray(values) ? values : []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of [...raw, ...fallback]) {
+    const cleaned = cleanAcademicGeneratedText(item, maxChars)
+    const key = norm(cleaned)
+    if (!key || seen.has(key) || looksLikeBrokenAcademicOutput(cleaned, { allowShort: true })) continue
+    seen.add(key)
+    out.push(cleaned)
+    if (out.length >= maxItems) break
+  }
+  return out
 }
 
 function safeCategory(value: unknown) {
