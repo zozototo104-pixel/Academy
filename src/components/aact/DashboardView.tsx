@@ -505,7 +505,7 @@ export function DashboardView() {
                   </TabsList>
 
                   <TabsContent value="guides" className="mt-0">
-                {studyGuides.length > 0 ? (
+                {displayStudyGuides.length > 0 ? (
                   <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
