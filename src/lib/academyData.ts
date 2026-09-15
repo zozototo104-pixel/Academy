@@ -728,6 +728,7 @@ export interface AcademyServiceOffering {
   highlights: string[]
   order: number
   cta: string
+  price?: number
 }
 
 export const SERVICE_OFFERINGS: AcademyServiceOffering[] = [
@@ -768,49 +769,10 @@ export const SERVICE_OFFERINGS: AcademyServiceOffering[] = [
     description: 'خدمة توثيق وتحكيم الخبرات العملية وتحويلها إلى شهادة مهنية أمريكية وفق ملف تقييم ومرفقات وسيرة ذاتية وخبرات مثبتة.',
     icon: 'badge-check',
     highlights: ['دراسة الملف خلال 48 ساعة', 'إصدار شهادة قابلة للتحقق', 'خيارات من 50$ إلى 350
-
-const catalogSeedPrograms: SeedProgram[] = [
-  // ترتيب الكتالوج الرسمي 2026-2027: (1) الماجستير والدكتوراه المهنية (2) الشهادات الدولية الخمس عشرة (3) الدبلومات التدريبية 16-47
-  ...intlCertificates.map((e, i) => ({
-    slug: e.slug,
-    titleAr: e.titleAr,
-    titleEn: e.titleEn,
-    description: catalogDescription(e),
-    category: e.category,
-    price: e.price,
-    icon: e.icon,
-    features: [
-      'شهادة معتمدة من الأكاديمية الأمريكية للاستشارات والتدريب (تدريب مهني)',
-      'مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة على مدار الساعة',
-      'اختبارات تفاعلية يصححها الذكاء الاصطناعي مع تغذية راجعة تفصيلية',
-      'مزايا تنافسية للأعضاء المعتمدين في سوق العمل المحلي والدولي',
-    ],
-    order: 3 + i,
-    units: [],
-  })),
-  ...trainingDiplomas.map((e, i) => ({
-    slug: e.slug,
-    titleAr: e.titleAr,
-    titleEn: e.titleEn,
-    description: catalogDescription(e),
-    category: e.category,
-    price: e.price,
-    icon: e.icon,
-    features: [
-      'شهادة معتمدة من الأكاديمية الأمريكية للاستشارات والتدريب (تدريب مهني)',
-      'مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة على مدار الساعة',
-      'اختبارات تفاعلية يصححها الذكاء الاصطناعي مع تغذية راجعة تفصيلية',
-      'مزايا تنافسية للأعضاء المعتمدين في سوق العمل المحلي والدولي',
-    ],
-    order: 18 + i,
-    units: [],
-  })),
-]
-
-export const allSeedPrograms: SeedProgram[] = [...seedPrograms, ...catalogSeedPrograms]
 ],
     order: 63,
     cta: 'تقديم طلب معادلة الخبرة',
+    price: 50,
   },
   {
     slug: 'preparing-new-packages',
@@ -862,6 +824,23 @@ function catalogDescription(e: CatalogEntry): string {
   return `${kind} صادر عن الأكاديمية الأمريكية للاستشارات والتدريب ضمن برامج العام 2026-2027، يقدم محتوى تطبيقياً معتمداً وفق المعايير الدولية للتدريب المهني، مع مشرف ذكي بالذكاء الاصطناعي يرافقك طوال فترة الدراسة واختبارات تفاعلية يصححها الذكاء الاصطناعي مع تغذية راجعة تفصيلية. الشهادة تُصدر خلال 30 يوماً من استلام كشوف الدرجات والرسوم المقررة.`
 }
 
+function serviceDescription(s: AcademyServiceOffering): string {
+  return `${s.description} تشمل الخدمة: ${s.highlights.join('، ')}. يمكن تقديم الطلب من المنصة أو عبر التواصل المباشر مع الأكاديمية، مع حفظ الطلب ضمن النظام الإداري للمتابعة.`
+}
+
+const serviceSeedPrograms: SeedProgram[] = SERVICE_OFFERINGS.map((s) => ({
+  slug: s.slug,
+  titleAr: s.titleAr,
+  titleEn: s.titleEn,
+  description: serviceDescription(s),
+  category: 'SERVICE',
+  price: s.price,
+  icon: s.icon,
+  features: s.highlights,
+  order: s.order,
+  units: [],
+}))
+
 const catalogSeedPrograms: SeedProgram[] = [
   // ترتيب الكتالوج الرسمي 2026-2027: (1) الماجستير والدكتوراه المهنية (2) الشهادات الدولية الخمس عشرة (3) الدبلومات التدريبية 16-47
   ...intlCertificates.map((e, i) => ({
@@ -900,4 +879,4 @@ const catalogSeedPrograms: SeedProgram[] = [
   })),
 ]
 
-export const allSeedPrograms: SeedProgram[] = [...seedPrograms, ...catalogSeedPrograms]
+export const allSeedPrograms: SeedProgram[] = [...seedPrograms, ...catalogSeedPrograms, ...serviceSeedPrograms]
