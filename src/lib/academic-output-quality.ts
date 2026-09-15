@@ -96,9 +96,10 @@ export function conciseAcademicLabel(value: unknown, fallback = 'محور أكا
   const seen = new Set<string>()
   const tokens: string[] = []
   for (const token of normalizeAcademic(cleaned).split(' ')) {
-    if (token.length < 4 || /^\d+$/.test(token) || LABEL_STOP_WORDS.has(token) || seen.has(token)) continue
-    seen.add(token)
-    tokens.push(token)
+    const bare = token.replace(/^و/u, '')
+    if (bare.length < 4 || /^\d+$/.test(bare) || LABEL_STOP_WORDS.has(token) || LABEL_STOP_WORDS.has(bare) || seen.has(bare)) continue
+    seen.add(bare)
+    tokens.push(bare)
     if (tokens.length >= 4) break
   }
   const fromTokens = compactLabel(tokens.join(' '), max)
