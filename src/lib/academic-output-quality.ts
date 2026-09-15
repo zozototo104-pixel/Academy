@@ -93,9 +93,9 @@ export function looksLikeBrokenGeneratedArabic(value: unknown): boolean {
   if (brokenFragments.some((x) => n.includes(normalizeAcademic(x)))) return true
 
   const normalizedTokens = n.split(' ')
-  const weirdTokenCount = normalizedTokens.filter((t) => ['يف', 'الثاين', 'ويف', 'اختاذ', 'اختاد', 'القررا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'القرا'].includes(t)).length
+  const weirdTokenCount = normalizedTokens.filter((t) => ['يف', 'الثاين', 'ويف', 'اختاذ', 'اختاد', 'القررا', 'مبعن', 'املوضوعيه', 'املوضوعية', 'القرا', 'املبادي', 'االستراتيجيه', 'املكتسب'].includes(t)).length
   if (weirdTokenCount >= 1 && arabicWords >= 8) return true
-  if ((n.includes('يف ') || n.includes(' ويف ')) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى)/u.test(n)) return true
+  if ((n.includes('يف ') || n.includes(' ويف ') || n.includes('فيه ')) && /(القرار|الاداره|المهني|الاستراتيجي|المشروع|الكتاب|المحتوي|المحتوى|القراءه|القراءة)/u.test(n)) return true
 
   // تكرار عالٍ أو كلمات قصيرة جداً يدل على تشوه OCR.
   const veryShort = ws.filter((w) => w.length <= 2).length
