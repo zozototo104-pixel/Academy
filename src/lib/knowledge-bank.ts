@@ -1084,7 +1084,7 @@ export async function rebuildProgramKnowledge(programId: string, semester?: numb
   }
 }
 
-export async function ensureProgramKnowledge(programId: string, semester?: number | null, minItems = 10) {
+export async function ensureProgramKnowledge(programId: string, semester?: number | null, minItems = MIN_CONTEXT_KNOWLEDGE_ITEMS) {
   const where: any = { programId }
   if (semester) where.OR = [{ semester: null }, { semester }]
   const rawCount = await db.bookKnowledgeItem.count({ where })
