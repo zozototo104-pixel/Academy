@@ -180,10 +180,11 @@ export async function POST(req: NextRequest) {
 
     const existing = await db.programAssignment.findMany({ where: { programId }, select: { title: true } })
     const existingTitles = existing.map((a) => a.title).join('، ')
-    const knowledgeTitles = knowledge.map((k) => k.title).slice(0, 10)
-    const knowledgeContext = knowledge.slice(0, 22).map((k, i) => {
-      const source = k.bookTitle ? ` — من كتاب ${k.bookTitle}` : ''
-      return `${i + 1}. ${k.title}: ${k.summary.slice(0, 320)}${source}`
+    const knowledgeTitles = cleanAssignmentSourceTitles(knowledge.map((k, i) => titleFromKnowledge(k, `محور ${i + 1}`)), [], 12)
+    const knowledgeContext = knowledge.slice(0, 40).map((k, i) => {
+      const title = titleFromKnowledge(k, `محور ${i + 1}`)
+      const source = k.bookTitle ? ` — من كتاب ${cleanAssignmentText(k.bookTitle, 'الكتاب المقرر', 120, true)}` : ''
+      return `${i + 1}. ${title}: ${cleanAssignmentText(k.summary, '', 430)}${source}`
     }).join('\n')
 
     const assignmentPrompt = `صمم 4 إلى 6 واجبات أكاديمية مهنية من بنك المعرفة التالي.
