@@ -214,7 +214,7 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
   const effectiveMime = inferMime(fileName, mimeType)
   const extracted = await extractDocumentText(buffer, effectiveMime, fileName, MAX_BOOK_CONTEXT_CHARS)
   if (isUsableBookText(extracted.text, MIN_USABLE_TEXT)) {
-    return { text: normalizeExtractedText(extracted.text, MAX_BOOK_CONTEXT_CHARS), note: extracted.note, quality: 'UPLOADED_FILE' }
+    return { text: repairExtractedAcademicText(extracted.text, MAX_BOOK_CONTEXT_CHARS), note: extracted.note, quality: 'UPLOADED_FILE' }
   }
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
