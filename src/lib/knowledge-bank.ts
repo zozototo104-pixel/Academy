@@ -684,7 +684,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const ai = sourceText.length >= 900
     ? await aiKnowledgeItems(book.program, book, sourceText, semester)
     : await aiMetadataKnowledgeItems(book.program, book, semester)
-  const items = normalizeDrafts(ai || [], fallback, semester)
+  const items = ensureCategoryCoverage(normalizeDrafts(ai || [], fallback, semester), fallback)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
