@@ -105,7 +105,7 @@ export function ProgramsView() {
       if (list.length > 0) {
         try {
           localStorage.setItem('aact_program_count', String(list.length))
-          localStorage.setItem('aact_programs_summary_v2', JSON.stringify(list.slice(0, 60)))
+          localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 140)))
         } catch {}
       }
     } catch {
