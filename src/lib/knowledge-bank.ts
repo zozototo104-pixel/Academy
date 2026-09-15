@@ -1009,9 +1009,9 @@ async function persistBookTextIfNeeded(bookId: string | undefined, text: string,
 
 async function createKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
   if (items.length === 0) return 0
-  const data = items.map((item) => {
-    const title = cleanText(item.title, 220)
+  const data = items.map((item, i) => {
     const summary = cleanText(item.summary, 1600)
+    const title = cleanText(safeKnowledgeTitle(item.title, summary, item.category, i), 220)
     const excerpt = item.excerpt ? cleanText(item.excerpt, 1800) : null
     const keywords = safeGeneratedList(item.keywords, tokenizeKeywords(`${title} ${summary}`), 10, 60)
     if (!title || !summary || looksLikeBrokenAcademicOutput(title, { allowShort: true }) || looksLikeBrokenAcademicOutput(summary) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) return null
