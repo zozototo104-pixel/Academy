@@ -812,7 +812,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
   const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester, book.program)
   let ai: KnowledgeItemDraft[] | null = null
-  let buildMode: 'TEXT' | 'FILE' | 'METADATA' = 'METADATA'
+  let buildMode: 'TEXT' | 'FILE' | 'TEXT_DETERMINISTIC' | 'METADATA' = 'METADATA'
 
   if (sourceText.length >= 900) {
     ai = await aiKnowledgeItems(book.program, book, sourceText, semester)
