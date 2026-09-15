@@ -1110,10 +1110,10 @@ export function AdminBooksTab() {
 
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-black text-[#0f2b46]">كل عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
+                    <p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
                     {displayKnowledgeItems.length > 0 && (
                       <Badge variant="outline" className="text-[9px] font-black text-slate-500">
-                        مرتبة بالأهمية — لا يتم قصّها إلى 12
+                        مرتبة بالأهمية
                       </Badge>
                     )}
                   </div>
