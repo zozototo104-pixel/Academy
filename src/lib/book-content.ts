@@ -117,7 +117,9 @@ function looksLikeMetadataOnlyText(text: string): boolean {
 function looksLikeBrokenArabicBookExtraction(text: string): boolean {
   const sample = repairExtractedAcademicText(text, 14000)
   if (!sample) return true
-  if (looksLikeBrokenGeneratedArabic(sample)) return true
+  // لا نحكم على كتاب كامل بأنه مشوه بسبب سطر فهرس أو جملة OCR واحدة؛
+  // الحارس المركزي صارم للمخرجات القصيرة، أما الكتب الطويلة فنستخدم فحصاً نسبياً أدناه.
+  if (sample.length < 2500 && looksLikeBrokenGeneratedArabic(sample)) return true
   const n = normalizeAcademic(sample)
   const tokens = n.split(' ').filter(Boolean)
   const arabicLetters = (sample.match(/[\u0600-\u06FF]/g) || []).length
