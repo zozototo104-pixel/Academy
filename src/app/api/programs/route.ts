@@ -4,6 +4,14 @@ import { getCurrentUser } from '@/lib/auth'
 import { ensureCoreSeed } from '@/lib/bootstrap'
 import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CATEGORY_AR, programSpecialtyLabel } from '@/lib/program-tracks'
 
+const PUBLIC_PROGRAMS_CACHE_TTL_MS = 5 * 60 * 1000
+let publicProgramsSummaryCache: { expiresAt: number; payload: { programs: any[] } } | null = null
+let publicProgramsCountCache: { expiresAt: number; count: number } | null = null
+
+function publicCacheHeaders() {
+  return { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800' }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
