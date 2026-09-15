@@ -96,12 +96,16 @@ function normalizeGuide(raw: any, programTitle: string, semester: number, knowle
   const objectives = cleanGuideList(raw?.objectives, [`فهم محاور ${programTitle} الأساسية`, 'تحليل المحتوى وربطه بحالات مهنية', 'الاستعداد للواجبات والامتحانات الفصلية'], 10, 220)
   const keyTerms = cleanGuideList(raw?.keyTerms, top.map((k: any) => k.title).slice(0, 12), 18, 90)
   const rawSections = jsonArray(raw?.sections)
-  const sections = rawSections.map((s: any, i: number) => ({
-    title: clean(s?.title, 180) || top[i]?.title || `محور دراسي ${i + 1}`,
-    summary: clean(s?.summary, 1600) || top[i]?.summary || 'محور معرفي مستخرج من الكتب المقررة.',
-    outcomes: jsonArray(s?.outcomes).map((x) => clean(x, 180)).filter(Boolean).slice(0, 5),
-    sourceTitles: jsonArray(s?.sourceTitles).map((x) => clean(x, 160)).filter(Boolean).slice(0, 5),
-  })).filter((s: GuideSection) => s.title && s.summary).slice(0, 8)
+  const sections = rawSections.map((s: any, i: number) => {
+    const fallbackSectionTitle = top[i]?.title || `محور دراسي ${i + 1}`
+    const fallbackSectionSummary = top[i]?.summary || `محور معرفي منظم من الكتب المقررة في ${programTitle}.`
+    return {
+      title: cleanGuideText(s?.title, fallbackSectionTitle, 180, true),
+      summary: cleanGuideText(s?.summary, fallbackSectionSummary, 1600),
+      outcomes: cleanGuideList(s?.outcomes, [`شرح الفكرة وربطها بسياق ${programTitle}`, 'استخدام الفكرة في تحليل حالة مهنية أو سؤال امتحاني'], 5, 180),
+      sourceTitles: cleanGuideList(s?.sourceTitles, [top[i]?.bookTitle || top[i]?.sourceNote || 'بنك المعرفة'].filter(Boolean), 5, 160),
+    }
+  }).filter((s: GuideSection) => s.title && s.summary && !looksLikeBrokenAcademicOutput(`${s.title}. ${s.summary}`)).slice(0, 8)
 
   const fallbackSections = top.slice(0, 6).map((k: any) => ({
     title: k.title,
