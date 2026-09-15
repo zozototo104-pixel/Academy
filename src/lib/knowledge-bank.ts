@@ -561,6 +561,60 @@ ${sample}
   }
 }
 
+async function aiMetadataKnowledgeItems(
+  program: ProgramMeta,
+  book: RawBookForHydration & { semester?: number | null },
+  semester?: number | null
+): Promise<KnowledgeItemDraft[] | null> {
+  const fallback = metadataKnowledgeBlueprint(program, book, semester)
+  const bookName = cleanBookName(book)
+  const level = levelLabel(program.category)
+  const prompt = `أنت مصمم مناهج أكاديمية مهنية. لا يوجد نص كامل مقروء لهذا الكتاب، لذلك لا يجوز أن تدّعي أنك اقتبست منه. المطلوب بناء بنك معرفة مبدئي ذكي من توصيف الكتاب والبرنامج، حتى يستخدمه المشرف والامتحانات كهيكل منهجي إلى حين رفع ملف الكتاب أو رابط قراءة مباشر.
+
+البرنامج: ${program.titleAr}
+الدرجة: ${level}
+وصف البرنامج: ${program.description || '-'}
+الكتاب: ${bookName}${book.titleEn ? ` / ${book.titleEn}` : ''}
+المؤلف: ${book.author || '-'}
+نبذة/سبب اعتماد الكتاب: ${book.description || '-'}
+سياسة المستوى: ${book.levelPolicy || '-'}
+عمق القراءة: ${book.readingDepth || '-'}
+طبيعة التقييم: ${book.assessmentOrientation || '-'}
+الفصل: ${semester || book.semester || 'عام'}
+
+أنشئ 14 إلى 22 عنصر معرفة موزعة بذكاء على هذه الفئات:
+CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
+
+الشروط:
+- اكتب بالعربية الأكاديمية الفصحى.
+- لا تذكر أن النص غير مقروء داخل title أو summary؛ ضع ذلك فقط في sourceNote.
+- لا تستخدم عبارات عامة مكررة؛ اجعل العناصر مرتبطة باسم البرنامج والدرجة والكتاب.
+- فرّق بين الدبلوم والماجستير والدكتوراه: الدبلوم عملي، الماجستير تحليلي تطبيقي، الدكتوراه نقدي بحثي.
+- اجعل CASE وQUESTION_SEED قابلة للتحويل مباشرة إلى واجب أو امتحان.
+- لا تخترع اقتباسات حرفية أو فصولاً محددة من الكتاب.
+- لا تكتب رموزاً تقنية داخل العنوان أو الشرح.
+
+أجب JSON فقط كمصفوفة، وكل عنصر:
+{"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان أكاديمي قصير","summary":"شرح مهني واضح","excerpt":"إعادة صياغة منهجية لا اقتباس حرفي","keywords":["كلمة"],"importance":75,"semester":${semester ?? 'null'},"sourceNote":"خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل"}`
+
+  try {
+    const zai = await getZAI()
+    const raw = await Promise.race([
+      chatWithRetry(zai, [
+        { role: 'assistant', content: 'أنت خبير مناهج مهنية يرجع JSON صالحاً فقط دون Markdown.' },
+        { role: 'user', content: prompt },
+      ], 2),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_METADATA_AI_TIMEOUT')), 24000)),
+    ])
+    const arr = extractJsonArray(raw)
+    const normalized = normalizeDrafts(arr, fallback, semester)
+    return normalized.length ? normalized : fallback
+  } catch (e: any) {
+    console.error('aiMetadataKnowledgeItems fallback:', String(e?.message || e).slice(0, 240))
+    return fallback
+  }
+}
+
 async function persistBookTextIfNeeded(bookId: string | undefined, text: string, shouldPersist: boolean) {
   if (!bookId || !shouldPersist || text.length < 160) return
   await db.book.update({ where: { id: bookId }, data: { textContent: text.slice(0, 180000) } }).catch(() => {})
