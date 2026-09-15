@@ -624,9 +624,13 @@ function deterministicKnowledgeItems(
   }
 
   // ضمان حد أدنى غني من الكتاب الحقيقي عند وجود نص مقروء: لا نكتفي بعدد المقاطع، بل نحول المقطع الواحد إلى معرفة وسؤال وحالة.
+  const deterministicTarget = Math.min(
+    MAX_ITEMS_PER_BOOK,
+    cleanText(text, 1200).length >= 900 && !allowMetadataBlueprint ? RICH_ITEMS_PER_BOOK_TARGET : METADATA_ITEMS_TARGET
+  )
   let round = 0
-  while (items.length < Math.min(MAX_ITEMS_PER_BOOK, 18) && seeds.length > 0 && round < 4) {
-    for (let i = 0; i < seeds.length && items.length < Math.min(MAX_ITEMS_PER_BOOK, 18); i++) {
+  while (items.length < deterministicTarget && seeds.length > 0 && round < 7) {
+    for (let i = 0; i < seeds.length && items.length < deterministicTarget; i++) {
       const cycle = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED', 'SUMMARY']
       push(cycle[(i + round) % cycle.length], seeds[i], i + round * seeds.length)
     }
@@ -634,13 +638,13 @@ function deterministicKnowledgeItems(
   }
 
   const blueprint = allowMetadataBlueprint && program ? metadataKnowledgeBlueprint(program, book, semester) : []
-  if (allowMetadataBlueprint && items.length < 8) {
+  if (allowMetadataBlueprint && items.length < deterministicTarget) {
     for (const fb of blueprint) {
       const key = norm(`${fb.category} ${fb.title}`).slice(0, 160)
       if (!key || seen.has(key)) continue
       seen.add(key)
       items.push(fb)
-      if (items.length >= Math.min(MAX_ITEMS_PER_BOOK, 18)) break
+      if (items.length >= deterministicTarget) break
     }
   }
 
