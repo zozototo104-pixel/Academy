@@ -294,7 +294,7 @@ export function ApplyView() {
       fd.set('program', form.program)
       fd.append('programId', selectedProgramId)
       fd.append('acknowledged', 'true')
-      for (const d of REQUIRED_DOCS) {
+      for (const d of activeDocs) {
         const f = files[d.type]
         if (f) fd.append(`doc_${d.type}`, f)
       }
