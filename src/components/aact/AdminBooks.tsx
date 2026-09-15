@@ -1226,7 +1226,7 @@ export function AdminBooksTab() {
                       <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-slate-100">
                         <p className="mb-2 text-[11px] font-black text-[#0f2b46]">محاور الدليل</p>
                         <div className="grid gap-2 lg:grid-cols-2">
-                          {guide.sections.slice(0, 6).map((section, i) => (
+                          {guide.sections.map((section, i) => (
                             <div key={i} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-600">
                               <p className="font-black text-[#0f2b46]">{section.title}</p>
                               <p>{section.summary}</p>
