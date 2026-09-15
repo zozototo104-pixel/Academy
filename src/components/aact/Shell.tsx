@@ -426,6 +426,17 @@ export function Header() {
                 ))}
               </>
             )}
+            {user?.role === 'SUPERVISOR' && (
+              <button
+                onClick={() => navigate('supervisor')}
+                className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
+                  view === 'supervisor' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1] hover:bg-white/10'
+                }`}
+              >
+                <Users2 className="h-4 w-4" />
+                طلابي تحت الإشراف
+              </button>
+            )}
             {user && !canUseStudentPortal && (
               <button
                 onClick={() => navigate('chat')}
