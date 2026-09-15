@@ -1711,7 +1711,7 @@ function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: Gen
   return out.slice(0, spec.count)
 }
 
-function sanitizeKnowledgeContextForExamPrompt(value: unknown, max = 12000): string {
+function sanitizeKnowledgeContextForExamPrompt(value: unknown, max = 16000): string {
   return sanitizeExamText(value, max)
     .split('\n')
     .map((line) => stripExamKnowledgeMeta(line, 760)
