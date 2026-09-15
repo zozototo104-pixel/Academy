@@ -185,7 +185,7 @@ async function buildStudentCard(app: any) {
       privateAssessmentsSubmitted: privateAssessments.filter((x: any) => x.attempts?.length).length,
       booksCount: program?.books?.length || 0,
       knowledgeCount: program?.knowledgeItems?.length || 0,
-      examCoverage: pct(attempts.length, program?.programExams?.length || 0),
+      examCoverage: pct(attempts.length + unitAttempts.length, (program?.programExams?.length || 0) + 1),
     },
     weakSignals,
   }
