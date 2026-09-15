@@ -99,8 +99,11 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
     'اي عباره تفسر بصوره ادق دلاله', 'كيف يمكن فهم فكره', 'لا تستخدم رموزا تقنيه',
     'google books', 'books google', 'goodreads', 'worldcat', 'tbm bks',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
-    'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'كتاب احرب',
+    'vellena', 'bonapert', 'lucien poirier', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'كتاب احرب',
     'يفترض اجتزال', 'هو يفتترض', 'حوالي عام 8121', 'عام 8115', 'عام 8518',
+    'مسو وتفوق', 'صوت الى استراتيجية', 'صوت الي استراتيجية', 'صوت الى استراتيجيه', 'صوت الي استراتيجيه',
+    'اختاذ القرار', 'اختاد القرار', 'القررا', 'مبعن اخر', 'مبدى الموضوعيه', 'مبدأ الموضوعية يف',
+    'يف قراءة', 'يف تحليل', 'يف بداية', 'يف صناعة', 'يف سياق', 'يف اطار', 'يف إطار',
   ]
   if (forbidden.some((x) => n.includes(norm(x)))) return true
 
