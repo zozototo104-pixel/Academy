@@ -290,7 +290,7 @@ async function fetchLinkContent(book: RawBookForHydration): Promise<{ text: stri
 export async function hydrateBookContentForExam(book: RawBookForHydration): Promise<HydratedExamBook> {
   const rawStored = String(book.textContent || '')
   const hadPageCounterArtifacts = /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(rawStored) || /(?:^|\s)of\s+\d{1,5}\b/i.test(rawStored)
-  const stored = normalizeExtractedText(rawStored, MAX_BOOK_CONTEXT_CHARS)
+  const stored = repairExtractedAcademicText(rawStored, MAX_BOOK_CONTEXT_CHARS)
   if (isUsableBookText(stored, MIN_STRONG_TEXT)) {
     return {
       ...book,
