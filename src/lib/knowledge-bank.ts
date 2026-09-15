@@ -43,36 +43,9 @@ export const KNOWLEDGE_BANK_LIMITS = {
 }
 
 export function cleanAcademicGeneratedText(value: unknown, max = 1600) {
-  return String(value || '')
-    .replace(/\u0000/g, ' ')
-    .replace(/\r\n?/g, '\n')
-    .replace(/\b\d{1,5}\s+of\s+\d{1,5}\b/gi, ' ')
-    .replace(/\bpage\s+\d{1,5}\s+(?:of|\/|من)\s+\d{1,5}\b/gi, ' ')
-    .replace(/\bصفحة\s+\d{1,5}\s+(?:من|\/|of)\s+\d{1,5}\b/gi, ' ')
-    .replace(/\[\s*(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\s*(?:\|[^\]\n]*)?\]/gi, ' ')
-    .replace(/\b(?:CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY)\b\s*\|\s*(?:أهمية|اهمية)\s*\d{1,3}/gi, ' ')
-    .replace(/(?:محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|خلاصة\s+أكاديمية|خلاصة\s+اكاديمية|مقتطف\s+داعم|مصطلحات\s+مرتبطة|كلمات\s+مفتاحية|مصدر\s+القراءة)\s*[:：]?/giu, ' ')
-    // إصلاحات OCR شائعة قبل الفلترة حتى لا نحذف نصاً قابلاً للإنقاذ.
-    .replace(/(^|[^\p{L}\p{N}])ويف(?=$|[^\p{L}\p{N}])/gu, '$1وفي')
-    .replace(/(^|[^\p{L}\p{N}])يف(?=$|[^\p{L}\p{N}])/gu, '$1في')
-    .replace(/(^|[^\p{L}\p{N}])الثاين(?=$|[^\p{L}\p{N}])/gu, '$1الثاني')
-    .replace(/(^|[^\p{L}\p{N}])اختاذ(?=$|[^\p{L}\p{N}])/gu, '$1اتخاذ')
-    .replace(/(^|[^\p{L}\p{N}])اختاد(?=$|[^\p{L}\p{N}])/gu, '$1اتخاذ')
-    .replace(/(^|[^\p{L}\p{N}])القررا(?=$|[^\p{L}\p{N}])/gu, '$1القرار')
-    .replace(/(^|[^\p{L}\p{N}])القرا(?=$|[^\p{L}\p{N}])/gu, '$1القرار')
-    .replace(/(^|[^\p{L}\p{N}])مبعن(?=$|[^\p{L}\p{N}])/gu, '$1بمعنى')
-    .replace(/(^|[^\p{L}\p{N}])املوضوعية(?=$|[^\p{L}\p{N}])/gu, '$1الموضوعية')
-    .replace(/(^|[^\p{L}\p{N}])املوضوعيه(?=$|[^\p{L}\p{N}])/gu, '$1الموضوعية')
-    .replace(/(^|[^\p{L}\p{N}])املبادي(?=$|[^\p{L}\p{N}])/gu, '$1المبادئ')
-    .replace(/(^|[^\p{L}\p{N}])املكتسب(?=$|[^\p{L}\p{N}])/gu, '$1المكتسب')
-    .replace(/(^|[^\p{L}\p{N}])االستراتيجية(?=$|[^\p{L}\p{N}])/gu, '$1الاستراتيجية')
-    .replace(/(^|[^\p{L}\p{N}])االستراتيجيه(?=$|[^\p{L}\p{N}])/gu, '$1الاستراتيجية')
-    .replace(/\s+([،؛؟.!])/g, '$1')
-    .replace(/([،؛؟.!]){2,}/g, '$1')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-    .slice(0, max)
+  // توحيد التنظيف مع الحارس المركزي حتى لا تتسرب بادئات مثل
+  // «حالة تطبيقية من النص» أو Markdown إلى بنك المعرفة أو أدلة الدراسة.
+  return sharedCleanAcademicOutput(value, max)
 }
 
 function cleanText(value: unknown, max = 1600) {
