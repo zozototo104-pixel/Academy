@@ -746,12 +746,12 @@ async function aiKnowledgeItems(
   if (text.length < 700) return null
   // لا نرسل النص الخام إلى الذكاء. أولاً نستخرج مقاطع عربية/أكاديمية نظيفة فقط،
   // لأن إرسال OCR مشوه يجعل النموذج يعيد صياغة التشوه ويحفظه في بنك المعرفة.
-  const cleanSeeds = splitBookIntoSeeds(text, 18)
+  const cleanSeeds = splitBookIntoSeeds(text, AI_SAMPLE_SEEDS)
     .map((s) => sharedCleanAcademicOutput(s, 1100))
     .filter((s) => s.length >= 120 && !looksLikeBrokenAcademicOutput(s) && !looksLikeBrokenKnowledgeSource(s))
   if (cleanSeeds.length < 4) return null
   const sample = cleanSeeds
-    .slice(0, 18)
+    .slice(0, AI_SAMPLE_SEEDS)
     .map((s, i) => `مقطع نظيف ${i + 1}:\n${s}`)
     .join('\n\n---\n\n')
 
