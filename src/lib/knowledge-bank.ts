@@ -596,7 +596,7 @@ function semanticTopicFromSeed(category: string, seed: string, index: number) {
 
 function realTextKnowledgeSummary(category: string, seed: string, programTitle: string) {
   const evidence = evidenceFromSeed(seed, 430)
-  const cleanEvidence = evidence ? `الإشارة المعرفية المستفادة من القراءة: ${evidence}` : 'الإشارة المعرفية مأخوذة من مقطع مقروء صالح بعد تنظيف النص.'
+  const cleanEvidence = evidence ? `وتظهر الفكرة في القراءة من خلال: ${evidence}` : 'وتستند الفكرة إلى مقطع مقروء صالح بعد تنظيف النص.'
   if (category === 'DEFINITION') return `يضبط هذا المحور معنى مصطلح أو مفهوم مركزي، ثم يحدد حدوده وشروط استخدامه في ${programTitle}. ${cleanEvidence}. المطلوب من الطالب تمييز المصطلح داخل حالة مهنية لا حفظه بمعزل عن سياقه.`
   if (category === 'THEORY') return `يركز هذا المحور على إطار أو مدخل تفسيري يساعد الطالب على فهم العلاقات والافتراضات وحدود التطبيق. ${cleanEvidence}. يستخدم في ${programTitle} للمقارنة بين البدائل وبناء تفسير مهني مدعوم.`
   if (category === 'METHOD') return `يعرض هذا المحور طريقة عمل قابلة للتحويل إلى خطوات: تشخيص المشكلة، تحليل العوامل، اختيار القرار، ثم تحديد مؤشر متابعة. ${cleanEvidence}.`
