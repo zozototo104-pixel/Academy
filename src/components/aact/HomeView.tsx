@@ -667,7 +667,7 @@ export function HomeView() {
             onClick={() => navigate('programs')}
             className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
           >
-            عرض جميع البرامج ({programCountLabel})
+            عرض جميع الخدمات والبرامج ({programCountLabel})
             <ChevronLeft className="mr-1 h-4 w-4" />
           </Button>
         </div>
