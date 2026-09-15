@@ -16,8 +16,29 @@ export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
     const publicOnly = req.nextUrl.searchParams.get('public') === '1'
-    const liteOnly = summaryOnly || publicOnly
+    const countOnly = req.nextUrl.searchParams.get('count') === '1'
+    const liteOnly = summaryOnly || publicOnly || countOnly
     if (!liteOnly) await ensureCoreSeed()
+
+    if (publicOnly && countOnly) {
+      const now = Date.now()
+      if (publicProgramsCountCache && publicProgramsCountCache.expiresAt > now) {
+        return NextResponse.json({ count: publicProgramsCountCache.count }, { headers: publicCacheHeaders() })
+      }
+      if (publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > now) {
+        const count = publicProgramsSummaryCache.payload.programs.length
+        publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+        return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+      }
+      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true } })
+      const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p)).length
+      publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+      return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+    }
+
+    if (publicOnly && summaryOnly && publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > Date.now()) {
+      return NextResponse.json(publicProgramsSummaryCache.payload, { headers: publicCacheHeaders() })
+    }
 
     const rows: any[] = liteOnly
       ? await db.program.findMany({
