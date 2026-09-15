@@ -481,8 +481,8 @@ function deterministicKnowledgeItems(
     })
   }
 
-  const blueprint = program ? metadataKnowledgeBlueprint(program, book, semester) : []
-  if (items.length < 8) {
+  const blueprint = allowMetadataBlueprint && program ? metadataKnowledgeBlueprint(program, book, semester) : []
+  if (allowMetadataBlueprint && items.length < 8) {
     for (const fb of blueprint) {
       const key = norm(`${fb.category} ${fb.title}`).slice(0, 160)
       if (!key || seen.has(key)) continue
