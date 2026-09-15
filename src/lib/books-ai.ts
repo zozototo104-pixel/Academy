@@ -2,6 +2,7 @@ import { getZAI, chatWithRetry } from '@/lib/ai'
 import { ACADEMY_INFO } from '@/lib/academyData'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
+import { conciseAcademicLabel } from '@/lib/academic-output-quality'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
 
