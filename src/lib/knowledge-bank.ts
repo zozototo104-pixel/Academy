@@ -604,7 +604,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   await persistBookTextIfNeeded(book.id, sourceText || hydrated.textContent, hydrated.shouldPersistText && sourceText.length >= 160)
   const semester = book.semester ?? null
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
-  const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester)
+  const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester, book.program)
   const ai = sourceText.length >= 900 ? await aiKnowledgeItems(book.program, book, sourceText, semester) : null
   const items = normalizeDrafts(ai || [], fallback, semester)
 
