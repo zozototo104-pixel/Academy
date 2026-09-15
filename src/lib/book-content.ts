@@ -355,6 +355,10 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
       }
     }
 
+    if (storedFallbackAllowed) {
+      return returnStored(`النص المخزن سابقاً قصير لكنه صالح مؤقتاً بعد تعذر إعادة قراءة رابط الكتاب: ${fromLink.note}`)
+    }
+
     return {
       ...book,
       textContent: '',
