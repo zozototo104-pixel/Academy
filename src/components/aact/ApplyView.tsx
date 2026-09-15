@@ -709,7 +709,7 @@ export function ApplyView() {
 
                   <div className="space-y-2">
                     <Label htmlFor="ad-notes">ملاحظات إضافية</Label>
-                    <Textarea id="ad-notes" className="min-h-20" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="خبرات، تخصص دقيق، طريقة التواصل المفضلة..." />
+                    <Textarea id="ad-notes" className="min-h-20" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={isServiceRequest ? 'اشرح الخدمة المطلوبة، الهدف، الملفات المتوفرة، وطريقة التواصل المفضلة...' : 'خبرات، تخصص دقيق، طريقة التواصل المفضلة...'} />
                   </div>
 
                   <section className="rounded-xl border-2 border-[#c9a227]/60 bg-[#f7edd0]/60 p-4">
