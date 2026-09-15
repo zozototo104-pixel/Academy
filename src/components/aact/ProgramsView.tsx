@@ -43,6 +43,7 @@ const FILTERS: { key: string; label: string }[] = [
   { key: 'INTL_CERT', label: 'الشهادات الدولية' },
   { key: 'DIPLOMA', label: 'الدبلومات التدريبية' },
   { key: 'ACCREDITATION', label: 'الاعتمادات' },
+  { key: 'SERVICE', label: 'الخدمات المهنية' },
 ]
 
 function matchFilter(p: Program, f: string): boolean {
