@@ -475,21 +475,27 @@ export async function getProgramKnowledgeItems(programId: string, semester?: num
     take: limit,
     include: { book: { select: { title: true, titleEn: true, semester: true } } },
   })
-  return rows.map((r) => ({
-    id: r.id,
-    bookId: r.bookId,
-    bookTitle: r.book?.title || null,
-    semester: r.semester,
-    category: r.category,
-    title: r.title,
-    summary: r.summary,
-    excerpt: r.excerpt,
-    keywords: (() => { try { return JSON.parse(r.keywords || '[]') } catch { return [] } })() as string[],
-    importance: r.importance,
-    sourceNote: r.sourceNote,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-  }))
+  return rows.map((r) => {
+    const title = cleanText(r.title, 220)
+    const summary = cleanText(r.summary, 1600)
+    const excerpt = r.excerpt ? cleanText(r.excerpt, 1800) : null
+    const rawKeywords = (() => { try { return JSON.parse(r.keywords || '[]') } catch { return [] } })() as string[]
+    return {
+      id: r.id,
+      bookId: r.bookId,
+      bookTitle: r.book?.title || null,
+      semester: r.semester,
+      category: safeCategory(r.category),
+      title,
+      summary,
+      excerpt,
+      keywords: safeGeneratedList(rawKeywords, tokenizeKeywords(`${title} ${summary}`), 10, 60),
+      importance: r.importance,
+      sourceNote: r.sourceNote ? cleanText(r.sourceNote, 400) : null,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }
+  }).filter((item) => item.title && item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary) && (!item.excerpt || !looksLikeBrokenAcademicOutput(item.excerpt)))
 }
 
 export async function buildKnowledgeContextForExam(programId: string, semester?: number | null, limit = 48): Promise<string> {
