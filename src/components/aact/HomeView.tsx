@@ -106,7 +106,7 @@ export function HomeView() {
     let idleId: number | null = null
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     try {
-      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v2') || '[]')
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
       if (Array.isArray(cachedList) && cachedList.length > 0) {
         hasCachedList = true
         setPrograms(cachedList)
