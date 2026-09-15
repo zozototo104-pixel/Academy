@@ -91,6 +91,80 @@ async function buildStudentCard(app: any) {
     }))
   ).slice(0, 12)
 
+  const programExamAttemptByExamId = new Map<string, any>()
+  for (const a of attempts) {
+    if (a.examId && !programExamAttemptByExamId.has(a.examId)) programExamAttemptByExamId.set(a.examId, a)
+  }
+  const unitAttemptByExamId = new Map<string, any>()
+  for (const a of unitAttempts) {
+    if (a.examId && !unitAttemptByExamId.has(a.examId)) unitAttemptByExamId.set(a.examId, a)
+  }
+  const assignmentSubmissionByAssignmentId = new Map<string, any>()
+  for (const s of assignments) {
+    if (s.assignment?.id && !assignmentSubmissionByAssignmentId.has(s.assignment.id)) assignmentSubmissionByAssignmentId.set(s.assignment.id, s)
+  }
+
+  const availableProgramExams = (program?.programExams || []).map((exam: any) => {
+    const attempt = programExamAttemptByExamId.get(exam.id)
+    return {
+      id: exam.id,
+      title: exam.title,
+      semester: exam.semester,
+      status: exam.status,
+      passScore: exam.passScore,
+      durationMin: exam.durationMin,
+      totalPoints: exam.totalPoints,
+      questionsCount: exam._count?.questions || 0,
+      submitted: !!attempt,
+      attemptId: attempt?.id || null,
+      score: attempt?.score ?? null,
+      finalScore: attempt?.finalScore ?? null,
+      passed: attempt?.passed ?? null,
+      submittedAt: attempt?.submittedAt || attempt?.createdAt || null,
+      appealStatus: attempt?.appealStatus || null,
+    }
+  })
+
+  const availableUnitExams = (program?.units || [])
+    .filter((unit: any) => !!unit.exam)
+    .map((unit: any) => {
+      const attempt = unitAttemptByExamId.get(unit.exam.id)
+      return {
+        id: unit.exam.id,
+        title: unit.exam.title,
+        unitId: unit.id,
+        unitTitle: unit.title,
+        unitOrder: unit.order,
+        passScore: unit.exam.passScore,
+        questionsCount: unit.exam._count?.questions || 0,
+        submitted: !!attempt,
+        attemptId: attempt?.id || null,
+        score: attempt?.score ?? null,
+        passed: attempt?.passed ?? null,
+        submittedAt: attempt?.submittedAt || attempt?.createdAt || null,
+      }
+    })
+
+  const availableAssignments = (program?.assignments || []).map((assignment: any) => {
+    const submission = assignmentSubmissionByAssignmentId.get(assignment.id)
+    return {
+      id: assignment.id,
+      title: assignment.title,
+      semester: assignment.semester,
+      type: assignment.type,
+      points: assignment.points,
+      weight: assignment.weight,
+      dueDays: assignment.dueDays,
+      status: assignment.status,
+      submitted: !!submission,
+      submissionId: submission?.id || null,
+      score: submission?.score ?? null,
+      submissionStatus: submission?.status || null,
+      submittedAt: submission?.submittedAt || null,
+      feedback: submission?.feedback || null,
+    }
+  })
+
   return {
     id: app.id,
     reference: app.reference,
