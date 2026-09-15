@@ -624,7 +624,7 @@ export function ApplyView() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>{selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص المطلوب *' : 'البرنامج / الدبلوم *'}</Label>
+                          <Label>{selectedCategory === 'SERVICE' ? 'الخدمة المطلوبة *' : selectedCategory === 'MASTERS' || selectedCategory === 'DOCTORATE' ? 'التخصص المطلوب *' : 'البرنامج / الدبلوم *'}</Label>
                           <Select value={form.program} onValueChange={(v) => setForm({ ...form, program: v })} disabled={!selectedCategory}>
                             <SelectTrigger><SelectValue placeholder={selectedCategory ? 'اختر التخصص' : 'اختر نوع البرنامج أولاً'} /></SelectTrigger>
                             <SelectContent className="max-h-72">
