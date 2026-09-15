@@ -1119,7 +1119,7 @@ export function AdminBooksTab() {
                 </div>
               </div>
 
-              {studyGuides.length === 0 ? (
+              {displayStudyGuides.length === 0 ? (
                 <div className="rounded-2xl bg-[#f8fafc] p-6 text-center text-xs font-bold leading-6 text-slate-500">
                   لا توجد أدلة دراسة بعد. ابنِ بنك المعرفة ثم ولّد دليل الفصل المطلوب ليظهر للطالب داخل بوابته.
                 </div>
