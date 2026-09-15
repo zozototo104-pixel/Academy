@@ -512,7 +512,7 @@ export function DashboardView() {
                         <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><BookMarked className="h-4 w-4 text-[#a8841a]" /> أدلة الدراسة والمحاضرات</h3>
                         <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">محاور مذاكرة مولدة من كتبك وبنك المعرفة، لتجهيزك للواجبات والامتحانات والمناقشة.</p>
                       </div>
-                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{studyGuides.length} دليل</Badge>
+                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{displayStudyGuides.length} دليل</Badge>
                     </div>
                     <div className="space-y-3">
                       {studyGuides.map((guide) => (
