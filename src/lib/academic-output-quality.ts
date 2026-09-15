@@ -109,7 +109,7 @@ export function conciseAcademicLabel(value: unknown, fallback = 'محور أكا
     if (tokens.length >= 4) break
   }
   const fromTokens = compactLabel(tokens.join(' '), max)
-  if (fromTokens.length >= 6 && !looksLikeBrokenGeneratedArabic(fromTokens)) return fromTokens
+  if (fromTokens.length >= 6 && !isGenericLabelPhrase(fromTokens) && !looksLikeBrokenGeneratedArabic(fromTokens)) return fromTokens
   return cleanAcademicOutput(fallback, max)
 }
 
