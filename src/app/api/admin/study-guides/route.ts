@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { getZAI, chatWithRetry } from '@/lib/ai'
-import { ensureProgramKnowledge, getProgramKnowledgeItems } from '@/lib/knowledge-bank'
+import { ensureProgramKnowledge, getProgramKnowledgeItems, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
