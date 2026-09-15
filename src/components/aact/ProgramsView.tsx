@@ -14,6 +14,7 @@ import {
   Clock3, BadgeCheck, CheckCircle2, ClipboardList, FileCheck2, PackageCheck, MessagesSquare,
   Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
   Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, Users, Sparkles,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText, Star,
 } from 'lucide-react'
 
 const ICONS: Record<string, any> = {
