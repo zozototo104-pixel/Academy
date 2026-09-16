@@ -785,15 +785,35 @@ async function aiKnowledgeItems(
   semester?: number | null
 ): Promise<KnowledgeItemDraft[] | null> {
   if (text.length < 700) return null
-  // لا نرسل النص الخام إلى الذكاء. أولاً نستخرج مقاطع عربية/أكاديمية نظيفة فقط،
-  // لأن إرسال OCR مشوه يجعل النموذج يعيد صياغة التشوه ويحفظه في بنك المعرفة.
-  const cleanSeeds = splitBookIntoSeeds(text, AI_SAMPLE_SEEDS)
-    .map((s) => sharedCleanAcademicOutput(s, 1100))
+  // نبدأ بالمقاطع النظيفة، لكن لا نلغي التحليل إذا كان OCR فيه عيوب بسيطة.
+  // الشرط السابق كان يشترط 4 مقاطع مثالية؛ وهذا كان يوقف تحليل كتب مقروءة فعلاً.
+  const strictSeeds = splitBookIntoSeeds(text, AI_SAMPLE_SEEDS)
+    .map((s) => sharedCleanAcademicOutput(s, 1300))
     .filter((s) => s.length >= 120 && !looksLikeBrokenAcademicOutput(s) && !looksLikeBrokenKnowledgeSource(s))
-  if (cleanSeeds.length < 4) return null
+
+  const looseSeeds: string[] = []
+  if (strictSeeds.length < 3) {
+    const source = cleanText(text, 90000)
+    const pieces = source
+      .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
+      .map((p) => cleanText(p, 1300))
+      .filter((p) => p.length >= 160 && isPotentialBookContent(p))
+    if (pieces.length) looseSeeds.push(...pieces)
+    if (looseSeeds.length < 3 && source.length >= 700) {
+      const windowSize = 1600
+      const step = 1200
+      for (let i = 0; i < source.length && looseSeeds.length < AI_SAMPLE_SEEDS; i += step) {
+        const p = cleanText(source.slice(i, i + windowSize), 1300)
+        if (p.length >= 160 && isPotentialBookContent(p)) looseSeeds.push(p)
+      }
+    }
+  }
+
+  const cleanSeeds = strictSeeds.length >= 3 ? strictSeeds : looseSeeds
+  if (!cleanSeeds.length) return null
   const sample = cleanSeeds
     .slice(0, AI_SAMPLE_SEEDS)
-    .map((s, i) => `مقطع نظيف ${i + 1}:\n${s}`)
+    .map((s, i) => `مقطع من الكتاب ${i + 1}:\n${s}`)
     .join('\n\n---\n\n')
 
   const prompt = `أنت تبني بنك معرفة أكاديمي رسمي لمنصة تعليم مهني. لا نريد ملخصاً عاماً؛ نريد عناصر معرفة قابلة للاستخدام في الامتحانات، الواجبات، والمشرف الذكي.
