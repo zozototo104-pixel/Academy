@@ -105,6 +105,7 @@ export default function Home() {
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
+  const [startupDone, setStartupDone] = useState(false)
 
   // Load current user on mount
   useEffect(() => {
