@@ -167,24 +167,6 @@ export function AuthView() {
               </TabsList>
 
               <TabsContent value="login">
-                <div className="mt-5 rounded-[1.5rem] border border-[#d9c38a]/35 bg-gradient-to-l from-[#fffaf0] via-white to-[#f8fafc] p-3 shadow-[0_12px_28px_rgba(29,41,71,0.10)]">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!!loading}
-                    onClick={doGoogleLogin}
-                    className="h-[52px] w-full rounded-[1.25rem] border border-white bg-white/90 text-sm font-black text-[#1d2947] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-[#10213b] disabled:opacity-70"
-                  >
-                    {loading === 'google' ? (
-                      <Loader2 className="ml-2 h-5 w-5 animate-spin text-[#b08a38]" />
-                    ) : (
-                      <span className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-lg font-black shadow-sm">
-                        <span className="text-[#4285f4]">G</span>
-                      </span>
-                    )}
-                    المتابعة باستخدام Google
-                  </Button>
-                </div>
                 <form onSubmit={doLogin} className="mt-5 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email" className="font-black text-[#1d2947]"><Mail className="ml-1 inline h-4 w-4 text-[#bf1646]" /> البريد الإلكتروني</Label>
