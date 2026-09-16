@@ -834,7 +834,7 @@ ${sample}
         temperature: 0.08,
         maxOutputTokens: 12288,
       }),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 52000)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_GEMINI_JSON_TIMEOUT')), 24000)),
     ])
     const arr = extractJsonArray(raw)
     const normalized = normalizeDrafts(arr, [], semester)
