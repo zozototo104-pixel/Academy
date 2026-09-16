@@ -69,7 +69,7 @@ export function AuthView() {
   ]
 
   return (
-    <div className="aact-auth-screen aact-fade-in relative overflow-hidden px-4 py-10 text-[#f8f8fb] sm:py-14">
+    <div className="aact-auth-screen aact-fade-in relative min-h-screen overflow-hidden px-4 py-10 text-[#f8f8fb] sm:py-14">
       <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true">
         <div className="absolute -right-24 top-12 h-72 w-72 rounded-full bg-[#bf1646] blur-3xl" />
         <div className="absolute -left-24 bottom-8 h-80 w-80 rounded-full bg-[#b08a38] blur-3xl" />
