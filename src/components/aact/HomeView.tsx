@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useAppStore } from '@/lib/store'
 import { ACADEMY_INFO, ADMISSION_FEES, SERVICE_OFFERINGS } from '@/lib/academyData'
 import { AcademyLogo } from '@/components/aact/Shell'
