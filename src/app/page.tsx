@@ -18,8 +18,42 @@ import { unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 
 function LazyViewLoader() {
   return (
-    <div className="flex h-[60vh] items-center justify-center">
-      <Loader2 className="h-9 w-9 animate-spin text-[#c9a227]" />
+    <div className="flex h-[60vh] items-center justify-center bg-[#eef0f5]">
+      <div className="rounded-[2rem] border border-[#1d2947]/10 bg-white px-7 py-6 text-center shadow-xl">
+        <AcademyLogo size={64} className="mx-auto mb-3" />
+        <Loader2 className="mx-auto h-7 w-7 animate-spin text-[#bf1646]" />
+        <p className="mt-3 text-[11px] font-black tracking-[0.22em] text-[#1d2947]/55">LOADING MODULE</p>
+      </div>
+    </div>
+  )
+}
+
+function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION' }: { label?: string }) {
+  const [progress, setProgress] = useState(3)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setProgress((current) => Math.min(97, current + Math.max(1, Math.round((100 - current) * 0.11))))
+    }, 120)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="aact-startup-screen flex min-h-screen items-center justify-center px-8 text-white">
+      <div className="w-full max-w-xl text-center">
+        <div className="mx-auto mb-12 flex h-44 w-44 items-center justify-center rounded-full bg-white/5 shadow-2xl ring-1 ring-white/10 sm:h-52 sm:w-52">
+          <AcademyLogo size={150} light />
+        </div>
+        <div className="flex items-end justify-center gap-3 font-black leading-none">
+          <span className="text-[7rem] tracking-tight sm:text-[9rem]">{String(progress).padStart(2, '0')}</span>
+          <span className="mb-5 text-4xl text-[#8d1b32] sm:mb-7 sm:text-5xl">%</span>
+        </div>
+        <p className="mt-7 text-[11px] font-black uppercase tracking-[0.72em] text-white/42 sm:text-xs">AMERICAN ACADEMY</p>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.48em] text-[#bf1646]/90">{label}</p>
+        <div className="mx-auto mt-12 h-px w-full max-w-md overflow-hidden bg-white/18">
+          <div className="h-full bg-white transition-all duration-150" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
     </div>
   )
 }
