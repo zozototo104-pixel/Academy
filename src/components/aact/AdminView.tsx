@@ -923,7 +923,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* قواعد القبول المخصصة لكل برنامج — يطبقها خبير القبول الذكي قبل زر الاعتماد */}
-        <TabsContent value="rules">
+        <TabsContent value="rules" forceMount>
           <AdminRulesTab />
         </TabsContent>
 
