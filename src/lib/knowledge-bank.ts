@@ -1092,7 +1092,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   // سبب التكرار السابق أن النظام كان يأخذ تحليل Gemini الجيد ثم يملؤه بعناصر fallback حتى يصل إلى 28 بنداً.
   const aiItems = ai?.length ? normalizeDrafts(ai, [], semester) : []
   const items = aiItems.length >= MIN_ACCEPTABLE_AI_ITEMS
-    ? aiItems.slice(0, MAX_ITEMS_PER_BOOK)
+    ? aiItems
     : ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
