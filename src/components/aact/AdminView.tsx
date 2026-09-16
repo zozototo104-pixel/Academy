@@ -1257,7 +1257,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* رسائل التواصل */}
-        <TabsContent value="messages">
+        <TabsContent value="messages" forceMount>
           <AdminMessagesTab />
         </TabsContent>
       </Tabs>
