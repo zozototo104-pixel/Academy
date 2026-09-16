@@ -1085,7 +1085,12 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
     buildMode = 'METADATA'
   }
 
-  const items = ensureCategoryCoverage(normalizeDrafts(ai || [], fallback, semester), fallback)
+  // إذا نجح Gemini في قراءة الكتاب، نحفظ مخرجاته كما هي ولا نكمّلها بحشو حتمي.
+  // سبب التكرار السابق أن النظام كان يأخذ تحليل Gemini الجيد ثم يملؤه بعناصر fallback حتى يصل إلى 28 بنداً.
+  const aiItems = ai?.length ? normalizeDrafts(ai, [], semester) : []
+  const items = aiItems.length >= MIN_ACCEPTABLE_AI_ITEMS
+    ? aiItems.slice(0, PREFERRED_AI_MAX_ITEMS)
+    : ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
