@@ -89,18 +89,24 @@ async function refreshFromDb(force = false): Promise<void> {
   if (dbInflight) return dbInflight
   dbInflight = (async () => {
     try {
-      const [key, voice, textModel, ttsModel, liveModel] = await Promise.all([
+      const [key, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
         readSetting('GEMINI_API_KEY'),
         readSetting('GEMINI_TTS_VOICE'),
         readSetting('GEMINI_TEXT_MODEL'),
         readSetting('GEMINI_TTS_MODEL'),
         readSetting('GEMINI_LIVE_MODEL'),
+        readSetting('GEMINI_SUPERVISOR_LIVE_MODEL'),
+        readSetting('GEMINI_DISCUSSION_LIVE_MODEL'),
+        readSetting('GEMINI_DISCUSSION_THINKING_LEVEL'),
       ])
       dbKeyCache = key
       dbVoiceCache = voice
       dbTextModelCache = normalizeGeminiModelName(textModel)
       dbTtsModelCache = normalizeGeminiModelName(ttsModel)
       dbLiveModelCache = normalizeGeminiModelName(liveModel)
+      dbSupervisorLiveModelCache = normalizeGeminiModelName(supervisorLiveModel)
+      dbDiscussionLiveModelCache = normalizeGeminiModelName(discussionLiveModel)
+      dbDiscussionThinkingLevelCache = normalizeGeminiThinkingLevel(discussionThinkingLevel)
       dbFetchedAt = Date.now()
     } finally {
       dbInflight = null
