@@ -460,7 +460,7 @@ export function Header() {
             )}
             {user && !canUseStudentPortal && (
               <button
-                onClick={() => navigate('chat')}
+                onClick={() => goMobile('chat')}
                 className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
                   view === 'chat' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
                 }`}
