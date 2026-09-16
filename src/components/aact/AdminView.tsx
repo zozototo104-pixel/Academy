@@ -314,6 +314,14 @@ export function AdminView() {
   }, [user])
 
   useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    const t = window.setTimeout(() => {
+      Object.keys(ADMIN_TAB_PREFETCHERS).forEach(prefetchAdminTab)
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [user])
+
+  useEffect(() => {
     if (activeTab !== 'admissions' || !highlightAdmissionId) return
     const t = setTimeout(() => {
       const el = document.getElementById(`admission-${highlightAdmissionId}`)
