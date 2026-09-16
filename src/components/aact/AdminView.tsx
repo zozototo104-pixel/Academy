@@ -1247,7 +1247,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* النظام: البريد + بوابات الدفع + TURN */}
-        <TabsContent value="system">
+        <TabsContent value="system" forceMount>
           <AdminSystemTab />
         </TabsContent>
 
