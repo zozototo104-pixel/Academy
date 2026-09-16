@@ -1,5 +1,5 @@
 import { db } from './db'
-import { hashPassword } from './auth'
+import { hashPassword } from './password'
 import { notify, audit } from './notify'
 import {
   ensureDemoThesisStudent,
