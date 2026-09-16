@@ -1237,7 +1237,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الشهادات */}
-        <TabsContent value="certs">
+        <TabsContent value="certs" forceMount>
           <AdminCertificatesTab />
         </TabsContent>
 
