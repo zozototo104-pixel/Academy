@@ -1217,7 +1217,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الكتب المقررة والاختبارات الشاملة */}
-        <TabsContent value="books">
+        <TabsContent value="books" forceMount>
           <AdminBooksTab />
         </TabsContent>
 
