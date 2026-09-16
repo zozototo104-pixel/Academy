@@ -6,7 +6,9 @@ import { ensureDemoThesisStudent, DEMO_THESIS_STUDENT_EMAIL, DEMO_THESIS_STUDENT
 
 export async function POST(req: NextRequest) {
   try {
-    await ensureCoreSeed()
+    // لا نوقف تسجيل الدخول على تهيئة البرامج والإعدادات؛ هذا كان يبطئ الدخول على Vercel/Neon.
+    // التهيئة تبقى تعمل بالخلفية، أما حسابات التجربة الخاصة فتبقى مضمونة عند الحاجة أدناه.
+    void ensureCoreSeed().catch((err) => console.error('Background core seed error:', err))
     const { email, password } = await req.json()
     if (!email?.trim() || !password) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }, { status: 400 })
