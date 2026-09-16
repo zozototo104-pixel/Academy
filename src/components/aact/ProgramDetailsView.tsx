@@ -81,6 +81,26 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
+const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v3'
+
+function readCachedPrograms(): Program[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROGRAMS_CACHE_KEY) || '[]')
+    return Array.isArray(cached) ? cached : []
+  } catch {
+    return []
+  }
+}
+
+function cachePrograms(list: Program[]) {
+  if (typeof window === 'undefined' || !Array.isArray(list) || list.length === 0) return
+  try {
+    localStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(list.slice(0, 160)))
+    localStorage.setItem('aact_program_count', String(list.length))
+  } catch {}
+}
+
 function semesterLabel(value?: number | null) {
   return value === 2 ? 'الفصل الثاني' : value === 3 ? 'بحث/مشروع' : 'الفصل الأول'
 }
