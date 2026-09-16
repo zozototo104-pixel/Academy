@@ -1242,7 +1242,7 @@ ${unitText}
 }
 
 async function rebuildKnowledgeForBookByUnits(
-  book: NonNullable<Awaited<ReturnType<typeof db.book.findUnique>>> & { program: ProgramMeta },
+  book: RawBookForHydration & { id: string; programId: string; program: ProgramMeta; semester?: number | null },
   sourceText: string,
   semester?: number | null,
   sourceNote?: string | null
