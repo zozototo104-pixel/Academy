@@ -203,15 +203,15 @@ export default function Home() {
     })
   }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter, studentPreviewId, agentPreviewId])
 
+  const showChrome = authChecked && !needsAuthRecovery && effectiveView !== 'auth'
+
   return (
-    <div className="flex min-h-screen flex-col bg-[#faf6ea]">
+    <div className="flex min-h-screen flex-col bg-[#eef0f5]">
       <PWARegister />
-      <Header />
+      {showChrome && <Header />}
       <main className="flex-1">
         {!authChecked ? (
-          <div className="flex h-[60vh] items-center justify-center">
-            <Loader2 className="h-9 w-9 animate-spin text-[#c9a227]" />
-          </div>
+          <AcademyStartupScreen />
         ) : needsAuthRecovery ? (
           <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-4">
             <div className="rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg">
