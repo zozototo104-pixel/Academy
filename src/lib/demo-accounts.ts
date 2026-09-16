@@ -282,10 +282,12 @@ export async function ensureActiveLearningStudent() {
 }
 
 export async function ensurePlatformDemoAccounts(options: { resetDefense?: boolean } = {}) {
+  const admin = await ensureDemoAdmin()
   const activeStudent = await ensureActiveLearningStudent()
   const thesisStudent = await ensureDemoThesisStudent({ resetDefense: !!options.resetDefense, actor: null })
   return {
     accounts: DEMO_ACCOUNTS,
+    admin: { id: admin.id, email: DEMO_ADMIN_EMAIL, password: DEMO_ADMIN_PASSWORD },
     activeStudent,
     thesisStudent,
   }
