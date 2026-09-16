@@ -1062,7 +1062,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* إدارة حسابات المشرفين البشريين */}
-        <TabsContent value="supervisors">
+        <TabsContent value="supervisors" forceMount>
           <AdminSupervisorsTab />
         </TabsContent>
 
