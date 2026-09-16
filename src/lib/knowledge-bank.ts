@@ -28,9 +28,10 @@ const KNOWLEDGE_CATEGORIES = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'MET
 const CATEGORY_SET = new Set<string>(KNOWLEDGE_CATEGORIES)
 const MAX_ITEMS_PER_BOOK = 36
 const RICH_ITEMS_PER_BOOK_TARGET = 28
-const MIN_ACCEPTABLE_AI_ITEMS = 18
-const MIN_CONTEXT_KNOWLEDGE_ITEMS = 24
-const MIN_AI_CATEGORY_DIVERSITY = 5
+// لا نرفض تحليلاً جيداً فقط لأنه أقل من 18 بنداً؛ النسخة الجيدة كانت غالباً 12-16 بنداً عميقاً.
+const MIN_ACCEPTABLE_AI_ITEMS = 10
+const MIN_CONTEXT_KNOWLEDGE_ITEMS = 12
+const MIN_AI_CATEGORY_DIVERSITY = 4
 const AI_SAMPLE_SEEDS = 30
 const METADATA_ITEMS_TARGET = 20
 // تعريف احتياطي يمنع كسر نسخة Vercel إذا بقيت دالة مبنية من commit سابق تشير لهذا الثابت.
