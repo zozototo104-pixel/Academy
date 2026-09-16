@@ -465,7 +465,7 @@ export function Header() {
                 الوكيل الذكي المتكامل
               </button>
             )}
-            <p className="mb-1 mt-3 text-[10px] font-black text-[#c9a227]/70">الأكاديمية والخدمات</p>
+            <p className="mb-1 mt-3 text-[10px] font-black text-[#d2ad5a]/80">الاعتمادات والعضويات</p>
             {academyItems.map((n) => (
               <button
                 key={n.target}
