@@ -173,7 +173,7 @@ export function AuthView() {
                     variant="outline"
                     disabled={!!loading}
                     onClick={doGoogleLogin}
-                    className="h-13 w-full rounded-[1.25rem] border border-white bg-white/90 text-sm font-black text-[#1d2947] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-[#10213b] disabled:opacity-70"
+                    className="h-[52px] w-full rounded-[1.25rem] border border-white bg-white/90 text-sm font-black text-[#1d2947] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-[#10213b] disabled:opacity-70"
                   >
                     {loading === 'google' ? (
                       <Loader2 className="ml-2 h-5 w-5 animate-spin text-[#b08a38]" />
