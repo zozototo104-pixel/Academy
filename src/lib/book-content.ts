@@ -13,8 +13,6 @@ const MAX_BOOK_CONTEXT_CHARS = 180000
 const MIN_STRONG_TEXT = 700
 const MIN_RICH_STORED_TEXT = 3500
 const MIN_USABLE_TEXT = 160
-// لا نرسل ملفات PDF الكبيرة كاملة إلى Gemini داخل طلب الإدارة؛ هذا كان يسبب timeout/فشل بناء المعرفة.
-const MAX_INLINE_GEMINI_DOCUMENT_BYTES = 900 * 1024
 
 export interface RawBookForHydration {
   id?: string
