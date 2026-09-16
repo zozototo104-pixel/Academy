@@ -225,7 +225,7 @@ function isCatalogLikeUiLink(raw?: string | null): boolean {
 
 function bookNeedsReadableSource(book: BookRow): boolean {
   const status = book.linkReadStatus || 'NOT_ATTEMPTED'
-  const alreadyReadable = status === 'FILE_EXTRACTED' || status === 'TEXT_EXTRACTED'
+  const alreadyReadable = status === 'FILE_UPLOADED' || status === 'FILE_EXTRACTED' || status === 'TEXT_EXTRACTED' || !!book.hasFile
   if (alreadyReadable) return false
   return status === 'SEARCH_LINK_ONLY' || status === 'FAILED' || status === 'UNSUPPORTED' || status === 'NOT_ATTEMPTED' || (!!book.link && isCatalogLikeUiLink(book.link))
 }
