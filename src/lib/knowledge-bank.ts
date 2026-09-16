@@ -1313,6 +1313,20 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   const sourceText = cleanKnowledgeSourceText(hydrated.textContent || '')
   await persistBookTextIfNeeded(book.id, sourceText || hydrated.textContent, hydrated.shouldPersistText && sourceText.length >= 160)
   const semester = book.semester ?? null
+
+  // المسار الصحيح للكتب المقروءة: تقسيم الكتاب إلى أبواب/وحدات وتحليل كل وحدة وحدها.
+  // إذا تعثرت وحدة واحدة، تُتجاوز فقط ولا تُسقط تحليل بقية الكتاب، ولا يتم توليد أي عناصر افتراضية.
+  if (sourceText.length >= 900) {
+    try {
+      return await rebuildKnowledgeForBookByUnits(book as any, sourceText, semester, hydrated.sourceNote)
+    } catch (e: any) {
+      console.error('unit-based knowledge build failed:', String(e?.message || e).slice(0, 320))
+      // إذا كان هناك ملف PDF/صورة مرفوع، نترك المسار التالي يحاول قراءة الملف مباشرة كأداة قراءة إضافية.
+      // أما إذا لم توجد أداة قراءة أخرى فلا نؤلف عناصر عامة.
+      if (book.data && !canReadBookFileWithGemini(book)) throw e
+    }
+  }
+
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
   const fallback = deterministicKnowledgeItems(book, sourceText || metadataOnly, semester, book.program, sourceText.length < 900)
   let ai: KnowledgeItemDraft[] | null = null
