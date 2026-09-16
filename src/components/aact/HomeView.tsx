@@ -316,7 +316,7 @@ export function HomeView() {
               <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
               <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
             </h1>
-            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-[0.18em] text-white/82 sm:text-base sm:tracking-[0.32em] lg:mx-0 lg:text-right">
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-normal text-white/84 sm:text-base sm:tracking-[0.08em] lg:mx-0 lg:text-right">
               نصنع قادة المستقبل برؤية عالمية
             </p>
             <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
