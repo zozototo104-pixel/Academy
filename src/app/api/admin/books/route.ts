@@ -398,18 +398,9 @@ export async function PATCH(req: NextRequest) {
       },
     })
 
-    const shouldRebuildKnowledge = Boolean(
-      (file && file.size > 0) ||
-      (textContent && textContent.length >= 160) ||
-      (linkRaw && ['TEXT_EXTRACTED', 'FILE_EXTRACTED'].includes(linkReadStatus))
-    )
-    let knowledgeBuild: Awaited<ReturnType<typeof rebuildKnowledgeForBook>> | null = null
-    if (shouldRebuildKnowledge) {
-      knowledgeBuild = await rebuildKnowledgeForBook(bookId).catch((err) => {
-        console.error('book source update knowledge build failed:', err)
-        return null
-      })
-    }
+    // لا نبني بنك المعرفة أثناء تحديث المصدر أيضاً؛ هذا الطلب مخصص لحفظ الملف/الرابط فقط.
+    // البناء يتم من زر بنك المعرفة حتى لا يعلق رفع الملفات أو يفشل بسبب مدة المعالجة.
+    const knowledgeBuild: { inserted?: number } | null = null
 
     await audit(
       { id: admin.id, name: admin.name },
