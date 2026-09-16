@@ -557,13 +557,35 @@ export function AdminBooksTab() {
       toast({ title: 'مصدر القراءة مطلوب', description: 'ارفع ملف الكتاب أو أدخل رابط PDF/TXT/HTML رسمي مفتوح.', variant: 'destructive' })
       return
     }
+    if (selectedFile && selectedFile.size > MAX_BOOK_FILE_SIZE) {
+      toast({ title: 'حجم الملف كبير', description: 'الحد الحالي لملف الكتاب 10 ميجابايت.', variant: 'destructive' })
+      return
+    }
+    const shouldChunkUpload = !!selectedFile && selectedFile.size > DIRECT_BOOK_UPLOAD_LIMIT
     setUpdatingSourceBookId(book.id)
+    setBookUploadProgress(shouldChunkUpload ? 1 : null)
     try {
-      const fd = new FormData()
-      fd.append('bookId', book.id)
-      if (link) fd.append('link', link)
-      if (selectedFile) fd.append('file', selectedFile)
-      const d = await api<{ book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'PATCH', body: fd })
+      let d: { book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number } = {
+        book,
+        textExtracted: false,
+        linkReadStatus: book.linkReadStatus || 'NOT_ATTEMPTED',
+        linkNote: book.linkReadNote || null,
+        knowledgeItemsInserted: 0,
+      }
+
+      if (link || (selectedFile && !shouldChunkUpload)) {
+        const fd = new FormData()
+        fd.append('bookId', book.id)
+        if (link) fd.append('link', link)
+        if (selectedFile && !shouldChunkUpload) fd.append('file', selectedFile)
+        d = await api<{ book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'PATCH', body: fd })
+      }
+
+      if (selectedFile && shouldChunkUpload) {
+        const uploadedBook = await uploadBookFileInChunks(book.id, selectedFile, setBookUploadProgress)
+        d = { ...d, book: { ...d.book, ...uploadedBook }, linkReadStatus: uploadedBook.linkReadStatus || 'FILE_UPLOADED', linkNote: uploadedBook.linkReadNote || d.linkNote }
+      }
+
       setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, ...d.book, hasFile: !!d.book.fileName } : b))
       setSourceLinks((prev) => ({ ...prev, [book.id]: '' }))
       setSourceFiles((prev) => ({ ...prev, [book.id]: null }))
@@ -582,6 +604,7 @@ export function AdminBooksTab() {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
       setUpdatingSourceBookId(null)
+      setBookUploadProgress(null)
     }
   }
 
