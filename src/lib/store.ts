@@ -282,7 +282,10 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
           clearApiCache()
         }
         if (!res.ok) {
-          const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
+          const fallbackMessage = res.status === 403
+            ? 'رفض الخادم الطلب 403. أعد تسجيل الدخول كإدارة، وإذا كنت ترفع ملفاً فجرّب بعد إعادة النشر لأن الرفع أصبح حفظاً سريعاً دون تحليل داخل الطلب.'
+            : `HTTP ${res.status}`
+          const err = new Error(data?.error || fallbackMessage) as Error & { data?: any }
           err.data = data
           throw err
         }
