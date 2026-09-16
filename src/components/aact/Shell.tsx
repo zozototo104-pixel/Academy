@@ -217,10 +217,8 @@ export function Header() {
     { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
   const academyItems: { label: string; target: any; desc: string }[] = [
-    { label: 'من نحن', target: 'about', desc: 'رسالة ورؤية وقيم الأكاديمية' },
     { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
-    { label: 'الشهادات والتحقق', target: 'verify', desc: 'تحقق فوري برقم الشهادة' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
   ]
 
