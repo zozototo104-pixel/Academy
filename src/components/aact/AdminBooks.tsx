@@ -491,12 +491,14 @@ export function AdminBooksTab() {
       setSourceFiles((prev) => ({ ...prev, [book.id]: null }))
       await loadProgramData(programId, true)
       toast({
-        title: d.textExtracted ? 'تمت قراءة الكتاب وتحديث بنك المعرفة' : 'تم تحديث مصدر الكتاب',
+        title: d.linkReadStatus === 'FILE_UPLOADED' ? 'تم حفظ ملف الكتاب' : d.textExtracted ? 'تمت قراءة الكتاب وتحديث بنك المعرفة' : 'تم تحديث مصدر الكتاب',
         description: d.knowledgeItemsInserted
           ? `استخرج النظام النص وبنى ${d.knowledgeItemsInserted} عنصر معرفة جديداً.`
-          : d.linkReadStatus === 'SEARCH_LINK_ONLY'
-            ? 'الرابط المضاف ما زال رابط معاينة/فهرس، ولن يستخدمه بنك المعرفة حتى ترفع ملفاً أو رابطاً مباشراً.'
-            : d.linkNote || 'تم حفظ المصدر، ويمكنك مراجعة حالة القراءة داخل بطاقة الكتاب.',
+          : d.linkReadStatus === 'FILE_UPLOADED'
+            ? 'تم حفظ الملف. اضغط بناء/تحديث بنك المعرفة ليتم التحليل والاستخراج دون تعطيل الرفع.'
+            : d.linkReadStatus === 'SEARCH_LINK_ONLY'
+              ? 'الرابط المضاف ما زال رابط معاينة/فهرس، ولن يستخدمه بنك المعرفة حتى ترفع ملفاً أو رابطاً مباشراً.'
+              : d.linkNote || 'تم حفظ المصدر، ويمكنك مراجعة حالة القراءة داخل بطاقة الكتاب.',
       })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
