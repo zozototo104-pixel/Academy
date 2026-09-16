@@ -654,6 +654,25 @@ model Book {
   source      String   @default("ADMIN") // ADMIN | AI
   createdAt   DateTime @default(now())
   knowledgeItems BookKnowledgeItem[]
+  uploadChunks BookUploadChunk[]
+}
+
+model BookUploadChunk {
+  id        String   @id @default(cuid())
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  uploadId  String
+  index     Int
+  total     Int
+  fileName  String
+  mimeType  String?
+  size      Int?
+  chunk     String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@unique([uploadId, index])
+  @@index([bookId])
+  @@index([uploadId])
 }
 
 model BookKnowledgeItem {
