@@ -215,7 +215,7 @@ export default function Home() {
     })
   }, [authChecked, effectiveView, programDetailsId, activeProgramId, activeUnitId, activeExamId, programsFilter, studentPreviewId, agentPreviewId])
 
-  const showChrome = authChecked && !needsAuthRecovery && effectiveView !== 'auth'
+  const showChrome = startupDone && authChecked && !needsAuthRecovery && effectiveView !== 'auth'
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef0f5]">
