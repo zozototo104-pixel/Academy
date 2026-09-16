@@ -255,11 +255,9 @@ export async function POST(req: NextRequest) {
 
     await audit({ id: admin.id, name: admin.name }, 'ADD_BOOK', 'Book', book.id, `إضافة كتاب مقرر: ${title} إلى ${program.titleAr}`)
 
-    // المرحلة الثانية: بمجرد إضافة الكتاب يحلله النظام إلى بنك معرفة قابل للاستخدام في الامتحانات والمشرف الذكي.
-    const knowledgeBuild = await rebuildKnowledgeForBook(book.id).catch((err) => {
-      console.error('auto book knowledge build failed:', err)
-      return null
-    })
+    // مهم: لا نبني بنك المعرفة داخل طلب الرفع نفسه؛ لأن التحليل بالذكاء الاصطناعي قد يستغرق وقتاً
+    // ويتسبب بتأخير أو 403/timeout على Vercel. الرفع يحفظ الكتاب فوراً، ثم تستخدم الإدارة زر بناء/تحديث بنك المعرفة.
+    const knowledgeBuild: { inserted?: number } | null = null
 
     // إدراج الكتاب للطلاب المسجلين في البرنامج: إشعار الجميع بقراءته استعداداً للاختبار الشامل
     const enrolled = await db.enrollment.findMany({
