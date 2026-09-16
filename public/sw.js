@@ -1,6 +1,7 @@
 // AACT Platform Service Worker — PWA support for Android installation
-const CACHE_NAME = 'aact-v74'
-const CORE_ASSETS = ['/', '/manifest.json', '/logo.png', '/icon-192.png', '/icon-512.png']
+// لا نخزن صفحة / نفسها حتى لا تبقى لوحة الإدارة على نسخة قديمة بعد النشر.
+const CACHE_NAME = 'aact-v75-admin-rollback'
+const CORE_ASSETS = ['/manifest.json', '/logo.png', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
