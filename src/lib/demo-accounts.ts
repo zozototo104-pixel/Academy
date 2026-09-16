@@ -1,6 +1,6 @@
-import { db } from '@/lib/db'
-import { hashPassword } from '@/lib/auth'
-import { notify, audit } from '@/lib/notify'
+import { db } from './db'
+import { hashPassword } from './auth'
+import { notify, audit } from './notify'
 import {
   ensureDemoThesisStudent,
   DEMO_THESIS_STUDENT_EMAIL,
@@ -9,7 +9,7 @@ import {
   DEMO_THESIS_SUPERVISOR_EMAIL,
   DEMO_THESIS_SUPERVISOR_PASSWORD,
   DEMO_THESIS_SUPERVISOR_NAME,
-} from '@/lib/demo-thesis'
+} from './demo-thesis'
 
 export const DEMO_ADMIN_EMAIL = 'admin@aact.academy'
 export const DEMO_ADMIN_PASSWORD = 'Admin@2026'
