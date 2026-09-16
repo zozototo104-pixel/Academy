@@ -3,7 +3,6 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
-import { rebuildKnowledgeForBook } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
