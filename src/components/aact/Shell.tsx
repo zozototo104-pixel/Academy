@@ -458,7 +458,7 @@ export function Header() {
               <button
                 onClick={() => navigate('chat')}
                 className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
-                  view === 'chat' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1] hover:bg-white/10'
+                  view === 'chat' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
                 }`}
               >
                 <Bot className="h-4 w-4" />
