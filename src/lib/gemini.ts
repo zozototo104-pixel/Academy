@@ -420,7 +420,7 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
   for (const model of await textModelChain()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true) })
+        const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true, model) })
         const text = String((response as any).text || '').trim()
         if (!text) throw new Error('EMPTY_AI_RESPONSE')
         activeTextModel = model
