@@ -178,7 +178,7 @@
 }
 
 .aact-gold-text {
-  background: linear-gradient(120deg, #e0b83a, #c9a227 55%, #a8841a);
+  background: linear-gradient(120deg, #ffffff 0%, #bf1646 42%, #8d1b32 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
