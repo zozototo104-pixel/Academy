@@ -28,14 +28,25 @@ function LazyViewLoader() {
   )
 }
 
-function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION' }: { label?: string }) {
-  const [progress, setProgress] = useState(3)
+function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { label?: string; onDone?: () => void }) {
+  const [progress, setProgress] = useState(1)
+  const onDoneRef = useRef(onDone)
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setProgress((current) => Math.min(97, current + Math.max(1, Math.round((100 - current) * 0.11))))
-    }, 120)
-    return () => clearInterval(t)
+    onDoneRef.current = onDone
+  }, [onDone])
+
+  useEffect(() => {
+    let value = 1
+    const t = window.setInterval(() => {
+      value += 1
+      setProgress(Math.min(100, value))
+      if (value >= 100) {
+        window.clearInterval(t)
+        window.setTimeout(() => onDoneRef.current?.(), 420)
+      }
+    }, 24)
+    return () => window.clearInterval(t)
   }, [])
 
   return (
