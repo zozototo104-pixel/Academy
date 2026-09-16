@@ -301,35 +301,32 @@ export function HomeView() {
       </div>
 
       {/* Hero */}
-      <section className="aact-hero text-[#f5f0e1]">
-        <div className="relative mx-auto max-w-7xl px-4 py-14 sm:py-20">
-          {/* الشعار الرسمي — بحلقة ذهبية على يسار العنوان (شاشات كبيرة) */}
-          <div className="absolute left-4 top-1/2 hidden -translate-y-1/2 lg:block" aria-hidden="true">
-            <div className="rounded-full bg-[#f5f0e1]/5 p-3 ring-1 ring-[#c9a227]/40">
-              <AcademyLogo size={170} light />
-            </div>
-          </div>
-          <div className="max-w-3xl">
-            <Badge className="mb-4 border-[#bf1646]/40 bg-[#bf1646]/15 text-white hover:bg-[#bf1646]/15">
-              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#b08a38]" />
+      <section className="aact-hero relative text-[#f8f8fb]">
+        <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover" />
+        </div>
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[0.96fr_1.04fr] lg:py-20">
+          <div className="order-2 text-center lg:order-1 lg:text-right">
+            <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
               أكاديمية مهنية بمعايير دولية منذ 2016
             </Badge>
             <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
               أهلاً بكم في
               <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
-              <span className="block">للاستشارات والتدريب</span>
+              <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
             </h1>
-            <p className="mt-5 text-sm font-black tracking-[0.35em] text-white/75 sm:text-base">
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-[0.18em] text-white/82 sm:text-base sm:tracking-[0.32em] lg:mx-0 lg:text-right">
               نصنع قادة المستقبل برؤية عالمية
             </p>
-            <p className="mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base">
+            <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
               منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
               <Button
                 size="lg"
                 onClick={() => navigate('programs')}
-                className="rounded-full border-2 border-[#bf1646] bg-transparent px-8 text-white shadow-lg shadow-[#bf1646]/20 hover:bg-[#bf1646]"
+                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
               >
                 استكشف برامجنا
                 <ChevronLeft className="mr-1 h-4 w-4" />
@@ -346,7 +343,7 @@ export function HomeView() {
                 size="lg"
                 variant="outline"
                 onClick={() => navigate(user ? 'chat' : 'auth')}
-                className="rounded-full border-[#b08a38]/50 bg-[#b08a38]/10 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
+                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
               >
                 <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
                 المشرف الذكي
@@ -354,24 +351,46 @@ export function HomeView() {
             </div>
           </div>
 
-          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
-          <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {[
-              { v: 20000, s: '+', l: 'خريج ومتدرب' },
-              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني' },
-              { v: 250, s: '+', l: 'خبير ومستشار' },
-              { v: 50, s: '+', l: 'اعتماد دولي ومحلي' },
-            ].map((s) => (
-              <div
-                key={s.l}
-                className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/90 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
-              >
-                <div className="text-4xl font-black text-white sm:text-5xl">
-                  <CountUp to={s.v} suffix={s.s} />
+          <div className="order-1 lg:order-2">
+            <div className="relative mx-auto max-w-[460px] pb-14 sm:max-w-[520px] lg:max-w-none lg:pb-16">
+              <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
+              <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
+              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
+                <div className="absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
+                  <span className="block text-3xl font-black text-white">+15</span>
+                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
                 </div>
-                <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
               </div>
-            ))}
+              <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
+                <img src={ACADEMY_IMAGES.heroSolo} alt="خريجة من الأكاديمية الأمريكية" className="aspect-square w-full object-cover" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
+          <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
+            {[
+              { v: 20000, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: 250, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: 50, s: '+', l: 'اعتماد دولي ومحلي', icon: Globe2 },
+            ].map((s) => {
+              const Icon = s.icon
+              return (
+                <div
+                  key={s.l}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
+                >
+                  <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
+                  <div className="text-4xl font-black text-white sm:text-5xl">
+                    <CountUp to={s.v} suffix={s.s} />
+                  </div>
+                  <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </section>
