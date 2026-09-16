@@ -29,6 +29,25 @@ const TTS_MODELS = [
   'gemini-2.5-pro-preview-tts',
 ]
 
+export type GeminiLivePurpose = 'SUPERVISOR' | 'DISCUSSION'
+export type GeminiThinkingLevel = 'low' | 'medium' | 'high'
+
+const SUPERVISOR_LIVE_MODELS = [
+  // المشرف اليومي: أقل تأخير للمحادثة الصوتية المباشرة.
+  'gemini-3.8-live',
+  'gemini-3.1-flash-live-preview',
+  'gemini-2.5-flash-native-audio-preview-12-2025',
+  'gemini-2.5-flash-live-preview',
+]
+
+const DISCUSSION_LIVE_MODELS = [
+  // المناقشة الأكاديمية: تفكير أعمق أثناء الحوار الحي.
+  'gemini-3.8-live-extended-thinking',
+  'gemini-3.8-live',
+  'gemini-3.1-flash-live-preview',
+  'gemini-2.5-flash-native-audio-preview-12-2025',
+]
+
 const VISION_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
