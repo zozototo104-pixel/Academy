@@ -344,10 +344,12 @@ export function AdminView() {
 
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
-    const t = window.setTimeout(() => {
-      Object.keys(ADMIN_TAB_PREFETCHERS).forEach(prefetchAdminTab)
-    }, 350)
-    return () => window.clearTimeout(t)
+    const tabs = Array.from(new Set([...Object.keys(ADMIN_TAB_PREFETCHERS), ...Object.keys(ADMIN_TAB_DATA_PREFETCHERS)]))
+    const timers = tabs.map((tab, index) => window.setTimeout(() => {
+      prefetchAdminTab(tab)
+      prefetchAdminTabData(tab)
+    }, 250 + index * 120))
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
   }, [user])
 
   useEffect(() => {
