@@ -523,7 +523,15 @@ export function AdminView() {
         ))}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8" dir="rtl">
+      <Tabs
+        value={activeTab}
+        onValueChange={(tab) => {
+          prefetchAdminTab(tab)
+          setActiveTab(tab)
+        }}
+        className="mt-8"
+        dir="rtl"
+      >
         {/* تنظيم علمي: التبويبات مجمعة بأربعة أقسام وظيفية واضحة */}
         <div className="space-y-2.5 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
           <div>
