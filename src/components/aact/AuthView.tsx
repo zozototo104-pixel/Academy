@@ -138,6 +138,22 @@ export function AuthView() {
               <p className="mt-2 text-xs font-bold leading-6 text-slate-500">سجّل الدخول أو أنشئ حساباً جديداً للالتحاق والمتابعة</p>
             </div>
 
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!!loading}
+              onClick={doGoogleLogin}
+              className="mb-4 h-12 w-full rounded-2xl border-slate-200 bg-white text-base font-black text-[#1d2947] shadow-sm hover:bg-slate-50"
+            >
+              {loading === 'google' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <span className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white font-black text-[#4285f4]">G</span>}
+              الدخول باستخدام Google
+            </Button>
+            <div className="mb-4 flex items-center gap-3 text-[11px] font-bold text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              أو استخدم البريد الإلكتروني
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+
             <Tabs defaultValue="login" dir="rtl">
               <TabsList className="grid h-12 w-full grid-cols-2 rounded-2xl bg-[#edf0f7] p-1">
                 <TabsTrigger value="login" className="rounded-xl text-sm font-black data-[state=active]:bg-[#1d2947] data-[state=active]:text-white">تسجيل الدخول</TabsTrigger>
