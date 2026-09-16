@@ -3,13 +3,15 @@
 import { useAppStore, api, saveToken } from '@/lib/store'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useState } from 'react'
-import { toast, useToast } from '@/hooks/use-toast'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Loader2, LogIn, UserPlus, ShieldCheck, GraduationCap, Bot } from 'lucide-react'
+import {
+  ArrowRight, Bot, GraduationCap, Loader2, LockKeyhole, LogIn, Mail,
+  MapPin, Phone, ShieldCheck, Sparkles, UserRound, UserPlus,
+} from 'lucide-react'
 
 export function AuthView() {
   const { setUser, navigate } = useAppStore()
@@ -60,121 +62,144 @@ export function AuthView() {
     }
   }
 
-  return (
-    <div className="aact-fade-in mx-auto max-w-5xl px-4 py-10">
-      <div className="grid items-start gap-8 lg:grid-cols-[1fr_1.1fr]">
-        {/* Side info */}
-        <div className="hidden lg:block">
-          <h1 className="text-2xl font-black leading-snug text-[#0f2b46]">
-            انضم إلى طلاب الأكاديمية الأمريكية للاستشارات والتدريب
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600">
-            أنشئ حسابك المجاني لتحصل على: بوابة طالب متكاملة، محتوى الوحدات التدريبية كاملاً،
-            مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة، اختبارات تفاعلية يصححها الذكاء
-            الاصطناعي مع تغذية راجعة فورية، وتتبع تقدمك حتى الشهادة.
-          </p>
-          <div className="mt-6 space-y-3">
-            {[
-              { icon: GraduationCap, t: 'دبلومات ودرجات مهنية معتمدة دولياً' },
-              { icon: Bot, t: 'مشرف ذكي متاح على مدار الساعة صوت وكتابة' },
-              { icon: ShieldCheck, t: 'شهادات تُصدر خلال 30 يوماً وفق العقد الرسمي' },
-            ].map((f) => (
-              <div key={f.t} className="flex items-center gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
-                <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
-                  <f.icon className="h-5 w-5" />
-                </div>
-                <span className="text-sm font-bold text-[#0f2b46]">{f.t}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 p-4 text-xs leading-relaxed text-[#5c4d1a]">
-            <strong>حسابات تجريبية:</strong>
-            <br />طالب: student@demo.com / Demo@2026
-            <br />إدارة: admin@aact.academy / Admin@2026
-          </div>
-        </div>
+  const features = [
+    { icon: GraduationCap, t: 'بوابة طالب احترافية', d: 'برامجك، وحداتك، اختباراتك، شهاداتك في مكان واحد' },
+    { icon: Bot, t: 'مشرف ذكي صوت وكتابة', d: 'مساعد تعليمي يرافق الطالب ويشرح ويصحح' },
+    { icon: ShieldCheck, t: 'تحقق واعتماد رقمي', d: 'شهادات وأكواد تحقق ومسار متابعة واضح' },
+  ]
 
-        {/* Auth card */}
-        <Card className="border-[#0f2b46]/15 shadow-xl">
-          <CardHeader className="pb-2 text-center">
-            <div className="mb-2 flex justify-center">
-              <AcademyLogo size={72} />
+  return (
+    <div className="aact-auth-screen aact-fade-in relative overflow-hidden px-4 py-10 text-[#f8f8fb] sm:py-14">
+      <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true">
+        <div className="absolute -right-24 top-12 h-72 w-72 rounded-full bg-[#bf1646] blur-3xl" />
+        <div className="absolute -left-24 bottom-8 h-80 w-80 rounded-full bg-[#b08a38] blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="text-center lg:text-right">
+          <button
+            onClick={() => navigate('home')}
+            className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-black text-white/85 backdrop-blur transition hover:bg-white/10"
+          >
+            <ArrowRight className="h-4 w-4" />
+            العودة للرئيسية
+          </button>
+          <div className="mx-auto mb-7 flex h-32 w-32 items-center justify-center rounded-full border border-[#b08a38]/45 bg-white/5 shadow-2xl backdrop-blur lg:mx-0">
+            <AcademyLogo size={112} light />
+          </div>
+          <p className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-[#b08a38]">American Academy</p>
+          <h1 className="text-3xl font-black leading-[1.35] sm:text-5xl">
+            بوابة الدخول إلى
+            <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-sm font-bold leading-8 text-white/70 lg:max-w-none">
+            نظام دخول موحد للطالب والمشرف والإدارة، مصمم بنفس هوية الموقع الجديد مع تجربة واضحة وسريعة على الجوال.
+          </p>
+          <div className="mt-7 grid gap-3">
+            {features.map((f) => {
+              const Icon = f.icon
+              return (
+                <div key={f.t} className="flex items-start gap-3 rounded-3xl border border-white/10 bg-white/[0.06] p-4 text-right backdrop-blur">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#b08a38]/40 bg-[#273452] text-[#b08a38]">
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span>
+                    <strong className="block text-sm font-black text-white">{f.t}</strong>
+                    <span className="mt-1 block text-xs font-bold leading-6 text-white/55">{f.d}</span>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-white/12 bg-white/[0.08] p-3 shadow-2xl backdrop-blur-xl sm:p-5">
+          <div className="rounded-[1.5rem] bg-white p-5 text-[#1d2947] shadow-2xl sm:p-7">
+            <div className="mb-6 text-center">
+              <span className="mb-3 inline-flex rounded-full bg-[#f5e7cd] px-4 py-1.5 text-[11px] font-black text-[#8b6c2c]">
+                <Sparkles className="ml-1 h-3.5 w-3.5" />
+                نظام الدخول الأكاديمي
+              </span>
+              <h2 className="text-2xl font-black">حسابك في الأكاديمية</h2>
+              <p className="mt-2 text-xs font-bold leading-6 text-slate-500">سجّل الدخول أو أنشئ حساباً جديداً للالتحاق والمتابعة</p>
             </div>
-            <CardTitle className="text-xl font-black text-[#0f2b46]">حسابك في الأكاديمية</CardTitle>
-            <CardDescription>سجل الدخول أو أنشئ حساباً جديداً مجاناً</CardDescription>
-          </CardHeader>
-          <CardContent>
+
             <Tabs defaultValue="login" dir="rtl">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login" className="font-bold">تسجيل الدخول</TabsTrigger>
-                <TabsTrigger value="register" className="font-bold">حساب جديد</TabsTrigger>
+              <TabsList className="grid h-12 w-full grid-cols-2 rounded-2xl bg-[#edf0f7] p-1">
+                <TabsTrigger value="login" className="rounded-xl text-sm font-black data-[state=active]:bg-[#1d2947] data-[state=active]:text-white">تسجيل الدخول</TabsTrigger>
+                <TabsTrigger value="register" className="rounded-xl text-sm font-black data-[state=active]:bg-[#bf1646] data-[state=active]:text-white">حساب جديد</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
-                <form onSubmit={doLogin} className="mt-2 space-y-4">
+                <form onSubmit={doLogin} className="mt-6 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">البريد الإلكتروني</Label>
+                    <Label htmlFor="login-email" className="font-black text-[#1d2947]"><Mail className="ml-1 inline h-4 w-4 text-[#bf1646]" /> البريد الإلكتروني</Label>
                     <Input
                       id="login-email" type="email" required dir="ltr" placeholder="you@example.com"
-                      className="text-left" value={loginData.email}
+                      className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-left font-bold focus-visible:ring-[#bf1646]"
+                      value={loginData.email}
                       onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-pass">كلمة المرور</Label>
+                    <Label htmlFor="login-pass" className="font-black text-[#1d2947]"><LockKeyhole className="ml-1 inline h-4 w-4 text-[#bf1646]" /> كلمة المرور</Label>
                     <Input
                       id="login-pass" type="password" required dir="ltr" placeholder="••••••••"
-                      className="text-left" value={loginData.password}
+                      className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-left font-bold focus-visible:ring-[#bf1646]"
+                      value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     />
                   </div>
-                  <Button type="submit" disabled={!!loading} className="w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
-                    {loading === 'login' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <LogIn className="ml-2 h-4 w-4" />}
-                    تسجيل الدخول
+                  <Button type="submit" disabled={!!loading} className="h-12 w-full rounded-2xl bg-[#bf1646] text-base font-black text-white shadow-lg shadow-[#bf1646]/25 hover:bg-[#a61139]">
+                    {loading === 'login' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <LogIn className="ml-2 h-5 w-5" />}
+                    دخول إلى المنصة
                   </Button>
+                  <p className="text-center text-[11px] font-bold leading-6 text-slate-400">
+                    دخول الإدارة والمشرف والطالب من نفس البوابة، والصلاحيات تظهر تلقائياً بعد الدخول.
+                  </p>
                 </form>
               </TabsContent>
 
               <TabsContent value="register">
-                <form onSubmit={doRegister} className="mt-2 space-y-4">
+                <form onSubmit={doRegister} className="mt-6 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="reg-name">الاسم الكامل *</Label>
-                    <Input id="reg-name" required placeholder="مثال: أحمد محمد"
+                    <Label htmlFor="reg-name" className="font-black text-[#1d2947]"><UserRound className="ml-1 inline h-4 w-4 text-[#bf1646]" /> الاسم الكامل *</Label>
+                    <Input id="reg-name" required placeholder="مثال: أحمد محمد" className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-bold focus-visible:ring-[#bf1646]"
                       value={regData.name} onChange={(e) => setRegData({ ...regData, name: e.target.value })} />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="reg-email">البريد الإلكتروني *</Label>
-                      <Input id="reg-email" type="email" required dir="ltr" className="text-left" placeholder="you@example.com"
+                      <Label htmlFor="reg-email" className="font-black text-[#1d2947]"><Mail className="ml-1 inline h-4 w-4 text-[#bf1646]" /> البريد الإلكتروني *</Label>
+                      <Input id="reg-email" type="email" required dir="ltr" className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-left font-bold focus-visible:ring-[#bf1646]" placeholder="you@example.com"
                         value={regData.email} onChange={(e) => setRegData({ ...regData, email: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-pass">كلمة المرور *</Label>
-                      <Input id="reg-pass" type="password" required minLength={6} dir="ltr" className="text-left" placeholder="6 أحرف على الأقل"
+                      <Label htmlFor="reg-pass" className="font-black text-[#1d2947]"><LockKeyhole className="ml-1 inline h-4 w-4 text-[#bf1646]" /> كلمة المرور *</Label>
+                      <Input id="reg-pass" type="password" required minLength={6} dir="ltr" className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-left font-bold focus-visible:ring-[#bf1646]" placeholder="6 أحرف على الأقل"
                         value={regData.password} onChange={(e) => setRegData({ ...regData, password: e.target.value })} />
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="reg-phone">رقم الهاتف / واتساب</Label>
-                      <Input id="reg-phone" dir="ltr" className="text-left" placeholder="+9665xxxxxxxx"
+                      <Label htmlFor="reg-phone" className="font-black text-[#1d2947]"><Phone className="ml-1 inline h-4 w-4 text-[#bf1646]" /> رقم الهاتف / واتساب</Label>
+                      <Input id="reg-phone" dir="ltr" className="h-12 rounded-2xl border-slate-200 bg-slate-50 text-left font-bold focus-visible:ring-[#bf1646]" placeholder="+9665xxxxxxxx"
                         value={regData.phone} onChange={(e) => setRegData({ ...regData, phone: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-country">الدولة</Label>
-                      <Input id="reg-country" placeholder="مثال: مصر"
+                      <Label htmlFor="reg-country" className="font-black text-[#1d2947]"><MapPin className="ml-1 inline h-4 w-4 text-[#bf1646]" /> الدولة</Label>
+                      <Input id="reg-country" className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-bold focus-visible:ring-[#bf1646]" placeholder="مثال: مصر"
                         value={regData.country} onChange={(e) => setRegData({ ...regData, country: e.target.value })} />
                     </div>
                   </div>
-                  <Button type="submit" disabled={!!loading} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-                    {loading === 'register' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <UserPlus className="ml-2 h-4 w-4" />}
+                  <Button type="submit" disabled={!!loading} className="h-12 w-full rounded-2xl bg-[#1d2947] text-base font-black text-white shadow-lg shadow-[#1d2947]/20 hover:bg-[#26375e]">
+                    {loading === 'register' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <UserPlus className="ml-2 h-5 w-5" />}
                     إنشاء الحساب والانضمام
                   </Button>
                 </form>
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
     </div>
   )
