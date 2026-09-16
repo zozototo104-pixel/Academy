@@ -49,27 +49,6 @@ const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRu
 const AdminQualityTab = dynamic(() => loadAdminQualityModule().then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
 const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
 
-const ADMIN_TAB_PREFETCHERS: Record<string, () => Promise<unknown>> = {
-  rules: loadAdminRulesModule,
-  supervisors: loadAdminSupervisorsModule,
-  books: loadAdminBooksModule,
-  quality: loadAdminQualityModule,
-  thesis: loadAdminExtrasModule,
-  ai: loadAdminAIModule,
-  finance: loadAdminExtrasModule,
-  certs: loadAdminExtrasModule,
-  settings: loadAdminExtrasModule,
-  system: loadAdminSystemModule,
-  audit: loadAdminExtrasModule,
-  messages: loadAdminExtrasModule,
-}
-const adminPrefetchCache = new Map<string, Promise<unknown>>()
-function prefetchAdminTab(tab: string) {
-  const loader = ADMIN_TAB_PREFETCHERS[tab]
-  if (!loader || adminPrefetchCache.has(tab)) return
-  adminPrefetchCache.set(tab, loader().catch(() => null))
-}
-
 interface Stats {
   stats: {
     totalStudents: number
