@@ -135,6 +135,25 @@
   --aact-cream-2: #eef0f5;
 }
 
+.aact-startup-screen {
+  background:
+    radial-gradient(circle at 50% 33%, rgba(255, 255, 255, 0.07), transparent 24rem),
+    radial-gradient(circle at 18% 78%, rgba(191, 22, 70, 0.16), transparent 26rem),
+    linear-gradient(180deg, #1d2947 0%, #202c4b 58%, #1d2947 100%);
+}
+
+.aact-startup-screen img,
+.aact-auth-screen img {
+  filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.28));
+}
+
+.aact-auth-screen {
+  background:
+    radial-gradient(circle at 80% 18%, rgba(191, 22, 70, 0.18), transparent 22rem),
+    radial-gradient(circle at 12% 85%, rgba(176, 138, 56, 0.18), transparent 24rem),
+    linear-gradient(135deg, #1d2947 0%, #273452 52%, #17223e 100%);
+}
+
 .font-cairo {
   font-family: "Cairo", "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
 }
