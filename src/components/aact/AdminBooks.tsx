@@ -268,7 +268,7 @@ export function AdminBooksTab() {
   const [reviewingExam, setReviewingExam] = useState<{ id: string; title: string } | null>(null)
 
   useEffect(() => {
-    api<{ programs: ProgramOption[] }>('/api/programs')
+    api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
       .then((d) => setPrograms(d.programs))
       .catch(() => {})
       .finally(() => setLoading(false))
