@@ -37,8 +37,19 @@ const MIN_CONTEXT_KNOWLEDGE_ITEMS = 1
 const MIN_AI_CATEGORY_DIVERSITY = 1
 const AI_SAMPLE_SEEDS = 30
 const METADATA_ITEMS_TARGET = 20
+// حدود تقنية لتقسيم الكتاب إلى أبواب/وحدات حتى لا يفشل التحليل كله إذا تعطل باب واحد.
+// هذه ليست أرقاماً معرفية مفروضة على عدد العناصر؛ Gemini يحدد عناصر كل وحدة من نصها فقط.
+const MAX_KNOWLEDGE_UNITS_PER_BUILD = 18
+const UNIT_ANALYSIS_TIMEOUT_MS = 42_000
+const UNIT_MAX_CHARS = 11_000
 // تعريف احتياطي يمنع كسر نسخة Vercel إذا بقيت دالة مبنية من commit سابق تشير لهذا الثابت.
 const MAX_DIRECT_FILE_AI_BYTES = 10 * 1024 * 1024
+
+type KnowledgeUnit = {
+  index: number
+  title: string
+  text: string
+}
 
 export const KNOWLEDGE_BANK_LIMITS = {
   maxItemsPerBook: MAX_ITEMS_PER_BOOK,
