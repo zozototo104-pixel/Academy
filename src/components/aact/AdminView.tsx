@@ -1067,7 +1067,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* Agent applications */}
-        <TabsContent value="agents">
+        <TabsContent value="agents" forceMount>
           <div className="mt-4 space-y-4">
             {appsLoading ? (
               <Card className="border-[#0f2b46]/10">
