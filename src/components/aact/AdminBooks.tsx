@@ -1837,7 +1837,7 @@ export function AdminBooksTab() {
                 </div>
                 <Button onClick={() => addBook()} disabled={adding} className="mt-4 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
                   {adding ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Plus className="ml-1 h-4 w-4" />}
-                  إضافة الكتاب للكتب المقررة
+                  {bookUploadProgress !== null ? `رفع الملف ${bookUploadProgress}%` : 'إضافة الكتاب للكتب المقررة'}
                 </Button>
               </div>
                 </TabsContent>
