@@ -461,10 +461,16 @@ export function HomeView() {
           </p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {SERVICE_OFFERINGS.map((s) => {
+          {SERVICE_OFFERINGS.map((s, i) => {
             const Icon = ICONS[s.icon] || Briefcase
+            const image = i % 2 === 0 ? ACADEMY_IMAGES.heroGroup : ACADEMY_IMAGES.heroSolo
             return (
-              <Card key={s.slug} className="aact-card border-[#0f2b46]/10 bg-white">
+              <Card key={s.slug} className="aact-card overflow-hidden border-[#1d2947]/10 bg-white">
+                <div className="relative h-40 overflow-hidden bg-[#1d2947]">
+                  <img src={image} alt={s.titleAr} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/72 via-[#1d2947]/10 to-transparent" />
+                  <span className="absolute bottom-3 right-3 rounded-2xl bg-white/90 px-3 py-1 text-[10px] font-black text-[#bf1646] shadow">خدمة مهنية</span>
+                </div>
                 <CardContent className="flex h-full flex-col p-5">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
