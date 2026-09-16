@@ -161,7 +161,19 @@ export function AuthView() {
               </TabsList>
 
               <TabsContent value="login">
-                <form onSubmit={doLogin} className="mt-6 space-y-4">
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!!loading}
+                    onClick={doGoogleLogin}
+                    className="h-12 w-full rounded-2xl border-slate-200 bg-white text-base font-black text-[#1d2947] shadow-sm hover:bg-white"
+                  >
+                    {loading === 'google' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <span className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white font-black text-[#4285f4]">G</span>}
+                    الدخول باستخدام Google
+                  </Button>
+                </div>
+                <form onSubmit={doLogin} className="mt-5 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email" className="font-black text-[#1d2947]"><Mail className="ml-1 inline h-4 w-4 text-[#bf1646]" /> البريد الإلكتروني</Label>
                     <Input
