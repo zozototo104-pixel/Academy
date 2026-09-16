@@ -27,9 +27,11 @@ export interface KnowledgeBuildResult {
 const KNOWLEDGE_CATEGORIES = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED'] as const
 const CATEGORY_SET = new Set<string>(KNOWLEDGE_CATEGORIES)
 const MAX_ITEMS_PER_BOOK = 36
-const RICH_ITEMS_PER_BOOK_TARGET = 28
-// لا نرفض تحليلاً جيداً فقط لأنه أقل من 18 بنداً؛ النسخة الجيدة كانت غالباً 12-16 بنداً عميقاً.
+// العدد المفضل يجب أن يكون عميقاً وغير مكرر، لا 28 بنداً ممدداً بحشو حتمي.
+const RICH_ITEMS_PER_BOOK_TARGET = 18
 const MIN_ACCEPTABLE_AI_ITEMS = 10
+const PREFERRED_AI_MIN_ITEMS = 12
+const PREFERRED_AI_MAX_ITEMS = 18
 const MIN_CONTEXT_KNOWLEDGE_ITEMS = 12
 const MIN_AI_CATEGORY_DIVERSITY = 4
 const AI_SAMPLE_SEEDS = 30
