@@ -1073,9 +1073,9 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
     // الذكاء قد يفشل أو يرجع JSON غير صالح، لكن طالما قرأنا نصاً حقيقياً من الكتاب
     // لا نرجع إلى توصيف عام؛ نبني عناصر حتمية من مقاطع الكتاب نفسها.
     buildMode = 'TEXT_DETERMINISTIC'
-  } else if (!ai?.length && book.data) {
-    throw new Error(`يوجد ملف مرفوع للكتاب لكن لم يتمكن النظام من قراءة محتواه قراءة أكاديمية كافية. السبب: ${hydrated.sourceNote}. جرّب رفع PDF نصي أو Word DOCX، أو تأكد من تفعيل Gemini ووجود حصة كافية.`)
   } else if (!ai?.length) {
+    // لا نفشل بناء بنك المعرفة بسبب PDF ممسوح/غير نصي أو تعذر Gemini.
+    // نبني خريطة مهنية أولية من توصيف الكتاب والبرنامج، ونضع ملاحظة واضحة أنها ليست اقتباساً من النص الكامل.
     ai = await aiMetadataKnowledgeItems(book.program, book, semester)
     buildMode = 'METADATA'
   }
