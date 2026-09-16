@@ -140,7 +140,11 @@ export async function GET(req: NextRequest) {
       publicProgramsCountCache = { count: payload.programs.length, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
     }
 
-    return NextResponse.json(payload, {
+    const responsePayload = detailId
+      ? { ...payload, program: payload.programs[0] || null }
+      : payload
+
+    return NextResponse.json(responsePayload, {
       headers: publicOnly
         ? publicCacheHeaders()
         : { 'Cache-Control': 'private, no-store' },
