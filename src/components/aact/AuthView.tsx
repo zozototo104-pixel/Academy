@@ -21,7 +21,7 @@ export function AuthView() {
   const [loginData, setLoginData] = useState({ email: '', password: '' })
   const [regData, setRegData] = useState({ name: '', email: '', password: '', phone: '', country: '' })
 
-  const doLogin = async (e?: React.FormEvent) => {
+  const doLogin = async (e?: FormEvent) => {
     e?.preventDefault()
     setLoading('login')
     try {
