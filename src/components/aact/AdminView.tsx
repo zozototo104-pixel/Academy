@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api, prefetchApi } from '@/lib/store'
+import { useAppStore, api } from '@/lib/store'
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast, useToast } from '@/hooks/use-toast'
