@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore, api } from '@/lib/store'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { useToast } from '@/hooks/use-toast'
