@@ -489,7 +489,14 @@ export function AdminBooksTab() {
       toast({ title: 'تنبيه', description: 'اكتب اسم الكتاب أولاً', variant: 'destructive' })
       return
     }
+    const selectedFile = !payload ? file : null
+    if (selectedFile && selectedFile.size > MAX_BOOK_FILE_SIZE) {
+      toast({ title: 'حجم الملف كبير', description: 'الحد الحالي لملف الكتاب 10 ميجابايت.', variant: 'destructive' })
+      return
+    }
+    const shouldChunkUpload = !!selectedFile && selectedFile.size > DIRECT_BOOK_UPLOAD_LIMIT
     setAdding(true)
+    setBookUploadProgress(shouldChunkUpload ? 1 : null)
     try {
       const fd = new FormData()
       fd.append('programId', programId)
@@ -504,9 +511,17 @@ export function AdminBooksTab() {
       fd.append('readingDepth', payload?.readingDepth || '')
       fd.append('assessmentOrientation', payload?.assessmentOrientation || '')
       fd.append('source', payload ? 'AI' : 'ADMIN')
-      if (!payload && file) fd.append('file', file)
+      if (selectedFile && !shouldChunkUpload) fd.append('file', selectedFile)
       const d = await api<{ book: BookRow; textExtracted: boolean; linkReadStatus?: string; linkNote?: string | null; knowledgeItemsInserted?: number }>('/api/admin/books', { method: 'POST', body: fd })
-      setBooks((prev) => [...prev, { ...d.book, hasFile: !!d.book.fileName, source: d.book.source || 'ADMIN' }])
+
+      let finalBook: BookRow = d.book
+      let finalStatus = d.linkReadStatus
+      if (selectedFile && shouldChunkUpload) {
+        finalBook = await uploadBookFileInChunks(d.book.id, selectedFile, setBookUploadProgress)
+        finalStatus = finalBook.linkReadStatus || 'FILE_UPLOADED'
+      }
+
+      setBooks((prev) => [...prev, { ...finalBook, hasFile: !!finalBook.fileName, source: finalBook.source || 'ADMIN' }])
       if (!payload) {
         setForm({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
         setFile(null)
@@ -517,11 +532,11 @@ export function AdminBooksTab() {
         title: 'تمت إضافة الكتاب',
         description: payload && !payload.link
           ? 'أُضيف الكتاب المقترح كمرجع مقرر دون رابط قراءة مباشر. لن يدخل بنك المعرفة أو الامتحانات حتى ترفع ملفه أو تضيف رابط PDF/TXT/HTML مفتوح.'
-          : d.linkReadStatus === 'SEARCH_LINK_ONLY'
+          : finalStatus === 'SEARCH_LINK_ONLY'
           ? 'أُضيف الرابط كفهرس/بحث فقط. لكي يقرأه المشرف والامتحانات فعلياً ارفع ملف الكتاب أو ضع رابط PDF/نص مباشر.'
-          : d.linkReadStatus === 'FILE_UPLOADED'
-          ? 'تم حفظ ملف الكتاب بسرعة. اضغط بناء/تحديث بنك المعرفة ليبدأ التحليل والاستخراج.'
-          : d.knowledgeItemsInserted && (d.linkReadStatus === 'FILE_EXTRACTED' || d.linkReadStatus === 'TEXT_EXTRACTED')
+          : finalStatus === 'FILE_UPLOADED'
+          ? 'تم حفظ ملف الكتاب. اضغط بناء/تحديث بنك المعرفة ليبدأ التحليل والاستخراج.'
+          : d.knowledgeItemsInserted && (finalStatus === 'FILE_EXTRACTED' || finalStatus === 'TEXT_EXTRACTED')
             ? `تمت قراءة الكتاب وبناء ${d.knowledgeItemsInserted} عنصر معرفة للامتحانات والمشرف الذكي`
             : d.textExtracted
               ? 'تمت قراءة محتوى الملف/الرابط — ويمكنك تحديث بنك المعرفة عند الحاجة'
@@ -531,6 +546,7 @@ export function AdminBooksTab() {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
       setAdding(false)
+      setBookUploadProgress(null)
     }
   }
 
