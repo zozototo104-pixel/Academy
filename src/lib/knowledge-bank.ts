@@ -725,7 +725,8 @@ function normalizeDrafts(rawItems: any[], fallback: KnowledgeItemDraft[], semest
       semester: raw?.semester == null ? (semester ?? null) : Number(raw.semester) || semester || null,
       sourceNote: cleanText(raw?.sourceNote || raw?.source || '', 250) || null,
     })
-    if (out.length >= MAX_ITEMS_PER_BOOK) break
+    // عندما تكون المخرجات من Gemini مباشرة ولا يوجد fallback، لا نقص العدد؛ المحتوى هو الذي يحدد.
+    if (fallback.length && out.length >= MAX_ITEMS_PER_BOOK) break
   }
   const desired = fallback.length ? targetFromFallback(fallback) : MIN_ACCEPTABLE_AI_ITEMS
   if (out.length >= desired || fallback.length === 0) return out
