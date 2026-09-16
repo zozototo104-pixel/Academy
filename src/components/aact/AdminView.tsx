@@ -1222,7 +1222,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* مركز الجودة الأكاديمي الداخلي */}
-        <TabsContent value="quality">
+        <TabsContent value="quality" forceMount>
           <AdminQualityTab />
         </TabsContent>
 
