@@ -1,6 +1,6 @@
 'use client'
 
-import { api, getToken, useAppStore } from '@/lib/store'
+import { api, getToken, saveToken, useAppStore } from '@/lib/store'
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { AcademyLogo, Header, Footer, FloatingActions } from '@/components/aact/Shell'
