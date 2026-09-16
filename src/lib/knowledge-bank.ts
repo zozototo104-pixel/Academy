@@ -1216,6 +1216,10 @@ async function aiKnowledgeItemsFromUnit(
 ): Promise<KnowledgeItemDraft[]> {
   const unitText = cleanText(unit.text, UNIT_MAX_CHARS)
   if (unitText.length < 700 || !isPotentialBookContent(unitText) || looksLikeBrokenKnowledgeSource(unitText)) return []
+  const coverageAnchors = knowledgeCoverageAnchors(unitText)
+  const coverageChecklist = coverageAnchors.length
+    ? `\nنقاط تغطية مستخرجة من نص هذه الوحدة نفسها، استخدمها كخريطة مرور ولا تعتبرها مصدراً خارجياً:\n${coverageAnchors.map((anchor, i) => `${i + 1}. ${anchor}`).join('\n')}\n`
+    : ''
   const prompt = `أنت محلل مناهج جامعية. أمامك وحدة/باب واحد من الكتاب المقروء فعلياً. المطلوب استخراج عناصر معرفة من هذا الجزء فقط، دون تأليف ودون الاعتماد على عنوان الكتاب أو وصف البرنامج كبديل.
 
 البرنامج: ${program.titleAr}
