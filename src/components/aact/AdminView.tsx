@@ -1232,7 +1232,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* المالية والتقارير */}
-        <TabsContent value="finance">
+        <TabsContent value="finance" forceMount>
           <AdminFinanceTab />
         </TabsContent>
 
