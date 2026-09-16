@@ -55,10 +55,10 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 const ACADEMY_IMAGES = {
-  // صور محلية ثابتة حتى لا تظهر علامة الصورة المكسورة عند حجب روابط خارجية أو انتهاء صلاحية صور _next/image.
-  heroGroup: '/academy-graduates-group.svg',
-  heroSolo: '/academy-graduate-solo.svg',
-  heroBg: '/academy-graduates-group.svg',
+  // صور الخريجين الرسمية من موقع الأكاديمية — بدون الرسومات المؤقتة.
+  heroGroup: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout2.jpg&w=1080',
+  heroSolo: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout1.jpg&w=640',
+  heroBg: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout2.jpg&w=1920',
 }
 
 // أبرز البرامج والخدمات المميزة — الشريط المتحرك
