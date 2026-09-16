@@ -480,8 +480,8 @@ export function Header() {
             {user?.role === 'ADMIN' && (
               <button
                 onClick={() => navigate('admin')}
-                className={`mt-2 flex items-center gap-2 rounded-lg bg-[#c9a227] px-4 py-3 text-right text-sm font-black text-[#0f2b46] shadow ${
-                  view === 'admin' ? 'bg-[#f5f0e1]' : ''
+                className={`mt-2 flex items-center gap-2 rounded-lg bg-[#bf1646] px-4 py-3 text-right text-sm font-black text-white shadow-lg shadow-[#bf1646]/20 ${
+                  view === 'admin' ? 'ring-2 ring-white/45' : ''
                 }`}
               >
                 <ShieldCheck className="h-4 w-4" />
