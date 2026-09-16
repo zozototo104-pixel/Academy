@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
           },
         })
       : await db.program.findMany({
-          where: { active: true },
+          where: programWhere,
           orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
           include: {
             units: { orderBy: { order: 'asc' }, select: { id: true, order: true, title: true } },
