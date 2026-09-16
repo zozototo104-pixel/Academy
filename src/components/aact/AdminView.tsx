@@ -1212,7 +1212,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* المناقشات واللجان */}
-        <TabsContent value="thesis">
+        <TabsContent value="thesis" forceMount>
           <AdminThesisTab />
         </TabsContent>
 
