@@ -221,12 +221,10 @@ export async function POST(req: NextRequest) {
       mimeType = file.type || 'application/octet-stream'
       size = file.size
       data = buf.toString('base64')
-      const extracted = await extractDocumentText(buf, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
-      if (extracted.text) textContent = extracted.text
-      linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'FILE_EXTRACTED' : 'FAILED'
-      linkNote = extracted.readable
-        ? `تم استخراج نص من الملف المرفوع: ${extracted.note}`
-        : extracted.note
+      // الرفع يجب أن يكون سريعاً: نحفظ الملف فقط، ثم تُقرأ صفحاته عند ضغط زر بناء/تحديث بنك المعرفة.
+      // هذا يمنع تعليق طلب الرفع أو فشله على Vercel بسبب تحليل PDF داخل نفس الطلب.
+      linkReadStatus = 'FILE_UPLOADED'
+      linkNote = 'تم حفظ الملف بنجاح. اضغط بناء/تحديث بنك المعرفة ليقرأ النظام محتواه ويستخرج العناصر الدراسية.'
     }
 
     const semRaw = String(form.get('semester') || '')
