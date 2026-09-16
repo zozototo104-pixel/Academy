@@ -55,9 +55,10 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 const ACADEMY_IMAGES = {
-  heroGroup: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fabout2.jpg&w=1080',
-  heroSolo: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fabout1.jpg&w=640',
-  heroBg: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fabout2.jpg&w=1920',
+  // صور محلية ثابتة حتى لا تظهر علامة الصورة المكسورة عند حجب روابط خارجية أو انتهاء صلاحية صور _next/image.
+  heroGroup: '/academy-graduates-group.svg',
+  heroSolo: '/academy-graduate-solo.svg',
+  heroBg: '/academy-graduates-group.svg',
 }
 
 // أبرز البرامج والخدمات المميزة — الشريط المتحرك
