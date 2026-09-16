@@ -1114,9 +1114,15 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   // إذا نجح Gemini في قراءة الكتاب، نحفظ مخرجاته كما هي ولا نكمّلها بحشو حتمي.
   // سبب التكرار السابق أن النظام كان يأخذ تحليل Gemini الجيد ثم يملؤه بعناصر fallback حتى يصل إلى 28 بنداً.
   const aiItems = ai?.length ? normalizeDrafts(ai, [], semester) : []
-  const items = aiItems.length >= MIN_ACCEPTABLE_AI_ITEMS
-    ? aiItems
-    : ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
+  let items: KnowledgeItemDraft[] = []
+  if (aiItems.length >= MIN_ACCEPTABLE_AI_ITEMS) {
+    items = aiItems
+  } else if (book.data) {
+    // للكتاب المرفوع لا نؤلف ولا نستخدم توصيف البرنامج كبديل. إما قراءة فعلية من الملف أو لا نحفظ شيئاً.
+    throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة. أعد المحاولة أو ارفع نسخة PDF نصية/Word أوضح.')
+  } else {
+    items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
+  }
 
   const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
   const inserted = await createKnowledgeRows(book.programId, book.id, items)
