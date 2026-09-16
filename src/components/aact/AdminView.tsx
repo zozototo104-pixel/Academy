@@ -28,18 +28,47 @@ function AdminTabLoader() {
   )
 }
 
-const AdminThesisTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
-const AdminFinanceTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
-const AdminCertificatesTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminCertificatesTab), { ssr: false, loading: AdminTabLoader })
-const AdminSettingsTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminSettingsTab), { ssr: false, loading: AdminTabLoader })
-const AdminAuditTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
-const AdminMessagesTab = dynamic(() => import('@/components/aact/AdminExtras').then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
-const AdminBooksTab = dynamic(() => import('@/components/aact/AdminBooks').then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
-const AdminAITab = dynamic(() => import('@/components/aact/AdminAITab').then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
-const AdminSystemTab = dynamic(() => import('@/components/aact/AdminSystemTab').then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
-const AdminRulesTab = dynamic(() => import('@/components/aact/AdminRulesTab').then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
-const AdminQualityTab = dynamic(() => import('@/components/aact/AdminQualityTab').then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
-const AdminSupervisorsTab = dynamic(() => import('@/components/aact/AdminSupervisors').then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
+const loadAdminExtrasModule = () => import('@/components/aact/AdminExtras')
+const loadAdminBooksModule = () => import('@/components/aact/AdminBooks')
+const loadAdminAIModule = () => import('@/components/aact/AdminAITab')
+const loadAdminSystemModule = () => import('@/components/aact/AdminSystemTab')
+const loadAdminRulesModule = () => import('@/components/aact/AdminRulesTab')
+const loadAdminQualityModule = () => import('@/components/aact/AdminQualityTab')
+const loadAdminSupervisorsModule = () => import('@/components/aact/AdminSupervisors')
+
+const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
+const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
+const AdminCertificatesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminCertificatesTab), { ssr: false, loading: AdminTabLoader })
+const AdminSettingsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminSettingsTab), { ssr: false, loading: AdminTabLoader })
+const AdminAuditTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
+const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
+const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
+const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
+const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
+const AdminQualityTab = dynamic(() => loadAdminQualityModule().then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
+const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
+
+const ADMIN_TAB_PREFETCHERS: Record<string, () => Promise<unknown>> = {
+  rules: loadAdminRulesModule,
+  supervisors: loadAdminSupervisorsModule,
+  books: loadAdminBooksModule,
+  quality: loadAdminQualityModule,
+  thesis: loadAdminExtrasModule,
+  ai: loadAdminAIModule,
+  finance: loadAdminExtrasModule,
+  certs: loadAdminExtrasModule,
+  settings: loadAdminExtrasModule,
+  system: loadAdminSystemModule,
+  audit: loadAdminExtrasModule,
+  messages: loadAdminExtrasModule,
+}
+const adminPrefetchCache = new Map<string, Promise<unknown>>()
+function prefetchAdminTab(tab: string) {
+  const loader = ADMIN_TAB_PREFETCHERS[tab]
+  if (!loader || adminPrefetchCache.has(tab)) return
+  adminPrefetchCache.set(tab, loader().catch(() => null))
+}
 
 interface Stats {
   stats: {
