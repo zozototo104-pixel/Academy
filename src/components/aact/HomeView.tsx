@@ -54,6 +54,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
+const ACADEMY_IMAGES = {
+  heroGroup: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fabout2.jpg&w=1080',
+  heroSolo: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fabout1.jpg&w=640',
+  heroBg: 'https://www.aactacademy.com/_next/image?q=85&url=%2Fhero-bg.png&w=1920',
+}
+
 // أبرز البرامج والخدمات المميزة — الشريط المتحرك
 const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
   { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
