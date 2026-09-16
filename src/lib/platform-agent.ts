@@ -3,7 +3,7 @@ import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, all
 import { chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
-import { ensureGeminiKey, geminiComplete } from '@/lib/gemini'
+import { ensureGeminiKey, geminiComplete, geminiDiscussionThinkingLevel, type GeminiThinkingLevel } from '@/lib/gemini'
 
 export type PlatformAgentKind =
   | 'ACADEMIC_SUPERVISOR'
