@@ -1209,7 +1209,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* سجل التدقيق */}
-        <TabsContent value="audit" forceMount>
+        <TabsContent value="audit">
           <AdminAuditTab />
         </TabsContent>
 
