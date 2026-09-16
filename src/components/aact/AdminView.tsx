@@ -1242,7 +1242,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الرسوم والإعدادات */}
-        <TabsContent value="settings">
+        <TabsContent value="settings" forceMount>
           <AdminSettingsTab />
         </TabsContent>
 
