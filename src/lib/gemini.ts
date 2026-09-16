@@ -135,9 +135,17 @@ export function normalizeGeminiModelName(value: unknown): string {
   return /^[a-z0-9][a-z0-9_.-]{2,90}$/i.test(v) ? v : ''
 }
 
+export function normalizeGeminiThinkingLevel(value: unknown): GeminiThinkingLevel {
+  const v = String(value || '')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim()
+    .toLowerCase()
+  return v === 'low' || v === 'medium' || v === 'high' ? v : 'high'
+}
+
 export function isValidGeminiLiveModel(value: unknown): boolean {
   const v = normalizeGeminiModelName(value)
-  return GEMINI_LIVE_MODEL_FALLBACKS.includes(v) || /^gemini-[\w.-]*live[\w.-]*$/i.test(v)
+  return SUPERVISOR_LIVE_MODELS.includes(v) || DISCUSSION_LIVE_MODELS.includes(v) || /^gemini-[\w.-]*live[\w.-]*$/i.test(v)
 }
 
 function resolvedKey(): string {
