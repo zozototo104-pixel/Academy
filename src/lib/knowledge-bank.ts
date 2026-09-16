@@ -330,8 +330,8 @@ function chunkBookSourceText(text: string, maxItems = 28): string[] {
   }).slice(0, maxItems)
 }
 
-function cleanKnowledgeSourceText(text: string, maxChars = 90000) {
-  const chunks = chunkBookSourceText(text, MAX_ITEMS_PER_BOOK)
+function cleanKnowledgeSourceText(text: string, maxChars = 180000) {
+  const chunks = chunkBookSourceText(text, Math.max(MAX_ITEMS_PER_BOOK, MAX_KNOWLEDGE_UNITS_PER_BUILD * 10))
   const out: string[] = []
   let total = 0
   for (const p of chunks) {
