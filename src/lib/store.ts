@@ -211,43 +211,100 @@ function isTransientFetchError(err: unknown): boolean {
   )
 }
 
+type ApiCacheEntry<T = any> = { expires: number; promise?: Promise<T>; data?: T }
+const apiCache = new Map<string, ApiCacheEntry>()
+const API_CACHE_TTL_MS = 60_000
+
+function apiMethod(options?: RequestInit) {
+  return String(options?.method || 'GET').toUpperCase()
+}
+
+function apiCacheKey(url: string, options?: RequestInit) {
+  return `${apiMethod(options)} ${url}`
+}
+
+function isCacheableGet(options?: RequestInit) {
+  return apiMethod(options) === 'GET' && !options?.body
+}
+
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    apiCache.clear()
+    return
+  }
+  for (const key of Array.from(apiCache.keys())) {
+    if (key.includes(prefix)) apiCache.delete(key)
+  }
+}
+
+export async function prefetchApi<T = any>(url: string): Promise<void> {
+  try { await api<T>(url) } catch {}
+}
+
 export async function api<T = any>(url: string, options?: RequestInit): Promise<T> {
   const token = getToken()
   const isForm = typeof FormData !== 'undefined' && options?.body instanceof FormData
-  const maxAttempts = isForm ? 1 : 3
-  let lastNetworkError: unknown = null
+  const cacheable = isCacheableGet(options)
+  const key = apiCacheKey(url, options)
+  const now = Date.now()
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await fetch(url, {
-        ...options,
-        cache: 'no-store',
-        headers: {
-          ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(options?.headers || {}),
-        },
-      })
-      const data = await res.json().catch(() => ({}))
-      // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
-      if (res.status === 401 && token) {
-        clearToken()
-        try { useAppStore.setState({ user: null }) } catch {}
-      }
-      if (!res.ok) {
-        const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
-        err.data = data
-        throw err
-      }
-      return data as T
-    } catch (err) {
-      if (!isTransientFetchError(err) || attempt >= maxAttempts) {
-        throw err
-      }
-      lastNetworkError = err
-      await wait(450 * attempt)
+  if (cacheable) {
+    const cached = apiCache.get(key) as ApiCacheEntry<T> | undefined
+    if (cached && cached.expires > now) {
+      if (cached.promise) return cached.promise
+      if ('data' in cached) return cached.data as T
     }
+  } else {
+    // أي تعديل إداري يجب أن ينعكس فوراً؛ لذلك نفرغ كاش GET بعد POST/PATCH/PUT/DELETE.
+    clearApiCache()
   }
 
-  throw lastNetworkError || new Error('تعذر الاتصال بالخادم')
+  const requestPromise = (async () => {
+    const maxAttempts = isForm ? 1 : 3
+    let lastNetworkError: unknown = null
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch(url, {
+          ...options,
+          cache: 'no-store',
+          headers: {
+            ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options?.headers || {}),
+          },
+        })
+        const data = await res.json().catch(() => ({}))
+        // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
+        if (res.status === 401 && token) {
+          clearToken()
+          try { useAppStore.setState({ user: null }) } catch {}
+          clearApiCache()
+        }
+        if (!res.ok) {
+          const err = new Error(data?.error || `HTTP ${res.status}`) as Error & { data?: any }
+          err.data = data
+          throw err
+        }
+        return data as T
+      } catch (err) {
+        if (!isTransientFetchError(err) || attempt >= maxAttempts) {
+          throw err
+        }
+        lastNetworkError = err
+        await wait(450 * attempt)
+      }
+    }
+
+    throw lastNetworkError || new Error('تعذر الاتصال بالخادم')
+  })()
+
+  if (cacheable) {
+    apiCache.set(key, { expires: now + API_CACHE_TTL_MS, promise: requestPromise })
+    requestPromise
+      .then((data) => apiCache.set(key, { expires: Date.now() + API_CACHE_TTL_MS, data }))
+      .catch(() => apiCache.delete(key))
+  }
+
+  return requestPromise
 }
