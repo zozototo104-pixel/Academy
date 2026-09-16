@@ -55,11 +55,8 @@ const VISION_MODELS = [
   'gemini-1.5-pro',
 ]
 
-export const GEMINI_LIVE_MODEL_FALLBACKS = [
-  'gemini-3.1-flash-live-preview',
-  'gemini-2.5-flash-native-audio-preview-12-2025',
-  'gemini-2.5-flash-live-preview',
-]
+export const GEMINI_LIVE_MODEL_FALLBACKS = SUPERVISOR_LIVE_MODELS
+export const GEMINI_DISCUSSION_LIVE_MODEL_FALLBACKS = DISCUSSION_LIVE_MODELS
 
 let dbFetchedAt = 0
 let dbInflight: Promise<void> | null = null
@@ -68,10 +65,15 @@ let dbVoiceCache = ''
 let dbTextModelCache = ''
 let dbTtsModelCache = ''
 let dbLiveModelCache = ''
+let dbSupervisorLiveModelCache = ''
+let dbDiscussionLiveModelCache = ''
+let dbDiscussionThinkingLevelCache = ''
 let geminiInstance: GoogleGenAI | null = null
 let instanceKey = ''
 let activeTextModel: string | null = null
 let activeTtsModel: string | null = null
+let activeSupervisorLiveModel: string | null = null
+let activeDiscussionLiveModel: string | null = null
 
 async function readSetting(key: string): Promise<string> {
   try {
