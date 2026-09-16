@@ -125,7 +125,7 @@ export function normalizeGeminiModelName(value: unknown): string {
     .trim()
   if (!v || v === 'auto') return ''
   if (v === 'gemini-2.5-flash-live-preview') return 'gemini-2.5-flash-native-audio-preview-12-2025'
-  const known = [...TEXT_MODELS, ...TTS_MODELS, ...GEMINI_LIVE_MODEL_FALLBACKS]
+  const known = [...TEXT_MODELS, ...TTS_MODELS, ...SUPERVISOR_LIVE_MODELS, ...DISCUSSION_LIVE_MODELS, ...VISION_MODELS]
   if (known.includes(v)) return v
   for (const model of known) {
     if (v.includes(model) || v.endsWith(model.slice(2)) || v.endsWith(model.slice(4))) return model
