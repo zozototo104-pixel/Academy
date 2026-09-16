@@ -506,7 +506,7 @@ export function Header() {
               </button>
             ) : (
               <button
-                onClick={() => navigate('auth')}
+                onClick={() => goMobile('auth')}
                 className="mt-2 rounded-lg bg-[#bf1646] px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#bf1646]/20"
               >
                 دخول / تسجيل
