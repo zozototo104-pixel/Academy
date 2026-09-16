@@ -158,26 +158,11 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (!authChecked || !user || didAutoRouteRef.current) return
-    const q = new URLSearchParams(window.location.search)
-    if (q.has('view')) {
-      didAutoRouteRef.current = true
-      return
-    }
-    const state = useAppStore.getState()
-    if (user.role === 'ADMIN' && (view === 'home' || view === 'auth')) {
-      didAutoRouteRef.current = true
-      state.navigate('admin')
-    } else if (user.role === 'SUPERVISOR' && (view === 'home' || view === 'auth')) {
-      didAutoRouteRef.current = true
-      state.navigate('supervisor')
-    } else if (user.role !== 'ADMIN' && user.role !== 'SUPERVISOR' && view === 'auth') {
-      didAutoRouteRef.current = true
-      state.navigate('dashboard')
-    } else {
-      didAutoRouteRef.current = true
-    }
-  }, [authChecked, user, view])
+    if (!authChecked || didAutoRouteRef.current) return
+    // بعد شاشة البداية يبقى الزائر في الصفحة الرئيسية كما في الموقع الرسمي.
+    // توجيه الطالب/الإدارة يتم فقط بعد تسجيل الدخول أو عند فتح رابط مباشر فيه ?view=...
+    didAutoRouteRef.current = true
+  }, [authChecked])
 
   const studentOnlyViews = ['dashboard', 'unit', 'exam']
   const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
