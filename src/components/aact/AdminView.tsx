@@ -558,6 +558,7 @@ export function AdminView() {
         value={activeTab}
         onValueChange={(tab) => {
           prefetchAdminTab(tab)
+          prefetchAdminTabData(tab)
           setActiveTab(tab)
         }}
         className="mt-8"
