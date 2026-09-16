@@ -435,7 +435,7 @@ export function Header() {
                     key={n.target}
                     onClick={() => navigate(n.target)}
                     className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
-                      view === n.target ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1] hover:bg-white/10'
+                      view === n.target ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
                     }`}
                   >
                     {n.label}
