@@ -143,15 +143,21 @@ export function AuthView() {
               variant="outline"
               disabled={!!loading}
               onClick={doGoogleLogin}
-              className="mb-4 h-12 w-full rounded-2xl border-slate-200 bg-white text-base font-black text-[#1d2947] shadow-sm hover:bg-slate-50"
+              className="mb-4 h-13 w-full rounded-[1.35rem] border border-[#d9c38a]/45 bg-gradient-to-l from-white via-[#fffdf8] to-[#f7f2e6] text-sm font-black text-[#1d2947] shadow-[0_14px_32px_rgba(29,41,71,0.12)] transition hover:-translate-y-0.5 hover:border-[#b08a38] hover:bg-[#fffaf0] hover:text-[#10213b] disabled:opacity-70"
             >
-              {loading === 'google' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <span className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white font-black text-[#4285f4]">G</span>}
-              الدخول باستخدام Google
+              {loading === 'google' ? (
+                <Loader2 className="ml-2 h-5 w-5 animate-spin text-[#b08a38]" />
+              ) : (
+                <span className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-lg font-black shadow-sm">
+                  <span className="text-[#4285f4]">G</span>
+                </span>
+              )}
+              المتابعة باستخدام Google
             </Button>
             <div className="mb-4 flex items-center gap-3 text-[11px] font-bold text-slate-400">
-              <span className="h-px flex-1 bg-slate-200" />
+              <span className="h-px flex-1 bg-gradient-to-l from-transparent via-slate-200 to-slate-200" />
               أو استخدم البريد الإلكتروني
-              <span className="h-px flex-1 bg-slate-200" />
+              <span className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-slate-200" />
             </div>
 
             <Tabs defaultValue="login" dir="rtl">
