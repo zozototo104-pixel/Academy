@@ -1646,7 +1646,7 @@ export function AdminBooksTab() {
                                 className="h-8 bg-[#0f2b46] text-[10px] font-black text-[#e0b83a] hover:bg-[#12365c]"
                               >
                                 {updatingSourceBookId === b.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
-                                تحديث وقراءة الكتاب
+                                {updatingSourceBookId === b.id && bookUploadProgress !== null ? `رفع ${bookUploadProgress}%` : 'تحديث وقراءة الكتاب'}
                               </Button>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
