@@ -430,26 +430,19 @@ export function HomeView() {
               <ChevronLeft className="mr-1 h-4 w-4" />
             </Button>
           </div>
-          <div className="relative">
-            <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-[#c9a227]/25 to-[#0f2b46]/10 blur-xl" aria-hidden="true" />
-            <div className="relative rounded-[2rem] border border-[#c9a227]/35 bg-white p-5 shadow-xl">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  { v: '+15k', l: 'خريج ومتدرب' },
-                  { v: `${visibleProgramCount || 25}+`, l: 'برنامج وخدمة' },
-                  { v: '+50', l: 'خبير ومستشار' },
-                  { v: '100%', l: 'تدريب تطبيقي' },
-                ].map((s) => (
-                  <div key={s.l} className="rounded-2xl bg-[#faf6ea] p-4 text-center ring-1 ring-[#c9a227]/25">
-                    <p className="text-2xl font-black text-[#a8841a]">{s.v}</p>
-                    <p className="mt-1 text-xs font-black text-[#0f2b46]">{s.l}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 rounded-2xl bg-[#0f2b46] p-4 text-center text-[#f5f0e1]">
-                <AcademyLogo size={76} light className="mx-auto" />
-                <p className="mt-3 text-sm font-black text-[#e0b83a]">Leadership in Excellence</p>
-                <p className="mt-1 text-xs font-bold text-[#f5f0e1]/70">{ACADEMY_INFO.locationAr}</p>
+          <div className="relative min-h-[430px]">
+            <div className="absolute inset-x-10 top-16 h-72 rounded-full bg-[#bf1646]/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute left-0 top-10 w-[78%] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-8 ring-white">
+              <img src={ACADEMY_IMAGES.heroGroup} alt="صورة خريجين من الأكاديمية" className="aspect-[1.05/1] w-full object-cover" />
+            </div>
+            <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
+              <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
+            </div>
+            <div className="absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="h-10 w-px bg-slate-200" />
+                <span className="text-4xl font-black text-[#bf1646]">+15</span>
               </div>
             </div>
           </div>
