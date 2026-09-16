@@ -119,7 +119,7 @@ export function AgentView() {
     setMissingDocs([])
     setLoading(true)
     try {
-      let d: { message: string; invoice?: { invoiceNo: string; amount: number } | null }
+      let d: { message?: string; error?: string; invoice?: { invoiceNo: string; amount: number } | null }
       if (kind === 'ACCREDITATION') {
         const fd = new FormData()
         fd.append('kind', kind)
@@ -134,8 +134,8 @@ export function AgentView() {
           headers: { Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
           body: fd,
         })
-        d = await res.json()
-        if (!res.ok) throw new Error(d.message || 'تعذر إرسال الطلب')
+        d = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
       } else {
         d = await api<{ message: string }>('/api/agent-apply', {
           method: 'POST',
