@@ -409,7 +409,7 @@ export function Header() {
 
       {/* Mobile nav — مجمعة بعناوين أقسام واضحة */}
       {mobileMenuOpen && (
-        <div className="border-t border-white/10 bg-[#0f2b46] px-4 pb-4 pt-2 lg:hidden">
+        <div className="border-t border-white/10 bg-[#1d2947] px-4 pb-4 pt-2 shadow-2xl lg:hidden">
           <div className="flex flex-col gap-1">
             <p className="mb-1 mt-2 text-[10px] font-black text-[#c9a227]/70">الرئيسية والبرامج</p>
             {[
