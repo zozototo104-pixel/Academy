@@ -320,6 +320,7 @@ export function AdminBooksTab() {
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [bookUploadProgress, setBookUploadProgress] = useState<number | null>(null)
   const [sourceLinks, setSourceLinks] = useState<Record<string, string>>({})
   const [sourceFiles, setSourceFiles] = useState<Record<string, File | null>>({})
   const [updatingSourceBookId, setUpdatingSourceBookId] = useState<string | null>(null)
