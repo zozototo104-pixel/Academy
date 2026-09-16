@@ -140,7 +140,6 @@ export default function Home() {
     unlockAudioOnFirstGesture()
 
     // دعم فتح الصفحات مباشرة برابط: /?view=admin أو /?view=verify&serial=...
-    const q = new URLSearchParams(window.location.search)
     const v = q.get('view')
     const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'supervisor', 'student-preview', 'agent-preview', 'verify', 'directory', 'about', 'contact']
     if (v && validViews.includes(v)) {
