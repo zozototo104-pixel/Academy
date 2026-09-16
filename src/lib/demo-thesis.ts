@@ -124,16 +124,69 @@ export async function ensureDemoThesisStudent(options: { resetDefense?: boolean;
     },
   })
 
+  const units = await db.unit.findMany({
+    where: { programId: program.id },
+    include: { exam: { include: { questions: { select: { id: true, points: true }, orderBy: { order: 'asc' } } } } },
+    orderBy: { order: 'asc' },
+  })
+  const completedUnitIds = units.map((unit) => unit.id)
+
   await db.enrollment.upsert({
     where: { userId_programId: { userId: student.id, programId: program.id } },
-    update: { status: 'ACTIVE' },
+    update: { status: 'ACTIVE', completedUnits: JSON.stringify(completedUnitIds) },
     create: {
       userId: student.id,
       programId: program.id,
       status: 'ACTIVE',
-      completedUnits: '[]',
+      completedUnits: JSON.stringify(completedUnitIds),
     },
   })
+
+  // الطالب التجريبي الخاص بالمناقشة يجب أن يكون قد اجتاز كل امتحانات الوحدات والفصول حتى تفتح له بوابة البحث والفيديو كونفرنس.
+  for (const unit of units) {
+    if (!unit.exam) continue
+    const existing = await db.examAttempt.findFirst({ where: { userId: student.id, examId: unit.exam.id, passed: true }, select: { id: true } })
+    if (existing) continue
+    await db.examAttempt.create({
+      data: {
+        userId: student.id,
+        examId: unit.exam.id,
+        score: 94,
+        passed: true,
+        status: 'GRADED',
+        aiGraded: true,
+        submittedAt: plusDays(-35),
+        feedback: JSON.stringify({
+          summary: 'اجتياز تجريبي كامل لفتح مرحلة بحث التخرج والمناقشة.',
+          strengths: ['استيعاب محاور البرنامج', 'قدرة على الربط والتحليل'],
+          improvements: ['الاستعداد لمناقشة البحث أمام اللجنة'],
+        }),
+      },
+    })
+  }
+
+  const semesterExams = await db.programExam.findMany({ where: { programId: program.id, status: 'READY' }, select: { id: true, title: true } })
+  for (const exam of semesterExams) {
+    const existing = await db.programExamAttempt.findFirst({ where: { userId: student.id, examId: exam.id, passed: true }, select: { id: true } })
+    if (existing) continue
+    await db.programExamAttempt.create({
+      data: {
+        userId: student.id,
+        examId: exam.id,
+        score: 93,
+        finalScore: 93,
+        passed: true,
+        status: 'GRADED',
+        durationUsedMin: 88,
+        submittedAt: plusDays(-28),
+        feedback: JSON.stringify({
+          summary: `اجتاز الطالب الامتحان الفصلي التجريبي: ${exam.title}`,
+          strengths: ['إجابات منظمة', 'تطبيق مهني واضح'],
+          improvements: ['توسيع أمثلة التطبيق في البحث النهائي'],
+        }),
+      },
+    })
+  }
 
   await db.payment.upsert({
     where: { invoiceNo: DEMO_INVOICE },
