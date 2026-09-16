@@ -26,14 +26,12 @@ export interface KnowledgeBuildResult {
 
 const KNOWLEDGE_CATEGORIES = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED'] as const
 const CATEGORY_SET = new Set<string>(KNOWLEDGE_CATEGORIES)
-const MAX_ITEMS_PER_BOOK = 36
-// العدد المفضل يجب أن يكون عميقاً وغير مكرر، لا 28 بنداً ممدداً بحشو حتمي.
-const RICH_ITEMS_PER_BOOK_TARGET = 18
-const MIN_ACCEPTABLE_AI_ITEMS = 10
-const PREFERRED_AI_MIN_ITEMS = 12
-const PREFERRED_AI_MAX_ITEMS = 18
-const MIN_CONTEXT_KNOWLEDGE_ITEMS = 12
-const MIN_AI_CATEGORY_DIVERSITY = 4
+// سقف أمان تقني فقط إذا رجع النموذج مئات العناصر؛ لا نطلب من Gemini رقماً محدداً.
+const MAX_ITEMS_PER_BOOK = 80
+const RICH_ITEMS_PER_BOOK_TARGET = MAX_ITEMS_PER_BOOK
+const MIN_ACCEPTABLE_AI_ITEMS = 1
+const MIN_CONTEXT_KNOWLEDGE_ITEMS = 1
+const MIN_AI_CATEGORY_DIVERSITY = 1
 const AI_SAMPLE_SEEDS = 30
 const METADATA_ITEMS_TARGET = 20
 // تعريف احتياطي يمنع كسر نسخة Vercel إذا بقيت دالة مبنية من commit سابق تشير لهذا الثابت.
