@@ -11,6 +11,7 @@ interface GeminiCallOpts {
   history: GeminiTurn[]
   temperature?: number
   thinkingBudget?: number
+  thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
 }
 
