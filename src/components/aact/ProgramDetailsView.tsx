@@ -126,17 +126,52 @@ function StatCard({ icon: Icon, label, value }: { icon: any; label: string; valu
 
 export function ProgramDetailsView() {
   const { programDetailsId, user, navigate, openApply, openProgram } = useAppStore()
-  const [programs, setPrograms] = useState<Program[]>([])
+  const [programs, setPrograms] = useState<Program[]>(() => readCachedPrograms())
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
   useEffect(() => {
-    api<{ programs: Program[] }>('/api/programs')
-      .then((d) => setPrograms(d.programs || []))
-      .catch(() => toast({ title: 'خطأ', description: 'تعذر تحميل تفاصيل البرنامج أو الخدمة', variant: 'destructive' }))
-      .finally(() => setLoading(false))
+    let alive = true
+    const cached = readCachedPrograms()
+    const cachedMatch = cached.some((p) => p.id === programDetailsId || p.slug === programDetailsId)
+
+    if (cached.length) {
+      setPrograms(cached)
+      if (cachedMatch) setLoading(false)
+    }
+
+    if (!programDetailsId) {
+      setLoading(false)
+      return () => { alive = false }
+    }
+
+    const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}`
+    api<{ program?: Program | null; programs?: Program[] }>(detailUrl)
+      .then((d) => {
+        if (!alive) return
+        const detail = d.program || d.programs?.[0]
+        if (!detail) return
+        setPrograms((prev) => {
+          const base = prev.length ? prev : cached
+          const exists = base.some((p) => p.id === detail.id || p.slug === detail.slug || p.id === programDetailsId || p.slug === programDetailsId)
+          const next = exists
+            ? base.map((p) => (p.id === detail.id || p.slug === detail.slug || p.id === programDetailsId || p.slug === programDetailsId ? { ...p, ...detail } : p))
+            : [detail, ...base]
+          cachePrograms(next)
+          return next
+        })
+      })
+      .catch(() => {
+        if (!alive || cachedMatch) return
+        toast({ title: 'خطأ', description: 'تعذر تحميل تفاصيل البرنامج أو الخدمة', variant: 'destructive' })
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+
+    return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [programDetailsId])
 
   useEffect(() => {
     if (!programDetailsId && !loading) navigate('programs')
