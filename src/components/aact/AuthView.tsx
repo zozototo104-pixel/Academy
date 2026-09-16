@@ -40,7 +40,7 @@ export function AuthView() {
     }
   }
 
-  const doRegister = async (e?: React.FormEvent) => {
+  const doRegister = async (e?: FormEvent) => {
     e?.preventDefault()
     setLoading('register')
     try {
