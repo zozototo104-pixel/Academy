@@ -885,7 +885,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* Recent attempts */}
-        <TabsContent value="attempts" forceMount>
+        <TabsContent value="attempts">
           <Card className="mt-4 border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
