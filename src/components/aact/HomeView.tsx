@@ -294,8 +294,8 @@ export function HomeView() {
                 </div>
               ))}
             </div>
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#0f2b46] to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#0f2b46] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#1d2947] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#1d2947] to-transparent" />
           </div>
         </div>
       </div>
