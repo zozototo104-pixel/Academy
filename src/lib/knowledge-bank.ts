@@ -1072,6 +1072,236 @@ async function createKnowledgeRows(programId: string, bookId: string | null, ite
   return data.length
 }
 
+function looksLikeKnowledgeHeading(line: string) {
+  const clean = cleanText(line, 140)
+  if (!clean || clean.length > 120) return false
+  const n = norm(clean)
+  const starters = ['الباب', 'الفصل', 'الوحدة', 'المبحث', 'المحور', 'القسم', 'chapter', 'part', 'unit', 'section']
+  return starters.some((s) => n.startsWith(norm(s) + ' ') || n === norm(s))
+}
+
+function knowledgeUnitTitle(text: string, index: number) {
+  const lines = text.split(/\n+/).map((line) => cleanText(line, 120)).filter(Boolean)
+  const heading = lines.find((line) => looksLikeKnowledgeHeading(line))
+  if (heading && !looksLikeBrokenAcademicOutput(heading, { allowShort: true })) return heading
+  const label = conciseAcademicLabel(lines.slice(0, 4).join(' '), '', 90)
+  if (label && !looksLikeBrokenAcademicOutput(label, { allowShort: true })) return label
+  return `وحدة معرفة ${index + 1}`
+}
+
+function mergeKnowledgeUnitsToLimit(units: KnowledgeUnit[]) {
+  const valid = units.filter((unit) => isPotentialBookContent(unit.text) && !looksLikeBrokenKnowledgeSource(unit.text))
+  if (valid.length <= MAX_KNOWLEDGE_UNITS_PER_BUILD) return valid.map((unit, i) => ({ ...unit, index: i }))
+  const groupSize = Math.ceil(valid.length / MAX_KNOWLEDGE_UNITS_PER_BUILD)
+  const merged: KnowledgeUnit[] = []
+  for (let i = 0; i < valid.length; i += groupSize) {
+    const group = valid.slice(i, i + groupSize)
+    const text = cleanText(group.map((u) => u.text).join('\n\n'), UNIT_MAX_CHARS)
+    if (isPotentialBookContent(text) && !looksLikeBrokenKnowledgeSource(text)) {
+      merged.push({
+        index: merged.length,
+        title: group.length === 1 ? group[0].title : `${group[0].title} — ${group[group.length - 1].title}`,
+        text,
+      })
+    }
+  }
+  return merged
+}
+
+function splitBookIntoKnowledgeUnits(text: string): KnowledgeUnit[] {
+  const cleaned = cleanKnowledgeSourceText(text, 180000) || cleanText(text, 180000)
+  if (!cleaned || cleaned.length < 700) return []
+
+  const lines = cleaned.split(/\n+/).map((line) => cleanText(line, 900)).filter(Boolean)
+  const headingIndexes = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => looksLikeKnowledgeHeading(line))
+
+  if (headingIndexes.length >= 2) {
+    const headed: KnowledgeUnit[] = []
+    for (let h = 0; h < headingIndexes.length; h++) {
+      const start = headingIndexes[h].index
+      const end = h + 1 < headingIndexes.length ? headingIndexes[h + 1].index : lines.length
+      const body = cleanText(lines.slice(start, end).join('\n'), UNIT_MAX_CHARS)
+      if (body.length >= 700 && isPotentialBookContent(body) && !looksLikeBrokenKnowledgeSource(body)) {
+        headed.push({ index: headed.length, title: cleanText(headingIndexes[h].line, 140), text: body })
+      }
+    }
+    const merged = mergeKnowledgeUnitsToLimit(headed)
+    if (merged.length) return merged
+  }
+
+  const blocks = cleaned
+    .split(/\n{2,}/)
+    .flatMap((block) => splitLongSeedBlock(block, 2200))
+    .map((block) => cleanText(block, 2200))
+    .filter((block) => block.length >= 160 && isPotentialBookContent(block) && !looksLikeBrokenKnowledgeSource(block))
+
+  if (!blocks.length) {
+    return mergeKnowledgeUnitsToLimit(splitLongSeedBlock(cleaned, UNIT_MAX_CHARS).map((text, index) => ({
+      index,
+      title: knowledgeUnitTitle(text, index),
+      text: cleanText(text, UNIT_MAX_CHARS),
+    })))
+  }
+
+  const total = blocks.reduce((sum, block) => sum + block.length, 0)
+  const targetSize = Math.min(UNIT_MAX_CHARS, Math.max(3800, Math.ceil(total / MAX_KNOWLEDGE_UNITS_PER_BUILD)))
+  const units: KnowledgeUnit[] = []
+  let buffer: string[] = []
+  let size = 0
+  const flush = () => {
+    const text = cleanText(buffer.join('\n\n'), UNIT_MAX_CHARS)
+    if (text.length >= 700 && isPotentialBookContent(text) && !looksLikeBrokenKnowledgeSource(text)) {
+      units.push({ index: units.length, title: knowledgeUnitTitle(text, units.length), text })
+    }
+    buffer = []
+    size = 0
+  }
+
+  for (const block of blocks) {
+    if (buffer.length && size + block.length > targetSize && size >= 2200) flush()
+    buffer.push(block)
+    size += block.length + 2
+  }
+  if (buffer.length) flush()
+
+  return mergeKnowledgeUnitsToLimit(units)
+}
+
+async function aiKnowledgeItemsFromUnit(
+  program: ProgramMeta,
+  book: RawBookForHydration & { semester?: number | null },
+  unit: KnowledgeUnit,
+  semester?: number | null
+): Promise<KnowledgeItemDraft[]> {
+  const unitText = cleanText(unit.text, UNIT_MAX_CHARS)
+  if (unitText.length < 700 || !isPotentialBookContent(unitText) || looksLikeBrokenKnowledgeSource(unitText)) return []
+  const prompt = `أنت محلل مناهج جامعية. أمامك وحدة/باب واحد من الكتاب المقروء فعلياً. المطلوب استخراج عناصر معرفة من هذا الجزء فقط، دون تأليف ودون الاعتماد على عنوان الكتاب أو وصف البرنامج كبديل.
+
+البرنامج: ${program.titleAr}
+التصنيف: ${program.category || '-'}
+الكتاب: ${book.title}${book.titleEn ? ` / ${book.titleEn}` : ''}
+الفصل الدراسي: ${semester || book.semester || 'عام'}
+الوحدة رقم: ${unit.index + 1}
+عنوان الوحدة التقريبي: ${unit.title}
+
+نص الوحدة المقروء من الكتاب:
+${unitText}
+
+طريقة العمل:
+- اقرأ هذه الوحدة فقط.
+- قسّمها داخلياً إلى أفكارها الفعلية: مفاهيم، تعريفات، نظريات/نماذج، منهجيات، حالات، وبذور أسئلة.
+- لكل فكرة مستقلة ومهمة أنشئ عنصر معرفة مستقل.
+- إذا وجدت فقرة مشوهة أو غير مفهومة داخل الوحدة فتجاوزها فقط، ولا توقف تحليل باقي الوحدة.
+- إذا كانت الوحدة كلها غير مفهومة فأرجع [].
+- لا تخترع باباً أو نظرية أو حالة غير موجودة في النص.
+- لا تنشئ عناصر عامة من نوع: الفكرة المحورية، خطوات التطبيق، أو يمثل هذا المحور.
+- لا تدمج عدة أفكار مستقلة داخل عنصر واحد.
+- لا تكرر الفكرة بصياغات مختلفة.
+
+أرجع JSON فقط كمصفوفة. كل عنصر بهذا الشكل:
+{"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان محدد من هذه الوحدة","summary":"شرح دقيق مبني على نص الوحدة فقط ومربوط بالتخصص دون تأليف","excerpt":"دليل مختصر أو إعادة صياغة أمينة من نص الوحدة","keywords":["كلمة"],"importance":80,"semester":${semester ?? 'null'},"sourceNote":"قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}"}`
+
+  const normalizeUnitItems = (raw: string) => normalizeDrafts(extractJsonArray(raw), [], semester)
+    .map((item) => ({
+      ...item,
+      sourceNote: item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`,
+    }))
+
+  try {
+    const raw = await Promise.race([
+      geminiCompleteJson({
+        system: 'أنت محلل كتب جامعية. أرجع JSON صالحاً فقط، ولا تؤلف أي عنصر غير موجود في نص الوحدة.',
+        history: [{ role: 'user', text: prompt }],
+        temperature: 0.05,
+        maxOutputTokens: 8192,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_GEMINI_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
+    ])
+    const normalized = normalizeUnitItems(raw)
+    if (normalized.length) return normalized
+  } catch (e: any) {
+    console.error(`knowledge unit ${unit.index + 1} Gemini failed:`, String(e?.message || e).slice(0, 240))
+  }
+
+  try {
+    const zai = await getZAI()
+    const raw = await Promise.race([
+      chatWithRetry(zai, [
+        { role: 'assistant', content: 'أنت محلل كتب جامعية يرجع JSON صالحاً فقط ولا يؤلف خارج النص.' },
+        { role: 'user', content: prompt },
+      ], 1),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ZAI_TIMEOUT')), 30000)),
+    ])
+    return normalizeUnitItems(raw)
+  } catch (e: any) {
+    console.error(`knowledge unit ${unit.index + 1} fallback failed:`, String(e?.message || e).slice(0, 240))
+    return []
+  }
+}
+
+async function rebuildKnowledgeForBookByUnits(
+  book: NonNullable<Awaited<ReturnType<typeof db.book.findUnique>>> & { program: ProgramMeta },
+  sourceText: string,
+  semester?: number | null,
+  sourceNote?: string | null
+): Promise<KnowledgeBuildResult> {
+  const units = splitBookIntoKnowledgeUnits(sourceText)
+  if (!units.length) throw new Error('لم يتم العثور على وحدات نصية صالحة داخل الكتاب المرفوع بعد التنظيف.')
+
+  let inserted = 0
+  let deleted = 0
+  let successfulUnits = 0
+  let skippedUnits = 0
+  let firstWrite = false
+  const seen = new Set<string>()
+
+  for (const unit of units) {
+    const rawItems = await aiKnowledgeItemsFromUnit(book.program, book, unit, semester)
+    const uniqueItems: KnowledgeItemDraft[] = []
+    for (const item of rawItems) {
+      const key = norm(`${safeCategory(item.category)} ${item.title} ${item.summary}`).slice(0, 220)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      uniqueItems.push({
+        ...item,
+        semester: item.semester ?? semester ?? null,
+        sourceNote: item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`,
+      })
+    }
+    if (!uniqueItems.length) {
+      skippedUnits++
+      continue
+    }
+    if (!firstWrite) {
+      const res = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
+      deleted = res.count
+      firstWrite = true
+    }
+    const count = await createKnowledgeRows(book.programId, book.id, uniqueItems)
+    if (count > 0) {
+      inserted += count
+      successfulUnits++
+    } else {
+      skippedUnits++
+    }
+  }
+
+  if (!firstWrite || inserted === 0) {
+    throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من أي وحدة في الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة.')
+  }
+
+  return {
+    programId: book.programId,
+    bookId: book.id,
+    inserted,
+    deleted,
+    usedAi: true,
+    sourceNote: `${sourceNote || 'تمت قراءة الكتاب'} — تم تقسيم الكتاب إلى ${units.length} وحدة/باب، وحُفظت عناصر ${successfulUnits} وحدة بنجاح، وتم تجاوز ${skippedUnits} وحدة غير صالحة دون تأليف أو إيقاف كامل التحليل.`,
+  }
+}
+
 export async function rebuildKnowledgeForBook(bookId: string): Promise<KnowledgeBuildResult> {
   const book = await db.book.findUnique({
     where: { id: bookId },
