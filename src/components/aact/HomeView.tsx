@@ -349,19 +349,19 @@ export function HomeView() {
           {/* Stats — عدادات متحركة تبدأ عند الظهور */}
           <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {[
-              { v: 2016, s: '', l: 'تأسست' },
-              { v: 60, s: '+', l: 'ساعة تدريبية بالدبلوم' },
-              { v: 24, s: '/7', l: 'مشرف ذكي متاح دائماً' },
-              { v: 30, s: '', l: 'يوماً لإصدار الشهادة' },
+              { v: 20000, s: '+', l: 'خريج ومتدرب' },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني' },
+              { v: 250, s: '+', l: 'خبير ومستشار' },
+              { v: 50, s: '+', l: 'اعتماد دولي ومحلي' },
             ].map((s) => (
               <div
                 key={s.l}
-                className="rounded-xl border border-[#c9a227]/25 bg-white/5 px-4 py-4 text-center backdrop-blur"
+                className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/90 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
               >
-                <div className="text-2xl font-black text-[#e0b83a] sm:text-3xl">
+                <div className="text-4xl font-black text-white sm:text-5xl">
                   <CountUp to={s.v} suffix={s.s} />
                 </div>
-                <div className="mt-1 text-[11px] font-bold text-[#f5f0e1]/75 sm:text-xs">{s.l}</div>
+                <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
               </div>
             ))}
           </div>
