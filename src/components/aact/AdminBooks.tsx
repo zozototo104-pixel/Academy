@@ -1810,17 +1810,29 @@ export function AdminBooksTab() {
                     </Select>
                   </div>
                   <div className="sm:col-span-2">
-                    <Label className="text-[10px] font-black text-slate-600">ملف الكتاب (PDF / Word / Excel / TXT — يقرأه خبير الذكاء الاصطناعي لبناء الأسئلة، حتى 10 ميجابايت)</Label>
+                    <Label className="text-[10px] font-black text-slate-600">ملف الكتاب (PDF / Word / Excel / TXT — رفع آمن مجزأ حتى 10 ميجابايت)</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <input
                         ref={fileRef}
                         type="file"
                         accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
-                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                        onChange={(e) => {
+                          const picked = e.target.files?.[0] || null
+                          if (picked && picked.size > MAX_BOOK_FILE_SIZE) {
+                            toast({ title: 'حجم الملف كبير', description: 'الحد الحالي لملف الكتاب 10 ميجابايت.', variant: 'destructive' })
+                            e.target.value = ''
+                            setFile(null)
+                            return
+                          }
+                          setFile(picked)
+                        }}
                         className="block w-full max-w-sm text-xs text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-[#0f2b46] file:px-3 file:py-1.5 file:text-[10px] file:font-black file:text-[#e0b83a]"
                       />
                       {file && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><Upload className="ml-1 h-3 w-3" /> {file.name}</Badge>}
                     </div>
+                    {bookUploadProgress !== null && adding && (
+                      <div className="mt-2 text-[10px] font-black text-[#0f2b46]">جاري رفع الملف: {bookUploadProgress}%</div>
+                    )}
                   </div>
                 </div>
                 <Button onClick={() => addBook()} disabled={adding} className="mt-4 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
