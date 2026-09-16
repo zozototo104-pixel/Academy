@@ -21,6 +21,67 @@ import {
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 
 const FULL_EXAM_TARGET = 80
+const MAX_BOOK_FILE_SIZE = 10 * 1024 * 1024
+// أي ملف أكبر من هذا الحد يرفع مجزأ حتى لا يصطدم بحد Vercel 4.5MB لطلبات Functions.
+const DIRECT_BOOK_UPLOAD_LIMIT = 850 * 1024
+const BOOK_UPLOAD_CHUNK_SIZE = 384 * 1024
+
+function makeUploadId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const value = String(reader.result || '')
+      resolve(value.includes(',') ? value.split(',').pop() || '' : value)
+    }
+    reader.onerror = () => reject(reader.error || new Error('تعذر قراءة جزء الملف'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function uploadBookFileInChunks(bookId: string, file: File, onProgress?: (progress: number) => void): Promise<BookRow> {
+  if (file.size > MAX_BOOK_FILE_SIZE) throw new Error('حجم الملف يتجاوز 10 ميجابايت')
+  const uploadId = makeUploadId()
+  const total = Math.max(1, Math.ceil(file.size / BOOK_UPLOAD_CHUNK_SIZE))
+  try {
+    for (let index = 0; index < total; index++) {
+      const start = index * BOOK_UPLOAD_CHUNK_SIZE
+      const end = Math.min(file.size, start + BOOK_UPLOAD_CHUNK_SIZE)
+      const chunk = await blobToBase64(file.slice(start, end))
+      await api('/api/admin/books/upload-chunk', {
+        method: 'POST',
+        body: JSON.stringify({
+          bookId,
+          uploadId,
+          index,
+          total,
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          chunk,
+        }),
+      })
+      onProgress?.(Math.max(1, Math.min(95, Math.round(((index + 1) / total) * 95))))
+    }
+
+    const done = await api<{ book: BookRow }>('/api/admin/books/upload-chunk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'complete', bookId, uploadId }),
+    })
+    onProgress?.(100)
+    return done.book
+  } catch (e) {
+    await api('/api/admin/books/upload-chunk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'abort', bookId, uploadId }),
+    }).catch(() => {})
+    throw e
+  }
+}
 
 interface ProgramOption {
   id: string
