@@ -338,9 +338,9 @@ export function HomeView() {
                 size="lg"
                 variant="outline"
                 onClick={() => navigate(user ? 'chat' : 'auth')}
-                className="border-[#f5f0e1]/40 bg-transparent text-[#f5f0e1] hover:bg-white/10 hover:text-[#f5f0e1]"
+                className="rounded-full border-[#b08a38]/50 bg-[#b08a38]/10 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
               >
-                <Bot className="ml-2 h-5 w-5" />
+                <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
                 المشرف الذكي
               </Button>
             </div>
