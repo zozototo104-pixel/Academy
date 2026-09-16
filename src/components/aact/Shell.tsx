@@ -66,7 +66,7 @@ export function AcademyLogo({
   const sources = ['/icon-192.png', '/apple-touch-icon.png']
   const [srcIndex, setSrcIndex] = useState(0)
   const [failed, setFailed] = useState(false)
-  const ring = light ? 'ring-2 ring-[#c9a227]/70 ring-offset-2 ring-offset-[#0f2b46]' : ''
+  const ring = light ? 'ring-2 ring-[#b08a38]/70 ring-offset-2 ring-offset-[#1d2947]' : ''
 
   if (failed) {
     return (
