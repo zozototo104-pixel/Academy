@@ -2,7 +2,7 @@
 
 import { useAppStore, api, saveToken } from '@/lib/store'
 import { AcademyLogo } from '@/components/aact/Shell'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
