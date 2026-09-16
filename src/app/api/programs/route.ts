@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
     const publicOnly = req.nextUrl.searchParams.get('public') === '1'
     const countOnly = req.nextUrl.searchParams.get('count') === '1'
-    const liteOnly = summaryOnly || publicOnly || countOnly
-    if (!liteOnly) await ensureCoreSeed()
+    const detailId = req.nextUrl.searchParams.get('detail') || req.nextUrl.searchParams.get('id') || req.nextUrl.searchParams.get('slug')
+    const liteOnly = !detailId && (summaryOnly || publicOnly || countOnly)
+    if (!liteOnly && !detailId) await ensureCoreSeed()
 
     if (publicOnly && countOnly) {
       const now = Date.now()
