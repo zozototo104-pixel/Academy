@@ -1653,7 +1653,16 @@ export function AdminBooksTab() {
                               <input
                                 type="file"
                                 accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
-                                onChange={(e) => setSourceFiles((prev) => ({ ...prev, [b.id]: e.target.files?.[0] || null }))}
+                                onChange={(e) => {
+                                  const picked = e.target.files?.[0] || null
+                                  if (picked && picked.size > MAX_BOOK_FILE_SIZE) {
+                                    toast({ title: 'حجم الملف كبير', description: 'الحد الحالي لملف الكتاب 10 ميجابايت.', variant: 'destructive' })
+                                    e.target.value = ''
+                                    setSourceFiles((prev) => ({ ...prev, [b.id]: null }))
+                                    return
+                                  }
+                                  setSourceFiles((prev) => ({ ...prev, [b.id]: picked }))
+                                }}
                                 className="block w-full max-w-md text-[10px] text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-[#0f2b46] file:px-3 file:py-1.5 file:text-[10px] file:font-black file:text-[#e0b83a]"
                               />
                               {sourceFiles[b.id] && (
