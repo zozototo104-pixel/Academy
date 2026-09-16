@@ -283,40 +283,40 @@ export function Header() {
         <nav className="hidden items-center gap-0.5 lg:flex" aria-label="التنقل الرئيسي">
           <button
             onClick={() => navigate('home')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              view === 'home' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'home' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
             }`}
           >
             الرئيسية
           </button>
           <button
             onClick={() => navigate('programs')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              (view === 'programs' || view === 'program-detail') ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              (view === 'programs' || view === 'program-detail') ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
             }`}
           >
             البرامج والخدمات
           </button>
           <button
             onClick={() => navigate('verify')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              view === 'verify' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'verify' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
             }`}
           >
             الشهادات
           </button>
           <button
             onClick={() => navigate('about')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              view === 'about' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'about' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
             }`}
           >
             من نحن
           </button>
           <button
             onClick={() => navigate('apply')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              view === 'apply' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'apply' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
             }`}
           >
             طلب الالتحاق
