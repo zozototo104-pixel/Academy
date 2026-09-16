@@ -145,7 +145,7 @@ export function ProgramDetailsView() {
       return () => { alive = false }
     }
 
-    const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}`
+    const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}${user ? '' : '&public=1'}`
     api<{ program?: Program | null; programs?: Program[] }>(detailUrl)
       .then((d) => {
         if (!alive) return
