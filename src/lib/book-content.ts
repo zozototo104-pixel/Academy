@@ -237,6 +237,13 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
   }
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
+    if (buffer.byteLength > MAX_INLINE_GEMINI_DOCUMENT_BYTES) {
+      return {
+        text: '',
+        note: `${extracted.note || 'لم يخرج نص كافٍ من الملف'} — تم تخطي القراءة البصرية الفورية لأن الملف كبير؛ سيُبنى بنك معرفة أولي من بيانات الكتاب والبرنامج بدلاً من تعطيل الإدارة.`,
+        quality: 'NO_CONTENT',
+      }
+    }
     const visual = await readVisualDocumentWithGemini(buffer, effectiveMime, book)
     if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
       return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: visual.note, quality: 'GEMINI_DOCUMENT' }
