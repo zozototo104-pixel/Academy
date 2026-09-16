@@ -284,11 +284,11 @@ export function HomeView() {
                         if (f.slug) return openProgramDetails(f.slug)
                         return openPrograms(f.filter || 'ALL')
                       }}
-                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#c9a227]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-[#f5f0e1] transition hover:border-[#c9a227] hover:bg-[#c9a227]/15 sm:text-[11px]"
+                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
                     >
-                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#e0b83a] transition group-hover:scale-110" />
+                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
                       <span>{f.t}</span>
-                      {f.hint && <span className="hidden text-[9px] font-black text-[#c9a227] sm:inline">· {f.hint}</span>}
+                      {f.hint && <span className="hidden text-[9px] font-black text-[#d2ad5a] sm:inline">· {f.hint}</span>}
                     </button>
                   ))}
                 </div>
