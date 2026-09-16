@@ -110,7 +110,16 @@ export default function Home() {
   // Load current user on mount
   useEffect(() => {
     let alive = true
-    const currentView = new URLSearchParams(window.location.search).get('view') || view
+    const q = new URLSearchParams(window.location.search)
+    const oauthToken = q.get('authToken')
+    if (oauthToken) {
+      saveToken(oauthToken)
+      q.delete('authToken')
+      q.delete('oauth')
+      const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
+      window.history.replaceState(null, '', cleanUrl)
+    }
+    const currentView = q.get('view') || view
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     api<{ user: any }>('/api/auth/me')
       .then((d) => {
