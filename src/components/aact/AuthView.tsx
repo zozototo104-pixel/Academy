@@ -16,10 +16,24 @@ import {
 export function AuthView() {
   const { setUser, navigate } = useAppStore()
   const { toast } = useToast()
-  const [loading, setLoading] = useState<'login' | 'register' | null>(null)
+  const [loading, setLoading] = useState<'login' | 'register' | 'google' | null>(null)
 
   const [loginData, setLoginData] = useState({ email: '', password: '' })
   const [regData, setRegData] = useState({ name: '', email: '', password: '', phone: '', country: '' })
+
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get('oauth_error')
+    if (!error) return
+    const message = error === 'google_not_configured'
+      ? 'يجب إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في Vercel لتفعيل الدخول عبر Google.'
+      : 'تعذر تسجيل الدخول عبر Google. جرّب مرة أخرى أو استخدم البريد وكلمة المرور.'
+    toast({ title: 'Google Login', description: message, variant: 'destructive' })
+  }, [toast])
+
+  const doGoogleLogin = () => {
+    setLoading('google')
+    window.location.href = '/api/auth/google'
+  }
 
   const doLogin = async (e?: FormEvent) => {
     e?.preventDefault()
