@@ -323,12 +323,20 @@ function buildContents(history: GeminiTurn[]) {
   return history.filter((t) => t.text?.trim()).map((t) => ({ role: t.role, parts: [{ text: t.text }] }))
 }
 
-function textConfig(opts: GeminiCallOpts, json = false): Record<string, unknown> {
+function textConfig(opts: GeminiCallOpts, json = false, modelName?: string): Record<string, unknown> {
+  const model = normalizeGeminiModelName(modelName)
   const config: Record<string, unknown> = {
     systemInstruction: opts.system,
     temperature: opts.temperature ?? (json ? 0.35 : 0.85),
     maxOutputTokens: opts.maxOutputTokens ?? (json ? 2048 : 4096),
   }
+  const thinkingConfig: Record<string, unknown> = {}
+  if (opts.thinkingLevel && /^gemini-3\./i.test(model)) {
+    thinkingConfig.thinkingLevel = opts.thinkingLevel
+  } else if (typeof opts.thinkingBudget === 'number' && /^gemini-2\.5/i.test(model)) {
+    thinkingConfig.thinkingBudget = opts.thinkingBudget
+  }
+  if (Object.keys(thinkingConfig).length) config.thinkingConfig = thinkingConfig
   if (json) config.responseMimeType = 'application/json'
   return config
 }
