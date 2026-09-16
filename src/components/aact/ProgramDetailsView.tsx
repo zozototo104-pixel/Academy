@@ -129,7 +129,7 @@ function StatCard({ icon: Icon, label, value }: { icon: any; label: string; valu
   )
 }
 
-function DetailSection({ title, icon: Icon, children, accent = false }: { title: string; icon: any; children: React.ReactNode; accent?: boolean }) {
+function DetailSection({ title, icon: Icon, children, accent = false }: { title: string; icon: any; children: ReactNode; accent?: boolean }) {
   return (
     <section className={`rounded-[1.8rem] border p-5 shadow-2xl shadow-black/10 backdrop-blur ${accent ? 'border-[#b08a38]/35 bg-[#b08a38]/10' : 'border-white/10 bg-white/[0.055]'}`}>
       <h2 className="mb-4 flex items-center gap-2 text-lg font-black text-white">
