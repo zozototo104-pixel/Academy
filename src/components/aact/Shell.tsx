@@ -72,7 +72,7 @@ export function AcademyLogo({
     return (
       <span
         aria-label="شعار الأكاديمية الأمريكية للاستشارات والتدريب — AACT"
-        className={`flex shrink-0 select-none items-center justify-center rounded-full border-2 border-[#c9a227] bg-[#0f2b46] text-center font-black leading-none text-[#e0b83a] ${ring} ${className}`}
+        className={`flex shrink-0 select-none items-center justify-center rounded-full border-2 border-[#b08a38] bg-[#1d2947] text-center font-black leading-none text-[#d2ad5a] ${ring} ${className}`}
         style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.28)) }}
       >
         AACT
