@@ -457,6 +457,8 @@ export function AdminBooksTab() {
           ? 'أُضيف الكتاب المقترح كمرجع مقرر دون رابط قراءة مباشر. لن يدخل بنك المعرفة أو الامتحانات حتى ترفع ملفه أو تضيف رابط PDF/TXT/HTML مفتوح.'
           : d.linkReadStatus === 'SEARCH_LINK_ONLY'
           ? 'أُضيف الرابط كفهرس/بحث فقط. لكي يقرأه المشرف والامتحانات فعلياً ارفع ملف الكتاب أو ضع رابط PDF/نص مباشر.'
+          : d.linkReadStatus === 'FILE_UPLOADED'
+          ? 'تم حفظ ملف الكتاب بسرعة. اضغط بناء/تحديث بنك المعرفة ليبدأ التحليل والاستخراج.'
           : d.knowledgeItemsInserted && (d.linkReadStatus === 'FILE_EXTRACTED' || d.linkReadStatus === 'TEXT_EXTRACTED')
             ? `تمت قراءة الكتاب وبناء ${d.knowledgeItemsInserted} عنصر معرفة للامتحانات والمشرف الذكي`
             : d.textExtracted
