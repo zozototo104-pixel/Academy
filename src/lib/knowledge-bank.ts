@@ -110,6 +110,8 @@ export function looksLikeBrokenAcademicOutput(value: unknown, opts: { allowShort
     'يحول هذا العنصر', 'يحوّل هذا العنصر', 'يعرض هذا العنصر', 'خلاصه محوريه من النص', 'خلاصة محورية من النص',
     'الدليل المقروء', 'شرح بلغه اكاديميه واضحه', 'ربط بحاله مهنيه',
     'اي عباره تفسر بصوره ادق دلاله', 'كيف يمكن فهم فكره', 'لا تستخدم رموزا تقنيه',
+    'يمثل هذا المحور ماده صالحه', 'يمثل هذا المحور مادة صالحة', 'تظهر الفكره في القراءه من خلال', 'تظهر الفكرة في القراءة من خلال',
+    'مخطط معرفي شامل وبنك افكار امتحاني', 'textcontent', '\\n\\n',
     'google books', 'books google', 'goodreads', 'worldcat', 'tbm bks',
     'libro de la guerra', 'tratado de la perfeccion', 'tratado de la perfección', 'lehrsätze', 'lehrs atze',
     'vellena', 'bonapert', 'بونابرت رجاء الكتاب', 'كتاب الثاين', 'الكتاب ويف', 'كتاب احرب',
