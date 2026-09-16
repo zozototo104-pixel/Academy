@@ -320,19 +320,19 @@ export function HomeView() {
             <div className="mt-7 flex flex-wrap gap-3">
               <Button
                 size="lg"
-                onClick={() => navigate('apply')}
-                className="bg-[#c9a227] text-[#0f2b46] shadow-lg hover:bg-[#e0b83a]"
+                onClick={() => navigate('programs')}
+                className="rounded-full border-2 border-[#bf1646] bg-transparent px-8 text-white shadow-lg shadow-[#bf1646]/20 hover:bg-[#bf1646]"
               >
-                قدّم طلب الالتحاق
+                استكشف برامجنا
                 <ChevronLeft className="mr-1 h-4 w-4" />
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() => navigate('programs')}
-                className="border-[#f5f0e1]/40 bg-transparent text-[#f5f0e1] hover:bg-white/10 hover:text-[#f5f0e1]"
+                onClick={() => navigate('apply')}
+                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
               >
-                استكشف الخدمات والبرامج ({programCountLabel})
+                قدّم طلب الالتحاق
               </Button>
               <Button
                 size="lg"
