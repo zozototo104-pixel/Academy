@@ -348,6 +348,15 @@ async function main() {
   }
   console.log('  ✓ Default settings seeded')
 
+  // حسابات اختبار كاملة على أي قاعدة بيانات جديدة: إدارة، طالب قيد الدراسة، طالب جاهز للبحث والمناقشة، ومشرف.
+  try {
+    const { ensurePlatformDemoAccounts } = await import('../src/lib/demo-accounts')
+    await ensurePlatformDemoAccounts({ resetDefense: true })
+    console.log('  ✓ Platform demo accounts seeded/refreshed')
+  } catch (e) {
+    console.error('  ⚠ Demo accounts seed skipped:', e)
+  }
+
   console.log('✅ Seeding complete!')
 }
 
