@@ -192,6 +192,7 @@ const assignmentTypeLabel = (type: string) => ASSIGNMENT_TYPE_AR[String(type || 
 const CAT_AR: Record<string, string> = { DOCTORATE: 'الدكتوراه المهنية', MASTERS: 'الماجستير المهني', DIPLOMA: 'الدبلومات المهنية', INTL_CERT: 'الشهادات الدولية', ACCREDITATION: 'اعتماد' }
 const CAT_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION']
 const LINK_READ_META: Record<string, { label: string; cls: string }> = {
+  FILE_UPLOADED: { label: 'ملف محفوظ', cls: 'bg-blue-100 text-blue-700' },
   FILE_EXTRACTED: { label: 'مقروء من ملف', cls: 'bg-emerald-100 text-emerald-700' },
   TEXT_EXTRACTED: { label: 'مقروء من رابط مباشر', cls: 'bg-emerald-100 text-emerald-700' },
   SEARCH_LINK_ONLY: { label: 'رابط بحث فقط', cls: 'bg-amber-100 text-amber-700' },
