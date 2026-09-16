@@ -273,7 +273,7 @@ export function Header() {
             <div className="text-[13px] font-extrabold text-[#f5f0e1] sm:text-sm">
               الأكاديمية الأمريكية
             </div>
-            <div className="text-[10px] font-semibold text-[#c9a227] sm:text-[11px]">
+            <div className="text-[10px] font-semibold tracking-[0.08em] text-[#d2ad5a] sm:text-[11px]">
               للاستشارات والتدريب — EST. 2016
             </div>
           </div>
