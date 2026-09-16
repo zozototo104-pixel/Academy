@@ -123,15 +123,16 @@
 
 /* ===== AACT Platform Custom Styles ===== */
 :root {
-  --aact-navy: #0f2b46;
-  --aact-navy-2: #12365c;
-  --aact-navy-3: #1a4a7a;
-  --aact-gold: #c9a227;
-  --aact-gold-2: #e0b83a;
-  --aact-gold-soft: #f7edd0;
-  --aact-red: #b22234;
-  --aact-cream: #f5f0e1;
-  --aact-cream-2: #faf6ea;
+  --aact-navy: #1d2947;
+  --aact-navy-2: #273452;
+  --aact-navy-3: #334261;
+  --aact-gold: #b08a38;
+  --aact-gold-2: #d2ad5a;
+  --aact-gold-soft: #f4ead7;
+  --aact-red: #bf1646;
+  --aact-red-2: #8d1b32;
+  --aact-cream: #f8f8fb;
+  --aact-cream-2: #eef0f5;
 }
 
 .font-cairo {
