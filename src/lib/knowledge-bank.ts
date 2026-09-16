@@ -876,7 +876,8 @@ function bookMimeForVision(book: RawBookForHydration) {
 
 function canReadBookFileWithGemini(book: RawBookForHydration) {
   const mime = bookMimeForVision(book)
-  return !!book.data && (mime.includes('pdf') || mime.startsWith('image/'))
+  const approxBytes = Number(book.size || 0) || Math.floor(String(book.data || '').length * 0.75)
+  return !!book.data && approxBytes <= MAX_DIRECT_FILE_AI_BYTES && (mime.includes('pdf') || mime.startsWith('image/'))
 }
 
 async function aiKnowledgeItemsFromUploadedFile(
