@@ -503,7 +503,7 @@ export function Header() {
             ) : (
               <button
                 onClick={() => navigate('auth')}
-                className="mt-2 rounded-lg bg-[#c9a227] px-4 py-3 text-sm font-extrabold text-[#0f2b46]"
+                className="mt-2 rounded-lg bg-[#bf1646] px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#bf1646]/20"
               >
                 دخول / تسجيل
               </button>
