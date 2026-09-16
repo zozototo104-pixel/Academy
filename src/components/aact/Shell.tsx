@@ -223,6 +223,10 @@ export function Header() {
   ]
 
   const isActiveGroup = (targets: any[]) => targets.includes(view)
+  const goMobile = (target: any) => {
+    setMobileMenuOpen(false)
+    navigate(target)
+  }
 
   const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: { label: string; target: any; desc: string }[]; groupTargets: any[]; gold?: boolean }) => {
     const [open, setOpen] = useState(false)
