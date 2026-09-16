@@ -1227,7 +1227,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* 12.1: سجل المشرف الذكي — متاح للمشرف البشري والإدارة */}
-        <TabsContent value="ai">
+        <TabsContent value="ai" forceMount>
           <AdminAITab />
         </TabsContent>
 
