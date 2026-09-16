@@ -508,12 +508,7 @@ export function Header() {
                 دخول / تسجيل
               </button>
             )}
-            <button
-              onClick={() => navigate('contact')}
-              className="mt-2 rounded-lg border border-[#c9a227]/40 px-4 py-3 text-right text-sm font-bold text-[#c9a227] hover:bg-white/10"
-            >
-              تواصل معنا
-            </button>
+
           </div>
         </div>
       )}
