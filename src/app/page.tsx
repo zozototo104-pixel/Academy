@@ -248,8 +248,8 @@ export default function Home() {
           </>
         )}
       </main>
-      {effectiveView !== 'chat' && <Footer />}
-      <FloatingActions />
+      {showChrome && effectiveView !== 'chat' && <Footer />}
+      {showChrome && <FloatingActions />}
     </div>
   )
 }
