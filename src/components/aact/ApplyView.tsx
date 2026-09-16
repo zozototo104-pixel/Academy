@@ -189,9 +189,32 @@ export function ApplyView() {
   const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
 
   useEffect(() => {
-    api<{ programs: ProgramLite[] }>('/api/programs')
-      .then((d) => setPrograms(d.programs || []))
-      .catch(() => toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' }))
+    let alive = true
+    let hadCache = false
+
+    const cached = readCachedPrograms()
+    if (cached.length) {
+      hadCache = true
+      setPrograms(cached)
+    }
+
+    fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ programs: ProgramLite[] }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const list = Array.isArray(d.programs) ? d.programs : []
+        setPrograms(list)
+        cachePrograms(list)
+      })
+      .catch(() => {
+        if (!alive || hadCache) return
+        toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' })
+      })
+
+    return () => { alive = false }
   }, [toast])
 
   useEffect(() => {
