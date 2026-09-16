@@ -41,9 +41,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(publicProgramsSummaryCache.payload, { headers: publicCacheHeaders() })
     }
 
+    const programWhere = detailId
+      ? { active: true, OR: [{ id: detailId }, { slug: detailId }] }
+      : { active: true }
+
     const rows: any[] = liteOnly
       ? await db.program.findMany({
-          where: { active: true },
+          where: programWhere,
           orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
           select: {
             id: true,
