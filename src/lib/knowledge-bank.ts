@@ -1089,6 +1089,45 @@ function knowledgeUnitTitle(text: string, index: number) {
   return `وحدة معرفة ${index + 1}`
 }
 
+function knowledgeCoverageAnchors(text: string) {
+  const cleaned = cleanText(text, UNIT_MAX_CHARS)
+  const lines = cleaned
+    .split(/\n+/)
+    .map((line) => cleanText(line, 220))
+    .filter(Boolean)
+  const anchors: string[] = []
+  const seen = new Set<string>()
+  const push = (value: string) => {
+    const item = cleanText(value, 180)
+    if (!item || item.length < 14 || looksLikeBrokenAcademicOutput(item, { allowShort: true })) return
+    const key = norm(item).slice(0, 90)
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    anchors.push(item)
+  }
+
+  for (const line of lines) {
+    const structural = looksLikeKnowledgeHeading(line)
+      || /^[\s\d٠-٩]+[).\-–]/u.test(line)
+      || /^[\s]*[أ-يA-Za-z][).\-–]/u.test(line)
+      || /[:：؛]/u.test(line)
+      || (line.length <= 95 && line.split(/\s+/).length >= 3)
+    if (structural) push(line)
+  }
+
+  const blocks = cleaned
+    .split(/\n{2,}|(?<=[.!؟؛])\s+(?=[\p{L}])/gu)
+    .map((block) => cleanText(block, 420))
+    .filter((block) => block.length >= 140 && isPotentialBookContent(block) && !looksLikeBrokenKnowledgeSource(block))
+
+  for (const block of blocks) {
+    const label = conciseAcademicLabel(block, '', 120)
+    if (label) push(label)
+  }
+
+  return anchors.slice(0, 36)
+}
+
 function mergeKnowledgeUnitsToLimit(units: KnowledgeUnit[]) {
   const valid = units.filter((unit) => isPotentialBookContent(unit.text) && !looksLikeBrokenKnowledgeSource(unit.text))
   if (valid.length <= MAX_KNOWLEDGE_UNITS_PER_BUILD) return valid.map((unit, i) => ({ ...unit, index: i }))
