@@ -383,7 +383,7 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
   for (const model of await textModelChain()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts) })
+        const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts, false, model) })
         for await (const chunk of stream) {
           const text = (chunk as any).text as string | undefined
           if (text) yield text
