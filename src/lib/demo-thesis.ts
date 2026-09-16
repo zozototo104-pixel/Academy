@@ -1,5 +1,5 @@
 import { db } from './db'
-import { hashPassword } from './auth'
+import { hashPassword } from './password'
 import { audit, notify } from './notify'
 
 export const DEMO_THESIS_STUDENT_EMAIL = 'demo.thesis@student.aact.academy'
