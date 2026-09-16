@@ -248,19 +248,63 @@ export async function geminiDiscussionThinkingLevel(): Promise<GeminiThinkingLev
   return normalizeGeminiThinkingLevel(dbDiscussionThinkingLevelCache || process.env.GEMINI_DISCUSSION_THINKING_LEVEL || 'high')
 }
 
-export async function geminiLiveConnectConfig(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<Record<string, unknown>> {
+export async function geminiLiveConnectConfig(
+  purpose: GeminiLivePurpose = 'SUPERVISOR',
+  modelName?: string
+): Promise<Record<string, unknown>> {
   const voice = await geminiTTSVoice()
+  const model = normalizeGeminiModelName(modelName || await geminiActiveLiveModel(purpose))
   const config: Record<string, unknown> = {
     responseModalities: ['AUDIO'],
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-    enableAffectiveDialog: true,
-    proactivity: { proactiveAudio: purpose === 'SUPERVISOR' },
     realtimeInputConfig: { automaticActivityDetection: { disabled: false } },
   }
-  if (purpose === 'DISCUSSION') {
+
+  // مميزات Live الحديثة تُفعّل فقط مع عائلة Gemini 3 لتجنب INVALID_ARGUMENT عند الرجوع إلى بدائل 2.5.
+  const isGemini3Live = /^gemini-3\./i.test(model) && /live/i.test(model)
+  const isGemini25Live = /^gemini-2\.5/i.test(model) && /live/i.test(model)
+  if (isGemini3Live) {
+    config.enableAffectiveDialog = true
+    if (purpose === 'SUPERVISOR') config.proactivity = { proactiveAudio: true }
+  }
+  if (purpose === 'DISCUSSION' && !isGemini25Live) {
     config.thinkingConfig = { thinkingLevel: await geminiDiscussionThinkingLevel() }
   }
   return config
+}
+
+export interface GeminiLiveTokenPayload {
+  token: string
+  name: string
+  model: string
+  purpose: GeminiLivePurpose
+  config: Record<string, unknown>
+  expireTime: string
+  newSessionExpireTime: string
+  apiVersion: 'v1beta'
+}
+
+export async function createGeminiLiveEphemeralToken(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<GeminiLiveTokenPayload> {
+  await refreshFromDb()
+  const key = resolvedKey()
+  if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
+  const model = await geminiActiveLiveModel(purpose)
+  const config = await geminiLiveConnectConfig(purpose, model)
+  const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
+  const client = new GoogleGenAI({ apiKey: key, httpOptions: { apiVersion: 'v1beta' } } as any)
+  const token = await (client as any).authTokens.create({
+    config: {
+      uses: 1,
+      expireTime,
+      newSessionExpireTime,
+      liveConnectConstraints: { model, config },
+    },
+  })
+  const name = String(token?.name || token?.token || '')
+  if (!name) throw new Error('GEMINI_LIVE_TOKEN_EMPTY')
+  rememberGeminiLiveModel(model, purpose)
+  return { token: name, name, model, purpose, config, expireTime, newSessionExpireTime, apiVersion: 'v1beta' }
 }
 
 export async function geminiModelSource(): Promise<'custom' | 'auto'> {
