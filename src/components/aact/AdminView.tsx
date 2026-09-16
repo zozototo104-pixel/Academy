@@ -570,7 +570,7 @@ export function AdminView() {
         </div>
 
         {/* Admissions applications */}
-        <TabsContent value="admissions" forceMount>
+        <TabsContent value="admissions">
           <div className="mt-4 space-y-4">
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
