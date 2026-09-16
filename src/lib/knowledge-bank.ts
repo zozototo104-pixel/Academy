@@ -1077,8 +1077,10 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   }
 
   if (!ai?.length && sourceText.length >= 900) {
-    // الذكاء قد يفشل أو يرجع JSON غير صالح، لكن طالما قرأنا نصاً حقيقياً من الكتاب
-    // لا نرجع إلى توصيف عام؛ نبني عناصر حتمية من مقاطع الكتاب نفسها.
+    // للكتب المرفوعة لا نحفظ fallback حتمي مكرر مكان تحليل Gemini. إذا لم يكتمل التحليل، نفشل بدون حذف/استبدال بنك المعرفة الحالي.
+    if (book.data) {
+      throw new Error('لم يكتمل تحليل الذكاء الاصطناعي للملف، لذلك لم يتم حفظ عناصر معرفة عامة أو مكررة. أعد المحاولة بعد قليل أو ارفع نسخة PDF نصية/Word إذا تكرر التعطل.')
+    }
     buildMode = 'TEXT_DETERMINISTIC'
   } else if (!ai?.length && book.data) {
     throw new Error(`يوجد ملف مرفوع للكتاب لكن لم يتمكن النظام من قراءة محتواه قراءة أكاديمية كافية. السبب: ${hydrated.sourceNote}. جرّب رفع PDF نصي أو Word DOCX، أو تأكد من تفعيل Gemini ووجود حصة كافية.`)
