@@ -51,6 +51,27 @@ function plusDays(days: number) {
   return d
 }
 
+export async function ensureDemoAdmin() {
+  return db.user.upsert({
+    where: { email: DEMO_ADMIN_EMAIL },
+    update: {
+      password: hashPassword(DEMO_ADMIN_PASSWORD),
+      name: 'إدارة الأكاديمية',
+      role: 'ADMIN',
+      country: 'USA',
+      phone: '+13072065544',
+    },
+    create: {
+      email: DEMO_ADMIN_EMAIL,
+      password: hashPassword(DEMO_ADMIN_PASSWORD),
+      name: 'إدارة الأكاديمية',
+      role: 'ADMIN',
+      country: 'USA',
+      phone: '+13072065544',
+    },
+  })
+}
+
 async function pickActiveLearningProgram() {
   return (
     (await db.program.findUnique({ where: { slug: 'professional-consulting-skills' } }).catch(() => null)) ||
