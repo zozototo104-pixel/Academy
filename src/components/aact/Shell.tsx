@@ -498,7 +498,7 @@ export function Header() {
                   await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
                   clearToken()
                   setUser(null)
-                  navigate('home')
+                  goMobile('home')
                 }}
                 className="mt-2 rounded-lg border border-white/25 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/10"
               >
