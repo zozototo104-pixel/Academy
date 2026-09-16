@@ -222,10 +222,45 @@ export async function geminiActiveTTSModel(): Promise<string> {
   return (await ttsModelChain())[0]
 }
 
-export async function geminiActiveLiveModel(): Promise<string> {
+export async function geminiLiveModelChain(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<string[]> {
   await refreshFromDb()
-  const custom = normalizeGeminiModelName(dbLiveModelCache || process.env.GEMINI_LIVE_MODEL)
-  return custom || GEMINI_LIVE_MODEL_FALLBACKS[0]
+  const specificDb = purpose === 'DISCUSSION' ? dbDiscussionLiveModelCache : dbSupervisorLiveModelCache
+  const specificEnv = purpose === 'DISCUSSION' ? process.env.GEMINI_DISCUSSION_LIVE_MODEL : process.env.GEMINI_SUPERVISOR_LIVE_MODEL
+  const custom = normalizeGeminiModelName(specificDb || specificEnv || dbLiveModelCache || process.env.GEMINI_LIVE_MODEL)
+  const active = purpose === 'DISCUSSION' ? activeDiscussionLiveModel : activeSupervisorLiveModel
+  const defaults = purpose === 'DISCUSSION' ? DISCUSSION_LIVE_MODELS : SUPERVISOR_LIVE_MODELS
+  return [...new Set([custom, active, ...defaults].filter(Boolean) as string[])]
+}
+
+export async function geminiActiveLiveModel(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<string> {
+  return (await geminiLiveModelChain(purpose))[0]
+}
+
+export function rememberGeminiLiveModel(model: string, purpose: GeminiLivePurpose = 'SUPERVISOR'): void {
+  const normalized = normalizeGeminiModelName(model)
+  if (!normalized) return
+  if (purpose === 'DISCUSSION') activeDiscussionLiveModel = normalized
+  else activeSupervisorLiveModel = normalized
+}
+
+export async function geminiDiscussionThinkingLevel(): Promise<GeminiThinkingLevel> {
+  await refreshFromDb()
+  return normalizeGeminiThinkingLevel(dbDiscussionThinkingLevelCache || process.env.GEMINI_DISCUSSION_THINKING_LEVEL || 'high')
+}
+
+export async function geminiLiveConnectConfig(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<Record<string, unknown>> {
+  const voice = await geminiTTSVoice()
+  const config: Record<string, unknown> = {
+    responseModalities: ['AUDIO'],
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+    enableAffectiveDialog: true,
+    proactivity: { proactiveAudio: purpose === 'SUPERVISOR' },
+    realtimeInputConfig: { automaticActivityDetection: { disabled: false } },
+  }
+  if (purpose === 'DISCUSSION') {
+    config.thinkingConfig = { thinkingLevel: await geminiDiscussionThinkingLevel() }
+  }
+  return config
 }
 
 export async function geminiModelSource(): Promise<'custom' | 'auto'> {
