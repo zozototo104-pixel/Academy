@@ -70,6 +70,35 @@ function prefetchAdminTab(tab: string) {
   adminPrefetchCache.set(tab, loader().catch(() => null))
 }
 
+const ADMIN_TAB_DATA_PREFETCHERS: Record<string, string[]> = {
+  admissions: ['/api/admin/admissions'],
+  students: ['/api/admin/students'],
+  agents: ['/api/admin/applications'],
+  rules: ['/api/admin/program-rules'],
+  supervisors: ['/api/admin/students?role=supervisors'],
+  books: ['/api/programs?summary=1&public=1'],
+  quality: ['/api/admin/academic-quality'],
+  attempts: ['/api/admin/stats'],
+  thesis: ['/api/admin/thesis'],
+  ai: ['/api/admin/chats'],
+  finance: ['/api/admin/payments', '/api/admin/reports'],
+  certs: ['/api/admin/certificates'],
+  settings: ['/api/settings'],
+  system: ['/api/admin/system'],
+  audit: ['/api/admin/audit'],
+  messages: ['/api/admin/contact'],
+}
+
+const adminDataPrefetchCache = new Set<string>()
+function prefetchAdminTabData(tab: string) {
+  const urls = ADMIN_TAB_DATA_PREFETCHERS[tab] || []
+  for (const url of urls) {
+    if (adminDataPrefetchCache.has(url)) continue
+    adminDataPrefetchCache.add(url)
+    void prefetchApi(url)
+  }
+}
+
 interface Stats {
   stats: {
     totalStudents: number
