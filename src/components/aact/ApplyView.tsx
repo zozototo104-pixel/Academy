@@ -102,6 +102,25 @@ const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'الخدمات المهنية',
 }
 const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
+const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v3'
+
+function readCachedPrograms(): ProgramLite[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROGRAMS_CACHE_KEY) || '[]')
+    return Array.isArray(cached) ? cached : []
+  } catch {
+    return []
+  }
+}
+
+function cachePrograms(list: ProgramLite[]) {
+  if (typeof window === 'undefined' || !Array.isArray(list) || list.length === 0) return
+  try {
+    localStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(list.slice(0, 160)))
+    localStorage.setItem('aact_program_count', String(list.length))
+  } catch {}
+}
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
