@@ -483,7 +483,7 @@ export function Header() {
             ))}
             {user?.role === 'ADMIN' && (
               <button
-                onClick={() => navigate('admin')}
+                onClick={() => goMobile('admin')}
                 className={`mt-2 flex items-center gap-2 rounded-lg bg-[#bf1646] px-4 py-3 text-right text-sm font-black text-white shadow-lg shadow-[#bf1646]/20 ${
                   view === 'admin' ? 'ring-2 ring-white/45' : ''
                 }`}
