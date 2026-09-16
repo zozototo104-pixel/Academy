@@ -302,22 +302,20 @@ export function HomeView() {
             </div>
           </div>
           <div className="max-w-3xl">
-            <Badge className="mb-4 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#e0b83a] hover:bg-[#c9a227]/15">
-              <Sparkles className="ml-1 h-3.5 w-3.5" />
-              أكاديمية معتمدة دولياً منذ 2016
+            <Badge className="mb-4 border-[#bf1646]/40 bg-[#bf1646]/15 text-white hover:bg-[#bf1646]/15">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#b08a38]" />
+              أكاديمية مهنية بمعايير دولية منذ 2016
             </Badge>
-            <h1 className="text-3xl font-black leading-[1.35] sm:text-4xl lg:text-5xl lg:leading-[1.3]">
-              الأكاديمية الأمريكية
-              <span className="aact-gold-text"> للاستشارات والتدريب</span>
+            <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
+              أهلاً بكم في
+              <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+              <span className="block">للاستشارات والتدريب</span>
             </h1>
-            <p className="mt-3 text-base font-bold text-[#c9a227] sm:text-lg">
-              بناء القيادات، صقل المهارات — Building Leaders, Refining Skills
+            <p className="mt-5 text-sm font-black tracking-[0.35em] text-white/75 sm:text-base">
+              نصنع قادة المستقبل برؤية عالمية
             </p>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[#f5f0e1]/85 sm:text-base">
-              منصة تعليمية متكاملة تقدم الدبلومات المهنية والدكتوراه والماجستير المهني واعتماد
-              المستشارين والمدربين ومراكز التدريب — ومع مشرف ذكاء اصطناعي يرافقك في رحلتك، يجيب على
-              استفساراتك <strong className="text-[#e0b83a]">صوتاً وكتابة</strong>، ويصحح امتحاناتك
-              مع تغذية راجعة تفصيلية.
+            <p className="mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base">
+              منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button
