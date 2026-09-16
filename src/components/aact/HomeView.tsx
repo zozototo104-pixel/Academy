@@ -267,9 +267,9 @@ export function HomeView() {
         </div>
       )}
       {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
-      <div className="aact-ticker relative z-20 border-y-2 border-[#c9a227]/60 bg-[#0f2b46]">
+      <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
         <div className="mx-auto flex max-w-7xl items-stretch">
-          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#0a1f36] bg-[#c9a227] px-3 py-2 text-[10px] font-black text-[#0f2b46] sm:px-4 sm:text-[11px]">
+          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <span>أبرز البرامج المميزة</span>
           </div>
