@@ -1057,6 +1057,23 @@ function distributedBookExcerpts(text: string, batchIndex: number, maxParts = 4)
   return ratios.map((r) => pickWindow(clean, r)).filter(Boolean)
 }
 
+function chapterMarkersFromText(text: string, max = 10): string[] {
+  const lines = sanitizeExamText(text, 90000).split('\n').map((line) => stripExamKnowledgeMeta(line, 240).trim()).filter(Boolean)
+  const markers: string[] = []
+  const headingRe = /^(?:الفصل|الباب|الوحدة|المبحث|المحور|القسم)\s+(?:[\p{N}\p{L}]+|[اأإآ]?[ولثامنرسبعخدي]+)|^(?:chapter|part|unit|section)\s+\d{1,3}\b/i
+  for (let i = 0; i < lines.length && markers.length < max * 2; i++) {
+    const heading = lines[i]
+    if (!headingRe.test(heading) || hasForbiddenExamMetadata(heading) || heading.length > 180) continue
+    const preview = splitSentences(lines.slice(i + 1, i + 14).join(' '))
+      .map((s) => stripExamKnowledgeMeta(s, 220))
+      .filter((s) => s.length >= 40 && !hasForbiddenExamMetadata(s) && !isBrokenAcademicExamText(s))
+      .slice(0, 2)
+      .join(' / ')
+    markers.push(`${heading}${preview ? ` — مدخل دلالي: ${preview}` : ''}`)
+  }
+  return uniqueStrings(markers, max, 420)
+}
+
 function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: number, programDomain: ProgramDomain, batchIndex: number): string {
   const full = sanitizeExamText(book.textContent || '')
   const important = topImportantSentences(full, programDomain, 12)
