@@ -1075,7 +1075,7 @@ function chapterMarkersFromText(text: string, max = 10): string[] {
 }
 
 function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: number, programDomain: ProgramDomain, batchIndex: number): string {
-  const full = sanitizeExamText(book.textContent || '')
+  const full = cleanAcademicGeneratedText(sanitizeExamText(book.textContent || '', EXAM_BOOK_MAX_CHARS), EXAM_BOOK_MAX_CHARS)
   const important = topImportantSentences(full, programDomain, 12)
   const excerpts = distributedBookExcerpts(full, batchIndex, 4)
   const chapters = chapterMarkersFromText(full, 10)
