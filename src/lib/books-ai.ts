@@ -2023,10 +2023,11 @@ ${plannedTypes}
     }
   }
 
+  const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
   const targetSpec = { ...spec, count: requestedPlan.length }
-  const balanced = enforceExamQuestionPlan(cleaned, [], targetSpec, evidenceBooks, program.category, requestedPlan)
+  const balanced = enforceExamQuestionPlan(cleaned, fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
   if (!balanced.length) {
-    throw new Error('رفض النظام حفظ أسئلة قالبية؛ لم يرجع الذكاء الاصطناعي أسئلة امتحانية مهنية مؤصلة كفاية من نص الكتاب.')
+    throw new Error('تعذر بناء أسئلة امتحانية مؤصلة من نص الكتاب بعد التحليل والتنظيف.')
   }
   return balanced.slice(0, requestedPlan.length)
 }
