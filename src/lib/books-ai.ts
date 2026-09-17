@@ -1707,11 +1707,12 @@ function isWeakMcq(q: GeneratedQuestion): boolean {
 
 function isWeakGeneratedQuestion(q: GeneratedQuestion): boolean {
   const text = stripExamKnowledgeMeta(q.text, 2200)
-  const raw = `${text} ${(q.options || []).join(' ')} ${q.modelAnswer || ''} ${q.bookEvidence || ''}`
+  const presentation = `${text} ${(q.options || []).join(' ')} ${q.correctRationale || ''}`
+  const raw = `${presentation} ${q.modelAnswer || ''} ${q.bookEvidence || ''}`
   const n = norm(raw)
   const letters = (text.match(/[\p{L}]/gu) || []).length
   if (letters < 18) return true
-  if (hasForbiddenExamMetadata(raw) || isBrokenAcademicExamText(raw)) return true
+  if (hasForbiddenExamMetadata(raw) || isBrokenAcademicExamText(presentation)) return true
   if (/محور\s+معرفي\s+مهم|دليل\s+من\s+المحتوى|دليل\s+من\s+المحتوي|كلمات\s+مفتاحية|بنك\s+المعرفة\s+الأكاديمي\s+المستخرج/iu.test(raw)) return true
   if (/كيف\s+يمكن\s+فهم\s+فكرة|أي\s+عبارة\s+تفسر\s+بصورة\s+أدق\s+دلالة|ما\s+الاستنتاج\s+الأكثر\s+صحة\s+من\s+الفكرة\s+الآتية\s+في\s+الكتاب/iu.test(raw)) return true
   if ((q.type === 'MCQ' || q.type === 'TF') && text.length > 720) return true
