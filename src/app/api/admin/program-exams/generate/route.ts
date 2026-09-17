@@ -478,7 +478,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 
     const window = currentBatchWindow(existingCount, batchIndex)
     let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, batchIndex, previousTexts, knowledgeContext, window.needed, window.offset)
-    batch = filterNewQuestions(prioritizeUnfilledCandidates(batch, window.offset), existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
+    batch = filterNewQuestions(batch, existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
 
     if (batch.length < window.needed) {
       // في الاستكمال الجزئي لا نطلب دفعة كاملة من جديد؛ نحتاج فقط الأسئلة الناقصة حتى لا يتكرر الفشل عند 63/80 مثلاً.
