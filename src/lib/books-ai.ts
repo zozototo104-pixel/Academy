@@ -1060,7 +1060,7 @@ function distributedBookExcerpts(text: string, batchIndex: number, maxParts = 4)
 function chapterMarkersFromText(text: string, max = 10): string[] {
   const lines = sanitizeExamText(text, 90000).split('\n').map((line) => stripExamKnowledgeMeta(line, 240).trim()).filter(Boolean)
   const markers: string[] = []
-  const headingRe = /^(?:الفصل|الباب|الوحدة|المبحث|المحور|القسم)\s+(?:[\p{N}\p{L}]+|[اأإآ]?[ولثامنرسبعخدي]+)|^(?:chapter|part|unit|section)\s+\d{1,3}\b/iuu
+  const headingRe = /^(?:الفصل|الباب|الوحدة|المبحث|المحور|القسم)\s+(?:[\p{N}\p{L}]+|[اأإآ]?[ولثامنرسبعخدي]+)|^(?:chapter|part|unit|section)\s+\d{1,3}\b/iu
   for (let i = 0; i < lines.length && markers.length < max * 2; i++) {
     const heading = lines[i]
     if (!headingRe.test(heading) || hasForbiddenExamMetadata(heading) || heading.length > 180) continue
