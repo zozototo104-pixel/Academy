@@ -1958,8 +1958,9 @@ ${plannedTypes}
   }
 
   const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, spec, evidenceBooks, program.category)
-  return balanced.length > 0 ? balanced : fallback
+  const targetSpec = { ...spec, count: requestedPlan.length }
+  const balanced = enforceExamQuestionPlan(cleaned, fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
+  return balanced.length > 0 ? balanced.slice(0, requestedPlan.length) : fallback.slice(0, requestedPlan.length)
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
