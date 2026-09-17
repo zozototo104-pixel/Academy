@@ -1179,7 +1179,8 @@ function evidenceTokens(value: unknown): string[] {
 
 function bookSourceNorm(books: ExamSourceBook[]): string {
   // التحقق يجب أن يكون من النص المقروء نفسه، لا من عنوان الكتاب أو وصفه، حتى لا تتحول الأسئلة إلى أسئلة عن العنوان أو الرابط.
-  return norm(books.map((b) => sanitizeExamText(b.textContent || '', 70000)).join('\n'))
+  // نستخدم النص المحفوظ كاملاً تقريباً حتى لا تُرفض أسئلة مبنية على أبواب متأخرة من الكتاب.
+  return norm(books.map((b) => sanitizeExamText(b.textContent || '', EXAM_BOOK_MAX_CHARS)).join('\n'))
 }
 
 function evidenceSupportedByBooks(evidence: string, books: ExamSourceBook[]): boolean {
