@@ -371,7 +371,7 @@ async function resetUngroundedPendingQuestionsIfNeeded(
     where: { id: examId },
     data: {
       status: 'GENERATING',
-      totalPoints: remaining > 0 ? undefined : 0,
+      ...(remaining > 0 ? {} : { totalPoints: 0 }),
       errorNote: remaining > 0
         ? `حذف النظام ${pollutedIds.length} سؤالاً ملوثاً ببيانات داخلية وسيكمل من السؤال ${remaining + 1}`
         : 'حذف النظام الأسئلة الملوثة ببيانات داخلية وسيعيد بناء الامتحان من الكتاب نفسه',
