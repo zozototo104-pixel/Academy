@@ -336,7 +336,8 @@ async function resetUngroundedPendingQuestionsIfNeeded(
   books: { title: string; titleEn?: string | null; textContent?: string | null }[],
   existingCount: number
 ): Promise<number> {
-  if (existingCount === 0) return existingCount
+  // لا نحذف دفعة أولية صغيرة بعد حفظها مباشرة؛ الاستكمال يجب أن يبدأ من السؤال 7 لا أن يرجع للصفر.
+  if (existingCount === 0 || existingCount < 10) return existingCount
   const rows = await db.programQuestion.findMany({
     where: { examId },
     orderBy: { order: 'asc' },
