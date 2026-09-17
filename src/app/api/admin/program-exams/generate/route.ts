@@ -26,12 +26,15 @@ function questionsBeforeBatch(batchIndex: number): number {
   return EXAM_BATCH_SPECS.slice(0, Math.max(0, batchIndex)).reduce((sum, b) => sum + b.count, 0)
 }
 
+const MAX_QUESTIONS_PER_AI_STEP = 6
+
 function currentBatchWindow(existingCount: number, batchIndex: number): { offset: number; needed: number; batchEnd: number } {
   const spec = EXAM_BATCH_SPECS[batchIndex]
   const start = questionsBeforeBatch(batchIndex)
   const batchEnd = start + spec.count
   const offset = Math.max(0, Math.min(spec.count, existingCount - start))
-  const needed = Math.max(1, Math.min(spec.count, batchEnd - existingCount))
+  // لا نطلب 20 سؤالاً مفصلاً في نداء واحد؛ هذا كان يسبب قص JSON وحفظ 11 سؤالاً فقط.
+  const needed = Math.max(1, Math.min(spec.count, batchEnd - existingCount, MAX_QUESTIONS_PER_AI_STEP))
   return { offset, needed, batchEnd }
 }
 
