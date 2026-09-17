@@ -1661,8 +1661,8 @@ function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boo
   return evidenceSupportedByBooks(evidence, books)
 }
 
-function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }, books: ExamSourceBook[] = [], category = 'MASTERS'): GeneratedQuestion[] {
-  const plan = batchQuestionPlan(spec.kind, spec.count, category)
+function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }, books: ExamSourceBook[] = [], category = 'MASTERS', planOverride?: PlannedQuestionKind[]): GeneratedQuestion[] {
+  const plan = planOverride && planOverride.length ? planOverride : batchQuestionPlan(spec.kind, spec.count, category)
   const usedTexts = new Set<string>()
   const usedOptionSigs = new Set<string>()
   const usedMcqOptions = new Set<string>()
