@@ -1741,7 +1741,9 @@ export async function generateExamQuestionBatch(
   books: ExamSourceBook[],
   batchIndex: number,
   previousQuestionTexts: string[] = [],
-  knowledgeContext = ''
+  knowledgeContext = '',
+  requestedCount?: number,
+  startOffset = 0
 ): Promise<GeneratedQuestion[]> {
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
@@ -1756,9 +1758,19 @@ export async function generateExamQuestionBatch(
   const contentConcepts = contentConceptsFromBooks(evidenceBooks, domain, 32).join('\n- ')
   const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
   const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
-  const requiredDistribution = batchDistributionText(spec.kind, spec.count, program.category)
-  const plannedTypes = batchQuestionPlan(spec.kind, spec.count, program.category)
-    .map((t, i) => `${i + 1}. ${t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t}`)
+  const fullPlan = batchQuestionPlan(spec.kind, spec.count, program.category)
+  const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
+  const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
+  const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
+  const typeLabel = (t: PlannedQuestionKind) => t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t
+  const planCounts = requestedPlan.reduce<Record<string, number>>((acc, t) => {
+    const label = typeLabel(t)
+    acc[label] = (acc[label] || 0) + 1
+    return acc
+  }, {})
+  const requiredDistribution = Object.entries(planCounts).map(([label, n]) => `${n} ${label}`).join(' + ')
+  const plannedTypes = requestedPlan
+    .map((t, i) => `${normalizedOffset + i + 1}. ${typeLabel(t)}`)
     .join('\n')
   const previousSection = previousQuestionTexts.length
     ? previousQuestionTexts.slice(-80).map((q, i) => `${i + 1}. ${cleanText(q, 260)}`).join('\n')
