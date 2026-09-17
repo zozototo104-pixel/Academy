@@ -1912,9 +1912,9 @@ ${plannedTypes}
       timeoutMs: 32000,
     })
   } catch (e: any) {
-    console.error('generateExamQuestionBatch failed; using deterministic fallback:', String(e?.message || e).slice(0, 600))
-    const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
-    return enforceExamQuestionPlan([], fallback, { ...spec, count: requestedPlan.length }, evidenceBooks, program.category, requestedPlan)
+    const reason = String(e?.message || e).slice(0, 600)
+    console.error('generateExamQuestionBatch AI failed:', reason)
+    throw new Error(`تعذر توليد أسئلة امتحانية احترافية من الكتاب عبر الذكاء الاصطناعي: ${reason}`)
   }
 
   let arr: any[] = []
