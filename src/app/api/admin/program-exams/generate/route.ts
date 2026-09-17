@@ -263,6 +263,11 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('كيف يمكن فهم فكره') ||
     n.includes('اي عباره تفسر بصوره ادق دلاله') ||
     n.includes('ما الاستنتاج الاكثر صحه من الفكره الاتيه في الكتاب') ||
+    n.includes('اي استنتاج مهني هو الادق') ||
+    n.includes('يعالج الكتاب الفكره الاتيه') ||
+    n.includes('عند تحويله الي حاله مهنيه') ||
+    n.includes('امام مدير يعمل') ||
+    n.includes('موقف مستمد من الكتاب') ||
     n.includes('وفق المقطع الاتي') ||
     n.includes('وفق المقطع الاتي من الكتاب') ||
     n.includes('يعرض الكتاب المقطع الاتي') ||
