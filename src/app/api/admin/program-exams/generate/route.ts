@@ -308,13 +308,22 @@ function groundedTokenSet(value: unknown): string[] {
 }
 
 function questionGroundedInBooks(
-  question: { text: string; options: string | null; modelAnswer?: string | null },
+  question: {
+    text: string
+    options: string | null
+    modelAnswer?: string | null
+    sourceEvidence?: string | null
+    sourceBookTitle?: string | null
+    sourceChapter?: string | null
+    sourceLocator?: string | null
+    correctRationale?: string | null
+  },
   books: { title: string; titleEn?: string | null; textContent?: string | null }[]
 ): boolean {
-  if (hasBadExamMetadata(`${question.text} ${question.options || ''} ${question.modelAnswer || ''}`)) return false
+  const combined = `${question.text} ${question.options || ''} ${question.modelAnswer || ''} ${question.sourceEvidence || ''} ${question.sourceBookTitle || ''} ${question.sourceChapter || ''} ${question.sourceLocator || ''} ${question.correctRationale || ''}`
+  if (hasBadExamMetadata(combined)) return false
   // التحقق يكون من نص الكتاب المقروء، لا من العنوان أو الوصف، حتى لا نقبل سؤالاً عاماً عن تخصص آخر أو عنوان مرجع خارجي.
   const source = normalizeQuestionText(books.map((b) => String(b.textContent || '').slice(0, 180000)).join(' '))
-  const combined = `${question.text} ${question.options || ''} ${question.modelAnswer || ''}`
   const tokens = groundedTokenSet(combined)
   if (!source || tokens.length === 0) return false
   const hits = tokens.filter((t) => source.includes(t)).length
