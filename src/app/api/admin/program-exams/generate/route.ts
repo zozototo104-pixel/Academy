@@ -339,7 +339,17 @@ async function resetUngroundedPendingQuestionsIfNeeded(
   const rows = await db.programQuestion.findMany({
     where: { examId },
     orderBy: { order: 'asc' },
-    select: { text: true, options: true, modelAnswer: true, status: true },
+    select: {
+      text: true,
+      options: true,
+      modelAnswer: true,
+      sourceEvidence: true,
+      sourceBookTitle: true,
+      sourceChapter: true,
+      sourceLocator: true,
+      correctRationale: true,
+      status: true,
+    },
   })
   if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
 
