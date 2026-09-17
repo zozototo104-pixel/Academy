@@ -272,8 +272,6 @@ function hasBadExamMetadata(value: unknown): boolean {
     n.includes('قراءه المقطع') ||
     n.includes('قراءه') && n.includes('مهنيا تتطلب تحديد الاطراف') ||
     n.includes('تحليل استراتيجيا مستندا خصائصيه') ||
-    n.includes('الحاله الثانيه') ||
-    n.includes('الحاله الاولي') ||
     n.includes('ملاحظه قراءه المحتوي') ||
     n.includes('google com search') ||
     n.includes('books google') ||
