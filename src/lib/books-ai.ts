@@ -1333,12 +1333,6 @@ function fallbackExamConcepts(
   const domain = detectProgramDomain(program)
   const spec = specialtyName(program)
   const contentConcepts = contentConceptsFromBooks(books, domain, 80)
-  if (contentConcepts.length > 0) {
-    // عند وجود أي نص كتاب مقروء، لا نرجع أبداً إلى مفاهيم عامة في التخصص؛
-    // الأسئلة الاحتياطية نفسها يجب أن تنطلق من أحداث/أفكار الكتاب ثم تُسقط على التخصص.
-    return uniqueStrings(contentConcepts, 70, 420)
-  }
-
   const directBookChunks = books.flatMap((book) => {
     const title = cleanText(book.title, 90)
     const full = cleanAcademicGeneratedText(sanitizeExamText(book.textContent || '', EXAM_BOOK_MAX_CHARS), EXAM_BOOK_MAX_CHARS)
@@ -1348,7 +1342,12 @@ function fallbackExamConcepts(
       .filter((chunk) => (chunk.match(/[\p{L}]/gu) || []).length >= 80 && !hasForbiddenExamMetadata(chunk))
       .map((chunk) => `من كتاب «${title}»: ${chunk}`)
   })
-  if (directBookChunks.length > 0) return uniqueStrings(directBookChunks, 70, 520)
+  const groundedConcepts = uniqueStrings([...contentConcepts, ...directBookChunks], 70, 520)
+  if (groundedConcepts.length > 0) {
+    // عند وجود أي نص كتاب مقروء، لا نرجع أبداً إلى مفاهيم عامة في التخصص؛
+    // الأسئلة الاحتياطية نفسها يجب أن تنطلق من أحداث/أفكار الكتاب ثم تُسقط على التخصص.
+    return groundedConcepts
+  }
 
   // هذا المسار احتياطي شديد الندرة عند فشل القراءة بالكامل، والمسار الرئيسي يمنع التوليد دون محتوى فعلي.
   return uniqueStrings([
