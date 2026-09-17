@@ -1995,10 +1995,12 @@ ${plannedTypes}
     }
   }
 
-  const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
   const targetSpec = { ...spec, count: requestedPlan.length }
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
-  return balanced.length > 0 ? balanced.slice(0, requestedPlan.length) : fallback.slice(0, requestedPlan.length)
+  const balanced = enforceExamQuestionPlan(cleaned, [], targetSpec, evidenceBooks, program.category, requestedPlan)
+  if (!balanced.length) {
+    throw new Error('رفض النظام حفظ أسئلة قالبية؛ لم يرجع الذكاء الاصطناعي أسئلة امتحانية مهنية مؤصلة كفاية من نص الكتاب.')
+  }
+  return balanced.slice(0, requestedPlan.length)
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
