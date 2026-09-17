@@ -1648,6 +1648,15 @@ function hasForbiddenExamMetadata(value: unknown): boolean {
     n.includes('كيف يمكن فهم فكره') ||
     n.includes('اي عباره تفسر بصوره ادق دلاله') ||
     n.includes('ما الاستنتاج الاكثر صحه من الفكره الاتيه في الكتاب') ||
+    n.includes('وفق المقطع الاتي') ||
+    n.includes('وفق المقطع الاتي من الكتاب') ||
+    n.includes('يعرض الكتاب المقطع الاتي') ||
+    n.includes('بالاعتماد علي الدليل النصي') ||
+    n.includes('يمكن تحويل المقطع') ||
+    n.includes('يجوز تعميم المقطع') ||
+    n.includes('قراءه المقطع') ||
+    n.includes('الحاله الثانيه') ||
+    n.includes('الحاله الاولي') ||
     n.includes('ملاحظه قراءه المحتوي') ||
     n.includes('رابط مفتوح لكن لم يظهر') ||
     n.includes('google com search') ||
