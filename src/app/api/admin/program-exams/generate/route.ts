@@ -508,23 +508,24 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     batch = filterNewQuestions(batch, existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
 
     if (batch.length < window.needed) {
-      // في الاستكمال الجزئي لا نطلب دفعة كاملة من جديد؛ نحتاج فقط الأسئلة الناقصة حتى لا يتكرر الفشل عند 63/80 مثلاً.
-      for (let attempt = 0; attempt < EXAM_BATCH_COUNT * 2 && batch.length < window.needed; attempt++) {
-        const seedBatchIndex = batchIndex + attempt
-        const rawFallback = prioritizeUnfilledCandidates(fallbackExamQuestionBatch(exam.program, examSourceBooks, seedBatchIndex), window.offset + attempt)
-        const fallback = filterNewQuestions(rawFallback, existingKeys, existingOptions, existingOptionWords)
-        batch = [...batch, ...fallback].slice(0, window.needed)
+      // لا نملأ النقص بقوالب fallback؛ نعيد طلب أسئلة AI حقيقية فقط وبحجم أصغر.
+      for (let attempt = 1; attempt <= 2 && batch.length < window.needed; attempt++) {
+        const neededNow = window.needed - batch.length
+        const retryPreviousTexts = [...previousTexts, ...batch.map((q) => q.text)]
+        const retry = await generateExamQuestionBatch(
+          exam.program,
+          examSourceBooks,
+          batchIndex + attempt,
+          retryPreviousTexts,
+          knowledgeContext,
+          neededNow,
+          window.offset + batch.length
+        )
+        const filteredRetry = filterNewQuestions(retry, existingKeys, existingOptions, existingOptionWords)
+        batch = [...batch, ...filteredRetry].slice(0, window.needed)
       }
     }
-    if (batch.length < window.needed) {
-      // محاولة أخيرة أكثر مرونة: نمنع تكرار نص السؤال فقط، ولا نُفشل الامتحان الطويل بسبب تشابه خيارين شائعين.
-      for (let attempt = 0; attempt < EXAM_BATCH_COUNT * 3 && batch.length < window.needed; attempt++) {
-        const rawFallback = prioritizeUnfilledCandidates(fallbackExamQuestionBatch(exam.program, examSourceBooks, batchIndex + attempt + EXAM_BATCH_COUNT), window.offset + attempt + 3)
-        const fallback = filterNewQuestions(rawFallback, existingKeys)
-        batch = [...batch, ...fallback].slice(0, window.needed)
-      }
-    }
-    if (batch.length === 0) throw new Error(`فشل توليد سؤال جديد غير مكرر للدفعة ${batchIndex + 1} بعد ${existingCount} سؤال محفوظ`)
+    if (batch.length === 0) throw new Error(`لم يُنتج الذكاء الاصطناعي سؤالاً امتحانياً صالحاً من نص الكتاب للدفعة ${batchIndex + 1} بعد ${existingCount} سؤال محفوظ`)
 
     if (!(await isExamStillGenerating(examId))) {
       const totals = await examTotals(examId)
