@@ -323,7 +323,7 @@ function questionGroundedInBooks(
   const combined = `${question.text} ${question.options || ''} ${question.modelAnswer || ''} ${question.sourceEvidence || ''} ${question.sourceBookTitle || ''} ${question.sourceChapter || ''} ${question.sourceLocator || ''} ${question.correctRationale || ''}`
   if (hasBadExamMetadata(combined)) return false
   // التحقق يكون من نص الكتاب المقروء، لا من العنوان أو الوصف، حتى لا نقبل سؤالاً عاماً عن تخصص آخر أو عنوان مرجع خارجي.
-  const source = normalizeQuestionText(books.map((b) => String(b.textContent || '').slice(0, 180000)).join(' '))
+  const source = normalizeQuestionText(books.map((b) => cleanAcademicGeneratedText(String(b.textContent || '').slice(0, 180000), 180000)).join(' '))
   const tokens = groundedTokenSet(combined)
   if (!source || tokens.length === 0) return false
   const hits = tokens.filter((t) => source.includes(t)).length
