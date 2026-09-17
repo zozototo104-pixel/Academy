@@ -1530,18 +1530,18 @@ function makeFallbackMcq(concept: string, specAr: string, caseBased = false, i =
 }
 
 function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = stripExamKnowledgeMeta(concept, 430)
-  const idea = conceptLabel(concept, 170)
+  const evidence = stripExamKnowledgeMeta(concept, 520)
+  const topic = conceptLabel(concept, 90)
   const truthy = i % 2 === 0
   const trueStems = [
-    `يدل المقطع «${idea}» على أن التحليل المهني في ${specAr} يجب أن يبدأ من سياق النص قبل اختيار الإجراء.`,
-    `يمكن تحويل المقطع «${idea}» إلى حالة تدريبية تقيس القرار والمخاطر والتواصل ضمن ${specAr}.`,
-    `قراءة «${idea}» مهنياً تتطلب تحديد الأطراف والنتائج المحتملة قبل تعميم الدرس على ${specAr}.`,
+    `يتطلب توظيف محور «${topic}» في ${specAr} تحليل السياق والقيود قبل اختيار الإجراء التنفيذي.`,
+    `يمثل محور «${topic}» نقطة تعلم مهمة لأنه يربط بين الفكرة النظرية وقرار مهني قابل للقياس.`,
+    `فهم محور «${topic}» يقتضي تمييز شروط التطبيق وحدوده قبل نقله إلى مؤسسة أو مشروع.`,
   ]
   const falseStems = [
-    `يكفي تجاهل سياق المقطع «${idea}» والاكتفاء بتعريف عام في ${specAr}.`,
-    `لا يمكن استخدام المقطع «${idea}» لبناء حالة تطبيقية أو سؤال قياس داخل ${specAr}.`,
-    `يجوز تعميم المقطع «${idea}» على كل المؤسسات دون تحليل شروطه وحدوده.`,
+    `يمكن الاكتفاء بتعريف محور «${topic}» دون تحليل أثره على القرار أو أصحاب المصلحة في ${specAr}.`,
+    `يصبح محور «${topic}» صالحاً للتطبيق المهني بمجرد ذكره، حتى لو غاب الدليل والسياق.`,
+    `لا يحتاج تطبيق محور «${topic}» إلى مؤشرات متابعة أو تقدير للمخاطر والموارد.`,
   ]
   return {
     type: 'TF',
@@ -1550,40 +1550,51 @@ function makeFallbackTf(concept: string, specAr: string, i: number): GeneratedQu
     correct: truthy ? '0' : '1',
     modelAnswer: `مرجع التصحيح: ${evidence}`,
     bookEvidence: evidence,
+    cognitiveSkill: truthy ? 'UNDERSTAND' : 'ANALYZE',
+    difficulty: truthy ? 'EASY' : 'MEDIUM',
+    correctRationale: truthy
+      ? `الحكم صحيح لأنه يربط محور «${topic}» بالسياق وحدود التطبيق.`
+      : `الحكم خطأ لأنه يتجاهل الدليل والسياق ومؤشرات التطبيق المهني.` ,
     points: 2,
   }
 }
 
 function makeFallbackShort(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = stripExamKnowledgeMeta(concept, 480)
-  const idea = conceptLabel(concept, 190)
+  const evidence = stripExamKnowledgeMeta(concept, 560)
+  const topic = conceptLabel(concept, 95)
   const stems = [
-    `حلل المقطع «${idea}» في فقرة قصيرة، ثم حوّله إلى إجراء مهني قابل للتنفيذ في ${specAr}.`,
-    `استخرج من الدليل النصي «${idea}» درساً عملياً في ${specAr}، واذكر مؤشراً واحداً للتحقق من نجاح تطبيقه.`,
-    `حدّد المشكلة أو القرار الذي يلمّح إليه المقطع «${idea}»، ثم اربطه بالمخاطر أو أصحاب المصلحة في ${specAr}.`,
+    `حلّل محور «${topic}» بوصفه نقطة تعلم في الكتاب، واذكر قراراً مهنياً واحداً يمكن أن يتأثر به في ${specAr}.`,
+    `بيّن كيف يساعد محور «${topic}» على تفسير مشكلة عملية في ${specAr}، مع تحديد معيار واحد للحكم على جودة التطبيق.`,
+    `استخلص من محور «${topic}» علاقة سببية أو شرطاً تطبيقياً، ثم اربطه بمخاطر القرار أو أصحاب المصلحة في ${specAr}.`,
   ]
   return {
     type: 'SHORT',
     text: stems[i % stems.length],
-    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة الجيدة تبدأ من دلالة النص نفسه، ثم تفسرها كحالة أو درس مهني في ${specAr}، وتذكر إجراءً أو معيار قياس واضحاً دون تحويل السؤال إلى تعريف عام منفصل عن الكتاب.`,
+    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة المقبولة تحدد الفكرة المركزية، تربطها بسياق مهني محدد في ${specAr}، وتذكر قراراً أو معيار قياس دون الاكتفاء بتعريف عام.`,
     bookEvidence: evidence,
+    cognitiveSkill: 'ANALYZE',
+    difficulty: 'MEDIUM',
+    correctRationale: `يُقبل الجواب عندما يربط محور «${topic}» بدليل من الكتاب وبقرار أو معيار تطبيقي واضح.`,
     points: 5,
   }
 }
 
 function makeFallbackEssay(concept: string, specAr: string, i: number): GeneratedQuestion {
-  const evidence = stripExamKnowledgeMeta(concept, 520)
-  const idea = conceptLabel(concept, 190)
+  const evidence = stripExamKnowledgeMeta(concept, 620)
+  const topic = conceptLabel(concept, 100)
   const stems = [
-    `اكتب تحليلاً نقدياً للمقطع «${idea}»، ثم بيّن كيف يتحول إلى حالة دراسية قابلة للتقييم في ${specAr}.`,
-    `صمّم إطار تطبيق مهني في ${specAr} يبدأ من الدليل النصي «${idea}» وينتهي بمؤشرات قياس واضحة.`,
-    `ناقش حدود ومخاطر تعميم الدرس المستخرج من «${idea}» على مؤسسة أو مشروع حقيقي في ${specAr}.`,
+    `ناقش محور «${topic}» باعتباره مدخلاً لبناء قرار مهني في ${specAr}، مع بيان شروط التطبيق وحدوده ومؤشرات نجاحه.`,
+    `صمّم إطاراً تحليلياً مستنداً إلى محور «${topic}» يوضح المشكلة، الأطراف المؤثرة، المخاطر، وخطوات المتابعة في ${specAr}.`,
+    `قيّم أهمية محور «${topic}» في تطوير ممارسة مهنية داخل ${specAr}، موضحاً كيف يمنع الفهم السطحي أو التعميم غير المنضبط.`,
   ]
   return {
     type: 'ESSAY',
     text: stems[i % stems.length],
-    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة الممتازة تبرهن أولاً على فهم النص، ثم تستخرج منه قضية قابلة للإسقاط على ${specAr} مثل التخطيط أو المخاطر أو أصحاب المصلحة أو التواصل أو القيادة أو الموارد، وتناقش شروط التطبيق وحدوده ومؤشرات نجاحه.`,
+    modelAnswer: `مرجع التصحيح: ${evidence}. الإجابة الممتازة تعرض الفكرة المركزية، ثم تبني تحليلاً منظماً يربطها بالسياق والأطراف والمخاطر والموارد ومؤشرات النجاح في ${specAr}.`,
     bookEvidence: evidence,
+    cognitiveSkill: 'EVALUATE',
+    difficulty: 'ADVANCED',
+    correctRationale: `تُقيّم الإجابة بقدرتها على تحويل محور «${topic}» إلى تحليل مهني منظم ومؤصل في الكتاب.`,
     points: 10,
   }
 }
