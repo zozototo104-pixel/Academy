@@ -356,21 +356,28 @@ async function resetUngroundedPendingQuestionsIfNeeded(
   })
   if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
 
-  const optionSigs = rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean)
-  const repeatedOptions = new Set(optionSigs).size < optionSigs.length
-  const ungrounded = rows.filter((q) => !questionGroundedInBooks(q, books)).length
-  if (!repeatedOptions && ungrounded < Math.max(2, Math.ceil(rows.length * 0.35))) return existingCount
+  const pollutedIds = rows
+    .filter((q) =>
+      hasBadExamMetadata(`${q.text} ${q.options || ''} ${q.modelAnswer || ''} ${q.sourceEvidence || ''} ${q.sourceBookTitle || ''} ${q.sourceChapter || ''} ${q.sourceLocator || ''} ${q.correctRationale || ''}`)
+    )
+    .map((q) => q.id)
+  // لا نصفر الامتحان بسبب فحص تأصيل صارم؛ فقط نحذف الأسئلة التي تسربت إليها metadata واضحة.
+  // التكرارات الحرفية تُزال مسبقاً عبر cleanupDuplicatePendingQuestions.
+  if (!pollutedIds.length) return existingCount
 
-  await db.programQuestion.deleteMany({ where: { examId, status: 'PENDING_REVIEW' } })
+  await db.programQuestion.deleteMany({ where: { id: { in: pollutedIds }, status: 'PENDING_REVIEW' } })
+  const remaining = await db.programQuestion.count({ where: { examId } })
   await db.programExam.update({
     where: { id: examId },
     data: {
       status: 'GENERATING',
-      totalPoints: 0,
-      errorNote: 'حذف النظام الأسئلة لأنها لا تستند كفاية إلى محتوى الكتاب المقروء أو فيها خيارات مكررة، وسيعيد بناء الامتحان من الكتاب نفسه',
+      totalPoints: remaining > 0 ? undefined : 0,
+      errorNote: remaining > 0
+        ? `حذف النظام ${pollutedIds.length} سؤالاً ملوثاً ببيانات داخلية وسيكمل من السؤال ${remaining + 1}`
+        : 'حذف النظام الأسئلة الملوثة ببيانات داخلية وسيعيد بناء الامتحان من الكتاب نفسه',
     },
   }).catch(() => {})
-  return 0
+  return remaining
 }
 
 async function exposeExamForReview(examId: string, note?: string) {
