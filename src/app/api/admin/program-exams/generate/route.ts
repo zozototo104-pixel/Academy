@@ -342,6 +342,7 @@ async function resetUngroundedPendingQuestionsIfNeeded(
     where: { examId },
     orderBy: { order: 'asc' },
     select: {
+      id: true,
       text: true,
       options: true,
       modelAnswer: true,
