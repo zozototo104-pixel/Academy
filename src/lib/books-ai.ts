@@ -1179,8 +1179,8 @@ function evidenceTokens(value: unknown): string[] {
 
 function bookSourceNorm(books: ExamSourceBook[]): string {
   // التحقق يجب أن يكون من النص المقروء نفسه، لا من عنوان الكتاب أو وصفه، حتى لا تتحول الأسئلة إلى أسئلة عن العنوان أو الرابط.
-  // نستخدم النص المحفوظ كاملاً تقريباً حتى لا تُرفض أسئلة مبنية على أبواب متأخرة من الكتاب.
-  return norm(books.map((b) => sanitizeExamText(b.textContent || '', EXAM_BOOK_MAX_CHARS)).join('\n'))
+  // نطبّق تنظيف OCR نفسه المستخدم في بناء الأدلة حتى لا تُرفض أسئلة صحيحة بسبب اختلاف «يف/في» أو أخطاء قراءة بسيطة.
+  return norm(books.map((b) => cleanAcademicGeneratedText(sanitizeExamText(b.textContent || '', EXAM_BOOK_MAX_CHARS), EXAM_BOOK_MAX_CHARS)).join('\n'))
 }
 
 function evidenceSupportedByBooks(evidence: string, books: ExamSourceBook[]): boolean {
