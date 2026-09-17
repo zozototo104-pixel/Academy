@@ -1078,6 +1078,7 @@ function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: nu
   const full = sanitizeExamText(book.textContent || '')
   const important = topImportantSentences(full, programDomain, 12)
   const excerpts = distributedBookExcerpts(full, batchIndex, 4)
+  const chapters = chapterMarkersFromText(full, 10)
   const meta = [
     book.titleEn ? `العنوان الأصلي: ${book.titleEn}` : '',
     book.author ? `المؤلف: ${book.author}` : '',
