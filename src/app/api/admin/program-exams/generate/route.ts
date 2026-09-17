@@ -448,9 +448,10 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     // بنك المعرفة يستخدم كمرشد تنظيمي منفصل فقط، ولا يعامل ككتاب مصدر حتى لا تتسرب عبارات داخلية مثل «محور معرفي مهم» إلى نص السؤال.
     const examSourceBooks: ExamSourceBook[] = usableBooks
 
-    // مهم: الاستكمال/التحريك لا يصفر الامتحان ولا يحذف الأسئلة الموجودة.
-    // أي دفعة ضعيفة تبقى بانتظار مراجعة الإدارة ليتم اعتمادها/تعديلها/رفضها يدوياً.
-    // الحذف الكامل مسموح فقط من زر «إعادة بناء الامتحان من الكتب».
+    // في الاستكمال لا نحافظ على أسئلة معلّقة واضحة الفساد: تسريب بنك المعرفة كمصدر، ملاحظات تقنية، أو خيارات مكررة.
+    // هذه الحالة تظهر عندما تُحفظ دفعة أولى ناقصة/ضعيفة ثم يفشل الاستكمال عند 11/80 بسبب فلاتر منع التكرار.
+    existingCount = await resetLegacyWeakFirstBatchIfNeeded(examId, existingCount)
+    existingCount = await resetUngroundedPendingQuestionsIfNeeded(examId, examSourceBooks, existingCount)
 
     const batchIndex = firstMissingBatchIndex(existingCount)
     if (batchIndex >= EXAM_BATCH_COUNT) {
