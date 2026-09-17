@@ -18,30 +18,19 @@ concurrency:
 
 jobs:
   build:
-    name: Bun build
+    name: Next.js build
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: aact_ci
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres -d aact_ci"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
 
     env:
       CI: true
       NEXT_TELEMETRY_DISABLED: 1
+      # CI build فقط: نولّد Prisma Client ونبني Next.js بدون db push أو seed.
+      # النشر الفعلي على Vercel يستخدم متغيرات البيئة الحقيقية وقاعدة الإنتاج.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aact_ci?schema=public
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/aact_ci?schema=public
+      NEXTAUTH_SECRET: ci-nextauth-secret-not-used-in-production
+      AUTH_SECRET: ci-auth-secret-not-used-in-production
 
     steps:
       - name: Checkout repository
@@ -54,7 +43,10 @@ jobs:
         run: bun --version
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
-      - name: Build application
-        run: bun run build
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build Next.js application
+        run: bunx next build
