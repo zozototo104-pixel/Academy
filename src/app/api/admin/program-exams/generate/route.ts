@@ -477,7 +477,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const existingOptionWords = await existingOptionTexts(examId)
 
     const window = currentBatchWindow(existingCount, batchIndex)
-    let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, batchIndex, previousTexts, knowledgeContext)
+    let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, batchIndex, previousTexts, knowledgeContext, window.needed, window.offset)
     batch = filterNewQuestions(prioritizeUnfilledCandidates(batch, window.offset), existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
 
     if (batch.length < window.needed) {
