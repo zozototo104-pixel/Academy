@@ -1854,7 +1854,7 @@ ${plannedTypes}
 - points رقماً كما هو محدد في المواصفة: MCQ/TF = 2، SHORT = 5، ESSAY = 10.
 - مهم جداً: أرسل كل سؤال في سطر مستقل — كائن JSON واحد لكل سطر داخل مصفوفة، ولا تستخدم علامة تنصيص " داخل نص السؤال أو الخيارات أو الإجابة النموذجية (استخدم «» بدلاً منها)
 
-أجب بصيغة JSON فقط — مصفوفة من ${spec.count} أسئلة مختلطة حسب التسلسل أعلاه، أمثلة شكلية فقط:
+أجب بصيغة JSON فقط — مصفوفة من ${requestedPlan.length} أسئلة مختلطة حسب التسلسل أعلاه، أمثلة شكلية فقط:
 [
 {"type":"MCQ","text":"...","options":["خيار مستند إلى دليل الكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceChapter":"الفصل أو المحور إن وجد","sourceLocator":"مقطع أو فقرة أو فكرة محددة","cognitiveSkill":"APPLY","difficulty":"MEDIUM","correctRationale":"سبب صحة الخيار الصحيح مستنداً إلى الدليل","distractorRationales":[{"optionIndex":0,"option":"...","reason":"سبب الخطأ"},{"optionIndex":1,"option":"...","reason":"سبب الخطأ"},{"optionIndex":3,"option":"...","reason":"سبب الخطأ"}],"qualityFlags":["SOURCE_GROUNDED","HAS_SOURCE_BOOK","HAS_CORRECT_RATIONALE"],"points":2},
 {"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"UNDERSTAND","difficulty":"EASY","correctRationale":"سبب صحة الحكم","distractorRationales":[{"optionIndex":1,"option":"خطأ","reason":"سبب خطأ الحكم المعاكس"}],"qualityFlags":["SOURCE_GROUNDED"],"points":2},
