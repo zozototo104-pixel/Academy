@@ -1935,8 +1935,14 @@ ${plannedTypes}
     })
   } catch (e: any) {
     const reason = String(e?.message || e).slice(0, 600)
-    console.error('generateExamQuestionBatch AI failed:', reason)
-    throw new Error(`تعذر توليد أسئلة امتحانية احترافية من الكتاب عبر الذكاء الاصطناعي: ${reason}`)
+    console.error('generateExamQuestionBatch AI failed; using book-grounded professional fallback:', reason)
+    const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
+    const targetSpec = { ...spec, count: requestedPlan.length }
+    const balancedFallback = enforceExamQuestionPlan([], fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
+    if (!balancedFallback.length) {
+      throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من نص الكتاب: ${reason}`)
+    }
+    return balancedFallback.slice(0, requestedPlan.length)
   }
 
   let arr: any[] = []
