@@ -26,7 +26,7 @@ function questionsBeforeBatch(batchIndex: number): number {
   return EXAM_BATCH_SPECS.slice(0, Math.max(0, batchIndex)).reduce((sum, b) => sum + b.count, 0)
 }
 
-const MAX_QUESTIONS_PER_AI_STEP = 6
+const MAX_QUESTIONS_PER_AI_STEP = 3
 
 function currentBatchWindow(existingCount: number, batchIndex: number): { offset: number; needed: number; batchEnd: number } {
   const spec = EXAM_BATCH_SPECS[batchIndex]
