@@ -1120,7 +1120,7 @@ function contentConceptsFromBooks(books: ExamSourceBook[], programDomain: Progra
   for (const book of books) {
     const before = concepts.length
     const title = cleanText(book.title, 90)
-    const full = sanitizeExamText(book.textContent || '')
+    const full = cleanAcademicGeneratedText(sanitizeExamText(book.textContent || '', EXAM_BOOK_MAX_CHARS), EXAM_BOOK_MAX_CHARS)
     const sentences = topImportantSentences(full, programDomain, 18)
     for (const s of sentences) {
       const cleanSentence = stripExamKnowledgeMeta(s, 360)
