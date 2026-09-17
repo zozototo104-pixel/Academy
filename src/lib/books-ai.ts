@@ -1090,6 +1090,7 @@ function buildBookExamDigest(book: ExamSourceBook, index: number, totalBooks: nu
   const body = [
     `كتاب ${index + 1}: «${book.title}»${meta ? ` — ${meta}` : ''}`,
     book.description ? `سبب اعتماد/نبذة الكتاب: ${cleanText(book.description, 700)}` : '',
+    chapters.length ? `أبواب/فصول أو محاور مرصودة من الكتاب لتوزيع الأسئلة عليها:\n- ${chapters.join('\n- ')}` : '',
     important.length ? `أهم أفكار مستخرجة آلياً من محتوى الكتاب:\n- ${important.join('\n- ')}` : '',
     excerpts.length ? `مقاطع موزعة من بداية/وسط/نهاية الكتاب لبناء أسئلة شاملة:\n${excerpts.map((e, i) => `مقطع ${i + 1}: ${e}`).join('\n\n')}` : '',
     !full ? 'تنبيه: لا يوجد نص كافٍ مستخرج لهذا الكتاب؛ لا تستخدمه وحده إلا عبر بياناته الوصفية.' : '',
