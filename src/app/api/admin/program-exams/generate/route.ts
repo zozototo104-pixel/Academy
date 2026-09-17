@@ -272,7 +272,8 @@ function hasBadExamMetadata(value: unknown): boolean {
 }
 
 async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: number): Promise<number> {
-  if (existingCount === 0 || existingCount > totalRequiredQuestions()) return existingCount
+  // لا نحذف دفعة أولية صغيرة ناجحة؛ كان هذا يسبب حلقة: يحفظ 6 ثم يحذفها في نفس الاستكمال.
+  if (existingCount === 0 || existingCount < 10 || existingCount > totalRequiredQuestions()) return existingCount
   const rows = await db.programQuestion.findMany({
     where: { examId },
     orderBy: { order: 'asc' },
