@@ -1750,20 +1750,12 @@ export async function generateExamQuestionBatch(
   const domain = detectProgramDomain(program)
   const booksSection = buildBooksKnowledgeSection(books, domain, batchIndex)
   const knowledgePrompt = sanitizeKnowledgeContextForExamPrompt(knowledgeContext)
-  const knowledgeBook: ExamSourceBook | null = knowledgePrompt
-    ? {
-        title: 'بنك المعرفة الأكاديمي المنظم للبرنامج',
-        titleEn: 'Structured Academic Knowledge Bank',
-        description: 'معرفة منظمة من الكتب المقررة أو من توصيفها الأكاديمي عند غياب نص مباشر: مفاهيم، نظريات، حالات، منهجيات، وبذور أسئلة.',
-        textContent: knowledgePrompt,
-        sourceNote: 'معرفة منظمة صالحة لبناء أسئلة عندما لا يكفي النص الخام وحده',
-        contentQuality: 'KNOWLEDGE_BANK',
-      }
-    : null
-  const evidenceBooks: ExamSourceBook[] = knowledgeBook ? [...books, knowledgeBook] : books
-  const contentConcepts = contentConceptsFromBooks(evidenceBooks, domain, 28).join('\n- ')
-  const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length + (knowledgeBook ? 1 : 0)
-  const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0) + (knowledgePrompt ? knowledgePrompt.length : 0)
+  // بنك المعرفة مرشد تنظيمي فقط. لا يدخل ضمن مصادر الدليل حتى لا تظهر عبارات مثل
+  // «بنك المعرفة الأكاديمي المنظم للبرنامج» أو ملاحظات تقنية داخل السؤال أو مرجع التصحيح.
+  const evidenceBooks: ExamSourceBook[] = books
+  const contentConcepts = contentConceptsFromBooks(evidenceBooks, domain, 32).join('\n- ')
+  const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
+  const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
   const requiredDistribution = batchDistributionText(spec.kind, spec.count, program.category)
   const plannedTypes = batchQuestionPlan(spec.kind, spec.count, program.category)
     .map((t, i) => `${i + 1}. ${t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t}`)
