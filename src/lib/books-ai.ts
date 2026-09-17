@@ -1608,6 +1608,13 @@ function hasForbiddenExamMetadata(value: unknown): boolean {
     n.includes('مصطلحات مرتبطه') ||
     n.includes('كلمات مفتاحيه') ||
     n.includes('بنك المعرفه الاكاديمي المستخرج من الكتب') ||
+    n.includes('بنك المعرفه الاكاديمي المنظم للبرنامج') ||
+    n.includes('بنك المعرفه الاكاديمي المنظم') ||
+    n.includes('تمت قراءه وفحص كامل صفحات') ||
+    n.includes('note') ||
+    n.includes('source note') ||
+    n.includes('sourcenote') ||
+    n.includes('contentquality') ||
     n.includes('كيف يمكن فهم فكره') ||
     n.includes('اي عباره تفسر بصوره ادق دلاله') ||
     n.includes('ما الاستنتاج الاكثر صحه من الفكره الاتيه في الكتاب') ||
