@@ -1397,10 +1397,8 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   }
 
   if (!ai?.length && sourceText.length >= 900) {
-    // للكتب المرفوعة لا نحفظ fallback حتمي مكرر مكان تحليل Gemini. إذا لم يكتمل التحليل، نفشل بدون حذف/استبدال بنك المعرفة الحالي.
-    if (book.data) {
-      throw new Error('لم يكتمل تحليل الذكاء الاصطناعي للملف، لذلك لم يتم حفظ عناصر معرفة عامة أو مكررة. أعد المحاولة بعد قليل أو ارفع نسخة PDF نصية/Word إذا تكرر التعطل.')
-    }
+    // إذا فشل Gemini في إرجاع JSON صالح لكن لدينا نص حقيقي مستخرج من الملف، لا نترك بنك المعرفة فارغاً.
+    // المسار الاحتياطي هنا مبني على مقاطع الكتاب المقروءة نفسها، وليس على عنوان الكتاب أو وصف عام.
     buildMode = 'TEXT_DETERMINISTIC'
   } else if (!ai?.length && book.data) {
     throw new Error(`يوجد ملف مرفوع للكتاب لكن لم يتمكن النظام من قراءة محتواه قراءة أكاديمية كافية. السبب: ${hydrated.sourceNote}. جرّب رفع PDF نصي أو Word DOCX، أو تأكد من تفعيل Gemini ووجود حصة كافية.`)
@@ -1415,8 +1413,13 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
   let items: KnowledgeItemDraft[] = []
   if (aiItems.length >= MIN_ACCEPTABLE_AI_ITEMS) {
     items = aiItems
+  } else if (buildMode === 'TEXT_DETERMINISTIC') {
+    items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
+    if (!items.length) {
+      throw new Error('تم استخراج نص من الكتاب، لكن تعذر تحويله إلى عناصر معرفة صالحة بعد التنظيف. جرّب رفع نسخة PDF نصية/Word أوضح.')
+    }
   } else if (book.data) {
-    // للكتاب المرفوع لا نؤلف ولا نستخدم توصيف البرنامج كبديل. إما قراءة فعلية من الملف أو لا نحفظ شيئاً.
+    // للكتاب المرفوع غير المقروء لا نؤلف ولا نستخدم توصيف البرنامج كبديل. إما قراءة فعلية من الملف أو لا نحفظ شيئاً.
     throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة. أعد المحاولة أو ارفع نسخة PDF نصية/Word أوضح.')
   } else {
     items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
