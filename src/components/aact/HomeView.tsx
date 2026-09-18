@@ -244,10 +244,21 @@ export function HomeView() {
   useEffect(() => {
     const scope = document.querySelector('.aact-fade-in')
     if (!scope) return
-    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section img, section button, .aact-card, .aact-reveal-manual'))
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section button, .aact-card, .aact-reveal-manual'))
     nodes.forEach((el, i) => {
+      const tag = el.tagName.toLowerCase()
+      const hasImage = Boolean(el.querySelector('img'))
       el.classList.add('aact-scroll-reveal')
-      el.classList.add(i % 3 === 0 ? 'aact-reveal-from-right' : i % 3 === 1 ? 'aact-reveal-from-left' : 'aact-reveal-from-bottom')
+      if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+        el.classList.add('aact-text-drop')
+      } else if (el.classList.contains('aact-feature-badge')) {
+        el.classList.add('aact-badge-drop')
+      } else if (hasImage || el.classList.contains('aact-card')) {
+        el.classList.add('aact-reveal-clean')
+        el.classList.add('aact-reveal-from-bottom')
+      } else {
+        el.classList.add(i % 2 === 0 ? 'aact-reveal-from-right' : 'aact-reveal-from-left')
+      }
       el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
     })
     const io = new IntersectionObserver(
