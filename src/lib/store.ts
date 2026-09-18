@@ -22,11 +22,26 @@ export type View =
   | 'about'
   | 'contact'
 
+function scrollPageToTopSoon() {
+  if (typeof window === 'undefined') return
+  const run = () => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    } catch {}
+  }
+  run()
+  window.requestAnimationFrame(run)
+  window.setTimeout(run, 80)
+}
+
 function updateBrowserRoute(view: View, params: Record<string, string | null | undefined> = {}) {
   if (typeof window === 'undefined') return
   try {
     const url = new URL(window.location.href)
     url.search = ''
+    url.hash = ''
     if (view !== 'home') url.searchParams.set('view', view)
     for (const [key, value] of Object.entries(params)) {
       if (value) url.searchParams.set(key, value)
@@ -35,6 +50,7 @@ function updateBrowserRoute(view: View, params: Record<string, string | null | u
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
     if (next !== current) window.history.pushState(null, '', next)
   } catch {}
+  scrollPageToTopSoon()
 }
 
 export interface AppUser {
