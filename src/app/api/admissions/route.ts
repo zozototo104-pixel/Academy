@@ -40,6 +40,7 @@ export const STATUS_LABEL: Record<string, string> = {
   RESULT_APPROVED: 'تم اعتماد النتيجة',
   CERTIFIED: 'تم إصدار الشهادة',
   REJECTED: 'غير مقبول',
+  UPLOADING_DOCUMENTS: 'جاري رفع المستندات',
   PENDING: 'تم التقديم',
 }
 
