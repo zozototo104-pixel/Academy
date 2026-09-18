@@ -462,7 +462,7 @@ export function HomeView() {
             <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
               <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
             </div>
-            <div className="absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+            <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
               <div className="flex items-center gap-4">
                 <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
                 <span className="h-10 w-px bg-slate-200" />
