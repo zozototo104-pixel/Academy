@@ -557,10 +557,10 @@ export function AIChatView() {
   }
 
   const voiceStateLabel: Record<AgentVoiceState, string> = {
-    IDLE: 'جاري التحضير…',
-    LISTENING: 'أستمع إليك… تحدث الآن',
-    USER_SPEAKING: 'أسمعك الآن…',
-    THINKING: 'لحظة…',
+    IDLE: 'أفتح خط المشرف…',
+    LISTENING: 'الخط مفتوح — تحدث الآن',
+    USER_SPEAKING: 'أسمعك بوضوح…',
+    THINKING: 'أعالج سؤالك…',
     AI_SPEAKING: 'أتحدث — قاطعني متى شئت',
     INTERRUPTED: 'سمعتك — تفضل…',
   }
