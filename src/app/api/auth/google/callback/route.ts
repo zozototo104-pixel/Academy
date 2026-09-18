@@ -20,6 +20,46 @@ function authRedirect(req: NextRequest, params: Record<string, string>) {
   return NextResponse.redirect(url)
 }
 
+function oauthLanding(req: NextRequest, token: string, view: string) {
+  const target = new URL('/', appBaseUrl(req))
+  target.searchParams.set('view', view)
+  target.searchParams.set('oauth', 'google_ok')
+  const tokenJson = JSON.stringify(token)
+  const targetJson = JSON.stringify(`${target.pathname}${target.search}`)
+  const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>تسجيل الدخول عبر Google</title>
+  <style>
+    html,body{height:100%;margin:0;background:#0f2b46;color:#f5f0e1;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+    body{display:grid;place-items:center;text-align:center}
+    .card{padding:28px;border-radius:28px;background:rgba(255,255,255,.08);box-shadow:0 24px 60px rgba(0,0,0,.22)}
+    .spin{width:42px;height:42px;border:4px solid rgba(245,240,225,.22);border-top-color:#c9a227;border-radius:999px;margin:0 auto 14px;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
+    p{margin:0;font-weight:900;line-height:1.8}
+  </style>
+</head>
+<body>
+  <div class="card"><div class="spin"></div><p>تم تسجيل الدخول عبر Google<br/>يتم فتح حسابك الآن…</p></div>
+  <script>
+    (function(){
+      try { localStorage.setItem('aact_token', ${tokenJson}); } catch(e) {}
+      try { sessionStorage.setItem('aact_skip_startup', '1'); } catch(e) {}
+      location.replace(${targetJson});
+    })();
+  </script>
+</body>
+</html>`
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store, no-cache, must-revalidate',
+    },
+  })
+}
+
 async function exchangeCode(req: NextRequest, code: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
