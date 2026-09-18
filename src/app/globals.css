@@ -403,36 +403,87 @@
   50% { transform: scaleY(1.2); }
 }
 
-/* ===== الكرة الصوتية الحية — وضع المحادثة بمستوى ChatGPT/Gemini ===== */
+/* ===== واجهة المحادثة الصوتية الحية — تعديل بصري فقط، بدون تغيير منطق الصوت ===== */
+.aact-live-voice-screen::before,
+.aact-live-voice-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.aact-live-voice-screen::before {
+  background:
+    radial-gradient(circle at 50% 39%, rgba(224, 184, 58, 0.20), transparent 18rem),
+    radial-gradient(circle at 16% 82%, rgba(64, 156, 255, 0.10), transparent 24rem),
+    linear-gradient(180deg, rgba(255,255,255,0.035), transparent 36%);
+}
+.aact-live-voice-screen::after {
+  background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(circle at 50% 45%, black 0%, transparent 72%);
+}
+.aact-voice-halo {
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(224,184,58,0.20), rgba(224,184,58,0.06) 48%, transparent 70%);
+  filter: blur(10px);
+  animation: aactVoiceHalo 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.aact-voice-halo.h2 {
+  width: 21rem;
+  height: 21rem;
+  border: 1px solid rgba(224,184,58,0.22);
+  background: transparent;
+  filter: none;
+  animation-delay: 0.8s;
+}
 .aact-voice-orb {
   position: relative;
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 30%, #f3d47a 0%, #c9a227 45%, #8a6d12 100%);
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.28) 18%, transparent 38%),
+    radial-gradient(circle at 50% 52%, #f5d56c 0%, #d7ad31 44%, #8f6c11 100%);
+  border: 1px solid rgba(255,255,255,0.22);
   box-shadow:
-    0 0 60px rgba(201, 162, 39, 0.45),
-    0 0 120px rgba(201, 162, 39, 0.2),
-    inset 0 -10px 30px rgba(15, 43, 70, 0.35);
-  transition: transform 0.08s linear;
+    0 24px 80px rgba(0, 0, 0, 0.26),
+    0 0 72px rgba(224, 184, 58, 0.38),
+    inset 0 16px 28px rgba(255, 255, 255, 0.28),
+    inset 0 -22px 36px rgba(15, 43, 70, 0.34);
+  transition: transform 0.08s linear, box-shadow 0.24s ease, background 0.24s ease;
   will-change: transform;
+  overflow: hidden;
+}
+.aact-voice-orb::after {
+  content: "";
+  position: absolute;
+  inset: 9%;
+  border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: inset 0 0 18px rgba(255,255,255,0.14);
 }
 .aact-voice-orb-inner {
   position: absolute;
-  inset: 12%;
+  inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 60%);
-  opacity: 0.55;
+  background: conic-gradient(from 90deg, rgba(255,255,255,0.18), transparent 18%, rgba(255,255,255,0.10) 38%, transparent 62%, rgba(255,255,255,0.16));
+  opacity: 0.58;
+  animation: aactVoiceOrbSheen 7s linear infinite;
 }
 /* حلقات موجية تتنفس حول الكرة أثناء الاستماع */
 .aact-orb-ring {
   position: absolute;
-  inset: -14%;
+  inset: -18%;
   border-radius: 9999px;
-  border: 2px solid rgba(201, 162, 39, 0.5);
-  animation: aactOrbRing 2.4s infinite ease-out;
+  border: 2px solid rgba(224, 184, 58, 0.48);
+  box-shadow: 0 0 24px rgba(224,184,58,0.16);
+  animation: aactOrbRing 2.1s infinite ease-out;
   pointer-events: none;
 }
-.aact-orb-ring.r2 { animation-delay: 0.8s; }
-.aact-orb-ring.r3 { animation-delay: 1.6s; }
+.aact-orb-ring.r2 { animation-delay: 0.65s; }
+.aact-orb-ring.r3 { animation-delay: 1.3s; }
 @keyframes aactOrbRing {
   0% { transform: scale(0.9); opacity: 0.8; }
   100% { transform: scale(1.45); opacity: 0; }
