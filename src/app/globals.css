@@ -261,6 +261,7 @@
 .aact-scroll-reveal.aact-in-view {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
 }
 .aact-card.aact-scroll-reveal.aact-in-view:hover {
   transform: translateY(-4px) scale(1);
