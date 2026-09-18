@@ -213,19 +213,25 @@ export function DashboardView() {
   // Load my programs
   const loadList = useCallback(async () => {
     try {
-      const [p, e, c, m, mc] = await Promise.all([
+      // الأولوية لظهور البرامج المسجلة بسرعة؛ لا ننتظر الشات والذاكرة والشارات حتى تظهر قائمة «برامجي».
+      const [p, e] = await Promise.all([
         api<{ programs: any[] }>('/api/programs?summary=1'),
         api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => ({ enrollments: [] as any[] })),
+      ])
+      setPrograms(p.programs)
+      setEnrollments(e.enrollments || [])
+
+      Promise.all([
         api<{ messages: ChatMsg[] }>('/api/chat').catch(() => ({ messages: [] as ChatMsg[] })),
         api<{ memory: AcademicMemorySnapshot | null }>('/api/my/academic-memory').catch(() => ({ memory: null })),
         api<{ earned: MicroCredentialCard[]; available: MicroCredentialCard[] }>('/api/my/micro-credentials').catch(() => ({ earned: [], available: [] })),
-      ])
-      setPrograms(p.programs)
-      setLastChats(c.messages.slice(-2))
-      setAcademicMemory(m.memory || null)
-      setEarnedMicroCredentials(mc.earned || [])
-      setAvailableMicroCredentials(mc.available || [])
-      setEnrollments(e.enrollments || [])
+      ]).then(([c, m, mc]) => {
+        setLastChats(c.messages.slice(-2))
+        setAcademicMemory(m.memory || null)
+        setEarnedMicroCredentials(mc.earned || [])
+        setAvailableMicroCredentials(mc.available || [])
+      }).catch(() => {})
+
       return e.enrollments || []
     } catch {
       return []
