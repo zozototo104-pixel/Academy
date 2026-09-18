@@ -134,6 +134,7 @@ export default function Home() {
     const oauthToken = q.get('authToken')
     if (oauthToken) {
       saveToken(oauthToken)
+      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
       q.delete('authToken')
       q.delete('oauth')
       const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
@@ -141,11 +142,30 @@ export default function Home() {
     }
     const currentView = q.get('view') || view
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
-    api<{ user: any }>('/api/auth/me')
+    const loadMe = async () => {
+      if (!oauthToken) return api<{ user: any }>('/api/auth/me')
+      // رجوع Google OAuth يحتاج أحياناً لحظة حتى تصبح الجلسة الجديدة قابلة للقراءة.
+      // نستخدم التوكن القادم من callback مباشرة في الهيدر ونكرر إن رجع user=null بدل إعادة المستخدم لشاشة الدخول.
+      let last: any = null
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const res = await fetch('/api/auth/me', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${oauthToken}` },
+        })
+        const data = await res.json().catch(() => ({}))
+        last = data
+        if (res.ok && data?.user) return data
+        await new Promise((resolve) => setTimeout(resolve, 250 + attempt * 180))
+      }
+      return last || { user: null }
+    }
+    loadMe()
       .then((d) => {
         if (!alive) return
         setAuthRecovering(false)
-        setUser(d.user)
+        if (d?.user) setUser(d.user)
+        else if (oauthToken && protectedViews.includes(currentView)) setAuthRecovering(true)
+        else setUser(null)
       })
       .catch(() => {
         if (!alive) return
