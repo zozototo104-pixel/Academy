@@ -518,28 +518,53 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const existingOptionWords = await existingOptionTexts(examId)
 
     const window = currentBatchWindow(existingCount, batchIndex)
-    let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, batchIndex, previousTexts, knowledgeContext, window.needed, window.offset)
-    batch = filterNewQuestions(batch, existingKeys, existingOptions, existingOptionWords).slice(0, window.needed)
+    let batch: GeneratedQuestion[] = []
+    const generationNotes: string[] = []
 
-    if (batch.length < window.needed) {
-      // لا نملأ النقص بقوالب fallback؛ نعيد طلب أسئلة AI حقيقية فقط وبحجم أصغر.
-      for (let attempt = 1; attempt <= 2 && batch.length < window.needed; attempt++) {
-        const neededNow = window.needed - batch.length
-        const retryPreviousTexts = [...previousTexts, ...batch.map((q) => q.text)]
-        const retry = await generateExamQuestionBatch(
+    for (let attempt = 0; attempt < EXAM_BATCH_COUNT * 2 && batch.length < window.needed; attempt++) {
+      const seedBatchIndex = batchIndex + attempt
+      const neededNow = window.needed - batch.length
+      const retryPreviousTexts = [...previousTexts, ...batch.map((q) => q.text)]
+
+      try {
+        const aiCandidates = await generateExamQuestionBatch(
           exam.program,
           examSourceBooks,
-          batchIndex + attempt,
+          seedBatchIndex,
           retryPreviousTexts,
           knowledgeContext,
           neededNow,
-          window.offset + batch.length
+          window.offset + batch.length + attempt
         )
-        const filteredRetry = filterNewQuestions(retry, existingKeys, existingOptions, existingOptionWords)
-        batch = [...batch, ...filteredRetry].slice(0, window.needed)
+        let filtered = filterNewQuestions(aiCandidates, existingKeys, existingOptions, existingOptionWords)
+        if (!filtered.length && aiCandidates.length) filtered = filterNewQuestions(aiCandidates, existingKeys)
+        batch = [...batch, ...filtered].slice(0, window.needed)
+      } catch (err: any) {
+        generationNotes.push(`AI:${seedBatchIndex + 1}:${String(err?.message || err).slice(0, 120)}`)
       }
+
+      if (batch.length >= window.needed) break
+
+      // إذا فشل الذكاء الاصطناعي أو أعاد أسئلة مكررة، ننتقل إلى محور/دفعة تالية ونبني أسئلة مهنية من نص الكتاب نفسه.
+      // لا نوقف الامتحان عند نقطة واحدة؛ المهم حفظ أسئلة صالحة ومراجعتها قبل النشر.
+      const fallbackCandidates = fallbackExamQuestionBatch(exam.program, examSourceBooks, seedBatchIndex)
+      let fallback = filterNewQuestions(fallbackCandidates, existingKeys, existingOptions, existingOptionWords)
+      if (!fallback.length && fallbackCandidates.length) fallback = filterNewQuestions(fallbackCandidates, existingKeys)
+      batch = [...batch, ...fallback].slice(0, window.needed)
     }
-    if (batch.length === 0) throw new Error(`لم يُنتج الذكاء الاصطناعي سؤالاً امتحانياً صالحاً من نص الكتاب للدفعة ${batchIndex + 1} بعد ${existingCount} سؤال محفوظ`)
+
+    if (batch.length === 0) {
+      const totals = await examTotals(examId)
+      await db.programExam.update({
+        where: { id: examId },
+        data: {
+          status: 'GENERATING',
+          totalPoints: totals.totalPoints,
+          errorNote: `تجاوز النظام نافذة لم تنتج أسئلة صالحة بعد ${totals.questionCount}/${totalRequiredQuestions()} سؤالاً وسيحاول محوراً تالياً عند الاستكمال. ${generationNotes.slice(-2).join(' | ')}`.slice(0, 500),
+        },
+      }).catch(() => {})
+      return { ok: true, status: 'GENERATING', inserted: 0, done: false, batchIndex, ...totals }
+    }
 
     if (!(await isExamStillGenerating(examId))) {
       const totals = await examTotals(examId)
