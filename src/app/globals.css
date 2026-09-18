@@ -267,6 +267,22 @@
 .aact-scroll-reveal.aact-reveal-from-bottom {
   transform: translate3d(0, 72px, 0) scale(0.94);
 }
+.aact-scroll-reveal.aact-text-drop {
+  transform: translate3d(0, -42px, 0) scale(0.98);
+  filter: blur(1.5px);
+}
+.aact-scroll-reveal.aact-reveal-clean {
+  filter: none;
+  opacity: 0;
+}
+.aact-scroll-reveal.aact-reveal-clean.aact-in-view {
+  filter: none;
+}
+.aact-scroll-reveal.aact-badge-drop,
+.aact-feature-badge.aact-scroll-reveal {
+  transform: translate3d(0, -62px, 0) scale(0.86);
+  filter: blur(1px);
+}
 .aact-scroll-reveal.aact-in-view {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
