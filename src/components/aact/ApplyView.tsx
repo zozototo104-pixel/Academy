@@ -336,11 +336,26 @@ export function ApplyView() {
       fd.set('program', form.program)
       fd.append('programId', selectedProgramId)
       fd.append('acknowledged', 'true')
-      for (const d of activeDocs) {
-        const f = files[d.type]
-        if (f) fd.append(`doc_${d.type}`, f)
+      fd.append('stagedUpload', 'true')
+
+      // لا نرسل كل المرفقات دفعة واحدة حتى لا يصطدم الطلب بحد Vercel ويرجع HTTP 413.
+      // ننشئ الطلب أولاً، ثم نرفع كل ملف في طلب مستقل، ثم نكمل التقديم ونصدر الفاتورة.
+      const staged = await api<{ reference: string; applicationId: string; staged: boolean }>('/api/admissions', { method: 'POST', body: fd })
+      const docsToUpload = activeDocs.filter((d) => files[d.type])
+      for (let i = 0; i < docsToUpload.length; i++) {
+        const d = docsToUpload[i]
+        const uploadFd = new FormData()
+        uploadFd.append('applicationId', staged.applicationId)
+        uploadFd.append('reference', staged.reference)
+        uploadFd.append('docType', d.type)
+        uploadFd.append('file', files[d.type])
+        toast({ title: 'جاري رفع المستندات', description: `رفع ${i + 1} من ${docsToUpload.length}: ${d.label}` })
+        await api('/api/admissions/files', { method: 'POST', body: uploadFd })
       }
-      const d = await api<{ reference: string; message: string; invoice: any }>('/api/admissions', { method: 'POST', body: fd })
+      const d = await api<{ reference: string; message: string; invoice: any }>('/api/admissions/finalize', {
+        method: 'POST',
+        body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference }),
+      })
       setDone({ reference: d.reference, invoice: d.invoice || null })
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
