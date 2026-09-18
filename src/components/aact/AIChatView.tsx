@@ -585,6 +585,9 @@ export function AIChatView() {
     : user.role === 'SUPERVISOR'
       ? ['اعرض لي طلابي المعيّنين وحالة أبحاثهم', 'كيف أجهز ملاحظات مناقشة بحث؟', 'ما الأسئلة المناسبة لطالب قبل المناقشة؟', 'كيف أتابع طالباً متعثراً في البحث؟']
       : QUICK_QUESTIONS
+  const liveUserCaption = liveCaption.trim()
+  const liveAiCaption = voiceState === 'AI_SPEAKING' ? lastReply.trim() : ''
+  const hasLiveCaptions = showCaptions && (liveUserCaption || liveAiCaption)
 
   return (
     <>
