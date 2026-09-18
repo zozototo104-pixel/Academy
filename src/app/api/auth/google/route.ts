@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', req.url))
   }
 
-  const state = randomBytes(24).toString('hex')
+  const state = createSignedState()
   const baseUrl = appBaseUrl(req)
   const redirectUri = `${baseUrl}/api/auth/google/callback`
   const store = await cookies()
