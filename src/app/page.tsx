@@ -65,6 +65,9 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
           <div className="h-full bg-white transition-all duration-150" style={{ width: `${progress}%` }} />
         </div>
       </div>
+      <div className="aact-startup-vertical-progress hidden sm:block" aria-hidden="true">
+        <span style={{ height: `${progress}%` }} />
+      </div>
     </div>
   )
 }
