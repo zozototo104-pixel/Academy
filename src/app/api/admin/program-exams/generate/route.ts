@@ -717,13 +717,20 @@ async function runGeneration(examId: string) {
 
     for (let i = startBatch; i < EXAM_BATCH_COUNT; i++) {
       if (!(await isExamStillGenerating(examId))) return
-      const spec = EXAM_BATCH_SPECS[i]
-      let batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
-      if (batch.length === 0) {
-        // إعادة محاولة واحدة عند فشل الدفعة
+      let batch: GeneratedQuestion[] = []
+      try {
         batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
+      } catch (err) {
+        console.warn('exam background AI batch failed; using fallback and continuing:', i + 1, String((err as any)?.message || err).slice(0, 180))
       }
-      if (batch.length === 0) throw new Error(`فشل توليد الدفعة ${i + 1} من الأسئلة`)
+      if (batch.length === 0) batch = fallbackExamQuestionBatch(exam.program, examSourceBooks, i)
+      if (batch.length === 0) {
+        await db.programExam.update({
+          where: { id: examId },
+          data: { errorNote: `تجاوز النظام الدفعة ${i + 1} لأنها لم تنتج أسئلة صالحة، وسيكمل الدفعة التالية.` },
+        }).catch(() => {})
+        continue
+      }
       if (!(await isExamStillGenerating(examId))) return
 
       await db.programQuestion.createMany({
