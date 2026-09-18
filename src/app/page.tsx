@@ -182,8 +182,10 @@ export default function Home() {
         if (!alive) return
         // عند رجوع Safari/Chrome من كاميرا الفيديو أو ضعف الشبكة قد يفشل فحص الجلسة لحظياً.
         // لا نرمي المستخدم للرئيسية إذا كان معه رمز جلسة ويحاول فتح صفحة محمية، بل نعرض شاشة إعادة اتصال.
-        if (getToken() && protectedViews.includes(currentView)) setAuthRecovering(true)
-        else setUser(null)
+        clearToken()
+        setAuthRecovering(false)
+        setUser(null)
+        if (protectedViews.includes(currentView)) navigate('auth')
       })
       .finally(() => { if (alive) setAuthChecked(true) })
 
