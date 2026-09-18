@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { randomBytes } from 'crypto'
+import { createHmac, randomBytes } from 'crypto'
 
 const STATE_COOKIE = 'aact_google_oauth_state'
+
+function oauthSecret() {
+  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_ID || 'aact-google-oauth'
+}
+
+function signState(nonce: string, ts: number) {
+  return createHmac('sha256', oauthSecret()).update(`${nonce}.${ts}`).digest('base64url')
+}
+
+function createSignedState() {
+  const nonce = randomBytes(24).toString('hex')
+  const ts = Date.now()
+  return `${nonce}.${ts}.${signState(nonce, ts)}`
+}
 
 function appBaseUrl(req: NextRequest) {
   const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
