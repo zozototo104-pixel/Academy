@@ -258,6 +258,15 @@
     border-color 0.25s ease;
   will-change: opacity, transform, filter;
 }
+.aact-scroll-reveal.aact-reveal-from-left {
+  transform: translate3d(-52px, 34px, 0) scale(0.94);
+}
+.aact-scroll-reveal.aact-reveal-from-right {
+  transform: translate3d(52px, 34px, 0) scale(0.94);
+}
+.aact-scroll-reveal.aact-reveal-from-bottom {
+  transform: translate3d(0, 72px, 0) scale(0.94);
+}
 .aact-scroll-reveal.aact-in-view {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
