@@ -590,7 +590,7 @@ export function AIChatView() {
     <>
     {/* الشاشة الصوتية الغامرة خارج الحاوية المحوّلة حتى تملأ الشاشة فعلياً */}
     {voiceMode && (
-      <div className="fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#0a1f36] via-[#0f2b46] to-[#12365c]" dir="rtl">
+      <div className="aact-live-voice-screen fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
         {/* شريط علوي: شفافية إلزامية + الحالة + شعار الأكاديمية */}
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2.5">
