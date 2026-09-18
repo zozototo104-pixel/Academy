@@ -50,7 +50,7 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
   }, [])
 
   return (
-    <div className="aact-startup-screen flex min-h-screen items-center justify-center px-8 text-white">
+    <div className="aact-startup-screen relative flex min-h-screen items-center justify-center px-8 text-white">
       <div className="w-full max-w-xl text-center">
         <div className="mx-auto mb-12 flex h-44 w-44 items-center justify-center rounded-full bg-white/5 shadow-2xl ring-1 ring-white/10 sm:h-52 sm:w-52">
           <AcademyLogo size={150} light />
