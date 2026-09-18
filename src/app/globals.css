@@ -248,13 +248,15 @@
 
 .aact-scroll-reveal {
   opacity: 0;
-  transform: translate3d(0, 28px, 0) scale(0.985);
+  transform: translate3d(0, 46px, 0) scale(0.965);
+  filter: blur(2px);
   transition:
-    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
-    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
+    opacity 0.88s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
+    transform 0.88s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
+    filter 0.88s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
     box-shadow 0.25s ease,
     border-color 0.25s ease;
-  will-change: opacity, transform;
+  will-change: opacity, transform, filter;
 }
 .aact-scroll-reveal.aact-in-view {
   opacity: 1;
