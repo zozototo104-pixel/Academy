@@ -245,6 +245,15 @@
   55% { transform: translate3d(0, -4px, 0) scale(1.04); }
   100% { filter: blur(0); transform: translate3d(0, 0, 0) scale(1); }
 }
+@media (prefers-reduced-motion: reduce) {
+  .aact-scroll-reveal,
+  .aact-feature-badge.aact-scroll-reveal {
+    opacity: 1;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
 .aact-fade-in section .rounded-2xl svg,
 .aact-fade-in section .rounded-xl svg,
 .aact-fade-in section .rounded-3xl svg {
