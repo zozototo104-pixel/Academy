@@ -120,7 +120,8 @@ export default function Home() {
   const [startupDone, setStartupDone] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
-      return sessionStorage.getItem('aact_skip_startup') === '1' || Boolean(getToken())
+      const q = new URLSearchParams(window.location.search)
+      return q.has('authToken') || sessionStorage.getItem('aact_skip_startup') === '1' || Boolean(getToken())
     } catch {
       return false
     }
