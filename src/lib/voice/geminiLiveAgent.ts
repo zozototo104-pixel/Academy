@@ -196,7 +196,9 @@ export class GeminiLiveAgent {
     this.startedAt = performance.now()
     this.userText = ''
     this.aiText = ''
-    this.state('THINKING')
+    // واجهة فقط: لا نُظهر «لحظة» عند فتح الاتصال؛ نبدأ بحالة تحضير/استماع حتى يشعر المستخدم أن الخط مفتوح فوراً.
+    // لا يغيّر هذا صوت المشرف أو منطق Gemini Live.
+    this.state('LISTENING')
 
     try {
       // لا نرسل تحية تلقائية ولا نعمل VAD يدوي هنا.
