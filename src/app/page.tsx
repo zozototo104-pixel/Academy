@@ -52,10 +52,10 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
   return (
     <div className="aact-startup-screen relative flex min-h-screen items-center justify-center px-8 text-white">
       <div className="w-full max-w-xl text-center">
-        <div className="mx-auto mb-12 flex h-44 w-44 items-center justify-center rounded-full bg-white/5 shadow-2xl ring-1 ring-white/10 sm:h-52 sm:w-52">
-          <AcademyLogo size={150} light />
+        <div className="aact-startup-logo mx-auto mb-12 flex h-48 w-48 items-center justify-center rounded-full sm:h-56 sm:w-56">
+          <AcademyLogo size={184} light />
         </div>
-        <div className="flex items-end justify-center gap-3 font-black leading-none">
+        <div className="aact-startup-count flex items-end justify-center gap-3 font-black leading-none" dir="ltr">
           <span className="text-[7rem] tracking-tight sm:text-[9rem]">{String(progress).padStart(2, '0')}</span>
           <span className="mb-5 text-4xl text-[#8d1b32] sm:mb-7 sm:text-5xl">%</span>
         </div>
