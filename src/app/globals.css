@@ -248,8 +248,8 @@
 
 .aact-scroll-reveal {
   opacity: 0;
-  transform: translate3d(0, 46px, 0) scale(0.965);
-  filter: blur(2px);
+  transform: translate3d(0, 64px, 0) scale(0.94);
+  filter: blur(3px);
   transition:
     opacity 0.88s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
     transform 0.88s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
