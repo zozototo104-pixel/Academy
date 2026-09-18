@@ -5,7 +5,12 @@ import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted } from '@/lib/mailer'
-import { REQUIRED_DOCS } from '../route'
+const REQUIRED_DOCS: { type: string; label: string }[] = [
+  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
+  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
+  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
+  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
+]
 
 export async function POST(req: NextRequest) {
   try {
