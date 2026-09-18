@@ -214,6 +214,46 @@
   border-color: rgba(201, 162, 39, 0.55);
 }
 
+.aact-scroll-reveal {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0) scale(0.985);
+  transition:
+    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
+    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--aact-reveal-delay, 0ms),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+  will-change: opacity, transform;
+}
+.aact-scroll-reveal.aact-in-view {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+.aact-feature-badge.aact-scroll-reveal {
+  transform: translate3d(22px, 34px, 0) scale(0.82) rotate(-2deg);
+}
+.aact-feature-badge.aact-scroll-reveal.aact-in-view {
+  transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+}
+.aact-feature-badge.aact-in-view {
+  animation: aactBadgeSettle 0.95s cubic-bezier(0.18, 1.25, 0.32, 1) both;
+}
+@keyframes aactBadgeSettle {
+  0% { filter: blur(1px); }
+  55% { transform: translate3d(0, -4px, 0) scale(1.04); }
+  100% { filter: blur(0); transform: translate3d(0, 0, 0) scale(1); }
+}
+.aact-fade-in section .rounded-2xl svg,
+.aact-fade-in section .rounded-xl svg,
+.aact-fade-in section .rounded-3xl svg {
+  transition: transform 0.28s ease, filter 0.28s ease;
+}
+.aact-fade-in section .rounded-2xl:hover svg,
+.aact-fade-in section .rounded-xl:hover svg,
+.aact-fade-in section .rounded-3xl:hover svg {
+  transform: translateY(-2px) scale(1.08) rotate(-3deg);
+  filter: drop-shadow(0 8px 14px rgba(15, 43, 70, 0.18));
+}
+
 .aact-scroll::-webkit-scrollbar {
   width: 7px;
   height: 7px;
