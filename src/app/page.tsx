@@ -165,8 +165,13 @@ export default function Home() {
       .then((d) => {
         if (!alive) return
         setAuthRecovering(false)
-        if (d?.user) setUser(d.user)
-        else if (oauthToken && protectedViews.includes(currentView)) setAuthRecovering(true)
+        if (d?.user) {
+          setUser(d.user)
+          const targetView = routeForUser(d.user)
+          if (currentView === 'auth' || oauthReturn || oauthToken) {
+            navigate(targetView as any)
+          }
+        } else if (oauthToken && protectedViews.includes(currentView)) setAuthRecovering(true)
         else setUser(null)
       })
       .catch(() => {
