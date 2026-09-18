@@ -51,13 +51,22 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   </script>
 </body>
 </html>`
-  return new NextResponse(html, {
+  const res = new NextResponse(html, {
     status: 200,
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store, no-cache, must-revalidate',
     },
   })
+  // تثبيت الجلسة من السيرفر أيضاً، وليس فقط localStorage، لأن Safari أحياناً يرجع للتطبيق قبل ثبات التخزين المحلي.
+  res.cookies.set('aact_session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60,
+  })
+  return res
 }
 
 async function exchangeCode(req: NextRequest, code: string) {
