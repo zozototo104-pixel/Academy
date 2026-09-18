@@ -358,6 +358,12 @@ export function ApplyView() {
         body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference }),
       })
       setDone({ reference: d.reference, invoice: d.invoice || null })
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+        document.documentElement.scrollTop = 0
+        document.body.scrollTop = 0
+        requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+      } catch {}
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)
