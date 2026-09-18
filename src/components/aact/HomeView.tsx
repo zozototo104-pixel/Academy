@@ -244,7 +244,7 @@ export function HomeView() {
   useEffect(() => {
     const scope = document.querySelector('.aact-fade-in')
     if (!scope) return
-    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section, .aact-card, .aact-reveal-manual'))
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section img, section button, .aact-card, .aact-reveal-manual'))
     nodes.forEach((el, i) => {
       el.classList.add('aact-scroll-reveal')
       el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 8) * 55, 385)}ms`)
