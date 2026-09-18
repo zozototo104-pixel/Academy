@@ -7,10 +7,9 @@ import { Bot, ChevronDown, ChevronUp, ShieldCheck, Download, Users2 } from 'luci
 
 // أزرار عائمة: واتساب مباشر + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
-  const { view } = useAppStore()
+  const { view, navigate } = useAppStore()
   const [showTop, setShowTop] = useState(false)
   const inChat = view === 'chat'
-  const whatsappDigits = ACADEMY_INFO.whatsapp.replace(/\D/g, '')
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
