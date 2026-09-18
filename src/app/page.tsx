@@ -242,11 +242,25 @@ export default function Home() {
     setAuthRecovering(false)
     setAuthChecked(false)
     try {
-      const d = await api<{ user: any }>('/api/auth/me')
-      setUser(d.user)
+      const token = getToken()
+      const res = await fetch('/api/auth/me', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const d = await res.json().catch(() => ({ user: null }))
+      if (res.ok && d?.user) {
+        setUser(d.user)
+        navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
+      } else {
+        clearToken()
+        setUser(null)
+        navigate('auth')
+      }
     } catch {
-      if (getToken() && protectedViews.includes(view)) setAuthRecovering(true)
-      else setUser(null)
+      clearToken()
+      setUser(null)
+      navigate('auth')
     } finally {
       setAuthChecked(true)
     }
