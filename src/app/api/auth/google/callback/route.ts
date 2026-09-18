@@ -131,11 +131,7 @@ export async function GET(req: NextRequest) {
         })
 
     const token = await createSession(user.id)
-    const target = new URL('/', appBaseUrl(req))
-    target.searchParams.set('authToken', token)
-    target.searchParams.set('view', user.role === 'ADMIN' ? 'admin' : user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
-    target.searchParams.set('oauth', 'google')
-    return NextResponse.redirect(target)
+    return oauthLanding(req, token, user.role === 'ADMIN' ? 'admin' : user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
   } catch (e) {
     console.error('Google OAuth callback failed:', e)
     return authRedirect(req, { oauth_error: 'google_login_failed' })
