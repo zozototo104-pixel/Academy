@@ -114,6 +114,7 @@ export default function Home() {
     programsFilter,
     studentPreviewId,
     agentPreviewId,
+    navigate,
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
