@@ -171,8 +171,12 @@ export default function Home() {
           if (currentView === 'auth' || oauthReturn || oauthToken) {
             navigate(targetView as any)
           }
-        } else if (oauthToken && protectedViews.includes(currentView)) setAuthRecovering(true)
-        else setUser(null)
+        } else {
+          clearToken()
+          setUser(null)
+          setAuthRecovering(false)
+          if (protectedViews.includes(currentView)) navigate('auth')
+        }
       })
       .catch(() => {
         if (!alive) return
