@@ -216,6 +216,16 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    if (stagedUpload) {
+      return NextResponse.json({
+        message: 'تم إنشاء الطلب المؤقت. ارفع المستندات الآن ملفاً ملفاً ثم أكمل التقديم.',
+        reference: app.reference,
+        applicationId: app.id,
+        staged: true,
+        documentsCount: uniqueFiles.length,
+      })
+    }
+
     // البرامج الدراسية لها فاتورة رسوم تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة.
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
     const feeInvoice = isServiceRequest ? null : await db.payment.create({
