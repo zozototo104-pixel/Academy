@@ -292,13 +292,13 @@
   transform: translateY(-4px) scale(1);
 }
 .aact-feature-badge.aact-scroll-reveal {
-  transform: translate3d(22px, 34px, 0) scale(0.82) rotate(-2deg);
+  transform: translate3d(0, -72px, 0) scale(0.86) rotate(0deg);
 }
 .aact-feature-badge.aact-scroll-reveal.aact-in-view {
   transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
 }
 .aact-feature-badge.aact-in-view {
-  animation: aactBadgeSettle 0.95s cubic-bezier(0.18, 1.25, 0.32, 1) both;
+  animation: aactBadgeSettle 1.05s cubic-bezier(0.16, 1.22, 0.28, 1) both;
 }
 @keyframes aactBadgeSettle {
   0% { filter: blur(1px); }
