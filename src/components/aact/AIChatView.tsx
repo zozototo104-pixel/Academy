@@ -387,6 +387,21 @@ export function AIChatView() {
     if (next) setLiveCaption('')
   }
 
+  useEffect(() => {
+    if (!user) return
+    let shouldOpen = false
+    try {
+      shouldOpen = sessionStorage.getItem('aact_open_voice_agent') === '1'
+      if (shouldOpen) sessionStorage.removeItem('aact_open_voice_agent')
+    } catch {}
+    if (!shouldOpen) return
+    const t = setTimeout(() => {
+      if (!voiceModeRef.current) toggleVoiceMode()
+    }, 280)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
   // Voice input (زر المايكروفون العادي — عبارة واحدة)
   // مع بديل ASR خادمي للمتصفحات التي لا تدعم Web Speech API (تسجيل MediaRecorder → /api/ai/asr)
   const toggleMic = () => {
