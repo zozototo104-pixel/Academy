@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     // ===== الخطوة 2: المستندات الرسمية =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
-    const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
+    const missing = isServiceRequest || stagedUpload ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json(
         {
