@@ -63,13 +63,7 @@ export function AcademyLogo({
   className?: string
 }) {
   // نستخدم نسخة الختم الأعلى دقة أولاً؛ هي نفس شعار الشاشة الافتتاحية الرسمي وتظهر أنظف في الهيدر واللودر.
-  const sources = [
-    'https://www.aactacademy.com/_next/image?q=75&url=%2Flogo.png&w=640',
-    'https://www.aactacademy.com/logo.png',
-    '/icon-512.png',
-    '/icon-192.png',
-    '/apple-touch-icon.png',
-  ]
+  const sources = ['/icon-512.png', '/icon-192.png', '/apple-touch-icon.png']
   const [srcIndex, setSrcIndex] = useState(0)
   const [failed, setFailed] = useState(false)
   const ring = light ? 'ring-2 ring-[#b08a38]/70 ring-offset-2 ring-offset-[#1d2947]' : ''
