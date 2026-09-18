@@ -141,7 +141,9 @@ export default function Home() {
       window.history.replaceState(null, '', cleanUrl)
     }
     const currentView = q.get('view') || view
+    const oauthReturn = q.get('oauth') || ''
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
+    const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
     const loadMe = async () => {
       if (!oauthToken) return api<{ user: any }>('/api/auth/me')
       // رجوع Google OAuth يحتاج أحياناً لحظة حتى تصبح الجلسة الجديدة قابلة للقراءة.
