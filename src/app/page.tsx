@@ -117,7 +117,14 @@ export default function Home() {
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
-  const [startupDone, setStartupDone] = useState(false)
+  const [startupDone, setStartupDone] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return sessionStorage.getItem('aact_skip_startup') === '1' || Boolean(getToken())
+    } catch {
+      return false
+    }
+  })
 
   // Load current user on mount
   useEffect(() => {
