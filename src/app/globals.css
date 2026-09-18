@@ -147,6 +147,38 @@
   filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.28));
 }
 
+.aact-startup-logo {
+  background: radial-gradient(circle, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 58%, transparent 72%);
+  box-shadow: 0 26px 62px rgba(5, 12, 29, 0.34);
+  animation: aactLogoEnter 0.9s cubic-bezier(0.16, 1, 0.3, 1) both, aactLogoFloat 4.8s ease-in-out 1s infinite;
+}
+.aact-startup-count {
+  animation: aactCountRise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.aact-startup-progress-line {
+  position: relative;
+  direction: ltr;
+}
+.aact-startup-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  transform-origin: left center;
+}
+@keyframes aactLogoEnter {
+  from { opacity: 0; transform: translateY(18px) scale(0.88); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes aactLogoFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-7px) scale(1.018); }
+}
+@keyframes aactCountRise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .aact-startup-vertical-progress {
   position: absolute;
   inset-block: 10%;
