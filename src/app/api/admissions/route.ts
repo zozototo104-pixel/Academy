@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
       fullName, email, phone, country, nationalId, birthDate, address,
       education, program, programId, notes, acknowledged,
     } = fields
+    const stagedUpload = fields.stagedUpload === 'true' || fields.stagedUpload === '1'
 
     // ===== الخطوة 1: بيانات أساسية إلزامية =====
     if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !program?.trim()) {
