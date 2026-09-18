@@ -650,11 +650,19 @@ export function AIChatView() {
             )}
           </div>
 
-          {showCaptions && (liveCaption || (voiceState === 'AI_SPEAKING' && lastReply)) && (
-            <div className="w-full max-w-2xl space-y-3 rounded-2xl bg-black/25 p-5 text-center backdrop-blur">
-              {liveCaption && <p className="text-lg font-bold leading-relaxed text-white">«{liveCaption}»</p>}
-              {voiceState === 'AI_SPEAKING' && lastReply && (
-                <p className="mx-auto max-w-xl text-sm leading-loose text-white/70">{lastReply}</p>
+          {hasLiveCaptions && (
+            <div className="aact-live-caption-panel w-full max-w-2xl" aria-live="polite">
+              {liveUserCaption && (
+                <div className="aact-live-caption-card aact-live-caption-user">
+                  <span className="aact-live-caption-label">أنت</span>
+                  <p>{liveUserCaption}</p>
+                </div>
+              )}
+              {liveAiCaption && (
+                <div className="aact-live-caption-card aact-live-caption-ai">
+                  <span className="aact-live-caption-label">المشرف</span>
+                  <p>{liveAiCaption}</p>
+                </div>
               )}
             </div>
           )}
