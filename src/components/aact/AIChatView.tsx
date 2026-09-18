@@ -347,6 +347,8 @@ export function AIChatView() {
     setSpeakingId(null)
     setVoiceMode(true)
     voiceModeRef.current = true
+    setVoiceState('LISTENING')
+    setMicLevel(0.18)
     const agent = new VoiceAgent({
       onState: (s) => setVoiceState(s),
       onLevel: (lvl) => setMicLevel((prev) => prev * 0.5 + lvl * 0.5),
