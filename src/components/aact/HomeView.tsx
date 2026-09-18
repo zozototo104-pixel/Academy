@@ -247,7 +247,8 @@ export function HomeView() {
     const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section img, section button, .aact-card, .aact-reveal-manual'))
     nodes.forEach((el, i) => {
       el.classList.add('aact-scroll-reveal')
-      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 8) * 55, 385)}ms`)
+      el.classList.add(i % 3 === 0 ? 'aact-reveal-from-right' : i % 3 === 1 ? 'aact-reveal-from-left' : 'aact-reveal-from-bottom')
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
     })
     const io = new IntersectionObserver(
       (entries) => {
