@@ -260,9 +260,9 @@ export function HomeView() {
       },
       { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
     )
-    const frame = requestAnimationFrame(() => nodes.forEach((el) => io.observe(el)))
+    const timer = window.setTimeout(() => nodes.forEach((el) => io.observe(el)), 90)
     return () => {
-      cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
       io.disconnect()
     }
   }, [])
