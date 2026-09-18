@@ -241,6 +241,29 @@ export function HomeView() {
     }
   }, [])
 
+  useEffect(() => {
+    const scope = document.querySelector('.aact-fade-in')
+    if (!scope) return
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section, .aact-card, .aact-reveal-manual'))
+    nodes.forEach((el, i) => {
+      el.classList.add('aact-scroll-reveal')
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 8) * 55, 385)}ms`)
+    })
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aact-in-view')
+            io.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
+    )
+    nodes.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
   const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
 
   return (
