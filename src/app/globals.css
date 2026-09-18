@@ -484,6 +484,14 @@
 }
 .aact-orb-ring.r2 { animation-delay: 0.65s; }
 .aact-orb-ring.r3 { animation-delay: 1.3s; }
+@keyframes aactVoiceHalo {
+  0%, 100% { transform: scale(0.95); opacity: 0.56; }
+  50% { transform: scale(1.06); opacity: 0.92; }
+}
+@keyframes aactVoiceOrbSheen {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 @keyframes aactOrbRing {
   0% { transform: scale(0.9); opacity: 0.8; }
   100% { transform: scale(1.45); opacity: 0; }
