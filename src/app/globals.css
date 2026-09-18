@@ -270,8 +270,8 @@
   transform: translate3d(0, 72px, 0) scale(0.94);
 }
 .aact-scroll-reveal.aact-text-drop {
-  transform: translate3d(0, -42px, 0) scale(0.98);
-  filter: blur(1.5px);
+  transform: translate3d(0, -78px, 0) scale(0.985);
+  filter: none;
 }
 .aact-scroll-reveal.aact-reveal-clean {
   filter: none;
