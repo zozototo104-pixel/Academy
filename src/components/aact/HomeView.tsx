@@ -260,8 +260,11 @@ export function HomeView() {
       },
       { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
     )
-    nodes.forEach((el) => io.observe(el))
-    return () => io.disconnect()
+    const frame = requestAnimationFrame(() => nodes.forEach((el) => io.observe(el)))
+    return () => {
+      cancelAnimationFrame(frame)
+      io.disconnect()
+    }
   }, [])
 
   const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
