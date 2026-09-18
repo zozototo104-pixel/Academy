@@ -64,6 +64,7 @@ export function AuthView() {
         body: JSON.stringify(regData),
       })
       if (d.token) saveToken(d.token)
+      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
       setUser(d.user)
       toast({
         title: `مرحباً ${d.user.name}!`,
