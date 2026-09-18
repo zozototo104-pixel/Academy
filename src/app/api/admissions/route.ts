@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
         acknowledged: true,
         acknowledgedAt: new Date(),
         userId: owner?.id || null,
-        status: isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE',
+        status: stagedUpload ? 'UPLOADING_DOCUMENTS' : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE'),
         files: {
           create: uniqueFiles.map((f) => ({
             docType: f.docType,
