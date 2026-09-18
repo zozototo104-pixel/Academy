@@ -228,6 +228,9 @@
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
 }
+.aact-card.aact-scroll-reveal.aact-in-view:hover {
+  transform: translateY(-4px) scale(1);
+}
 .aact-feature-badge.aact-scroll-reveal {
   transform: translate3d(22px, 34px, 0) scale(0.82) rotate(-2deg);
 }
