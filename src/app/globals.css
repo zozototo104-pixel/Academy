@@ -147,6 +147,27 @@
   filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.28));
 }
 
+.aact-startup-vertical-progress {
+  position: absolute;
+  inset-block: 10%;
+  inset-inline-start: clamp(1.25rem, 6vw, 5rem);
+  width: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 0 28px rgba(255,255,255,0.08);
+}
+.aact-startup-vertical-progress span {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #ffffff 0%, #d2ad5a 62%, #bf1646 100%);
+  box-shadow: 0 0 22px rgba(210, 173, 90, 0.5);
+  transition: height 0.15s ease-out;
+}
+
 .aact-auth-screen {
   background:
     radial-gradient(circle at 80% 18%, rgba(191, 22, 70, 0.18), transparent 22rem),
