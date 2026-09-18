@@ -261,6 +261,14 @@ export function HomeView() {
       }
       el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
     })
+    const revealVisible = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight
+      nodes.forEach((el) => {
+        if (el.classList.contains('aact-in-view')) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
+      })
+    }
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -270,11 +278,19 @@ export function HomeView() {
           }
         })
       },
-      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
+      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
     )
-    const timer = window.setTimeout(() => nodes.forEach((el) => io.observe(el)), 90)
+    const onScroll = () => requestAnimationFrame(revealVisible)
+    const timer = window.setTimeout(() => {
+      nodes.forEach((el) => io.observe(el))
+      revealVisible()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+    }, 140)
     return () => {
       window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
       io.disconnect()
     }
   }, [])
