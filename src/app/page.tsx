@@ -146,19 +146,18 @@ export default function Home() {
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
     const loadMe = async () => {
-      if (!oauthToken) return api<{ user: any }>('/api/auth/me')
-      // رجوع Google OAuth يحتاج أحياناً لحظة حتى تصبح الجلسة الجديدة قابلة للقراءة.
-      // نستخدم التوكن القادم من callback مباشرة في الهيدر ونكرر إن رجع user=null بدل إعادة المستخدم لشاشة الدخول.
+      const activeToken = oauthToken || getToken()
       let last: any = null
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 6; attempt++) {
         const res = await fetch('/api/auth/me', {
           cache: 'no-store',
-          headers: { Authorization: `Bearer ${oauthToken}` },
+          credentials: 'same-origin',
+          headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
         })
         const data = await res.json().catch(() => ({}))
         last = data
         if (res.ok && data?.user) return data
-        await new Promise((resolve) => setTimeout(resolve, 250 + attempt * 180))
+        await new Promise((resolve) => setTimeout(resolve, 180 + attempt * 160))
       }
       return last || { user: null }
     }
