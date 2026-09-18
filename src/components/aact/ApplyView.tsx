@@ -123,6 +123,7 @@ function cachePrograms(list: ProgramLite[]) {
 }
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  UPLOADING_DOCUMENTS: { text: 'جاري رفع المستندات', cls: 'bg-blue-100 text-blue-700' },
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
   UNDER_REVIEW: { text: 'قيد دراسة الإدارة', cls: 'bg-blue-100 text-blue-700' },
   AWAITING_TUITION: { text: 'مقبول — بانتظار سداد الرسوم الدراسية', cls: 'bg-[#c9a227]/20 text-[#a8841a]' },
