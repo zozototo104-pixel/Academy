@@ -341,9 +341,10 @@ export function HomeView() {
 
       {/* Hero */}
       <section className="aact-hero relative text-[#f8f8fb]">
-        <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true">
-          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
         </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[0.96fr_1.04fr] lg:py-20">
           <div className="order-2 text-center lg:order-1 lg:text-right">
             <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
