@@ -33,7 +33,10 @@ export function FloatingActions() {
       {/* واتساب الذكي — يفتح وكيل الأكاديمية داخل المنصة، مع دعم النص والصوت الحي عبر Gemini Live */}
       <button
         type="button"
-        onClick={() => navigate('chat')}
+        onClick={() => {
+          try { sessionStorage.setItem('aact_open_voice_agent', '1') } catch {}
+          navigate('chat')
+        }}
         aria-label="افتح وكيل واتساب الذكي للأكاديمية"
         title="وكيل واتساب الذكي — اسأل نصياً أو تحدث صوتياً مع مشرف ذكاء اصطناعي"
         className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
