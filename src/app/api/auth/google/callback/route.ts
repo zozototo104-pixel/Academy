@@ -6,6 +6,33 @@ import { createSession, hashPassword } from '@/lib/auth'
 
 const STATE_COOKIE = 'aact_google_oauth_state'
 
+function oauthSecret() {
+  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_ID || 'aact-google-oauth'
+}
+
+function signState(nonce: string, ts: number) {
+  return createHmac('sha256', oauthSecret()).update(`${nonce}.${ts}`).digest('base64url')
+}
+
+function safeEqual(a: string, b: string) {
+  try {
+    const ab = Buffer.from(a)
+    const bb = Buffer.from(b)
+    return ab.length === bb.length && timingSafeEqual(ab, bb)
+  } catch {
+    return false
+  }
+}
+
+function verifySignedState(state: string | null) {
+  if (!state) return false
+  const [nonce, tsRaw, sig] = state.split('.')
+  const ts = Number(tsRaw)
+  if (!nonce || !sig || !Number.isFinite(ts)) return false
+  if (Math.abs(Date.now() - ts) > 10 * 60 * 1000) return false
+  return safeEqual(sig, signState(nonce, ts))
+}
+
 function appBaseUrl(req: NextRequest) {
   const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
   if (configured) return configured.replace(/\/$/, '')
