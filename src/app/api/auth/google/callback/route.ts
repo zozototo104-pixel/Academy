@@ -142,7 +142,10 @@ export async function GET(req: NextRequest) {
   store.delete(STATE_COOKIE)
 
   if (error) return authRedirect(req, { oauth_error: error })
-  if (!code || !state || !expectedState || state !== expectedState) {
+  // على بعض المتصفحات/الويب فيو قد لا تعود كوكي state في أول محاولة Google.
+  // لذلك نقبل state الموقّع ذاتياً حتى لا تفشل أول محاولة وترجع المستخدم لشاشة الدخول.
+  const validState = Boolean(code && state && ((expectedState && state === expectedState) || verifySignedState(state)))
+  if (!validState) {
     return authRedirect(req, { oauth_error: 'invalid_state' })
   }
 
