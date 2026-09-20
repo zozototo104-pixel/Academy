@@ -1022,6 +1022,59 @@ export function AIChatView() {
         </p>
       </div>
 
+      {/* ===== نافذة تقييم رد المشرف الذكي ===== */}
+      <Dialog open={feedbackDialog.open} onOpenChange={(open) => setFeedbackDialog({ open, message: open ? feedbackDialog.message : null })}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+              <Flag className="h-5 w-5 text-red-600" /> إرسال الرد للمراجعة
+            </DialogTitle>
+            <DialogDescription>
+              اختر السبب ليساعد مركز الجودة على مراجعة رد المشرف الذكي وتحسين التجربة الأكاديمية.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+              {feedbackDialog.message?.content.slice(0, 260)}{(feedbackDialog.message?.content.length || 0) > 260 ? '...' : ''}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black">سبب المراجعة</Label>
+              <select
+                value={feedbackReason}
+                onChange={(e) => setFeedbackReason(e.target.value)}
+                className="h-10 w-full rounded-xl border border-[#0f2b46]/15 bg-white px-3 text-sm font-bold outline-none focus:border-[#c9a227]"
+              >
+                {FEEDBACK_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black">ملاحظة اختيارية</Label>
+              <Textarea
+                value={feedbackNote}
+                onChange={(e) => setFeedbackNote(e.target.value)}
+                placeholder="مثال: الرد لم يعتمد على الكتاب، أو أجاب خارج السؤال..."
+                className="min-h-24 text-sm leading-relaxed"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setFeedbackDialog({ open: false, message: null })}>إلغاء</Button>
+              <Button
+                className="flex-1 bg-red-700 font-extrabold text-white hover:bg-red-800"
+                disabled={!feedbackDialog.message || feedbackBusyId === feedbackDialog.message.id}
+                onClick={async () => {
+                  if (!feedbackDialog.message) return
+                  await submitMessageFeedback(feedbackDialog.message, 'NEEDS_REVIEW', feedbackReason, feedbackNote)
+                  setFeedbackDialog({ open: false, message: null })
+                }}
+              >
+                {feedbackBusyId === feedbackDialog.message?.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Flag className="ml-2 h-4 w-4" />}
+                إرسال للمراجعة
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ===== نافذة تحليل مسودة بحث التخرج ===== */}
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" dir="rtl">
