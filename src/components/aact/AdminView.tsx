@@ -251,6 +251,15 @@ export function AdminView() {
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState<Record<string, boolean>>({})
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      if (detail) setActiveTab(detail)
+    }
+    window.addEventListener('aact-admin-tab', handler as EventListener)
+    return () => window.removeEventListener('aact-admin-tab', handler as EventListener)
+  }, [])
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(true)
