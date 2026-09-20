@@ -474,6 +474,17 @@ export function AdminBooksTab() {
     [examImportItems, selectedImportExamId]
   )
 
+  const filteredQuestionBankItems = useMemo(() => {
+    const search = questionBankFilter.search.trim().toLowerCase()
+    return questionBankItems.filter((q) => {
+      const statusOk = questionBankFilter.status === 'ALL' || q.status === questionBankFilter.status
+      const typeOk = questionBankFilter.type === 'ALL' || q.type === questionBankFilter.type
+      const difficultyOk = questionBankFilter.difficulty === 'ALL' || (q.difficulty || 'MEDIUM') === questionBankFilter.difficulty
+      const searchOk = !search || `${q.text} ${q.modelAnswer || ''} ${q.sourceEvidence || ''}`.toLowerCase().includes(search)
+      return statusOk && typeOk && difficultyOk && searchOk
+    })
+  }, [questionBankItems, questionBankFilter])
+
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
     ...guide,
     title: cleanAcademicOutput(guide.title, 220),
