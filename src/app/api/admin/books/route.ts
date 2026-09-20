@@ -436,7 +436,7 @@ export async function PATCH(req: NextRequest) {
 
     // لا نبني بنك المعرفة أثناء تحديث المصدر أيضاً؛ هذا الطلب مخصص لحفظ الملف/الرابط فقط.
     // البناء يتم من زر بنك المعرفة حتى لا يعلق رفع الملفات أو يفشل بسبب مدة المعالجة.
-    const knowledgeBuild: { inserted?: number } | null = null
+    const knowledgeItemsInserted = 0
 
     await audit(
       { id: admin.id, name: admin.name },
