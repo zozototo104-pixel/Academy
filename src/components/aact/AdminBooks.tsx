@@ -550,6 +550,7 @@ export function AdminBooksTab() {
       setAssignments(a.assignments)
       setKnowledgeItems(k.items || [])
       setKnowledgeStats(k.stats || {})
+      setProgramReadiness(readiness.item || null)
       setQuestionBankItems(qb.items || [])
       setQuestionBankStats(qb.stats || null)
       setStudyGuides(g.guides || [])
