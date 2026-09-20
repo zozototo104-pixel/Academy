@@ -1113,6 +1113,8 @@ export function AdminBooksTab() {
                   setAssignmentSuggestions([])
                   setKnowledgeItems([])
                   setKnowledgeStats({})
+                  setQuestionBankStats(null)
+                  setQuestionBankItems([])
                   setStudyGuides([])
                   setSuggestions([])
                 }}
