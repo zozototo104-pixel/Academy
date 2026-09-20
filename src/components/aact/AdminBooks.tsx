@@ -2518,6 +2518,7 @@ export function AdminBooksTab() {
           <AdminAppealsSection />
           </TabsContent>
         </Tabs>
+        </>
       )}
 
       <Dialog open={bankExamDialogOpen} onOpenChange={setBankExamDialogOpen}>
