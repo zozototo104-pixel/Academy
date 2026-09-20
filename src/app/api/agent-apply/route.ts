@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { nextInvoiceNo, getSettingNum } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
+import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 // POST /api/agent-apply — طلب وكالة/تمثيل دولي أو طلب اعتماد (شركات/مدربين/مستشارين/جودة)
 // وفق دليل إجراءات الاعتماد الرسمي — خطوة «إرفاق الوثائق الرسمية» إلزامية لطلبات الاعتماد:
@@ -16,10 +17,21 @@ const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf']
 export const AGENT_REQUIRED_DOCS = ['LICENSE', 'ID', 'PHOTO', 'CV']
 
+type UploadedAgentFile = {
+  docType: string
+  fileName: string
+  mimeType: string
+  size: number
+  data: string | null
+  storageProvider: string | null
+  storageKey: string | null
+  fileUrl: string | null
+}
+
 export async function POST(req: NextRequest) {
   try {
     let fields: Record<string, string> = {}
-    const files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[] = []
+    const files: UploadedAgentFile[] = []
     const ct = req.headers.get('content-type') || ''
 
     if (ct.includes('multipart/form-data')) {
@@ -44,8 +56,30 @@ export async function POST(req: NextRequest) {
               { status: 400 }
             )
           }
+
           const buf = Buffer.from(await f.arrayBuffer())
-          files.push({ docType, fileName: f.name.slice(0, 180), mimeType: mime, size: f.size, data: buf.toString('base64') })
+          let stored
+          try {
+            stored = await storeFileBuffer({
+              buffer: buf,
+              fileName: f.name,
+              mimeType: mime,
+              namespace: `agent-documents/${docType.toLowerCase()}`,
+            })
+          } catch (error) {
+            return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
+          }
+
+          files.push({
+            docType,
+            fileName: f.name.slice(0, 180),
+            mimeType: stored.mimeType || mime,
+            size: stored.size || f.size,
+            data: null,
+            storageProvider: stored.provider,
+            storageKey: stored.key,
+            fileUrl: stored.url,
+          })
         }
       }
     } else {
@@ -115,7 +149,7 @@ export async function POST(req: NextRequest) {
         orgName: orgName.trim(),
         repName: repName.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone?.trim() || "",
+        phone: phone?.trim() || '',
         country: country.trim(),
         territory: territory?.trim() || null,
         experience: experience?.trim() || null,
@@ -127,6 +161,9 @@ export async function POST(req: NextRequest) {
                 mimeType: f.mimeType,
                 size: f.size,
                 data: f.data,
+                storageProvider: f.storageProvider,
+                storageKey: f.storageKey,
+                fileUrl: f.fileUrl,
               })),
             }
           : undefined,
