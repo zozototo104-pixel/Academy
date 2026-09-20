@@ -832,6 +832,109 @@ export function AdminQualityTab() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={unitReviewOpen} onOpenChange={setUnitReviewOpen}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراجعة وحدات المنهج</DialogTitle>
+            <DialogDescription>
+              {unitReviewProgram ? `مراجعة بشرية لخطة وحدات: ${unitReviewProgram.titleAr}` : 'مراجعة وحدات البرنامج'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {unitBusyId === 'loading' ? (
+            <div className="flex h-40 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap justify-between gap-2 rounded-2xl bg-amber-50 p-3 text-xs font-bold text-amber-800">
+                <span>عدّل العناوين، الملخصات، أهداف التعلم ومحاور المحتوى قبل اعتماد المنهج.</span>
+                <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addUnit} className="bg-white text-xs font-black">
+                  {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  إضافة وحدة
+                </Button>
+              </div>
+
+              {unitReviewItems.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر اقتراح وحدات من الكتب أو أضف وحدة يدوياً.</p>
+              ) : unitReviewItems.map((unit, index) => (
+                <article key={unit.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">وحدة {index + 1}</Badge>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={unitBusyId === unit.id}
+                        onClick={() => patchUnit(unit, { order: Math.max(1, unit.order - 1) })}
+                        className="text-xs font-bold"
+                      >رفع الترتيب</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={unitBusyId === unit.id}
+                        onClick={() => patchUnit(unit, { order: unit.order + 1 })}
+                        className="text-xs font-bold"
+                      >خفض الترتيب</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={unitBusyId === unit.id}
+                        onClick={() => deleteUnit(unit.id)}
+                        className="border-red-200 text-xs font-bold text-red-700"
+                      >حذف</Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500">عنوان الوحدة</label>
+                      <input
+                        defaultValue={unit.title}
+                        onBlur={(e) => e.target.value !== unit.title && patchUnit(unit, { title: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-[#c9a227]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500">أهداف التعلم — هدف في كل سطر</label>
+                      <Textarea
+                        defaultValue={(unit.objectives || []).join('\n')}
+                        onBlur={(e) => patchUnit(unit, { objectives: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) as any })}
+                        className="min-h-24 text-xs leading-6"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
+                    <Textarea
+                      defaultValue={unit.summary || ''}
+                      onBlur={(e) => e.target.value !== (unit.summary || '') && patchUnit(unit, { summary: e.target.value })}
+                      className="min-h-20 text-sm leading-7"
+                    />
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <label className="text-xs font-black text-slate-500">محاور المحتوى — صيغة مبسطة: العنوان: الشرح</label>
+                    <Textarea
+                      defaultValue={(unit.content || []).map((c) => `${c.heading}: ${c.body}`).join('\n')}
+                      onBlur={(e) => {
+                        const content = e.target.value.split('\n').map((line) => {
+                          const [heading, ...rest] = line.split(':')
+                          return { heading: heading?.trim() || 'محور', body: rest.join(':').trim() || line.trim() }
+                        }).filter((x) => x.body)
+                        patchUnit(unit, { content: content as any })
+                      }}
+                      className="min-h-28 text-xs leading-6"
+                    />
+                  </div>
+
+                  {unitBusyId === unit.id && <p className="mt-2 text-xs font-bold text-amber-700">جاري حفظ تعديلات الوحدة...</p>}
+                </article>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
