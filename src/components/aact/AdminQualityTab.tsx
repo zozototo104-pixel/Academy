@@ -750,6 +750,14 @@ export function AdminQualityTab() {
                         توليد أسئلة للبنك
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openQuestionBank(item)}>مراجعة بنك الأسئلة</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 1)}>
+                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                        امتحان فصل 1 من البنك
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 2)}>
+                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                        امتحان فصل 2 من البنك
+                      </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'exams' } }))}>توليد/مراجعة الاختبارات</Button>
                       <Button
                         size="sm"
