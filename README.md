@@ -112,6 +112,7 @@ bun run build
 bun run start
 ```
 - غيّر `DATABASE_URL` إلى PostgreSQL/MySQL وشفّر الاتصال
+- اضبط تخزين الملفات الخارجي قبل استقبال ملفات حقيقية: `AACT_S3_ENDPOINT` و`AACT_S3_BUCKET` و`AACT_S3_ACCESS_KEY_ID` و`AACT_S3_SECRET_ACCESS_KEY`، مع `AACT_STORAGE_PUBLIC_BASE_URL` إن كان لديك نطاق عام للحاوية. للتجارب المحلية فقط يمكن تفعيل `AACT_ALLOW_LOCAL_UPLOADS=true`.
 - فعّل HTTPS (شرط عمل الكاميرا/المايك/WebRTC)
 - أدخل مفاتيح الدفع وSMTP وخادم TURN من **لوحة الإدارة → إعدادات النظام** (أو `.env`)
 
