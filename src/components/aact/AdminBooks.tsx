@@ -789,6 +789,19 @@ export function AdminBooksTab() {
     setQuestionBankStats(res.stats || null)
   }
 
+  const refreshProgramReadiness = async () => {
+    if (!programId) return
+    setReadinessLoading(true)
+    try {
+      const res = await api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${programId}`)
+      setProgramReadiness(res.item || null)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث جاهزية البرنامج', description: e.message, variant: 'destructive' })
+    } finally {
+      setReadinessLoading(false)
+    }
+  }
+
   const generateQuestionsForBank = async () => {
     if (!programId) return
     setQuestionBankBusy('generate')
