@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { fallbackExamQuestionBatch, generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS, type ExamSourceBook, type GeneratedQuestion } from '@/lib/books-ai'
-import { hydrateBookContentForExam } from '@/lib/book-content'
+import { hydrateBookContentForExam, type HydratedExamBook } from '@/lib/book-content'
 import { buildKnowledgeContextForExam, cleanAcademicGeneratedText } from '@/lib/knowledge-bank'
 
 export const runtime = 'nodejs'
