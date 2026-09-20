@@ -1259,7 +1259,7 @@ async function mergeKnowledgeRows(programId: string, bookId: string | null, item
     }
   }
 
-  return { inserted, updated, skipped }
+  return { inserted, updated, skipped, removedDuplicates }
 }
 
 function looksLikeKnowledgeHeading(line: string) {
