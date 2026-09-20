@@ -890,13 +890,18 @@ model DefenseSignal {
 }
 
 model AdmissionDocument {
-  id          String   @id @default(cuid())
-  admissionId String
-  admission   AdmissionApplication @relation(fields: [admissionId], references: [id], onDelete: Cascade)
-  docType     String   // DEGREE | TRANSCRIPT | ID | PHOTO | CV
-  fileName    String
-  mimeType    String
-  size        Int
-  data        String   // base64 للمحتوى (حفظ مباشر في قاعدة البيانات)
-  createdAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  admissionId     String
+  admission       AdmissionApplication @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  docType         String   // DEGREE | TRANSCRIPT | ID | PHOTO | CV
+  fileName        String
+  mimeType        String
+  size            Int
+  data            String?  // legacy base64 fallback only; new uploads use object storage
+  storageProvider String?
+  storageKey      String?
+  fileUrl         String?
+  createdAt       DateTime @default(now())
+
+  @@index([storageProvider])
 }
