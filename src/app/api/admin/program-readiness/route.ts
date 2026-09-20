@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { audit } from '@/lib/notify'
 
 const READINESS_STATUSES = new Set(['NEEDS_PREPARATION', 'IN_PREPARATION', 'READY_FOR_REVIEW', 'APPROVED'])
 const REGISTRATION_STATUSES = new Set(['OPEN', 'CLOSED'])
