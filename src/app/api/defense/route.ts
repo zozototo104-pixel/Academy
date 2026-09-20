@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
       })
 
       // لا نترك الواجهة تنتظر طلباً ثانياً؛ بعد حفظ كلام الطالب نولّد مداخلة اللجنة هنا مباشرة.
-      let savedNote = null
+      let savedNote: any = null
       const lastNote = await db.defenseMessage.findFirst({
         where: { thesisId: thesis.id, role: 'AI_NOTE' },
         orderBy: { createdAt: 'desc' },
