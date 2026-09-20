@@ -325,13 +325,13 @@ export async function chatComplete(
   try {
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
-      messages: [
+      messages: ([
         { role: 'assistant', content: systemPrompt },
         ...messages.map((m) => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content,
         })),
-      ],
+      ] as any),
       thinking: { type: 'disabled' },
     })
     const content = completion.choices[0]?.message?.content
