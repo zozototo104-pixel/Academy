@@ -2560,6 +2560,27 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editingBankQuestion} onOpenChange={(open) => !open && setEditingBankQuestion(null)}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">تعديل سؤال في بنك الأسئلة</DialogTitle>
+            <DialogDescription>يمكن تعديل السؤال قبل اعتماده أو إعادة اعتماده. التعديل يبقى داخل نفس البرنامج.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <select value={editingBankQuestionForm.type} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, type: e.target.value }))} className="h-10 rounded-xl border px-3 text-sm font-bold"><option value="MCQ">اختيار متعدد</option><option value="TF">صح/خطأ</option><option value="SHORT">قصير</option><option value="ESSAY">مقالي</option></select>
+              <select value={editingBankQuestionForm.difficulty} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, difficulty: e.target.value }))} className="h-10 rounded-xl border px-3 text-sm font-bold"><option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option></select>
+              <Input value={editingBankQuestionForm.correctAnswer} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, correctAnswer: e.target.value }))} placeholder="الإجابة الصحيحة 0" />
+            </div>
+            <Textarea value={editingBankQuestionForm.text} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, text: e.target.value }))} placeholder="نص السؤال" className="min-h-24" />
+            {(editingBankQuestionForm.type === 'MCQ' || editingBankQuestionForm.type === 'TF') && <Textarea value={editingBankQuestionForm.options} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, options: e.target.value }))} placeholder="الخيارات — خيار في كل سطر" className="min-h-24" />}
+            <Textarea value={editingBankQuestionForm.modelAnswer} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, modelAnswer: e.target.value }))} placeholder="الإجابة النموذجية / التعليل" className="min-h-20" />
+            <Textarea value={editingBankQuestionForm.sourceEvidence} onChange={(e) => setEditingBankQuestionForm((p) => ({ ...p, sourceEvidence: e.target.value }))} placeholder="الدليل العلمي أو المصدر" className="min-h-16" />
+            <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setEditingBankQuestion(null)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === editingBankQuestion?.id || editingBankQuestionForm.text.trim().length < 8} onClick={saveEditedBankQuestion}>{questionBankBusy === editingBankQuestion?.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} حفظ التعديل</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={manualQuestionOpen} onOpenChange={setManualQuestionOpen}>
         <DialogContent className="max-w-2xl" dir="rtl">
           <DialogHeader>
