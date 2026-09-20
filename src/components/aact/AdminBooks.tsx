@@ -828,6 +828,8 @@ export function AdminBooksTab() {
         method: 'POST',
         body: JSON.stringify({
           programId,
+          semester: 1,
+          status: 'DRAFT',
           title: 'وحدة جديدة قابلة للمراجعة',
           summary: 'أضف ملخص الوحدة هنا.',
           objectives: ['هدف تعلم قابل للقياس'],
