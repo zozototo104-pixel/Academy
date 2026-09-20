@@ -843,6 +843,7 @@ const ACTION_L: Record<string, string> = {
 export function AdminAuditTab() {
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
 
   useEffect(() => {
     api<{ logs: AuditRow[] }>('/api/admin/audit')
@@ -850,6 +851,18 @@ export function AdminAuditTab() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  const actionOptions = useMemo(() => Array.from(new Set(logs.map((l) => l.action))).sort(), [logs])
+  const entityOptions = useMemo(() => Array.from(new Set(logs.map((l) => l.entity))).sort(), [logs])
+  const filteredLogs = useMemo(() => {
+    const q = filters.search.trim().toLowerCase()
+    return logs.filter((l) => {
+      const actionOk = filters.action === 'ALL' || l.action === filters.action
+      const entityOk = filters.entity === 'ALL' || l.entity === filters.entity
+      const searchOk = !q || `${l.actorName} ${l.details || ''} ${l.entity} ${l.action}`.toLowerCase().includes(q)
+      return actionOk && entityOk && searchOk
+    })
+  }, [logs, filters])
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
