@@ -1,0 +1,70 @@
+name: Setup Clean Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type SETUP to confirm running db:push, core seed, and admin creation against the configured database secrets.'
+        required: true
+        default: 'NO'
+
+jobs:
+  setup:
+    name: Prepare clean production database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event.inputs.confirm == 'SETUP'
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      AACT_AUTO_SEED_ON_LOGIN: '0'
+      AACT_ENABLE_DEMO_LOGIN: '0'
+      AACT_RUN_SEED: 'NO'
+      AACT_BOOTSTRAP_DEFAULT_ADMIN: '0'
+      AACT_CONFIRM_DATA_LOSS: 'NO'
+      AACT_CREATE_ADMIN: 'YES'
+      AACT_ADMIN_EMAIL: ${{ secrets.AACT_ADMIN_EMAIL }}
+      AACT_ADMIN_PASSWORD: ${{ secrets.AACT_ADMIN_PASSWORD }}
+      AACT_ADMIN_NAME: ${{ secrets.AACT_ADMIN_NAME }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          missing=0
+          for key in DATABASE_URL DIRECT_URL NEXTAUTH_SECRET AACT_ADMIN_EMAIL AACT_ADMIN_PASSWORD AACT_ADMIN_NAME; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret: $key"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Push Prisma schema to clean database
+        run: bun run db:push
+
+      - name: Seed core catalog and platform settings only
+        run: bun run db:seed:core
+
+      - name: Create or update production admin account
+        run: bun run admin:create
+
+      - name: Summary
+        run: |
+          echo "Clean database setup completed."
+          echo "Tables are ready, core catalog/settings are seeded, and admin account is created/updated."
