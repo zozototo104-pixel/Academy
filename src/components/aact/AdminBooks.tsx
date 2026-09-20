@@ -1750,7 +1750,13 @@ export function AdminBooksTab() {
                     {curriculumUnits.map((unit, index) => (
                       <article key={unit.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">وحدة {index + 1}</Badge>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">وحدة {index + 1}</Badge>
+                            <Badge className={unit.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : unit.status === 'NEEDS_REVISION' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                              {unit.status === 'APPROVED' ? 'معتمدة' : unit.status === 'NEEDS_REVISION' ? 'تحتاج تعديل' : 'مسودة'}
+                            </Badge>
+                            <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">الفصل {unit.semester || 1}</Badge>
+                          </div>
                           <div className="flex flex-wrap gap-2">
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: Math.max(1, unit.order - 1) })} className="bg-white text-xs font-bold">رفع الترتيب</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: unit.order + 1 })} className="bg-white text-xs font-bold">خفض الترتيب</Button>
