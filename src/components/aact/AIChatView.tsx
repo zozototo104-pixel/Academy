@@ -549,11 +549,37 @@ export function AIChatView() {
     }
   }
 
+  const submitMessageFeedback = async (message: Msg, rating: 'HELPFUL' | 'NEEDS_REVIEW', reason?: string | null, note?: string | null) => {
+    if (!message?.id || message.id.startsWith('tmp-')) return
+    setFeedbackBusyId(message.id)
+    try {
+      await api('/api/chat-feedback', {
+        method: 'POST',
+        body: JSON.stringify({
+          messageId: message.id,
+          rating,
+          reason: rating === 'NEEDS_REVIEW' ? reason : null,
+          note: rating === 'NEEDS_REVIEW' ? note : null,
+        }),
+      })
+      setFeedbackByMessage((prev) => ({ ...prev, [message.id]: rating }))
+      toast({
+        title: rating === 'HELPFUL' ? 'شكرًا لتقييمك' : 'تم إرسال الرد للمراجعة',
+        description: rating === 'HELPFUL' ? 'تم تسجيل أن هذا الرد مفيد.' : 'سيظهر هذا الرد في لوحة الجودة للمتابعة.',
+      })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ التقييم', description: e.message, variant: 'destructive' })
+    } finally {
+      setFeedbackBusyId(null)
+    }
+  }
+
   const clearChat = async () => {
     if (!confirm('هل تريد مسح المحادثة بالكامل؟')) return
     try {
       await api('/api/chat', { method: 'DELETE' })
       setMessages([])
+      setFeedbackByMessage({})
       toast({ title: 'تم المسح', description: 'محادثتك مع المشرف الذكي فارغة الآن' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
