@@ -59,7 +59,7 @@ async function ensureDefaultProgramMicroCredentials(program: { id: string; title
   const microCredentialStore = (db as any).microCredential
   if (!microCredentialStore?.upsert) return []
 
-  const out = []
+  const out: any[] = []
   for (const spec of DEFAULT_SPECS) {
     const badgeCode = `AACT-MC-${slugPart(program.slug)}-${spec.suffix}`
     const credential = await microCredentialStore.upsert({
