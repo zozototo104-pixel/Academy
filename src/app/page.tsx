@@ -71,8 +71,8 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
         </div>
         <p className="mt-7 text-[11px] font-black uppercase tracking-[0.72em] text-white/42 sm:text-xs">AMERICAN ACADEMY</p>
         <p className="mt-4 text-[10px] font-black uppercase tracking-[0.48em] text-[#bf1646]/90">{label}</p>
-        <div className="aact-startup-progress-line mx-auto mt-12 h-px w-full max-w-md overflow-hidden bg-white/18" dir="ltr">
-          <div className="aact-startup-progress-fill h-full bg-white transition-all duration-150" style={{ width: `${progress}%` }} />
+        <div className="aact-startup-progress-line mx-auto mt-12 h-[5px] w-full max-w-md overflow-hidden rounded-full bg-white/18" dir="ltr" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} role="progressbar">
+          <div className="aact-startup-progress-fill h-full w-full rounded-full bg-white transition-transform duration-75 ease-linear" style={{ transform: `scaleX(${progress / 100})` }} />
         </div>
       </div>
       <div className="aact-startup-vertical-progress hidden sm:block" aria-hidden="true">
