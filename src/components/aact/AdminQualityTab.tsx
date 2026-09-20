@@ -1112,6 +1112,93 @@ export function AdminQualityTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={examImportOpen} onOpenChange={setExamImportOpen}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">نسخ أسئلة من اختبار موجود إلى بنك الأسئلة</DialogTitle>
+            <DialogDescription>
+              اختر اختباراً من نفس البرنامج، ثم حدد الأسئلة التي تريد نقلها إلى بنك الأسئلة المركزي. لن تُنسخ الأسئلة المكررة.
+            </DialogDescription>
+          </DialogHeader>
+
+          {questionBankBusyId === 'exam-load' ? (
+            <div className="flex h-40 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div>
+          ) : examImportItems.length === 0 ? (
+            <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد اختبارات تحتوي أسئلة لهذا البرنامج بعد.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <select
+                  value={selectedExamId}
+                  onChange={(e) => {
+                    const nextId = e.target.value
+                    const next = examImportItems.find((exam) => exam.id === nextId)
+                    setSelectedExamId(nextId)
+                    setSelectedExamQuestionIds(next?.questions?.map((q) => q.id) || [])
+                  }}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-[#c9a227]"
+                >
+                  {examImportItems.map((exam) => (
+                    <option key={exam.id} value={exam.id}>{exam.title} — فصل {exam.semester} — {exam.questions.length} سؤال</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => setSelectedExamQuestionIds(selectedExam?.questions?.map((q) => q.id) || [])}>تحديد الكل</Button>
+                  <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => setSelectedExamQuestionIds([])}>إلغاء التحديد</Button>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-black text-slate-600">
+                <input type="checkbox" checked={examImportApproveNow} onChange={(e) => setExamImportApproveNow(e.target.checked)} /> اعتماد الأسئلة المنسوخة مباشرة
+              </label>
+
+              <div className="space-y-2">
+                {(selectedExam?.questions || []).map((q) => {
+                  const checked = selectedExamQuestionIds.includes(q.id)
+                  let options: string[] = []
+                  try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+                  return (
+                    <label key={q.id} className={`block cursor-pointer rounded-2xl border p-3 text-xs ${checked ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setSelectedExamQuestionIds((prev) => e.target.checked ? Array.from(new Set([...prev, q.id])) : prev.filter((id) => id !== q.id))
+                          }}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge>
+                            <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge>
+                          </div>
+                          <p className="text-sm font-black leading-7 text-[#0f2b46]">{q.text}</p>
+                          {options.length > 0 && <p className="mt-1 font-bold text-slate-500">الخيارات: {options.join(' — ')}</p>}
+                          {q.modelAnswer && <p className="mt-1 font-bold text-blue-700">إجابة نموذجية: {q.modelAnswer}</p>}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setExamImportOpen(false)}>إلغاء</Button>
+                <Button
+                  className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
+                  disabled={questionBankBusyId === 'exam-copy' || selectedExamQuestionIds.length === 0}
+                  onClick={copyExamQuestionsToBank}
+                >
+                  {questionBankBusyId === 'exam-copy' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                  نسخ {selectedExamQuestionIds.length} سؤال إلى البنك
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={manualQuestionOpen} onOpenChange={setManualQuestionOpen}>
         <DialogContent className="max-w-2xl" dir="rtl">
           <DialogHeader>
