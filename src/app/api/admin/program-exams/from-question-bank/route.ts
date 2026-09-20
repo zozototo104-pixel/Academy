@@ -120,7 +120,8 @@ export async function POST(req: NextRequest) {
       where: {
         programId,
         status: 'APPROVED',
-        ...(includeAllSemesters ? {} : { OR: [{ semester: null }, { semester }] }),
+        ...(unitId ? { unitId } : {}),
+        ...(includeAllSemesters || unitId ? {} : { OR: [{ semester: null }, { semester }] }),
       },
       orderBy: [{ usageCount: 'asc' }, { difficulty: 'asc' }, { createdAt: 'desc' }],
       take: Math.max(requestedCount * 3, 120),
