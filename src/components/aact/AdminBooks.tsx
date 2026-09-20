@@ -359,6 +359,11 @@ export function AdminBooksTab() {
   const [importQuestionsOpen, setImportQuestionsOpen] = useState(false)
   const [importQuestionsText, setImportQuestionsText] = useState('')
   const [importApproveNow, setImportApproveNow] = useState(false)
+  const [bankExamDialogOpen, setBankExamDialogOpen] = useState(false)
+  const [bankExamUnits, setBankExamUnits] = useState<{ id: string; title: string; order: number }[]>([])
+  const [bankExamForm, setBankExamForm] = useState({
+    semester: '1', count: '30', unitId: '', easy: '25', medium: '50', advanced: '25', mcq: '50', tf: '20', short: '20', essay: '10',
+  })
   const [studyGuides, setStudyGuides] = useState<StudyGuideRow[]>([])
   const [generatingGuideSemester, setGeneratingGuideSemester] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
