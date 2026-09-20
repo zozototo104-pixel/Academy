@@ -43,9 +43,9 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
       setProgress(Math.min(100, value))
       if (value >= 100) {
         window.clearInterval(t)
-        window.setTimeout(() => onDoneRef.current?.(), 420)
+        onDoneRef.current?.()
       }
-    }, 24)
+    }, 18)
     return () => window.clearInterval(t)
   }, [])
 
