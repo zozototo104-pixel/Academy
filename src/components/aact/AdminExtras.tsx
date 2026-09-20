@@ -828,6 +828,16 @@ const ACTION_L: Record<string, string> = {
   SUBMIT_THESIS: 'تسليم بحث', UPDATE_SETTINGS: 'تحديث الرسوم/الإعدادات',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
   RESOLVE_MESSAGE: 'معالجة رسالة',
+  GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',
+  UPDATE_CURRICULUM_UNIT: 'تعديل وحدة منهج',
+  DELETE_CURRICULUM_UNIT: 'حذف وحدة منهج',
+  UPDATE_PROGRAM_READINESS: 'تحديث جاهزية/اعتماد منهج برنامج',
+  GENERATE_QUESTION_BANK: 'توليد أسئلة لبنك الأسئلة',
+  ADD_QUESTION_BANK_ITEM: 'إضافة سؤال يدوي لبنك الأسئلة',
+  IMPORT_QUESTION_BANK: 'استيراد أسئلة إلى بنك الأسئلة',
+  COPY_EXAM_TO_QUESTION_BANK: 'نسخ أسئلة اختبار إلى بنك الأسئلة',
+  REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
+  GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
 }
 
 export function AdminAuditTab() {
