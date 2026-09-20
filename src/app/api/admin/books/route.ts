@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
 
     // مهم: لا نبني بنك المعرفة داخل طلب الرفع نفسه؛ لأن التحليل بالذكاء الاصطناعي قد يستغرق وقتاً
     // ويتسبب بتأخير أو 403/timeout على Vercel. الرفع يحفظ الكتاب فوراً، ثم تستخدم الإدارة زر بناء/تحديث بنك المعرفة.
-    const knowledgeBuild: { inserted?: number } | null = null
+    const knowledgeItemsInserted = 0
 
     // إدراج الكتاب للطلاب المسجلين في البرنامج: إشعار الجميع بقراءته استعداداً للاختبار الشامل
     const enrolled = await db.enrollment.findMany({
