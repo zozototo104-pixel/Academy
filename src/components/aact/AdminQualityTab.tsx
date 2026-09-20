@@ -446,6 +446,58 @@ export function AdminQualityTab() {
     }
   }
 
+  const addManualQuestion = async () => {
+    if (!questionBankProgram) return
+    setQuestionBankBusyId('manual')
+    try {
+      const res = await api<{ items: QuestionBankReviewItem[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId: questionBankProgram.id,
+          source: 'MANUAL',
+          approveNow: manualQuestion.approveNow,
+          question: {
+            type: manualQuestion.type,
+            text: manualQuestion.text,
+            options: manualQuestion.options.split('\n').map((x) => x.trim()).filter(Boolean),
+            correctAnswer: manualQuestion.correctAnswer,
+            modelAnswer: manualQuestion.modelAnswer,
+            difficulty: manualQuestion.difficulty,
+            sourceEvidence: manualQuestion.sourceEvidence,
+          },
+        }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setManualQuestionOpen(false)
+      setManualQuestion((prev) => ({ ...prev, text: '', modelAnswer: '', sourceEvidence: '' }))
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
+  const importQuestions = async () => {
+    if (!questionBankProgram) return
+    setQuestionBankBusyId('import')
+    try {
+      const res = await api<{ items: QuestionBankReviewItem[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId: questionBankProgram.id,
+          source: 'IMPORT',
+          text: importText,
+          approveNow: importApproveNow,
+        }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setImportQuestionsOpen(false)
+      setImportText('')
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
   const updateQuestionBankStatus = async (question: QuestionBankReviewItem, status: QuestionBankReviewItem['status']) => {
     if (!questionBankProgram) return
     setQuestionBankBusyId(question.id)
