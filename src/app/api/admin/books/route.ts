@@ -360,11 +360,20 @@ export async function PATCH(req: NextRequest) {
       const buf = Buffer.from(await file.arrayBuffer())
       fileName = file.name
       mimeType = file.type || 'application/octet-stream'
-      size = file.size
-      data = buf.toString('base64')
-      // تحديث مصدر الكتاب يحفظ الملف فقط؛ استخراج النص وبناء المعرفة يتمان بطلب منفصل.
+      const stored = await storeFileBuffer({
+        buffer: buf,
+        fileName,
+        mimeType,
+        namespace: `books/${book.program.slug || book.program.id}`,
+      })
+      size = stored.size || file.size
+      storageProvider = stored.provider
+      storageKey = stored.key
+      fileUrl = stored.url
+      data = null
+      // تحديث مصدر الكتاب يحفظ الملف خارج قاعدة البيانات فقط؛ استخراج النص وبناء المعرفة يتمان بطلب منفصل.
       linkReadStatus = 'FILE_UPLOADED'
-      linkNote = 'تم حفظ ملف الكتاب. اضغط بناء/تحديث بنك المعرفة ليتم التحليل والاستخراج دون تعطيل الرفع.'
+      linkNote = 'تم حفظ ملف الكتاب في التخزين الخارجي. اضغط بناء/تحديث بنك المعرفة ليتم التحليل والاستخراج دون تعطيل الرفع.'
     } else if (linkRaw) {
       if (isCatalogOrSearchLink(link!)) {
         linkReadStatus = 'SEARCH_LINK_ONLY'
