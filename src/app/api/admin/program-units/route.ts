@@ -120,6 +120,11 @@ export async function PATCH(req: NextRequest) {
       if (body?.objectives !== undefined) data.objectives = JSON.stringify(parseObjectives(body.objectives))
       if (body?.content !== undefined) data.content = JSON.stringify(parseContent(body.content))
       if (body?.order !== undefined) data.order = Number(body.order || 0)
+      if (body?.semester !== undefined) data.semester = Math.max(1, Math.min(12, Number(body.semester || 1)))
+      if (body?.status !== undefined) {
+        const status = String(body.status || '').toUpperCase()
+        if (['DRAFT', 'APPROVED', 'NEEDS_REVISION'].includes(status)) data.status = status
+      }
       await db.unit.updateMany({ where: { id: unitId, programId }, data })
     }
 
