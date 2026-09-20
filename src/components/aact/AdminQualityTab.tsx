@@ -117,6 +117,15 @@ interface ChatReviewItem {
   answer: string
 }
 
+interface CurriculumUnitReviewItem {
+  id: string
+  title: string
+  summary?: string | null
+  objectives: string[]
+  content: { heading: string; body: string }[]
+  order: number
+}
+
 interface ProgramReadinessItem {
   id: string
   titleAr: string
