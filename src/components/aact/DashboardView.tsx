@@ -800,23 +800,23 @@ export function DashboardView() {
             </TabsContent>
 
             <TabsContent value="supervision" className="mt-6">
-              <StudentSupervisionTab />
+              {dashboardTab === 'supervision' ? <StudentSupervisionTab /> : null}
             </TabsContent>
 
             <TabsContent value="payments" className="mt-6">
-              <PaymentsTab />
+              {dashboardTab === 'payments' ? <PaymentsTab /> : null}
             </TabsContent>
 
             <TabsContent value="thesis" className="mt-6">
-              <ThesisTab />
+              {dashboardTab === 'thesis' ? <ThesisTab /> : null}
             </TabsContent>
 
             <TabsContent value="transcript" className="mt-6">
-              <TranscriptTab />
+              {dashboardTab === 'transcript' ? <TranscriptTab /> : null}
             </TabsContent>
 
             <TabsContent value="certs" className="mt-6">
-              <CertificatesTab />
+              {dashboardTab === 'certs' ? <CertificatesTab /> : null}
             </TabsContent>
           </Tabs>
         </div>
