@@ -1195,12 +1195,16 @@ async function mergeKnowledgeRows(programId: string, bookId: string | null, item
   for (const row of data) {
     const exactKey = knowledgeRowKey(row)
     const titleKey = knowledgeTitleKey(row)
-    const current = exact.get(exactKey) || byTitle.get(titleKey)
+    const topicKey = knowledgeTopicKey(row)
+    const current = exact.get(exactKey) || byTitle.get(titleKey) || byTopic.get(topicKey) || existing.find((candidate) => areKnowledgeRowsDuplicate(candidate, row))
     if (!current) {
-      await db.bookKnowledgeItem.create({ data: row })
+      const created = await db.bookKnowledgeItem.create({ data: row })
       inserted++
-      exact.set(exactKey, row as any)
-      byTitle.set(titleKey, row as any)
+      const indexed = { ...row, id: created.id } as any
+      existing.push(indexed)
+      exact.set(exactKey, indexed)
+      byTitle.set(titleKey, indexed)
+      byTopic.set(topicKey, indexed)
       continue
     }
 
