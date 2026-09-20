@@ -795,6 +795,66 @@ export function AdminBooksTab() {
     }
   }
 
+  const refreshCurriculumUnits = async (pid = programId) => {
+    if (!pid) return
+    const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
+    setCurriculumUnits(res.units || [])
+  }
+
+  const patchCurriculumUnit = async (unit: CurriculumUnitReviewItem, data: Partial<CurriculumUnitReviewItem>) => {
+    if (!programId) return
+    setUnitBusyId(unit.id)
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>('/api/admin/program-units', {
+        method: 'PATCH',
+        body: JSON.stringify({ programId, unitId: unit.id, ...data }),
+      })
+      setCurriculumUnits(res.units || [])
+      await refreshProgramReadiness()
+    } catch (e: any) {
+      toast({ title: 'تعذر تعديل الوحدة', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const addCurriculumUnit = async () => {
+    if (!programId) return
+    setUnitBusyId('new')
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>('/api/admin/program-units', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId,
+          title: 'وحدة جديدة قابلة للمراجعة',
+          summary: 'أضف ملخص الوحدة هنا.',
+          objectives: ['هدف تعلم قابل للقياس'],
+          content: [{ heading: 'محتوى الوحدة', body: 'أضف محاور ومحتوى الوحدة هنا.' }],
+        }),
+      })
+      setCurriculumUnits(res.units || [])
+      await refreshProgramReadiness()
+    } catch (e: any) {
+      toast({ title: 'تعذر إضافة الوحدة', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const deleteCurriculumUnit = async (unitId: string) => {
+    if (!programId || !confirm('حذف هذه الوحدة من خطة المنهج؟')) return
+    setUnitBusyId(unitId)
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}&unitId=${unitId}`, { method: 'DELETE' })
+      setCurriculumUnits(res.units || [])
+      await refreshProgramReadiness()
+    } catch (e: any) {
+      toast({ title: 'تعذر حذف الوحدة', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
     const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`)
