@@ -4,7 +4,6 @@ import { useAppStore, api, clearToken } from '@/lib/store'
 import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useState } from 'react'
 import { Bot, ChevronDown, ChevronUp, ShieldCheck, Download, Users2 } from 'lucide-react'
-import { AACT_SEAL_DATA_URI } from '@/lib/aactSeal'
 
 // أزرار عائمة: واتساب مباشر + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
