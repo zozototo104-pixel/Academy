@@ -461,6 +461,11 @@ export function AdminBooksTab() {
     return stats
   }, [displayKnowledgeItems])
 
+  const selectedImportExam = useMemo(
+    () => examImportItems.find((exam) => exam.id === selectedImportExamId) || null,
+    [examImportItems, selectedImportExamId]
+  )
+
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
     ...guide,
     title: cleanAcademicOutput(guide.title, 220),
