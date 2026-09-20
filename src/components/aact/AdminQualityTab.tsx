@@ -102,6 +102,19 @@ interface WeakSupervisorReply {
   createdAt: string
 }
 
+interface ChatReviewItem {
+  id: string
+  messageId: string
+  reason?: string | null
+  note?: string | null
+  status: 'NEW' | 'IN_REVIEW' | 'REVIEWED' | 'IGNORED'
+  createdAt: string
+  student: { id: string; name: string; email: string }
+  program?: { id: string; titleAr: string; category: string } | null
+  question?: string | null
+  answer: string
+}
+
 interface AcademicQualityData {
   generatedAt: string
   overview: {
