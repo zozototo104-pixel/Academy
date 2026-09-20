@@ -18,6 +18,7 @@ import {
   Bot, Send, Mic, MicOff, Volume2, VolumeX, Loader2,
   Trash2, Sparkles, MessageCircle, User2, Phone, PhoneOff,
   ShieldCheck, FileSearch, Radio, Captions, Activity,
+  ThumbsUp, ThumbsDown, Flag,
 } from 'lucide-react'
 
 interface Msg {
