@@ -59,7 +59,7 @@ export function DirectoryView() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filter = <T extends { holderName?: string; orgName?: string; country?: string; program?: string; repName?: string }>(list: T[]) => {
+  const filter = <T extends { holderName?: string | null; orgName?: string | null; country?: string | null; program?: string | null; repName?: string | null }>(list: T[]) => {
     const term = q.trim()
     if (!term) return list
     return list.filter((x) =>
