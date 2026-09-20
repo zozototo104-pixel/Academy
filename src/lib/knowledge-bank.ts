@@ -1186,6 +1186,7 @@ async function mergeKnowledgeRows(programId: string, bookId: string | null, item
   })
   const exact = new Map(existing.map((row) => [knowledgeRowKey(row), row]))
   const byTitle = new Map(existing.map((row) => [knowledgeTitleKey(row), row]))
+  const byTopic = new Map(existing.map((row) => [knowledgeTopicKey(row), row]))
 
   let inserted = 0
   let updated = 0
