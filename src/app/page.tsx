@@ -54,14 +54,14 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
       <div className="w-full max-w-xl text-center">
         <div className="aact-startup-logo mx-auto mb-12 flex h-48 w-48 items-center justify-center rounded-full sm:h-56 sm:w-56">
           <img
-            src="/icon-512.png"
+            src="/aact-seal.svg?v=transparent-2"
             alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب"
-            width={184}
-            height={184}
+            width={220}
+            height={220}
             loading="eager"
             fetchPriority="high"
             decoding="sync"
-            className="h-[184px] w-[184px] object-contain"
+            className="h-[220px] w-[220px] object-contain drop-shadow-[0_24px_45px_rgba(0,0,0,0.35)]"
           />
         </div>
         <div className="aact-startup-count flex items-end justify-center gap-3 font-black leading-none" dir="ltr">
