@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
         author: bookAuthor,
         year: String(form.get('year') || '').trim().slice(0, 20) || null,
         description: String(form.get('description') || '').trim().slice(0, 1000) || null,
-        fileName, mimeType, size, data, textContent,
+        fileName, mimeType, size, data, storageProvider, storageKey, fileUrl, textContent,
         link,
         semester,
         levelPolicy,
