@@ -43,6 +43,16 @@ const AGENT_LABELS: Record<string, string> = {
   SUPPORT: 'وكيل الدعم',
 }
 
+const FEEDBACK_REASONS = [
+  { value: 'TOO_GENERAL', label: 'الرد عام جدًا' },
+  { value: 'NOT_RELATED', label: 'غير مرتبط بالمنهج أو سؤالي' },
+  { value: 'UNCLEAR', label: 'غير واضح' },
+  { value: 'WRONG', label: 'يحتوي خطأ' },
+  { value: 'DID_NOT_ANSWER', label: 'لم يجب عن السؤال' },
+  { value: 'WEAK_SOURCE', label: 'مصدره غير كافٍ' },
+  { value: 'OTHER', label: 'سبب آخر' },
+]
+
 // ===== Web Speech API typings =====
 interface SpeechRecognitionEventLike {
   resultIndex: number
