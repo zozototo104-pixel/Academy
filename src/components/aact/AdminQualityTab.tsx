@@ -335,6 +335,8 @@ export function AdminQualityTab() {
   const [data, setData] = useState<AcademicQualityData | null>(null)
   const [reviewItems, setReviewItems] = useState<ChatReviewItem[]>([])
   const [readinessItems, setReadinessItems] = useState<ProgramReadinessItem[]>([])
+  const [storageReport, setStorageReport] = useState<StorageSafetyReport | null>(null)
+  const [storageReportLoading, setStorageReportLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
