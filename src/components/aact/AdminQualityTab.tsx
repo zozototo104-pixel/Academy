@@ -524,6 +524,44 @@ export function AdminQualityTab() {
     }
   }
 
+  const openExamImport = async () => {
+    if (!questionBankProgram) return
+    setExamImportOpen(true)
+    setQuestionBankBusyId('exam-load')
+    try {
+      const res = await api<{ exams: ExamImportItem[] }>(`/api/admin/question-bank/from-exam?programId=${questionBankProgram.id}`)
+      setExamImportItems(res.exams || [])
+      const first = (res.exams || []).find((exam) => exam.questions?.length)
+      setSelectedExamId(first?.id || '')
+      setSelectedExamQuestionIds(first?.questions?.map((q) => q.id) || [])
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
+  const selectedExam = examImportItems.find((exam) => exam.id === selectedExamId) || null
+
+  const copyExamQuestionsToBank = async () => {
+    if (!questionBankProgram || !selectedExamId || selectedExamQuestionIds.length === 0) return
+    setQuestionBankBusyId('exam-copy')
+    try {
+      const res = await api<{ items: QuestionBankReviewItem[]; stats: QuestionBankStats }>('/api/admin/question-bank/from-exam', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId: questionBankProgram.id,
+          examId: selectedExamId,
+          questionIds: selectedExamQuestionIds,
+          approveNow: examImportApproveNow,
+        }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setExamImportOpen(false)
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
   const updateQuestionBankStatus = async (question: QuestionBankReviewItem, status: QuestionBankReviewItem['status']) => {
     if (!questionBankProgram) return
     setQuestionBankBusyId(question.id)
