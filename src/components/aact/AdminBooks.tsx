@@ -504,6 +504,8 @@ export function AdminBooksTab() {
       setAssignments(a.assignments)
       setKnowledgeItems(k.items || [])
       setKnowledgeStats(k.stats || {})
+      setQuestionBankItems(qb.items || [])
+      setQuestionBankStats(qb.stats || null)
       setStudyGuides(g.guides || [])
     } catch (err: any) {
       if (!silent) toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
