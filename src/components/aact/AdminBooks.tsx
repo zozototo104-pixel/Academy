@@ -892,6 +892,49 @@ export function AdminBooksTab() {
     }
   }
 
+  const openEditBankQuestion = (q: QuestionBankItemRow) => {
+    let options: string[] = []
+    try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+    setEditingBankQuestion(q)
+    setEditingBankQuestionForm({
+      type: q.type || 'MCQ',
+      text: q.text || '',
+      options: options.join('\n'),
+      correctAnswer: q.correctAnswer || '0',
+      modelAnswer: q.modelAnswer || '',
+      sourceEvidence: q.sourceEvidence || '',
+      difficulty: q.difficulty || 'MEDIUM',
+    })
+  }
+
+  const saveEditedBankQuestion = async () => {
+    if (!editingBankQuestion) return
+    setQuestionBankBusy(editingBankQuestion.id)
+    try {
+      const res = await api<{ item: QuestionBankItemRow }>('/api/admin/question-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          id: editingBankQuestion.id,
+          type: editingBankQuestionForm.type,
+          text: editingBankQuestionForm.text,
+          options: editingBankQuestionForm.options.split('\n').map((x) => x.trim()).filter(Boolean),
+          correctAnswer: editingBankQuestionForm.correctAnswer,
+          modelAnswer: editingBankQuestionForm.modelAnswer,
+          sourceEvidence: editingBankQuestionForm.sourceEvidence,
+          difficulty: editingBankQuestionForm.difficulty,
+        }),
+      })
+      setQuestionBankItems((prev) => prev.map((q) => q.id === editingBankQuestion.id ? res.item : q))
+      setEditingBankQuestion(null)
+      toast({ title: 'تم تعديل السؤال' })
+      if (programId) await refreshQuestionBank(programId)
+    } catch (e: any) {
+      toast({ title: 'تعذر تعديل السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
   const openBankExamDialog = async (semester: number) => {
     if (!programId) return
     setBankExamForm((prev) => ({ ...prev, semester: String(semester), unitId: '' }))
