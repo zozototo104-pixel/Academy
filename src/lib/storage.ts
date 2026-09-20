@@ -83,37 +83,44 @@ function getS3Config() {
   }
 }
 
-async function putToS3CompatibleStorage(input: StoreFileInput, key: string, mimeType: string): Promise<StoredFileResult | null> {
+function signS3Request(args: {
+  method: 'GET' | 'PUT'
+  key: string
+  payloadHash: string
+  extraHeaders?: Record<string, string>
+}) {
   const cfg = getS3Config()
   if (!cfg) return null
 
   const endpoint = new URL(cfg.endpoint)
-  const encodedKey = encodeS3Key(key)
+  const encodedKey = encodeS3Key(args.key)
   const canonicalUri = `/${encodeS3PathPart(cfg.bucket)}/${encodedKey}`
-  const putUrl = `${endpoint.origin}${canonicalUri}`
+  const url = `${endpoint.origin}${canonicalUri}`
   const now = new Date()
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
   const dateStamp = amzDate.slice(0, 8)
-  const payloadHash = sha256Hex(input.buffer)
-
   const headers: Record<string, string> = {
-    'content-type': mimeType,
     host: endpoint.host,
-    'x-amz-content-sha256': payloadHash,
+    'x-amz-content-sha256': args.payloadHash,
     'x-amz-date': amzDate,
+    ...(args.extraHeaders || {}),
   }
-  const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date'
+
+  const signedHeaders = Object.keys(headers)
+    .map((h) => h.toLowerCase())
+    .sort()
+    .join(';')
   const canonicalHeaders = signedHeaders
     .split(';')
     .map((h) => `${h}:${headers[h]}\n`)
     .join('')
   const canonicalRequest = [
-    'PUT',
+    args.method,
     canonicalUri,
     '',
     canonicalHeaders,
     signedHeaders,
-    payloadHash,
+    args.payloadHash,
   ].join('\n')
   const scope = `${dateStamp}/${cfg.region}/s3/aws4_request`
   const stringToSign = [
@@ -129,9 +136,25 @@ async function putToS3CompatibleStorage(input: StoreFileInput, key: string, mime
   const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
   const authorization = `AWS4-HMAC-SHA256 Credential=${cfg.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
 
-  const res = await fetch(putUrl, {
-    method: 'PUT',
+  return {
+    url,
+    publicUrl: cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
     headers: { ...headers, authorization },
+  }
+}
+
+async function putToS3CompatibleStorage(input: StoreFileInput, key: string, mimeType: string): Promise<StoredFileResult | null> {
+  const signed = signS3Request({
+    method: 'PUT',
+    key,
+    payloadHash: sha256Hex(input.buffer),
+    extraHeaders: { 'content-type': mimeType },
+  })
+  if (!signed) return null
+
+  const res = await fetch(signed.url, {
+    method: 'PUT',
+    headers: signed.headers,
     body: new Uint8Array(input.buffer),
   })
 
@@ -143,9 +166,25 @@ async function putToS3CompatibleStorage(input: StoreFileInput, key: string, mime
   return {
     provider: 's3',
     key,
-    url: cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : putUrl,
+    url: signed.publicUrl,
     size: input.buffer.byteLength,
     mimeType,
+  }
+}
+
+async function getFromS3CompatibleStorage(key: string, mimeType: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const signed = signS3Request({ method: 'GET', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+  if (!signed) return null
+
+  const res = await fetch(signed.url, {
+    method: 'GET',
+    headers: signed.headers,
+    cache: 'no-store',
+  })
+  if (!res.ok) return null
+  return {
+    buffer: Buffer.from(await res.arrayBuffer()),
+    mimeType: res.headers.get('content-type') || mimeType,
   }
 }
 
@@ -204,7 +243,24 @@ export function externalStoredFile(url: string, fileName: string, mimeType?: str
 
 export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buffer: Buffer; mimeType: string } | null> {
   const mimeType = String(input.mimeType || 'application/octet-stream')
+  const provider = String(input.provider || '')
+  const key = String(input.key || '').trim()
   const url = String(input.url || '').trim()
+
+  if (provider === 's3' && key) {
+    const stored = await getFromS3CompatibleStorage(key, mimeType)
+    if (stored) return stored
+  }
+
+  if (provider === 'local' && key) {
+    const root = path.join(process.cwd(), 'public', 'uploads')
+    const absolutePath = path.join(root, key)
+    try {
+      return { buffer: await fs.readFile(absolutePath), mimeType }
+    } catch {
+      return null
+    }
+  }
 
   if (url && /^https?:\/\//i.test(url)) {
     const res = await fetch(url, { cache: 'no-store' })
@@ -215,22 +271,14 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
     }
   }
 
-  if (input.provider === 'local' && input.key) {
-    const root = path.join(process.cwd(), 'public', 'uploads')
-    const absolutePath = path.join(root, input.key)
-    try {
-      return { buffer: await fs.readFile(absolutePath), mimeType }
-    } catch {
-      return null
-    }
-  }
-
   return null
 }
 
 export async function getFileBufferFromStorageOrBase64(input: ReadStoredFileInput): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const stored = await readStoredFile(input)
+  if (stored) return stored
   if (input.data) {
     return { buffer: Buffer.from(input.data, 'base64'), mimeType: String(input.mimeType || 'application/octet-stream') }
   }
-  return readStoredFile(input)
+  return null
 }
