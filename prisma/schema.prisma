@@ -411,15 +411,20 @@ model AgentApplication {
 // LICENSE (شهادة الترخيص أو مزاولة المهنة) — ID (الهوية أو الجواز) —
 // PHOTO (صور شخصية حديثة للمدربين/المستشارين) — CV (صورة عن C.V)
 model AgentDocument {
-  id        String           @id @default(cuid())
-  agentId   String
-  agent     AgentApplication @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  docType   String // LICENSE | ID | PHOTO | CV
-  fileName  String
-  mimeType  String
-  size      Int
-  data      String // base64
-  createdAt DateTime         @default(now())
+  id              String           @id @default(cuid())
+  agentId         String
+  agent           AgentApplication @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  docType         String // LICENSE | ID | PHOTO | CV
+  fileName        String
+  mimeType        String
+  size            Int
+  data            String? // legacy base64 fallback only; new uploads use object storage
+  storageProvider String?
+  storageKey      String?
+  fileUrl         String?
+  createdAt       DateTime         @default(now())
+
+  @@index([storageProvider])
 }
 
 model RevenueShareTransaction {
