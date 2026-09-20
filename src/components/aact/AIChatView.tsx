@@ -886,31 +886,53 @@ export function AIChatView() {
                     {m.mode === 'VOICE' && <span className="flex items-center gap-0.5 font-bold"><Mic className="h-2.5 w-2.5" /> صوتي</span>}
                   </span>
                   {m.role === 'assistant' && (
-                    <button
-                      onClick={() => {
-                        if (speakingId === m.id) {
-                          audioRef.current?.pause()
-                          try { window.speechSynthesis?.cancel() } catch {}
-                          speechUtteranceRef.current = null
-                          setSpeakingId(null)
-                        } else {
-                          speak(m.content, m.id)
-                        }
-                      }}
-                      className="opacity-60 transition-opacity hover:opacity-100"
-                      title="استمع للرد"
-                    >
-                      {speakingId === m.id ? (
-                        <span className="flex items-center gap-1 font-bold">
-                          <span className="aact-speak-wave">
-                            <span /><span /><span /><span />
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => submitMessageFeedback(m, 'HELPFUL')}
+                        disabled={feedbackBusyId === m.id}
+                        className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`}
+                        title="هذا الرد مفيد"
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFeedbackReason('TOO_GENERAL')
+                          setFeedbackNote('')
+                          setFeedbackDialog({ open: true, message: m })
+                        }}
+                        disabled={feedbackBusyId === m.id}
+                        className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`}
+                        title="هذا الرد يحتاج مراجعة"
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (speakingId === m.id) {
+                            audioRef.current?.pause()
+                            try { window.speechSynthesis?.cancel() } catch {}
+                            speechUtteranceRef.current = null
+                            setSpeakingId(null)
+                          } else {
+                            speak(m.content, m.id)
+                          }
+                        }}
+                        className="opacity-60 transition-opacity hover:opacity-100"
+                        title="استمع للرد"
+                      >
+                        {speakingId === m.id ? (
+                          <span className="flex items-center gap-1 font-bold">
+                            <span className="aact-speak-wave">
+                              <span /><span /><span /><span />
+                            </span>
+                            يتحدث
                           </span>
-                          يتحدث
-                        </span>
-                      ) : (
-                        <Volume2 className="h-3.5 w-3.5" />
-                      )}
-                    </button>
+                        ) : (
+                          <Volume2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
