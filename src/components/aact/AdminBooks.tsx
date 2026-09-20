@@ -250,6 +250,15 @@ interface ExamImportRow {
   questions: ExamImportQuestionRow[]
 }
 
+interface CurriculumUnitReviewItem {
+  id: string
+  title: string
+  summary?: string | null
+  objectives: string[]
+  content: { heading: string; body: string }[]
+  order: number
+}
+
 interface ProgramReadinessSnapshot {
   registrationStatus: 'OPEN' | 'CLOSED'
   academicReadinessStatus: 'NEEDS_PREPARATION' | 'IN_PREPARATION' | 'READY_FOR_REVIEW' | 'APPROVED'
