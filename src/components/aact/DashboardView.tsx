@@ -200,6 +200,7 @@ export function DashboardView() {
   const [academicMemory, setAcademicMemory] = useState<AcademicMemorySnapshot | null>(null)
   const [earnedMicroCredentials, setEarnedMicroCredentials] = useState<MicroCredentialCard[]>([])
   const [availableMicroCredentials, setAvailableMicroCredentials] = useState<MicroCredentialCard[]>([])
+  const [dashboardTab, setDashboardTab] = useState('programs')
 
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
     ...guide,
