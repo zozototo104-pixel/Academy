@@ -384,6 +384,16 @@ export function AdminQualityTab() {
     }
   }, [])
 
+  const refreshStorageReport = async () => {
+    setStorageReportLoading(true)
+    try {
+      const report = await api<StorageSafetyReport>('/api/admin/storage-safety')
+      setStorageReport(report)
+    } finally {
+      setStorageReportLoading(false)
+    }
+  }
+
   const updateReviewStatus = async (id: string, status: ChatReviewItem['status']) => {
     setReviewBusyId(id)
     try {
