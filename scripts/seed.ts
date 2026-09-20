@@ -12,6 +12,11 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && process.env.AACT_RUN_SEED !== 'YES') {
+    console.error('Refusing to run seed in production. Set AACT_RUN_SEED=YES only for a deliberate one-time initialization.')
+    process.exit(1)
+  }
+
   console.log('🌱 Seeding AACT database...')
 
   for (const p of allSeedPrograms) {
