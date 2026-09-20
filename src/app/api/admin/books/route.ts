@@ -165,6 +165,9 @@ export async function POST(req: NextRequest) {
     let mimeType: string | null = null
     let size: number | null = null
     let data: string | null = null
+    let storageProvider: string | null = null
+    let storageKey: string | null = null
+    let fileUrl: string | null = null
     let textContent: string | null = null
     let linkNote: string | null = null
     let linkReadStatus = 'NOT_ATTEMPTED'
