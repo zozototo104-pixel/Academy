@@ -1103,7 +1103,7 @@ export function AdminBooksTab() {
       </Card>
 
       {programId && (
-        <Tabs defaultValue="overview" dir="rtl" className="space-y-4">
+        <Tabs id="admin-books-workspace" value={workspaceTab} onValueChange={setWorkspaceTab} dir="rtl" className="space-y-4">
           <div className="sticky top-2 z-20 rounded-2xl border border-[#0f2b46]/10 bg-white/95 p-3 shadow-sm backdrop-blur">
             <p className="mb-2 text-[10px] font-black text-slate-500">مساحة العمل الأكاديمية — اختر الباب المطلوب بدل التمرير الطويل</p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
