@@ -191,6 +191,8 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await audit({ id: admin.id, name: admin.name }, 'GENERATE_CURRICULUM_UNITS', 'Program', programId, `اقتراح ${created.length} وحدة منهجية لبرنامج ${plan.program.titleAr}${replace ? ' مع استبدال الوحدات السابقة' : ''}`)
+
     return NextResponse.json({ ok: true, count: created.length, units: created })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
