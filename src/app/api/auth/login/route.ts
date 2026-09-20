@@ -7,17 +7,32 @@ import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rat
 
 export async function POST(req: NextRequest) {
   try {
-    // لا نوقف تسجيل الدخول على تهيئة البرامج والإعدادات؛ هذا كان يبطئ الدخول على Vercel/Neon.
-    // التهيئة تبقى تعمل بالخلفية، أما حسابات التجربة الخاصة فتبقى مضمونة عند الحاجة أدناه.
-    void ensureCoreSeed().catch((err) => console.error('Background core seed error:', err))
+    const shouldAutoSeedOnLogin = process.env.AACT_AUTO_SEED_ON_LOGIN === '1' || process.env.NODE_ENV !== 'production'
+    if (shouldAutoSeedOnLogin) {
+      // في الإنتاج لا نشغل seed تلقائياً مع كل تسجيل دخول إلا إذا فُعّل صراحةً عبر AACT_AUTO_SEED_ON_LOGIN=1.
+      void ensureCoreSeed().catch((err) => console.error('Background core seed error:', err))
+    }
+
     const { email, password } = await req.json()
     if (!email?.trim() || !password) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }, { status: 400 })
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    if (normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
-      // يجهّز حساب الطالب التجريبي تلقائياً عند أول محاولة دخول، حتى لو لم يظهر زر الإدارة بسبب تأخر الـ Deploy السابق.
+    const ip = clientIpFromHeaders(req.headers)
+    const ipLimit = checkRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
+    const accountLimit = checkRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
+    if (!ipLimit.ok || !accountLimit.ok) {
+      const limited = !accountLimit.ok ? accountLimit : ipLimit
+      return NextResponse.json(
+        { error: 'محاولات تسجيل دخول كثيرة. انتظر قليلاً ثم حاول مرة أخرى.' },
+        { status: 429, headers: rateLimitHeaders(limited) }
+      )
+    }
+
+    const demoLoginEnabled = process.env.AACT_ENABLE_DEMO_LOGIN === '1' || process.env.NODE_ENV !== 'production'
+    if (demoLoginEnabled && normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
+      // يجهّز حساب الطالب التجريبي فقط في البيئات التجريبية أو عند تفعيله صراحةً.
       await ensureCoreSeed(true).catch((err) => console.error('Auto demo seed error:', err))
       await ensureDemoThesisStudent({ resetDefense: true, actor: null }).catch((err) => console.error('Auto demo thesis setup error:', err))
     }
