@@ -257,6 +257,10 @@ export function AdminQualityTab() {
   const [error, setError] = useState<string | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
   const [readinessBusyId, setReadinessBusyId] = useState<string | null>(null)
+  const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
+  const [unitReviewOpen, setUnitReviewOpen] = useState(false)
+  const [unitReviewProgram, setUnitReviewProgram] = useState<ProgramReadinessItem | null>(null)
+  const [unitReviewItems, setUnitReviewItems] = useState<CurriculumUnitReviewItem[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
