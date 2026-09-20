@@ -894,7 +894,16 @@ function runRules(app: {
   }
 }
 
-async function buildFileEvidence(files: { docType: string; fileName: string; mimeType: string; size: number; data: string | null }[]): Promise<AdmissionFileEvidence[]> {
+async function buildFileEvidence(files: {
+  docType: string
+  fileName: string
+  mimeType: string
+  size: number
+  data: string | null
+  storageProvider?: string | null
+  storageKey?: string | null
+  fileUrl?: string | null
+}[]): Promise<AdmissionFileEvidence[]> {
   const out: AdmissionFileEvidence[] = []
   let textReads = 0
   let visionReads = 0
