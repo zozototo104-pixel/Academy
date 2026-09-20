@@ -683,7 +683,7 @@ async function runGeneration(examId: string) {
     })
     if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${semester === 2 ? 'الثاني' : 'الأول'}`)
 
-    const hydratedBooks = []
+    const hydratedBooks: HydratedExamBook[] = []
     for (const book of books) {
       if (!(await isExamStillGenerating(examId))) return
       const hydrated = await hydrateBookContentForExam(book)
