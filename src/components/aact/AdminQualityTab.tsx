@@ -170,6 +170,23 @@ const BAND_META: Record<QualityProgram['band'], { label: string; cls: string }> 
   CRITICAL: { label: 'حرج', cls: 'bg-red-100 text-red-700' },
 }
 
+const FEEDBACK_REASON_LABEL: Record<string, string> = {
+  TOO_GENERAL: 'الرد عام جدًا',
+  NOT_RELATED: 'غير مرتبط بالمنهج أو السؤال',
+  UNCLEAR: 'غير واضح',
+  WRONG: 'يحتوي خطأ',
+  DID_NOT_ANSWER: 'لم يجب عن السؤال',
+  WEAK_SOURCE: 'مصدره غير كافٍ',
+  OTHER: 'سبب آخر',
+}
+
+const REVIEW_STATUS_LABEL: Record<ChatReviewItem['status'], string> = {
+  NEW: 'جديد',
+  IN_REVIEW: 'قيد المراجعة',
+  REVIEWED: 'تمت المراجعة',
+  IGNORED: 'تم التجاهل',
+}
+
 function metricValue(value: number | null | undefined, suffix = '') {
   return value == null ? '—' : `${value}${suffix}`
 }
