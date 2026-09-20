@@ -61,13 +61,14 @@ export async function GET(req: NextRequest) {
     const progress = totalUnits ? Math.round((completedUnits.length / totalUnits) * 100) : 0
 
     // 12.2: امتحانا الفصلين المبنيان على الكتب المقررة + عدد الكتب
-    const [readyExams, reviewCount, booksCount] = await Promise.all([
+    const [readyExams, reviewCount, booksCount, knowledgeCount] = await Promise.all([
       db.programExam.findMany({
         where: { programId, status: 'READY' },
         orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }],
       }),
       db.programExam.count({ where: { programId, status: 'REVIEW' } }),
       db.book.count({ where: { programId } }),
+      db.bookKnowledgeItem.count({ where: { programId } }),
     ])
 
     const examMeta = await Promise.all(
