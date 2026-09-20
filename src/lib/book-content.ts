@@ -330,16 +330,25 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
       : 'نص الكتاب مستخرج ومخزن سابقاً')
   }
 
-  if (book.data) {
+  if (hasStoredFileRef) {
     try {
-      const read = await readBufferContent(Buffer.from(book.data, 'base64'), book.mimeType || '', book.fileName, book)
-      if (isUsableBookText(read.text, MIN_USABLE_TEXT)) {
-        return {
-          ...book,
-          textContent: read.text,
-          sourceNote: read.note || 'تمت قراءة الملف المرفوع للكتاب',
-          contentQuality: read.quality,
-          shouldPersistText: true,
+      const storedFile = await getFileBufferFromStorageOrBase64({
+        provider: book.storageProvider,
+        key: book.storageKey,
+        url: book.fileUrl,
+        data: book.data,
+        mimeType: book.mimeType,
+      })
+      if (storedFile) {
+        const read = await readBufferContent(storedFile.buffer, storedFile.mimeType || book.mimeType || '', book.fileName, book)
+        if (isUsableBookText(read.text, MIN_USABLE_TEXT)) {
+          return {
+            ...book,
+            textContent: read.text,
+            sourceNote: read.note || 'تمت قراءة الملف المرفوع للكتاب من التخزين الخارجي',
+            contentQuality: read.quality,
+            shouldPersistText: true,
+          }
         }
       }
     } catch (e: any) {
