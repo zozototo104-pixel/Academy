@@ -124,6 +124,11 @@ export function AIChatView() {
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const [sttSupported, setSttSupported] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, 'HELPFUL' | 'NEEDS_REVIEW'>>({})
+  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null)
+  const [feedbackDialog, setFeedbackDialog] = useState<{ open: boolean; message: Msg | null }>({ open: false, message: null })
+  const [feedbackReason, setFeedbackReason] = useState('TOO_GENERAL')
+  const [feedbackNote, setFeedbackNote] = useState('')
 
   // ===== المحادثة الصوتية الحية — VoiceAgent حقيقي ثنائي الاتجاه =====
   // المسار: مايك+AEC → VAD → STT حي → End-of-Turn ذكي → LLM streaming
