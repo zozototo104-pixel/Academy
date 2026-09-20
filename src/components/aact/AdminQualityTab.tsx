@@ -304,6 +304,83 @@ export function AdminQualityTab() {
     }
   }
 
+  const suggestUnits = async (program: ProgramReadinessItem) => {
+    setReadinessBusyId(program.id)
+    try {
+      try {
+        await api('/api/admin/program-units/suggest', { method: 'POST', body: JSON.stringify({ programId: program.id }) })
+      } catch (e: any) {
+        if (String(e?.message || '').includes('توجد وحدات') && confirm('توجد وحدات حالية. هل تريد استبدالها بخطة مقترحة جديدة من الكتب؟')) {
+          await api('/api/admin/program-units/suggest', { method: 'POST', body: JSON.stringify({ programId: program.id, replace: true }) })
+        } else {
+          throw e
+        }
+      }
+      const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
+      setReadinessItems(readiness.items || [])
+      await openUnitReview(program)
+    } finally {
+      setReadinessBusyId(null)
+    }
+  }
+
+  const openUnitReview = async (program: ProgramReadinessItem) => {
+    setUnitReviewProgram(program)
+    setUnitReviewOpen(true)
+    setUnitBusyId('loading')
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${program.id}`)
+      setUnitReviewItems(res.units || [])
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const patchUnit = async (unit: CurriculumUnitReviewItem, data: Partial<CurriculumUnitReviewItem>) => {
+    if (!unitReviewProgram) return
+    setUnitBusyId(unit.id)
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>('/api/admin/program-units', {
+        method: 'PATCH',
+        body: JSON.stringify({ programId: unitReviewProgram.id, unitId: unit.id, ...data }),
+      })
+      setUnitReviewItems(res.units || [])
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const addUnit = async () => {
+    if (!unitReviewProgram) return
+    setUnitBusyId('new')
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>('/api/admin/program-units', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId: unitReviewProgram.id,
+          title: 'وحدة جديدة قابلة للمراجعة',
+          summary: 'أضف ملخص الوحدة هنا.',
+          objectives: ['هدف تعلم قابل للقياس'],
+          content: [{ heading: 'محتوى الوحدة', body: 'أضف محاور ومحتوى الوحدة هنا.' }],
+        }),
+      })
+      setUnitReviewItems(res.units || [])
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const deleteUnit = async (unitId: string) => {
+    if (!unitReviewProgram || !confirm('حذف هذه الوحدة من خطة المنهج؟')) return
+    setUnitBusyId(unitId)
+    try {
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${unitReviewProgram.id}&unitId=${unitId}`, { method: 'DELETE' })
+      setUnitReviewItems(res.units || [])
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [load])
