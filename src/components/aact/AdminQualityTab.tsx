@@ -596,6 +596,11 @@ export function AdminQualityTab() {
                         اقتراح وحدات من الكتب
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => generateQuestionBank(item)}>
+                        {questionBankBusyId === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                        توليد أسئلة للبنك
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openQuestionBank(item)}>مراجعة بنك الأسئلة</Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'exams' } }))}>توليد/مراجعة الاختبارات</Button>
                       <Button
                         size="sm"
