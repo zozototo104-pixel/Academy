@@ -290,6 +290,13 @@ export function AdminQualityTab() {
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankReviewItem[]>([])
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankBusyId, setQuestionBankBusyId] = useState<string | null>(null)
+  const [manualQuestionOpen, setManualQuestionOpen] = useState(false)
+  const [importQuestionsOpen, setImportQuestionsOpen] = useState(false)
+  const [manualQuestion, setManualQuestion] = useState({
+    type: 'MCQ', text: '', options: 'خيار أول\nخيار ثان\nخيار ثالث\nخيار رابع', correctAnswer: '0', modelAnswer: '', difficulty: 'MEDIUM', sourceEvidence: '', approveNow: false,
+  })
+  const [importText, setImportText] = useState('')
+  const [importApproveNow, setImportApproveNow] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
