@@ -35,8 +35,7 @@ function parseContent(value: unknown) {
 async function listProgramUnits(programId: string) {
   const units = await db.unit.findMany({
     where: { programId },
-    orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-    include: { bookLinks: { include: { book: { select: { id: true, title: true, semester: true } } } } },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
   })
   return units.map((u) => ({
     id: u.id,
@@ -45,8 +44,6 @@ async function listProgramUnits(programId: string) {
     objectives: parseObjectives(u.objectives),
     content: parseContent(u.content),
     order: u.order,
-    createdAt: u.createdAt,
-    books: u.bookLinks.map((l) => l.book),
   }))
 }
 
