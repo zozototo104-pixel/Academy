@@ -50,6 +50,14 @@ interface ProgressData {
     assignments?: { id?: string; title?: string; semester?: number | null; points?: number | null; status?: string | null }[]
     exams?: { id?: string; title?: string; semester?: number | null; status?: string | null; questionCount?: number | null }[]
     academicProfile?: any
+    curriculumReadiness?: {
+      status: string
+      registrationStatus: string
+      approved: boolean
+      dueAt?: string | null
+      note?: string | null
+      message: string
+    }
   }
   progress: number
   status: string
