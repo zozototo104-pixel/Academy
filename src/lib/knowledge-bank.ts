@@ -1069,6 +1069,71 @@ function knowledgeTitleKey(row: { category?: string | null; title?: string | nul
   return `${safeCategory(row.category)}::${norm(row.title || '').slice(0, 140)}`
 }
 
+const KNOWLEDGE_TOPIC_STOP_WORDS = new Set([
+  'في', 'من', 'عن', 'على', 'الى', 'الي', 'إلى', 'مع', 'بين', 'داخل', 'ضمن', 'حول', 'عبر', 'لدى',
+  'ال', 'و', 'او', 'أو', 'ثم', 'كما', 'ذلك', 'هذه', 'هذا', 'التي', 'الذي', 'المختلفه', 'المختلفة',
+  'مفهوم', 'مفاهيم', 'تعريف', 'اطار', 'إطار', 'حاله', 'حالة', 'تطبيقيه', 'تطبيقية', 'خلاصه', 'خلاصة',
+].map(norm))
+
+function canonicalKnowledgeToken(token: string) {
+  const t = norm(token)
+  if (!t || KNOWLEDGE_TOPIC_STOP_WORDS.has(t) || t.length < 3) return ''
+  if (/^(استراتيجي|استراتيجيه|الاستراتيجي|الاستراتيجيه|الاستراتيجيه)$/.test(t)) return 'استراتيجي'
+  if (/^(اداره|الاداره|اداري|اداريه)$/.test(t)) return 'اداره'
+  if (/^(منهج|مناهج|منهجيه|المنهجيه|المنهجيات|منهجيات)$/.test(t)) return 'منهج'
+  if (/^(بحث|البحث|ابحاث|الابحاث)$/.test(t)) return 'بحث'
+  if (/^(قرار|القرار|قرارات|القرارات)$/.test(t)) return 'قرار'
+  if (/^(صنع|صناعه|صناعة|اتخاذ|اختاذ)$/.test(t)) return 'صنع'
+  if (/^(قياده|القياده|القائد|القاده|قادة)$/.test(t)) return 'قياده'
+  if (/^(نظري|النظري|النظريه|نظرية|النظريه)$/.test(t)) return 'نظري'
+  if (/^(عملي|العملي|تطبيق|التطبيق|تطبيقي|التطبيقي)$/.test(t)) return 'تطبيق'
+  if (/^(علاقه|العلاقه|ربط|الربط|صلة|الصله)$/.test(t)) return 'علاقه'
+  if (/^(مدرسه|المدرسه|مدارس|المدارس)$/.test(t)) return 'مدارس'
+  if (/^(مستوي|مستوى|مستويات|المستويات)$/.test(t)) return 'مستويات'
+  return t
+}
+
+function knowledgeTopicTokens(row: { title?: string | null; keywords?: string | null }) {
+  let keywordText = ''
+  try {
+    const parsed = typeof row.keywords === 'string' ? JSON.parse(row.keywords) : []
+    keywordText = Array.isArray(parsed) ? parsed.join(' ') : ''
+  } catch {}
+  const tokens = `${row.title || ''} ${keywordText}`
+    .split(/\s+/)
+    .map(canonicalKnowledgeToken)
+    .filter(Boolean)
+  return Array.from(new Set(tokens)).sort()
+}
+
+function knowledgeTopicKey(row: { category?: string | null; title?: string | null; keywords?: string | null }) {
+  const tokens = knowledgeTopicTokens(row).slice(0, 8)
+  return tokens.length ? `${safeCategory(row.category)}::${tokens.join('|')}` : knowledgeTitleKey(row)
+}
+
+function tokenSimilarity(a: string[], b: string[]) {
+  if (!a.length || !b.length) return 0
+  const sa = new Set(a)
+  const sb = new Set(b)
+  let inter = 0
+  for (const t of sa) if (sb.has(t)) inter++
+  return inter / Math.min(sa.size, sb.size)
+}
+
+function areKnowledgeRowsDuplicate(a: { category?: string | null; title?: string | null; keywords?: string | null }, b: { category?: string | null; title?: string | null; keywords?: string | null }) {
+  if (safeCategory(a.category) !== safeCategory(b.category)) return false
+  if (knowledgeTitleKey(a) === knowledgeTitleKey(b)) return true
+  if (knowledgeTopicKey(a) === knowledgeTopicKey(b)) return true
+  const at = knowledgeTopicTokens(a)
+  const bt = knowledgeTopicTokens(b)
+  if (at.length < 2 || bt.length < 2) return false
+  return tokenSimilarity(at, bt) >= 0.75
+}
+
+function knowledgeRowScore(row: { summary?: string | null; excerpt?: string | null; importance?: number | null }) {
+  return Number(row.importance || 0) * 10 + String(row.summary || '').length + Math.floor(String(row.excerpt || '').length / 2)
+}
+
 function prepareKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
   const rows = items.map((item, i) => {
     const summary = cleanText(item.summary, 1600)
