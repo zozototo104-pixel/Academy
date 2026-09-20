@@ -914,9 +914,13 @@ function bookMimeForVision(book: RawBookForHydration) {
   return mime || 'application/octet-stream'
 }
 
+function hasUploadedBookFile(book: RawBookForHydration) {
+  return !!(book.data || book.storageKey || book.fileUrl)
+}
+
 function canReadBookFileWithGemini(book: RawBookForHydration) {
   const mime = bookMimeForVision(book)
-  return !!book.data && (mime.includes('pdf') || mime.startsWith('image/'))
+  return hasUploadedBookFile(book) && (mime.includes('pdf') || mime.startsWith('image/'))
 }
 
 async function aiKnowledgeItemsFromUploadedFile(
@@ -925,8 +929,16 @@ async function aiKnowledgeItemsFromUploadedFile(
   semester?: number | null
 ): Promise<KnowledgeItemDraft[] | null> {
   if (!canReadBookFileWithGemini(book)) return null
-  const mimeType = bookMimeForVision(book)
-  const dataBase64 = String(book.data || '')
+  const storedFile = await getFileBufferFromStorageOrBase64({
+    provider: book.storageProvider,
+    key: book.storageKey,
+    url: book.fileUrl,
+    data: book.data,
+    mimeType: book.mimeType,
+  })
+  if (!storedFile?.buffer || storedFile.buffer.byteLength < 120) return null
+  const mimeType = bookMimeForVision({ ...book, mimeType: storedFile.mimeType || book.mimeType })
+  const dataBase64 = storedFile.buffer.toString('base64')
   if (!dataBase64 || dataBase64.length < 200) return null
 
   const level = levelLabel(program.category)
