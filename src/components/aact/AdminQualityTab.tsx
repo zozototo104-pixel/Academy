@@ -241,9 +241,11 @@ function formatSeconds(value: number | null | undefined) {
 export function AdminQualityTab() {
   const [data, setData] = useState<AcademicQualityData | null>(null)
   const [reviewItems, setReviewItems] = useState<ChatReviewItem[]>([])
+  const [readinessItems, setReadinessItems] = useState<ProgramReadinessItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
+  const [readinessBusyId, setReadinessBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
