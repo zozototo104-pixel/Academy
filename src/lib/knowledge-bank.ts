@@ -1521,7 +1521,14 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
       : buildMode === 'FILE'
         ? 'تم بناء بنك المعرفة من قراءة مباشرة لملف الكتاب المرفوع عبر الذكاء البصري، بعد فشل الاستخراج النصي التقليدي أو عدم كفايته.'
         : `${hydrated.sourceNote} — لم يتوفر نص طويل نظيف ولا قراءة ملف كافية؛ بُنيت خريطة معرفة مهنية من توصيف الكتاب والبرنامج دون ادعاء اقتباس نصي.`
-  return { programId: book.programId, bookId: book.id, inserted, deleted: deleted.count, usedAi: !!ai?.length, sourceNote: qualityNote }
+  return {
+    programId: book.programId,
+    bookId: book.id,
+    inserted,
+    deleted: deleted.count,
+    usedAi: !!ai?.length,
+    sourceNote: `${qualityNote} — تم الدمج الآمن دون حذف العناصر السابقة: كان العدد ${beforeCount} وأصبح ${afterCount} (${merge.inserted} جديد، ${merge.updated} محسّن، ${merge.skipped} مكرر/غير أفضل).`,
+  }
 }
 
 export async function rebuildProgramKnowledge(programId: string, semester?: number | null): Promise<{ programId: string; results: KnowledgeBuildResult[]; totalInserted: number; totalDeleted: number }> {
