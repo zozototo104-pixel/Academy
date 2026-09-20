@@ -171,6 +171,43 @@ interface ExamImportItem {
   questions: ExamQuestionImportItem[]
 }
 
+interface StorageSafetyReport {
+  generatedAt: string
+  mode: string
+  deletionEnabled: boolean
+  storageConfig: {
+    s3Configured: boolean
+    bucket: string | null
+    publicBaseUrlConfigured: boolean
+    note: string
+  }
+  summary: {
+    booksTotal: number
+    linkedR2Objects: number
+    linkedLocalObjects: number
+    externalLinks: number
+    legacyBase64Books: number
+    linkedStorageBytes: number
+    linkedR2Bytes: number
+    legacyBase64Bytes: number
+    uploadChunks: number
+    uploadChunkBytes: number
+    suspiciousBooks: number
+    orphanUploadChunks: number
+    questionBankBookRefsMissing: number
+    questionBankUnitRefsMissing: number
+    examDraftsTotal: number
+    orphanExamDrafts: number
+    reviewExams: number
+  }
+  recommendations: string[]
+  samples: {
+    suspiciousBooks: { id: string; title: string; program?: string | null; fileName?: string | null; size?: number | null; storageProvider?: string | null; storageKey?: string | null; fileUrl?: string | null; hasLegacyData: boolean; hasLink: boolean }[]
+    orphanDrafts: { id: string; examId: string; examType: string; updatedAt: string }[]
+    reviewExams: { id: string; title: string; questions: number; createdAt: string }[]
+  }
+}
+
 interface ProgramReadinessItem {
   id: string
   titleAr: string
