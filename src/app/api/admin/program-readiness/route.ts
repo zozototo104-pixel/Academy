@@ -177,6 +177,7 @@ export async function PATCH(req: NextRequest) {
 
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'لا توجد تغييرات للحفظ' }, { status: 400 })
     await db.program.update({ where: { id: programId }, data })
+    await audit({ id: admin.id, name: admin.name }, 'UPDATE_PROGRAM_READINESS', 'Program', programId, `تحديث جاهزية/اعتماد البرنامج: ${Object.keys(data).join(', ')}`)
     const item = await buildProgramReadiness(programId)
     return NextResponse.json({ ok: true, item })
   } catch (e: any) {
