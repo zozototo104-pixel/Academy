@@ -2393,6 +2393,65 @@ export function AdminBooksTab() {
         </Tabs>
       )}
 
+      <Dialog open={bankExamDialogOpen} onOpenChange={setBankExamDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">توليد امتحان من بنك الأسئلة</DialogTitle>
+            <DialogDescription>اختر إعدادات الامتحان مرة واحدة بدل النوافذ المتتالية. سيتم استخدام الأسئلة المعتمدة فقط من نفس البرنامج.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">الفصل</label>
+                <select value={bankExamForm.semester} onChange={(e) => setBankExamForm((p) => ({ ...p, semester: e.target.value }))} className="h-10 w-full rounded-xl border px-3 text-sm font-bold">
+                  <option value="1">الفصل الأول</option>
+                  <option value="2">الفصل الثاني</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">عدد الأسئلة</label>
+                <Input value={bankExamForm.count} onChange={(e) => setBankExamForm((p) => ({ ...p, count: e.target.value }))} inputMode="numeric" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">الوحدة / اختياري</label>
+                <select value={bankExamForm.unitId} onChange={(e) => setBankExamForm((p) => ({ ...p, unitId: e.target.value }))} className="h-10 w-full rounded-xl border px-3 text-sm font-bold">
+                  <option value="">كل أسئلة الفصل/البرنامج</option>
+                  {bankExamUnits.map((u) => <option key={u.id} value={u.id}>{u.title}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h4 className="mb-3 text-xs font-black text-[#0f2b46]">توزيع الصعوبة</h4>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Input value={bankExamForm.easy} onChange={(e) => setBankExamForm((p) => ({ ...p, easy: e.target.value }))} placeholder="سهل" inputMode="numeric" />
+                <Input value={bankExamForm.medium} onChange={(e) => setBankExamForm((p) => ({ ...p, medium: e.target.value }))} placeholder="متوسط" inputMode="numeric" />
+                <Input value={bankExamForm.advanced} onChange={(e) => setBankExamForm((p) => ({ ...p, advanced: e.target.value }))} placeholder="متقدم" inputMode="numeric" />
+              </div>
+              <p className="mt-2 text-[11px] font-bold text-slate-500">الأرقام تُعامل كأوزان نسبية، مثل 25 / 50 / 25.</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h4 className="mb-3 text-xs font-black text-[#0f2b46]">توزيع أنواع الأسئلة</h4>
+              <div className="grid gap-3 md:grid-cols-4">
+                <Input value={bankExamForm.mcq} onChange={(e) => setBankExamForm((p) => ({ ...p, mcq: e.target.value }))} placeholder="اختيار متعدد" inputMode="numeric" />
+                <Input value={bankExamForm.tf} onChange={(e) => setBankExamForm((p) => ({ ...p, tf: e.target.value }))} placeholder="صح/خطأ" inputMode="numeric" />
+                <Input value={bankExamForm.short} onChange={(e) => setBankExamForm((p) => ({ ...p, short: e.target.value }))} placeholder="قصير" inputMode="numeric" />
+                <Input value={bankExamForm.essay} onChange={(e) => setBankExamForm((p) => ({ ...p, essay: e.target.value }))} placeholder="مقالي" inputMode="numeric" />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setBankExamDialogOpen(false)}>إلغاء</Button>
+              <Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]" disabled={questionBankBusy === `exam-${bankExamForm.semester}`} onClick={generateExamFromQuestionBank}>
+                {questionBankBusy === `exam-${bankExamForm.semester}` ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                توليد الامتحان
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={questionBankOpen} onOpenChange={setQuestionBankOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
           <DialogHeader>
