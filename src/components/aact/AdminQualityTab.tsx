@@ -251,12 +251,14 @@ export function AdminQualityTab() {
     setLoading(true)
     setError(null)
     try {
-      const [res, reviews] = await Promise.all([
+      const [res, reviews, readiness] = await Promise.all([
         api<AcademicQualityData>('/api/admin/academic-quality'),
         api<{ items: ChatReviewItem[] }>('/api/chat-feedback').catch(() => ({ items: [] })),
+        api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness').catch(() => ({ items: [] })),
       ])
       setData(res)
       setReviewItems(reviews.items || [])
+      setReadinessItems(readiness.items || [])
     } catch (e: any) {
       setError(e?.message || 'تعذر تحميل مركز الجودة الأكاديمي')
     } finally {
