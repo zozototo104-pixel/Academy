@@ -2543,6 +2543,7 @@ export function AdminBooksTab() {
                       </Badge>
                     </div>
                     <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={() => openEditBankQuestion(q)} className="text-xs font-black">تعديل</Button>
                       <Button size="sm" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'APPROVED')} className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800">اعتماد</Button>
                       <Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'REJECTED')} className="border-red-200 text-xs font-black text-red-700">رفض</Button>
                       <Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'ARCHIVED')} className="text-xs font-black">أرشفة</Button>
