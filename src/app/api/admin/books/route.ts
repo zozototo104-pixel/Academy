@@ -336,6 +336,9 @@ export async function PATCH(req: NextRequest) {
     let mimeType = book.mimeType
     let size = book.size
     let data = book.data
+    let storageProvider = book.storageProvider
+    let storageKey = book.storageKey
+    let fileUrl = book.fileUrl
     let textContent: string | null = null
     let linkNote: string | null = null
     let linkReadStatus = book.linkReadStatus || 'NOT_ATTEMPTED'
