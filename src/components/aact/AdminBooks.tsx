@@ -547,12 +547,13 @@ export function AdminBooksTab() {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
     try {
-      const [b, e, a, k, readiness, qb, g] = await Promise.all([
+      const [b, e, a, k, readiness, units, qb, g] = await Promise.all([
         api<{ books: BookRow[] }>(`/api/admin/books?programId=${pid}`),
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
         api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
+        api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
         api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any })),
         api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
       ])
