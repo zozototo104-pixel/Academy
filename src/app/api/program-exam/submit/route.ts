@@ -301,6 +301,8 @@ export async function POST(req: NextRequest) {
         : ['حل تدريب علاجي على نقاط الضعف قبل إعادة المحاولة أو مراجعة المشرف'],
     }).catch(() => {})
 
+    await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
+
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
