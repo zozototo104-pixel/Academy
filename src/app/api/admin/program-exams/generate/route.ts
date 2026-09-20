@@ -823,7 +823,7 @@ export async function POST(req: NextRequest) {
         await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
       }
       const step = await runGenerationSteps(examId, MANUAL_CONTINUE_STEPS)
-      return NextResponse.json({ ok: step.ok, examId, kicked: true, ...step, requiredQuestions: totalRequiredQuestions() })
+      return NextResponse.json({ ...step, examId, kicked: true, requiredQuestions: totalRequiredQuestions() })
     }
 
     if (examId) {
