@@ -30,30 +30,46 @@ function safeSemester(value: unknown) {
   return n > 1 ? 2 : 1
 }
 
-function distributeTake<T extends { difficulty?: string | null; type?: string | null }>(rows: T[], count: number) {
+function normalizePlan(value: any, total: number, fallback: Record<string, number>) {
+  const source = value && typeof value === 'object' ? value : fallback
+  const raw = Object.entries(source).map(([key, v]) => ({ key: key.toUpperCase(), count: Math.max(0, Math.floor(Number(v || 0))) }))
+  const sum = raw.reduce((s, x) => s + x.count, 0)
+  if (sum <= 0) return Object.entries(fallback).map(([key, count]) => ({ key, count }))
+  const scaled = raw.map((x) => ({ key: x.key, count: Math.floor((x.count / sum) * total) }))
+  let diff = total - scaled.reduce((s, x) => s + x.count, 0)
+  for (const item of scaled) {
+    if (diff <= 0) break
+    item.count++
+    diff--
+  }
+  return scaled
+}
+
+function distributeTake<T extends { difficulty?: string | null; type?: string | null }>(rows: T[], count: number, difficultyPlan?: any, typePlan?: any) {
   const selected: T[] = []
   const seen = new Set<string>()
 
-  const byDiff = {
-    EASY: rows.filter((q) => q.difficulty === 'EASY'),
-    MEDIUM: rows.filter((q) => !q.difficulty || q.difficulty === 'MEDIUM'),
-    ADVANCED: rows.filter((q) => q.difficulty === 'ADVANCED'),
-  }
-  const targets = [
-    { key: 'MEDIUM', count: Math.ceil(count * 0.5) },
-    { key: 'EASY', count: Math.floor(count * 0.25) },
-    { key: 'ADVANCED', count: Math.max(0, count - Math.ceil(count * 0.5) - Math.floor(count * 0.25)) },
-  ] as const
+  const diffTargets = normalizePlan(difficultyPlan, count, { MEDIUM: 50, EASY: 25, ADVANCED: 25 })
+  const typeTargets = typePlan ? normalizePlan(typePlan, count, { MCQ: 50, TF: 20, SHORT: 20, ESSAY: 10 }) : []
 
   function add(q: T) {
     const key = normalizeQuestionText((q as any).text).slice(0, 180)
-    if (!key || seen.has(key) || selected.length >= count) return
+    if (!key || seen.has(key) || selected.length >= count) return false
     seen.add(key)
     selected.push(q)
+    return true
   }
 
-  for (const t of targets) {
-    for (const q of byDiff[t.key].slice(0, t.count)) add(q)
+  if (typeTargets.length > 0) {
+    for (const t of typeTargets) {
+      const candidates = rows.filter((q) => String(q.type || '').toUpperCase() === t.key)
+      for (const q of candidates.slice(0, t.count)) add(q)
+    }
+  }
+
+  for (const t of diffTargets) {
+    const candidates = rows.filter((q) => String(q.difficulty || 'MEDIUM').toUpperCase() === t.key)
+    for (const q of candidates.slice(0, t.count)) add(q)
   }
   for (const q of rows) add(q)
   return selected.slice(0, count)
