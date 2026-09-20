@@ -173,6 +173,8 @@ export async function POST(req: NextRequest) {
       data: {
         programId,
         order: idx + 1,
+        semester: Math.max(1, Math.min(plan.semestersCount, Number(u.semester || 1))),
+        status: 'DRAFT',
         title: u.title,
         summary: `${u.summary}${u.bookTitles.length ? `\n\nالكتب المرتبطة: ${u.bookTitles.join('، ')}` : ''}${u.assessmentCriteria.length ? `\n\nمعايير التقييم: ${u.assessmentCriteria.join('، ')}` : ''}`.slice(0, 3000),
         objectives: JSON.stringify(u.objectives),
