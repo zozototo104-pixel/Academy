@@ -44,6 +44,8 @@ async function listProgramUnits(programId: string) {
     objectives: parseObjectives(u.objectives),
     content: parseContent(u.content),
     order: u.order,
+    semester: u.semester,
+    status: u.status,
   }))
 }
 
