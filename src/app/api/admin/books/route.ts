@@ -223,12 +223,21 @@ export async function POST(req: NextRequest) {
       const buf = Buffer.from(await file.arrayBuffer())
       fileName = file.name
       mimeType = file.type || 'application/octet-stream'
-      size = file.size
-      data = buf.toString('base64')
-      // الرفع يجب أن يكون سريعاً: نحفظ الملف فقط، ثم تُقرأ صفحاته عند ضغط زر بناء/تحديث بنك المعرفة.
+      const stored = await storeFileBuffer({
+        buffer: buf,
+        fileName,
+        mimeType,
+        namespace: `books/${program.slug || program.id}`,
+      })
+      size = stored.size || file.size
+      storageProvider = stored.provider
+      storageKey = stored.key
+      fileUrl = stored.url
+      data = null
+      // الرفع يجب أن يكون سريعاً: نحفظ الملف خارج قاعدة البيانات، ثم تُقرأ صفحاته عند ضغط زر بناء/تحديث بنك المعرفة.
       // هذا يمنع تعليق طلب الرفع أو فشله على Vercel بسبب تحليل PDF داخل نفس الطلب.
       linkReadStatus = 'FILE_UPLOADED'
-      linkNote = 'تم حفظ الملف بنجاح. اضغط بناء/تحديث بنك المعرفة ليقرأ النظام محتواه ويستخرج العناصر الدراسية.'
+      linkNote = 'تم حفظ الملف في التخزين الخارجي بنجاح. اضغط بناء/تحديث بنك المعرفة ليقرأ النظام محتواه ويستخرج العناصر الدراسية.'
     }
 
     const semRaw = String(form.get('semester') || '')
