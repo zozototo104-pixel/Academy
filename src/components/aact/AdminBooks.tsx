@@ -878,33 +878,42 @@ export function AdminBooksTab() {
     }
   }
 
-  const generateExamFromQuestionBank = async (semester: number) => {
+  const openBankExamDialog = async (semester: number) => {
     if (!programId) return
-    const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
-    if (rawCount === null) return
-    const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
-    const easy = Number(window.prompt('نسبة/وزن الأسئلة السهلة؟', '25') || 25)
-    const medium = Number(window.prompt('نسبة/وزن الأسئلة المتوسطة؟', '50') || 50)
-    const advanced = Number(window.prompt('نسبة/وزن الأسئلة المتقدمة؟', '25') || 25)
-    const mcq = Number(window.prompt('نسبة/وزن أسئلة الاختيار المتعدد؟', '50') || 50)
-    const tf = Number(window.prompt('نسبة/وزن أسئلة الصح والخطأ؟', '20') || 20)
-    const short = Number(window.prompt('نسبة/وزن الأسئلة القصيرة؟', '20') || 20)
-    const essay = Number(window.prompt('نسبة/وزن الأسئلة المقالية؟', '10') || 10)
-    let unitId: string | null = null
-    if (confirm('هل تريد تقييد الامتحان بوحدة محددة؟')) {
-      try {
-        const res = await api<{ units: { id: string; title: string; order: number }[] }>(`/api/admin/program-units?programId=${programId}`)
-        const units = res.units || []
-        if (units.length > 0) {
-          const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
-          const idx = Number(choice || 0) - 1
-          unitId = units[idx]?.id || null
-        } else {
-          toast({ title: 'لا توجد وحدات لهذا البرنامج', description: 'سيتم إنشاء الامتحان من أسئلة الفصل/البرنامج فقط.' })
-        }
-      } catch {}
+    setBankExamForm((prev) => ({ ...prev, semester: String(semester), unitId: '' }))
+    setBankExamDialogOpen(true)
+    setQuestionBankBusy('units-load')
+    try {
+      const res = await api<{ units: { id: string; title: string; order: number }[] }>(`/api/admin/program-units?programId=${programId}`)
+      setBankExamUnits(res.units || [])
+    } catch {
+      setBankExamUnits([])
+    } finally {
+      setQuestionBankBusy(null)
     }
-    const payloadBase = { programId, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
+  }
+
+  const generateExamFromQuestionBank = async () => {
+    if (!programId) return
+    const semester = Number(bankExamForm.semester || 1) === 2 ? 2 : 1
+    const count = Math.max(5, Math.min(80, Number(bankExamForm.count || 30)))
+    const payloadBase = {
+      programId,
+      semester,
+      count,
+      unitId: bankExamForm.unitId || null,
+      difficultyPlan: {
+        EASY: Number(bankExamForm.easy || 25),
+        MEDIUM: Number(bankExamForm.medium || 50),
+        ADVANCED: Number(bankExamForm.advanced || 25),
+      },
+      typePlan: {
+        MCQ: Number(bankExamForm.mcq || 50),
+        TF: Number(bankExamForm.tf || 20),
+        SHORT: Number(bankExamForm.short || 20),
+        ESSAY: Number(bankExamForm.essay || 10),
+      },
+    }
     const createExam = (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', { method: 'POST', body: JSON.stringify({ ...payloadBase, replaceExistingReview }) })
     setQuestionBankBusy(`exam-${semester}`)
     try {
@@ -917,6 +926,7 @@ export function AdminBooksTab() {
           throw e
         }
       }
+      setBankExamDialogOpen(false)
       setWorkspaceTab('exams')
       await loadProgramData(programId, true)
       toast({ title: 'تم إنشاء امتحان من بنك الأسئلة', description: 'الامتحان الآن بانتظار المراجعة قبل النشر.' })
