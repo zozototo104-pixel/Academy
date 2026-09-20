@@ -127,6 +127,12 @@ async function ensureDegreeSpecializationPrograms(): Promise<void> {
 async function seedAdminIfMissing(): Promise<void> {
   const adminEmail = 'admin@aact.academy'
   const admin = await db.user.findUnique({ where: { email: adminEmail } }).catch(() => null)
+
+  if (process.env.NODE_ENV === 'production' && process.env.AACT_BOOTSTRAP_DEFAULT_ADMIN !== '1') {
+    if (!admin) console.log('Runtime bootstrap: default admin creation skipped in production. Use bun run admin:create.')
+    return
+  }
+
   const password = hashPassword('Admin@2026')
 
   if (!admin) {
