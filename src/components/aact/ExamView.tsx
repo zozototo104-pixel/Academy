@@ -114,6 +114,10 @@ export function ExamView() {
   const [result, setResult] = useState<SubmitResult | null>(null)
   const [startedAt, setStartedAt] = useState<number>(Date.now())
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('idle')
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null)
+  const draftLoadedRef = useRef(false)
+  const lastDraftPayloadRef = useRef('')
   const submittedRef = useRef(false)
 
   // ===== 12.2: المراقبة الإلكترونية الاختيارية (AI Proctoring) =====
