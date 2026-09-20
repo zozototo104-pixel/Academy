@@ -276,6 +276,19 @@ export function AdminQualityTab() {
     }
   }
 
+  const updateProgramReadiness = async (programId: string, body: Record<string, any>) => {
+    setReadinessBusyId(programId)
+    try {
+      const res = await api<{ item: ProgramReadinessItem }>('/api/admin/program-readiness', {
+        method: 'PATCH',
+        body: JSON.stringify({ programId, ...body }),
+      })
+      setReadinessItems((prev) => prev.map((item) => item.id === programId ? res.item : item))
+    } finally {
+      setReadinessBusyId(null)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [load])
