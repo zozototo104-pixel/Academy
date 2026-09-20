@@ -313,7 +313,8 @@ export async function hydrateBookContentForExam(book: RawBookForHydration): Prom
   const hadPageCounterArtifacts = /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(rawStored) || /(?:^|\s)of\s+\d{1,5}\b/i.test(rawStored)
   const stored = repairExtractedAcademicText(rawStored, MAX_BOOK_CONTEXT_CHARS)
   const storedLooksGenerated = looksLikeGeneratedStudyScaffold(stored)
-  const hasReadableBackingSource = !!book.data || !!book.link
+  const hasStoredFileRef = !!book.data || !!book.storageKey || !!book.fileUrl
+  const hasReadableBackingSource = hasStoredFileRef || !!book.link
   const storedFallbackAllowed = isUsableBookText(stored, MIN_STRONG_TEXT) && (!storedLooksGenerated || !hasReadableBackingSource)
   const storedIsRichEnough = stored.length >= MIN_RICH_STORED_TEXT || !hasReadableBackingSource
   const returnStored = (sourceNote: string): HydratedExamBook => ({
