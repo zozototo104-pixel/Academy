@@ -636,19 +636,22 @@ model SupervisorAssessmentAnswer {
 // ===== الكتب المقررة والاختبارات الشاملة من الكتب =====
 
 model Book {
-  id          String   @id @default(cuid())
-  programId   String
-  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
-  title       String
-  titleEn     String?
-  author      String?
-  year        String?
-  description String?  // لماذا هذا الكتاب مطلوب في التخصص
-  fileName    String?
-  mimeType    String?
-  size        Int?
-  data        String?  // base64 للملف المرفوع
-  link        String?  // رابط الكتاب على الإنترنت (للقراءة أو التحميل من المصدر)
+  id              String   @id @default(cuid())
+  programId       String
+  program         Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title           String
+  titleEn         String?
+  author          String?
+  year            String?
+  description     String?  // لماذا هذا الكتاب مطلوب في التخصص
+  fileName        String?
+  mimeType        String?
+  size            Int?
+  data            String?  // legacy base64 fallback only; new uploads use object storage
+  storageProvider String?
+  storageKey      String?
+  fileUrl         String?
+  link            String?  // رابط الكتاب على الإنترنت (للقراءة أو التحميل من المصدر)
   textContent String?  // نص مستخرج من الملف أو من الرابط (لتحليل خبير الذكاء الاصطناعي)
   semester    Int?     // الفصل الدراسي الذي يدرس فيه الكتاب (1 | 2 | null = عام للبرنامج)
   levelPolicy String?  // سياسة المستوى: دبلوم/ماجستير/دكتوراه/اعتماد — لماذا يناسب الكتاب هذه الدرجة
