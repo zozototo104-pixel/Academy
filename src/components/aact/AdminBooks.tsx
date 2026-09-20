@@ -1417,6 +1417,7 @@ export function AdminBooksTab() {
                   setKnowledgeItems([])
                   setKnowledgeStats({})
                   setProgramReadiness(null)
+                  setCurriculumUnits([])
                   setQuestionBankStats(null)
                   setQuestionBankItems([])
                   setStudyGuides([])
