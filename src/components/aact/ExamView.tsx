@@ -196,6 +196,18 @@ export function ExamView() {
                 setExamStarted(true)
               }
             }
+            const restoredPayload = JSON.stringify({
+              examId: d.exam.id,
+              examType,
+              current: Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)),
+              startedAtMs: String(draft.startedAtMs || startedAt),
+              answers: d.questions.map((qq) => ({
+                questionId: qq.id,
+                selectedOption: qq.type === 'MCQ' || qq.type === 'TF' ? nextMcq[qq.id] : undefined,
+                answerText: qq.type === 'SHORT' || qq.type === 'ESSAY' ? (nextEssay[qq.id] || '') : undefined,
+              })),
+            })
+            lastDraftPayloadRef.current = restoredPayload
             setDraftUpdatedAt(draft.updatedAt || null)
             setDraftStatus('saved')
             toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
