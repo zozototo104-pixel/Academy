@@ -2165,8 +2165,8 @@ export function AdminBooksTab() {
                   {questionBankBusy === 'exam-load' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   نسخ من اختبار موجود
                 </Button>
-                <Button size="sm" variant="outline" disabled={questionBankBusy === 'exam-1'} onClick={() => generateExamFromQuestionBank(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
-                <Button size="sm" variant="outline" disabled={questionBankBusy === 'exam-2'} onClick={() => generateExamFromQuestionBank(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-1'} onClick={() => openBankExamDialog(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
             </CardContent>
           </Card>
