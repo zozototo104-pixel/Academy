@@ -135,11 +135,12 @@ function signS3Request(args: {
   const kSigning = hmac(kService, 'aws4_request')
   const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
   const authorization = `AWS4-HMAC-SHA256 Credential=${cfg.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+  const requestHeaders = Object.fromEntries(Object.entries(headers).filter(([key]) => key !== 'host'))
 
   return {
     url,
     publicUrl: cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
-    headers: { ...headers, authorization },
+    headers: { ...requestHeaders, authorization },
   }
 }
 
