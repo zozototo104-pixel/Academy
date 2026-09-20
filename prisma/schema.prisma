@@ -21,6 +21,7 @@ model User {
   updatedAt      DateTime     @updatedAt
   enrollments    Enrollment[]
   examAttempts   ExamAttempt[]
+  examDrafts     ExamDraft[]
   chatMessages   ChatMessage[]
   academicMemory StudentAcademicMemory?
   sessions       Session[]
