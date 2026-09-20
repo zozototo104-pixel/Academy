@@ -1431,7 +1431,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
     if (!items.length) {
       throw new Error('تم استخراج نص من الكتاب، لكن تعذر تحويله إلى عناصر معرفة صالحة بعد التنظيف. جرّب رفع نسخة PDF نصية/Word أوضح.')
     }
-  } else if (book.data) {
+  } else if (hasUploadedBookFile(book)) {
     // للكتاب المرفوع غير المقروء لا نؤلف ولا نستخدم توصيف البرنامج كبديل. إما قراءة فعلية من الملف أو لا نحفظ شيئاً.
     throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة. أعد المحاولة أو ارفع نسخة PDF نصية/Word أوضح.')
   } else {
