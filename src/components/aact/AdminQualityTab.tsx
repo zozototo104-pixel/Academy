@@ -410,6 +410,51 @@ export function AdminQualityTab() {
     }
   }
 
+  const openQuestionBank = async (program: ProgramReadinessItem) => {
+    setQuestionBankProgram(program)
+    setQuestionBankOpen(true)
+    setQuestionBankBusyId('loading')
+    try {
+      const res = await api<{ items: QuestionBankReviewItem[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${program.id}`)
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
+  const generateQuestionBank = async (program: ProgramReadinessItem) => {
+    setQuestionBankProgram(program)
+    setQuestionBankOpen(true)
+    setQuestionBankBusyId('generate')
+    try {
+      const res = await api<{ items: QuestionBankReviewItem[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId: program.id, count: 12 }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
+  const updateQuestionBankStatus = async (question: QuestionBankReviewItem, status: QuestionBankReviewItem['status']) => {
+    if (!questionBankProgram) return
+    setQuestionBankBusyId(question.id)
+    try {
+      const res = await api<{ item: QuestionBankReviewItem }>('/api/admin/question-bank', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: question.id, status }),
+      })
+      setQuestionBankItems((prev) => prev.map((q) => q.id === question.id ? res.item : q))
+      const fresh = await api<{ stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${questionBankProgram.id}`)
+      setQuestionBankStats(fresh.stats || null)
+    } finally {
+      setQuestionBankBusyId(null)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [load])
