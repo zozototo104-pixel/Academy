@@ -496,7 +496,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 
     const batchIndex = firstMissingBatchIndex(existingCount)
     if (batchIndex >= EXAM_BATCH_COUNT) {
-      const reviewed = await exposeExamForReview(examId, null)
+      const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true }
     }
 
