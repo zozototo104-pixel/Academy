@@ -1758,6 +1758,8 @@ export function AdminBooksTab() {
                             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">الفصل {unit.semester || 1}</Badge>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'APPROVED' })} className="border-emerald-200 bg-white text-xs font-bold text-emerald-700">اعتماد</Button>
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'NEEDS_REVISION' })} className="border-amber-200 bg-white text-xs font-bold text-amber-700">بحاجة تعديل</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: Math.max(1, unit.order - 1) })} className="bg-white text-xs font-bold">رفع الترتيب</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: unit.order + 1 })} className="bg-white text-xs font-bold">خفض الترتيب</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => deleteCurriculumUnit(unit.id)} className="border-red-200 bg-white text-xs font-bold text-red-700">حذف</Button>
