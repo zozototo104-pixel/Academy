@@ -56,6 +56,14 @@ interface ProgressData {
       approved: boolean
       dueAt?: string | null
       note?: string | null
+      counts?: {
+        books: number
+        units: number
+        unitsWithObjectives: number
+        knowledgeItems: number
+        readyExams: number
+        reviewExams: number
+      }
       message: string
     }
   }
