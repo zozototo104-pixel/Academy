@@ -253,8 +253,16 @@ export function AdminView() {
 
   useEffect(() => {
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<string>).detail
-      if (detail) setActiveTab(detail)
+      const detail = (event as CustomEvent<any>).detail
+      if (!detail) return
+      if (typeof detail === 'string') {
+        setActiveTab(detail)
+        return
+      }
+      if (detail.tab) setActiveTab(detail.tab)
+      if (detail.tab === 'books') {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact-admin-books-target', { detail })), 80)
+      }
     }
     window.addEventListener('aact-admin-tab', handler as EventListener)
     return () => window.removeEventListener('aact-admin-tab', handler as EventListener)
