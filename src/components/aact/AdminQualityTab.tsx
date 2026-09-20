@@ -1044,6 +1044,79 @@ export function AdminQualityTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={manualQuestionOpen} onOpenChange={setManualQuestionOpen}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">إضافة سؤال يدوي إلى بنك الأسئلة</DialogTitle>
+            <DialogDescription>أدخل السؤال مباشرة، وسيُحفظ في بنك الأسئلة المركزي للبرنامج الحالي.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">نوع السؤال</label>
+                <select value={manualQuestion.type} onChange={(e) => setManualQuestion((p) => ({ ...p, type: e.target.value }))} className="h-10 w-full rounded-xl border px-3 text-sm font-bold">
+                  <option value="MCQ">اختيار متعدد</option><option value="TF">صح/خطأ</option><option value="SHORT">قصير</option><option value="ESSAY">مقالي</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">الصعوبة</label>
+                <select value={manualQuestion.difficulty} onChange={(e) => setManualQuestion((p) => ({ ...p, difficulty: e.target.value }))} className="h-10 w-full rounded-xl border px-3 text-sm font-bold">
+                  <option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">الإجابة الصحيحة</label>
+                <input value={manualQuestion.correctAnswer} onChange={(e) => setManualQuestion((p) => ({ ...p, correctAnswer: e.target.value }))} className="h-10 w-full rounded-xl border px-3 text-sm font-bold" placeholder="0" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-slate-500">نص السؤال</label>
+              <Textarea value={manualQuestion.text} onChange={(e) => setManualQuestion((p) => ({ ...p, text: e.target.value }))} className="min-h-20 text-sm leading-7" />
+            </div>
+            {(manualQuestion.type === 'MCQ' || manualQuestion.type === 'TF') && (
+              <div className="space-y-1">
+                <label className="text-xs font-black text-slate-500">الخيارات — خيار في كل سطر، والإجابة الصحيحة رقمها يبدأ من 0</label>
+                <Textarea value={manualQuestion.options} onChange={(e) => setManualQuestion((p) => ({ ...p, options: e.target.value }))} className="min-h-24 text-sm leading-7" />
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-black text-slate-500">الإجابة النموذجية / التعليل</label>
+              <Textarea value={manualQuestion.modelAnswer} onChange={(e) => setManualQuestion((p) => ({ ...p, modelAnswer: e.target.value }))} className="min-h-20 text-sm leading-7" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-slate-500">الدليل العلمي أو المصدر</label>
+              <Textarea value={manualQuestion.sourceEvidence} onChange={(e) => setManualQuestion((p) => ({ ...p, sourceEvidence: e.target.value }))} className="min-h-16 text-sm leading-7" />
+            </div>
+            <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={manualQuestion.approveNow} onChange={(e) => setManualQuestion((p) => ({ ...p, approveNow: e.target.checked }))} /> اعتماد السؤال مباشرة</label>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setManualQuestionOpen(false)}>إلغاء</Button>
+              <Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusyId === 'manual' || manualQuestion.text.trim().length < 8} onClick={addManualQuestion}>
+                {questionBankBusyId === 'manual' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} حفظ السؤال
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importQuestionsOpen} onOpenChange={setImportQuestionsOpen}>
+        <DialogContent className="max-w-3xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">استيراد أسئلة إلى بنك الأسئلة</DialogTitle>
+            <DialogDescription>الصق JSON أو CSV/TSV. الأعمدة المقترحة: type, question, option1, option2, option3, option4, correctAnswer, modelAnswer, difficulty, sourceEvidence</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder='[{"type":"MCQ","text":"نص السؤال","options":["أ","ب","ج","د"],"correctAnswer":"0"}]' className="min-h-72 text-xs leading-6" dir="ltr" />
+            <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={importApproveNow} onChange={(e) => setImportApproveNow(e.target.checked)} /> اعتماد الأسئلة المستوردة مباشرة</label>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setImportQuestionsOpen(false)}>إلغاء</Button>
+              <Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusyId === 'import' || importText.trim().length < 10} onClick={importQuestions}>
+                {questionBankBusyId === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} استيراد
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={unitReviewOpen} onOpenChange={setUnitReviewOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
           <DialogHeader>
