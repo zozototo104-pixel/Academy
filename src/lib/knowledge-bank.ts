@@ -1413,7 +1413,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
     // إذا فشل Gemini في إرجاع JSON صالح لكن لدينا نص حقيقي مستخرج من الملف، لا نترك بنك المعرفة فارغاً.
     // المسار الاحتياطي هنا مبني على مقاطع الكتاب المقروءة نفسها، وليس على عنوان الكتاب أو وصف عام.
     buildMode = 'TEXT_DETERMINISTIC'
-  } else if (!ai?.length && book.data) {
+  } else if (!ai?.length && hasUploadedBookFile(book)) {
     throw new Error(`يوجد ملف مرفوع للكتاب لكن لم يتمكن النظام من قراءة محتواه قراءة أكاديمية كافية. السبب: ${hydrated.sourceNote}. جرّب رفع PDF نصي أو Word DOCX، أو تأكد من تفعيل Gemini ووجود حصة كافية.`)
   } else if (!ai?.length) {
     ai = await aiMetadataKnowledgeItems(book.program, book, semester)
