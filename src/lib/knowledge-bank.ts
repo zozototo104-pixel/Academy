@@ -1381,10 +1381,10 @@ async function rebuildKnowledgeForBookByUnits(
   if (!units.length) throw new Error('لم يتم العثور على وحدات نصية صالحة داخل الكتاب المرفوع بعد التنظيف.')
 
   let inserted = 0
+  let updated = 0
   let deleted = 0
   let successfulUnits = 0
   let skippedUnits = 0
-  let firstWrite = false
   const seen = new Set<string>()
 
   for (const unit of units) {
