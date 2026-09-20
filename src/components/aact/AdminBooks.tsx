@@ -219,6 +219,37 @@ type QuestionBankStats = {
   byType?: Record<string, number>
 }
 
+interface QuestionBankItemRow {
+  id: string
+  type: string
+  text: string
+  options?: string | null
+  correctAnswer?: string | null
+  modelAnswer?: string | null
+  sourceEvidence?: string | null
+  difficulty?: string | null
+  status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
+}
+
+interface ExamImportQuestionRow {
+  id: string
+  order: number
+  type: string
+  text: string
+  options?: string | null
+  correctAnswer?: string | null
+  modelAnswer?: string | null
+  difficulty?: string | null
+}
+
+interface ExamImportRow {
+  id: string
+  title: string
+  status: string
+  semester: number
+  questions: ExamImportQuestionRow[]
+}
+
 interface StudyGuideSection {
   title: string
   summary: string
