@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       'GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK',
       'ProgramExam',
       exam.id,
-      `إنشاء امتحان الفصل ${semLabel} لبرنامج ${program.titleAr} من ${selected.length} سؤالاً معتمداً في بنك الأسئلة المركزي`
+      `إنشاء امتحان الفصل ${semLabel} لبرنامج ${program.titleAr} من ${selected.length} سؤالاً معتمداً في بنك الأسئلة المركزي${unitId ? ` — وحدة ${unitId}` : ''}`
     )
 
     return NextResponse.json({
