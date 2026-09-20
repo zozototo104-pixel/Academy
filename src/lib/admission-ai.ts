@@ -1000,7 +1000,7 @@ export async function analyzeAdmission(
     where: { id: admissionId },
     include: {
       programRef: { select: { titleAr: true, category: true, admissionRules: true } },
-      files: { select: { id: true, docType: true, fileName: true, mimeType: true, size: true, data: true } },
+      files: { select: { id: true, docType: true, fileName: true, mimeType: true, size: true, data: true, storageProvider: true, storageKey: true, fileUrl: true } },
     },
   })
   if (!app) throw new Error('الطلب غير موجود')
