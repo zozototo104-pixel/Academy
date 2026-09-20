@@ -1264,6 +1264,36 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={catalogImportOpen} onOpenChange={setCatalogImportOpen}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">استيراد نسخة كتالوج البرامج</DialogTitle>
+            <DialogDescription>
+              الصق محتوى ملف JSON الذي نزلته من زر تنزيل نسخة البرامج. هذا يرجع تفاصيل البرامج فقط ولا يرجع طلاباً أو مدفوعات.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={catalogImportText}
+              onChange={(e) => setCatalogImportText(e.target.value)}
+              className="min-h-80 text-xs leading-6"
+              dir="ltr"
+              placeholder='{ "format": "AACT_PROGRAM_CATALOG_V1", "programs": [...] }'
+            />
+            <div className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-700">
+              لا تستخدم الاستيراد إلا بعد التأكد أن الملف صحيح. الاستيراد يحدث تحديثاً/إنشاءً للبرامج حسب slug والـ id، ولا يحذف الطلاب أو الطلبات.
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCatalogImportOpen(false)}>إلغاء</Button>
+              <Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={catalogBusy === 'import' || catalogImportText.trim().length < 20} onClick={importProgramCatalog}>
+                {catalogBusy === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                استيراد الكتالوج
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={questionBankOpen} onOpenChange={setQuestionBankOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
           <DialogHeader>
