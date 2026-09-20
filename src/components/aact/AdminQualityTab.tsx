@@ -207,6 +207,25 @@ const REVIEW_STATUS_LABEL: Record<ChatReviewItem['status'], string> = {
   IGNORED: 'تم التجاهل',
 }
 
+const CURRICULUM_STATUS_LABEL: Record<ProgramReadinessItem['academicReadinessStatus'], string> = {
+  NEEDS_PREPARATION: 'معتمد وبحاجة لتجهيز',
+  IN_PREPARATION: 'قيد تجهيز المنهج',
+  READY_FOR_REVIEW: 'جاهز للمراجعة',
+  APPROVED: 'منهج جاهز ومعتمد',
+}
+
+const READINESS_CHECK_LABEL: Record<string, string> = {
+  description: 'الوصف الأكاديمي',
+  admissionRules: 'قواعد القبول',
+  semesters: 'عدد الفصول',
+  booksPerSemester: 'كتاب لكل فصل',
+  units: 'الوحدات المنظمة',
+  unitObjectives: 'أهداف كل وحدة',
+  knowledge: 'بنك المعرفة',
+  assessments: 'اختبار أو واجب',
+  manualApproval: 'اعتماد الإدارة',
+}
+
 function metricValue(value: number | null | undefined, suffix = '') {
   return value == null ? '—' : `${value}${suffix}`
 }
