@@ -92,6 +92,9 @@ export async function POST(req: NextRequest) {
     const requestedCount = safeQuestionCount(body?.count)
     const includeAllSemesters = body?.includeAllSemesters === true
     const replaceExistingReview = body?.replaceExistingReview === true
+    const unitId = cleanText(body?.unitId, 80) || null
+    const difficultyPlan = body?.difficultyPlan
+    const typePlan = body?.typePlan
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
