@@ -2356,6 +2356,90 @@ export function AdminBooksTab() {
         </Tabs>
       )}
 
+      <Dialog open={questionBankOpen} onOpenChange={setQuestionBankOpen}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراجعة بنك الأسئلة المركزي</DialogTitle>
+            <DialogDescription>أسئلة البرنامج المحدد فقط. لا تُستخدم في توليد الامتحانات إلا الأسئلة المعتمدة.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : questionBankItems.map((q) => {
+              let options: string[] = []
+              try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+              return (
+                <article key={q.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge>
+                      <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge>
+                      <Badge className={q.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                        {q.status === 'APPROVED' ? 'معتمد' : q.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'APPROVED')} className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800">اعتماد</Button>
+                      <Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'REJECTED')} className="border-red-200 text-xs font-black text-red-700">رفض</Button>
+                      <Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={() => updateQuestionBankStatus(q.id, 'ARCHIVED')} className="text-xs font-black">أرشفة</Button>
+                    </div>
+                  </div>
+                  <p className="rounded-xl bg-slate-50 p-3 text-sm font-bold leading-7 text-[#0f2b46]">{q.text}</p>
+                  {options.length > 0 && <p className="mt-2 font-bold text-slate-500">الخيارات: {options.join(' — ')}</p>}
+                  {q.modelAnswer && <p className="mt-2 rounded-xl bg-blue-50 p-3 font-bold leading-6 text-blue-700">الإجابة النموذجية: {q.modelAnswer}</p>}
+                  {q.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل العلمي: {q.sourceEvidence}</p>}
+                </article>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualQuestionOpen} onOpenChange={setManualQuestionOpen}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">إضافة سؤال يدوي</DialogTitle>
+            <DialogDescription>سيُحفظ السؤال في بنك الأسئلة المركزي للبرنامج الحالي.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <select value={manualQuestion.type} onChange={(e) => setManualQuestion((p) => ({ ...p, type: e.target.value }))} className="h-10 rounded-xl border px-3 text-sm font-bold"><option value="MCQ">اختيار متعدد</option><option value="TF">صح/خطأ</option><option value="SHORT">قصير</option><option value="ESSAY">مقالي</option></select>
+              <select value={manualQuestion.difficulty} onChange={(e) => setManualQuestion((p) => ({ ...p, difficulty: e.target.value }))} className="h-10 rounded-xl border px-3 text-sm font-bold"><option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option></select>
+              <Input value={manualQuestion.correctAnswer} onChange={(e) => setManualQuestion((p) => ({ ...p, correctAnswer: e.target.value }))} placeholder="الإجابة الصحيحة 0" />
+            </div>
+            <Textarea value={manualQuestion.text} onChange={(e) => setManualQuestion((p) => ({ ...p, text: e.target.value }))} placeholder="نص السؤال" className="min-h-20" />
+            {(manualQuestion.type === 'MCQ' || manualQuestion.type === 'TF') && <Textarea value={manualQuestion.options} onChange={(e) => setManualQuestion((p) => ({ ...p, options: e.target.value }))} placeholder="الخيارات — خيار في كل سطر" className="min-h-24" />}
+            <Textarea value={manualQuestion.modelAnswer} onChange={(e) => setManualQuestion((p) => ({ ...p, modelAnswer: e.target.value }))} placeholder="الإجابة النموذجية / التعليل" className="min-h-20" />
+            <Textarea value={manualQuestion.sourceEvidence} onChange={(e) => setManualQuestion((p) => ({ ...p, sourceEvidence: e.target.value }))} placeholder="الدليل العلمي أو المصدر" className="min-h-16" />
+            <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={manualQuestion.approveNow} onChange={(e) => setManualQuestion((p) => ({ ...p, approveNow: e.target.checked }))} /> اعتماد السؤال مباشرة</label>
+            <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setManualQuestionOpen(false)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === 'manual' || manualQuestion.text.trim().length < 8} onClick={addManualQuestionToBank}>{questionBankBusy === 'manual' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} حفظ</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importQuestionsOpen} onOpenChange={setImportQuestionsOpen}>
+        <DialogContent className="max-w-3xl" dir="rtl">
+          <DialogHeader><DialogTitle className="font-black text-[#0f2b46]">استيراد أسئلة</DialogTitle><DialogDescription>الصق JSON أو CSV/TSV. الأعمدة: type, question, option1, option2, option3, option4, correctAnswer, modelAnswer, difficulty, sourceEvidence</DialogDescription></DialogHeader>
+          <Textarea value={importQuestionsText} onChange={(e) => setImportQuestionsText(e.target.value)} dir="ltr" className="min-h-72 text-xs leading-6" placeholder='[{"type":"MCQ","text":"نص السؤال","options":["أ","ب","ج","د"],"correctAnswer":"0"}]' />
+          <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={importApproveNow} onChange={(e) => setImportApproveNow(e.target.checked)} /> اعتماد الأسئلة المستوردة مباشرة</label>
+          <div className="mt-3 flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setImportQuestionsOpen(false)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === 'import' || importQuestionsText.trim().length < 10} onClick={importQuestionsToBank}>{questionBankBusy === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} استيراد</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={examImportOpen} onOpenChange={setExamImportOpen}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader><DialogTitle className="font-black text-[#0f2b46]">نسخ أسئلة من اختبار موجود</DialogTitle><DialogDescription>اختر أسئلة من اختبار في نفس البرنامج لنسخها إلى البنك المركزي.</DialogDescription></DialogHeader>
+          {questionBankBusy === 'exam-load' ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div> : examImportItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد اختبارات بأسئلة لهذا البرنامج.</p> : (
+            <div className="space-y-4">
+              <select value={selectedImportExamId} onChange={(e) => { const id = e.target.value; const ex = examImportItems.find((x) => x.id === id); setSelectedImportExamId(id); setSelectedImportQuestionIds(ex?.questions?.map((q) => q.id) || []) }} className="h-11 w-full rounded-xl border px-3 text-sm font-bold">
+                {examImportItems.map((exam) => <option key={exam.id} value={exam.id}>{exam.title} — فصل {exam.semester} — {exam.questions.length} سؤال</option>)}
+              </select>
+              <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setSelectedImportQuestionIds(selectedImportExam?.questions?.map((q) => q.id) || [])}>تحديد الكل</Button><Button size="sm" variant="outline" onClick={() => setSelectedImportQuestionIds([])}>إلغاء التحديد</Button><label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={examImportApproveNow} onChange={(e) => setExamImportApproveNow(e.target.checked)} /> اعتماد مباشرة</label></div>
+              <div className="space-y-2">{(selectedImportExam?.questions || []).map((q) => { const checked = selectedImportQuestionIds.includes(q.id); return <label key={q.id} className={`block cursor-pointer rounded-2xl border p-3 text-xs ${checked ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-200 bg-white'}`}><div className="flex gap-2"><input type="checkbox" checked={checked} onChange={(e) => setSelectedImportQuestionIds((prev) => e.target.checked ? Array.from(new Set([...prev, q.id])) : prev.filter((id) => id !== q.id))} /><p className="font-black leading-7 text-[#0f2b46]">{q.text}</p></div></label> })}</div>
+              <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setExamImportOpen(false)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === 'exam-copy' || selectedImportQuestionIds.length === 0} onClick={copyExamQuestionsToBank}>{questionBankBusy === 'exam-copy' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} نسخ {selectedImportQuestionIds.length} سؤال</Button></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* حوار مراجعة الأسئلة قبل النشر */}
       {reviewingExam && (
         <QuestionReviewDialog
