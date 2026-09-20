@@ -80,16 +80,20 @@ function minTypeDistributionForDegree(category?: string | null): Record<string, 
   return DEFAULT_MIN_TYPE_DISTRIBUTION
 }
 
-function validatePublicationReadiness(questions: any[], category?: string | null): string[] {
+function validatePublicationReadiness(questions: any[], category?: string | null, generatedBy?: string | null): string[] {
   const errors: string[] = []
   const candidates = questions.filter((q) => q.status !== 'REJECTED')
-  if (candidates.length < REQUIRED_PUBLISHED_QUESTIONS) {
-    errors.push(`عدد الأسئلة القابلة للنشر (${candidates.length}) أقل من المطلوب (${REQUIRED_PUBLISHED_QUESTIONS}).`)
+  const isQuestionBankExam = generatedBy === 'QUESTION_BANK'
+  const requiredQuestions = isQuestionBankExam ? 5 : REQUIRED_PUBLISHED_QUESTIONS
+  if (candidates.length < requiredQuestions) {
+    errors.push(`عدد الأسئلة القابلة للنشر (${candidates.length}) أقل من المطلوب (${requiredQuestions}).`)
   }
 
-  for (const [type, min] of Object.entries(minTypeDistributionForDegree(category))) {
-    const count = candidates.filter((q) => q.type === type).length
-    if (count < min) errors.push(`تنوع الأسئلة غير كافٍ لهذه الدرجة: نوع ${type} عدده ${count} والمطلوب على الأقل ${min}.`)
+  if (!isQuestionBankExam) {
+    for (const [type, min] of Object.entries(minTypeDistributionForDegree(category))) {
+      const count = candidates.filter((q) => q.type === type).length
+      if (count < min) errors.push(`تنوع الأسئلة غير كافٍ لهذه الدرجة: نوع ${type} عدده ${count} والمطلوب على الأقل ${min}.`)
+    }
   }
 
   const seen = new Map<string, number>()
