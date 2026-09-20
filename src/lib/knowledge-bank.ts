@@ -1155,16 +1155,18 @@ function prepareKnowledgeRows(programId: string, bookId: string | null, items: K
     }
   }).filter(Boolean) as any[]
 
-  const seen = new Set<string>()
-  return rows.filter((row) => {
-    const exactKey = knowledgeRowKey(row)
-    const titleKey = knowledgeTitleKey(row)
-    const key = exactKey || titleKey
-    if (!key || seen.has(key) || seen.has(titleKey)) return false
-    seen.add(key)
-    seen.add(titleKey)
-    return true
-  })
+  const accepted: any[] = []
+  for (const row of rows) {
+    const duplicateIndex = accepted.findIndex((existing) => areKnowledgeRowsDuplicate(existing, row))
+    if (duplicateIndex === -1) {
+      accepted.push(row)
+      continue
+    }
+    if (knowledgeRowScore(row) > knowledgeRowScore(accepted[duplicateIndex])) {
+      accepted[duplicateIndex] = row
+    }
+  }
+  return accepted
 }
 
 async function createKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
