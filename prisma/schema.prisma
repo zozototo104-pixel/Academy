@@ -184,6 +184,28 @@ model ChatMessage {
   kind      String?  // THESIS_REVIEW — تحليل مسودة بحث التخرج
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedbacks ChatFeedback[]
+}
+
+model ChatFeedback {
+  id          String      @id @default(cuid())
+  messageId   String
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId   String?
+  rating      String      // HELPFUL | NEEDS_REVIEW
+  reason      String?     // TOO_GENERAL | NOT_RELATED | UNCLEAR | WRONG | DID_NOT_ANSWER | WEAK_SOURCE | OTHER
+  note        String?
+  status      String      @default("NEW") // NEW | IN_REVIEW | REVIEWED | IGNORED
+  reviewedById String?
+  reviewedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([messageId, userId])
+  @@index([rating, status, createdAt])
+  @@index([programId, status])
 }
 
 model StudentAcademicMemory {
