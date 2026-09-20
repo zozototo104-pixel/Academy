@@ -1453,6 +1453,45 @@ export function AdminBooksTab() {
       </Card>
 
       {programId && (
+        <>
+        {programReadiness && (
+          <Card className="border-emerald-100 bg-emerald-50/40">
+            <CardContent className="p-5 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-black text-[#0f2b46]">جاهزية البرنامج الأكاديمية</h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">بطاقة دائمة للبرنامج المحدد، سواء ظهر في مركز الجودة أم كان معتمداً وجاهزاً.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className={programReadiness.isCurriculumReady ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                    {programReadiness.isCurriculumReady ? 'جاهز ومعتمد' : 'يحتاج متابعة'}
+                  </Badge>
+                  <Badge className={programReadiness.registrationStatus === 'OPEN' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
+                    التسجيل: {programReadiness.registrationStatus === 'OPEN' ? 'مفتوح' : 'مغلق'}
+                  </Badge>
+                  <Button size="sm" variant="outline" disabled={readinessLoading} onClick={refreshProgramReadiness} className="bg-white text-xs font-black">
+                    {readinessLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                    تحديث الجاهزية
+                  </Button>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">الكتب<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.books}/{programReadiness.targets.books}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">الوحدات<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.units}/{programReadiness.targets.units}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">أهداف الوحدات<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.unitsWithObjectives}/{programReadiness.counts.units || 0}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">بنك المعرفة<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.knowledgeItems}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">الاختبارات/الواجبات<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.assessments}/{programReadiness.targets.assessments}</span></div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {Object.entries(programReadiness.checks).map(([key, ok]) => (
+                  <span key={key} className={`rounded-full px-2 py-1 text-[10px] font-black ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {ok ? '✓' : '×'} {key === 'description' ? 'الوصف الأكاديمي' : key === 'admissionRules' ? 'قواعد القبول' : key === 'semesters' ? 'عدد الفصول' : key === 'booksPerSemester' ? 'كتاب لكل فصل' : key === 'units' ? 'الوحدات' : key === 'unitObjectives' ? 'أهداف الوحدات' : key === 'knowledge' ? 'بنك المعرفة' : key === 'assessments' ? 'اختبار/واجب' : key === 'manualApproval' ? 'اعتماد الإدارة' : key}
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Tabs id="admin-books-workspace" value={workspaceTab} onValueChange={setWorkspaceTab} dir="rtl" className="space-y-4">
           <div className="sticky top-2 z-20 rounded-2xl border border-[#0f2b46]/10 bg-white/95 p-3 shadow-sm backdrop-blur">
             <p className="mb-2 text-[10px] font-black text-slate-500">مساحة العمل الأكاديمية — اختر الباب المطلوب بدل التمرير الطويل</p>
