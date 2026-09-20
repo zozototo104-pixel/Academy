@@ -1096,7 +1096,7 @@ function canonicalKnowledgeToken(token: string) {
 function knowledgeTopicTokens(row: { title?: string | null; keywords?: string | null }) {
   let keywordText = ''
   try {
-    const parsed = typeof row.keywords === 'string' ? JSON.parse(row.keywords) : []
+    const parsed = typeof row.keywords === 'string' ? JSON.parse(row.keywords) : row.keywords
     keywordText = Array.isArray(parsed) ? parsed.join(' ') : ''
   } catch {}
   const tokens = `${row.title || ''} ${keywordText}`
