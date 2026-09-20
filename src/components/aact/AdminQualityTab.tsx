@@ -193,8 +193,12 @@ export function AdminQualityTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api<AcademicQualityData>('/api/admin/academic-quality')
+      const [res, reviews] = await Promise.all([
+        api<AcademicQualityData>('/api/admin/academic-quality'),
+        api<{ items: ChatReviewItem[] }>('/api/chat-feedback').catch(() => ({ items: [] })),
+      ])
       setData(res)
+      setReviewItems(reviews.items || [])
     } catch (e: any) {
       setError(e?.message || 'تعذر تحميل مركز الجودة الأكاديمي')
     } finally {
