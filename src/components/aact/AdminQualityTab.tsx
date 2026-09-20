@@ -566,9 +566,28 @@ export function AdminQualityTab() {
     const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
     if (rawCount === null) return
     const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
+    const easy = Number(window.prompt('نسبة/وزن الأسئلة السهلة؟', '25') || 25)
+    const medium = Number(window.prompt('نسبة/وزن الأسئلة المتوسطة؟', '50') || 50)
+    const advanced = Number(window.prompt('نسبة/وزن الأسئلة المتقدمة؟', '25') || 25)
+    const mcq = Number(window.prompt('نسبة/وزن أسئلة الاختيار المتعدد؟', '50') || 50)
+    const tf = Number(window.prompt('نسبة/وزن أسئلة الصح والخطأ؟', '20') || 20)
+    const short = Number(window.prompt('نسبة/وزن الأسئلة القصيرة؟', '20') || 20)
+    const essay = Number(window.prompt('نسبة/وزن الأسئلة المقالية؟', '10') || 10)
+    let unitId: string | null = null
+    if (confirm('هل تريد تقييد الامتحان بوحدة محددة؟')) {
+      try {
+        const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
+        const units = res.units || []
+        if (units.length > 0) {
+          const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
+          unitId = units[Number(choice || 0) - 1]?.id || null
+        }
+      } catch {}
+    }
+    const payloadBase = { programId: program.id, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
     const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
       method: 'POST',
-      body: JSON.stringify({ programId: program.id, semester, count, replaceExistingReview }),
+      body: JSON.stringify({ ...payloadBase, replaceExistingReview }),
     })
 
     setReadinessBusyId(program.id)
