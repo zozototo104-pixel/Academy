@@ -342,6 +342,23 @@ export function AdminBooksTab() {
     }
   }, [])
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail
+      if (!detail?.programId) return
+      const target = programs.find((p) => p.id === detail.programId)
+      if (target?.category) setSelectedCategory(target.category)
+      setProgramId(detail.programId)
+      const section = String(detail.section || 'overview')
+      setWorkspaceTab(section === 'add' ? 'books' : section)
+      if (section === 'books' || detail.subSection) setBooksSubTab(String(detail.subSection || 'current'))
+      if (section === 'knowledge') setBooksSubTab('current')
+      window.setTimeout(() => document.getElementById('admin-books-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120)
+    }
+    window.addEventListener('aact-admin-books-target', handler as EventListener)
+    return () => window.removeEventListener('aact-admin-books-target', handler as EventListener)
+  }, [programs])
+
   const availableCategories = useMemo(() => {
     const set = new Set(programs.map((p) => p.category).filter(Boolean))
     return CAT_ORDER.filter((c) => set.has(c)).concat([...set].filter((c) => !CAT_ORDER.includes(c)))
