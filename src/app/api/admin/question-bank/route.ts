@@ -182,10 +182,24 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const count = Math.max(4, Math.min(30, Number(body?.count || 12)))
+    const source = cleanText(body?.source, 40) || 'AI'
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true, description: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+
+    if (source === 'MANUAL') {
+      const result = await insertBankQuestions(programId, [body?.question || body], { generatedBy: 'MANUAL', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
+      if (!result.inserted) return NextResponse.json({ error: 'لم يتم حفظ السؤال؛ قد يكون مكررًا أو غير مكتمل', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
+      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
+    }
+
+    if (source === 'IMPORT') {
+      const imported = parseImportedQuestions(body?.questions || body?.text || body?.csv)
+      const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
+      if (!result.inserted) return NextResponse.json({ error: 'لم يتم استيراد أسئلة جديدة؛ تحقق من التنسيق أو التكرار', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
+      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
+    }
 
     const knowledge = await db.bookKnowledgeItem.findMany({
       where: { programId },
