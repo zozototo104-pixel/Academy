@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/question-bank — توليد أسئلة من بنك المعرفة إلى بنك الأسئلة المركزي
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const count = Math.max(4, Math.min(30, Number(body?.count || 12)))
