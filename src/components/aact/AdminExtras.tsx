@@ -902,8 +902,10 @@ export function AdminAuditTab() {
         <div className="aact-scroll max-h-[560px] overflow-y-auto">
           {logs.length === 0 ? (
             <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
+          ) : filteredLogs.length === 0 ? (
+            <p className="p-10 text-center text-xs text-slate-400">لا توجد إجراءات مطابقة للبحث أو الفلاتر الحالية</p>
           ) : (
-            logs.map((l) => (
+            filteredLogs.map((l) => (
               <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-50 p-3.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
