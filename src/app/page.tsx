@@ -147,8 +147,11 @@ export default function Home() {
     const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
     const loadMe = async () => {
       const activeToken = oauthToken || getToken()
+      const shouldRetryAuth = Boolean(oauthToken || oauthReturn || activeToken)
+      const maxAttempts = shouldRetryAuth ? 6 : 1
+
       let last: any = null
-      for (let attempt = 0; attempt < 6; attempt++) {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const res = await fetch('/api/auth/me', {
           cache: 'no-store',
           credentials: 'same-origin',
@@ -157,7 +160,9 @@ export default function Home() {
         const data = await res.json().catch(() => ({}))
         last = data
         if (res.ok && data?.user) return data
-        await new Promise((resolve) => setTimeout(resolve, 180 + attempt * 160))
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 180 + attempt * 160))
+        }
       }
       return last || { user: null }
     }
