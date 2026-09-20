@@ -126,6 +126,30 @@ interface CurriculumUnitReviewItem {
   order: number
 }
 
+interface QuestionBankReviewItem {
+  id: string
+  type: string
+  text: string
+  options?: string | null
+  correctAnswer?: string | null
+  modelAnswer?: string | null
+  sourceEvidence?: string | null
+  sourceBookTitle?: string | null
+  difficulty?: string | null
+  cognitiveSkill?: string | null
+  status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
+  createdAt: string
+}
+
+interface QuestionBankStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+  byDifficulty: Record<string, number>
+  byType: Record<string, number>
+}
+
 interface ProgramReadinessItem {
   id: string
   titleAr: string
