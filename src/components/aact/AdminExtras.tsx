@@ -869,9 +869,36 @@ export function AdminAuditTab() {
   return (
     <Card className="mt-4 border-[#0f2b46]/10">
       <CardContent className="p-0">
-        <h3 className="flex items-center gap-2 border-b border-slate-100 p-4 text-sm font-black text-[#0f2b46]">
-          <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
-        </h3>
+        <div className="border-b border-slate-100 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+            <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
+          </h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <Input
+              value={filters.search}
+              onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+              placeholder="بحث باسم المنفذ أو تفاصيل العملية"
+              className="text-xs font-bold"
+            />
+            <select
+              value={filters.action}
+              onChange={(e) => setFilters((prev) => ({ ...prev, action: e.target.value }))}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="ALL">كل العمليات</option>
+              {actionOptions.map((a) => <option key={a} value={a}>{ACTION_L[a] || a}</option>)}
+            </select>
+            <select
+              value={filters.entity}
+              onChange={(e) => setFilters((prev) => ({ ...prev, entity: e.target.value }))}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="ALL">كل الكيانات</option>
+              {entityOptions.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {filteredLogs.length} من {logs.length} إجراء</p>
+        </div>
         <div className="aact-scroll max-h-[560px] overflow-y-auto">
           {logs.length === 0 ? (
             <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
