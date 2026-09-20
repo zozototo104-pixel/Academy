@@ -5,6 +5,7 @@ import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted } from '@/lib/mailer'
+import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
 // لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
@@ -24,6 +25,17 @@ const ALLOWED_MIME = [
   'application/vnd.ms-excel',
   'text/plain', 'text/csv', 'application/csv',
 ]
+
+type UploadedAdmissionFile = {
+  docType: string
+  fileName: string
+  mimeType: string
+  size: number
+  data: string | null
+  storageProvider: string | null
+  storageKey: string | null
+  fileUrl: string | null
+}
 
 // آلة الحالات الرسمية (بالترتيب الصحيح وفق الدليل):
 // 1) تقديم الطلب ببيانات كاملة + المستندات + الإقرار
@@ -48,10 +60,17 @@ function normalizeDocType(key: string) {
   return key.replace(/^doc_/, '').toUpperCase().slice(0, 40)
 }
 
+function jsonError(message: string, status = 400) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  })
+}
+
 async function readAdmissionPayload(req: NextRequest) {
   const ct = req.headers.get('content-type') || ''
   let fields: Record<string, string> = {}
-  const files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[] = []
+  const files: UploadedAdmissionFile[] = []
 
   if (ct.includes('multipart/form-data')) {
     const form = await req.formData()
@@ -63,21 +82,37 @@ async function readAdmissionPayload(req: NextRequest) {
         if (!f.size) continue
         const docType = normalizeDocType(k)
         if (f.size > MAX_FILE_SIZE) {
-          throw new Response(JSON.stringify({ error: `حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره` }), {
-            status: 400,
-            headers: { 'content-type': 'application/json; charset=utf-8' },
-          })
+          throw jsonError(`حجم ملف «${f.name}» يتجاوز الحد الأقصى 4 ميجابايت — يرجى ضغطه أو تصغيره`)
         }
         const mime = f.type || 'application/octet-stream'
         const nameOk = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i.test(f.name)
         if (!ALLOWED_MIME.includes(mime) && !nameOk) {
-          throw new Response(JSON.stringify({ error: `صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV` }), {
-            status: 400,
-            headers: { 'content-type': 'application/json; charset=utf-8' },
-          })
+          throw jsonError(`صيغة ملف «${f.name}» غير مدعومة — المسموح: صور JPG/PNG/WebP/HEIC أو PDF أو Word DOCX أو Excel XLSX أو TXT/CSV`)
         }
+
         const buf = Buffer.from(await f.arrayBuffer())
-        files.push({ docType, fileName: f.name.slice(0, 180), mimeType: mime, size: f.size, data: buf.toString('base64') })
+        let stored
+        try {
+          stored = await storeFileBuffer({
+            buffer: buf,
+            fileName: f.name,
+            mimeType: mime,
+            namespace: `admissions/${docType.toLowerCase()}`,
+          })
+        } catch (error) {
+          throw jsonError(storageErrorMessage(error), 500)
+        }
+
+        files.push({
+          docType,
+          fileName: f.name.slice(0, 180),
+          mimeType: stored.mimeType || mime,
+          size: stored.size || f.size,
+          data: null,
+          storageProvider: stored.provider,
+          storageKey: stored.key,
+          fileUrl: stored.url,
+        })
       }
     }
   } else {
@@ -87,7 +122,7 @@ async function readAdmissionPayload(req: NextRequest) {
   return { fields, files }
 }
 
-function uniqueAdmissionFiles(files: { docType: string; fileName: string; mimeType: string; size: number; data: string }[]) {
+function uniqueAdmissionFiles(files: UploadedAdmissionFile[]) {
   const seen = new Set<string>()
   return files.filter((f) => {
     if (!f.docType || seen.has(f.docType)) return false
@@ -211,6 +246,9 @@ export async function POST(req: NextRequest) {
             mimeType: f.mimeType,
             size: f.size,
             data: f.data,
+            storageProvider: f.storageProvider,
+            storageKey: f.storageKey,
+            fileUrl: f.fileUrl,
           })),
         },
       },
