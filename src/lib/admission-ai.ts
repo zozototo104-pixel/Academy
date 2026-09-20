@@ -914,9 +914,17 @@ async function buildFileEvidence(files: {
     let textNote = 'لم تتم قراءة الملف'
     let ocrRead: ImageDocRead | null = null
 
-    if (f.data) {
-      const buf = Buffer.from(f.data, 'base64')
-      const effectiveMime = inferMimeFromFileName(f.fileName, f.mimeType || 'application/octet-stream')
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: f.storageProvider,
+      key: f.storageKey,
+      url: f.fileUrl,
+      data: f.data,
+      mimeType: f.mimeType,
+    })
+
+    if (stored) {
+      const buf = stored.buffer
+      const effectiveMime = inferMimeFromFileName(f.fileName, stored.mimeType || f.mimeType || 'application/octet-stream')
       if (isVisualFile(effectiveMime, f.fileName) && effectiveMime.startsWith('image/') && visionReads < MAX_VISION_FILES) {
         visionReads++
         ocrRead = await readDocumentImage(buf, effectiveMime, f.docType, DOC_TYPE_AR[f.docType] || f.docType, f.fileName)
