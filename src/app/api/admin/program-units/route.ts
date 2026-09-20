@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
       data: {
         programId,
         order: Number(body?.order || count + 1),
+        semester: Math.max(1, Math.min(12, Number(body?.semester || 1))),
+        status: ['DRAFT', 'APPROVED', 'NEEDS_REVISION'].includes(String(body?.status || '').toUpperCase()) ? String(body.status).toUpperCase() : 'DRAFT',
         title: cleanText(body?.title, 220) || 'وحدة جديدة',
         summary: cleanText(body?.summary, 2000) || 'ملخص الوحدة',
         objectives: JSON.stringify(parseObjectives(body?.objectives).length ? parseObjectives(body?.objectives) : ['هدف تعلم قابل للقياس']),
