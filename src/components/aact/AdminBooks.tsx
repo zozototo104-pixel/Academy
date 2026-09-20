@@ -250,6 +250,19 @@ interface ExamImportRow {
   questions: ExamImportQuestionRow[]
 }
 
+interface ProgramReadinessSnapshot {
+  registrationStatus: 'OPEN' | 'CLOSED'
+  academicReadinessStatus: 'NEEDS_PREPARATION' | 'IN_PREPARATION' | 'READY_FOR_REVIEW' | 'APPROVED'
+  academicApproved: boolean
+  semestersCount: number
+  counts: { books: number; units: number; unitsWithObjectives: number; knowledgeItems: number; exams: number; readyExams: number; assignments: number; assessments: number }
+  targets: { books: number; units: number; knowledgeItems: number; assessments: number }
+  checks: Record<string, boolean>
+  missing: string[]
+  readyWithoutManualApproval: boolean
+  isCurriculumReady: boolean
+}
+
 interface StudyGuideSection {
   title: string
   summary: string
