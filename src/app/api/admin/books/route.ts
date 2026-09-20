@@ -383,8 +383,17 @@ export async function PATCH(req: NextRequest) {
         if (fetched.ok && fetched.buffer) {
           mimeType = fetched.mime || 'application/octet-stream'
           fileName = (link!.split('/').pop() || 'book-file').slice(0, 180)
-          size = fetched.buffer.length
-          data = fetched.buffer.toString('base64')
+          const stored = await storeFileBuffer({
+            buffer: fetched.buffer,
+            fileName,
+            mimeType,
+            namespace: `books/${book.program.slug || book.program.id}`,
+          })
+          size = stored.size || fetched.buffer.length
+          storageProvider = stored.provider
+          storageKey = stored.key
+          fileUrl = stored.url
+          data = null
           const extracted = await extractDocumentText(fetched.buffer, mimeType, fileName, MAX_BOOK_TEXT_CHARS)
           textContent = extracted.text || null
           linkReadStatus = extracted.readable && (textContent || '').length >= 900 ? 'TEXT_EXTRACTED' : 'FAILED'
