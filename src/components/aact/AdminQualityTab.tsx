@@ -150,6 +150,27 @@ interface QuestionBankStats {
   byType: Record<string, number>
 }
 
+interface ExamQuestionImportItem {
+  id: string
+  order: number
+  type: string
+  text: string
+  options?: string | null
+  correctAnswer?: string | null
+  modelAnswer?: string | null
+  difficulty?: string | null
+  status?: string | null
+}
+
+interface ExamImportItem {
+  id: string
+  title: string
+  status: string
+  semester: number
+  createdAt: string
+  questions: ExamQuestionImportItem[]
+}
+
 interface ProgramReadinessItem {
   id: string
   titleAr: string
