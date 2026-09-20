@@ -167,7 +167,47 @@ export function ExamView() {
         ? `/api/program-exam/detail?examId=${activeExamId}`
         : `/api/exam/detail?examId=${activeExamId}`
     api<ExamData>(url)
-      .then((d) => setData(d))
+      .then(async (d) => {
+        setData(d)
+        const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
+        try {
+          const draftRes = await api<any>(`/api/exam-draft?examId=${activeExamId}&examType=${examType}`)
+          const draft = draftRes?.draft
+          if (draft?.answers?.length) {
+            const nextMcq: Record<string, number> = {}
+            const nextEssay: Record<string, string> = {}
+            const questionIds = new Set(d.questions.map((qq) => qq.id))
+            for (const ans of draft.answers) {
+              if (!questionIds.has(ans.questionId)) continue
+              const qq = d.questions.find((x) => x.id === ans.questionId)
+              if (!qq) continue
+              if ((qq.type === 'MCQ' || qq.type === 'TF') && typeof ans.selectedOption === 'number') nextMcq[qq.id] = ans.selectedOption
+              if ((qq.type === 'SHORT' || qq.type === 'ESSAY') && typeof ans.answerText === 'string') nextEssay[qq.id] = ans.answerText
+            }
+            setMcqAnswers(nextMcq)
+            setEssayAnswers(nextEssay)
+            setCurrent(Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)))
+            if (draft.startedAtMs && Number.isFinite(Number(draft.startedAtMs))) {
+              const restoredStartedAt = Number(draft.startedAtMs)
+              setStartedAt(restoredStartedAt)
+              if (activeExamKind === 'final' && d.exam.durationMin) {
+                const elapsedSec = Math.max(0, Math.floor((Date.now() - restoredStartedAt) / 1000))
+                setSecondsLeft(Math.max(0, d.exam.durationMin * 60 - elapsedSec))
+                setExamStarted(true)
+              }
+            }
+            setDraftUpdatedAt(draft.updatedAt || null)
+            setDraftStatus('saved')
+            toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
+          } else {
+            setDraftStatus('idle')
+          }
+        } catch {
+          setDraftStatus('error')
+        } finally {
+          draftLoadedRef.current = true
+        }
+      })
       .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
   }, [activeExamId, activeExamKind])
