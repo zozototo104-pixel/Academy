@@ -117,10 +117,17 @@ async function buildProgramReadiness(programId: string) {
   }
 }
 
-// GET /api/admin/program-readiness — البرامج المسجل بها أو عليها طلبات وتحتاج تجهيز/اعتماد
-export async function GET() {
+// GET /api/admin/program-readiness — البرامج المسجل بها أو برنامج محدد عند الطلب
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
+    const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
+    if (programId) {
+      const item = await buildProgramReadiness(programId)
+      if (!item) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      return NextResponse.json({ item, generatedAt: new Date() })
+    }
+
     const demanded = await db.program.findMany({
       where: {
         active: true,
