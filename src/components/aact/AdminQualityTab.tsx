@@ -318,6 +318,11 @@ export function AdminQualityTab() {
   })
   const [importText, setImportText] = useState('')
   const [importApproveNow, setImportApproveNow] = useState(false)
+  const [examImportOpen, setExamImportOpen] = useState(false)
+  const [examImportItems, setExamImportItems] = useState<ExamImportItem[]>([])
+  const [selectedExamId, setSelectedExamId] = useState('')
+  const [selectedExamQuestionIds, setSelectedExamQuestionIds] = useState<string[]>([])
+  const [examImportApproveNow, setExamImportApproveNow] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
