@@ -779,6 +779,20 @@ export function ExamView() {
             {Math.max(...data.previousAttempts.map((a) => a.score || 0))}%
           </div>
         )}
+
+        <div className={`mt-3 rounded-xl border p-3 text-xs font-extrabold ${
+          draftStatus === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : draftStatus === 'saving' || draftStatus === 'loading'
+            ? 'border-amber-200 bg-amber-50 text-amber-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`}>
+          {draftStatus === 'loading' ? 'جاري فحص المسودة السحابية السابقة...'
+            : draftStatus === 'saving' ? 'جاري حفظ إجاباتك سحابياً...'
+            : draftStatus === 'saved' ? `تم حفظ إجاباتك سحابياً${draftUpdatedAt ? ` — آخر حفظ ${new Date(draftUpdatedAt).toLocaleTimeString('ar')}` : ''}`
+            : draftStatus === 'error' ? 'تعذر حفظ المسودة سحابياً مؤقتاً — لا تغلق الصفحة قبل عودة الاتصال'
+            : 'سيتم حفظ إجاباتك تلقائياً بعد أول إجابة'}
+        </div>
       </div>
 
       {/* Progress */}
