@@ -311,6 +311,10 @@ export function ExamView() {
         )
         setResult(d)
         setSecondsLeft(null)
+        const examType = isFinal ? 'PROGRAM' : 'UNIT'
+        api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch(() => {})
+        setDraftStatus('idle')
+        setDraftUpdatedAt(null)
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
