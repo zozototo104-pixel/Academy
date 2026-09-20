@@ -151,7 +151,7 @@ ${knowledgeText}
 // POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const replace = body?.replace === true
