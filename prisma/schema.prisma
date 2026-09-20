@@ -90,6 +90,8 @@ model Unit {
   programId  String
   program    Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
   order      Int
+  semester   Int       @default(1)
+  status     String    @default("DRAFT") // DRAFT | APPROVED | NEEDS_REVISION
   title      String
   summary    String?
   content    String // JSON: array of { heading, body }
