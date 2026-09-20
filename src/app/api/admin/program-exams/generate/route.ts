@@ -605,7 +605,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     const message = String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
     if (totals.questionCount >= totalRequiredQuestions()) {
-      const reviewed = await exposeExamForReview(examId, null)
+      const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
     }
     await db.programExam.update({
