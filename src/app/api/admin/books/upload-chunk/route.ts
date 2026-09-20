@@ -68,15 +68,30 @@ export async function POST(req: NextRequest) {
 
       const fileName = cleanFileName(chunks[0].fileName)
       const mimeType = cleanMime(chunks[0].mimeType)
+      let stored
+      try {
+        stored = await storeFileBuffer({
+          buffer: fileBuffer,
+          fileName,
+          mimeType,
+          namespace: `books/${book.program.slug || book.program.id}`,
+        })
+      } catch (error) {
+        return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
+      }
+
       const updated = await db.book.update({
         where: { id: bookId },
         data: {
           fileName,
-          mimeType,
-          size: fileBuffer.byteLength,
-          data: fileBuffer.toString('base64'),
+          mimeType: stored.mimeType || mimeType,
+          size: stored.size || fileBuffer.byteLength,
+          data: null,
+          storageProvider: stored.provider,
+          storageKey: stored.key,
+          fileUrl: stored.url,
           linkReadStatus: 'FILE_UPLOADED',
-          linkReadNote: 'تم حفظ ملف الكتاب عبر رفع مجزأ آمن. اضغط بناء/تحديث بنك المعرفة ليتم التحليل والاستخراج.',
+          linkReadNote: 'تم حفظ ملف الكتاب عبر رفع مجزأ آمن في التخزين الخارجي. اضغط بناء/تحديث بنك المعرفة ليتم التحليل والاستخراج.',
         },
       })
 
