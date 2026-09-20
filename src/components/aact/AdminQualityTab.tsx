@@ -318,6 +318,68 @@ export function AdminQualityTab() {
         </Card>
       )}
 
+      <Card className="border-red-100 bg-red-50/40">
+        <CardContent className="p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">ردود المشرف الذكي التي تحتاج مراجعة</h3>
+              <p className="mt-1 text-[11px] font-bold text-slate-500">بلاغات الطلاب المباشرة على الردود غير المفيدة أو غير الدقيقة.</p>
+            </div>
+            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} مفتوحة</Badge>
+          </div>
+
+          {reviewItems.length === 0 ? (
+            <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود مبلغ عنها من الطلاب حالياً.</p>
+          ) : (
+            <div className="space-y-3">
+              {reviewItems.slice(0, 8).map((item) => (
+                <article key={item.id} className="rounded-2xl border border-red-100 bg-white p-4 text-xs">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black text-[#0f2b46]">{item.student.name}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400" dir="ltr">{item.student.email}</p>
+                      {item.program && <p className="mt-1 font-bold text-slate-500">{item.program.titleAr}</p>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{FEEDBACK_REASON_LABEL[item.reason || 'OTHER'] || 'يحتاج مراجعة'}</Badge>
+                      <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{REVIEW_STATUS_LABEL[item.status]}</Badge>
+                    </div>
+                  </div>
+                  {item.question && (
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                      <p className="mb-1 font-black text-slate-500">سؤال الطالب</p>
+                      <p className="line-clamp-3 leading-6 text-slate-700">{item.question}</p>
+                    </div>
+                  )}
+                  <div className="mt-2 rounded-xl bg-[#fffaf0] p-3">
+                    <p className="mb-1 font-black text-[#a8841a]">رد المشرف الذكي</p>
+                    <p className="line-clamp-4 leading-6 text-slate-700">{item.answer}</p>
+                  </div>
+                  {item.note && (
+                    <p className="mt-2 rounded-xl bg-red-50 p-3 font-bold leading-6 text-red-700">ملاحظة الطالب: {item.note}</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(['NEW', 'IN_REVIEW', 'REVIEWED', 'IGNORED'] as ChatReviewItem['status'][]).map((s) => (
+                      <Button
+                        key={s}
+                        size="sm"
+                        variant={item.status === s ? 'default' : 'outline'}
+                        disabled={reviewBusyId === item.id}
+                        onClick={() => updateReviewStatus(item.id, s)}
+                        className={item.status === s ? 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]' : 'text-xs font-bold'}
+                      >
+                        {reviewBusyId === item.id && item.status !== s ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                        {REVIEW_STATUS_LABEL[s]}
+                      </Button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-5 xl:grid-cols-3">
         <Card className="border-[#0f2b46]/10">
           <CardContent className="p-5">
