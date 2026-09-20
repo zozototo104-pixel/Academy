@@ -1581,7 +1581,7 @@ export function AdminBooksTab() {
                 </Button>
               </div>
 
-              <Tabs defaultValue="current" dir="rtl" className="space-y-4">
+              <Tabs value={booksSubTab} onValueChange={setBooksSubTab} dir="rtl" className="space-y-4">
                 <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
                   <TabsTrigger value="current" className="text-[10px] font-black sm:text-xs">الكتب الحالية ({books.length})</TabsTrigger>
                   <TabsTrigger value="add" className="text-[10px] font-black sm:text-xs">إضافة كتاب</TabsTrigger>
