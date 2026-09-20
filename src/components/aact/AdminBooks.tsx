@@ -1765,8 +1765,14 @@ export function AdminBooksTab() {
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => deleteCurriculumUnit(unit.id)} className="border-red-200 bg-white text-xs font-bold text-red-700">حذف</Button>
                           </div>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
+                        <div className="grid gap-3 md:grid-cols-3">
                           <div className="space-y-2">
+                            <label className="text-xs font-black text-slate-500">الفصل</label>
+                            <select defaultValue={String(unit.semester || 1)} onChange={(e) => patchCurriculumUnit(unit, { semester: Number(e.target.value) } as any)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-[#c9a227]">
+                              {Array.from({ length: programReadiness?.semestersCount || 2 }, (_, i) => i + 1).map((s) => <option key={s} value={s}>الفصل {s}</option>)}
+                            </select>
+                          </div>
+                          <div className="space-y-2 md:col-span-1">
                             <label className="text-xs font-black text-slate-500">عنوان الوحدة</label>
                             <Input defaultValue={unit.title} onBlur={(e) => e.target.value !== unit.title && patchCurriculumUnit(unit, { title: e.target.value })} className="bg-white font-bold" />
                           </div>
