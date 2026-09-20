@@ -62,7 +62,7 @@ export async function chatWithRetry(
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const completion = await zai.chat.completions.create({
-        messages,
+        messages: messages as any,
         thinking: { type: 'disabled' },
       })
       const content = completion.choices[0]?.message?.content
