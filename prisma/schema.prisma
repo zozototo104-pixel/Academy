@@ -757,6 +757,46 @@ model BookKnowledgeItem {
   @@index([category])
 }
 
+model QuestionBankItem {
+  id            String   @id @default(cuid())
+  programId     String
+  program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  knowledgeItemId String?
+  bookId        String?
+  unitId        String?
+  semester      Int?
+  type          String   // MCQ | TF | SHORT | ESSAY
+  text          String
+  options       String?  // JSON array
+  correctAnswer String?
+  modelAnswer   String?
+  sourceEvidence String?
+  sourceBookTitle String?
+  sourceLocator String?
+  cognitiveSkill String?
+  difficulty    String?  // EASY | MEDIUM | ADVANCED
+  correctRationale String?
+  distractorRationales String?
+  qualityFlags  String?
+  reviewNotes   String?
+  status        String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED | ARCHIVED
+  generatedBy   String   @default("AI")
+  usageCount    Int      @default(0)
+  qualityScore  Int      @default(70)
+  approvedBy    String?
+  approvedAt    DateTime?
+  rejectedReason String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([programId, status])
+  @@index([programId, difficulty])
+  @@index([programId, type])
+  @@index([knowledgeItemId])
+  @@index([bookId])
+  @@index([unitId])
+}
+
 model ProgramStudyGuide {
   id          String   @id @default(cuid())
   programId   String
