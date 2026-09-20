@@ -1404,14 +1404,10 @@ async function rebuildKnowledgeForBookByUnits(
       skippedUnits++
       continue
     }
-    if (!firstWrite) {
-      const res = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
-      deleted = res.count
-      firstWrite = true
-    }
-    const count = await createKnowledgeRows(book.programId, book.id, uniqueItems)
-    if (count > 0) {
-      inserted += count
+    const merge = await mergeKnowledgeRows(book.programId, book.id, uniqueItems)
+    if (merge.inserted > 0 || merge.updated > 0) {
+      inserted += merge.inserted
+      updated += merge.updated
       successfulUnits++
     } else {
       skippedUnits++
