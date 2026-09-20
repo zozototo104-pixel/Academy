@@ -912,6 +912,70 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={questionBankOpen} onOpenChange={setQuestionBankOpen}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراجعة بنك الأسئلة المركزي</DialogTitle>
+            <DialogDescription>
+              {questionBankProgram ? `أسئلة برنامج: ${questionBankProgram.titleAr}` : 'مراجعة الأسئلة المركزية قبل استخدامها في الامتحانات'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {questionBankBusyId === 'loading' || questionBankBusyId === 'generate' ? (
+            <div className="flex h-44 flex-col items-center justify-center gap-3 text-sm font-bold text-slate-500">
+              <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
+              {questionBankBusyId === 'generate' ? 'جاري توليد أسئلة من بنك المعرفة...' : 'جاري تحميل بنك الأسئلة...'}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 p-3 text-xs font-black text-slate-600">الإجمالي: {questionBankStats?.total || 0}</div>
+                <div className="rounded-xl bg-amber-50 p-3 text-xs font-black text-amber-700">بانتظار مراجعة: {questionBankStats?.pending || 0}</div>
+                <div className="rounded-xl bg-emerald-50 p-3 text-xs font-black text-emerald-700">معتمدة: {questionBankStats?.approved || 0}</div>
+                <div className="rounded-xl bg-red-50 p-3 text-xs font-black text-red-700">مرفوضة: {questionBankStats?.rejected || 0}</div>
+              </div>
+
+              {questionBankItems.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد. استخدم زر توليد أسئلة للبنك من لوحة تجهيز المنهج.</p>
+              ) : questionBankItems.map((question) => {
+                let options: string[] = []
+                try { options = question.options ? JSON.parse(question.options) : [] } catch {}
+                return (
+                  <article key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{question.type}</Badge>
+                        <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{question.difficulty || 'MEDIUM'}</Badge>
+                        <Badge className={question.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : question.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                          {question.status === 'APPROVED' ? 'معتمد' : question.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={questionBankBusyId === question.id} onClick={() => updateQuestionBankStatus(question, 'APPROVED')} className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800">اعتماد</Button>
+                        <Button size="sm" variant="outline" disabled={questionBankBusyId === question.id} onClick={() => updateQuestionBankStatus(question, 'REJECTED')} className="border-red-200 text-xs font-black text-red-700">رفض</Button>
+                        <Button size="sm" variant="outline" disabled={questionBankBusyId === question.id} onClick={() => updateQuestionBankStatus(question, 'ARCHIVED')} className="text-xs font-black">أرشفة</Button>
+                      </div>
+                    </div>
+                    <p className="rounded-xl bg-slate-50 p-3 text-sm font-bold leading-7 text-[#0f2b46]">{question.text}</p>
+                    {options.length > 0 && (
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        {options.map((o, i) => (
+                          <p key={i} className={`rounded-xl p-2 font-bold ${String(i) === String(question.correctAnswer) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-600'}`}>{i + 1}. {o}</p>
+                        ))}
+                      </div>
+                    )}
+                    {question.modelAnswer && <p className="mt-2 rounded-xl bg-blue-50 p-3 font-bold leading-6 text-blue-700">الإجابة النموذجية: {question.modelAnswer}</p>}
+                    {question.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل العلمي: {question.sourceEvidence}</p>}
+                    {question.sourceBookTitle && <p className="mt-2 text-[11px] font-bold text-slate-400">المصدر: {question.sourceBookTitle}</p>}
+                    {questionBankBusyId === question.id && <p className="mt-2 text-xs font-bold text-amber-700">جاري تحديث حالة السؤال...</p>}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={unitReviewOpen} onOpenChange={setUnitReviewOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
           <DialogHeader>
