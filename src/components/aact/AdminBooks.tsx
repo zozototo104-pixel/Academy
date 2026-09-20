@@ -563,6 +563,7 @@ export function AdminBooksTab() {
       setKnowledgeItems(k.items || [])
       setKnowledgeStats(k.stats || {})
       setProgramReadiness(readiness.item || null)
+      setCurriculumUnits(units.units || [])
       setQuestionBankItems(qb.items || [])
       setQuestionBankStats(qb.stats || null)
       setStudyGuides(g.guides || [])
