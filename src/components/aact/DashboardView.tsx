@@ -451,6 +451,17 @@ export function DashboardView() {
                         {active.program.curriculumReadiness?.dueAt && (
                           <p className="mt-1 text-xs text-amber-700">الموعد المتوقع: {new Date(active.program.curriculumReadiness.dueAt).toLocaleString('ar-EG')}</p>
                         )}
+                        {active.program.curriculumReadiness?.counts && (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">الكتب الجاهزة: <b>{active.program.curriculumReadiness.counts.books}</b></div>
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">الوحدات: <b>{active.program.curriculumReadiness.counts.units}</b></div>
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">بنك المعرفة: <b>{active.program.curriculumReadiness.counts.knowledgeItems}</b></div>
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">اختبارات منشورة: <b>{active.program.curriculumReadiness.counts.readyExams}</b></div>
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">اختبارات قيد المراجعة: <b>{active.program.curriculumReadiness.counts.reviewExams}</b></div>
+                            <div className="rounded-xl bg-white/75 p-2 text-[11px] text-amber-800">أهداف الوحدات: <b>{active.program.curriculumReadiness.counts.unitsWithObjectives}</b></div>
+                          </div>
+                        )}
+                        <p className="mt-3 rounded-xl bg-white/70 p-2 text-[11px] leading-5 text-amber-700">يمكنك متابعة بوابة الطالب هنا، وسيظهر المحتوى تلقائيًا فور اعتماد الإدارة للمنهج. لا تحتاج لاتخاذ إجراء إضافي.</p>
                       </div>
                     </div>
                   </div>
