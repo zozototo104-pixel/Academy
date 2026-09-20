@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { geminiCompleteJson } from '@/lib/gemini'
+import { audit } from '@/lib/notify'
 
 const STATUSES = new Set(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'])
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
