@@ -63,8 +63,8 @@ export function AcademyLogo({
   light?: boolean
   className?: string
 }) {
-  // الشعار المعتمد مضمّن من الصورة الأصلية بدون خلفية مربعة.
-  const sources = [AACT_SEAL_DATA_URI, '/icon-512.png?v=seal-circle-1', '/icon-192.png', '/apple-touch-icon.png']
+  // الشعار النهائي يأتي من مسار API يعيد صورة WebP صحيحة، ثم بدائل محلية إذا تعذر التحميل.
+  const sources = ['/api/assets/aact-seal?v=seal-final-1', '/icon-512.png?v=seal-circle-1', '/icon-192.png', '/apple-touch-icon.png']
   const [srcIndex, setSrcIndex] = useState(0)
   const [failed, setFailed] = useState(false)
   const ring = light ? 'ring-2 ring-[#b08a38]/70 ring-offset-2 ring-offset-[#1d2947]' : ''
