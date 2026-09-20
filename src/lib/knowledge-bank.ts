@@ -1121,13 +1121,15 @@ function tokenSimilarity(a: string[], b: string[]) {
 }
 
 function areKnowledgeRowsDuplicate(a: { category?: string | null; title?: string | null; keywords?: string | null }, b: { category?: string | null; title?: string | null; keywords?: string | null }) {
-  if (safeCategory(a.category) !== safeCategory(b.category)) return false
-  if (knowledgeTitleKey(a) === knowledgeTitleKey(b)) return true
+  const sameCategory = safeCategory(a.category) === safeCategory(b.category)
+  if (sameCategory && knowledgeTitleKey(a) === knowledgeTitleKey(b)) return true
   if (knowledgeTopicKey(a) === knowledgeTopicKey(b)) return true
   const at = knowledgeTopicTokens(a)
   const bt = knowledgeTopicTokens(b)
   if (at.length < 2 || bt.length < 2) return false
-  return tokenSimilarity(at, bt) >= 0.75
+  const similarity = tokenSimilarity(at, bt)
+  // داخل نفس التصنيف نكون أكثر حساسية، أما بين التصنيفات المختلفة فلا نحذف إلا عند تشابه قوي جداً.
+  return sameCategory ? similarity >= 0.65 : similarity >= 0.85
 }
 
 function knowledgeRowScore(row: { summary?: string | null; excerpt?: string | null; importance?: number | null }) {
