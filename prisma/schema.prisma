@@ -64,6 +64,15 @@ model Program {
   admissionRules Json?
   order       Int          @default(0)
   active      Boolean      @default(true)
+  // جاهزية المنهج الأكاديمي: التسجيل قد يبقى مفتوحاً حتى لو كان المنهج قيد التجهيز
+  semestersCount          Int?     // عدد الفصول المعتمد لإكمال البرنامج
+  academicReadinessStatus String   @default("NEEDS_PREPARATION") // NEEDS_PREPARATION | IN_PREPARATION | READY_FOR_REVIEW | APPROVED
+  registrationStatus      String   @default("OPEN") // OPEN | CLOSED
+  academicApproved        Boolean  @default(false)
+  academicApprovedAt      DateTime?
+  academicApprovedById    String?
+  curriculumDueAt         DateTime?
+  curriculumPreparationNote String?
   units       Unit[]
   enrollments Enrollment[]
   books       Book[]
