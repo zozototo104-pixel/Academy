@@ -49,6 +49,57 @@ function safeOptions(value: unknown, type: string) {
   return []
 }
 
+function parseImportedQuestions(value: unknown) {
+  if (Array.isArray(value)) return value
+  const text = String(value || '').trim()
+  if (!text) return []
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed
+    if (Array.isArray(parsed?.questions)) return parsed.questions
+  } catch {}
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  if (!lines.length) return []
+  const hasHeader = /type|question|text|السؤال|النوع/i.test(lines[0])
+  const rows = (hasHeader ? lines.slice(1) : lines).map((line) => line.split(/\t|,/).map((x) => x.trim()))
+  return rows.map((cols) => ({
+    type: cols[0] || 'MCQ',
+    text: cols[1] || cols[0],
+    options: [cols[2], cols[3], cols[4], cols[5]].filter(Boolean),
+    correctAnswer: cols[6] || '0',
+    modelAnswer: cols[7] || '',
+    difficulty: cols[8] || 'MEDIUM',
+    sourceEvidence: cols[9] || '',
+  })).filter((q) => cleanText(q.text, 1200).length > 8)
+}
+
+async function insertBankQuestions(programId: string, questions: any[], meta: { generatedBy: string; status?: string; fallback?: any }) {
+  const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
+  const seen = new Set(existing.map((q) => norm(q.text)))
+  const rows: any[] = []
+  let skippedDuplicates = 0
+  for (const raw of questions) {
+    const q = sanitizeQuestion(raw, meta.fallback || {})
+    if (!q.text || q.text.length < 12) continue
+    const key = norm(q.text)
+    if (seen.has(key)) {
+      skippedDuplicates++
+      continue
+    }
+    seen.add(key)
+    rows.push({
+      programId,
+      ...q,
+      status: meta.status || 'PENDING_REVIEW',
+      generatedBy: meta.generatedBy,
+      qualityFlags: q.qualityFlags || JSON.stringify(['NEEDS_HUMAN_REVIEW']),
+    })
+  }
+  if (rows.length > 0) await db.questionBankItem.createMany({ data: rows })
+  return { inserted: rows.length, skippedDuplicates }
+}
+
 function sanitizeQuestion(raw: any, fallback: any = {}) {
   const type = TYPES.has(String(raw?.type || '').toUpperCase()) ? String(raw.type).toUpperCase() : 'MCQ'
   const difficulty = DIFFICULTIES.has(String(raw?.difficulty || '').toUpperCase()) ? String(raw.difficulty).toUpperCase() : 'MEDIUM'
