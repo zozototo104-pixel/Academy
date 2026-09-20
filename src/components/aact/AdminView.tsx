@@ -261,7 +261,9 @@ export function AdminView() {
       }
       if (detail.tab) setActiveTab(detail.tab)
       if (detail.tab === 'books') {
-        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact-admin-books-target', { detail })), 80)
+        ;[80, 300, 700].forEach((delay) => {
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact-admin-books-target', { detail })), delay)
+        })
       }
     }
     window.addEventListener('aact-admin-tab', handler as EventListener)
