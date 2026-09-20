@@ -838,6 +838,7 @@ const ACTION_L: Record<string, string> = {
   COPY_EXAM_TO_QUESTION_BANK: 'نسخ أسئلة اختبار إلى بنك الأسئلة',
   REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
   GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
+  IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
 }
 
 export function AdminAuditTab() {
