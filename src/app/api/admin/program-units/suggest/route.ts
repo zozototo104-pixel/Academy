@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { geminiCompleteJson } from '@/lib/gemini'
+import { audit } from '@/lib/notify'
 
 function cleanText(value: unknown, max = 1200) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
