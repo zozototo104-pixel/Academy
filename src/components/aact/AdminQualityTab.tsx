@@ -803,6 +803,31 @@ export function AdminQualityTab() {
         </Card>
       )}
 
+      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">حفظ كتالوج البرامج قبل تنظيف قاعدة البيانات</h3>
+              <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
+                هذه الأداة تحفظ تفاصيل البرامج والوحدات والكتب وبنك المعرفة وبنك الأسئلة والاختبارات، ولا تحفظ الطلاب أو الطلبات أو المدفوعات.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={catalogBusy === 'export'} onClick={exportProgramCatalog} className="bg-white text-xs font-black">
+                {catalogBusy === 'export' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                تنزيل نسخة البرامج
+              </Button>
+              <Button size="sm" variant="outline" disabled={catalogBusy === 'import'} onClick={() => setCatalogImportOpen(true)} className="bg-white text-xs font-black">
+                استيراد نسخة محفوظة
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 rounded-xl bg-white/80 p-3 text-[11px] font-bold leading-6 text-[#8a6d16]">
+            استخدم زر التنزيل قبل تفريغ Neon. بعد التفريغ وإنشاء القاعدة النظيفة، تستطيع استيراد نفس الملف لإرجاع تفاصيل البرامج فقط.
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-blue-100 bg-blue-50/40">
         <CardContent className="p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
