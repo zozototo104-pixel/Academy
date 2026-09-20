@@ -1390,6 +1390,7 @@ export function AdminBooksTab() {
                   setAssignmentSuggestions([])
                   setKnowledgeItems([])
                   setKnowledgeStats({})
+                  setProgramReadiness(null)
                   setQuestionBankStats(null)
                   setQuestionBankItems([])
                   setStudyGuides([])
