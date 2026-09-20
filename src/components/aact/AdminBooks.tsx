@@ -1726,6 +1726,70 @@ export function AdminBooksTab() {
           </Card>
           </TabsContent>
 
+          <TabsContent value="units" className="mt-0 space-y-4">
+            <Card className="border-[#0f2b46]/10 bg-white">
+              <CardContent className="p-5 sm:p-6">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Layers className="h-4.5 w-4.5 text-[#a8841a]" /> مراجعة وحدات المنهج</h2>
+                    <p className="mt-1 text-xs font-bold text-slate-500">تعديل العناوين، الأهداف، المحتوى والترتيب مباشرة من مساحة العمل الدائمة للبرنامج.</p>
+                  </div>
+                  <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addCurriculumUnit} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
+                    {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                    إضافة وحدة
+                  </Button>
+                </div>
+                {curriculumUnits.length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم اقتراح الوحدات من الكتب في مركز الجودة أو أضف وحدة يدوياً.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {curriculumUnits.map((unit, index) => (
+                      <article key={unit.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">وحدة {index + 1}</Badge>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: Math.max(1, unit.order - 1) })} className="bg-white text-xs font-bold">رفع الترتيب</Button>
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: unit.order + 1 })} className="bg-white text-xs font-bold">خفض الترتيب</Button>
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => deleteCurriculumUnit(unit.id)} className="border-red-200 bg-white text-xs font-bold text-red-700">حذف</Button>
+                          </div>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-xs font-black text-slate-500">عنوان الوحدة</label>
+                            <Input defaultValue={unit.title} onBlur={(e) => e.target.value !== unit.title && patchCurriculumUnit(unit, { title: e.target.value })} className="bg-white font-bold" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-black text-slate-500">أهداف التعلم — هدف في كل سطر</label>
+                            <Textarea defaultValue={(unit.objectives || []).join('\n')} onBlur={(e) => patchCurriculumUnit(unit, { objectives: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) as any })} className="min-h-24 bg-white text-xs leading-6" />
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
+                          <Textarea defaultValue={unit.summary || ''} onBlur={(e) => e.target.value !== (unit.summary || '') && patchCurriculumUnit(unit, { summary: e.target.value })} className="min-h-20 bg-white text-sm leading-7" />
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <label className="text-xs font-black text-slate-500">محاور المحتوى — صيغة مبسطة: العنوان: الشرح</label>
+                          <Textarea
+                            defaultValue={(unit.content || []).map((c) => `${c.heading}: ${c.body}`).join('\n')}
+                            onBlur={(e) => {
+                              const content = e.target.value.split('\n').map((line) => {
+                                const [heading, ...rest] = line.split(':')
+                                return { heading: heading?.trim() || 'محور', body: rest.join(':').trim() || line.trim() }
+                              }).filter((x) => x.body)
+                              patchCurriculumUnit(unit, { content: content as any })
+                            }}
+                            className="min-h-28 bg-white text-xs leading-6"
+                          />
+                        </div>
+                        {unitBusyId === unit.id && <p className="mt-2 text-xs font-bold text-amber-700">جاري حفظ تعديلات الوحدة...</p>}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="guides" className="mt-0 space-y-4">
           {/* أدلة الدراسة والمحاضرات */}
           <Card className="border-[#0f2b46]/10 bg-white">
