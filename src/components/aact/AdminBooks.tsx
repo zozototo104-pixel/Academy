@@ -296,6 +296,8 @@ export function AdminBooksTab() {
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [programId, setProgramId] = useState<string>('')
+  const [workspaceTab, setWorkspaceTab] = useState('overview')
+  const [booksSubTab, setBooksSubTab] = useState('current')
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
