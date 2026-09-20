@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 
 // GET /api/agent-docs/[id] — عرض مستند طلب وكالة/اعتماد (للإدارة أو صاحب الطلب فقط)
 export async function GET(
@@ -25,10 +26,18 @@ export async function GET(
       return NextResponse.json({ error: 'غير مصرح لك بعرض هذا المستند' }, { status: 403 })
     }
 
-    const buf = Buffer.from(doc.data, 'base64')
-    return new NextResponse(new Uint8Array(buf), {
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: doc.storageProvider,
+      key: doc.storageKey,
+      url: doc.fileUrl,
+      data: doc.data,
+      mimeType: doc.mimeType,
+    })
+    if (!stored) return NextResponse.json({ error: 'تعذر العثور على ملف المستند في التخزين' }, { status: 404 })
+
+    return new NextResponse(new Uint8Array(stored.buffer), {
       headers: {
-        'Content-Type': doc.mimeType,
+        'Content-Type': stored.mimeType || doc.mimeType,
         'Content-Disposition': `inline; filename="${encodeURIComponent(doc.fileName)}"`,
         'Cache-Control': 'private, no-store',
       },
