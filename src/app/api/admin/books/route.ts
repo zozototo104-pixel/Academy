@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       textExtracted: !!textContent,
       linkReadStatus,
       linkNote,
-      knowledgeItemsInserted: knowledgeBuild?.inserted || 0,
+      knowledgeItemsInserted,
       notifiedStudents: enrolled.length,
     })
   } catch (e: any) {
