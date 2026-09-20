@@ -40,4 +40,27 @@ jobs:
         run: bunx prisma generate
 
       - name: Run TypeScript check
-        run: bun run typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run typecheck 2>&1 | tee typecheck.log
+
+      - name: Add TypeScript errors to job summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## TypeScript Check Log" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Open the artifact named \`typescript-check-log\` for the full log." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`text" >> "$GITHUB_STEP_SUMMARY"
+          tail -n 220 typecheck.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No typecheck.log found" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full TypeScript log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typescript-check-log
+          path: typecheck.log
+          if-no-files-found: ignore
