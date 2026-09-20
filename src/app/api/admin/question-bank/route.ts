@@ -334,6 +334,7 @@ export async function PATCH(req: NextRequest) {
     if (body?.options !== undefined) data.options = JSON.stringify(safeOptions(body.options, data.type || 'MCQ'))
     if (body?.correctAnswer !== undefined) data.correctAnswer = cleanText(body.correctAnswer, 20)
     const item = await db.questionBankItem.update({ where: { id }, data })
+    await audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`)
     return NextResponse.json({ ok: true, item })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
