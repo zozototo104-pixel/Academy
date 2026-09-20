@@ -89,7 +89,7 @@ export function AcademyLogo({
       alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب — AACT"
       width={size}
       height={size}
-      className={`shrink-0 select-none rounded-full object-cover ${ring} ${className}`}
+      className={`shrink-0 select-none object-contain ${ring} ${className}`}
       style={{ width: size, height: size }}
       draggable={false}
       onError={() => {
