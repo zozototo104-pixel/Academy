@@ -1061,6 +1061,10 @@ export function AdminQualityTab() {
               <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-50 p-3">
                 <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
                 <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
+                <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'exam-load'} onClick={openExamImport}>
+                  {questionBankBusyId === 'exam-load' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  نسخ من اختبار موجود
+                </Button>
                 <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => questionBankProgram && generateQuestionBank(questionBankProgram)}>
                   {questionBankBusyId === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   توليد أسئلة إضافية من بنك المعرفة
