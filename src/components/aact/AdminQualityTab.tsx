@@ -206,6 +206,16 @@ export function AdminQualityTab() {
     }
   }, [])
 
+  const updateReviewStatus = async (id: string, status: ChatReviewItem['status']) => {
+    setReviewBusyId(id)
+    try {
+      await api('/api/chat-feedback', { method: 'PATCH', body: JSON.stringify({ id, status }) })
+      setReviewItems((prev) => prev.map((item) => item.id === id ? { ...item, status } : item))
+    } finally {
+      setReviewBusyId(null)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [load])
