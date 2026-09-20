@@ -2100,6 +2100,40 @@ export function AdminBooksTab() {
           </TabsContent>
 
           <TabsContent value="exams" className="mt-0 space-y-4">
+          <Card className="border-[#c9a227]/25 bg-[#fffaf0]">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                    <ClipboardList className="h-4.5 w-4.5 text-[#a8841a]" /> بنك الأسئلة المركزي لهذا البرنامج
+                  </h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">إدارة دائمة لبنك الأسئلة حتى بعد اعتماد المنهج وخروجه من مركز الجودة.</p>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-black">
+                  <div className="rounded-xl bg-white px-3 py-2 text-slate-600 ring-1 ring-[#c9a227]/20">الإجمالي<br /><span className="text-base text-[#0f2b46]">{questionBankStats?.total || 0}</span></div>
+                  <div className="rounded-xl bg-white px-3 py-2 text-amber-700 ring-1 ring-[#c9a227]/20">مراجعة<br /><span className="text-base">{questionBankStats?.pending || 0}</span></div>
+                  <div className="rounded-xl bg-white px-3 py-2 text-emerald-700 ring-1 ring-[#c9a227]/20">معتمد<br /><span className="text-base">{questionBankStats?.approved || 0}</span></div>
+                  <div className="rounded-xl bg-white px-3 py-2 text-red-700 ring-1 ring-[#c9a227]/20">مرفوض<br /><span className="text-base">{questionBankStats?.rejected || 0}</span></div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setQuestionBankOpen(true)}>مراجعة بنك الأسئلة</Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={generateQuestionsForBank} className="bg-white text-xs font-black">
+                  {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  توليد أسئلة من بنك المعرفة
+                </Button>
+                <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
+                <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
+                <Button size="sm" variant="outline" className="bg-white text-xs font-black" disabled={questionBankBusy === 'exam-load'} onClick={openExamImport}>
+                  {questionBankBusy === 'exam-load' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  نسخ من اختبار موجود
+                </Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'exam-1'} onClick={() => generateExamFromQuestionBank(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'exam-2'} onClick={() => generateExamFromQuestionBank(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* الاختبارات الشاملة المولدة */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
