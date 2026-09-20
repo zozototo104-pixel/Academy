@@ -339,7 +339,7 @@ export function DashboardView() {
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
         <div>
-          <Tabs defaultValue="programs" dir="rtl">
+          <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
             <TabsList className="grid h-auto w-full grid-cols-3 gap-1 sm:grid-cols-6">
               <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
                 <BookOpen className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> برامجي
