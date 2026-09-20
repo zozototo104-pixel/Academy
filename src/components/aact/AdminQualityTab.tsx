@@ -374,6 +374,101 @@ export function AdminQualityTab() {
         </Card>
       )}
 
+      <Card className="border-amber-200 bg-amber-50/50">
+        <CardContent className="p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">تجهيز واعتماد المناهج للبرامج المسجل بها</h3>
+              <p className="mt-1 text-[11px] font-bold text-slate-500">تظهر هنا فقط البرامج التي عليها طلبات أو طلاب فعلياً وتحتاج تجهيزاً أو اعتماداً أكاديمياً.</p>
+            </div>
+            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{readinessItems.length} برنامج</Badge>
+          </div>
+
+          {readinessItems.length === 0 ? (
+            <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد برامج مطلوبة تحتاج تجهيزاً حالياً.</p>
+          ) : (
+            <div className="space-y-4">
+              {readinessItems.map((item) => {
+                const busy = readinessBusyId === item.id
+                const due = item.curriculumDueAt ? new Date(item.curriculumDueAt) : null
+                return (
+                  <article key={item.id} className="rounded-2xl border border-amber-100 bg-white p-4 text-xs shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-black text-[#0f2b46]">{item.titleAr}</h4>
+                        <p className="mt-1 font-bold text-slate-500">طلاب/طلبات: {item.demandCount} · تسجيلات {item.enrollments} · طلبات قبول {item.admissions}</p>
+                        {due && <p className="mt-1 font-bold text-amber-700">موعد التجهيز المتوقع: {due.toLocaleString('ar-EG')}</p>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{CURRICULUM_STATUS_LABEL[item.academicReadinessStatus]}</Badge>
+                        <Badge className={item.registrationStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
+                          التسجيل: {item.registrationStatus === 'OPEN' ? 'مفتوح' : 'مغلق'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الكتب: {item.counts.books}/{item.targets.books}</div>
+                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الوحدات: {item.counts.units}/{item.targets.units}</div>
+                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">بنك المعرفة: {item.counts.knowledgeItems > 0 ? 'جاهز' : 'غير جاهز'} ({item.counts.knowledgeItems})</div>
+                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الاختبارات/الواجبات: {item.counts.assessments}/{item.targets.assessments}</div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {Object.entries(item.checks).map(([key, ok]) => (
+                        <span key={key} className={`rounded-full px-2 py-1 text-[10px] font-black ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {ok ? '✓' : '×'} {READINESS_CHECK_LABEL[key] || key}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: 'books' }))}>رفع كتب البرنامج</Button>
+                      <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: 'books' }))}>بناء بنك المعرفة</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" disabled>اقتراح وحدات من الكتب</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" disabled>مراجعة الوحدات</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: 'books' }))}>توليد/مراجعة الاختبارات</Button>
+                      <Button
+                        size="sm"
+                        disabled={busy || !item.readyWithoutManualApproval}
+                        onClick={() => updateProgramReadiness(item.id, { approve: true })}
+                        className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+                      >
+                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="ml-1 h-3 w-3" />}
+                        اعتماد المنهج
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => updateProgramReadiness(item.id, { registrationStatus: item.registrationStatus === 'OPEN' ? 'CLOSED' : 'OPEN' })}
+                        className="text-xs font-black"
+                      >
+                        {item.registrationStatus === 'OPEN' ? 'إغلاق التسجيل' : 'فتح التسجيل'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => updateProgramReadiness(item.id, { reopenPreparation: true, setDue24h: true })}
+                        className="text-xs font-black"
+                      >
+                        بدء تجهيز 24 ساعة
+                      </Button>
+                    </div>
+                    {!item.readyWithoutManualApproval && (
+                      <p className="mt-3 rounded-xl bg-amber-50 p-3 font-bold leading-6 text-amber-700">
+                        لا يمكن اعتماد المنهج بعد: أكمل العناصر الناقصة أولاً، ثم عُد للاعتماد اليدوي.
+                      </p>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="border-red-100 bg-red-50/40">
         <CardContent className="p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
