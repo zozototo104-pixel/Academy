@@ -1414,7 +1414,8 @@ async function rebuildKnowledgeForBookByUnits(
     }
   }
 
-  if (!firstWrite || inserted === 0) {
+  const existingAfterMerge = await db.bookKnowledgeItem.count({ where: { bookId: book.id } })
+  if (existingAfterMerge === 0) {
     throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من أي وحدة في الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة.')
   }
 
