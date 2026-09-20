@@ -397,6 +397,47 @@ export function AdminQualityTab() {
     }
   }
 
+  const exportProgramCatalog = async () => {
+    setCatalogBusy('export')
+    try {
+      const catalog = await api<any>('/api/admin/program-catalog')
+      const blob = new Blob([JSON.stringify(catalog, null, 2)], { type: 'application/json;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `aact-program-catalog-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تصدير كتالوج البرامج')
+    } finally {
+      setCatalogBusy(null)
+    }
+  }
+
+  const importProgramCatalog = async () => {
+    if (!catalogImportText.trim()) return
+    if (!confirm('سيتم استيراد كتالوج البرامج إلى قاعدة البيانات الحالية. الطلاب والمدفوعات والمحاولات ليست ضمن هذا الملف. هل تريد المتابعة؟')) return
+    setCatalogBusy('import')
+    try {
+      const catalog = JSON.parse(catalogImportText)
+      const res = await api<{ stats: Record<string, number> }>('/api/admin/program-catalog', {
+        method: 'POST',
+        body: JSON.stringify({ catalog, confirmRestore: 'YES' }),
+      })
+      alert(`تم الاستيراد بنجاح. البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`)
+      setCatalogImportOpen(false)
+      setCatalogImportText('')
+      await loadAll()
+    } catch (e: any) {
+      alert(e?.message || 'تعذر استيراد كتالوج البرامج')
+    } finally {
+      setCatalogBusy(null)
+    }
+  }
+
   const updateReviewStatus = async (id: string, status: ChatReviewItem['status']) => {
     setReviewBusyId(id)
     try {
