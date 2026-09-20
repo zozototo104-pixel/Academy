@@ -221,6 +221,46 @@ export function ExamView() {
     ).length
   }, [data, mcqAnswers, essayAnswers])
 
+  const draftAnswers = useMemo(() => {
+    if (!data) return []
+    return data.questions.map((q) => ({
+      questionId: q.id,
+      selectedOption: q.type === 'MCQ' || q.type === 'TF' ? mcqAnswers[q.id] : undefined,
+      answerText: q.type === 'SHORT' || q.type === 'ESSAY' ? (essayAnswers[q.id] || '') : undefined,
+    }))
+  }, [data, mcqAnswers, essayAnswers])
+
+  useEffect(() => {
+    if (!data || result || submitting || submittedRef.current || !draftLoadedRef.current) return
+    if (activeExamKind === 'final' && !examStarted) return
+    const hasAnyAnswer = answeredCount > 0
+    if (!hasAnyAnswer) return
+
+    const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
+    const payload = JSON.stringify({
+      examId: data.exam.id,
+      examType,
+      current,
+      startedAtMs: String(startedAt),
+      answers: draftAnswers,
+    })
+    if (payload === lastDraftPayloadRef.current) return
+
+    setDraftStatus('saving')
+    const t = window.setTimeout(async () => {
+      try {
+        const saved = await api<any>('/api/exam-draft', { method: 'POST', body: payload })
+        lastDraftPayloadRef.current = payload
+        setDraftUpdatedAt(saved?.updatedAt || new Date().toISOString())
+        setDraftStatus('saved')
+      } catch {
+        setDraftStatus('error')
+      }
+    }, 1800)
+
+    return () => window.clearTimeout(t)
+  }, [data, result, submitting, activeExamKind, examStarted, answeredCount, draftAnswers, current, startedAt])
+
   const submit = useCallback(
     async (auto: boolean = false) => {
       if (!data || submittedRef.current) return
