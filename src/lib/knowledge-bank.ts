@@ -1379,7 +1379,7 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
       console.error('unit-based knowledge build failed:', String(e?.message || e).slice(0, 320))
       // إذا كان هناك ملف PDF/صورة مرفوع، نترك المسار التالي يحاول قراءة الملف مباشرة كأداة قراءة إضافية.
       // أما إذا لم توجد أداة قراءة أخرى فلا نؤلف عناصر عامة.
-      if (book.data && !canReadBookFileWithGemini(book)) throw e
+      if (hasUploadedBookFile(book) && !canReadBookFileWithGemini(book)) throw e
     }
   }
 
