@@ -429,6 +429,12 @@ export function AdminBooksTab() {
     [programs, programId]
   )
 
+  useEffect(() => {
+    if (selectedProgram?.category && selectedCategory !== selectedProgram.category) {
+      setSelectedCategory(selectedProgram.category)
+    }
+  }, [selectedProgram, selectedCategory])
+
   const displayKnowledgeItems = useMemo(() => {
     return knowledgeItems
       .map((item) => {
