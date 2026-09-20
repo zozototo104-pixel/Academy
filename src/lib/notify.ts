@@ -74,6 +74,7 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   COPY_EXAM_TO_QUESTION_BANK: 'نسخ أسئلة اختبار إلى بنك الأسئلة',
   REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
   GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
+  IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
   UPDATE_SETTINGS: 'تحديث إعدادات/رسوم المنصة',
   SYSTEM_UPDATE: 'تحديث نظام/صلاحيات',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل',
