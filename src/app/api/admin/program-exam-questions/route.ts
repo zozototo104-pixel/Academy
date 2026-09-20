@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
 
     const publicationCandidates = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } } })
-    const readinessErrors = validatePublicationReadiness(publicationCandidates, exam.program?.category)
+    const readinessErrors = validatePublicationReadiness(publicationCandidates, exam.program?.category, exam.generatedBy)
     if (readinessErrors.length > 0) {
       return NextResponse.json(
         {
