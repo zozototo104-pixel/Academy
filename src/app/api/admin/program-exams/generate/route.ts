@@ -454,7 +454,7 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     // مهم: الاستكمال لا يصفر الامتحان إطلاقاً. نزيل فقط النسخ المكررة حرفياً ونكمل من آخر سؤال محفوظ.
     let existingCount = await cleanupDuplicatePendingQuestions(examId)
 
-    const hydratedBooks = []
+    const hydratedBooks: HydratedExamBook[] = []
     for (const book of books) {
       if (!(await isExamStillGenerating(examId))) {
         const totals = await examTotals(examId)
