@@ -1509,8 +1509,11 @@ export async function rebuildKnowledgeForBook(bookId: string): Promise<Knowledge
     items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
   }
 
-  const deleted = await db.bookKnowledgeItem.deleteMany({ where: { bookId: book.id } })
-  const inserted = await createKnowledgeRows(book.programId, book.id, items)
+  const beforeCount = await db.bookKnowledgeItem.count({ where: { bookId: book.id } })
+  const merge = await mergeKnowledgeRows(book.programId, book.id, items)
+  const afterCount = await db.bookKnowledgeItem.count({ where: { bookId: book.id } })
+  const inserted = merge.inserted
+  const deleted = { count: 0 }
   const qualityNote = buildMode === 'TEXT'
     ? `${hydrated.sourceNote} — تم بناء بنك المعرفة من نص الكتاب المنظف قبل التوليد.`
     : buildMode === 'TEXT_DETERMINISTIC'
