@@ -1059,9 +1059,18 @@ async function persistBookTextIfNeeded(bookId: string | undefined, text: string,
   await db.book.update({ where: { id: bookId }, data: { textContent: text.slice(0, 180000) } }).catch(() => {})
 }
 
-async function createKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
-  if (items.length === 0) return 0
-  const data = items.map((item, i) => {
+function knowledgeRowKey(row: { category?: string | null; title?: string | null; summary?: string | null }) {
+  const titleKey = norm(row.title || '').slice(0, 120)
+  const summaryKey = norm(row.summary || '').slice(0, 140)
+  return `${safeCategory(row.category)}::${titleKey}::${summaryKey}`
+}
+
+function knowledgeTitleKey(row: { category?: string | null; title?: string | null }) {
+  return `${safeCategory(row.category)}::${norm(row.title || '').slice(0, 140)}`
+}
+
+function prepareKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
+  const rows = items.map((item, i) => {
     const summary = cleanText(item.summary, 1600)
     const title = cleanText(safeKnowledgeTitle(item.title, summary, item.category, i), 220)
     const excerpt = item.excerpt ? cleanText(item.excerpt, 1800) : null
@@ -1080,9 +1089,74 @@ async function createKnowledgeRows(programId: string, bookId: string | null, ite
       sourceNote: item.sourceNote ? cleanText(item.sourceNote, 400) : null,
     }
   }).filter(Boolean) as any[]
+
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    const exactKey = knowledgeRowKey(row)
+    const titleKey = knowledgeTitleKey(row)
+    const key = exactKey || titleKey
+    if (!key || seen.has(key) || seen.has(titleKey)) return false
+    seen.add(key)
+    seen.add(titleKey)
+    return true
+  })
+}
+
+async function createKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
+  const data = prepareKnowledgeRows(programId, bookId, items)
   if (data.length === 0) return 0
   await db.bookKnowledgeItem.createMany({ data })
   return data.length
+}
+
+async function mergeKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
+  const data = prepareKnowledgeRows(programId, bookId, items)
+  if (data.length === 0) return { inserted: 0, updated: 0, skipped: 0 }
+
+  const existing = await db.bookKnowledgeItem.findMany({
+    where: { programId, bookId },
+    select: { id: true, category: true, title: true, summary: true, excerpt: true, keywords: true, importance: true, sourceNote: true },
+  })
+  const exact = new Map(existing.map((row) => [knowledgeRowKey(row), row]))
+  const byTitle = new Map(existing.map((row) => [knowledgeTitleKey(row), row]))
+
+  let inserted = 0
+  let updated = 0
+  let skipped = 0
+
+  for (const row of data) {
+    const exactKey = knowledgeRowKey(row)
+    const titleKey = knowledgeTitleKey(row)
+    const current = exact.get(exactKey) || byTitle.get(titleKey)
+    if (!current) {
+      await db.bookKnowledgeItem.create({ data: row })
+      inserted++
+      exact.set(exactKey, row as any)
+      byTitle.set(titleKey, row as any)
+      continue
+    }
+
+    const hasBetterSummary = String(row.summary || '').length > String(current.summary || '').length + 80
+    const hasBetterExcerpt = !!row.excerpt && String(row.excerpt || '').length > String(current.excerpt || '').length + 80
+    const hasBetterImportance = Number(row.importance || 0) > Number(current.importance || 0)
+    if (hasBetterSummary || hasBetterExcerpt || hasBetterImportance) {
+      await db.bookKnowledgeItem.update({
+        where: { id: current.id },
+        data: {
+          summary: hasBetterSummary ? row.summary : current.summary,
+          excerpt: hasBetterExcerpt ? row.excerpt : current.excerpt,
+          keywords: row.keywords || current.keywords,
+          importance: Math.max(Number(current.importance || 0), Number(row.importance || 0)),
+          sourceNote: row.sourceNote || current.sourceNote,
+        },
+      })
+      updated++
+    } else {
+      skipped++
+    }
+  }
+
+  return { inserted, updated, skipped }
 }
 
 function looksLikeKnowledgeHeading(line: string) {
