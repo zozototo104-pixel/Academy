@@ -195,6 +195,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } }).catch(() => {})
+
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
