@@ -471,7 +471,7 @@ export async function PATCH(req: NextRequest) {
       textExtracted: !!textContent && textContent.length >= 900,
       linkReadStatus,
       linkNote,
-      knowledgeItemsInserted: knowledgeBuild?.inserted || 0,
+      knowledgeItemsInserted,
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
