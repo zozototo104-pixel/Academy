@@ -23,6 +23,7 @@ model User {
   examAttempts   ExamAttempt[]
   examDrafts     ExamDraft[]
   chatMessages   ChatMessage[]
+  chatFeedbacks  ChatFeedback[]
   academicMemory StudentAcademicMemory?
   sessions       Session[]
   notifications  Notification[]
