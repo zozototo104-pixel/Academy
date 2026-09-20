@@ -746,6 +746,160 @@ export function AdminBooksTab() {
     }
   }
 
+  const refreshQuestionBank = async (pid = programId) => {
+    if (!pid) return
+    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`)
+    setQuestionBankItems(res.items || [])
+    setQuestionBankStats(res.stats || null)
+  }
+
+  const generateQuestionsForBank = async () => {
+    if (!programId) return
+    setQuestionBankBusy('generate')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, count: 12 }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      toast({ title: 'تم توليد أسئلة للبنك', description: 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const addManualQuestionToBank = async () => {
+    if (!programId) return
+    setQuestionBankBusy('manual')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId,
+          source: 'MANUAL',
+          approveNow: manualQuestion.approveNow,
+          question: {
+            type: manualQuestion.type,
+            text: manualQuestion.text,
+            options: manualQuestion.options.split('\n').map((x) => x.trim()).filter(Boolean),
+            correctAnswer: manualQuestion.correctAnswer,
+            modelAnswer: manualQuestion.modelAnswer,
+            difficulty: manualQuestion.difficulty,
+            sourceEvidence: manualQuestion.sourceEvidence,
+          },
+        }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setManualQuestionOpen(false)
+      setManualQuestion((prev) => ({ ...prev, text: '', modelAnswer: '', sourceEvidence: '' }))
+      toast({ title: 'تم حفظ السؤال في بنك الأسئلة' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const importQuestionsToBank = async () => {
+    if (!programId) return
+    setQuestionBankBusy('import')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, source: 'IMPORT', text: importQuestionsText, approveNow: importApproveNow }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setImportQuestionsOpen(false)
+      setImportQuestionsText('')
+      toast({ title: 'تم استيراد الأسئلة إلى البنك' })
+    } catch (e: any) {
+      toast({ title: 'تعذر استيراد الأسئلة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const openExamImport = async () => {
+    if (!programId) return
+    setExamImportOpen(true)
+    setQuestionBankBusy('exam-load')
+    try {
+      const res = await api<{ exams: ExamImportRow[] }>(`/api/admin/question-bank/from-exam?programId=${programId}`)
+      setExamImportItems(res.exams || [])
+      const first = (res.exams || []).find((exam) => exam.questions?.length)
+      setSelectedImportExamId(first?.id || '')
+      setSelectedImportQuestionIds(first?.questions?.map((q) => q.id) || [])
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل أسئلة الاختبارات', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const copyExamQuestionsToBank = async () => {
+    if (!programId || !selectedImportExamId || selectedImportQuestionIds.length === 0) return
+    setQuestionBankBusy('exam-copy')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank/from-exam', {
+        method: 'POST',
+        body: JSON.stringify({ programId, examId: selectedImportExamId, questionIds: selectedImportQuestionIds, approveNow: examImportApproveNow }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      setExamImportOpen(false)
+      toast({ title: 'تم نسخ أسئلة الاختبار إلى بنك الأسئلة' })
+    } catch (e: any) {
+      toast({ title: 'تعذر نسخ الأسئلة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const updateQuestionBankStatus = async (id: string, status: QuestionBankItemRow['status']) => {
+    setQuestionBankBusy(id)
+    try {
+      const res = await api<{ item: QuestionBankItemRow }>('/api/admin/question-bank', { method: 'PATCH', body: JSON.stringify({ id, status }) })
+      setQuestionBankItems((prev) => prev.map((q) => q.id === id ? res.item : q))
+      if (programId) await refreshQuestionBank(programId)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث حالة السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const generateExamFromQuestionBank = async (semester: number) => {
+    if (!programId) return
+    const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
+    if (rawCount === null) return
+    const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
+    const createExam = (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', { method: 'POST', body: JSON.stringify({ programId, semester, count, replaceExistingReview }) })
+    setQuestionBankBusy(`exam-${semester}`)
+    try {
+      try {
+        await createExam(false)
+      } catch (e: any) {
+        if (String(e?.message || '').includes('بانتظار المراجعة') && confirm('يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله؟')) {
+          await createExam(true)
+        } else {
+          throw e
+        }
+      }
+      setWorkspaceTab('exams')
+      await loadProgramData(programId, true)
+      toast({ title: 'تم إنشاء امتحان من بنك الأسئلة', description: 'الامتحان الآن بانتظار المراجعة قبل النشر.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء امتحان من البنك', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
   const rebuildBookKnowledge = async (bookId: string) => {
     if (!programId) return
     setRebuildingBookId(bookId)
