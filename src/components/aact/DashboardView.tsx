@@ -528,6 +528,14 @@ export function DashboardView() {
                 )}
 
                 {/* تنظيم محتوى البرنامج داخل تبويبات فرعية حتى لا تتكدس أدلة الدراسة والواجبات والوحدات في صفحة واحدة */}
+                {!curriculumReady ? (
+                  <section className="mt-5 rounded-2xl border border-amber-200 bg-white p-6 text-center text-sm font-bold leading-7 text-slate-600">
+                    <Hourglass className="mx-auto mb-2 h-8 w-8 text-amber-600" />
+                    <p className="text-base font-black text-[#0f2b46]">الكتب والوحدات قيد التجهيز</p>
+                    <p className="mt-1">{curriculumMessage}</p>
+                    <p className="mt-2 text-xs text-slate-400">سيتم إظهار الكتب، الوحدات، الواجبات والاختبارات هنا فور اعتماد الإدارة للمنهج.</p>
+                  </section>
+                ) : (
                 <Tabs defaultValue="guides" dir="rtl" className="mt-5 space-y-4">
                   <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
                     <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({displayStudyGuides.length})</TabsTrigger>
