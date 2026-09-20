@@ -2516,7 +2516,20 @@ export function AdminBooksTab() {
             <DialogDescription>أسئلة البرنامج المحدد فقط. لا تُستخدم في توليد الامتحانات إلا الأسئلة المعتمدة.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : questionBankItems.map((q) => {
+            <div className="grid gap-2 rounded-2xl bg-slate-50 p-3 md:grid-cols-4">
+              <Input value={questionBankFilter.search} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, search: e.target.value }))} placeholder="بحث في السؤال أو الإجابة" className="bg-white text-xs" />
+              <select value={questionBankFilter.status} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, status: e.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold">
+                <option value="ALL">كل الحالات</option><option value="PENDING_REVIEW">بانتظار المراجعة</option><option value="APPROVED">معتمد</option><option value="REJECTED">مرفوض</option><option value="ARCHIVED">مؤرشف</option>
+              </select>
+              <select value={questionBankFilter.type} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, type: e.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold">
+                <option value="ALL">كل الأنواع</option><option value="MCQ">اختيار متعدد</option><option value="TF">صح/خطأ</option><option value="SHORT">قصير</option><option value="ESSAY">مقالي</option>
+              </select>
+              <select value={questionBankFilter.difficulty} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, difficulty: e.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold">
+                <option value="ALL">كل الصعوبات</option><option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option>
+              </select>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400">المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال</p>
+            {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : filteredQuestionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة مطابقة للفلترة.</p> : filteredQuestionBankItems.map((q) => {
               let options: string[] = []
               try { options = q.options ? JSON.parse(q.options) : [] } catch {}
               return (
