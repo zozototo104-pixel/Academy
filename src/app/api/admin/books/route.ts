@@ -475,6 +475,10 @@ export async function PATCH(req: NextRequest) {
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    const raw = String(e?.message || e || '')
+    if (raw.includes('FILE_STORAGE') || raw.includes('S3_UPLOAD') || raw.includes('EMPTY_FILE')) {
+      return NextResponse.json({ error: storageErrorMessage(e) }, { status: 500 })
+    }
     console.error('admin books PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث مصدر قراءة الكتاب' }, { status: 500 })
   }
