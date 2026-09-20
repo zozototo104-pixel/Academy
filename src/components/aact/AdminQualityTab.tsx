@@ -430,7 +430,7 @@ export function AdminQualityTab() {
       alert(`تم الاستيراد بنجاح. البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`)
       setCatalogImportOpen(false)
       setCatalogImportText('')
-      await loadAll()
+      await load()
     } catch (e: any) {
       alert(e?.message || 'تعذر استيراد كتالوج البرامج')
     } finally {
