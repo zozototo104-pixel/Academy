@@ -115,6 +115,26 @@ interface ChatReviewItem {
   answer: string
 }
 
+interface ProgramReadinessItem {
+  id: string
+  titleAr: string
+  category: string
+  demandCount: number
+  enrollments: number
+  admissions: number
+  registrationStatus: 'OPEN' | 'CLOSED'
+  academicReadinessStatus: 'NEEDS_PREPARATION' | 'IN_PREPARATION' | 'READY_FOR_REVIEW' | 'APPROVED'
+  academicApproved: boolean
+  curriculumDueAt?: string | null
+  semestersCount: number
+  counts: { books: number; units: number; unitsWithObjectives: number; knowledgeItems: number; exams: number; readyExams: number; assignments: number; assessments: number }
+  targets: { books: number; units: number; knowledgeItems: number; assessments: number }
+  checks: Record<string, boolean>
+  missing: string[]
+  readyWithoutManualApproval: boolean
+  isCurriculumReady: boolean
+}
+
 interface AcademicQualityData {
   generatedAt: string
   overview: {
