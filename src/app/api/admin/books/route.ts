@@ -309,6 +309,10 @@ export async function POST(req: NextRequest) {
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    const raw = String(e?.message || e || '')
+    if (raw.includes('FILE_STORAGE') || raw.includes('S3_UPLOAD') || raw.includes('EMPTY_FILE')) {
+      return NextResponse.json({ error: storageErrorMessage(e) }, { status: 500 })
+    }
     console.error('admin books POST error:', e)
     return NextResponse.json({ error: 'تعذر إضافة الكتاب' }, { status: 500 })
   }
