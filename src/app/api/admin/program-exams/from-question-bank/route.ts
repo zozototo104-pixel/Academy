@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد أسئلة معتمدة في بنك الأسئلة لهذا البرنامج/الفصل. اعتمد أسئلة في بنك الأسئلة أولاً.' }, { status: 400 })
     }
 
-    const selected = distributeTake(bankQuestions, requestedCount)
+    const selected = distributeTake(bankQuestions, requestedCount, difficultyPlan, typePlan)
     if (selected.length < Math.min(5, requestedCount)) {
       return NextResponse.json({ error: `عدد الأسئلة المعتمدة غير كافٍ. المتاح: ${selected.length} سؤال.` }, { status: 400 })
     }
