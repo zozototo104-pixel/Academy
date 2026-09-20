@@ -209,6 +209,15 @@ interface KnowledgeItemRow {
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
 
+type QuestionBankStats = {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+  byDifficulty?: Record<string, number>
+  byType?: Record<string, number>
+}
+
 interface StudyGuideSection {
   title: string
   summary: string
