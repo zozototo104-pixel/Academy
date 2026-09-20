@@ -1176,9 +1176,40 @@ async function createKnowledgeRows(programId: string, bookId: string | null, ite
   return data.length
 }
 
+async function cleanupDuplicateKnowledgeRows(programId: string, bookId: string | null) {
+  const rows = await db.bookKnowledgeItem.findMany({
+    where: { programId, bookId },
+    select: { id: true, category: true, title: true, summary: true, excerpt: true, keywords: true, importance: true, sourceNote: true, createdAt: true },
+    orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }],
+  })
+  const keep: typeof rows = []
+  const removeIds: string[] = []
+
+  for (const row of rows) {
+    const duplicateIndex = keep.findIndex((existing) => areKnowledgeRowsDuplicate(existing, row))
+    if (duplicateIndex === -1) {
+      keep.push(row)
+      continue
+    }
+
+    if (knowledgeRowScore(row) > knowledgeRowScore(keep[duplicateIndex])) {
+      removeIds.push(keep[duplicateIndex].id)
+      keep[duplicateIndex] = row
+    } else {
+      removeIds.push(row.id)
+    }
+  }
+
+  if (removeIds.length > 0) {
+    await db.bookKnowledgeItem.deleteMany({ where: { id: { in: removeIds } } })
+  }
+  return removeIds.length
+}
+
 async function mergeKnowledgeRows(programId: string, bookId: string | null, items: KnowledgeItemDraft[]) {
+  const removedDuplicates = await cleanupDuplicateKnowledgeRows(programId, bookId)
   const data = prepareKnowledgeRows(programId, bookId, items)
-  if (data.length === 0) return { inserted: 0, updated: 0, skipped: 0 }
+  if (data.length === 0) return { inserted: 0, updated: 0, skipped: 0, removedDuplicates }
 
   const existing = await db.bookKnowledgeItem.findMany({
     where: { programId, bookId },
