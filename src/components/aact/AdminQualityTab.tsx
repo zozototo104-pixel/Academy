@@ -562,6 +562,32 @@ export function AdminQualityTab() {
     }
   }
 
+  const generateExamFromQuestionBank = async (program: ProgramReadinessItem, semester: number) => {
+    const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
+    if (rawCount === null) return
+    const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
+    const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
+      method: 'POST',
+      body: JSON.stringify({ programId: program.id, semester, count, replaceExistingReview }),
+    })
+
+    setReadinessBusyId(program.id)
+    try {
+      try {
+        await doGenerate(false)
+      } catch (e: any) {
+        if (String(e?.message || '').includes('بانتظار المراجعة') && confirm('يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله بامتحان جديد من بنك الأسئلة؟')) {
+          await doGenerate(true)
+        } else {
+          throw e
+        }
+      }
+      window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: program.id, section: 'exams' } }))
+    } finally {
+      setReadinessBusyId(null)
+    }
+  }
+
   const updateQuestionBankStatus = async (question: QuestionBankReviewItem, status: QuestionBankReviewItem['status']) => {
     if (!questionBankProgram) return
     setQuestionBankBusyId(question.id)
