@@ -759,6 +759,62 @@ export function AdminQualityTab() {
         </Card>
       )}
 
+      <Card className="border-blue-100 bg-blue-50/40">
+        <CardContent className="p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">تقرير سلامة التخزين</h3>
+              <p className="mt-1 text-[11px] font-bold text-slate-500">مراقبة فقط: لا يحذف أي ملف ولا يمس الكتب أو بيانات الطلاب.</p>
+            </div>
+            <Button size="sm" variant="outline" disabled={storageReportLoading} onClick={refreshStorageReport} className="bg-white text-xs font-black">
+              {storageReportLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+              تحديث التقرير
+            </Button>
+          </div>
+
+          {!storageReport ? (
+            <p className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">لم يتم تحميل تقرير التخزين بعد.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">كتب مرتبطة بـ R2<br /><span className="text-lg text-[#0f2b46]">{storageReport.summary.linkedR2Objects}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">حجم R2 المرتبط<br /><span className="text-lg text-[#0f2b46]">{Math.round(storageReport.summary.linkedR2Bytes / 1024 / 1024)}MB</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-amber-700">كتب تحتاج مراجعة<br /><span className="text-lg">{storageReport.summary.suspiciousBooks}</span></div>
+                <div className="rounded-xl bg-white p-3 text-xs font-black text-red-700">مسودات اختبار يتيمة<br /><span className="text-lg">{storageReport.summary.orphanExamDrafts}</span></div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات Base64 قديمة: <b>{storageReport.summary.legacyBase64Books}</b><br />الحجم التقريبي: {Math.round(storageReport.summary.legacyBase64Bytes / 1024 / 1024)}MB</div>
+                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">قطع رفع مؤقتة: <b>{storageReport.summary.uploadChunks}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.uploadChunkBytes / 1024 / 1024)}MB</div>
+                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4">
+                <h4 className="mb-2 text-xs font-black text-[#0f2b46]">توصيات التقرير</h4>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {storageReport.recommendations.map((r, i) => <p key={i} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">• {r}</p>)}
+                </div>
+              </div>
+
+              {storageReport.samples.suspiciousBooks.length > 0 && (
+                <div className="rounded-2xl bg-white p-4">
+                  <h4 className="mb-2 text-xs font-black text-amber-700">نماذج كتب تحتاج مراجعة</h4>
+                  <div className="space-y-2">
+                    {storageReport.samples.suspiciousBooks.slice(0, 5).map((b) => (
+                      <p key={b.id} className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+                        {b.title} — {b.program || 'بدون برنامج'} — المزود: {b.storageProvider || 'غير محدد'} — مفتاح التخزين: {b.storageKey ? 'موجود' : 'غير موجود'}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="rounded-xl bg-blue-50 p-3 text-[11px] font-bold leading-6 text-blue-700">{storageReport.storageConfig.note}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="border-amber-200 bg-amber-50/50">
         <CardContent className="p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
