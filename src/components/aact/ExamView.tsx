@@ -146,6 +146,10 @@ export function ExamView() {
     setEssayAnswers({})
     setStartedAt(Date.now())
     setSecondsLeft(null)
+    setDraftStatus('loading')
+    setDraftUpdatedAt(null)
+    draftLoadedRef.current = false
+    lastDraftPayloadRef.current = ''
     submittedRef.current = false
     // تصفير حالة المراقبة والاعتراض لكل امتحان جديد
     setProctorConsent(false)
