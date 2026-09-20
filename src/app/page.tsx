@@ -54,8 +54,8 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { lab
       <div className="w-full max-w-xl text-center">
         <div className="aact-startup-logo mx-auto mb-12 flex h-48 w-48 items-center justify-center rounded-full sm:h-56 sm:w-56">
           <img
-            src="/api/assets/aact-seal?v=seal-final-1"
-            alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب"
+            src="/icon-512.png"
+            alt="شعار الأكاديمية"
             width={250}
             height={250}
             loading="eager"
