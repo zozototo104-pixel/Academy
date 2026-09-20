@@ -257,6 +257,8 @@ interface CurriculumUnitReviewItem {
   objectives: string[]
   content: { heading: string; body: string }[]
   order: number
+  semester: number
+  status: 'DRAFT' | 'APPROVED' | 'NEEDS_REVISION'
 }
 
 interface ProgramReadinessSnapshot {
