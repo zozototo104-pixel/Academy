@@ -1,6 +1,7 @@
 import { extractDocumentText, normalizeExtractedText } from '@/lib/document-extract'
 import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
 import { normalizeAcademic, cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
+import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 
 // ===== قراءة محتوى الكتب للامتحانات =====
 // لا نعتمد على textContent فقط. إذا كان النص غير مستخرج، نحاول قراءة الملف المخزن، ثم الرابط،
