@@ -522,7 +522,7 @@ export function AdminQualityTab() {
                         اقتراح وحدات من الكتب
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: 'books' }))}>توليد/مراجعة الاختبارات</Button>
+                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'exams' } }))}>توليد/مراجعة الاختبارات</Button>
                       <Button
                         size="sm"
                         disabled={busy || !item.readyWithoutManualApproval}
