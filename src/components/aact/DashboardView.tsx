@@ -432,6 +432,21 @@ export function DashboardView() {
                   </div>
                 )}
 
+                {!curriculumReady && (
+                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-800">
+                    <div className="flex items-start gap-2">
+                      <Hourglass className="mt-1 h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="font-black text-[#0f2b46]">المنهج قيد التجهيز الأكاديمي</p>
+                        <p>{curriculumMessage}</p>
+                        {active.program.curriculumReadiness?.dueAt && (
+                          <p className="mt-1 text-xs text-amber-700">الموعد المتوقع: {new Date(active.program.curriculumReadiness.dueAt).toLocaleString('ar-EG')}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {activeAcademicProfile && (
                   <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
