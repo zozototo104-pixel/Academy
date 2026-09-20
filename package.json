@@ -14,6 +14,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "bun scripts/seed.ts",
+    "db:seed:core": "tsx scripts/seed-core.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "setup:local": "bun install && bun run db:push && bun run db:seed"
   },
