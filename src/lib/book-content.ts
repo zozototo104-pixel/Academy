@@ -26,6 +26,9 @@ export interface RawBookForHydration {
   mimeType?: string | null
   size?: number | null
   data?: string | null
+  storageProvider?: string | null
+  storageKey?: string | null
+  fileUrl?: string | null
   link?: string | null
   textContent?: string | null
   linkReadStatus?: string | null
