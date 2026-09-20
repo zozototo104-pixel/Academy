@@ -1,0 +1,43 @@
+name: TypeScript Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    name: TypeScript full check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Dummy values only for Prisma client generation/type checking. This workflow does not connect to production DB.
+      DATABASE_URL: postgresql://user:password@localhost:5432/aact?schema=public
+      DIRECT_URL: postgresql://user:password@localhost:5432/aact?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-only-dummy-secret-change-in-production
+      AACT_AUTO_SEED_ON_LOGIN: "0"
+      AACT_ENABLE_DEMO_LOGIN: "0"
+      AACT_RUN_SEED: "NO"
+      AACT_BOOTSTRAP_DEFAULT_ADMIN: "0"
+      AACT_CONFIRM_DATA_LOSS: "NO"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Run TypeScript check
+        run: bun run typecheck
