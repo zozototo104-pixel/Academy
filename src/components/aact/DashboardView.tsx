@@ -723,7 +723,7 @@ export function DashboardView() {
           ) : null}
 
           {/* 12.2: امتحانا الفصلين من الكتب المقررة */}
-          {active?.semesterExams && active.semesterExams.length > 0 && (
+          {active?.semesterExams && active.semesterExams.length > 0 && curriculumReady && (
             active.semesterExams.map((exam: any, idx: number) => {
               // بوابة التسلسل: امتحان الفصل الثاني يفتح بعد اجتياز الفصل الأول
               const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
