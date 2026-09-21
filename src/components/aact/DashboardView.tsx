@@ -865,7 +865,7 @@ export function DashboardView() {
                           <h2 className="text-base font-black">{exam.title}</h2>
                           {locked && (
                             <Badge className="bg-amber-500/20 text-[9px] font-black text-amber-300 hover:bg-amber-500/20">
-                              مقفل — اجتز امتحان الفصل الأول أولاً
+                              {prereqLocked ? 'مقفل — اجتز امتحان الفصل الأول أولاً' : 'مقفل — اضغط جاهز للامتحان أولاً'}
                             </Badge>
                           )}
                         </div>
