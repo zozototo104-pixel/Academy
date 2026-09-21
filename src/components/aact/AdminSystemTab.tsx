@@ -432,7 +432,7 @@ export function AdminSystemTab() {
                   <button
                     key={m}
                     onClick={() => set('PAYMENT_MODE', m)}
-                    className={`px-4 py-2 text-[11px] font-black transition-colors ${form.PAYMENT_MODE === m ? 'bg-[#0f2b46] text-[#e0b83a]' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                    className={`px-4 py-2 text-[11px] font-black transition-colors ${currentPaymentMode === m ? 'bg-[#0f2b46] text-[#e0b83a]' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                   >
                     {m}
                   </button>
