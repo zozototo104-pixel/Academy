@@ -143,6 +143,13 @@ export async function POST(req: NextRequest) {
     if (existing && ['SCHEDULED', 'RESULT_APPROVED'].includes(existing.status)) {
       return NextResponse.json({ error: 'بحثك قيد المناقشة أو تم اعتماد نتيجته — لا يمكن التعديل الآن' }, { status: 400 })
     }
+    if (requestedStage === 'FINAL' && existing && existing.status === 'PLAN_SUBMITTED') {
+      return NextResponse.json({ error: 'لا يمكن تسليم البحث النهائي قبل اعتماد خطة البحث من الإدارة/المشرف' }, { status: 403 })
+    }
+    if (requestedStage === 'FINAL' && !existing) {
+      return NextResponse.json({ error: 'ابدأ أولاً بتسليم خطة البحث ثم انتظر اعتمادها قبل البحث النهائي' }, { status: 403 })
+    }
+    const nextStatus = requestedStage === 'PLAN' ? 'PLAN_SUBMITTED' : 'SUBMITTED'
     let thesis
     if (existing) {
       thesis = await db.thesisSubmission.update({
@@ -151,7 +158,7 @@ export async function POST(req: NextRequest) {
           title: title.trim().slice(0, 300),
           abstract: abstract.trim().slice(0, 4000),
           fileNote: fileNote?.trim().slice(0, 600) || null,
-          status: 'SUBMITTED',
+          status: nextStatus,
         },
       })
     } else {
@@ -162,7 +169,7 @@ export async function POST(req: NextRequest) {
           title: title.trim().slice(0, 300),
           abstract: abstract.trim().slice(0, 4000),
           fileNote: fileNote?.trim().slice(0, 600) || null,
-          status: 'SUBMITTED',
+          status: nextStatus,
         },
       })
     }
