@@ -157,8 +157,12 @@ export function AdminThesisTab() {
         body: JSON.stringify({ id: thesis.id, action, reviewNote }),
       })
       toast({
-        title: action === 'APPROVE_PLAN' ? 'تم اعتماد الخطة' : 'تم طلب تعديل الخطة',
-        description: action === 'APPROVE_PLAN' ? 'أُبلغ الطالب ويمكنه الآن تسليم البحث النهائي' : 'أُبلغ الطالب أن خطة البحث تحتاج تعديلاً',
+        title: action === 'APPROVE_PLAN' ? 'تم اعتماد الخطة' : action === 'REQUEST_FINAL_REVISION' ? 'تم طلب تعديل البحث النهائي' : 'تم طلب تعديل الخطة',
+        description: action === 'APPROVE_PLAN'
+          ? 'أُبلغ الطالب ويمكنه الآن تسليم البحث النهائي'
+          : action === 'REQUEST_FINAL_REVISION'
+            ? 'أُبلغ الطالب أن البحث النهائي يحتاج تعديلاً قبل المناقشة'
+            : 'أُبلغ الطالب أن خطة البحث تحتاج تعديلاً',
       })
       load()
     } catch (e: any) {
