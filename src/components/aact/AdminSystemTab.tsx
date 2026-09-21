@@ -277,7 +277,10 @@ export function AdminSystemTab() {
             <CreditCard className="h-3.5 w-3.5" /> بوابات الدفع
           </TabsTrigger>
           <TabsTrigger value="gemini" className="gap-1.5 text-[11px] font-bold sm:text-xs">
-            <Bot className="h-3.5 w-3.5" /> Gemini Live
+            <Bot className="h-3.5 w-3.5" /> Gemini / AI
+          </TabsTrigger>
+          <TabsTrigger value="launch" className="gap-1.5 text-[11px] font-bold sm:text-xs">
+            <ShieldCheck className="h-3.5 w-3.5" /> جاهزية الإطلاق
           </TabsTrigger>
           <TabsTrigger value="agent" className="gap-1.5 text-[11px] font-bold sm:text-xs">
             <Bot className="h-3.5 w-3.5" /> الوكيل المفتوح
