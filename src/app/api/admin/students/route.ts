@@ -113,6 +113,15 @@ export async function GET(req: NextRequest) {
         { country: { contains: q, mode: 'insensitive' } },
       ]
     }
+    if (programId && programId !== 'ALL') {
+      where.enrollments = { some: { programId } }
+    }
+    if (paymentStatus && paymentStatus !== 'ALL') {
+      where.payments = { some: { status: paymentStatus } }
+    }
+    if (thesisStatus && thesisStatus !== 'ALL') {
+      where.theses = { some: { status: thesisStatus } }
+    }
 
     const users = await db.user.findMany({
       where,
