@@ -104,7 +104,11 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
-    const { title, abstract, fileNote } = await req.json()
+    const { title, abstract, fileNote, stage } = await req.json()
+    const requestedStage = String(stage || 'FINAL').toUpperCase()
+    if (!['PLAN', 'FINAL'].includes(requestedStage)) {
+      return NextResponse.json({ error: 'مرحلة تسليم غير صحيحة' }, { status: 400 })
+    }
     if (!title?.trim() || !abstract?.trim() || abstract.trim().length < 50) {
       return NextResponse.json(
         { error: 'عنوان البحث وملخص لا يقل عن 50 حرفاً مطلوبان' },
