@@ -5,9 +5,11 @@ import { audit } from '@/lib/notify'
 import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
+import { getGatewayConfig, sandboxPaymentsAllowed } from '@/lib/payments'
 
 const SYSTEM_KEYS = [
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_NAME', 'SMTP_ENABLED',
+  'RESEND_API_KEY', 'MAIL_FROM', 'RESEND_FROM',
   'PAYMENT_MODE', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
   'PAYPAL_CLIENT_ID', 'PAYPAL_SECRET', 'PAYPAL_API_BASE',
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
