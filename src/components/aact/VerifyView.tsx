@@ -71,7 +71,7 @@ export function VerifyView() {
     const q = new URLSearchParams(window.location.search)
     const token = q.get('token')
     if (token) {
-      setSerial('تم استخدام رمز QR آمن')
+      setSerial('')
       verify(token, 'token')
       return
     }
