@@ -405,6 +405,20 @@ export function ThesisTab() {
   const [topicLoading, setTopicLoading] = useState(false)
   const [topicSaving, setTopicSaving] = useState(false)
 
+  const loadTopics = (programId?: string) => {
+    const id = programId || topicProgramId
+    if (!id) return
+    setTopicLoading(true)
+    api<{ programId: string; topics: ThesisTopicItem[]; requests: ThesisTopicRequestItem[] }>(`/api/thesis/topics?programId=${encodeURIComponent(id)}`)
+      .then((d) => {
+        setTopicProgramId(d.programId || id)
+        setTopics(d.topics || [])
+        setTopicRequests(d.requests || [])
+      })
+      .catch(() => {})
+      .finally(() => setTopicLoading(false))
+  }
+
   const load = () => {
     api<{ thesis: ThesisData | null; admission: AdmissionData | null; examsGate?: any }>('/api/thesis')
       .then((d) => {
@@ -412,6 +426,7 @@ export function ThesisTab() {
         setAdmission(d.admission)
         setExamsGate(d.examsGate || null)
         if (d.thesis) setForm({ title: d.thesis.title, abstract: d.thesis.abstract, fileNote: '' })
+        if (d.admission?.id) loadTopics()
       })
       .catch(() => {})
       .finally(() => setLoading(false))
