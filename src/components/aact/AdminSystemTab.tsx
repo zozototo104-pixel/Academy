@@ -505,6 +505,33 @@ export function AdminSystemTab() {
           </div>
         </TabsContent>
 
+        {/* ===== جاهزية الإطلاق ===== */}
+        <TabsContent value="launch" className="mt-4 space-y-4">
+          <div className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
+            <ShieldCheck className="ml-1 inline h-4 w-4 text-emerald-600" />
+            هذه اللوحة قراءة وتشخيص فقط: لا تعدّل البيانات ولا ترفع ملفات. هدفها إعطاء الإدارة صورة سريعة قبل الإطلاق.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(data.launchReadiness || []).map((item) => (
+              <div key={item.id} className={`rounded-2xl border p-4 ${item.status === 'ok' ? 'border-emerald-100 bg-emerald-50' : item.status === 'error' ? 'border-red-100 bg-red-50' : 'border-amber-100 bg-amber-50'}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-black text-[#0f2b46]">{item.label}</h4>
+                  <Badge className={item.status === 'ok' ? 'bg-emerald-100 text-emerald-700' : item.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}>
+                    {item.status === 'ok' ? 'جاهز' : item.status === 'error' ? 'خطأ' : 'تنبيه'}
+                  </Badge>
+                </div>
+                <p className="text-[11px] font-bold leading-relaxed text-slate-600">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          {(!data.launchReadiness || data.launchReadiness.length === 0) && (
+            <div className="rounded-xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-400">لا توجد بيانات جاهزية حالياً.</div>
+          )}
+          <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
+            التخزين R2 له تقرير سلامة مستقل موجود في لوحة الإدارة، لذلك لم يتم تكرار فحصه هنا. راجع تقرير سلامة التخزين عند تحديث الكتب أو الملفات الكبيرة.
+          </div>
+        </TabsContent>
+
         {/* ===== الوكيل الذكي المفتوح المصدر ===== */}
         <TabsContent value="agent" className="mt-4 space-y-4">
           <div className="rounded-xl border border-[#c9a227]/30 bg-[#fffaf0] p-4 text-[11px] font-bold leading-relaxed text-[#5c4d1a]">
