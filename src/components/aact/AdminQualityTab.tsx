@@ -809,6 +809,27 @@ export function AdminQualityTab() {
     void loadStudents()
   }
 
+  const loadStudentPreview = async (programId = studentPreviewProgramId) => {
+    setStudentPreviewLoading(true)
+    try {
+      const url = programId ? `/api/admin/student-preview?programId=${encodeURIComponent(programId)}` : '/api/admin/student-preview'
+      const res = await api<{ programs: any[]; preview: any | null }>(url)
+      setStudentPreviewPrograms(res.programs || [])
+      setStudentPreview(res.preview || null)
+      const selectedId = res.preview?.program?.id || programId || res.programs?.[0]?.id || ''
+      setStudentPreviewProgramId(selectedId)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل معاينة الطالب')
+    } finally {
+      setStudentPreviewLoading(false)
+    }
+  }
+
+  const openStudentPreview = () => {
+    setStudentPreviewOpen(true)
+    void loadStudentPreview()
+  }
+
   const loadThesisTopics = async (programId = thesisProgramId) => {
     if (!programId) return
     setThesisTopicLoading(true)
