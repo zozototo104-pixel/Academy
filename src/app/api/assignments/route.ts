@@ -98,6 +98,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    const limited = enforceApiRateLimit(req, 'assignment-submit', 8, 60 * 1000, user.id)
+    if (limited) return limited
     const contentType = req.headers.get('content-type') || ''
     let assignmentId = ''
     let answerText = ''
