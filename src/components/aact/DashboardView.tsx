@@ -878,15 +878,31 @@ export function DashboardView() {
                             {exam.passed ? '✓' : '⟳'} أفضل نتيجة: {exam.bestScore}%
                           </div>
                         )}
+                        {readiness && (
+                          <div className="mt-3 rounded-xl bg-white/10 p-3 text-[11px] font-bold leading-5 text-[#f5f0e1]">
+                            <p>اختبارات الوحدات: {readiness.passedUnitExamsCount}/{readiness.unitExamsCount} · الواجبات: {readiness.passedAssignmentsCount}/{readiness.assignmentsCount}</p>
+                            {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: عدم استكمال الواجبات/التقييمات سيجعل أعلى نتيجة ممكنة الآن {readiness.maxExamScore}% فقط.</p> : null}
+                          </div>
+                        )}
                       </div>
-                      <Button
-                        onClick={() => (locked ? null : openExam(exam.id, 'final'))}
-                        disabled={locked}
-                        className="shrink-0 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50"
-                      >
-                        <Hourglass className="ml-1 h-4 w-4" />
-                        {exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ امتحان الفصل'}
-                      </Button>
+                      <div className="flex shrink-0 flex-col gap-2">
+                        {!prereqLocked && !readiness?.readyMarked ? (
+                          <Button
+                            onClick={() => markReadyForSemesterExam(exam.semester)}
+                            className="bg-emerald-600 font-extrabold text-white hover:bg-emerald-700"
+                          >
+                            <CheckCircle2 className="ml-1 h-4 w-4" /> جاهز للامتحان
+                          </Button>
+                        ) : null}
+                        <Button
+                          onClick={() => (locked ? null : openExam(exam.id, 'final'))}
+                          disabled={locked}
+                          className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50"
+                        >
+                          <Hourglass className="ml-1 h-4 w-4" />
+                          {exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ امتحان الفصل'}
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
