@@ -149,6 +149,9 @@ export async function GET() {
         skippedEmails,
       },
       warnings,
+      checklist,
+      actionItems,
+      launchScenarios,
       recentEmails,
       recentAudits,
     })
