@@ -121,6 +121,10 @@ export async function GET() {
     const heavyDbFileBytes = heavyDbFiles.reduce((sum, item) => sum + item.approxBytes, 0)
     const heavyDbFileHighRisk = heavyDbFiles.filter((item) => item.status === 'HIGH_RISK').length
     const heavyDbFileWarnings = heavyDbFiles.filter((item) => item.status === 'WARNING' || item.status === 'WATCH').length
+    const externallyStoredAssignments = assignmentStorageRows.length
+    const externallyStoredAssignmentBytes = assignmentStorageRows.reduce((sum, item) => sum + bytes(item.size || 0), 0)
+    const externallyStoredDefenseRecordings = defenseRecordingRows.length
+    const externallyStoredDefenseRecordingBytes = defenseRecordingRows.reduce((sum, item) => sum + bytes(item.recordingSize || 0), 0)
 
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
