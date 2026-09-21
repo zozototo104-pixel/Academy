@@ -274,11 +274,13 @@ export function DashboardView() {
         api<{ messages: ChatMsg[] }>('/api/chat').catch(() => ({ messages: [] as ChatMsg[] })),
         api<{ memory: AcademicMemorySnapshot | null }>('/api/my/academic-memory').catch(() => ({ memory: null })),
         api<{ earned: MicroCredentialCard[]; available: MicroCredentialCard[] }>('/api/my/micro-credentials').catch(() => ({ earned: [], available: [] })),
-      ]).then(([c, m, mc]) => {
+        api<StudentDashboardSummary>('/api/my/dashboard-summary').catch(() => null),
+      ]).then(([c, m, mc, summary]) => {
         setLastChats(c.messages.slice(-2))
         setAcademicMemory(m.memory || null)
         setEarnedMicroCredentials(mc.earned || [])
         setAvailableMicroCredentials(mc.available || [])
+        if (summary) setStudentSummary(summary)
       }).catch(() => {})
 
       return e.enrollments || []
