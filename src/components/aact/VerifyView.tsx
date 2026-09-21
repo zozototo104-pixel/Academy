@@ -50,13 +50,14 @@ export function VerifyView() {
   const [result, setResult] = useState<VerifyResult | null>(null)
   const [showCert, setShowCert] = useState(false)
 
-  const verify = async (value?: string) => {
+  const verify = async (value?: string, mode: 'serial' | 'token' = 'serial') => {
     const s = (value ?? serial).trim()
     if (!s) return
     setLoading(true)
     setResult(null)
     try {
-      const d = await api<VerifyResult>(`/api/certificates/verify?serial=${encodeURIComponent(s)}`)
+      const param = mode === 'token' ? 'token' : 'serial'
+      const d = await api<VerifyResult>(`/api/certificates/verify?${param}=${encodeURIComponent(s)}`)
       setResult(d)
     } catch (e: any) {
       setResult({ valid: false, message: e.message })
