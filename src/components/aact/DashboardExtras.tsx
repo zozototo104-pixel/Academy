@@ -783,7 +783,7 @@ export function ThesisTab() {
       )}
 
       {/* نموذج التسليم — مع بوابة الامتحانات: لا بحث قبل إتمام جميع الامتحانات (مسار المنصة الرسمي) */}
-      {(!thesis || ['PLAN_APPROVED', 'NEEDS_REVISION'].includes(thesis.status)) && (
+      {(!thesis || ['PLAN_APPROVED', 'PLAN_NEEDS_REVISION', 'FINAL_NEEDS_REVISION', 'NEEDS_REVISION'].includes(thesis.status)) && (
         !admission || !['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED'].includes(admission.status) ? (
           <Card className="border-slate-200 bg-slate-50/60">
             <CardContent className="p-5 text-center">
