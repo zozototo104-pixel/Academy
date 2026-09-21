@@ -68,6 +68,97 @@ export function sandboxPaymentsBlockedMessage(): string {
   return 'الدفع التجريبي SANDBOX معطّل في بيئة الإنتاج. فعّل بوابة دفع حقيقية أو اضبط AACT_ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=true لبيئة اختبار مقصودة.'
 }
 
+export function stripeKeyKind(key: string): PaymentDiagnostics['stripeKeyKind'] {
+  if (!key) return 'missing'
+  if (key.startsWith('sk_live_')) return 'live'
+  if (key.startsWith('sk_test_')) return 'test'
+  return 'unknown'
+}
+
+export function paypalBaseKind(base: string): PaymentDiagnostics['paypalBaseKind'] {
+  if (!base) return 'missing'
+  const normalized = base.replace(/\/$/, '').toLowerCase()
+  if (normalized === 'https://api-m.paypal.com') return 'live'
+  if (normalized === 'https://api-m.sandbox.paypal.com' || normalized.includes('sandbox.paypal.com')) return 'sandbox'
+  return 'custom'
+}
+
+export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostics {
+  const sandboxAllowed = sandboxPaymentsAllowed()
+  const stripeKind = stripeKeyKind(cfg.stripeSecret)
+  const paypalKind = paypalBaseKind(cfg.paypalApiBase)
+  const stripeReady = cfg.mode === 'LIVE' && stripeKind === 'live'
+  const paypalReady = cfg.mode === 'LIVE' && !!(cfg.paypalClientId && cfg.paypalSecret) && paypalKind === 'live'
+  const sandboxReady = cfg.mode === 'SANDBOX' && sandboxAllowed
+  const warnings: string[] = []
+  const errors: string[] = []
+
+  if (cfg.mode === 'LIVE' && stripeKind === 'test') warnings.push('Stripe مضبوط بمفتاح sk_test في وضع LIVE؛ استخدم sk_live لتفعيل الدفع الحقيقي.')
+  if (cfg.mode === 'LIVE' && cfg.stripeSecret && stripeKind === 'unknown') warnings.push('مفتاح Stripe لا يبدأ بـ sk_live أو sk_test؛ تحقق من نسخه من لوحة Stripe.')
+  if (cfg.mode === 'LIVE' && cfg.stripeSecret && !cfg.stripeWebhookSecret) warnings.push('Stripe Secret موجود لكن Webhook Secret غير مضبوط؛ قد لا يعتمد السداد تلقائياً بعد الدفع.')
+  if (cfg.mode === 'LIVE' && cfg.paypalClientId && cfg.paypalSecret && paypalKind === 'sandbox') warnings.push('PayPal مضبوط على sandbox في وضع LIVE؛ استخدم https://api-m.paypal.com للدفع الحقيقي.')
+  if (cfg.mode === 'LIVE' && !stripeReady && !paypalReady) errors.push('لا توجد بوابة دفع حقيقية مفعلة حالياً. الدفع الإلكتروني غير متاح للطلاب حتى ضبط Stripe live أو PayPal live.')
+  if (cfg.mode === 'SANDBOX' && !sandboxAllowed) errors.push(sandboxPaymentsBlockedMessage())
+
+  const methods: PaymentMethodStatus[] = [
+    {
+      id: 'PAYMOB',
+      label: 'Paymob — بطاقة / محافظ مصر',
+      enabled: sandboxReady,
+      configured: false,
+      kind: 'placeholder',
+      reason: sandboxReady ? undefined : 'Paymob غير مربوط كبوابة حقيقية حالياً. طريقة الدفع غير متاحة الآن؛ يرجى اختيار وسيلة مفعلة أو مراجعة الإدارة.',
+    },
+    {
+      id: 'FAWRY',
+      label: 'فوري Fawry — مراكز الدفع',
+      enabled: sandboxReady,
+      configured: false,
+      kind: 'placeholder',
+      reason: sandboxReady ? undefined : 'فوري غير مربوط كبوابة حقيقية حالياً. طريقة الدفع غير متاحة الآن؛ يرجى مراجعة الإدارة.',
+    },
+    {
+      id: 'STRIPE',
+      label: 'Stripe — Visa / MasterCard / بطاقة دولية',
+      enabled: stripeReady,
+      configured: !!cfg.stripeSecret,
+      kind: 'gateway',
+      reason: stripeReady ? undefined : stripeKind === 'test' ? 'Stripe مضبوط بمفتاح تجريبي sk_test. استخدم sk_live لتفعيل الدفع الحقيقي.' : 'Stripe غير متاح حالياً لأن مفتاح الدفع الحقيقي غير مضبوط.',
+    },
+    {
+      id: 'PAYPAL',
+      label: 'PayPal — حسابات وبطاقات عبر PayPal',
+      enabled: paypalReady,
+      configured: !!(cfg.paypalClientId && cfg.paypalSecret),
+      kind: 'gateway',
+      reason: paypalReady ? undefined : paypalKind === 'sandbox' && cfg.paypalClientId && cfg.paypalSecret ? 'PayPal مضبوط على sandbox. استخدم رابط api-m.paypal.com لتفعيل الدفع الحقيقي.' : 'PayPal غير متاح حالياً لأن Client ID و Secret غير مضبوطين للدفع الحقيقي.',
+    },
+    {
+      id: 'BANK_TRANSFER',
+      label: 'تحويل بنكي — مراجعة الإدارة',
+      enabled: sandboxReady,
+      configured: false,
+      kind: 'manual',
+      reason: sandboxReady ? undefined : 'التحويل البنكي يحتاج تعليمات ومراجعة يدوية من الإدارة. هذه الطريقة غير مفعلة للدفع الذاتي حالياً.',
+    },
+  ]
+
+  return {
+    mode: cfg.mode,
+    sandboxAllowed,
+    stripeConfigured: !!cfg.stripeSecret,
+    stripeWebhookConfigured: !!cfg.stripeWebhookSecret,
+    stripeKeyKind: stripeKind,
+    paypalConfigured: !!(cfg.paypalClientId && cfg.paypalSecret),
+    paypalApiBase: cfg.paypalApiBase,
+    paypalBaseKind: paypalKind,
+    trueGatewayCount: [stripeReady, paypalReady].filter(Boolean).length,
+    warnings,
+    errors,
+    methods,
+  }
+}
+
 export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   const keys = ['PAYMENT_MODE', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_SECRET', 'PAYPAL_API_BASE']
   const rows = await db.setting.findMany({ where: { key: { in: keys } } })
