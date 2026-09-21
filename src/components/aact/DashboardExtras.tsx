@@ -24,6 +24,24 @@ import {
 
 // ============ تبويب الدفعات والفواتير ============
 
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentConfig {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+}
+
 interface Payment {
   id: string
   invoiceNo: string
