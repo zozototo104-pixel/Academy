@@ -42,7 +42,7 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const [books, chunks, questionRefs, drafts, reviewExams, heavyDbFiles] = await Promise.all([
+    const [books, chunks, questionRefs, drafts, reviewExams, assignmentStorageRows, defenseRecordingRows, heavyDbFiles] = await Promise.all([
       db.book.findMany({
         select: {
           id: true,
