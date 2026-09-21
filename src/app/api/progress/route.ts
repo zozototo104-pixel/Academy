@@ -168,7 +168,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { programId, unitId } = await req.json()
+    const { programId, unitId, action, semester } = await req.json()
+    if (action === 'READY_FOR_EXAM') {
+      if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
+      const readiness = await markSemesterReady(user.id, programId, Number(semester))
+      const message = readiness.complete
+        ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
+        : `تم تفعيل زر بدء امتحان الفصل مع تنبيه: الدرجات غير المكتملة ستخصم من سقف درجتك النهائية. أعلى نتيجة ممكنة الآن ${readiness.maxExamScore}%.`
+      return NextResponse.json({ ok: true, readiness, message })
+    }
     if (!programId || !unitId) {
       return NextResponse.json({ error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
     }
