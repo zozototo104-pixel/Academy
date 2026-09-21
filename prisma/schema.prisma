@@ -949,7 +949,12 @@ model ProgramExamAttempt {
   // المراقبة الإلكترونية الاختيارية (AI Proctoring) — كاميرا + كشف تبديل النوافذ
   proctoringEnabled  Boolean @default(false)
   proctoringLog      String? // JSON [{t,type}] لحظات الخروج/تبديل النوافذ
-  proctoringSnapshot String? // لقطة كاميرا عند التسليم (base64)
+  proctoringSnapshot String? // legacy فقط: لقطة كاميرا عند التسليم (base64)
+  proctoringSnapshotStorageProvider String?
+  proctoringSnapshotStorageKey      String?
+  proctoringSnapshotUrl             String?
+  proctoringSnapshotMime            String?
+  proctoringSnapshotSize            Int?
   createdAt   DateTime @default(now())
   answers     ProgramAnswer[]
 }
