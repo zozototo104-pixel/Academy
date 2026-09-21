@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
         programCategory: exam.program.category,
         booksCount: books.length,
         books: books.map((b) => ({ id: b.id, title: b.title, author: b.author })),
+        readiness,
       },
       questions: exam.questions.map((q) => ({
         id: q.id,
