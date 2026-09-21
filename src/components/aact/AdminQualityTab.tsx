@@ -953,6 +953,23 @@ export function AdminQualityTab() {
     void loadLaunchHealth()
   }
 
+  const loadDailyTasks = async () => {
+    setDailyTasksLoading(true)
+    try {
+      const res = await api<any>('/api/admin/daily-tasks')
+      setDailyTasks(res)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل مهام الإدارة اليوم')
+    } finally {
+      setDailyTasksLoading(false)
+    }
+  }
+
+  const openDailyTasks = () => {
+    setDailyTasksOpen(true)
+    void loadDailyTasks()
+  }
+
   const exportLaunchHealthReport = () => {
     if (!launchHealth) return
     const payload = {
