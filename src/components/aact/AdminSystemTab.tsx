@@ -268,6 +268,10 @@ export function AdminSystemTab() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
+        <ShieldCheck className="ml-1 inline h-4 w-4 text-[#a8841a]" />
+        إدارة الأسرار: القيم المقنّعة مثل •••••• محفوظة ولا تتغير عند الحفظ. لتغيير أي سر اكتب قيمة جديدة، ولا تُرسل مفاتيح Stripe/Gemini/Resend خارج لوحة الإدارة أو Vercel.
+      </div>
       <Tabs defaultValue="mail" dir="rtl">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-[#f1f5f9] p-1 sm:grid-cols-6">
           <TabsTrigger value="mail" className="gap-1.5 text-[11px] font-bold sm:text-xs">
