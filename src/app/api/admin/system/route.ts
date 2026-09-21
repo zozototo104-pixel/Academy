@@ -55,6 +55,7 @@ export async function GET() {
       values,
       secretsSet: {
         SMTP_PASS: !!(await db.setting.findUnique({ where: { key: 'SMTP_PASS' } }))?.value,
+        RESEND_API_KEY: !!(await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }))?.value,
         STRIPE_SECRET_KEY: !!(await db.setting.findUnique({ where: { key: 'STRIPE_SECRET_KEY' } }))?.value,
         STRIPE_WEBHOOK_SECRET: !!(await db.setting.findUnique({ where: { key: 'STRIPE_WEBHOOK_SECRET' } }))?.value,
         PAYPAL_SECRET: !!(await db.setting.findUnique({ where: { key: 'PAYPAL_SECRET' } }))?.value,
