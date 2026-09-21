@@ -299,6 +299,20 @@ export function DashboardView() {
     }
   }
 
+  const markReadyForSemesterExam = async (semester: number) => {
+    if (!active) return
+    try {
+      const res = await api<{ ok: boolean; message: string }>(`/api/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'READY_FOR_EXAM', programId: active.program.id, semester }),
+      })
+      toast({ title: 'تم تحديث جاهزية الامتحان', description: res.message })
+      await open(active.program.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر تفعيل الامتحان', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const submitAssignment = async (assignmentId: string) => {
     const answerText = (assignmentDrafts[assignmentId] || '').trim()
     const file = assignmentFiles[assignmentId]
