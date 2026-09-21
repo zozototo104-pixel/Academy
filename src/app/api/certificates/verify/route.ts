@@ -231,9 +231,10 @@ export async function GET(req: NextRequest) {
           academicProfile: academicProfileFromRules(program.admissionRules),
         })
       : null
-    const academicRecord = await buildCertificateAcademicRecord(cert)
+    const academicRecord = byToken ? await buildCertificateAcademicRecord(cert) : null
     return NextResponse.json({
       valid: cert.valid,
+      verificationMode: byToken ? 'QR_TOKEN' : 'SERIAL',
       certificate: {
         serial: cert.serial,
         type: cert.type,
