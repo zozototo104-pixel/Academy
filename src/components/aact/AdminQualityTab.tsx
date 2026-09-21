@@ -772,6 +772,40 @@ export function AdminQualityTab() {
 
   const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
 
+  const loadStudents = async (q = studentSearch, status = studentStatus) => {
+    setStudentsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (q.trim()) params.set('q', q.trim())
+      if (status !== 'ALL') params.set('status', status)
+      const res = await api<{ students: any[] }>(`/api/admin/students?${params.toString()}`)
+      setStudents(res.students || [])
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل الطلاب')
+    } finally {
+      setStudentsLoading(false)
+    }
+  }
+
+  const updateStudentAction = async (studentId: string, action: string, payload: any = {}) => {
+    setStudentBusyId(studentId)
+    try {
+      await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ userId: studentId, action, ...payload }) })
+      await loadStudents()
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تنفيذ الإجراء')
+    } finally {
+      setStudentBusyId(null)
+    }
+  }
+
+  const openStudentsManager = () => {
+    setStudentsOpen(true)
+    void loadStudents()
+  }
+
+  const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
+
   const loadThesisTopics = async (programId = thesisProgramId) => {
     if (!programId) return
     setThesisTopicLoading(true)
