@@ -27,6 +27,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
+    if (limited) return limited
     const { message, context, mode } = await req.json()
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
