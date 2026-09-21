@@ -925,6 +925,9 @@ export function AdminQualityTab() {
           <Button onClick={openStudentsManager} variant="outline" className="border-[#0f2b46] font-black text-[#0f2b46] hover:bg-slate-50">
             إدارة الطلاب
           </Button>
+          <Button onClick={openStudentPreview} variant="outline" className="border-emerald-300 font-black text-emerald-700 hover:bg-emerald-50">
+            معاينة تجربة الطالب
+          </Button>
           <Button onClick={load} variant="outline" className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
             <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث المؤشرات
           </Button>
