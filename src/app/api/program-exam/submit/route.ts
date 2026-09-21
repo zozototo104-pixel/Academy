@@ -105,6 +105,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
+    if (!readiness.readyMarked) {
+      return NextResponse.json({ error: 'اضغط أولاً زر «جاهز للامتحان» من بوابة الطالب قبل بدء الامتحان النهائي للفصل', code: 'EXAM_NOT_READY_MARKED' }, { status: 403 })
+    }
+
     const ragContext = await buildSupervisorContext(user.id).catch(() => '')
     const examAcademicContext = mergeContext(
       ragContext,
