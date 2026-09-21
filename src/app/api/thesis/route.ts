@@ -179,8 +179,10 @@ export async function POST(req: NextRequest) {
     await notify(
       user.id,
       'THESIS',
-      'تم استلام بحث التخرج',
-      `بحث «${thesis.title}» قيد المراجعة الأكاديمية. ستُبلّغ بموعد المناقشة أمام اللجنة المختصة — علماً أن المهلة القصوى 3-6 أشهر من تاريخ القبول.`,
+      requestedStage === 'PLAN' ? 'تم استلام خطة بحث التخرج' : 'تم استلام بحث التخرج النهائي',
+      requestedStage === 'PLAN'
+        ? `خطة بحث «${thesis.title}» قيد المراجعة الأكاديمية. بعد اعتماد الخطة يمكنك تسليم البحث النهائي.`
+        : `بحث «${thesis.title}» قيد المراجعة الأكاديمية. ستُبلّغ بموعد المناقشة أمام اللجنة المختصة — علماً أن المهلة القصوى 3-6 أشهر من تاريخ القبول.`,
       'dashboard'
     )
     await audit({ id: user.id, name: user.name }, 'SUBMIT_THESIS', 'ThesisSubmission', thesis.id, thesis.title)
