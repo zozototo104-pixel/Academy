@@ -6,6 +6,9 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 export async function GET(req: NextRequest) {
   try {
     const data = req.nextUrl.searchParams.get('data')
+    const qrLimit = enforceApiRateLimit(req, 'certificates:qr', 60, 10 * 60 * 1000, data?.slice(0, 120) || 'empty')
+    if (qrLimit) return qrLimit
+
     if (!data) return NextResponse.json({ error: 'بيانات QR مطلوبة' }, { status: 400 })
     const url = await QRCode.toDataURL(data.slice(0, 512), {
       width: 220,
