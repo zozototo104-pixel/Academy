@@ -112,6 +112,7 @@ model Enrollment {
   programId      String
   status         String    @default("ACTIVE") // ACTIVE | COMPLETED
   completedUnits String    @default("[]") // JSON array of unit ids
+  examReadiness  String    @default("[]") // JSON array of semester numbers the student explicitly marked ready for
   finalScore     Float?
   certificateNo  String?
   createdAt      DateTime  @default(now())
