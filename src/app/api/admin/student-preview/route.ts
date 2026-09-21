@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         },
         assignments: {
           where: { status: 'PUBLISHED' },
-          select: { id: true, title: true, description: true, dueDate: true, semester: true, createdAt: true },
+          select: { id: true, title: true, description: true, dueDays: true, semester: true, createdAt: true },
           orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }],
           take: 40,
         },
