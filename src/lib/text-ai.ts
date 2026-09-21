@@ -220,7 +220,6 @@ async function callAnthropic(s: Awaited<ReturnType<typeof settings>>, model: str
       system: promptWithJsonInstruction(opts),
       messages,
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
-      temperature: opts.temperature ?? (opts.json ? 0.25 : 0.6),
     }),
   })
   const data: any = await response.json().catch(() => ({}))
