@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer'
 import { db } from '@/lib/db'
 
 // ===== نظام الإشعارات البريدية للمنصة =====
-// إعدادات SMTP تُدار من لوحة الإدارة (تبويب «البريد والدفع») أو من متغيرات البيئة
+// إعدادات Resend وSMTP تُدار من لوحة الإدارة أو من متغيرات البيئة.
 // بدون إعدادات: لا يتوقف أي إجراء — يُسجَّل البريد في EmailLog بحالة SKIPPED
 
 export interface SmtpConfig {
