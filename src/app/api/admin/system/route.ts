@@ -38,6 +38,7 @@ export async function GET() {
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
+    const textAi = await textAiDiagnostics()
     const agent = await localAgentDiagnostics()
     const payment = paymentDiagnostics(await getGatewayConfig())
     const resendKeyRow = await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }).catch(() => null)
