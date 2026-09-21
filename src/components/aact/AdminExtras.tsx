@@ -245,9 +245,9 @@ export function AdminThesisTab() {
           const programName = safeText(t.admission?.program, 'برنامج غير محدد')
           const abstractText = safeText(t.abstract, 'لا يوجد ملخص محفوظ لهذا البحث')
           const journey = [
-            { title: 'الخطة', done: ['PLAN_SUBMITTED', 'PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' || t.status === 'NEEDS_REVISION' },
-            { title: 'اعتماد الخطة', done: ['PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' },
-            { title: 'البحث النهائي', done: ['SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_APPROVED' },
+            { title: 'الخطة', done: ['PLAN_SUBMITTED', 'PLAN_APPROVED', 'FINAL_NEEDS_REVISION', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' || ['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) },
+            { title: 'اعتماد الخطة', done: ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' },
+            { title: 'البحث النهائي', done: ['SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(t.status) },
             { title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'SUBMITTED' },
             { title: 'النتيجة', done: t.status === 'RESULT_APPROVED', active: t.status === 'SCHEDULED' },
           ]
