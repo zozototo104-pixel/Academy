@@ -1401,7 +1401,10 @@ export function AdminQualityTab() {
               <label className="mb-1 block text-xs font-black text-slate-600">البرنامج / التخصص</label>
               <select
                 value={thesisProgramId}
-                onChange={(e) => setThesisProgramId(e.target.value)}
+                onChange={(e) => {
+                  setThesisProgramId(e.target.value)
+                  void loadThesisTopics(e.target.value)
+                }}
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
               >
                 <option value="">اختر البرنامج</option>
