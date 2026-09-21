@@ -42,7 +42,7 @@ export async function GET() {
       db.thesisSubmission.findFirst({
         where: { userId: user.id },
         orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, status: true, reviewNote: true, defenseDate: true, resultScore: true, resultApprovedAt: true, updatedAt: true },
+        select: { id: true, title: true, status: true, reviewNote: true, defenseDate: true, resultScore: true, reviewedAt: true, updatedAt: true },
       }),
     ])
 
