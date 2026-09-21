@@ -407,9 +407,8 @@ export function ThesisTab() {
 
   const loadTopics = (programId?: string) => {
     const id = programId || topicProgramId
-    if (!id) return
     setTopicLoading(true)
-    api<{ programId: string; topics: ThesisTopicItem[]; requests: ThesisTopicRequestItem[] }>(`/api/thesis/topics?programId=${encodeURIComponent(id)}`)
+    api<{ programId: string; topics: ThesisTopicItem[]; requests: ThesisTopicRequestItem[] }>(id ? `/api/thesis/topics?programId=${encodeURIComponent(id)}` : '/api/thesis/topics')
       .then((d) => {
         setTopicProgramId(d.programId || id)
         setTopics(d.topics || [])
