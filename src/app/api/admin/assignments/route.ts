@@ -195,6 +195,17 @@ export async function PATCH(req: NextRequest) {
       `واجب «${submission.assignment.title}»: ${safeScore == null ? 'تمت المراجعة' : `${safeScore}/${submission.assignment.points}`}${feedback ? ` — ${feedback.slice(0, 120)}` : ''}`,
       'dashboard'
     )
+    if (submission.user?.email && finalStatus !== 'SUBMITTED') {
+      await emailAssignmentGraded(
+        submission.user.email,
+        submission.user.name || 'الطالب',
+        submission.assignment.title,
+        finalStatus,
+        safeScore,
+        submission.assignment.points,
+        feedback || null
+      )
+    }
     await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
 
     return NextResponse.json({ submission })
