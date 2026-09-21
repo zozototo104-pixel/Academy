@@ -584,6 +584,32 @@ export function ThesisTab() {
         </div>
       )}
 
+      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <CheckCircle2 className="h-5 w-5 text-[#a8841a]" /> رحلة بحث التخرج
+              </h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">تابع مكانك الحالي من اختيار العنوان حتى اعتماد النتيجة.</p>
+            </div>
+            {thesis ? <Badge className={status?.cls}>{status?.label || thesis.status}</Badge> : <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100">لم يبدأ</Badge>}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
+            {thesisSteps.map((step, index) => (
+              <div key={step.key} className={`rounded-2xl border p-3 ${step.done ? 'border-emerald-200 bg-emerald-50' : step.active ? 'border-[#c9a227] bg-white' : 'border-slate-100 bg-white/70'}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${step.done ? 'bg-emerald-600 text-white' : step.active ? 'bg-[#c9a227] text-white' : 'bg-slate-100 text-slate-400'}`}>{step.done ? '✓' : index + 1}</span>
+                  <span className={`text-[10px] font-black ${step.done ? 'text-emerald-700' : step.active ? 'text-[#a8841a]' : 'text-slate-400'}`}>{step.done ? 'مكتملة' : step.active ? 'الحالية' : 'لاحقًا'}</span>
+                </div>
+                <p className="text-xs font-black text-[#0f2b46]">{step.title}</p>
+                <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{step.note}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* خطة بحث التخرج المنشورة من الإدارة */}
       <Card className="border-[#0f2b46]/10 bg-white">
         <CardContent className="p-5">
