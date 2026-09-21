@@ -525,6 +525,7 @@ export function ThesisTab() {
     NEEDS_REVISION: { label: 'يحتاج تعديلات', cls: 'bg-red-100 text-red-600' },
   }
 
+  const status = thesis ? THESIS_STATUS[thesis.status] : undefined
   const approvedTopic = topicRequests.some((r) => r.status === 'APPROVED')
   const topicPending = topicRequests.some((r) => r.status === 'PENDING' || r.status === 'NEEDS_REVISION')
   const thesisStatus = thesis?.status || ''
