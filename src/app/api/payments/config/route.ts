@@ -8,6 +8,7 @@ export async function GET() {
     const cfg = await getGatewayConfig()
     return NextResponse.json({
       mode: cfg.mode,
+      sandboxAllowed: sandboxPaymentsAllowed(),
       providers: {
         STRIPE: !!cfg.stripeSecret,
         PAYPAL: !!(cfg.paypalClientId && cfg.paypalSecret),
