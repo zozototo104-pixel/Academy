@@ -544,7 +544,7 @@ export function AdminSystemTab() {
           <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800 sm:grid-cols-3">
             <div><Bot className="ml-1 inline h-4 w-4" /> نموذج النصوص: الامتحانات، التصحيح، المشرف الذكي، تحليل القبول، والبحث.</div>
             <div><Radio className="ml-1 inline h-4 w-4" /> Gemini Live: محادثة صوتية حية عبر WebSocket، وليس مجرد Text→TTS.</div>
-            <div><Info className="ml-1 inline h-4 w-4" /> تم تنظيم العرض فقط؛ لم يتغير منطق Gemini أو توليد الامتحانات.</div>
+            <div><Info className="ml-1 inline h-4 w-4" /> يمكن الآن اختيار مزود نصوص خارجي للامتحانات والتحليل، مع بقاء Gemini Live منفصلاً للصوت.</div>
           </div>
           <div className="grid gap-3 rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4 text-xs font-bold text-[#0f2b46] sm:grid-cols-3">
             <div className="rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
