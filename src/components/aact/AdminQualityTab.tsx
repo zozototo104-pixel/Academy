@@ -358,6 +358,8 @@ export function AdminQualityTab() {
   const [thesisTopicDescription, setThesisTopicDescription] = useState('')
   const [thesisGenerateCount, setThesisGenerateCount] = useState(6)
   const [thesisTopicBusy, setThesisTopicBusy] = useState(false)
+  const [thesisTopicList, setThesisTopicList] = useState<any[]>([])
+  const [thesisTopicLoading, setThesisTopicLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
