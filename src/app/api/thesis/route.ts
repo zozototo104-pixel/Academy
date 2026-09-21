@@ -144,11 +144,11 @@ export async function POST(req: NextRequest) {
     if (existing && ['SCHEDULED', 'RESULT_APPROVED'].includes(existing.status)) {
       return NextResponse.json({ error: 'بحثك قيد المناقشة أو تم اعتماد نتيجته — لا يمكن التعديل الآن' }, { status: 400 })
     }
-    if (requestedStage === 'FINAL' && existing && existing.status === 'PLAN_SUBMITTED') {
+    if (requestedStage === 'FINAL' && (!existing || !['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(existing.status))) {
       return NextResponse.json({ error: 'لا يمكن تسليم البحث النهائي قبل اعتماد خطة البحث من الإدارة/المشرف' }, { status: 403 })
     }
-    if (requestedStage === 'FINAL' && !existing) {
-      return NextResponse.json({ error: 'ابدأ أولاً بتسليم خطة البحث ثم انتظر اعتمادها قبل البحث النهائي' }, { status: 403 })
+    if (requestedStage === 'PLAN' && existing && !['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(existing.status)) {
+      return NextResponse.json({ error: 'لا يمكن إعادة تسليم الخطة إلا إذا طلبت الإدارة تعديلها' }, { status: 403 })
     }
     const nextStatus = requestedStage === 'PLAN' ? 'PLAN_SUBMITTED' : 'SUBMITTED'
     let thesis
