@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
+import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 
 interface SubmitAnswer {
   questionId: string
