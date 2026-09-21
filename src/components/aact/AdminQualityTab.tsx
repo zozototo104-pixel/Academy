@@ -838,8 +838,8 @@ export function AdminQualityTab() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={createManualThesisTopic} className="bg-white text-xs font-black">إضافة عنوان يدوي</Button>
-              <Button size="sm" onClick={generateThesisTopics} className="bg-[#0f2b46] text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">توليد عناوين بالذكاء</Button>
+              <Button size="sm" variant="outline" onClick={() => openThesisTopicDialog('manual')} className="bg-white text-xs font-black">إضافة عنوان يدوي</Button>
+              <Button size="sm" onClick={() => openThesisTopicDialog('generate')} className="bg-[#0f2b46] text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">توليد عناوين بالذكاء</Button>
             </div>
           </div>
         </CardContent>
