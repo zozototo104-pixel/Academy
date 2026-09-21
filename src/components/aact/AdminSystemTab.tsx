@@ -178,7 +178,7 @@ export function AdminSystemTab() {
         body: JSON.stringify(form),
       })
       toast({ title: 'تم الحفظ', description: 'تم تطبيق الإعدادات. الحقول السرية لا تتغير إلا إذا كتبت قيمة جديدة فيها.', variant: 'default' as any })
-      setData((prev) => (prev ? { ...prev, values: d.values, gemini: d.gemini || prev.gemini, agent: d.agent || prev.agent } : prev))
+      setData((prev) => (prev ? { ...prev, values: d.values, gemini: d.gemini || prev.gemini, textAi: d.textAi || prev.textAi, agent: d.agent || prev.agent } : prev))
       setForm(d.values)
       load()
     } catch (e: any) {
