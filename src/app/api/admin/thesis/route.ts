@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getSettings } from '@/lib/settings'
-import { emailDefenseScheduled } from '@/lib/mailer'
+import { emailDefenseScheduled, emailThesisResultApproved } from '@/lib/mailer'
 
 export const dynamic = 'force-dynamic'
 
