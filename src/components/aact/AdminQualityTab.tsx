@@ -1662,6 +1662,53 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={dailyTasksOpen} onOpenChange={setDailyTasksOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مهام الإدارة اليوم</DialogTitle>
+            <DialogDescription>قائمة تشغيل يومية لما يحتاج متابعة فعلية: طلبات، دفعات، واجبات، أبحاث، وطلاب لديهم مشاكل.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="rounded-2xl bg-[#fffaf0] px-4 py-3 text-sm font-black text-[#0f2b46]">
+                إجمالي المهام المفتوحة: {dailyTasks?.total ?? 0}
+              </div>
+              <Button onClick={loadDailyTasks} disabled={dailyTasksLoading} className="bg-[#0f2b46] font-black text-[#f5f0e1]">
+                {dailyTasksLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+                تحديث المهام
+              </Button>
+            </div>
+            {dailyTasksLoading ? (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">جاري تحميل مهام الإدارة...</div>
+            ) : dailyTasks?.groups?.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {dailyTasks.groups.map((group: any) => (
+                  <div key={group.key} className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-black text-[#0f2b46]">{group.title}</h4>
+                      <Badge className={group.count ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'}>{group.count}</Badge>
+                    </div>
+                    <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                      {group.items?.length ? group.items.slice(0, 8).map((item: any) => (
+                        <div key={item.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-black text-[#0f2b46]">{item.title}</span>
+                            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#a8841a]">{item.status || '-'}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-500">{item.subtitle || '-'}</p>
+                        </div>
+                      )) : <div className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد مهام في هذا القسم.</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">اضغط تحديث المهام للتحميل.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={launchHealthOpen} onOpenChange={setLaunchHealthOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
           <DialogHeader>
