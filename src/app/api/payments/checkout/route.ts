@@ -4,8 +4,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { createProviderCheckout, getGatewayConfig, paymentMethodStatus } from '@/lib/payments'
 
 // POST /api/payments/checkout — إنشاء جلسة دفع حقيقية لدى المزود
-// مع STRIPE_SECRET_KEY أو مفاتيح PayPal يُعاد رابط دفع حقيقي (redirectUrl)
-// بدون مفاتيح يعيد وضع SANDBOX ليكتمل السداد عبر تأكيد آمن داخل المنصة
+// مع STRIPE_SECRET_KEY live أو مفاتيح PayPal live يُعاد رابط دفع حقيقي (redirectUrl)
+// الطرق غير المضبوطة تُرفض برسالة واضحة. SANDBOX لا يعمل إلا إذا كان مسموحاً في البيئة الحالية.
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
