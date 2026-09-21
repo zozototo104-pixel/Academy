@@ -1733,6 +1733,33 @@ export function AdminQualityTab() {
               )}
             </div>
 
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
+              <h4 className="mb-2 text-xs font-black text-[#0f2b46]">طلبات الطلاب على عناوين البحث</h4>
+              {thesisTopicRequests.length ? (
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {thesisTopicRequests.map((request: any) => (
+                    <div key={request.id} className="rounded-xl bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black leading-6 text-[#0f2b46]">{request.proposedTitle}</p>
+                          <p className="text-[11px] font-bold leading-5 text-slate-500">الطالب: {request.user?.name || request.user?.email || 'غير محدد'} · الحالة: {request.status === 'APPROVED' ? 'معتمد' : request.status === 'REJECTED' ? 'مرفوض' : request.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار الاعتماد'}</p>
+                          {request.rationale ? <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">سبب الاختيار: {request.rationale}</p> : null}
+                          {request.adminNote ? <p className="mt-1 text-[11px] font-bold leading-5 text-amber-700">ملاحظة الإدارة: {request.adminNote}</p> : null}
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-1">
+                          {request.status !== 'APPROVED' ? <Button size="sm" className="h-8 bg-emerald-600 px-2 text-[11px] font-black text-white hover:bg-emerald-700" disabled={thesisTopicBusy} onClick={() => updateThesisTopicRequestStatus(request.id, 'APPROVED')}>اعتماد</Button> : null}
+                          <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] font-black" disabled={thesisTopicBusy} onClick={() => updateThesisTopicRequestStatus(request.id, 'NEEDS_REVISION')}>طلب تعديل</Button>
+                          <Button size="sm" variant="outline" className="h-8 border-red-200 px-2 text-[11px] font-black text-red-700" disabled={thesisTopicBusy} onClick={() => updateThesisTopicRequestStatus(request.id, 'REJECTED')}>رفض</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">لا توجد طلبات طلاب على عناوين البحث لهذا البرنامج.</div>
+              )}
+            </div>
+
             <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-slate-100 bg-white/95 p-3 backdrop-blur sm:-mx-6 sm:px-6">
               <Button variant="outline" className="h-11 flex-1" onClick={() => setThesisTopicDialogOpen(false)}>إلغاء</Button>
               <Button className="h-11 flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={thesisTopicBusy || !thesisProgramId} onClick={submitThesisTopicAction}>
