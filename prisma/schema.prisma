@@ -402,6 +402,7 @@ model ThesisSubmission {
   title       String
   abstract    String
   fileNote    String? // رابط أو وصف ملف البحث
+  reviewNote  String? // ملاحظات الإدارة/المشرف عند طلب تعديل الخطة أو البحث النهائي
   fileStorageProvider String?
   fileStorageKey      String?
   fileUrl             String?
