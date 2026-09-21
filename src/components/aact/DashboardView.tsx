@@ -91,6 +91,20 @@ interface ProgressData {
     questionCount: number
     bestScore: number | null
     passed: boolean
+    readiness?: {
+      semester: number
+      readyMarked: boolean
+      complete: boolean
+      maxExamScore: number
+      assignmentWeight: number
+      missingAssignmentWeight: number
+      unitExamsCount: number
+      passedUnitExamsCount: number
+      assignmentsCount: number
+      passedAssignmentsCount: number
+      missingUnitExams: { id: string; title: string }[]
+      missingAssignments: { id: string; title: string; weight: number }[]
+    } | null
   }[]
   units: UnitInfo[]
 }
