@@ -92,6 +92,9 @@ export async function GET(req: NextRequest) {
       })
     )
     const semesterExams = examMeta.filter((e) => e.questionCount > 0)
+    const semesterReadiness = await Promise.all(
+      semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
+    )
     const finalExam = semesterExams[0] || null
 
     return NextResponse.json({
