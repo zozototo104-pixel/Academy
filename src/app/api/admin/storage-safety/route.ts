@@ -42,7 +42,7 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const [books, chunks, questionRefs, drafts, reviewExams] = await Promise.all([
+    const [books, chunks, questionRefs, drafts, reviewExams, heavyDbFiles] = await Promise.all([
       db.book.findMany({
         select: {
           id: true,
@@ -63,6 +63,13 @@ export async function GET() {
       db.questionBankItem.findMany({ select: { id: true, bookId: true, unitId: true } }),
       db.examDraft.findMany({ select: { id: true, examId: true, examType: true, userId: true, updatedAt: true } }),
       db.programExam.findMany({ where: { status: 'REVIEW' }, select: { id: true, title: true, programId: true, createdAt: true, _count: { select: { questions: true } } } }),
+      Promise.all([
+        heavyColumnReport('كتب قديمة مخزنة داخل قاعدة البيانات', 'Book', 'data', 'الكتب الجديدة يجب أن تكون على R2. هذا الحقل legacy فقط.'),
+        heavyColumnReport('مرفقات الواجبات داخل قاعدة البيانات', 'AssignmentSubmission', 'data', 'هذا يحتاج نقله إلى R2 قبل توسعة الطلاب إذا بدأت الواجبات المرفقة.'),
+        heavyColumnReport('تسجيلات مناقشة البحث داخل قاعدة البيانات', 'ThesisSubmission', 'recordingData', 'تسجيلات الفيديو يجب أن تنتقل إلى R2 أو خدمة تسجيل خارجية قبل التوسع.'),
+        heavyColumnReport('الرسائل الصوتية داخل قاعدة البيانات', 'SupervisorChannelMessage', 'audioData', 'الملاحظات الصوتية القصيرة قد تكبر مع كثرة الطلاب؛ الأفضل نقلها إلى R2.'),
+        heavyColumnReport('لقطات مراقبة الاختبارات داخل قاعدة البيانات', 'ProgramExamAttempt', 'proctoringSnapshot', 'لقطات الكاميرا يجب ألا تبقى داخل Neon عند استخدام المراقبة على نطاق واسع.'),
+      ]),
     ])
 
     const bookIds = new Set(books.map((b) => b.id))
