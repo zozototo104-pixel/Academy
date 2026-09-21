@@ -1758,6 +1758,7 @@ export function AdminQualityTab() {
                       <p className="mt-1 text-[11px] font-bold text-slate-500">محاولات: {s._count?.examAttempts || 0} · واجبات: {s._count?.assignmentSubmissions || 0} · طلبات بحث: {s._count?.thesisTopicRequests || 0}</p>
                     </div>
                     <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => loadStudentDetails(s.id)} className="text-xs font-black">تفاصيل</Button>
                       {s.status !== 'ACTIVE' ? <Button size="sm" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ACTIVE' })} className="bg-emerald-600 text-xs font-black text-white">تفعيل</Button> : null}
                       {s.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
                       {s.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
