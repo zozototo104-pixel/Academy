@@ -431,10 +431,11 @@ export function ThesisTab() {
   }
 
   const load = () => {
-    api<{ thesis: ThesisData | null; admission: AdmissionData | null; examsGate?: any }>('/api/thesis')
+    api<{ thesis: ThesisData | null; admission: AdmissionData | null; thesisPlan?: ThesisPlanData | null; examsGate?: any }>('/api/thesis')
       .then((d) => {
         setThesis(d.thesis)
         setAdmission(d.admission)
+        setThesisPlan(d.thesisPlan || null)
         setExamsGate(d.examsGate || null)
         if (d.thesis) setForm({ title: d.thesis.title, abstract: d.thesis.abstract, fileNote: '' })
         if (d.admission?.id) loadTopics()
