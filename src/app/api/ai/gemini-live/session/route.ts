@@ -112,6 +112,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
   }
 
+  const sessionLimit = enforceApiRateLimit(req, 'ai:gemini-live-session', 12, 10 * 60 * 1000, user.id)
+  if (sessionLimit) return sessionLimit
+
   await ensureGeminiKey()
   const apiKey = await geminiApiKey()
   if (!apiKey) {
