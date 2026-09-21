@@ -430,6 +430,52 @@ model ThesisSubmission {
   updatedAt   DateTime @updatedAt
 }
 
+model ThesisTopic {
+  id           String   @id @default(cuid())
+  programId    String
+  program      Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  objectives   String?
+  methodology  String?
+  keywords     String?
+  source       String   @default("ADMIN") // ADMIN | AI | STUDENT
+  status       String   @default("APPROVED") // DRAFT | APPROVED | DISABLED | NEEDS_REVIEW
+  proposedById String?
+  proposedBy   User?    @relation("ThesisTopicProposer", fields: [proposedById], references: [id], onDelete: SetNull)
+  reviewedById String?
+  reviewedBy   User?    @relation("ThesisTopicReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  requests     ThesisTopicRequest[]
+
+  @@index([programId, status])
+  @@index([source])
+}
+
+model ThesisTopicRequest {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId    String
+  program      Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  topicId      String?
+  topic        ThesisTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  proposedTitle String
+  rationale    String?
+  status       String   @default("PENDING") // PENDING | APPROVED | NEEDS_REVISION | REJECTED
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([programId, status])
+  @@index([topicId])
+}
+
 model DefenseMessage {
   id        String   @id @default(cuid())
   thesisId  String
