@@ -1115,6 +1115,9 @@ export function AdminQualityTab() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button onClick={openDailyTasks} variant="outline" className="border-purple-300 font-black text-purple-700 hover:bg-purple-50">
+            مهام الإدارة اليوم
+          </Button>
           <Button onClick={openStudentsManager} variant="outline" className="border-[#0f2b46] font-black text-[#0f2b46] hover:bg-slate-50">
             إدارة الطلاب
           </Button>
