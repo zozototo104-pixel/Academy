@@ -83,6 +83,8 @@ model Program {
   programExams ProgramExam[]
   admissions  AdmissionApplication[]
   microCredentials MicroCredential[]
+  thesisTopics ThesisTopic[]
+  thesisTopicRequests ThesisTopicRequest[]
 }
 
 model Unit {
