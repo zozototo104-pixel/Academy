@@ -17,6 +17,8 @@ model User {
   phone          String?
   country        String?
   role           String       @default("STUDENT") // STUDENT | ADMIN | SUPERVISOR
+  status         String       @default("ACTIVE") // ACTIVE | DISABLED | ARCHIVED
+  archivedAt     DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   enrollments    Enrollment[]
