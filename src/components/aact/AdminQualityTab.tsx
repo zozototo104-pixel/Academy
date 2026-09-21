@@ -853,6 +853,24 @@ export function AdminQualityTab() {
     void loadMailStatus()
   }
 
+  const sendMailTest = async () => {
+    const to = mailTestEmail.trim()
+    if (!to || !to.includes('@')) return alert('اكتب بريدًا صحيحًا لإرسال رسالة الاختبار')
+    setMailTestSending(true)
+    try {
+      const res = await api<{ ok: boolean; to: string }>('/api/admin/mail-status', {
+        method: 'POST',
+        body: JSON.stringify({ to }),
+      })
+      alert(res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'تمت محاولة الإرسال، راجع حالة البريد والسجل')
+      await loadMailStatus()
+    } catch (e: any) {
+      alert(e?.message || 'تعذر إرسال رسالة الاختبار')
+    } finally {
+      setMailTestSending(false)
+    }
+  }
+
   const loadThesisTopics = async (programId = thesisProgramId) => {
     if (!programId) return
     setThesisTopicLoading(true)
