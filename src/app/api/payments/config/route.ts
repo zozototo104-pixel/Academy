@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getGatewayConfig } from '@/lib/payments'
+import { getGatewayConfig, sandboxPaymentsAllowed } from '@/lib/payments'
 
 // GET /api/payments/config — توزيع إعدادات الدفع الآمنة على الواجهة
 // يخبر الواجهة: وضع الدفع (SANDBOX/LIVE) والمزودين المتاحين فعلياً — بدون أي أسرار
