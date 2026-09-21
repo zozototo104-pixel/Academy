@@ -417,6 +417,26 @@ export async function emailThesisPlanDecision(to: string, name: string, thesisTi
   })
 }
 
+export async function emailThesisFinalRevision(to: string, name: string, thesisTitle: string, reviewNote?: string | null) {
+  await sendEmail({
+    to,
+    event: 'THESIS_FINAL_NEEDS_REVISION',
+    subject: 'البحث النهائي يحتاج تعديلًا',
+    html: emailTemplate(
+      'البحث النهائي يحتاج تعديلًا',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>راجعت الإدارة/المشرف البحث النهائي، ويحتاج إلى تعديلات قبل جدولة المناقشة.</p>
+       ${infoRows([
+         { label: 'عنوان البحث', value: thesisTitle },
+         { label: 'الحالة', value: 'يحتاج تعديلًا قبل المناقشة' },
+       ])}
+       ${reviewNote ? `<p><strong>ملاحظة الإدارة/المشرف:</strong> ${escapeHtml(reviewNote)}</p>` : ''}
+       <p>افتح بوابة الطالب وعدّل البحث النهائي ثم أعد إرساله للمراجعة.</p>`,
+      { label: 'فتح بوابة الطالب', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailThesisResultApproved(to: string, name: string, thesisTitle: string, score: number, passed: boolean) {
   await sendEmail({
     to,
