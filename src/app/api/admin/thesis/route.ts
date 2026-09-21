@@ -23,6 +23,7 @@ export async function GET() {
         committee: true,
         agentMember: true,
         defenseStatus: true,
+        reviewNote: true,
         aiScore: true,
         aiRecommendation: true,
         defenseMinutes: true,
