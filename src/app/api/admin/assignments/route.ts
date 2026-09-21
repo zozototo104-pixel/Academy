@@ -140,8 +140,11 @@ export async function POST(req: NextRequest) {
       assignment = await db.programAssignment.create({ data })
       await audit(admin, 'CREATE_ASSIGNMENT', 'ProgramAssignment', assignment.id, `إنشاء واجب: ${assignment.title}`)
       if (assignment.status === 'PUBLISHED') {
-        const enrollments = await db.enrollment.findMany({ where: { programId, status: 'ACTIVE' }, select: { userId: true } })
-        await Promise.all(enrollments.map((e) => notify(e.userId, 'ASSIGNMENT', 'واجب جديد', `تم إضافة واجب «${assignment.title}» ضمن ${program.titleAr}`, 'dashboard')))
+        const enrollments = await db.enrollment.findMany({ where: { programId, status: 'ACTIVE' }, select: { userId: true, user: { select: { name: true, email: true } } } })
+        await Promise.all(enrollments.map(async (e) => {
+          await notify(e.userId, 'ASSIGNMENT', 'واجب جديد', `تم إضافة واجب «${assignment.title}» ضمن ${program.titleAr}`, 'dashboard')
+          if (e.user?.email) await emailAssignmentPublished(e.user.email, e.user.name || 'الطالب', program.titleAr, assignment.title, assignment.dueDays)
+        }))
       }
     }
 
