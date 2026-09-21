@@ -125,6 +125,23 @@ export function PaymentsTab() {
 
   const pay = async () => {
     if (!payTarget) return
+    const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
+    if (selectedMethod && !selectedMethod.enabled) {
+      toast({
+        title: 'طريقة الدفع غير متاحة حالياً',
+        description: selectedMethod.reason || 'هذه الطريقة لم تُفعّل بعد من الإدارة. يرجى اختيار وسيلة أخرى أو مراجعة الإدارة.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE') {
+      toast({
+        title: 'الدفع الإلكتروني غير متاح حالياً',
+        description: 'لا توجد بوابة دفع حقيقية مفعلة الآن. يرجى مراجعة الإدارة لاستلام تعليمات التحويل أو تفعيل وسيلة دفع أخرى.',
+        variant: 'destructive',
+      })
+      return
+    }
     setPaying(true)
     try {
       // 1) إنشاء جلسة دفع لدى المزود — يُعيد رابط دفع حقيقي عند تهيئة المفاتيح (وضع LIVE)
