@@ -835,7 +835,7 @@ export function ThesisTab() {
               <form onSubmit={submit} className="space-y-3">
                 <input type="hidden" value={thesisStage} readOnly />
                 <div className="rounded-xl bg-[#fffaf0] p-3 text-[11px] font-bold leading-6 text-[#5c4d1a]">
-                  المرحلة الحالية: {!thesis || thesis.status === 'NEEDS_REVISION' ? 'خطة البحث' : 'البحث النهائي'}
+                  المرحلة الحالية: {!thesis || ['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(thesis.status) ? 'خطة البحث' : 'البحث النهائي'}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="t-title">عنوان البحث *</Label>
