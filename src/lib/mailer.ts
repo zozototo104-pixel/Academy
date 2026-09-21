@@ -204,6 +204,38 @@ export async function emailWelcome(to: string, name: string) {
   })
 }
 
+export async function emailAdminAlert(to: string, title: string, body: string, event = 'ADMIN_ALERT') {
+  await sendEmail({
+    to,
+    event,
+    subject: title,
+    html: emailTemplate(
+      title,
+      `<p>${escapeHtml(body)}</p>`,
+      { label: 'فتح لوحة الإدارة', url: `${APP_URL}/?view=admin` }
+    ),
+  })
+}
+
+export async function emailServiceRequestSubmitted(to: string, name: string, reference: string, service: string) {
+  await sendEmail({
+    to,
+    event: 'SERVICE_REQUEST_SUBMITTED',
+    subject: `استلمنا طلبك — كود التتبع ${reference}`,
+    html: emailTemplate(
+      'تم استلام طلب الخدمة بنجاح ✅',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name)}</strong>،</p>
+       <p>استلمنا طلب الخدمة/الاعتماد الخاص بك، وسيتم مراجعته من الإدارة لتحديد الخطوة التالية.</p>
+       ${infoRows([
+         { label: 'كود تتبع الطلب', value: reference },
+         { label: 'الخدمة', value: service },
+         { label: 'الخطوة التالية', value: 'مراجعة الإدارة ثم إرسال تعليمات المتابعة أو التسعير أو الموعد' },
+       ])}`,
+      { label: 'تتبع حالة الطلب', url: `${APP_URL}/?view=apply` }
+    ),
+  })
+}
+
 export async function emailAdmissionSubmitted(to: string, name: string, reference: string, program: string, fee: number) {
   await sendEmail({
     to,
