@@ -293,7 +293,9 @@ export async function POST(req: NextRequest) {
     }
 
     // إشعار بريدي بكود التتبع وخطوات ما بعد التقديم للبرامج الدراسية؛ الخدمات تُراجع أولاً لتحديد المتطلبات.
-    if (!isServiceRequest) {
+    if (isServiceRequest) {
+      emailServiceRequestSubmitted(email.trim(), fullName.trim(), reference, selectedTitle).catch(() => {})
+    } else {
       emailAdmissionSubmitted(email.trim(), fullName.trim(), reference, selectedTitle, appFee).catch(() => {})
     }
     await audit(
