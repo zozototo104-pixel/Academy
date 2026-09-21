@@ -192,7 +192,6 @@ async function callOpenAI(s: Awaited<ReturnType<typeof settings>>, model: string
     body: JSON.stringify({
       model,
       input: toChatMessages(opts),
-      temperature: opts.temperature ?? (opts.json ? 0.25 : 0.6),
       max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
     }),
   })
