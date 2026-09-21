@@ -228,6 +228,13 @@ export function AdminThesisTab() {
           const studentName = safeText(t.user?.name, 'طالب غير محدد')
           const programName = safeText(t.admission?.program, 'برنامج غير محدد')
           const abstractText = safeText(t.abstract, 'لا يوجد ملخص محفوظ لهذا البحث')
+          const journey = [
+            { title: 'الخطة', done: ['PLAN_SUBMITTED', 'PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' || t.status === 'NEEDS_REVISION' },
+            { title: 'اعتماد الخطة', done: ['PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' },
+            { title: 'البحث النهائي', done: ['SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_APPROVED' },
+            { title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'SUBMITTED' },
+            { title: 'النتيجة', done: t.status === 'RESULT_APPROVED', active: t.status === 'SCHEDULED' },
+          ]
           return (
             <Card key={t.id} className="overflow-hidden border-[#0f2b46]/10">
               <CardContent className="p-4 sm:p-5">
