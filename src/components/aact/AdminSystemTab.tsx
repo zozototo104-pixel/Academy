@@ -612,10 +612,16 @@ export function AdminSystemTab() {
               {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات Gemini
             </Button>
             <Button onClick={testGeminiText} disabled={testing} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a] hover:bg-[#fffaf0]">
-              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار مفتاح Gemini / النصوص
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار Gemini Text
             </Button>
-            <Button onClick={testGeminiLive} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
-              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Gemini Live
+            <Button onClick={testTextAi} disabled={testing} variant="outline" className="border-indigo-300 font-extrabold text-indigo-700 hover:bg-indigo-50">
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار مزود النصوص الخارجي
+            </Button>
+            <Button onClick={() => testGeminiLive('SUPERVISOR')} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Live المشرف
+            </Button>
+            <Button onClick={() => testGeminiLive('DISCUSSION')} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
+              {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Live المناقشة
             </Button>
           </div>
           <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
