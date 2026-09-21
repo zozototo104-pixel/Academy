@@ -1928,7 +1928,7 @@ export function AdminQualityTab() {
             <DialogDescription>بحث وتعطيل وتفعيل وأرشفة الطلاب، مع حذف آمن للطلاب التجريبيين فقط إذا لم يكن لديهم سجلات حقيقية.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-[1fr_180px_120px]">
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_150px_180px_150px_180px_110px]">
               <input value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" placeholder="بحث بالاسم أو البريد أو الدولة" />
               <select value={studentStatus} onChange={(e) => setStudentStatus(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold">
                 <option value="ALL">كل الحالات</option>
@@ -1936,9 +1936,37 @@ export function AdminQualityTab() {
                 <option value="DISABLED">معطل</option>
                 <option value="ARCHIVED">مؤرشف</option>
               </select>
+              <select value={studentProgramFilter} onChange={(e) => setStudentProgramFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold">
+                <option value="ALL">كل البرامج</option>
+                {thesisProgramOptions.map((p) => <option key={p.id} value={p.id}>{p.titleAr}</option>)}
+              </select>
+              <select value={studentPaymentFilter} onChange={(e) => setStudentPaymentFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold">
+                <option value="ALL">كل الدفعات</option>
+                <option value="PAID">مدفوع</option>
+                <option value="PENDING">بانتظار الدفع</option>
+                <option value="FAILED">فاشل</option>
+                <option value="REFUNDED">مسترد</option>
+              </select>
+              <select value={studentThesisFilter} onChange={(e) => setStudentThesisFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold">
+                <option value="ALL">كل مراحل البحث</option>
+                <option value="PLAN_SUBMITTED">خطة قيد المراجعة</option>
+                <option value="PLAN_NEEDS_REVISION">خطة تحتاج تعديل</option>
+                <option value="PLAN_APPROVED">خطة معتمدة</option>
+                <option value="SUBMITTED">بحث نهائي قيد المراجعة</option>
+                <option value="FINAL_NEEDS_REVISION">بحث نهائي يحتاج تعديل</option>
+                <option value="SCHEDULED">مناقشة مجدولة</option>
+                <option value="RESULT_APPROVED">نتيجة معتمدة</option>
+              </select>
               <Button onClick={() => loadStudents()} disabled={studentsLoading} className="h-11 bg-[#0f2b46] font-black text-[#f5f0e1]">
                 {studentsLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null} بحث
               </Button>
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-500">
+              <span>النتائج الحالية: {students.length} طالب</span>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={resetStudentFilters} disabled={studentsLoading} className="h-8 text-[11px] font-black">مسح الفلاتر</Button>
+                <Button size="sm" variant="outline" onClick={exportStudentsList} disabled={!students.length} className="h-8 text-[11px] font-black">تصدير القائمة JSON</Button>
+              </div>
             </div>
 
             {selectedStudent ? (
