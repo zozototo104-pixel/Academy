@@ -173,7 +173,10 @@ export async function POST(req: NextRequest) {
         fileName,
         mimeType,
         size,
-        data,
+        data: null,
+        fileStorageProvider,
+        fileStorageKey,
+        fileUrl,
         status: 'SUBMITTED',
       },
     })
