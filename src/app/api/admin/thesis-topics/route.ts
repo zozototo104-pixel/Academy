@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { geminiCompleteJson } from '@/lib/gemini'
+import { emailThesisTopicDecision } from '@/lib/mailer'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
