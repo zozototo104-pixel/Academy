@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       })
       const parsed = parseAiJson(text)
       const topics = Array.isArray(parsed?.topics) ? parsed.topics : Array.isArray(parsed) ? parsed : []
-      const created = []
+      const created: any[] = []
       for (const t of topics.slice(0, count)) {
         const title = clean(t?.title, 260)
         if (!title) continue
