@@ -140,11 +140,13 @@ export function AdminThesisTab() {
     }
   }
 
-  const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION') => {
+  const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION' | 'REQUEST_FINAL_REVISION') => {
     const reviewNote = window.prompt(
       action === 'APPROVE_PLAN'
         ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة:'
-        : 'اكتب ملاحظة التعديل التي ستظهر للطالب:',
+        : action === 'REQUEST_FINAL_REVISION'
+          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب:'
+          : 'اكتب ملاحظة التعديل التي ستظهر للطالب:',
       thesis.reviewNote || ''
     )
     if (reviewNote === null) return
