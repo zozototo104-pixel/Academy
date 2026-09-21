@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
           err.status = r.status
           if (isQuotaError(err)) return NextResponse.json({ ok: false, title: 'انتهت حصة Gemini', message: 'انتهت حصة Gemini مؤقتاً، فعّل Billing أو انتظر إعادة ضبط الحصة.', model })
           if (isAuthError(err)) return NextResponse.json({ ok: false, title: 'مفتاح Gemini غير صالح', message: 'مفتاح Gemini غير موجود أو غير صالح.', model })
-          if (isModelUnavailableError(err) || isInvalidArgumentError(err)) return NextResponse.json({ ok: false, title: 'إعدادات Gemini Live غير مقبولة', message: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.', model })
+          if (isModelUnavailableError(err) || isInvalidArgumentError(err)) return NextResponse.json({ ok: false, title: 'إعدادات Gemini Live غير مقبولة', message: purpose === 'DISCUSSION' ? 'اسم نموذج المناقشة غير مقبول. جرّب gemini-3.8-live-extended-thinking أو gemini-3.8-live.' : 'اسم نموذج المشرف غير مقبول. جرّب gemini-3.8-live أو احتياطي 3.1.', model })
           return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini Live', message: msg.slice(0, 300), model })
         }
         return NextResponse.json({ ok: true, title: 'Gemini Live يعمل', message: `تم إنشاء رمز مؤقت بنجاح للنموذج ${model}`, model })
