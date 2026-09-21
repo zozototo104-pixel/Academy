@@ -58,7 +58,9 @@ export interface SendEmailInput {
 }
 
 async function getResendConfig(): Promise<{ apiKey: string; from: string }> {
-  const rows = await db.setting.findMany({ where: { key: { in: ['RESEND_API_KEY', 'MAIL_FROM', 'RESEND_FROM'] } } }).catch(() => [])
+  const rows: { key: string; value: string }[] = await db.setting
+    .findMany({ where: { key: { in: ['RESEND_API_KEY', 'MAIL_FROM', 'RESEND_FROM'] } } })
+    .catch(() => [])
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
   return {
