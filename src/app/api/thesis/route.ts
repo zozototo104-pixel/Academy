@@ -71,8 +71,15 @@ export async function GET() {
       },
     })
     const gate = await getExamsGate(user.id, admission?.programId)
+    const thesisPlan = admission?.programId
+      ? mapThesisPlan(await db.studyGuide.findFirst({
+          where: { programId: admission.programId, type: 'THESIS_PLAN', status: 'PUBLISHED' },
+          orderBy: { updatedAt: 'desc' },
+        }))
+      : null
     return NextResponse.json({
       thesis,
+      thesisPlan,
       examsGate: gate,
       admission: admission
         ? {
