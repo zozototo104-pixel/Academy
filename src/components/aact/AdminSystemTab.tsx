@@ -374,8 +374,47 @@ export function AdminSystemTab() {
         <TabsContent value="pay" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            أدخل مفاتيح مزودي الدفع الفعليين وشغّل وضع LIVE: يُحوَّل الطالب لصفحة دفع Stripe/PayPal الرسمية ويُعتمد السداد تلقائياً عبر Webhook. بدون مفاتيح يعمل وضع SANDBOX (محاكاة آمنة) وتظل طرق فوري/تحويل بنكي متاحة للمراجعة اليدوية.
+            أدخل مفاتيح مزودي الدفع الفعليين وشغّل وضع LIVE. لوحة التنبيهات أدناه تكشف مفاتيح Stripe التجريبية، PayPal sandbox، غياب Webhook، وحالة كل طريقة دفع قبل ظهورها للطالب.
           </div>
+          {data.payment && (
+            <div className="space-y-3">
+              <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <p className="text-[10px] font-bold text-slate-500">الوضع الفعلي</p>
+                  <p className={data.payment.mode === 'LIVE' ? 'mt-1 font-black text-emerald-700' : 'mt-1 font-black text-amber-700'}>{data.payment.mode}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <p className="text-[10px] font-bold text-slate-500">Stripe Key</p>
+                  <p className={data.payment.stripeKeyKind === 'live' ? 'mt-1 font-black text-emerald-700' : data.payment.stripeKeyKind === 'test' ? 'mt-1 font-black text-red-600' : 'mt-1 font-black text-slate-400'}>{data.payment.stripeKeyKind}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <p className="text-[10px] font-bold text-slate-500">PayPal Base</p>
+                  <p className={data.payment.paypalBaseKind === 'live' ? 'mt-1 font-black text-emerald-700' : data.payment.paypalBaseKind === 'sandbox' ? 'mt-1 font-black text-red-600' : 'mt-1 font-black text-slate-400'}>{data.payment.paypalBaseKind}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <p className="text-[10px] font-bold text-slate-500">بوابات حقيقية فعالة</p>
+                  <p className={data.payment.trueGatewayCount > 0 ? 'mt-1 font-black text-emerald-700' : 'mt-1 font-black text-red-600'}>{data.payment.trueGatewayCount}</p>
+                </div>
+              </div>
+              {data.payment.errors.map((msg) => (
+                <div key={msg} className="rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-relaxed text-red-700">{msg}</div>
+              ))}
+              {data.payment.warnings.map((msg) => (
+                <div key={msg} className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-relaxed text-amber-700">{msg}</div>
+              ))}
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {data.payment.methods.map((m) => (
+                  <div key={m.id} className={`rounded-xl border p-3 text-[11px] font-bold ${m.enabled ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{m.label}</span>
+                      <Badge className={m.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{m.enabled ? 'مفعلة' : 'مقفلة'}</Badge>
+                    </div>
+                    {!m.enabled && m.reason && <p className="mt-2 leading-relaxed text-slate-500">{m.reason}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
             <div className="flex items-center justify-between rounded-xl border border-[#0f2b46]/10 bg-white px-4 py-3 sm:col-span-2">
               <div>
