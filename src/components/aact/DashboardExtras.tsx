@@ -387,6 +387,17 @@ interface ThesisTopicRequestItem {
   topic?: { title: string } | null
 }
 
+interface ThesisPlanData {
+  id: string
+  title: string
+  overview: string
+  objectives: string[]
+  sections: { title?: string; summary?: string; outcomes?: string[]; sourceTitles?: string[] }[]
+  activities: string[]
+  discussionQuestions: string[]
+  updatedAt: string
+}
+
 export function ThesisTab() {
   const { toast } = useToast()
   const { navigate } = useAppStore()
