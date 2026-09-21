@@ -799,11 +799,24 @@ export function AdminQualityTab() {
     }
   }
 
+  const loadStudentDetails = async (studentId: string) => {
+    setStudentBusyId(studentId)
+    try {
+      const res = await api<{ student: any }>(`/api/admin/students?userId=${encodeURIComponent(studentId)}`)
+      setSelectedStudent(res.student)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل تفاصيل الطالب')
+    } finally {
+      setStudentBusyId(null)
+    }
+  }
+
   const updateStudentAction = async (studentId: string, action: string, payload: any = {}) => {
     setStudentBusyId(studentId)
     try {
       await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ userId: studentId, action, ...payload }) })
       await loadStudents()
+      if (selectedStudent?.id === studentId) await loadStudentDetails(studentId)
     } catch (e: any) {
       alert(e?.message || 'تعذر تنفيذ الإجراء')
     } finally {
