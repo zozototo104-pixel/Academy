@@ -154,7 +154,10 @@ export function PaymentsTab() {
         window.location.href = co.redirectUrl
         return
       }
-      // 2) SANDBOX أو طرق المراجعة اليدوية: تأكيد آمن داخل المنصة مع إيصال فوري
+      if (co?.provider !== 'SANDBOX') {
+        throw new Error('تعذر استلام رابط الدفع من البوابة. حاول لاحقاً أو راجع الإدارة.')
+      }
+      // 2) SANDBOX المسموح فقط: تأكيد آمن داخل المنصة مع إيصال فوري في بيئات الاختبار
       const d = await api<{ payment: Payment; receiptNo: string }>('/api/payments', {
         method: 'POST',
         body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
