@@ -1,3 +1,5 @@
+import { NextRequest, NextResponse } from 'next/server'
+
 type Bucket = {
   count: number
   resetAt: number
