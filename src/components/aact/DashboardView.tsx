@@ -427,6 +427,42 @@ export function DashboardView() {
         </Button>
       </div>
 
+      {studentSummary && (
+        <section className="mb-6 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+          <div className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black text-[#a8841a]">المسار المختصر للطالب</p>
+                <h2 className="mt-1 text-lg font-black text-[#0f2b46]">{currentStudentAction?.title || 'تابع برنامجك من هنا'}</h2>
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{currentStudentAction?.text || 'اختر برنامجك النشط وتابع الكتب والاختبارات والواجبات والإشعارات.'}</p>
+              </div>
+              {currentStudentAction?.tab && currentStudentAction.tab !== dashboardTab ? (
+                <Button onClick={() => setDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                  انتقل الآن
+                </Button>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-4">
+              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات الالتحاق<br /><span className="text-lg text-[#0f2b46]">{studentSummary.admissions.length}</span></div>
+              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
+              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">برامج مسجلة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.enrollments.length}</span></div>
+              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">إشعارات جديدة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.unread}</span></div>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-[#0f2b46]/10 bg-white p-5">
+            <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Banknote className="h-5 w-5 text-[#c9a227]" /> حالة القبول والدفع والتسجيل</h3>
+            <div className="mt-3 space-y-2 text-xs font-bold leading-6 text-slate-600">
+              <p><b>آخر طلب:</b> {studentSummary.summary.latestAdmission ? `${studentSummary.summary.latestAdmission.reference || '-'} · ${studentSummary.summary.latestAdmission.status}` : 'لا يوجد طلب التحاق حديث'}</p>
+              <p><b>الدفع:</b> {studentSummary.summary.unpaidPayments ? `يوجد ${studentSummary.summary.unpaidPayments} دفعة تحتاج متابعة` : 'لا توجد دفعات معلقة'}</p>
+              <p><b>التسجيل:</b> {studentSummary.summary.activeEnrollment ? `مسجل في ${studentSummary.summary.activeEnrollment.program?.titleAr || 'برنامج'}` : 'لا يوجد تسجيل نشط بعد'}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setDashboardTab('payments')} className="mt-3 border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+              فتح الدفعات والتسجيل
+            </Button>
+          </div>
+        </section>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
         <div>
