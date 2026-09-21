@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
       where: { assignmentId_userId: { assignmentId, userId: user.id } },
       update: {
         answerText: answerText || null,
-        ...(fileName ? { fileName, mimeType, size, data } : {}),
+        ...(fileName ? { fileName, mimeType, size, data: null, fileStorageProvider, fileStorageKey, fileUrl } : {}),
         status: 'SUBMITTED',
         score: null,
         feedback: null,
