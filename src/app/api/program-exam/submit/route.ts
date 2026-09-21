@@ -273,12 +273,17 @@ export async function POST(req: NextRequest) {
       return r
     })
 
-    const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
+    const rawPercentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
+    const percentage = Math.min(rawPercentage, readiness.maxExamScore)
     const passed = percentage >= exam.passScore
+    if (readiness.maxExamScore < 100) {
+      weakPoints.push(`خصم سقف الدرجة بسبب عدم استكمال اختبارات/واجبات فصلية: أعلى نتيجة ممكنة ${readiness.maxExamScore}%`)
+    }
 
     const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
 
     const roundedScore = Math.round(percentage * 10) / 10
+    const roundedRawScore = Math.round(rawPercentage * 10) / 10
 
     await db.programExamAttempt.update({
       where: { id: attempt.id },
