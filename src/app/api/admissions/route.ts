@@ -410,6 +410,10 @@ export async function GET(req: NextRequest) {
     if (!ref) {
       return NextResponse.json({ error: 'يرجى إدخال كود التتبع' }, { status: 400 })
     }
+
+    const trackLimit = enforceApiRateLimit(req, 'admissions:track', 12, 10 * 60 * 1000, ref)
+    if (trackLimit) return trackLimit
+
     const app = await db.admissionApplication.findUnique({
       where: { reference: ref },
       include,
