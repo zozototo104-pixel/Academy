@@ -121,7 +121,20 @@ export async function POST(req: NextRequest) {
         fileName = file.name.slice(0, 220)
         mimeType = file.type
         size = file.size
-        data = buffer.toString('base64')
+        try {
+          const stored = await storeFileBuffer({
+            namespace: `assignments/${user.id}`,
+            buffer,
+            fileName,
+            mimeType,
+          })
+          fileStorageProvider = stored.provider
+          fileStorageKey = stored.key
+          fileUrl = stored.url
+          data = null
+        } catch (storageError) {
+          return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
+        }
       }
     } else {
       const body = await req.json().catch(() => ({}))
