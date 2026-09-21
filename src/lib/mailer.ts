@@ -57,13 +57,52 @@ export interface SendEmailInput {
   text?: string
 }
 
+async function sendWithResend(input: SendEmailInput): Promise<boolean> {
+  const apiKey = env('RESEND_API_KEY')
+  const from = env('MAIL_FROM') || env('RESEND_FROM')
+  if (!apiKey || !from) return false
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text || input.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({} as any))
+    throw new Error(data?.message || data?.error || `Resend error ${res.status}`)
+  }
+  return true
+}
+
 // إرسال بريد فعلي مع أرشفة النتيجة في EmailLog (لا يرمي استثناء أبداً حتى لا يعطل الإجراءات)
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   try {
     const cfg = await getSmtpConfig()
     if (!cfg.enabled) {
+      try {
+        const sentByResend = await sendWithResend(input)
+        if (sentByResend) {
+          await db.emailLog.create({
+            data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'RESEND' },
+          }).catch(() => {})
+          return true
+        }
+      } catch (resendError: any) {
+        await db.emailLog.create({
+          data: { to: input.to, subject: input.subject, event: input.event, status: 'FAILED', error: `Resend: ${String(resendError?.message || resendError).slice(0, 380)}` },
+        }).catch(() => {})
+        return false
+      }
       await db.emailLog.create({
-        data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'SMTP غير مهيأ — أضف إعدادات الخادم من لوحة الإدارة' },
+        data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'البريد غير مهيأ — أضف SMTP من لوحة الإدارة أو RESEND_API_KEY و MAIL_FROM في Vercel' },
       }).catch(() => {})
       return false
     }
@@ -86,6 +125,15 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     }).catch(() => {})
     return true
   } catch (e: any) {
+    try {
+      const sentByResend = await sendWithResend(input)
+      if (sentByResend) {
+        await db.emailLog.create({
+          data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'SMTP failed; sent by RESEND' },
+        }).catch(() => {})
+        return true
+      }
+    } catch {}
     await db.emailLog.create({
       data: { to: input.to, subject: input.subject, event: input.event, status: 'FAILED', error: String(e?.message || e).slice(0, 400) },
     }).catch(() => {})
