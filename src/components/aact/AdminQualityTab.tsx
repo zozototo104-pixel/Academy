@@ -762,43 +762,40 @@ export function AdminQualityTab() {
     )
   }
 
-  const pickProgramForThesis = () => {
-    const list = readinessItems.length ? readinessItems : data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
-    if (!list.length) return null
-    const choice = window.prompt(`اختر رقم البرنامج:\n${list.slice(0, 30).map((p, i) => `${i + 1}. ${p.titleAr}`).join('\n')}`, '1')
-    const index = Number(choice || 0) - 1
-    return list[index]?.id || null
+  const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
+
+  const openThesisTopicDialog = (mode: 'manual' | 'generate') => {
+    setThesisTopicMode(mode)
+    setThesisProgramId(thesisProgramId || thesisProgramOptions[0]?.id || '')
+    setThesisTopicTitle('')
+    setThesisTopicDescription('')
+    setThesisGenerateCount(6)
+    setThesisTopicDialogOpen(true)
   }
 
-  const generateThesisTopics = async () => {
-    const programId = pickProgramForThesis()
-    if (!programId) return
-    const count = Number(window.prompt('كم عنوان تريد توليده؟', '6') || 6)
+  const submitThesisTopicAction = async () => {
+    if (!thesisProgramId) return alert('اختر البرنامج أولًا')
+    setThesisTopicBusy(true)
     try {
-      await api('/api/admin/thesis-topics', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'generate', programId, count }),
-      })
-      alert('تم توليد مقترحات عناوين بحث التخرج. راجعها واعتمد المناسب من سجل API / المرحلة التالية للواجهة التفصيلية.')
+      if (thesisTopicMode === 'generate') {
+        await api('/api/admin/thesis-topics', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'generate', programId: thesisProgramId, count: thesisGenerateCount }),
+        })
+        alert('تم توليد مقترحات عناوين بحث التخرج. ستظهر للطلاب بعد مراجعتها واعتمادها.')
+      } else {
+        if (!thesisTopicTitle.trim()) return alert('اكتب عنوان البحث')
+        await api('/api/admin/thesis-topics', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'create', programId: thesisProgramId, title: thesisTopicTitle, description: thesisTopicDescription, status: 'APPROVED' }),
+        })
+        alert('تمت إضافة عنوان بحث التخرج واعتماده للطلاب.')
+      }
+      setThesisTopicDialogOpen(false)
     } catch (e: any) {
-      alert(e?.message || 'تعذر توليد عناوين بحث التخرج')
-    }
-  }
-
-  const createManualThesisTopic = async () => {
-    const programId = pickProgramForThesis()
-    if (!programId) return
-    const title = window.prompt('اكتب عنوان بحث التخرج')
-    if (!title?.trim()) return
-    const description = window.prompt('وصف مختصر للعنوان أو مجال البحث', '') || ''
-    try {
-      await api('/api/admin/thesis-topics', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'create', programId, title, description, status: 'APPROVED' }),
-      })
-      alert('تمت إضافة عنوان بحث التخرج واعتماده للطلاب.')
-    } catch (e: any) {
-      alert(e?.message || 'تعذر إضافة عنوان بحث التخرج')
+      alert(e?.message || 'تعذر تنفيذ العملية')
+    } finally {
+      setThesisTopicBusy(false)
     }
   }
 
