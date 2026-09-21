@@ -1773,7 +1773,7 @@ export function AdminQualityTab() {
                     <div className="max-h-44 space-y-2 overflow-y-auto">
                       {selectedStudent.programExamAttempts?.slice(0, 5).map((a: any) => <div key={a.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">اختبار: {a.exam?.title || '-'} · {a.score ?? '-'} · {a.status}</div>)}
                       {selectedStudent.assignmentSubmissions?.slice(0, 5).map((s: any) => <div key={s.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">واجب: {s.assignment?.title || '-'} · {s.score ?? '-'} · {s.status}</div>)}
-                      {selectedStudent.thesisSubmissions?.slice(0, 3).map((t: any) => <div key={t.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">بحث: {t.title || '-'} · {t.status}</div>)}
+                      {selectedStudent.theses?.slice(0, 3).map((t: any) => <div key={t.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">بحث: {t.title || '-'} · {t.status}</div>)}
                     </div>
                   </div>
                 </div>
