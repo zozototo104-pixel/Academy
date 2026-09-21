@@ -59,6 +59,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
+    if (!readiness.readyMarked) {
+      return NextResponse.json(
+        { error: 'اضغط أولاً زر «جاهز للامتحان» من بوابة الطالب لتأكيد اطلاعك على حالة الاختبارات والواجبات الفصلية.', code: 'EXAM_NOT_READY_MARKED', readiness },
+        { status: 403 }
+      )
+    }
+
     const books = await db.book.findMany({
       where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
       select: { id: true, title: true, author: true },
