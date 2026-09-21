@@ -236,12 +236,33 @@ export function AdminSystemTab() {
     }
   }
 
-  const testGeminiLive = async () => {
+  const testTextAi = async () => {
+    setTesting(true)
+    try {
+      const d = await api<{ ok: boolean; title?: string; message: string; textAi?: SystemData['textAi'] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'test-text-ai' }),
+      })
+      if (d.textAi) setData((prev) => (prev ? { ...prev, textAi: d.textAi } : prev))
+      toast({ title: d.title || (d.ok ? 'مزود النصوص يعمل' : 'فشل مزود النصوص'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const testGeminiLive = async (purpose: 'SUPERVISOR' | 'DISCUSSION' = 'SUPERVISOR') => {
     setTesting(true)
     try {
       const d = await api<{ ok: boolean; title?: string; message: string }>('/api/admin/system', {
         method: 'POST',
-        body: JSON.stringify({ action: 'test-gemini-live', model: form.GEMINI_LIVE_MODEL, voice: form.GEMINI_TTS_VOICE }),
+        body: JSON.stringify({
+          action: 'test-gemini-live',
+          purpose,
+          model: purpose === 'DISCUSSION' ? form.GEMINI_DISCUSSION_LIVE_MODEL : form.GEMINI_SUPERVISOR_LIVE_MODEL,
+          voice: form.GEMINI_TTS_VOICE,
+        }),
       })
       toast({ title: d.title || (d.ok ? 'Gemini Live يعمل' : 'فشل Gemini Live'), description: d.message, variant: d.ok ? 'default' : 'destructive' } as any)
     } catch (e: any) {
