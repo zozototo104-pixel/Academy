@@ -104,6 +104,9 @@ export async function POST(req: NextRequest) {
     let mimeType: string | null = null
     let size: number | null = null
     let data: string | null = null
+    let fileStorageProvider: string | null = null
+    let fileStorageKey: string | null = null
+    let fileUrl: string | null = null
 
     if (contentType.includes('multipart/form-data')) {
       const fd = await req.formData()
