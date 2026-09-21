@@ -455,8 +455,8 @@ export function AdminSystemTab() {
             {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات الدفع
           </Button>
           <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
-            <p className="mb-1 font-black">حالة الوضع الحالي: {data.paymentMode === 'LIVE' ? 'LIVE — دفع حقيقي عبر المزودين المهيأين' : 'SANDBOX — محاكاة آمنة داخل المنصة'}</p>
-            ملاحظة: وضع LIVE يعمل فقط بعد إدخال مفتاح Stripe أو مفاتيح PayPal — وإلا تعود المنصة تلقائياً للمحاكاة الآمنة حمايةً من فقدان المدفوعات.
+            <p className="mb-1 font-black">حالة الوضع الحالي: {data.paymentMode === 'LIVE' ? 'LIVE — دفع حقيقي عبر المزودين المفعّلين' : 'SANDBOX — محاكاة / غير إنتاجي'}</p>
+            ملاحظة: في الإنتاج لا تعمل SANDBOX تلقائياً. إذا لم تضبط Stripe live أو PayPal live ستظهر طرق الدفع للطالب كمقفلة مع رسالة توضيحية بدلاً من إنشاء إيصال تجريبي.
           </div>
         </TabsContent>
 
