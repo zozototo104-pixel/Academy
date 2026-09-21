@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 
 // GET /api/certificates/qr?data=... — توليد صورة QR بتنسيق Data URL
 export async function GET(req: NextRequest) {
