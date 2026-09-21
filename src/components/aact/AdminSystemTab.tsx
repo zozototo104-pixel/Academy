@@ -625,7 +625,7 @@ export function AdminSystemTab() {
             </Button>
           </div>
           <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
-            إذا ظهر 429 فالمفتاح سليم لكن الحصة انتهت مؤقتاً. فعّل Billing في Google AI Studio أو انتظر إعادة ضبط الحصة. إذا ظهر خطأ نموذج، استخدم الاسم الكامل: gemini-3.1-flash-live-preview.
+            إذا ظهر 429 فالمفتاح سليم لكن الحصة انتهت مؤقتاً. Live الحديث يستخدم للمشرف gemini-3.8-live وللمناقشة gemini-3.8-live-extended-thinking. مزودات OpenAI/Claude/GLM تخص النصوص فقط ولا تغيّر الصوت أو Live.
           </div>
         </TabsContent>
 
