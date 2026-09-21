@@ -85,7 +85,12 @@ export async function POST(req: NextRequest) {
 الكتب: ${program.books.map((b) => b.title).join(' | ')}
 عناصر المعرفة: ${program.knowledgeItems.map((k) => k.title).join(' | ')}
 الشروط: يجب أن تكون العناوين تطبيقية، قابلة للتنفيذ خلال مدة البرنامج، وغير عامة، ومناسبة لمستوى البرنامج.`
-      const text = await geminiCompleteJson({ history: [{ role: 'user', content: prompt }] })
+      const text = await geminiCompleteJson({
+        system: 'أنت مساعد أكاديمي متخصص في اقتراح عناوين بحوث تخرج. أعد JSON صالحاً فقط دون شرح إضافي.',
+        history: [{ role: 'user', text: prompt }],
+        temperature: 0.45,
+        maxOutputTokens: 3000,
+      })
       const parsed = parseAiJson(text)
       const topics = Array.isArray(parsed?.topics) ? parsed.topics : Array.isArray(parsed) ? parsed : []
       const created = []
