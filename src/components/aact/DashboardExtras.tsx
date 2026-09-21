@@ -248,7 +248,7 @@ export function PaymentsTab() {
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-black text-[#0f2b46]">{p.amount}$</span>
                   {p.status === 'UNPAID' && (
-                    <Button size="sm" onClick={() => setPayTarget(p)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+                    <Button size="sm" onClick={() => openPaymentDialog(p)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
                       <CreditCard className="ml-1 h-3.5 w-3.5" /> ادفع الآن
                     </Button>
                   )}
