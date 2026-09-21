@@ -1431,6 +1431,62 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={studentsOpen} onOpenChange={setStudentsOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">إدارة الطلاب</DialogTitle>
+            <DialogDescription>بحث وتعطيل وتفعيل وأرشفة الطلاب، مع حذف آمن للطلاب التجريبيين فقط إذا لم يكن لديهم سجلات حقيقية.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-2 md:grid-cols-[1fr_180px_120px]">
+              <input value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" placeholder="بحث بالاسم أو البريد أو الدولة" />
+              <select value={studentStatus} onChange={(e) => setStudentStatus(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold">
+                <option value="ALL">كل الحالات</option>
+                <option value="ACTIVE">نشط</option>
+                <option value="DISABLED">معطل</option>
+                <option value="ARCHIVED">مؤرشف</option>
+              </select>
+              <Button onClick={() => loadStudents()} disabled={studentsLoading} className="h-11 bg-[#0f2b46] font-black text-[#f5f0e1]">
+                {studentsLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null} بحث
+              </Button>
+            </div>
+            <div className="max-h-[62dvh] space-y-3 overflow-y-auto pr-1">
+              {studentsLoading ? (
+                <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">جاري تحميل الطلاب...</div>
+              ) : students.length === 0 ? (
+                <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا يوجد طلاب مطابقون للبحث الحالي.</div>
+              ) : students.map((s: any) => (
+                <div key={s.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-black text-[#0f2b46]">{s.name || 'طالب'} <span className="text-xs text-slate-400">({s.email})</span></h4>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">الحالة: {s.status === 'DISABLED' ? 'معطل' : s.status === 'ARCHIVED' ? 'مؤرشف' : 'نشط'} · الدولة: {s.country || 'غير محددة'} · التسجيلات: {s.enrollments?.length || 0}</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">محاولات: {s._count?.examAttempts || 0} · واجبات: {s._count?.assignmentSubmissions || 0} · طلبات بحث: {s._count?.thesisTopicRequests || 0}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {s.status !== 'ACTIVE' ? <Button size="sm" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ACTIVE' })} className="bg-emerald-600 text-xs font-black text-white">تفعيل</Button> : null}
+                      {s.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
+                      {s.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
+                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('الحذف الآمن يعمل فقط للطالب التجريبي بلا مدفوعات أو شهادات أو سجلات أكاديمية. متابعة؟') && updateStudentAction(s.id, 'safeDelete')} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
+                    </div>
+                  </div>
+                  {s.enrollments?.length ? (
+                    <div className="mt-3 space-y-2">
+                      {s.enrollments.map((e: any) => (
+                        <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold text-slate-600">
+                          <span>{e.program?.titleAr || 'برنامج'} · {e.status}</span>
+                          <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('إلغاء التسجيل متاح فقط إذا لا توجد مدفوعات مدفوعة مرتبطة. متابعة؟') && updateStudentAction(s.id, 'cancelEnrollment', { enrollmentId: e.id })} className="h-7 px-2 text-[10px] font-black">إلغاء التسجيل</Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={thesisTopicDialogOpen} onOpenChange={setThesisTopicDialogOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-2xl sm:p-6" dir="rtl">
           <DialogHeader>
