@@ -61,6 +61,9 @@ interface SubmitResult {
   maxTotal: number
   passScore: number
   passed: boolean
+  rawScoreBeforeCourseworkCap?: number
+  maxExamScore?: number
+  courseworkCapApplied?: boolean
   overall: { summary: string; strengths: string[]; improvements: string[] }
   certificateNo?: string | null
   results: {
