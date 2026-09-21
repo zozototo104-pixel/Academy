@@ -149,6 +149,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
+    const limited = enforceApiRateLimit(req, 'admin-books-upload', 8, 60 * 1000, admin.id)
+    if (limited) return limited
     const form = await req.formData()
     const programId = String(form.get('programId') || '')
     const title = String(form.get('title') || '').trim()
