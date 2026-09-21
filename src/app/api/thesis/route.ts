@@ -72,8 +72,8 @@ export async function GET() {
     })
     const gate = await getExamsGate(user.id, admission?.programId)
     const thesisPlan = admission?.programId
-      ? mapThesisPlan(await db.studyGuide.findFirst({
-          where: { programId: admission.programId, type: 'THESIS_PLAN', status: 'PUBLISHED' },
+      ? mapThesisPlan(await db.programStudyGuide.findFirst({
+          where: { programId: admission.programId, semester: 3, status: 'PUBLISHED' },
           orderBy: { updatedAt: 'desc' },
         }))
       : null
