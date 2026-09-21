@@ -560,8 +560,12 @@ model SupervisorChannelMessage {
   senderRole   String   // STUDENT | SUPERVISOR | AI | ADMIN | SYSTEM
   mode         String   @default("TEXT") // TEXT | VOICE
   content      String
-  audioData    String?  // base64 لملاحظة صوتية قصيرة
+  audioData    String?  // legacy فقط: base64 لملاحظة صوتية قصيرة
+  audioStorageProvider String?
+  audioStorageKey      String?
+  audioUrl             String?
   audioMime    String?
+  audioSize    Int?
   createdAt    DateTime @default(now())
 
   @@index([admissionId])
