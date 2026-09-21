@@ -192,6 +192,10 @@ interface StorageSafetyReport {
     legacyBase64Bytes: number
     uploadChunks: number
     uploadChunkBytes: number
+    heavyDbFileRows: number
+    heavyDbFileBytes: number
+    heavyDbFileHighRisk: number
+    heavyDbFileWarnings: number
     suspiciousBooks: number
     orphanUploadChunks: number
     questionBankBookRefsMissing: number
