@@ -810,11 +810,12 @@ export function AdminQualityTab() {
     setThesisTopicBusy(true)
     try {
       if (thesisTopicMode === 'generate') {
-        await api('/api/admin/thesis-topics', {
+        const res = await api<{ created: any[] }>('/api/admin/thesis-topics', {
           method: 'POST',
           body: JSON.stringify({ action: 'generate', programId: thesisProgramId, count: thesisGenerateCount }),
         })
-        alert('تم توليد مقترحات عناوين بحث التخرج. ستظهر للطلاب بعد مراجعتها واعتمادها.')
+        setThesisTopicList(res.created || [])
+        alert(`تم توليد ${res.created?.length || 0} مقترح عنوان. راجعها أسفل النافذة واعتمد المناسب قبل ظهورها للطلاب.`)
       } else {
         if (!thesisTopicTitle.trim()) return alert('اكتب عنوان البحث')
         await api('/api/admin/thesis-topics', {
