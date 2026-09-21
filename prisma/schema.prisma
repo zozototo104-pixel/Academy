@@ -409,7 +409,10 @@ model ThesisSubmission {
   defenseCompletedAt DateTime?
   // 12.3 مناقشة الفيديو كونفرنس متعدد الأطراف بحضور المستشار الذكي
   defenseMinutes   String? // محضر الجلسة التلقائي بتوليد خبير الذكاء الاصطناعي
-  recordingData    String? // تسجيل الجلسة (فيديو+صوت webm base64) مؤرشف في ملف الطالب
+  recordingData    String? // legacy فقط: تسجيل الجلسة (فيديو+صوت webm base64) داخل قاعدة البيانات
+  recordingStorageProvider String?
+  recordingStorageKey      String?
+  recordingUrl             String?
   recordingMime    String?
   recordingSize    Int?
   recordingDurationSec Int?
