@@ -564,6 +564,61 @@ export function ThesisTab() {
         </div>
       )}
 
+      {/* خطة بحث التخرج المنشورة من الإدارة */}
+      <Card className="border-[#0f2b46]/10 bg-white">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <BookOpen className="h-5 w-5 text-[#a8841a]" /> خطة بحث التخرج المطلوبة
+              </h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">
+                هذه الخطة توضح ما يجب أن يلتزم به الطالب قبل تسليم البحث النهائي. يتم نشرها من الإدارة ضمن دليل الفصل الثالث/المشروع.
+              </p>
+            </div>
+            {thesisPlan ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">منشورة</Badge> : <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الإدارة</Badge>}
+          </div>
+          {thesisPlan ? (
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl bg-[#fffaf0] p-4">
+                <h4 className="text-sm font-black text-[#0f2b46]">{thesisPlan.title}</h4>
+                <p className="mt-2 text-xs font-bold leading-7 text-slate-600">{thesisPlan.overview}</p>
+              </div>
+              {thesisPlan.objectives?.length ? (
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="mb-2 text-xs font-black text-[#0f2b46]">أهداف خطة البحث</p>
+                  <ul className="space-y-1 text-xs font-bold leading-6 text-slate-600">
+                    {thesisPlan.objectives.slice(0, 6).map((item, i) => <li key={i}>• {item}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+              {thesisPlan.sections?.length ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {thesisPlan.sections.slice(0, 6).map((section, i) => (
+                    <div key={i} className="rounded-2xl border border-slate-100 bg-white p-3">
+                      <p className="text-xs font-black text-[#0f2b46]">{section.title || `مرحلة ${i + 1}`}</p>
+                      {section.summary ? <p className="mt-1 text-[11px] font-bold leading-6 text-slate-500">{section.summary}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {thesisPlan.activities?.length ? (
+                <div className="rounded-2xl bg-[#f7edd0]/50 p-4">
+                  <p className="mb-2 text-xs font-black text-[#0f2b46]">المطلوب العملي من الطالب</p>
+                  <ul className="space-y-1 text-xs font-bold leading-6 text-slate-600">
+                    {thesisPlan.activities.slice(0, 5).map((item, i) => <li key={i}>• {item}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-700">
+              لم تُنشر خطة بحث تخرج لهذا البرنامج بعد. ستظهر هنا تلقائيًا عندما تنشر الإدارة دليل الفصل الثالث/المشروع.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* اختيار واعتماد عنوان بحث التخرج */}
       <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
         <CardContent className="p-5">
