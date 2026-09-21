@@ -1298,9 +1298,9 @@ export function AdminQualityTab() {
             <div className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-700">
               لا تستخدم الاستيراد إلا بعد التأكد أن الملف صحيح. الاستيراد يحدث تحديثاً/إنشاءً للبرامج حسب slug والـ id، ولا يحذف الطلاب أو الطلبات.
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setCatalogImportOpen(false)}>إلغاء</Button>
-              <Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={catalogBusy === 'import' || catalogImportText.trim().length < 20} onClick={importProgramCatalog}>
+            <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-slate-100 bg-white/95 p-3 backdrop-blur sm:-mx-6 sm:px-6">
+              <Button variant="outline" className="h-11 flex-1" onClick={() => setCatalogImportOpen(false)}>إلغاء</Button>
+              <Button className="h-11 flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={catalogBusy === 'import' || catalogImportText.trim().length < 20} onClick={importProgramCatalog}>
                 {catalogBusy === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
                 استيراد الكتالوج
               </Button>
