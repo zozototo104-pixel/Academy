@@ -191,7 +191,7 @@ export function AdminThesisTab() {
     try {
       await api('/api/admin/thesis', {
         method: 'PATCH',
-        body: JSON.stringify({ id: resulting.id, action: 'RESULT', resultScore: parseFloat(score), passed: passed === 'true' }),
+        body: JSON.stringify({ id: resulting.id, action: 'RESULT', resultScore: parseFloat(score), passed: passed === 'true', reviewNote }),
       })
       toast({ title: 'تم اعتماد النتيجة', description: 'أُبلغ الطالب بالنتيجة وتحديث حالة طلبه' })
       setResulting(null)
