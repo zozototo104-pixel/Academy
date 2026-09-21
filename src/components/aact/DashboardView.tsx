@@ -180,6 +180,23 @@ interface AcademicMemorySnapshot {
   updatedAt: string | null
 }
 
+interface StudentDashboardSummary {
+  admissions: any[]
+  payments: any[]
+  enrollments: any[]
+  notifications: { id: string; type: string; title: string; body: string; link?: string | null; read: boolean; createdAt: string }[]
+  unread: number
+  assignmentSubmissions: any[]
+  thesis: any | null
+  summary: {
+    latestAdmission: any | null
+    activeEnrollment: any | null
+    unpaidPayments: number
+    paidPayments: number
+    requiredAction: { title: string; body: string; target: string } | null
+  }
+}
+
 interface MicroCredentialCard {
   id: string
   credentialId: string
