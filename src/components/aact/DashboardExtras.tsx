@@ -277,12 +277,24 @@ export function PaymentsTab() {
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PAYMOB">Paymob — بطاقة / محافظ مصر</SelectItem>
-                  <SelectItem value="FAWRY">فوري Fawry — مراكز الدفع</SelectItem>
-                  <SelectItem value="STRIPE">Stripe — بطاقة دولية</SelectItem>
-                  <SelectItem value="PAYPAL">PayPal — للوكلاء والمتدربين خارج مصر</SelectItem>
+                  {(payConfig?.methods?.length ? payConfig.methods : [
+                    { id: 'PAYMOB', label: 'Paymob — بطاقة / محافظ مصر', enabled: false, configured: false, kind: 'placeholder' as const },
+                    { id: 'FAWRY', label: 'فوري Fawry — مراكز الدفع', enabled: false, configured: false, kind: 'placeholder' as const },
+                    { id: 'STRIPE', label: 'Stripe — بطاقة دولية', enabled: false, configured: false, kind: 'gateway' as const },
+                    { id: 'PAYPAL', label: 'PayPal — خارج مصر', enabled: false, configured: false, kind: 'gateway' as const },
+                    { id: 'BANK_TRANSFER', label: 'تحويل بنكي — مراجعة الإدارة', enabled: false, configured: false, kind: 'manual' as const },
+                  ]).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}{m.enabled ? '' : ' — غير مفعلة'}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {payConfig?.methods?.find((m) => m.id === method && !m.enabled)?.reason && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-amber-700">
+                  {payConfig.methods.find((m) => m.id === method)?.reason}
+                </p>
+              )}
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
               <Info className="mb-1 h-3.5 w-3.5 text-[#c9a227]" />
