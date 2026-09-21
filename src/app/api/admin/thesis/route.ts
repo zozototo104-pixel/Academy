@@ -65,6 +65,44 @@ export async function PATCH(req: NextRequest) {
     })
     if (!thesis) return NextResponse.json({ error: 'البحث غير موجود' }, { status: 404 })
 
+    if (action === 'APPROVE_PLAN') {
+      if (thesis.status !== 'PLAN_SUBMITTED') {
+        return NextResponse.json({ error: 'لا توجد خطة بحث بانتظار الاعتماد لهذا الطالب' }, { status: 400 })
+      }
+      const updated = await db.thesisSubmission.update({
+        where: { id },
+        data: { status: 'PLAN_APPROVED', reviewedAt: new Date() },
+      })
+      await notify(
+        thesis.userId,
+        'THESIS',
+        'تم اعتماد خطة بحث التخرج',
+        `تم اعتماد خطة بحث «${thesis.title}». يمكنك الآن متابعة إعداد البحث النهائي وتسليمه من بوابة الطالب.`,
+        'dashboard'
+      )
+      await audit(admin, 'APPROVE_THESIS_PLAN', 'ThesisSubmission', id, thesis.title)
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
+    if (action === 'REQUEST_PLAN_REVISION') {
+      if (!['PLAN_SUBMITTED', 'PLAN_APPROVED'].includes(thesis.status)) {
+        return NextResponse.json({ error: 'هذا الإجراء خاص بخطة البحث' }, { status: 400 })
+      }
+      const updated = await db.thesisSubmission.update({
+        where: { id },
+        data: { status: 'NEEDS_REVISION', reviewedAt: new Date() },
+      })
+      await notify(
+        thesis.userId,
+        'THESIS',
+        'خطة البحث تحتاج تعديلًا',
+        `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
+        'dashboard'
+      )
+      await audit(admin, 'REQUEST_THESIS_PLAN_REVISION', 'ThesisSubmission', id, thesis.title)
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
     // جدولة المناقشة أمام لجنة متخصصة
     if (action === 'SCHEDULE') {
       let committeeList: string[] = []
