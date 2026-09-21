@@ -288,6 +288,18 @@ export function AdminThesisTab() {
                     )}
                   </div>
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
+                    {t.status === 'PLAN_SUBMITTED' && (
+                      <>
+                        <Button size="sm" onClick={() => thesisAction(t, 'APPROVE_PLAN')}
+                          className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد خطة البحث
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                          className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                          طلب تعديل الخطة
+                        </Button>
+                      </>
+                    )}
                     {['SUBMITTED', 'NEEDS_REVISION'].includes(t.status) && (
                       <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
                         className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
