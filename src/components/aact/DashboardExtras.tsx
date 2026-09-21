@@ -266,8 +266,8 @@ export function PaymentsTab() {
               <span className="flex items-center gap-2">
                 <Banknote className="h-5 w-5 text-[#c9a227]" /> إتمام الدفع الإلكتروني
               </span>
-              <Badge className={payMode === 'LIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
-                {payMode === 'LIVE' ? 'دفع حقيقي عبر البوابة' : 'وضع تجريبي آمن'}
+              <Badge className={payMode === 'LIVE' ? 'bg-emerald-100 text-emerald-700' : payConfig?.sandboxAllowed ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}>
+                {payMode === 'LIVE' ? 'دفع حقيقي عبر البوابة' : payConfig?.sandboxAllowed ? 'وضع تجريبي آمن' : 'الدفع غير مفعل'}
               </Badge>
             </DialogTitle>
             <DialogDescription>
