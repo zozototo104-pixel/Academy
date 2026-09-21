@@ -183,9 +183,14 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
 
 // المزود المناسب لكل طريقة دفع يختارها الطالب
 export function providerForMethod(method: string, cfg: PaymentGatewayConfig): ProviderId {
-  if (method === 'STRIPE' && cfg.stripeSecret) return 'STRIPE'
-  if (method === 'PAYPAL' && cfg.paypalClientId && cfg.paypalSecret) return 'PAYPAL'
+  const diag = paymentDiagnostics(cfg)
+  if (method === 'STRIPE' && diag.methods.find((m) => m.id === 'STRIPE')?.enabled) return 'STRIPE'
+  if (method === 'PAYPAL' && diag.methods.find((m) => m.id === 'PAYPAL')?.enabled) return 'PAYPAL'
   return 'SANDBOX'
+}
+
+export function paymentMethodStatus(method: string, cfg: PaymentGatewayConfig): PaymentMethodStatus | null {
+  return paymentDiagnostics(cfg).methods.find((m) => m.id === method) || null
 }
 
 export interface CheckoutResult {
