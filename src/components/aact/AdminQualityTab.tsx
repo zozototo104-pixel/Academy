@@ -824,6 +824,23 @@ export function AdminQualityTab() {
         </Button>
       </div>
 
+      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">إدارة عناوين بحث التخرج</h3>
+              <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
+                أضف عناوين يدوية أو ولّد مقترحات بالذكاء حسب البرنامج والكتب والوحدات. الطالب يختار أو يقترح، والاعتماد يبقى للإدارة/المشرف.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={createManualThesisTopic} className="bg-white text-xs font-black">إضافة عنوان يدوي</Button>
+              <Button size="sm" onClick={generateThesisTopics} className="bg-[#0f2b46] text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">توليد عناوين بالذكاء</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
         {overviewCards.map((m) => (
           <Card key={m.label} className="border-[#0f2b46]/10">
