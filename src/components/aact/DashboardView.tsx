@@ -573,6 +573,38 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {semesterStudyPlans.length > 0 && (
+                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة للفصول والمواد المطلوبة</h3>
+                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">بعد التسجيل مباشرة</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {semesterStudyPlans.map((plan) => (
+                        <div key={plan.exam.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-black text-[#0f2b46]">الفصل {plan.semester} · {plan.exam.title}</p>
+                              <p className="mt-1 text-[11px] font-bold text-slate-500">إجمالي ساعات مقترحة: {plan.hours} ساعة موزعة على الكتب والوحدات والواجبات والمراجعة.</p>
+                            </div>
+                            <Badge className="bg-white text-[#a8841a] hover:bg-white">{plan.exam.readiness?.complete ? 'متطلبات مكتملة' : 'قيد الاستكمال'}</Badge>
+                          </div>
+                          <div className="mt-3 grid gap-2 md:grid-cols-4">
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600"><b className="text-[#0f2b46]">الكتب</b><br />{plan.booksHours} ساعة · {plan.semesterBooks.length || 'كل'} كتاب/مصدر</div>
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600"><b className="text-[#0f2b46]">الوحدات والمحاضرات</b><br />{plan.unitsHours} ساعة · {active.units.length} وحدة</div>
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600"><b className="text-[#0f2b46]">الواجبات</b><br />{plan.assignmentsHours} ساعة · {plan.semesterAssignments.length} واجب</div>
+                            <div className="rounded-xl bg-white p-2 text-[11px] font-bold leading-5 text-slate-600"><b className="text-[#0f2b46]">المراجعة قبل الامتحان</b><br />{plan.revisionHours} ساعة · بعد استكمال المتطلبات</div>
+                          </div>
+                          <div className="mt-3 rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600">
+                            <p className="font-black text-[#0f2b46]">المواد المطلوبة لهذا الفصل</p>
+                            <p className="mt-1">{plan.semesterBooks.slice(0, 6).map((b) => b.title).join(' · ') || 'تظهر الكتب والمواد هنا بعد اعتماد الإدارة للمنهج.'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {(activeAcademicProfile?.termPlans?.length || 0) > 0 && (
                   <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
