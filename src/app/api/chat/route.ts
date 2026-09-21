@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete } from '@/lib/platform-agent'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
