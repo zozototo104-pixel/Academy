@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
