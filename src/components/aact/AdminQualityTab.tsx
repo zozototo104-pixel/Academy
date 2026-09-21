@@ -835,8 +835,9 @@ export function AdminQualityTab() {
     if (!programId) return
     setThesisTopicLoading(true)
     try {
-      const res = await api<{ topics: any[] }>(`/api/admin/thesis-topics?programId=${encodeURIComponent(programId)}`)
+      const res = await api<{ topics: any[]; requests: any[] }>(`/api/admin/thesis-topics?programId=${encodeURIComponent(programId)}`)
       setThesisTopicList(res.topics || [])
+      setThesisTopicRequests(res.requests || [])
     } catch {
       setThesisTopicList([])
     } finally {
