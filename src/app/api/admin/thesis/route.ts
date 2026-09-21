@@ -103,7 +103,9 @@ export async function PATCH(req: NextRequest) {
         thesis.userId,
         'THESIS',
         'خطة البحث تحتاج تعديلًا',
-        `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
+        safeReviewNote
+          ? `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. ملاحظة الإدارة/المشرف: ${safeReviewNote}`
+          : `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
         'dashboard'
       )
       if (thesis.user?.email) {
