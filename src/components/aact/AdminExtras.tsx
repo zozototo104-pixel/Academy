@@ -251,6 +251,17 @@ export function AdminThesisTab() {
                       الباحث: {studentName} — {programName}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
+                    <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
+                      {journey.map((step, index) => (
+                        <div key={step.title} className={`rounded-xl border px-2 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : step.active ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-100 bg-slate-50'}`}>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${step.done ? 'bg-emerald-600 text-white' : step.active ? 'bg-[#c9a227] text-white' : 'bg-white text-slate-400'}`}>{step.done ? '✓' : index + 1}</span>
+                            <span className={`text-[9px] font-black ${step.done ? 'text-emerald-700' : step.active ? 'text-[#a8841a]' : 'text-slate-400'}`}>{step.done ? 'مكتملة' : step.active ? 'الحالية' : 'لاحقًا'}</span>
+                          </div>
+                          <p className="mt-1 text-[10px] font-black text-[#0f2b46]">{step.title}</p>
+                        </div>
+                      ))}
+                    </div>
                     {t.status === 'SCHEDULED' && t.defenseDate && (
                       <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-700">
                         <CalendarClock className="h-3.5 w-3.5" />
