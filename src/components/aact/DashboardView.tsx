@@ -493,6 +493,20 @@ export function DashboardView() {
                   </div>
                   <Progress value={active.progress} className="h-2.5 bg-white" />
                 </div>
+
+                {currentStudentAction && (
+                  <div className="mt-4 rounded-2xl border border-[#c9a227]/40 bg-[#fffaf0] p-4">
+                    <p className="text-[11px] font-black text-[#a8841a]">ماذا عليّ الآن؟</p>
+                    <h3 className="mt-1 text-base font-black text-[#0f2b46]">{currentStudentAction.title}</h3>
+                    <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{currentStudentAction.text}</p>
+                    {currentStudentAction.tab !== dashboardTab && (
+                      <Button size="sm" onClick={() => setDashboardTab(currentStudentAction.tab)} className="mt-3 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                        انتقل للخطوة المطلوبة
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">
                     <Award className="h-5 w-5" />
