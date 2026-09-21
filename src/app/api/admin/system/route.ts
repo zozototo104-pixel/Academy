@@ -122,8 +122,9 @@ export async function PATCH(req: NextRequest) {
     for (const k of SYSTEM_KEYS) values[k] = ''
     for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
     const gemini = await geminiKeyDiagnostics()
+    const textAi = await textAiDiagnostics()
     const agent = await localAgentDiagnostics()
-    return NextResponse.json({ ok: true, values, gemini, agent })
+    return NextResponse.json({ ok: true, values, gemini, textAi, agent })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر حفظ الإعدادات' }, { status: 500 })
