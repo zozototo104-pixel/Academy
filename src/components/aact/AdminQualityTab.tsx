@@ -209,6 +209,7 @@ interface StorageSafetyReport {
     suspiciousBooks: { id: string; title: string; program?: string | null; fileName?: string | null; size?: number | null; storageProvider?: string | null; storageKey?: string | null; fileUrl?: string | null; hasLegacyData: boolean; hasLink: boolean }[]
     orphanDrafts: { id: string; examId: string; examType: string; updatedAt: string }[]
     reviewExams: { id: string; title: string; questions: number; createdAt: string }[]
+    heavyDbFiles: { key: string; label: string; table: string; column: string; rows: number; chars: number; approxBytes: number; status: 'SAFE' | 'WATCH' | 'WARNING' | 'HIGH_RISK'; note: string }[]
   }
 }
 
