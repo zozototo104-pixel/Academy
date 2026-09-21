@@ -73,7 +73,7 @@ export async function PATCH(req: NextRequest) {
       }
       const updated = await db.thesisSubmission.update({
         where: { id },
-        data: { status: 'PLAN_APPROVED', reviewedAt: new Date() },
+        data: { status: 'PLAN_APPROVED', reviewNote: safeReviewNote || null, reviewedAt: new Date() },
       })
       await notify(
         thesis.userId,
