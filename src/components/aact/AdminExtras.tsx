@@ -38,6 +38,7 @@ interface Thesis {
   id: string
   title: string
   abstract: string
+  reviewNote?: string | null
   status: string
   defenseDate?: string | null
   committee?: string | null
