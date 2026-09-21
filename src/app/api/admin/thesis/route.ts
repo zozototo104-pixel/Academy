@@ -68,6 +68,22 @@ export async function PATCH(req: NextRequest) {
     })
     if (!thesis) return NextResponse.json({ error: 'البحث غير موجود' }, { status: 404 })
 
+    const saveReviewHistory = async (stage: string, noteAction: string, note: string, visibleToStudent = true) => {
+      const cleanNote = String(note || '').trim()
+      if (!cleanNote) return
+      await db.thesisReviewNote.create({
+        data: {
+          thesisId: id,
+          stage,
+          action: noteAction,
+          note: cleanNote,
+          authorId: admin.id,
+          authorName: admin.name || 'الإدارة',
+          visibleToStudent,
+        },
+      }).catch(() => {})
+    }
+
     if (action === 'APPROVE_PLAN') {
       if (thesis.status !== 'PLAN_SUBMITTED') {
         return NextResponse.json({ error: 'لا توجد خطة بحث بانتظار الاعتماد لهذا الطالب' }, { status: 400 })
