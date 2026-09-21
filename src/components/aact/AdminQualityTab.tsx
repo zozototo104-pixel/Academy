@@ -1265,7 +1265,7 @@ export function AdminQualityTab() {
       </div>
 
       <Dialog open={catalogImportOpen} onOpenChange={setCatalogImportOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" dir="rtl">
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-3xl sm:p-6" dir="rtl">
           <DialogHeader>
             <DialogTitle className="font-black text-[#0f2b46]">استيراد نسخة كتالوج البرامج</DialogTitle>
             <DialogDescription>
