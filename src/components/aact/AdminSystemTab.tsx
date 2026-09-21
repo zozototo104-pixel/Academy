@@ -562,11 +562,50 @@ export function AdminSystemTab() {
             </div>
           </div>
           <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black text-[#a8841a]"><Bot className="h-3.5 w-3.5" /> Gemini الأساسي والصوت الحي</h4>
+            </div>
             {F('GEMINI_API_KEY', 'مفتاح Gemini API', data.secretsSet.GEMINI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'AIza...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
-            {F('GEMINI_TEXT_MODEL', 'نموذج النصوص', 'gemini-3.8-flash', 'text', 'اتركه فارغاً للتلقائي؛ لا تضع نموذج Live هنا')}
-            {F('GEMINI_TTS_MODEL', 'نموذج TTS', 'gemini-3.1-flash-tts-preview', 'text', 'للردود النصية فقط عند استخدام TTS')}
-            {SelectF('GEMINI_TTS_VOICE', 'صوت Gemini Live / TTS', GEMINI_VOICE_CHOICES.map((v) => ({ value: v, label: v })), 'اختر الصوت من القائمة بدلاً من كتابته يدوياً. سيُستخدم في Gemini Live وفي TTS النصي.')}
-            {SelectF('GEMINI_LIVE_MODEL', 'نموذج Gemini Live', GEMINI_LIVE_MODEL_CHOICES, 'اختر النموذج من القائمة. إذا لم يكن متاحاً لمشروعك فسيظهر ذلك عند اختبار Gemini Live.')}
+            {F('GEMINI_TEXT_MODEL', 'نموذج Gemini للنصوص / احتياطي', 'gemini-3.8-flash', 'text', 'يستخدم عند اختيار Gemini أو عند فشل مزود النصوص الخارجي. لا تضع نموذج Live هنا.')}
+            {F('GEMINI_TTS_MODEL', 'نموذج TTS', 'gemini-3.1-flash-tts-preview', 'text', 'للردود الصوتية غير Live فقط')}
+            {SelectF('GEMINI_TTS_VOICE', 'صوت Gemini Live / TTS', GEMINI_VOICE_CHOICES.map((v) => ({ value: v, label: v })), 'اختر الصوت من القائمة بدلاً من كتابته يدوياً.')}
+            {SelectF('GEMINI_SUPERVISOR_LIVE_MODEL', 'Live للمشرف الذكي', GEMINI_SUPERVISOR_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live للمشرف اليومي منخفض التأخير.')}
+            {SelectF('GEMINI_DISCUSSION_LIVE_MODEL', 'Live للمناقشة / الدفاع', GEMINI_DISCUSSION_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live-extended-thinking للمناقشات والدفاع الأكاديمي.')}
+            {SelectF('GEMINI_DISCUSSION_THINKING_LEVEL', 'مستوى التفكير للمناقشة', GEMINI_THINKING_CHOICES, 'يطبق على Live الحديث عند دعم النموذج.')}
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-[11px] font-black text-indigo-900">مزود النصوص الخارجي — للامتحانات والتحليل والتصحيح والقراءة النصية</h4>
+                <p className="mt-1 text-[10px] font-bold leading-relaxed text-indigo-700">هذا القسم لا يغير الصوت ولا Gemini Live. عند ضبطه ستستخدم وظائف النصوص المزود المختار، ويبقى Gemini احتياطياً عند توفر مفتاحه.</p>
+              </div>
+              <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
+            </div>
+            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'اختر GEMINI للإبقاء على الوضع الحالي، أو AUTO/مزود خارجي للنصوص فقط.')}
+            <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
+              {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
+            </div>
+            {currentTextProvider === 'OPENAI' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('OPENAI_API_KEY', 'OpenAI API Key', data.secretsSet.OPENAI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'sk-...', 'password', 'يستخدم لنماذج ChatGPT / OpenAI النصية فقط.')}
+                {SelectF('OPENAI_TEXT_MODEL', 'نموذج OpenAI للنصوص', OPENAI_TEXT_MODEL_CHOICES, 'للتوليد والتحليل والأسئلة. يمكن كتابة نموذج محفوظ سابقاً أيضاً.')}
+                {F('OPENAI_BASE_URL', 'OpenAI Base URL اختياري', 'https://api.openai.com/v1', 'text', 'اتركه افتراضياً إلا إذا كنت تستخدم بوابة متوافقة.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'ANTHROPIC' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('ANTHROPIC_API_KEY', 'Anthropic API Key', data.secretsSet.ANTHROPIC_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'sk-ant-...', 'password', 'يستخدم Claude للنصوص والتحليل.')}
+                {SelectF('ANTHROPIC_TEXT_MODEL', 'نموذج Claude للنصوص', ANTHROPIC_TEXT_MODEL_CHOICES, 'Sonnet للتحليل المتوازن، Opus للمهام الأثقل عند توفره.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'ZAI' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('ZAI_API_KEY', 'Z.AI / GLM API Key', data.secretsSet.ZAI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'zai-...', 'password', 'يستخدم GLM-4.5 للنصوص والتحليل.')}
+                {SelectF('ZAI_TEXT_MODEL', 'نموذج GLM للنصوص', ZAI_TEXT_MODEL_CHOICES, 'GLM-4.5 أحدث عائلة GLM قوية للنصوص والاستدلال.')}
+                {F('ZAI_API_BASE', 'Z.AI API Base', 'https://api.z.ai/api/paas/v4', 'text', 'متوافق مع chat/completions.')}
+              </>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
