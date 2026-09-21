@@ -761,6 +761,22 @@ export function ThesisTab() {
                 <p className="mt-1 whitespace-pre-line">{thesis.reviewNote}</p>
               </div>
             ) : null}
+            {thesis.reviewNotes?.length ? (
+              <div className="mt-3 rounded-xl border border-slate-100 bg-white p-4">
+                <p className="text-xs font-black text-[#0f2b46]">سجل ملاحظات البحث</p>
+                <div className="mt-2 space-y-2">
+                  {thesis.reviewNotes.slice(0, 5).map((note) => (
+                    <div key={note.id} className="rounded-lg bg-slate-50 p-3 text-[11px] font-bold leading-6 text-slate-600">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-black text-[#0f2b46]">{note.stage === 'PLAN' ? 'خطة البحث' : note.stage === 'FINAL' ? 'البحث النهائي' : note.stage === 'RESULT' ? 'النتيجة' : 'ملاحظة عامة'}</span>
+                        <span className="text-slate-400">{new Date(note.createdAt).toLocaleDateString('ar-EG')}</span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-line">{note.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {thesis.status === 'SCHEDULED' && thesis.defenseDate && (
               <>
                 <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-xs font-bold text-blue-700">
