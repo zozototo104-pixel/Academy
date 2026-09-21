@@ -316,15 +316,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'بيانات التسجيل غير صالحة' }, { status: 400 })
       }
       const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
-      const size = Math.round((base64.length * 3) / 4)
+      const recordingMime = String(mime || 'video/webm').slice(0, 60)
+      const buffer = Buffer.from(base64, 'base64')
+      const size = buffer.byteLength
       if (size > 24 * 1024 * 1024) {
-        return NextResponse.json({ error: 'حجم التسجيل يتجاوز 24 ميجابايت — لن تُأرشفع (جلسة طويلة جداً)' }, { status: 413 })
+        return NextResponse.json({ error: 'حجم التسجيل يتجاوز 24 ميجابايت — لن تُأرشف (جلسة طويلة جداً)' }, { status: 413 })
+      }
+      let stored
+      try {
+        stored = await storeFileBuffer({
+          namespace: `defense-recordings/${user.id}`,
+          buffer,
+          fileName: `defense-${thesis.id}.webm`,
+          mimeType: recordingMime,
+        })
+      } catch (storageError) {
+        return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
       }
       await db.thesisSubmission.update({
         where: { id: thesis.id },
         data: {
-          recordingData: base64,
-          recordingMime: String(mime || 'video/webm').slice(0, 60),
+          recordingData: null,
+          recordingStorageProvider: stored.provider,
+          recordingStorageKey: stored.key,
+          recordingUrl: stored.url,
+          recordingMime,
           recordingSize: size,
           recordingDurationSec: Number(durationSec) > 0 ? Math.round(Number(durationSec)) : null,
         },
