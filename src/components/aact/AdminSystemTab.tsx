@@ -264,6 +264,7 @@ export function AdminSystemTab() {
     : agentDiag?.source === 'env'
       ? 'متغيرات السيرفر/Vercel'
       : 'غير مضبوط'
+  const currentPaymentMode = (form.PAYMENT_MODE || data.paymentMode || 'SANDBOX') as 'SANDBOX' | 'LIVE'
 
   return (
     <div className="space-y-4">
