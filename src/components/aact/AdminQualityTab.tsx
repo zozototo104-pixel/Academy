@@ -1776,6 +1776,20 @@ export function AdminQualityTab() {
                       {selectedStudent.theses?.slice(0, 3).map((t: any) => <div key={t.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">بحث: {t.title || '-'} · {t.status}</div>)}
                     </div>
                   </div>
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="mb-2 text-xs font-black text-[#0f2b46]">طلبات الالتحاق</p>
+                    <div className="max-h-44 space-y-2 overflow-y-auto">
+                      {selectedStudent.ownedAdmissions?.length ? selectedStudent.ownedAdmissions.map((a: any) => <div key={a.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">{a.programRef?.titleAr || a.program || 'طلب'} · {a.status} · {a.reference || '-'}</div>) : <p className="text-[11px] font-bold text-slate-400">لا توجد طلبات التحاق.</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="mb-2 text-xs font-black text-[#0f2b46]">عناوين البحث والشهادات</p>
+                    <div className="max-h-44 space-y-2 overflow-y-auto">
+                      {selectedStudent.thesisTopicRequests?.slice(0, 5).map((r: any) => <div key={r.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">عنوان بحث: {r.topic?.title || r.proposedTitle || '-'} · {r.status}</div>)}
+                      {selectedStudent.certificates?.slice(0, 5).map((c: any) => <div key={c.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">شهادة: {c.program || '-'} · {c.serial || '-'} · {c.valid ? 'صالحة' : 'ملغاة'}</div>)}
+                      {!selectedStudent.thesisTopicRequests?.length && !selectedStudent.certificates?.length ? <p className="text-[11px] font-bold text-slate-400">لا توجد عناوين بحث أو شهادات.</p> : null}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
