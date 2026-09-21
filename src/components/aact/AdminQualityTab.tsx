@@ -888,6 +888,23 @@ export function AdminQualityTab() {
     void loadMailStatus()
   }
 
+  const loadLaunchHealth = async () => {
+    setLaunchHealthLoading(true)
+    try {
+      const res = await api<any>('/api/admin/launch-health')
+      setLaunchHealth(res)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل مراقبة الإطلاق')
+    } finally {
+      setLaunchHealthLoading(false)
+    }
+  }
+
+  const openLaunchHealth = () => {
+    setLaunchHealthOpen(true)
+    void loadLaunchHealth()
+  }
+
   const sendMailTest = async () => {
     const to = mailTestEmail.trim()
     if (!to || !to.includes('@')) return alert('اكتب بريدًا صحيحًا لإرسال رسالة الاختبار')
