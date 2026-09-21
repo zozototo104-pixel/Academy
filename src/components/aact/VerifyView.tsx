@@ -144,6 +144,16 @@ export function VerifyView() {
               <p className={`mt-2 text-sm font-bold ${result.valid ? 'text-emerald-800' : 'text-red-700'}`}>
                 {result.message}
               </p>
+              {result.valid && result.verificationMode === 'SERIAL' && (
+                <p className="mt-1 text-xs font-bold text-emerald-700">
+                  تم التحقق بالرقم التسلسلي؛ لذلك تُعرض بيانات الشهادة الأساسية فقط. امسح رمز QR لعرض تحقق موسّع عند توفره.
+                </p>
+              )}
+              {result.valid && result.verificationMode === 'QR_TOKEN' && (
+                <p className="mt-1 text-xs font-bold text-emerald-700">
+                  تم التحقق عبر رمز QR الآمن المرتبط بهذه الشهادة.
+                </p>
+              )}
               {result.certificate && (
                 <div className="mt-4 grid gap-3 rounded-xl bg-white/80 p-4 text-xs sm:grid-cols-2">
                   <div>
