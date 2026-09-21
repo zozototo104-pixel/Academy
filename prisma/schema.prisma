@@ -853,7 +853,10 @@ model AssignmentSubmission {
   fileName      String?
   mimeType      String?
   size          Int?
-  data          String?  // base64 للملف المرفق في الواجب
+  data          String?  // legacy فقط: base64 للملف المرفق في الواجب
+  fileStorageProvider String?
+  fileStorageKey      String?
+  fileUrl             String?
   status        String   @default("SUBMITTED") // SUBMITTED | GRADED | NEEDS_REVISION
   score         Float?
   feedback      String?
