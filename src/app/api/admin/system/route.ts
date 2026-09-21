@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest) {
       // الحقول السرية: القيمة المقنعة = لا تغيير. أمّا مفتاح Gemini تحديداً فيمكن تفريغه للرجوع إلى مفتاح Vercel الافتراضي.
       if (SECRET_KEYS.has(key) && value.includes('••••')) continue
       if (SECRET_KEYS.has(key) && value === '') {
-        if (key === 'GEMINI_API_KEY' || key === 'AI_AGENT_API_KEY') {
+        if (['GEMINI_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'ZAI_API_KEY', 'AI_AGENT_API_KEY'].includes(key)) {
           await db.setting.delete({ where: { key } }).catch(() => null)
           updates.push(key)
         }
