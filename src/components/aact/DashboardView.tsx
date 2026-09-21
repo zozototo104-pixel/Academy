@@ -17,7 +17,7 @@ import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
-  BookMarked, Hourglass, ScrollText, MessageCircle,
+  BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks,
 } from 'lucide-react'
 
 interface UnitInfo {
