@@ -13,6 +13,26 @@ function clean(value: unknown, max = 500) {
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
+    const userId = clean(req.nextUrl.searchParams.get('userId'), 120)
+    if (userId) {
+      const student = await db.user.findFirst({
+        where: { id: userId, role: 'STUDENT' },
+        include: {
+          enrollments: { include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, receiptNo: true, paidAt: true, createdAt: true } } }, orderBy: { createdAt: 'desc' } },
+          ownedAdmissions: { select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, reference: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 10 },
+          payments: { select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, receiptNo: true, paidAt: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 30 },
+          examAttempts: { include: { exam: { select: { title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
+          programExamAttempts: { include: { exam: { select: { title: true, program: { select: { titleAr: true } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
+          assignmentSubmissions: { include: { assignment: { select: { title: true, points: true, program: { select: { titleAr: true } } } } }, orderBy: { submittedAt: 'desc' }, take: 30 },
+          thesisSubmissions: { orderBy: { createdAt: 'desc' }, take: 10 },
+          thesisTopicRequests: { include: { topic: { select: { title: true } }, program: { select: { titleAr: true } } }, orderBy: { createdAt: 'desc' }, take: 20 },
+        },
+      })
+      if (!student) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
+      const certificates = await db.certificate.findMany({ where: { userId }, select: { id: true, serial: true, type: true, program: true, grade: true, issuedAt: true, valid: true }, orderBy: { issuedAt: 'desc' }, take: 20 })
+      return NextResponse.json({ student: { ...student, certificates } })
+    }
+
     const q = clean(req.nextUrl.searchParams.get('q'), 120).toLowerCase()
     const status = clean(req.nextUrl.searchParams.get('status'), 40)
     const where: any = { role: 'STUDENT' }
