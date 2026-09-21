@@ -11,6 +11,33 @@ function approxBase64Bytes(value?: string | null) {
   return Math.floor(value.length * 0.75)
 }
 
+function asNumber(value: unknown) {
+  if (typeof value === 'bigint') return Number(value)
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Number(value || 0)
+  return 0
+}
+
+async function heavyColumnReport(label: string, table: string, column: string, note: string) {
+  const rows = await db.$queryRawUnsafe<{ rows: bigint; chars: bigint }[]>(
+    `SELECT COUNT(*)::bigint AS rows, COALESCE(SUM(LENGTH("${column}")), 0)::bigint AS chars FROM "${table}" WHERE "${column}" IS NOT NULL AND LENGTH("${column}") > 0`
+  )
+  const first = rows[0]
+  const rowCount = asNumber(first?.rows)
+  const chars = asNumber(first?.chars)
+  return {
+    key: `${table}.${column}`,
+    label,
+    table,
+    column,
+    rows: rowCount,
+    chars,
+    approxBytes: Math.floor(chars * 0.75),
+    status: rowCount === 0 ? 'SAFE' : chars > 50 * 1024 * 1024 ? 'HIGH_RISK' : chars > 5 * 1024 * 1024 ? 'WARNING' : 'WATCH',
+    note,
+  }
+}
+
 export async function GET() {
   try {
     await requireAdmin()
