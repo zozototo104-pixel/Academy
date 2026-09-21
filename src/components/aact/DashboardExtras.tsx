@@ -525,6 +525,18 @@ export function ThesisTab() {
     NEEDS_REVISION: { label: 'يحتاج تعديلات', cls: 'bg-red-100 text-red-600' },
   }
 
+  const approvedTopic = topicRequests.some((r) => r.status === 'APPROVED')
+  const topicPending = topicRequests.some((r) => r.status === 'PENDING' || r.status === 'NEEDS_REVISION')
+  const thesisStatus = thesis?.status || ''
+  const thesisSteps = [
+    { key: 'topic', title: 'اختيار العنوان', done: approvedTopic, active: !approvedTopic, note: approvedTopic ? 'عنوان البحث معتمد' : topicPending ? 'العنوان قيد المراجعة/التعديل' : 'اختر عنوانًا أو اقترح عنوانًا' },
+    { key: 'plan', title: 'تسليم الخطة', done: ['PLAN_SUBMITTED', 'PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(thesisStatus), active: approvedTopic && (!thesis || thesisStatus === 'NEEDS_REVISION'), note: thesisStatus === 'PLAN_SUBMITTED' ? 'الخطة قيد المراجعة' : thesisStatus === 'NEEDS_REVISION' ? 'تحتاج تعديلًا' : 'سلم خطة البحث أولًا' },
+    { key: 'plan-approved', title: 'اعتماد الخطة', done: ['PLAN_APPROVED', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(thesisStatus), active: thesisStatus === 'PLAN_SUBMITTED', note: thesisStatus === 'PLAN_APPROVED' ? 'الخطة معتمدة' : 'بانتظار قرار الإدارة/المشرف' },
+    { key: 'final', title: 'البحث النهائي', done: ['SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(thesisStatus), active: thesisStatus === 'PLAN_APPROVED', note: thesisStatus === 'SUBMITTED' ? 'قيد المراجعة النهائية' : 'يفتح بعد اعتماد الخطة' },
+    { key: 'defense', title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(thesisStatus), active: thesisStatus === 'SUBMITTED', note: thesisStatus === 'SCHEDULED' ? 'تم تحديد موعد المناقشة' : 'تُجدول بعد مراجعة البحث النهائي' },
+    { key: 'result', title: 'النتيجة', done: thesisStatus === 'RESULT_APPROVED', active: thesisStatus === 'SCHEDULED', note: thesisStatus === 'RESULT_APPROVED' ? 'تم اعتماد النتيجة' : 'تظهر بعد المناقشة' },
+  ]
+
   return (
     <div className="space-y-4">
       {/* العدّاد والمهلة */}
