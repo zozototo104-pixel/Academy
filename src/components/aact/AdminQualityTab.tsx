@@ -755,6 +755,46 @@ export function AdminQualityTab() {
     )
   }
 
+  const pickProgramForThesis = () => {
+    const list = readinessItems.length ? readinessItems : data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
+    if (!list.length) return null
+    const choice = window.prompt(`اختر رقم البرنامج:\n${list.slice(0, 30).map((p, i) => `${i + 1}. ${p.titleAr}`).join('\n')}`, '1')
+    const index = Number(choice || 0) - 1
+    return list[index]?.id || null
+  }
+
+  const generateThesisTopics = async () => {
+    const programId = pickProgramForThesis()
+    if (!programId) return
+    const count = Number(window.prompt('كم عنوان تريد توليده؟', '6') || 6)
+    try {
+      await api('/api/admin/thesis-topics', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'generate', programId, count }),
+      })
+      alert('تم توليد مقترحات عناوين بحث التخرج. راجعها واعتمد المناسب من سجل API / المرحلة التالية للواجهة التفصيلية.')
+    } catch (e: any) {
+      alert(e?.message || 'تعذر توليد عناوين بحث التخرج')
+    }
+  }
+
+  const createManualThesisTopic = async () => {
+    const programId = pickProgramForThesis()
+    if (!programId) return
+    const title = window.prompt('اكتب عنوان بحث التخرج')
+    if (!title?.trim()) return
+    const description = window.prompt('وصف مختصر للعنوان أو مجال البحث', '') || ''
+    try {
+      await api('/api/admin/thesis-topics', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create', programId, title, description, status: 'APPROVED' }),
+      })
+      alert('تمت إضافة عنوان بحث التخرج واعتماده للطلاب.')
+    } catch (e: any) {
+      alert(e?.message || 'تعذر إضافة عنوان بحث التخرج')
+    }
+  }
+
   const overviewCards = [
     { icon: BookMarked, label: 'برامج نشطة', value: data.overview.activePrograms, hint: `${data.overview.strongPrograms} قوية` },
     { icon: AlertTriangle, label: 'تحتاج تحسين', value: data.overview.programsNeedingAttention, hint: 'برامج أو مسارات ضعيفة' },
