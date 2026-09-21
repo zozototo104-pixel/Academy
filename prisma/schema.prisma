@@ -426,6 +426,7 @@ model ThesisSubmission {
   recordingDurationSec Int?
   defenseMessages  DefenseMessage[]
   defenseParticipants DefenseParticipant[]
+  reviewNotes ThesisReviewNote[]
   resultScore Float?
   passed      Boolean?
   reviewedAt  DateTime?
