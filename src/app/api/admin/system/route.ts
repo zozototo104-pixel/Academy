@@ -76,6 +76,7 @@ export async function GET() {
       launchReadiness,
       turnConfigured: !!(values.TURN_URL && (values.TURN_USERNAME || process.env.TURN_USERNAME)),
       gemini,
+      textAi,
       agent,
       emails,
     })
