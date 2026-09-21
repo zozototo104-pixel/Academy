@@ -93,10 +93,50 @@ interface SystemData {
   emails: EmailLog[]
 }
 
-const GEMINI_LIVE_MODEL_CHOICES = [
-  { value: 'gemini-3.1-flash-live-preview', label: 'Gemini 3.1 Flash Live Preview — افتراضي حديث' },
-  { value: 'gemini-2.5-flash-native-audio-preview-12-2025', label: 'Gemini 2.5 Flash Native Audio — صوت طبيعي/احتياطي' },
-  { value: 'gemini-2.5-flash-live-preview', label: 'Gemini 2.5 Flash Live Preview — توافق قديم' },
+const GEMINI_SUPERVISOR_LIVE_MODEL_CHOICES = [
+  { value: 'gemini-3.8-live', label: 'Gemini 3.8 Live — المشرف الذكي / أقل تأخير' },
+  { value: 'gemini-3.1-flash-live-preview', label: 'Gemini 3.1 Flash Live Preview — احتياطي' },
+  { value: 'gemini-2.5-flash-native-audio-preview-12-2025', label: 'Gemini 2.5 Flash Native Audio — توافق قديم' },
+]
+
+const GEMINI_DISCUSSION_LIVE_MODEL_CHOICES = [
+  { value: 'gemini-3.8-live-extended-thinking', label: 'Gemini 3.8 Live Extended Thinking — المناقشة / الدفاع' },
+  { value: 'gemini-3.8-live', label: 'Gemini 3.8 Live — احتياطي للمناقشة' },
+  { value: 'gemini-3.1-flash-live-preview', label: 'Gemini 3.1 Flash Live Preview — توافق قديم' },
+]
+
+const GEMINI_THINKING_CHOICES = [
+  { value: 'high', label: 'High — تفكير أعمق للمناقشة' },
+  { value: 'medium', label: 'Medium — توازن' },
+  { value: 'low', label: 'Low — سرعة أعلى' },
+]
+
+const TEXT_PROVIDER_CHOICES = [
+  { value: 'GEMINI', label: 'Gemini فقط — الافتراضي' },
+  { value: 'AUTO', label: 'تلقائي — OpenAI ثم Claude ثم GLM ثم Gemini احتياطي' },
+  { value: 'OPENAI', label: 'OpenAI / ChatGPT للنصوص' },
+  { value: 'ANTHROPIC', label: 'Claude للنصوص' },
+  { value: 'ZAI', label: 'GLM / Z.AI للنصوص' },
+]
+
+const OPENAI_TEXT_MODEL_CHOICES = [
+  { value: 'gpt-5.1', label: 'GPT-5.1 — تحليل وتوليد قوي' },
+  { value: 'gpt-5', label: 'GPT-5 — احتياطي قوي' },
+  { value: 'gpt-5-mini', label: 'GPT-5 Mini — أسرع وأوفر' },
+]
+
+const ANTHROPIC_TEXT_MODEL_CHOICES = [
+  { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 — قوي للتحليل والكتابة' },
+  { value: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1 — أعلى قدرة للمهام المعقدة' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4 — احتياطي' },
+  { value: 'claude-3-7-sonnet-20250219', label: 'Claude Sonnet 3.7 — احتياطي' },
+]
+
+const ZAI_TEXT_MODEL_CHOICES = [
+  { value: 'glm-4.5', label: 'GLM-4.5 — أقوى نموذج GLM عام' },
+  { value: 'glm-4.5-air', label: 'GLM-4.5 Air — أسرع وأوفر' },
+  { value: 'glm-4.5-x', label: 'GLM-4.5 X — أداء أعلى عند توفره' },
+  { value: 'glm-4.5-airx', label: 'GLM-4.5 AirX — سريع عند توفره' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
