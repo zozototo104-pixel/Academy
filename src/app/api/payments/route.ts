@@ -88,6 +88,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!sandboxPaymentsAllowed() && user.role === 'STUDENT') {
+      return NextResponse.json({ error: sandboxPaymentsBlockedMessage() }, { status: 403 })
+    }
+
     const r = await markInvoicePaid(String(invoiceNo), String(method), {
       actor: { id: user.id, name: user.name },
     })
