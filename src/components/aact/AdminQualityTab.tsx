@@ -840,6 +840,7 @@ export function AdminQualityTab() {
       setThesisTopicRequests(res.requests || [])
     } catch {
       setThesisTopicList([])
+      setThesisTopicRequests([])
     } finally {
       setThesisTopicLoading(false)
     }
