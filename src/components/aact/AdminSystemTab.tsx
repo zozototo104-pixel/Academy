@@ -126,8 +126,9 @@ const OPENAI_TEXT_MODEL_CHOICES = [
 ]
 
 const ANTHROPIC_TEXT_MODEL_CHOICES = [
+  { value: 'claude-opus-5', label: 'Claude Opus 5 — أعلى خيار عند توفره في حسابك' },
   { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 — قوي للتحليل والكتابة' },
-  { value: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1 — أعلى قدرة للمهام المعقدة' },
+  { value: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1 — احتياطي قوي' },
   { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4 — احتياطي' },
   { value: 'claude-3-7-sonnet-20250219', label: 'Claude Sonnet 3.7 — احتياطي' },
 ]
