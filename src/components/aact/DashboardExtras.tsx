@@ -550,6 +550,23 @@ export function ThesisTab() {
     { key: 'defense', title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(thesisStatus), active: thesisStatus === 'SUBMITTED', note: thesisStatus === 'SCHEDULED' ? 'تم تحديد موعد المناقشة' : 'تُجدول بعد مراجعة البحث النهائي' },
     { key: 'result', title: 'النتيجة', done: thesisStatus === 'RESULT_APPROVED', active: thesisStatus === 'SCHEDULED', note: thesisStatus === 'RESULT_APPROVED' ? 'تم اعتماد النتيجة' : 'تظهر بعد المناقشة' },
   ]
+  const thesisRequiredAction = !approvedTopic
+    ? { title: 'اختر أو اقترح عنوان بحث', body: topicPending ? 'عنوانك قيد المراجعة أو يحتاج تعديلًا. تابع حالة الطلب أدناه.' : 'ابدأ باختيار عنوان معتمد أو اقترح عنوانًا مناسبًا لتخصصك.' }
+    : !thesis
+      ? { title: 'سلّم خطة البحث', body: 'بعد اعتماد العنوان، الخطوة التالية هي تسليم خطة البحث للمراجعة.' }
+      : thesisStatus === 'PLAN_NEEDS_REVISION' || thesisStatus === 'NEEDS_REVISION'
+        ? { title: 'عدّل خطة البحث', body: thesis.reviewNote || 'راجع ملاحظات الإدارة/المشرف ثم أعد تسليم الخطة.' }
+        : thesisStatus === 'PLAN_SUBMITTED'
+          ? { title: 'انتظر اعتماد الخطة', body: 'الخطة وصلت للإدارة/المشرف وهي قيد المراجعة.' }
+          : thesisStatus === 'PLAN_APPROVED'
+            ? { title: 'سلّم البحث النهائي', body: 'تم اعتماد الخطة. ابدأ بتسليم البحث النهائي وفق الخطة المنشورة.' }
+            : thesisStatus === 'FINAL_NEEDS_REVISION'
+              ? { title: 'عدّل البحث النهائي', body: thesis.reviewNote || 'راجع الملاحظة وأعد تسليم البحث النهائي قبل المناقشة.' }
+              : thesisStatus === 'SUBMITTED'
+                ? { title: 'انتظر جدولة المناقشة', body: 'البحث النهائي قيد المراجعة، وستظهر لك المناقشة عند جدولتها.' }
+                : thesisStatus === 'SCHEDULED'
+                  ? { title: 'استعد للمناقشة', body: thesis.defenseDate ? `موعد المناقشة: ${new Date(thesis.defenseDate).toLocaleString('ar-EG')}` : 'المناقشة مجدولة. راجع تعليمات اللجنة.' }
+                  : { title: 'نتيجتك معتمدة', body: 'تابع الشهادة والسجل الأكاديمي بعد اعتماد النتيجة.' }
 
   return (
     <div className="space-y-4">
