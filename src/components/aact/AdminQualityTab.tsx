@@ -790,12 +790,21 @@ export function AdminQualityTab() {
 
   const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
 
-  const loadStudents = async (q = studentSearch, status = studentStatus) => {
+  const loadStudents = async (
+    q = studentSearch,
+    status = studentStatus,
+    programId = studentProgramFilter,
+    paymentStatus = studentPaymentFilter,
+    thesisStatus = studentThesisFilter
+  ) => {
     setStudentsLoading(true)
     try {
       const params = new URLSearchParams()
       if (q.trim()) params.set('q', q.trim())
       if (status !== 'ALL') params.set('status', status)
+      if (programId !== 'ALL') params.set('programId', programId)
+      if (paymentStatus !== 'ALL') params.set('paymentStatus', paymentStatus)
+      if (thesisStatus !== 'ALL') params.set('thesisStatus', thesisStatus)
       const res = await api<{ students: any[] }>(`/api/admin/students?${params.toString()}`)
       setStudents(res.students || [])
     } catch (e: any) {
