@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
+import { hasExternalTextAi, textAiCompleteJson, textAiStreamText } from '@/lib/text-ai'
 
 export interface GeminiTurn {
   role: 'user' | 'model'
