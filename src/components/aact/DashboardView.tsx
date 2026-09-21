@@ -360,6 +360,37 @@ export function DashboardView() {
     return Number.isNaN(date.getTime()) ? 'لم تُحدّث بعد' : date.toLocaleDateString('ar-EG')
   }
 
+  const currentStudentAction = (() => {
+    if (!active) return null
+    const pendingAssignment = assignments.find((a) => !a.submission || a.submission.status === 'NEEDS_REVISION')
+    if (pendingAssignment) return { title: 'واجب مطلوب الآن', text: `أكمل واجب «${pendingAssignment.title}» قبل الامتحان النهائي للفصل.`, tab: 'programs' }
+    const unitExam = active.units.find((u) => u.examId && !u.examPassed)
+    if (unitExam) return { title: 'اختبار فصلي مطلوب', text: `اجتز اختبار وحدة «${unitExam.title}» لاستكمال متطلبات الفصل.`, tab: 'programs' }
+    const nextExam = (active.semesterExams || []).find((e: any) => !e.passed)
+    if (nextExam) {
+      const r = nextExam.readiness
+      return {
+        title: r?.readyMarked ? 'ابدأ الامتحان النهائي للفصل' : 'أكد جاهزيتك للامتحان النهائي',
+        text: r?.readyMarked ? `زر بدء امتحان ${nextExam.title} أصبح متاحًا.` : `راجع المتطلبات ثم اضغط «جاهز للامتحان» لتفعيل زر البدء.`,
+        tab: 'programs',
+      }
+    }
+    return { title: 'تابع بحث التخرج أو شهادتك', text: 'أكملت متطلبات الدراسة الأساسية لهذا البرنامج. انتقل إلى بحث التخرج أو الشهادات حسب حالتك.', tab: 'thesis' }
+  })()
+
+  const semesterStudyPlans = active?.semesterExams?.map((exam: any) => {
+    const semester = exam.semester
+    const semesterBooks = (active.program.books || []).filter((b) => !b.semester || b.semester === semester)
+    const semesterUnits = (active.program.units || []).filter((u) => active.units.some((au) => au.id === u.id))
+    const semesterAssignments = assignments.filter((a) => a.semester === semester)
+    const hours = Math.max(20, Number(active.program.hours || 60))
+    const booksHours = Math.max(4, Math.round(hours * 0.45))
+    const unitsHours = Math.max(4, Math.round(hours * 0.3))
+    const assignmentsHours = Math.max(2, Math.round(hours * 0.15))
+    const revisionHours = Math.max(2, hours - booksHours - unitsHours - assignmentsHours)
+    return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
+  }) || []
+
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
