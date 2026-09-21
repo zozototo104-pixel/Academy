@@ -79,7 +79,9 @@ export async function PATCH(req: NextRequest) {
         thesis.userId,
         'THESIS',
         'تم اعتماد خطة بحث التخرج',
-        `تم اعتماد خطة بحث «${thesis.title}». يمكنك الآن متابعة إعداد البحث النهائي وتسليمه من بوابة الطالب.`,
+        safeReviewNote
+          ? `تم اعتماد خطة بحث «${thesis.title}». ملاحظة الإدارة/المشرف: ${safeReviewNote}`
+          : `تم اعتماد خطة بحث «${thesis.title}». يمكنك الآن متابعة إعداد البحث النهائي وتسليمه من بوابة الطالب.`,
         'dashboard'
       )
       if (thesis.user?.email) {
