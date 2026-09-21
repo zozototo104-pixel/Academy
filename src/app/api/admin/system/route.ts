@@ -176,6 +176,18 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini', message: String(test.error || 'تعذر الاتصال بـ Gemini').slice(0, 300), gemini: diag })
     }
+    if (action === 'test-text-ai') {
+      const diag = await textAiDiagnostics()
+      const test = await textAiTestConnection()
+      return NextResponse.json({
+        ok: test.ok,
+        title: test.ok ? 'مزود النصوص الخارجي يعمل' : 'فشل اختبار مزود النصوص الخارجي',
+        message: test.ok
+          ? `تم الاتصال بنجاح: ${test.provider}/${test.model} — ${test.reply || 'جاهز'}`
+          : `${diag.message}${test.error ? ` — ${test.error}` : ''}`,
+        textAi: await textAiDiagnostics(),
+      })
+    }
     if (action === 'test-gemini-live') {
       await ensureGeminiKey()
       if (!hasGemini()) {
