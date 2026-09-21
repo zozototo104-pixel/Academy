@@ -766,6 +766,34 @@ export function AdminQualityTab() {
 
   const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
 
+  const loadThesisTopics = async (programId = thesisProgramId) => {
+    if (!programId) return
+    setThesisTopicLoading(true)
+    try {
+      const res = await api<{ topics: any[] }>(`/api/admin/thesis-topics?programId=${encodeURIComponent(programId)}`)
+      setThesisTopicList(res.topics || [])
+    } catch {
+      setThesisTopicList([])
+    } finally {
+      setThesisTopicLoading(false)
+    }
+  }
+
+  const updateThesisTopicStatus = async (id: string, status: string) => {
+    setThesisTopicBusy(true)
+    try {
+      await api('/api/admin/thesis-topics', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, status }),
+      })
+      await loadThesisTopics()
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحديث حالة العنوان')
+    } finally {
+      setThesisTopicBusy(false)
+    }
+  }
+
   const openThesisTopicDialog = (mode: 'manual' | 'generate') => {
     setThesisTopicMode(mode)
     setThesisProgramId(thesisProgramId || thesisProgramOptions[0]?.id || '')
