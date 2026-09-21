@@ -1752,7 +1752,15 @@ export function AdminQualityTab() {
                     <h4 className="text-sm font-black text-[#0f2b46]">ملف الطالب: {selectedStudent.name || 'طالب'}</h4>
                     <p className="mt-1 text-[11px] font-bold text-slate-600">{selectedStudent.email} · الحالة: {selectedStudent.status === 'DISABLED' ? 'معطل' : selectedStudent.status === 'ARCHIVED' ? 'مؤرشف' : 'نشط'}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedStudent(null)} className="text-xs font-black">إغلاق التفاصيل</Button>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedStudent.status !== 'ACTIVE' ? <Button size="sm" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'ACTIVE' })} className="bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700">تفعيل</Button> : null}
+                    {selectedStudent.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
+                    {selectedStudent.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
+                    <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => {
+                      if (confirm('سيتم حذف الطالب فقط إذا لم يكن لديه سجلات حقيقية. هل تريد المتابعة؟')) updateStudentAction(selectedStudent.id, 'safeDelete').then(() => setSelectedStudent(null))
+                    }} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelectedStudent(null)} className="text-xs font-black">إغلاق التفاصيل</Button>
+                  </div>
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">التسجيلات<br /><span className="text-lg text-[#0f2b46]">{selectedStudent.enrollments?.length || 0}</span></div>
