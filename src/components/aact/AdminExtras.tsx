@@ -351,10 +351,16 @@ export function AdminThesisTab() {
                         </Button>
                       </>
                     )}
-                    {t.status === 'NEEDS_REVISION' && (
+                    {['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) && (
                       <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
                         className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
-                        تحديث ملاحظة التعديل
+                        تحديث ملاحظة تعديل الخطة
+                      </Button>
+                    )}
+                    {t.status === 'FINAL_NEEDS_REVISION' && (
+                      <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                        className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                        تحديث ملاحظة تعديل البحث النهائي
                       </Button>
                     )}
                     {t.status === 'SCHEDULED' && (
