@@ -13,7 +13,10 @@ function normalizePurpose(value: unknown): GeminiLivePurpose {
 
 async function handler(req: NextRequest) {
   try {
-    await requireUser()
+    const user = await requireUser()
+    const liveLimit = enforceApiRateLimit(req, 'ai:live-token', 20, 10 * 60 * 1000, user.id)
+    if (liveLimit) return liveLimit
+
     const urlPurpose = req.nextUrl.searchParams.get('purpose')
     let bodyPurpose: unknown = null
     if (req.method === 'POST') {
