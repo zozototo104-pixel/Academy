@@ -872,7 +872,7 @@ export function AdminQualityTab() {
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
               </div>
 
-              {storageReport.samples.heavyDbFiles?.length > 0 && (
+              {(storageReport.samples?.heavyDbFiles || []).length > 0 && (
                 <div className="rounded-2xl bg-white p-4">
                   <h4 className="mb-2 text-xs font-black text-[#0f2b46]">فحص الملفات الثقيلة داخل قاعدة البيانات</h4>
                   <div className="grid gap-2 md:grid-cols-2">
