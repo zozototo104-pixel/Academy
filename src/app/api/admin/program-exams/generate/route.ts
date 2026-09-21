@@ -779,6 +779,8 @@ async function runGeneration(examId: string) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
+    const limited = enforceApiRateLimit(req, 'admin-program-exam-generate', 8, 60 * 1000, admin.id)
+    if (limited) return limited
     const body = await req.json()
     const examId = String(body?.examId || '').trim()
     const programId = String(body?.programId || '').trim()
