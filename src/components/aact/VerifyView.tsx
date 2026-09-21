@@ -265,7 +265,7 @@ export function VerifyView() {
         {[
           { t: 'احصل على كودك', d: 'الكود موجود في شهادتك أو في ملفك الشخصي داخل المنصة.' },
           { t: 'أدخل الكود', d: 'اكتب كود الشهادة كما هو مطبوع أو امسح رمز QR.' },
-          { t: 'تحقق فوراً', d: 'ستظهر بيانات الشهادة كاملة إذا كانت صحيحة وموثقة.' },
+          { t: 'تحقق فوراً', d: 'ستظهر بيانات الشهادة الأساسية بالرقم، وتحقق موسّع عند المسح عبر QR.' },
         ].map((step, i) => (
           <div key={step.t} className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 text-center shadow-sm">
             <span className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#0f2b46] text-xs font-black text-[#e0b83a]">{i + 1}</span>
