@@ -531,6 +531,11 @@ export function ExamView() {
                 <div className="mt-1 text-xs font-bold opacity-85">حد النجاح</div>
               </div>
             </div>
+            {result.courseworkCapApplied && (
+              <div className="mx-auto mt-5 max-w-md rounded-xl bg-amber-900/25 p-4 text-sm font-extrabold leading-7">
+                تم تطبيق سقف الدرجة بسبب عدم استكمال بعض الاختبارات/الواجبات الفصلية. نتيجتك قبل السقف: {result.rawScoreBeforeCourseworkCap}%، وأعلى نتيجة مسموحة الآن: {result.maxExamScore}%.
+              </div>
+            )}
             {result.certificateNo && (
               <div className="mx-auto mt-5 max-w-md rounded-xl bg-white/15 p-4 text-sm font-extrabold">
                 🎓 تم إصدار رقم شهادتك: <span dir="ltr">{result.certificateNo}</span>
