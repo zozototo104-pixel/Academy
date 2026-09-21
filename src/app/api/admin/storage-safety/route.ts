@@ -63,6 +63,18 @@ export async function GET() {
       db.questionBankItem.findMany({ select: { id: true, bookId: true, unitId: true } }),
       db.examDraft.findMany({ select: { id: true, examId: true, examType: true, userId: true, updatedAt: true } }),
       db.programExam.findMany({ where: { status: 'REVIEW' }, select: { id: true, title: true, programId: true, createdAt: true, _count: { select: { questions: true } } } }),
+      db.assignmentSubmission.findMany({
+        where: { fileStorageKey: { not: null } },
+        select: { id: true, fileName: true, size: true, fileStorageProvider: true, fileStorageKey: true, fileUrl: true, submittedAt: true },
+        orderBy: { submittedAt: 'desc' },
+        take: 20,
+      }),
+      db.thesisSubmission.findMany({
+        where: { recordingStorageKey: { not: null } },
+        select: { id: true, recordingMime: true, recordingSize: true, recordingStorageProvider: true, recordingStorageKey: true, recordingUrl: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+      }),
       Promise.all([
         heavyColumnReport('كتب قديمة مخزنة داخل قاعدة البيانات', 'Book', 'data', 'الكتب الجديدة يجب أن تكون على R2. هذا الحقل legacy فقط.'),
         heavyColumnReport('مرفقات الواجبات داخل قاعدة البيانات', 'AssignmentSubmission', 'data', 'هذا يحتاج نقله إلى R2 قبل توسعة الطلاب إذا بدأت الواجبات المرفقة.'),
