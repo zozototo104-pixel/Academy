@@ -296,11 +296,16 @@ export function PaymentsTab() {
                 </p>
               )}
             </div>
+            {payConfig && payConfig.trueGatewayCount === 0 && !payConfig.sandboxAllowed && (
+              <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-relaxed text-red-700">
+                الدفع الإلكتروني غير متاح حالياً. يرجى مراجعة الإدارة لاستلام تعليمات التحويل أو انتظار تفعيل وسيلة دفع إلكترونية.
+              </div>
+            )}
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
               <Info className="mb-1 h-3.5 w-3.5 text-[#c9a227]" />
               {payMode === 'LIVE'
-                ? 'الوضع الحقيقي مفعّل: اختيار Stripe أو PayPal يحوّلك لصفحة الدفع الرسمية ويُعتمد السداد تلقائياً بعد إتمامه. طرق فوري/التحويل البنكي تُراجع من الإدارة.'
-                : 'وضع المحاكاة الآمنة: يُصدر إيصالاً فورياً ويربطه بحالة طلبك تلقائياً. عند إدخال الإدارة مفاتيح Stripe/PayPal من تبويب «البريد والدفع» يتحول الدفع تلقائياً للبوابات الرسمية.'}
+                ? 'الوضع الحقيقي مفعّل: الطرق المفعلة فقط تحوّلك لصفحة الدفع الرسمية ويُعتمد السداد تلقائياً بعد إتمامه. أي طريقة غير مفعلة ستبقى ظاهرة مع سبب التعطيل.'
+                : 'وضع المحاكاة الآمنة مخصص للتجربة فقط. في الإنتاج لا يُسمح بالدفع التجريبي إلا إذا فعّلته الإدارة صراحة لبيئة اختبار مقصودة.'}
             </div>
             <Button onClick={pay} disabled={paying} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
               {paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Landmark className="ml-2 h-4 w-4" />}
