@@ -211,7 +211,7 @@ export function AdminSystemTab() {
   const statusBadge = (s: string) => {
     if (s === 'SENT') return { cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" />, label: 'أُرسل' }
     if (s === 'FAILED') return { cls: 'bg-red-100 text-red-600', icon: <XCircle className="h-3 w-3" />, label: 'فشل' }
-    return { cls: 'bg-amber-100 text-amber-700', icon: <Clock3 className="h-3 w-3" />, label: 'تخطى (لا SMTP)' }
+    return { cls: 'bg-amber-100 text-amber-700', icon: <Clock3 className="h-3 w-3" />, label: 'تخطى (لا بريد)' }
   }
 
   const F = (k: string, label: string, placeholder = '', type = 'text', hint = '') => (
