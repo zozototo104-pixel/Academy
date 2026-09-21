@@ -9,6 +9,7 @@ import { api } from '@/lib/store'
 
 export interface CertificateData {
   serial: string
+  qrToken?: string | null
   type: string
   holderName: string
   program: string
