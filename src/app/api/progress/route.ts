@@ -5,6 +5,7 @@ import { nextCertSerial } from '@/lib/settings'
 import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
+import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
 import { randomBytes } from 'crypto'
 
 // GET /api/progress?programId=xxx — تفاصيل البرنامج مع وحداته وتقدم الطالب
