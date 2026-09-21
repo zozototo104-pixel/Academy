@@ -115,6 +115,30 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, thesis: updated })
     }
 
+    if (action === 'REQUEST_FINAL_REVISION') {
+      if (!['SUBMITTED', 'SCHEDULED'].includes(thesis.status)) {
+        return NextResponse.json({ error: 'هذا الإجراء خاص بالبحث النهائي بعد تسليمه' }, { status: 400 })
+      }
+      const updated = await db.thesisSubmission.update({
+        where: { id },
+        data: { status: 'NEEDS_REVISION', reviewNote: safeReviewNote || null, reviewedAt: new Date() },
+      })
+      await notify(
+        thesis.userId,
+        'THESIS',
+        'البحث النهائي يحتاج تعديلًا',
+        safeReviewNote
+          ? `البحث النهائي «${thesis.title}» يحتاج تعديلًا قبل المناقشة. ملاحظة الإدارة/المشرف: ${safeReviewNote}`
+          : `البحث النهائي «${thesis.title}» يحتاج تعديلًا قبل المناقشة. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
+        'dashboard'
+      )
+      if (thesis.user?.email) {
+        emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null).catch(() => {})
+      }
+      await audit(admin, 'REQUEST_THESIS_FINAL_REVISION', 'ThesisSubmission', id, thesis.title)
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
     // جدولة المناقشة أمام لجنة متخصصة
     if (action === 'SCHEDULE') {
       let committeeList: string[] = []
