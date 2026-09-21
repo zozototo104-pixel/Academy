@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
           title: title.trim().slice(0, 300),
           abstract: abstract.trim().slice(0, 4000),
           fileNote: fileNote?.trim().slice(0, 600) || null,
+          reviewNote: null,
           status: nextStatus,
         },
       })
