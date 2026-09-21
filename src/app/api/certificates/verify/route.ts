@@ -237,6 +237,7 @@ export async function GET(req: NextRequest) {
       verificationMode: byToken ? 'QR_TOKEN' : 'SERIAL',
       certificate: {
         serial: cert.serial,
+        qrToken: byToken ? cert.qrToken : null,
         type: cert.type,
         holderName: cert.holderName,
         program: cert.program,
