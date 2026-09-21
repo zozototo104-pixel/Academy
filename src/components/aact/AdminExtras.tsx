@@ -34,11 +34,22 @@ const DefenseRoom = dynamic(
 
 // ============ جدولة المناقشات واللجان ============
 
+interface ThesisReviewNoteItem {
+  id: string
+  stage: string
+  action: string
+  note: string
+  authorName?: string | null
+  visibleToStudent?: boolean
+  createdAt: string
+}
+
 interface Thesis {
   id: string
   title: string
   abstract: string
   reviewNote?: string | null
+  reviewNotes?: ThesisReviewNoteItem[]
   status: string
   defenseDate?: string | null
   committee?: string | null
