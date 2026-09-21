@@ -193,6 +193,9 @@ export async function createProviderCheckout(params: {
   if (provider === 'PAYPAL') {
     return createPaypalOrder({ ...params, cfg })
   }
+  if (!sandboxPaymentsAllowed()) {
+    return { ok: false, error: sandboxPaymentsBlockedMessage() }
+  }
   return { ok: true, provider: 'SANDBOX', providerRef: `SBX-${Date.now()}` }
 }
 
