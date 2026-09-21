@@ -317,7 +317,7 @@ export function AdminSystemTab() {
             <div className="flex items-center justify-between rounded-xl border border-[#0f2b46]/10 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-[#0f2b46]">تفعيل الإرسال الفعلي</p>
-                <p className="text-[10px] text-slate-500">معطلة = يُسجَّل كل بريد في السجل دون إرسال (وضع آمن للتجربة)</p>
+                <p className="text-[10px] text-slate-500">خاص بـ SMTP فقط. إذا كان SMTP معطلاً يمكن أن يرسل Resend عند ضبط مفتاحه وعنوان المرسل.</p>
               </div>
               <div className="flex items-center gap-2">
                 <input type="hidden" value={form.SMTP_ENABLED ?? ''} />
