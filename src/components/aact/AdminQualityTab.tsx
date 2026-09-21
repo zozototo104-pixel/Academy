@@ -1502,6 +1502,79 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={mailStatusOpen} onOpenChange={setMailStatusOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-4xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">حالة البريد والتنبيهات</DialogTitle>
+            <DialogDescription>تعرض هذه النافذة جاهزية SMTP / Resend وآخر رسائل البريد المسجلة في النظام.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={loadMailStatus} disabled={mailStatusLoading} className="bg-[#0f2b46] font-black text-[#f5f0e1]">
+                {mailStatusLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+                تحديث حالة البريد
+              </Button>
+            </div>
+
+            {mailStatusLoading ? (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">جاري تحميل حالة البريد...</div>
+            ) : mailStatus ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 text-center">
+                    <p className="text-xs font-black text-slate-500">SMTP</p>
+                    <p className={`mt-1 text-sm font-black ${mailStatus.config?.smtpConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>{mailStatus.config?.smtpConfigured ? 'مفعّل' : 'غير مفعّل'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 text-center">
+                    <p className="text-xs font-black text-slate-500">Resend</p>
+                    <p className={`mt-1 text-sm font-black ${mailStatus.config?.resendEnabled ? 'text-emerald-700' : 'text-amber-700'}`}>{mailStatus.config?.resendEnabled ? 'مفعّل' : 'غير مفعّل'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 text-center">
+                    <p className="text-xs font-black text-slate-500">مرسلة</p>
+                    <p className="mt-1 text-lg font-black text-[#0f2b46]">{mailStatus.stats?.sent || 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 text-center">
+                    <p className="text-xs font-black text-slate-500">فاشلة / متخطاة</p>
+                    <p className="mt-1 text-lg font-black text-[#0f2b46]">{(mailStatus.stats?.failed || 0) + (mailStatus.stats?.skipped || 0)}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">
+                  <p><b>المرسل:</b> {mailStatus.config?.mailFrom || 'غير محدد'}</p>
+                  <p><b>مفتاح Resend:</b> {mailStatus.config?.resendKey || 'غير موجود'}</p>
+                </div>
+
+                {mailStatus.warnings?.length ? (
+                  <div className="rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-700">
+                    {mailStatus.warnings.map((warning: string, index: number) => <div key={index}>• {warning}</div>)}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-emerald-50 p-4 text-xs font-bold leading-6 text-emerald-700">لا توجد تحذيرات بريد حالية.</div>
+                )}
+
+                <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                  <h4 className="mb-3 text-sm font-black text-[#0f2b46]">آخر رسائل البريد</h4>
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {mailStatus.recent?.length ? mailStatus.recent.map((log: any) => (
+                      <div key={log.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-black text-[#0f2b46]">{log.subject}</span>
+                          <Badge className={log.status === 'SENT' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : log.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{log.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500">إلى: {log.to} · الحدث: {log.event || 'غير محدد'}</p>
+                        {log.error ? <p className="mt-1 text-[11px] text-red-600">{log.error}</p> : null}
+                      </div>
+                    )) : <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد سجلات بريد بعد.</div>}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">اضغط تحديث حالة البريد للتحميل.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={studentPreviewOpen} onOpenChange={setStudentPreviewOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
           <DialogHeader>
