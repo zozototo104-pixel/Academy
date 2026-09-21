@@ -66,9 +66,15 @@ export function VerifyView() {
     }
   }
 
-  // دعم فتح الرابط مباشرة من QR (?view=verify&serial=...)
+  // دعم فتح الرابط مباشرة من QR (?view=verify&token=...) أو من الرقم التسلسلي (?view=verify&serial=...)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
+    const token = q.get('token')
+    if (token) {
+      setSerial('تم استخدام رمز QR آمن')
+      verify(token, 'token')
+      return
+    }
     const s = q.get('serial')
     if (s) {
       setSerial(s)
