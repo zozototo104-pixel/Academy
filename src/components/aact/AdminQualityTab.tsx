@@ -1273,10 +1273,25 @@ export function AdminQualityTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="rounded-2xl border border-dashed border-[#c9a227]/50 bg-[#fffaf0] p-3">
+              <label className="block text-xs font-black text-[#0f2b46]">اختيار ملف النسخة من الجهاز</label>
+              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">الأفضل اختيار ملف JSON مباشرة بدل لصقه، خصوصًا من الجوال حتى لا تظهر لوحة المفاتيح وتغطي الشاشة.</p>
+              <input
+                type="file"
+                accept=".json,application/json,text/json,text/plain"
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-white p-2 text-xs font-bold"
+                onChange={async (e) => {
+                  const file = e.currentTarget.files?.[0]
+                  if (!file) return
+                  setCatalogImportText(await file.text())
+                  e.currentTarget.value = ''
+                }}
+              />
+            </div>
             <Textarea
               value={catalogImportText}
               onChange={(e) => setCatalogImportText(e.target.value)}
-              className="min-h-80 text-xs leading-6"
+              className="max-h-80 min-h-40 text-xs leading-6 sm:min-h-80"
               dir="ltr"
               placeholder='{ "format": "AACT_PROGRAM_CATALOG_V1", "programs": [...] }'
             />
