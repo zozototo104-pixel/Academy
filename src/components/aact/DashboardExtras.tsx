@@ -93,9 +93,12 @@ export function PaymentsTab() {
   }
   useEffect(() => {
     load()
-    // جلب وضع الدفع الحالي (SANDBOX/LIVE) لتوجيه الطالب للبوابة المناسبة
-    api<{ mode: 'SANDBOX' | 'LIVE' }>('/api/payments/config')
-      .then((d) => setPayMode(d.mode || 'SANDBOX'))
+    // جلب وضع الدفع الحالي وحالة كل بوابة لتوجيه الطالب للبوابة المناسبة
+    api<PaymentConfig>('/api/payments/config')
+      .then((d) => {
+        setPayMode(d.mode || 'SANDBOX')
+        setPayConfig(d)
+      })
       .catch(() => {})
     // العودة من بوابة الدفع الحقيقية (Stripe/PayPal): تحقق خادمي من المزود ثم اعتماد — لا ثقة بالمتصفح
     const q = new URLSearchParams(window.location.search)
