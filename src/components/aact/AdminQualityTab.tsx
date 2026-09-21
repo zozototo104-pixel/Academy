@@ -1646,7 +1646,10 @@ export function AdminQualityTab() {
             <DialogDescription>لوحة فحص سريعة للبيئة، المحتوى، البريد، آخر العمليات، والتحذيرات الحرجة قبل استقبال أعداد كبيرة من الطلاب.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button onClick={exportLaunchHealthReport} disabled={!launchHealth} variant="outline" className="border-[#c9a227]/40 font-black text-[#a8841a]">
+                تصدير تقرير JSON
+              </Button>
               <Button onClick={loadLaunchHealth} disabled={launchHealthLoading} className="bg-[#0f2b46] font-black text-[#f5f0e1]">
                 {launchHealthLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
                 تحديث مراقبة الإطلاق
