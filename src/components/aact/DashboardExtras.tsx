@@ -441,7 +441,7 @@ export function ThesisTab() {
         setExamsGate(d.examsGate || null)
         if (d.thesis) {
           setForm({ title: d.thesis.title, abstract: d.thesis.abstract, fileNote: '' })
-          setThesisStage(d.thesis.status === 'PLAN_APPROVED' ? 'FINAL' : 'PLAN')
+          setThesisStage(['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(d.thesis.status) ? 'FINAL' : 'PLAN')
         } else {
           setThesisStage('PLAN')
         }
