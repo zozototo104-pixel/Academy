@@ -1354,6 +1354,76 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={thesisTopicDialogOpen} onOpenChange={setThesisTopicDialogOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-2xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">{thesisTopicMode === 'generate' ? 'توليد عناوين بحث التخرج' : 'إضافة عنوان بحث تخرج'}</DialogTitle>
+            <DialogDescription>
+              اختر البرنامج من القائمة بدل إدخال رقم. تظهر كل البرامج المتاحة، وليس أول 30 برنامج فقط.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-black text-slate-600">البرنامج / التخصص</label>
+              <select
+                value={thesisProgramId}
+                onChange={(e) => setThesisProgramId(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+              >
+                <option value="">اختر البرنامج</option>
+                {thesisProgramOptions.map((program) => (
+                  <option key={program.id} value={program.id}>{program.titleAr}</option>
+                ))}
+              </select>
+            </div>
+            {thesisTopicMode === 'generate' ? (
+              <div>
+                <label className="mb-1 block text-xs font-black text-slate-600">عدد العناوين المقترحة</label>
+                <input
+                  type="number"
+                  min={3}
+                  max={12}
+                  value={thesisGenerateCount}
+                  onChange={(e) => setThesisGenerateCount(Math.max(3, Math.min(12, Number(e.target.value || 6))))}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                />
+                <div className="mt-2 rounded-xl bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-700">
+                  سيقترح النظام عناوين حسب وصف البرنامج والكتب والوحدات وبنك المعرفة، وتبقى بحاجة لمراجعة واعتماد قبل ظهورها للطلاب.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-black text-slate-600">عنوان البحث</label>
+                  <input
+                    value={thesisTopicTitle}
+                    onChange={(e) => setThesisTopicTitle(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                    placeholder="مثال: أثر التحول الرقمي على كفاءة المؤسسات الصغيرة"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-black text-slate-600">وصف مختصر / مجال البحث</label>
+                  <Textarea
+                    value={thesisTopicDescription}
+                    onChange={(e) => setThesisTopicDescription(e.target.value)}
+                    className="min-h-28 text-sm leading-7"
+                    placeholder="اكتب الهدف العام أو نطاق البحث..."
+                  />
+                </div>
+              </>
+            )}
+            <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-slate-100 bg-white/95 p-3 backdrop-blur sm:-mx-6 sm:px-6">
+              <Button variant="outline" className="h-11 flex-1" onClick={() => setThesisTopicDialogOpen(false)}>إلغاء</Button>
+              <Button className="h-11 flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={thesisTopicBusy || !thesisProgramId} onClick={submitThesisTopicAction}>
+                {thesisTopicBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                {thesisTopicMode === 'generate' ? 'توليد العناوين' : 'حفظ العنوان'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={catalogImportOpen} onOpenChange={setCatalogImportOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overflow-x-hidden p-4 sm:max-w-3xl sm:p-6" dir="rtl">
           <DialogHeader>
