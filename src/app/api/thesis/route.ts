@@ -53,6 +53,7 @@ export async function GET() {
         abstract: true,
         fileNote: true,
         reviewNote: true,
+        reviewNotes: { where: { visibleToStudent: true }, orderBy: { createdAt: 'desc' }, take: 10 },
         status: true,
         defenseDate: true,
         committee: true,
