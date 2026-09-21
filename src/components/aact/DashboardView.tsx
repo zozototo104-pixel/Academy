@@ -1012,6 +1012,31 @@ export function DashboardView() {
               {dashboardTab === 'payments' ? <PaymentsTab /> : null}
             </TabsContent>
 
+            <TabsContent value="notifications" className="mt-6">
+              <Card className="border-[#0f2b46]/10 bg-white">
+                <CardContent className="p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Bell className="h-5 w-5 text-[#c9a227]" /> إشعاراتي داخل المنصة</h2>
+                    <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{studentSummary?.unread || 0} غير مقروء</Badge>
+                  </div>
+                  <div className="space-y-3">
+                    {studentSummary?.notifications?.length ? studentSummary.notifications.map((n) => (
+                      <div key={n.id} className={`rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-black text-[#0f2b46]">{n.title}</p>
+                            <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{n.body}</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-400">{new Date(n.createdAt).toLocaleString('ar-EG')}</p>
+                          </div>
+                          {!n.read ? <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">جديد</Badge> : null}
+                        </div>
+                      </div>
+                    )) : <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد إشعارات بعد.</div>}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="thesis" className="mt-6">
               {dashboardTab === 'thesis' ? <ThesisTab /> : null}
             </TabsContent>
