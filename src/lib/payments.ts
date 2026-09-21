@@ -10,6 +10,32 @@ import { db } from '@/lib/db'
 
 export type ProviderId = 'STRIPE' | 'PAYPAL' | 'SANDBOX'
 
+export type PaymentMethodId = 'PAYMOB' | 'FAWRY' | 'STRIPE' | 'PAYPAL' | 'BANK_TRANSFER'
+
+export interface PaymentMethodStatus {
+  id: PaymentMethodId
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+export interface PaymentDiagnostics {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  stripeConfigured: boolean
+  stripeWebhookConfigured: boolean
+  stripeKeyKind: 'live' | 'test' | 'unknown' | 'missing'
+  paypalConfigured: boolean
+  paypalApiBase: string
+  paypalBaseKind: 'live' | 'sandbox' | 'custom' | 'missing'
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+}
+
 export interface PaymentGatewayConfig {
   mode: 'SANDBOX' | 'LIVE'
   stripeSecret: string
