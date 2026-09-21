@@ -67,3 +67,24 @@ export async function GET() {
     return NextResponse.json({ error: 'تعذر تحميل حالة البريد' }, { status: 500 })
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const admin = await requireAdmin()
+    const body = await req.json().catch(() => ({}))
+    const to = String(body?.to || admin.email || '').trim()
+    if (!to || !to.includes('@')) return NextResponse.json({ error: 'اكتب بريدًا صحيحًا لإرسال رسالة اختبار' }, { status: 400 })
+    const ok = await sendEmail({
+      to,
+      event: 'MAIL_TEST',
+      subject: 'رسالة اختبار من منصة الأكاديمية',
+      html: mailHtml('اختبار البريد ناجح ✅', 'هذه رسالة اختبار للتأكد من أن إعدادات البريد في المنصة تعمل بشكل صحيح.'),
+      text: 'هذه رسالة اختبار للتأكد من أن إعدادات البريد في المنصة تعمل بشكل صحيح.',
+    })
+    return NextResponse.json({ ok, to })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('mail test error:', e)
+    return NextResponse.json({ error: 'تعذر إرسال رسالة الاختبار' }, { status: 500 })
+  }
+}
