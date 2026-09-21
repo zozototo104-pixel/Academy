@@ -398,6 +398,25 @@ export async function emailDefenseScheduled(to: string, name: string, thesisTitl
   })
 }
 
+export async function emailThesisPlanDecision(to: string, name: string, thesisTitle: string, approved: boolean) {
+  await sendEmail({
+    to,
+    event: approved ? 'THESIS_PLAN_APPROVED' : 'THESIS_PLAN_NEEDS_REVISION',
+    subject: approved ? 'تم اعتماد خطة بحث التخرج' : 'خطة بحث التخرج تحتاج تعديلًا',
+    html: emailTemplate(
+      approved ? 'تم اعتماد خطة البحث ✅' : 'خطة البحث تحتاج تعديلًا',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>${approved ? 'تم اعتماد خطة بحث التخرج الخاصة بك، ويمكنك الآن متابعة إعداد البحث النهائي وتسليمه من بوابة الطالب.' : 'راجعت الإدارة خطة بحث التخرج وتحتاج الخطة إلى تعديل قبل اعتمادها.'}</p>
+       ${infoRows([
+         { label: 'عنوان البحث', value: thesisTitle },
+         { label: 'الحالة', value: approved ? 'خطة البحث معتمدة' : 'تحتاج تعديلًا' },
+       ])}
+       <p>${approved ? 'افتح بوابة الطالب للاطلاع على مرحلة تسليم البحث النهائي.' : 'افتح بوابة الطالب وعدّل الخطة ثم أعد إرسالها للمراجعة.'}</p>`,
+      { label: 'فتح بوابة الطالب', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailThesisResultApproved(to: string, name: string, thesisTitle: string, score: number, passed: boolean) {
   await sendEmail({
     to,
