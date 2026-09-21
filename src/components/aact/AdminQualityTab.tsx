@@ -834,6 +834,23 @@ export function AdminQualityTab() {
     void loadStudentPreview()
   }
 
+  const loadMailStatus = async () => {
+    setMailStatusLoading(true)
+    try {
+      const res = await api<any>('/api/admin/mail-status')
+      setMailStatus(res)
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحميل حالة البريد')
+    } finally {
+      setMailStatusLoading(false)
+    }
+  }
+
+  const openMailStatus = () => {
+    setMailStatusOpen(true)
+    void loadMailStatus()
+  }
+
   const loadThesisTopics = async (programId = thesisProgramId) => {
     if (!programId) return
     setThesisTopicLoading(true)
