@@ -11,6 +11,19 @@ function mask(value?: string | null) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
+function mailHtml(title: string, body: string) {
+  return `
+    <div dir="rtl" style="font-family:Arial,Tahoma,sans-serif;background:#f5f0e1;padding:24px;color:#0f2b46">
+      <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #eadfbf;border-radius:18px;padding:24px">
+        <h1 style="font-size:22px;margin:0 0 12px;font-weight:800;color:#0f2b46">${title}</h1>
+        <p style="font-size:15px;line-height:1.9;margin:0;color:#334155">${body}</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+        <p style="font-size:12px;color:#64748b;margin:0">رسالة اختبار آلية من منصة الأكاديمية.</p>
+      </div>
+    </div>
+  `
+}
+
 export async function GET() {
   try {
     await requireAdmin()
