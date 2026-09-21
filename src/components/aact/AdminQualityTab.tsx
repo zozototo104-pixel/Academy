@@ -1708,6 +1708,40 @@ export function AdminQualityTab() {
                   ))}
                 </div>
 
+                {launchHealth.actionItems?.length ? (
+                  <div className="rounded-2xl bg-red-50 p-4 text-xs font-bold leading-6 text-red-800">
+                    <p className="mb-2 font-black text-[#0f2b46]">أولويات الإصلاح قبل الإطلاق</p>
+                    <div className="space-y-2">
+                      {launchHealth.actionItems.map((item: any, index: number) => (
+                        <div key={`${item.group}-${item.item}-${index}`} className="rounded-xl bg-white/80 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-black text-[#0f2b46]">{item.group} · {item.item}</span>
+                            <Badge className={item.severity === 'CRITICAL' ? 'bg-red-100 text-red-700 hover:bg-red-100' : item.severity === 'HIGH' ? 'bg-orange-100 text-orange-700 hover:bg-orange-100' : item.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>{item.severity}</Badge>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-600">{item.action}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {launchHealth.launchScenarios?.length ? (
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <h4 className="mb-3 text-sm font-black text-[#0f2b46]">سيناريوهات الإطلاق العملية</h4>
+                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                      {launchHealth.launchScenarios.map((scenario: any) => (
+                        <div key={scenario.name} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-black text-[#0f2b46]">{scenario.name}</span>
+                            <Badge className={scenario.status === 'READY' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : scenario.status === 'DANGER' || scenario.status === 'BLOCKED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{scenario.status}</Badge>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-500">{scenario.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {launchHealth.warnings?.length ? (
                   <div className="rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-800">
                     <p className="mb-2 font-black text-[#0f2b46]">تحذيرات قبل الإطلاق</p>
