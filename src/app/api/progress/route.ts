@@ -137,7 +137,10 @@ export async function GET(req: NextRequest) {
       booksCount,
       finalExam,
       pendingReviewExams: reviewCount,
-      semesterExams,
+      semesterExams: semesterExams.map((exam) => ({
+        ...exam,
+        readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
+      })),
       units: program.units.map((u) => ({
         id: u.id,
         order: u.order,
