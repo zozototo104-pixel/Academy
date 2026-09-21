@@ -46,6 +46,13 @@ export async function POST(req: NextRequest) {
         admissionId: admissionId || null,
       },
     })
+    if (!admissionId && cert.userId) {
+      const user = await db.user.findUnique({ where: { id: cert.userId }, select: { email: true, name: true } })
+      if (user?.email) {
+        await notify(cert.userId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
+        await emailCertificateIssued(user.email, user.name || cert.holderName, cert.program, serial)
+      }
+    }
     if (admissionId) {
       const app = await db.admissionApplication.findUnique({ where: { id: admissionId } })
       if (app) {
