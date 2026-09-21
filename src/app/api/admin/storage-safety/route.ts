@@ -166,6 +166,7 @@ export async function GET() {
         })),
         orphanDrafts: orphanDrafts.slice(0, 20).map((d) => ({ id: d.id, examId: d.examId, examType: d.examType, updatedAt: d.updatedAt })),
         reviewExams: reviewExams.slice(0, 20).map((e) => ({ id: e.id, title: e.title, questions: e._count.questions, createdAt: e.createdAt })),
+        heavyDbFiles,
       },
     })
   } catch (e: any) {
