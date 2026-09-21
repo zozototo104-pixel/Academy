@@ -1042,6 +1042,9 @@ export function AdminQualityTab() {
           <Button onClick={openMailStatus} variant="outline" className="border-sky-300 font-black text-sky-700 hover:bg-sky-50">
             حالة البريد
           </Button>
+          <Button onClick={openLaunchHealth} variant="outline" className="border-red-300 font-black text-red-700 hover:bg-red-50">
+            مراقبة الإطلاق
+          </Button>
           <Button onClick={load} variant="outline" className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
             <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث المؤشرات
           </Button>
