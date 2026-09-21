@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
         },
         programExams: {
           where: { status: 'READY' },
-          select: { id: true, title: true, examType: true, semester: true, durationMinutes: true, _count: { select: { questions: true } } },
+          select: { id: true, title: true, examType: true, semester: true, durationMin: true, _count: { select: { questions: true } } },
           orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }],
           take: 40,
         },
