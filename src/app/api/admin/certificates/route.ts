@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
           await notify(app.userId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
         }
         if (app.email) {
-          await emailCertificateIssued(app.email, app.name || cert.holderName, cert.program, serial)
+          await emailCertificateIssued(app.email, app.fullName || cert.holderName, cert.program, serial)
         }
       }
     }
