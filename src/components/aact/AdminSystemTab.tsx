@@ -399,14 +399,14 @@ export function AdminSystemTab() {
                   <p className={data.payment.trueGatewayCount > 0 ? 'mt-1 font-black text-emerald-700' : 'mt-1 font-black text-red-600'}>{data.payment.trueGatewayCount}</p>
                 </div>
               </div>
-              {data.payment.errors.map((msg) => (
+              {(data.payment.errors || []).map((msg) => (
                 <div key={msg} className="rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-relaxed text-red-700">{msg}</div>
               ))}
-              {data.payment.warnings.map((msg) => (
+              {(data.payment.warnings || []).map((msg) => (
                 <div key={msg} className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-relaxed text-amber-700">{msg}</div>
               ))}
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {data.payment.methods.map((m) => (
+                {(data.payment.methods || []).map((m) => (
                   <div key={m.id} className={`rounded-xl border p-3 text-[11px] font-bold ${m.enabled ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span>{m.label}</span>
