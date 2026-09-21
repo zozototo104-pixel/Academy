@@ -743,6 +743,12 @@ export function ThesisTab() {
               </Badge>
             </div>
             <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500">{thesis.abstract}</p>
+            {thesis.reviewNote ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-7 text-amber-800">
+                <p className="font-black">ملاحظات الإدارة/المشرف</p>
+                <p className="mt-1 whitespace-pre-line">{thesis.reviewNote}</p>
+              </div>
+            ) : null}
             {thesis.status === 'SCHEDULED' && thesis.defenseDate && (
               <>
                 <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-xs font-bold text-blue-700">
