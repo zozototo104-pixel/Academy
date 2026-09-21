@@ -14,6 +14,7 @@ import {
 } from '@/lib/gemini'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt } from '@/lib/voicePrompt'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
