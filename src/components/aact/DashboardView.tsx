@@ -381,6 +381,10 @@ export function DashboardView() {
   }
 
   const currentStudentAction = (() => {
+    if (studentSummary?.summary?.requiredAction) {
+      const a = studentSummary.summary.requiredAction
+      return { title: a.title, text: a.body, tab: a.target }
+    }
     if (!active) return null
     const pendingAssignment = assignments.find((a) => !a.submission || a.submission.status === 'NEEDS_REVISION')
     if (pendingAssignment) return { title: 'واجب مطلوب الآن', text: `أكمل واجب «${pendingAssignment.title}» قبل الامتحان النهائي للفصل.`, tab: 'programs' }
