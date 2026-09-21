@@ -24,7 +24,7 @@ export async function GET() {
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
         take: 8,
-        select: { id: true, status: true, progress: true, finalScore: true, program: { select: { id: true, titleAr: true } } },
+        select: { id: true, status: true, completedUnits: true, finalScore: true, program: { select: { id: true, titleAr: true } } },
       }),
       db.notification.findMany({
         where: { userId: user.id },
