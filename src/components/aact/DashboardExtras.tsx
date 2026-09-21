@@ -828,7 +828,7 @@ export function ThesisTab() {
                 <FileText className="h-5 w-5 text-[#c9a227]" /> {!thesis ? 'تسليم خطة بحث التخرج' : ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(thesis.status) ? 'تسليم البحث النهائي' : 'تعديل وإعادة تسليم الخطة'}
               </h3>
               <p className="mb-4 text-xs text-slate-500">
-                {!thesis || thesis.status === 'NEEDS_REVISION'
+                {!thesis || ['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(thesis.status)
                   ? 'ابدأ بتسليم خطة البحث: العنوان، المشكلة البحثية، المنهجية المتوقعة، والمراجع/الملف إن وجد. بعد اعتماد الخطة ستُفتح مرحلة البحث النهائي.'
                   : 'قدّم البحث النهائي بعد اعتماد الخطة — ستتم جدولة المناقشة أمام لجنة متخصصة بعد المراجعة.'}
               </p>
