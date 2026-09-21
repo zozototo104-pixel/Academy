@@ -83,6 +83,7 @@ export function PaymentsTab() {
   const [paying, setPaying] = useState(false)
   const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
   const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
 
   const load = () => {
     api<{ payments: Payment[] }>('/api/payments')
