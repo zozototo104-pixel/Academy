@@ -37,6 +37,20 @@ export async function GET() {
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
     const agent = await localAgentDiagnostics()
+    const payment = paymentDiagnostics(await getGatewayConfig())
+    const resendKeyRow = await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }).catch(() => null)
+    const mailFromRow = await db.setting.findUnique({ where: { key: 'MAIL_FROM' } }).catch(() => null)
+    const resendFromRow = await db.setting.findUnique({ where: { key: 'RESEND_FROM' } }).catch(() => null)
+    const resendConfigured = !!((resendKeyRow?.value || process.env.RESEND_API_KEY) && (mailFromRow?.value || resendFromRow?.value || process.env.MAIL_FROM || process.env.RESEND_FROM))
+    const appUrlConfigured = !!(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL)
+    const launchReadiness = [
+      { id: 'database', label: 'قاعدة البيانات', status: 'ok', detail: 'الاتصال بقاعدة البيانات يعمل وتم تحميل الإعدادات.' },
+      { id: 'mail', label: 'Resend / البريد', status: resendConfigured || smtp.enabled ? 'ok' : 'warn', detail: resendConfigured ? 'Resend مضبوط لإرسال الإشعارات.' : smtp.enabled ? 'SMTP مضبوط كبديل لإرسال الإشعارات.' : 'الإشعارات البريدية غير مفعلة بعد؛ اضبط RESEND_API_KEY و MAIL_FROM أو SMTP.' },
+      { id: 'payment', label: 'الدفع الإلكتروني', status: payment.trueGatewayCount > 0 ? 'ok' : 'warn', detail: payment.trueGatewayCount > 0 ? `بوابات الدفع الحقيقية المفعلة: ${payment.trueGatewayCount}.` : 'لا توجد بوابة دفع حقيقية مفعلة حالياً؛ Stripe/PayPal بحاجة لإعداد live.' },
+      { id: 'gemini', label: 'Gemini / الذكاء الاصطناعي', status: gemini.source === 'none' ? 'warn' : 'ok', detail: gemini.source === 'none' ? 'مفتاح Gemini غير موجود؛ وظائف الذكاء الاصطناعي ستكون محدودة.' : `مفتاح Gemini مستخدم من ${gemini.source === 'db' ? 'لوحة الإدارة' : 'Vercel'}.` },
+      { id: 'turn', label: 'TURN للفيديو', status: !!(values.TURN_URL && (values.TURN_USERNAME || process.env.TURN_USERNAME)) ? 'ok' : 'warn', detail: values.TURN_URL ? 'TURN مضبوط جزئياً؛ تأكد من اسم المستخدم وكلمة المرور.' : 'TURN غير مضبوط؛ الفيديو يعتمد على STUN/P2P فقط.' },
+      { id: 'app-url', label: 'رابط التطبيق', status: appUrlConfigured ? 'ok' : 'warn', detail: appUrlConfigured ? 'رابط التطبيق مضبوط في البيئة.' : 'اضبط NEXT_PUBLIC_APP_URL في Vercel قبل الإطلاق.' },
+    ]
     return NextResponse.json({
       values,
       secretsSet: {
