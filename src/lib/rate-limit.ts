@@ -67,3 +67,35 @@ export function clientIpFromHeaders(headers: Headers) {
   if (forwarded) return forwarded.split(',')[0]?.trim() || 'unknown'
   return headers.get('x-real-ip')?.trim() || 'unknown'
 }
+
+export function rateLimitJson(result: RateLimitResult) {
+  return NextResponse.json(
+    { error: 'طلبات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.' },
+    { status: 429, headers: rateLimitHeaders(result) }
+  )
+}
+
+export function checkApiRateLimit(
+  req: NextRequest,
+  scope: string,
+  limit: number,
+  windowMs: number,
+  subject?: string | null
+) {
+  const ip = clientIpFromHeaders(req.headers)
+  const subjectKey = subject ? String(subject).trim().toLowerCase() : 'anonymous'
+  const ipLimit = checkRateLimit(`${scope}:ip:${ip}`, limit * 3, windowMs)
+  if (!ipLimit.ok) return ipLimit
+  return checkRateLimit(`${scope}:subject:${subjectKey}`, limit, windowMs)
+}
+
+export function enforceApiRateLimit(
+  req: NextRequest,
+  scope: string,
+  limit: number,
+  windowMs: number,
+  subject?: string | null
+) {
+  const result = checkApiRateLimit(req, scope, limit, windowMs, subject)
+  return result.ok ? null : rateLimitJson(result)
+}
