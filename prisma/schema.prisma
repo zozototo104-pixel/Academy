@@ -395,6 +395,9 @@ model ThesisSubmission {
   title       String
   abstract    String
   fileNote    String? // رابط أو وصف ملف البحث
+  fileStorageProvider String?
+  fileStorageKey      String?
+  fileUrl             String?
   status      String   @default("SUBMITTED") // SUBMITTED | SCHEDULED | RESULT_APPROVED | NEEDS_REVISION
   defenseDate DateTime?
   committee   String?  // JSON array أسماء أعضاء اللجنة
