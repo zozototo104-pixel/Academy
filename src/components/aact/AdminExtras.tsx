@@ -283,6 +283,22 @@ export function AdminThesisTab() {
                         <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
                       </div>
                     ) : null}
+                    {t.reviewNotes?.length ? (
+                      <div className="mt-2 rounded-xl border border-slate-100 bg-white p-3">
+                        <p className="mb-2 text-[11px] font-black text-[#0f2b46]">سجل الملاحظات</p>
+                        <div className="max-h-32 space-y-1.5 overflow-y-auto">
+                          {t.reviewNotes.slice(0, 4).map((note) => (
+                            <div key={note.id} className="rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-5 text-slate-600">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <span className="font-black text-[#0f2b46]">{note.stage === 'PLAN' ? 'خطة البحث' : note.stage === 'FINAL' ? 'البحث النهائي' : note.stage === 'RESULT' ? 'النتيجة' : 'عام'}</span>
+                                <span className="text-slate-400">{new Date(note.createdAt).toLocaleDateString('ar-EG')}</span>
+                              </div>
+                              <p className="mt-0.5 whitespace-pre-line">{note.note}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
                       {journey.map((step, index) => (
                         <div key={step.title} className={`rounded-xl border px-2 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : step.active ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-100 bg-slate-50'}`}>
