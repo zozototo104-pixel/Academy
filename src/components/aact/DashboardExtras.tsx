@@ -594,7 +594,7 @@ export function ThesisTab() {
               </h3>
               <p className="mt-1 text-xs font-bold leading-6 text-slate-600">تابع مكانك الحالي من اختيار العنوان حتى اعتماد النتيجة.</p>
             </div>
-            {thesis ? <Badge className={status?.cls}>{status?.label || thesis.status}</Badge> : <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100">لم يبدأ</Badge>}
+            {thesis ? <Badge className={thesisStatusMeta?.cls}>{thesisStatusMeta?.label || thesis.status}</Badge> : <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100">لم يبدأ</Badge>}
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
             {thesisSteps.map((step, index) => (
