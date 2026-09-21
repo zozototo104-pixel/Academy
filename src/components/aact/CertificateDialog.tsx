@@ -133,7 +133,7 @@ export function CertificateDialog({
         {/* أزرار */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-4 py-3">
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
-            <ShieldCheck className="h-4 w-4" /> تحقق فوري عبر صفحة «تحقق من شهادة» برقم الشهادة
+            <ShieldCheck className="h-4 w-4" /> تحقق فوري عبر QR الآمن أو الرقم التسلسلي للشهادة
           </div>
           <div className="flex gap-2">
             <Button
