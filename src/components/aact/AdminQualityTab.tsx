@@ -375,6 +375,8 @@ export function AdminQualityTab() {
   const [mailStatusOpen, setMailStatusOpen] = useState(false)
   const [mailStatus, setMailStatus] = useState<any | null>(null)
   const [mailStatusLoading, setMailStatusLoading] = useState(false)
+  const [mailTestEmail, setMailTestEmail] = useState('')
+  const [mailTestSending, setMailTestSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
