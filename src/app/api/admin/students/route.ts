@@ -101,6 +101,9 @@ export async function GET(req: NextRequest) {
 
     const q = clean(req.nextUrl.searchParams.get('q'), 120).toLowerCase()
     const status = clean(req.nextUrl.searchParams.get('status'), 40)
+    const programId = clean(req.nextUrl.searchParams.get('programId'), 120)
+    const paymentStatus = clean(req.nextUrl.searchParams.get('paymentStatus'), 40)
+    const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
     const where: any = { role: 'STUDENT' }
     if (status && status !== 'ALL') where.status = status
     if (q) {
