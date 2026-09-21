@@ -4,6 +4,33 @@ import { getCurrentUser } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 
+function jsonArray(value: unknown, fallback: any[] = []) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : fallback
+    } catch {
+      return fallback
+    }
+  }
+  return fallback
+}
+
+function mapThesisPlan(guide: any) {
+  if (!guide) return null
+  return {
+    id: guide.id,
+    title: guide.title,
+    overview: guide.overview,
+    objectives: jsonArray(guide.objectives),
+    sections: jsonArray(guide.sections),
+    activities: jsonArray(guide.activities),
+    discussionQuestions: jsonArray(guide.discussionQuestions),
+    updatedAt: guide.updatedAt,
+  }
+}
+
 // GET /api/thesis — بحث التخرج الخاص بالمستخدم + بيانات طلب الالتحاق والمهلة
 export async function GET() {
   try {
