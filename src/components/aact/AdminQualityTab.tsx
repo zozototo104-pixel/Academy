@@ -867,6 +867,8 @@ export function AdminQualityTab() {
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات Base64 قديمة: <b>{storageReport.summary.legacyBase64Books}</b><br />الحجم التقريبي: {Math.round(storageReport.summary.legacyBase64Bytes / 1024 / 1024)}MB</div>
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">قطع رفع مؤقتة: <b>{storageReport.summary.uploadChunks}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.uploadChunkBytes / 1024 / 1024)}MB</div>
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات طلاب داخل Neon: <b>{storageReport.summary.heavyDbFileRows}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.heavyDbFileBytes / 1024 / 1024)}MB</div>
+                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">واجبات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredAssignments}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredAssignmentBytes / 1024 / 1024)}MB</div>
+                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">تسجيلات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredDefenseRecordings}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredDefenseRecordingBytes / 1024 / 1024)}MB</div>
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
               </div>
 
