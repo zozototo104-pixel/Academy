@@ -150,7 +150,17 @@ export async function PATCH(req: NextRequest) {
       const reqItem = await db.thesisTopicRequest.update({
         where: { id: String(body.requestId) },
         data: { status: body.status || 'PENDING', adminNote: clean(body.adminNote, 1500) || null, reviewedById: admin.id, reviewedAt: new Date() },
+        include: { user: { select: { name: true, email: true } }, topic: { select: { title: true } } },
       })
+      if (['APPROVED', 'NEEDS_REVISION', 'REJECTED'].includes(reqItem.status) && reqItem.user?.email) {
+        await emailThesisTopicDecision(
+          reqItem.user.email,
+          reqItem.user.name || 'الطالب',
+          reqItem.topic?.title || reqItem.proposedTitle,
+          reqItem.status,
+          reqItem.adminNote || undefined
+        )
+      }
       return NextResponse.json({ ok: true, request: reqItem })
     }
     const id = String(body?.id || '')
