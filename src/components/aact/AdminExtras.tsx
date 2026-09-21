@@ -337,10 +337,22 @@ export function AdminThesisTab() {
                         </Button>
                       </>
                     )}
-                    {['SUBMITTED', 'NEEDS_REVISION'].includes(t.status) && (
-                      <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
-                        className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
-                        <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
+                    {t.status === 'SUBMITTED' && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                          className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                          طلب تعديل البحث النهائي
+                        </Button>
+                        <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
+                          className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
+                          <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
+                        </Button>
+                      </>
+                    )}
+                    {t.status === 'NEEDS_REVISION' && (
+                      <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                        className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                        تحديث ملاحظة التعديل
                       </Button>
                     )}
                     {t.status === 'SCHEDULED' && (
