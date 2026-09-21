@@ -2832,11 +2832,28 @@ export function AdminBooksTab() {
       </Dialog>
 
       <Dialog open={importQuestionsOpen} onOpenChange={setImportQuestionsOpen}>
-        <DialogContent className="max-w-3xl" dir="rtl">
-          <DialogHeader><DialogTitle className="font-black text-[#0f2b46]">استيراد أسئلة</DialogTitle><DialogDescription>الصق JSON أو CSV/TSV. الأعمدة: type, question, option1, option2, option3, option4, correctAnswer, modelAnswer, difficulty, sourceEvidence</DialogDescription></DialogHeader>
-          <Textarea value={importQuestionsText} onChange={(e) => setImportQuestionsText(e.target.value)} dir="ltr" className="min-h-72 text-xs leading-6" placeholder='[{"type":"MCQ","text":"نص السؤال","options":["أ","ب","ج","د"],"correctAnswer":"0"}]' />
-          <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={importApproveNow} onChange={(e) => setImportApproveNow(e.target.checked)} /> اعتماد الأسئلة المستوردة مباشرة</label>
-          <div className="mt-3 flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setImportQuestionsOpen(false)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === 'import' || importQuestionsText.trim().length < 10} onClick={importQuestionsToBank}>{questionBankBusy === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} استيراد</Button></div>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" dir="rtl">
+          <DialogHeader><DialogTitle className="font-black text-[#0f2b46]">استيراد أسئلة</DialogTitle><DialogDescription>اختر ملف JSON أو CSV/TSV، أو الصق المحتوى يدويًا. الأعمدة: type, question, option1, option2, option3, option4, correctAnswer, modelAnswer, difficulty, sourceEvidence</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-dashed border-[#c9a227]/50 bg-[#fffaf0] p-3">
+              <label className="block text-xs font-black text-[#0f2b46]">اختيار ملف الأسئلة من الجهاز</label>
+              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">الأفضل اختيار الملف مباشرة من الجوال بدل لصق نص طويل. يدعم JSON و CSV و TSV.</p>
+              <input
+                type="file"
+                accept=".json,.csv,.tsv,application/json,text/csv,text/tab-separated-values,text/plain"
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-white p-2 text-xs font-bold"
+                onChange={async (e) => {
+                  const file = e.currentTarget.files?.[0]
+                  if (!file) return
+                  setImportQuestionsText(await file.text())
+                  e.currentTarget.value = ''
+                }}
+              />
+            </div>
+            <Textarea value={importQuestionsText} onChange={(e) => setImportQuestionsText(e.target.value)} dir="ltr" className="max-h-72 min-h-40 text-xs leading-6 sm:min-h-72" placeholder='[{"type":"MCQ","text":"نص السؤال","options":["أ","ب","ج","د"],"correctAnswer":"0"}]' />
+            <label className="flex items-center gap-2 text-xs font-black text-slate-600"><input type="checkbox" checked={importApproveNow} onChange={(e) => setImportApproveNow(e.target.checked)} /> اعتماد الأسئلة المستوردة مباشرة</label>
+            <div className="mt-3 flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setImportQuestionsOpen(false)}>إلغاء</Button><Button className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={questionBankBusy === 'import' || importQuestionsText.trim().length < 10} onClick={importQuestionsToBank}>{questionBankBusy === 'import' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} استيراد</Button></div>
+          </div>
         </DialogContent>
       </Dialog>
 
