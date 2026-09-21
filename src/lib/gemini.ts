@@ -426,6 +426,14 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 }
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
+  if (await hasExternalTextAi()) {
+    try {
+      return await textAiCompleteJson(opts)
+    } catch (e) {
+      if (!hasGemini()) throw e
+    }
+  }
+
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
   const contents = buildContents(opts.history)
