@@ -185,6 +185,8 @@ export function AdminThesisTab() {
 
   const recordResult = async () => {
     if (!resulting) return
+    const reviewNote = window.prompt('اكتب ملاحظة اختيارية على نتيجة المناقشة تظهر في سجل الطالب:', resulting.reviewNote || '')
+    if (reviewNote === null) return
     setBusy(true)
     try {
       await api('/api/admin/thesis', {
