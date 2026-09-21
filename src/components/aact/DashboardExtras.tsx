@@ -825,7 +825,7 @@ export function ThesisTab() {
           <Card className="border-[#0f2b46]/15">
             <CardContent className="p-5">
               <h3 className="mb-1 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
-                <FileText className="h-5 w-5 text-[#c9a227]" /> {!thesis ? 'تسليم خطة بحث التخرج' : thesis.status === 'PLAN_APPROVED' ? 'تسليم البحث النهائي' : 'تعديل وإعادة تسليم الخطة'}
+                <FileText className="h-5 w-5 text-[#c9a227]" /> {!thesis ? 'تسليم خطة بحث التخرج' : ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(thesis.status) ? 'تسليم البحث النهائي' : 'تعديل وإعادة تسليم الخطة'}
               </h3>
               <p className="mb-4 text-xs text-slate-500">
                 {!thesis || thesis.status === 'NEEDS_REVISION'
