@@ -253,6 +253,7 @@ export async function PATCH(req: NextRequest) {
           : `نتيجة مناقشة «${thesis.title}»: لم تُعتمد النتيجة (الدرجة ${resultScore}). يرجى مراجعة مشرفك الأكاديمي لتعديلات البحث.`,
         'dashboard'
       )
+      await saveReviewHistory('RESULT', 'RESULT_NOTE', safeReviewNote || `نتيجة المناقشة: ${resultScore} - ${passed ? 'مجتاز' : 'غير مجتاز'}`, true)
       if (thesis.user?.email) {
         emailThesisResultApproved(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, Number(resultScore), Boolean(passed)).catch(() => {})
       }
