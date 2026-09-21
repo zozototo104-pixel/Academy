@@ -159,6 +159,9 @@ export async function PATCH(req: NextRequest) {
           : `نتيجة مناقشة «${thesis.title}»: لم تُعتمد النتيجة (الدرجة ${resultScore}). يرجى مراجعة مشرفك الأكاديمي لتعديلات البحث.`,
         'dashboard'
       )
+      if (thesis.user?.email) {
+        emailThesisResultApproved(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, Number(resultScore), Boolean(passed)).catch(() => {})
+      }
       await audit(admin, 'APPROVE_RESULT', 'ThesisSubmission', id, `${thesis.title} — ${resultScore} ${passed ? 'ناجح' : 'غير مجتاز'}`)
       return NextResponse.json({ ok: true, thesis: updated })
     }
