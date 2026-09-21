@@ -141,11 +141,18 @@ export function AdminThesisTab() {
   }
 
   const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION') => {
+    const reviewNote = window.prompt(
+      action === 'APPROVE_PLAN'
+        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة:'
+        : 'اكتب ملاحظة التعديل التي ستظهر للطالب:',
+      thesis.reviewNote || ''
+    )
+    if (reviewNote === null) return
     setBusy(true)
     try {
       await api('/api/admin/thesis', {
         method: 'PATCH',
-        body: JSON.stringify({ id: thesis.id, action }),
+        body: JSON.stringify({ id: thesis.id, action, reviewNote }),
       })
       toast({
         title: action === 'APPROVE_PLAN' ? 'تم اعتماد الخطة' : 'تم طلب تعديل الخطة',
