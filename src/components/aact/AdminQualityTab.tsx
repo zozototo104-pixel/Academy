@@ -363,6 +363,7 @@ export function AdminQualityTab() {
   const [thesisTopicLoading, setThesisTopicLoading] = useState(false)
   const [studentsOpen, setStudentsOpen] = useState(false)
   const [students, setStudents] = useState<any[]>([])
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [studentSearch, setStudentSearch] = useState('')
   const [studentStatus, setStudentStatus] = useState('ALL')
   const [studentsLoading, setStudentsLoading] = useState(false)
