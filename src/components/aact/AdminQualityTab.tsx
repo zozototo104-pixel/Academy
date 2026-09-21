@@ -895,9 +895,14 @@ export function AdminQualityTab() {
             مؤشرات تشغيلية تربط البرامج والكتب وبنك المعرفة والامتحانات وذاكرة المشرف الذكي بسلوك الطلاب الفعلي.
           </p>
         </div>
-        <Button onClick={load} variant="outline" className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
-          <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث المؤشرات
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openStudentsManager} variant="outline" className="border-[#0f2b46] font-black text-[#0f2b46] hover:bg-slate-50">
+            إدارة الطلاب
+          </Button>
+          <Button onClick={load} variant="outline" className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+            <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث المؤشرات
+          </Button>
+        </div>
       </div>
 
       <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
