@@ -294,7 +294,18 @@ export function AdminSystemTab() {
         <TabsContent value="mail" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold text-slate-600">
             <Info className="h-4 w-4 text-[#a8841a]" />
-            اضبط خادم SMTP (مثل Gmail بعنوان تطبيق، أو خادم الاستضافة) وستُرسل المنصة إشعارات آلية عند: التسجيل، تقديم طلبات الالتحاق بكود التتبع، الإيصالات المالية، قرارات القبول، نشر الامتحانات، مواعيد المناقشات، وإصدار الشهادات.
+            اضبط Resend كخيار أساسي للإشعارات، أو SMTP كبديل. سترسل المنصة إشعارات التسجيل، طلبات الالتحاق، الإيصالات، قرارات القبول، الامتحانات، مواعيد المناقشات، والشهادات.
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-[11px] font-black text-emerald-800">Resend — الإرسال الموصى به للإنتاج</h4>
+              <Badge className={data.resendConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                {data.resendConfigured ? 'Resend مضبوط' : 'Resend غير مضبوط'}
+              </Badge>
+            </div>
+            {F('RESEND_API_KEY', 'Resend API Key', data.secretsSet.RESEND_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 're_...', 'password', 'يفضّل حفظه في Vercel أو هنا. لن يظهر للمتصفح.')}
+            {F('MAIL_FROM', 'عنوان المرسل MAIL_FROM', 'AACT <notifications@your-domain.com>', 'text', 'يجب أن يكون من نطاق موثق داخل Resend.')}
+            {F('RESEND_FROM', 'عنوان Resend بديل RESEND_FROM', 'notifications@your-domain.com', 'text', 'اختياري؛ يستخدم إذا لم تضبط MAIL_FROM.')}
           </div>
           <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
             {F('SMTP_HOST', 'خادم SMTP', 'smtp.gmail.com', 'text', 'مثال: smtp.gmail.com أو mail.aact.academy')}
