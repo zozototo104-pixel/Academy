@@ -366,6 +366,26 @@ export async function emailDefenseScheduled(to: string, name: string, thesisTitl
   })
 }
 
+export async function emailThesisResultApproved(to: string, name: string, thesisTitle: string, score: number, passed: boolean) {
+  await sendEmail({
+    to,
+    event: passed ? 'THESIS_RESULT_PASSED' : 'THESIS_RESULT_NOT_PASSED',
+    subject: passed ? `تم اعتماد نتيجة مناقشة بحثك — ${score}%` : `نتيجة مناقشة بحثك — ${score}%`,
+    html: emailTemplate(
+      passed ? 'مبروك — تم اعتماد نتيجة المناقشة 🎓' : 'تم اعتماد نتيجة المناقشة',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>تم اعتماد نتيجة مناقشة بحث التخرج الخاص بك:</p>
+       ${infoRows([
+         { label: 'عنوان البحث', value: thesisTitle },
+         { label: 'الدرجة', value: `${score}%` },
+         { label: 'النتيجة', value: passed ? 'مجتاز' : 'غير مجتاز / يحتاج مراجعة' },
+       ])}
+       ${passed ? '<p>ستتابع الإدارة إجراءات الشهادة وفق سياسة البرنامج وبعد استكمال أي متطلبات مالية أو إدارية متبقية.</p>' : '<p>يرجى مراجعة ملاحظات الإدارة/المشرف داخل المنصة والعمل على التعديلات المطلوبة.</p>'}`,
+      { label: 'فتح بوابة الطالب', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailThesisTopicDecision(to: string, name: string, title: string, status: string, adminNote?: string) {
   const approved = status === 'APPROVED'
   const rejected = status === 'REJECTED'
