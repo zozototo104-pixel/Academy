@@ -437,6 +437,9 @@ export function DashboardView() {
               <TabsTrigger value="payments" className="text-[11px] font-bold sm:text-sm">
                 <Banknote className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الدفعات
               </TabsTrigger>
+              <TabsTrigger value="notifications" className="text-[11px] font-bold sm:text-sm">
+                <Bell className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الإشعارات {studentSummary?.unread ? `(${studentSummary.unread})` : ''}
+              </TabsTrigger>
               <TabsTrigger value="thesis" className="text-[11px] font-bold sm:text-sm">
                 <FileText className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> بحث التخرج
               </TabsTrigger>
