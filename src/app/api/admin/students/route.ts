@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       take: 100,
       include: {
         enrollments: { include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, status: true, amount: true } } }, orderBy: { createdAt: 'desc' } },
-        admissions: { select: { id: true, status: true, program: { select: { titleAr: true } }, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 },
+        admissions: { select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 },
         payments: { select: { id: true, status: true, amount: true, purpose: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 10 },
         certificates: { select: { id: true, serial: true, type: true, program: true, issuedAt: true }, orderBy: { issuedAt: 'desc' }, take: 10 },
         _count: { select: { examAttempts: true, assignmentSubmissions: true, thesisTopicRequests: true } },
