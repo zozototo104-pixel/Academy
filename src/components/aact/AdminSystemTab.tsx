@@ -26,11 +26,45 @@ interface EmailLog {
   createdAt: string
 }
 
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentDiagnostics {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  stripeConfigured: boolean
+  stripeWebhookConfigured: boolean
+  stripeKeyKind: 'live' | 'test' | 'unknown' | 'missing'
+  paypalConfigured: boolean
+  paypalApiBase: string
+  paypalBaseKind: 'live' | 'sandbox' | 'custom' | 'missing'
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+}
+
+interface LaunchReadinessItem {
+  id: string
+  label: string
+  status: 'ok' | 'warn' | 'error'
+  detail: string
+}
+
 interface SystemData {
   values: Record<string, string>
   secretsSet: Record<string, boolean>
   smtpEnabled: boolean
+  resendConfigured?: boolean
   paymentMode: string
+  payment?: PaymentDiagnostics
+  launchReadiness?: LaunchReadinessItem[]
   turnConfigured: boolean
   gemini?: {
     source: 'env' | 'db' | 'none'
