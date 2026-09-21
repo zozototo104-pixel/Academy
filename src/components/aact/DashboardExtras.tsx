@@ -438,7 +438,12 @@ export function ThesisTab() {
         setAdmission(d.admission)
         setThesisPlan(d.thesisPlan || null)
         setExamsGate(d.examsGate || null)
-        if (d.thesis) setForm({ title: d.thesis.title, abstract: d.thesis.abstract, fileNote: '' })
+        if (d.thesis) {
+          setForm({ title: d.thesis.title, abstract: d.thesis.abstract, fileNote: '' })
+          setThesisStage(d.thesis.status === 'PLAN_APPROVED' ? 'FINAL' : 'PLAN')
+        } else {
+          setThesisStage('PLAN')
+        }
         if (d.admission?.id) loadTopics()
       })
       .catch(() => {})
