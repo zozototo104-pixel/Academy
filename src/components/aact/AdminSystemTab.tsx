@@ -71,6 +71,18 @@ interface SystemData {
     envKeySet: boolean
     activeMask: string
   }
+  textAi?: {
+    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'AUTO'
+    activeProvider: 'OPENAI' | 'ANTHROPIC' | 'ZAI' | null
+    externalConfigured: boolean
+    openaiConfigured: boolean
+    anthropicConfigured: boolean
+    zaiConfigured: boolean
+    openaiModel: string
+    anthropicModel: string
+    zaiModel: string
+    message: string
+  }
   agent?: {
     enabled: boolean
     provider: 'LOCAL_OPENAI' | 'GEMINI' | 'AUTO'
