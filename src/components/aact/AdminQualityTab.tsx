@@ -864,6 +864,21 @@ export function AdminQualityTab() {
                 <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
               </div>
 
+              {storageReport.samples.heavyDbFiles?.length > 0 && (
+                <div className="rounded-2xl bg-white p-4">
+                  <h4 className="mb-2 text-xs font-black text-[#0f2b46]">فحص الملفات الثقيلة داخل قاعدة البيانات</h4>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {storageReport.samples.heavyDbFiles.map((item) => (
+                      <div key={item.key} className={`rounded-xl p-3 text-xs font-bold leading-6 ${item.status === 'SAFE' ? 'bg-emerald-50 text-emerald-700' : item.status === 'HIGH_RISK' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                        <b>{item.label}</b><br />
+                        السجلات: {item.rows} · الحجم التقريبي: {Math.round(item.approxBytes / 1024 / 1024)}MB<br />
+                        <span className="text-[11px]">{item.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-2xl bg-white p-4">
                 <h4 className="mb-2 text-xs font-black text-[#0f2b46]">توصيات التقرير</h4>
                 <div className="grid gap-2 md:grid-cols-2">
