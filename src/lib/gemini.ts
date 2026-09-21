@@ -380,6 +380,15 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
+  if (await hasExternalTextAi()) {
+    try {
+      for await (const chunk of textAiStreamText(opts)) yield chunk
+      return
+    } catch (e) {
+      if (!hasGemini()) throw e
+    }
+  }
+
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
   const contents = buildContents(opts.history)
