@@ -183,14 +183,25 @@ export async function GET(req: NextRequest) {
   try {
     const serial = req.nextUrl.searchParams.get('serial')?.trim()
     const token = req.nextUrl.searchParams.get('token')?.trim()
+    const byToken = !!token
     if (!serial && !token) {
-      return NextResponse.json({ error: 'يرجى إدخال رقم الشهادة' }, { status: 400 })
+      return NextResponse.json({ error: 'يرجى إدخال رقم الشهادة أو مسح رمز QR' }, { status: 400 })
     }
+
+    const verifyLimit = enforceApiRateLimit(
+      req,
+      'certificates:verify',
+      byToken ? 30 : 20,
+      10 * 60 * 1000,
+      byToken ? `token:${token}` : `serial:${serial}`
+    )
+    if (verifyLimit) return verifyLimit
+
     const cert = await db.certificate.findFirst({
-      where: serial ? { serial } : { qrToken: token! },
+      where: byToken ? { qrToken: token! } : { serial: serial! },
     })
     if (!cert) {
-      return NextResponse.json({ valid: false, message: 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
+      return NextResponse.json({ valid: false, message: byToken ? 'رابط QR غير صحيح أو لم تعد الشهادة متاحة للتحقق' : 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
     }
     const program = cert.program
       ? await db.program.findFirst({
