@@ -24,6 +24,7 @@ export async function GET() {
         agentMember: true,
         defenseStatus: true,
         reviewNote: true,
+        reviewNotes: { orderBy: { createdAt: 'desc' }, take: 10 },
         aiScore: true,
         aiRecommendation: true,
         defenseMinutes: true,
