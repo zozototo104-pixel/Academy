@@ -439,6 +439,32 @@ export function ThesisTab() {
       .catch(() => {})
   }
 
+  const submitTopicRequest = async () => {
+    if (!topicProgramId) return toast({ title: 'اختر البرنامج', description: 'لم يتم العثور على برنامج مرتبط بحسابك بعد', variant: 'destructive' })
+    if (!selectedTopicId && !customTopicTitle.trim()) return toast({ title: 'عنوان البحث مطلوب', description: 'اختر عنوانًا من القائمة أو اقترح عنوانًا جديدًا', variant: 'destructive' })
+    setTopicSaving(true)
+    try {
+      await api('/api/thesis/topics', {
+        method: 'POST',
+        body: JSON.stringify({
+          programId: topicProgramId,
+          topicId: selectedTopicId || null,
+          proposedTitle: customTopicTitle,
+          rationale: topicRationale,
+        }),
+      })
+      toast({ title: 'تم إرسال العنوان', description: 'سيظهر للإدارة/المشرف لاعتماده قبل بدء البحث' })
+      setSelectedTopicId('')
+      setCustomTopicTitle('')
+      setTopicRationale('')
+      loadTopics(topicProgramId)
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال العنوان', description: e.message, variant: 'destructive' })
+    } finally {
+      setTopicSaving(false)
+    }
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
