@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 
 // GET /api/program-exam/detail?examId=xxx — امتحان الفصل للمسجلين المفعّلين فقط
 // 12.2: الأسئلة المعتمدة من الإدارة فقط (PUBLISHED) + امتحان الفصل الثاني يتطلب اجتياز الفصل الأول
