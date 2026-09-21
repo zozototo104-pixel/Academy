@@ -331,6 +331,8 @@ export function AdminSystemTab() {
     : geminiDiag?.source === 'env'
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
+  const textAiDiag = data.textAi
+  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'AUTO'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
