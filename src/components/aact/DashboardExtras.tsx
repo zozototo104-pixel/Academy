@@ -551,6 +551,69 @@ export function ThesisTab() {
         </div>
       )}
 
+      {/* اختيار واعتماد عنوان بحث التخرج */}
+      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <ScrollText className="h-5 w-5 text-[#a8841a]" /> اختيار عنوان بحث التخرج
+              </h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">
+                اختر عنوانًا معتمدًا من الإدارة أو اقترح عنوانًا خاصًا بك. لا يبدأ مسار البحث رسميًا إلا بعد اعتماد العنوان.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => loadTopics()} disabled={topicLoading} className="bg-white font-black">
+              {topicLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null}
+              تحديث العناوين
+            </Button>
+          </div>
+
+          {topicRequests.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {topicRequests.slice(0, 3).map((r) => (
+                <div key={r.id} className="rounded-xl border border-white bg-white/80 p-3 text-xs font-bold leading-6 text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-black text-[#0f2b46]">{r.proposedTitle}</span>
+                    <Badge className={r.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-600' : r.status === 'NEEDS_REVISION' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}>
+                      {r.status === 'APPROVED' ? 'معتمد' : r.status === 'REJECTED' ? 'مرفوض' : r.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار الاعتماد'}
+                    </Badge>
+                  </div>
+                  {r.adminNote ? <p className="mt-1 text-[11px] text-slate-500">ملاحظة الإدارة: {r.adminNote}</p> : null}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl bg-white p-3">
+              <Label className="text-xs font-black text-[#0f2b46]">اختر من العناوين المعتمدة</Label>
+              <Select value={selectedTopicId} onValueChange={(v) => { setSelectedTopicId(v); setCustomTopicTitle('') }}>
+                <SelectTrigger className="mt-2"><SelectValue placeholder={topicLoading ? 'جاري التحميل...' : 'اختر عنوانًا'} /></SelectTrigger>
+                <SelectContent>
+                  {topics.length ? topics.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>) : <SelectItem value="none" disabled>لا توجد عناوين معتمدة بعد</SelectItem>}
+                </SelectContent>
+              </Select>
+              {selectedTopicId && topics.find((t) => t.id === selectedTopicId)?.description ? (
+                <p className="mt-2 text-[11px] font-bold leading-5 text-slate-500">{topics.find((t) => t.id === selectedTopicId)?.description}</p>
+              ) : null}
+            </div>
+            <div className="rounded-2xl bg-white p-3">
+              <Label className="text-xs font-black text-[#0f2b46]">أو اقترح عنوانًا خاصًا بك</Label>
+              <Input className="mt-2" value={customTopicTitle} onChange={(e) => { setCustomTopicTitle(e.target.value); setSelectedTopicId('') }} placeholder="اكتب عنوان بحثك المقترح" />
+            </div>
+          </div>
+          <div className="mt-3 rounded-2xl bg-white p-3">
+            <Label className="text-xs font-black text-[#0f2b46]">سبب اختيار العنوان / فكرة البحث</Label>
+            <Textarea className="mt-2 min-h-20" value={topicRationale} onChange={(e) => setTopicRationale(e.target.value)} placeholder="اكتب لماذا اخترت هذا العنوان وما المشكلة البحثية التي تريد دراستها..." />
+          </div>
+          <Button onClick={submitTopicRequest} disabled={topicSaving || (!selectedTopicId && !customTopicTitle.trim())} className="mt-3 w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+            {topicSaving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ScrollText className="ml-2 h-4 w-4" />}
+            إرسال العنوان للمراجعة
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* حالة البحث الحالي */}
       {thesis && (
         <Card className="border-[#0f2b46]/10">
