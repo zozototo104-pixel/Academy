@@ -10,27 +10,93 @@ function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max)
 }
 
+async function buildStudentSummary(user: { id: string; email: string; name: string; country: string | null; status: string; createdAt: Date }) {
+  const [enrollments, ownedAdmissions, payments, examAttempts, assignmentSubmissions, thesisTopicRequests] = await Promise.all([
+    db.enrollment.findMany({
+      where: { userId: user.id },
+      include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, status: true, amount: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    db.admissionApplication.findMany({
+      where: { userId: user.id },
+      select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    db.payment.findMany({
+      where: { userId: user.id },
+      select: { id: true, status: true, amount: true, purpose: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    db.examAttempt.count({ where: { userId: user.id } }),
+    db.assignmentSubmission.count({ where: { userId: user.id } }),
+    db.thesisTopicRequest.count({ where: { userId: user.id } }),
+  ])
+  return { ...user, enrollments, ownedAdmissions, payments, _count: { examAttempts, assignmentSubmissions, thesisTopicRequests } }
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
     const userId = clean(req.nextUrl.searchParams.get('userId'), 120)
     if (userId) {
-      const student = await db.user.findFirst({
+      const studentCore = await db.user.findFirst({
         where: { id: userId, role: 'STUDENT' },
-        include: {
-          enrollments: { include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, receiptNo: true, paidAt: true, createdAt: true } } }, orderBy: { createdAt: 'desc' } },
-          ownedAdmissions: { select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, reference: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 10 },
-          payments: { select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, receiptNo: true, paidAt: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 30 },
-          examAttempts: { include: { exam: { select: { title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
-          programExamAttempts: { include: { exam: { select: { title: true, program: { select: { titleAr: true } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
-          assignmentSubmissions: { include: { assignment: { select: { title: true, points: true, program: { select: { titleAr: true } } } } }, orderBy: { submittedAt: 'desc' }, take: 30 },
-          theses: { orderBy: { createdAt: 'desc' }, take: 10 },
-          thesisTopicRequests: { include: { topic: { select: { title: true } }, program: { select: { titleAr: true } } }, orderBy: { createdAt: 'desc' }, take: 20 },
-        },
+        select: { id: true, email: true, name: true, phone: true, country: true, status: true, createdAt: true, updatedAt: true },
       })
-      if (!student) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
-      const certificates = await db.certificate.findMany({ where: { userId }, select: { id: true, serial: true, type: true, program: true, grade: true, issuedAt: true, valid: true }, orderBy: { issuedAt: 'desc' }, take: 20 })
-      return NextResponse.json({ student: { ...student, certificates } })
+      if (!studentCore) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
+
+      const [enrollments, ownedAdmissions, payments, examAttempts, programExamAttempts, assignmentSubmissions, theses, thesisTopicRequests, certificates] = await Promise.all([
+        db.enrollment.findMany({
+          where: { userId },
+          include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, receiptNo: true, paidAt: true, createdAt: true } } },
+          orderBy: { createdAt: 'desc' },
+        }),
+        db.admissionApplication.findMany({
+          where: { userId },
+          select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, reference: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+        db.payment.findMany({
+          where: { userId },
+          select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, receiptNo: true, paidAt: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        db.examAttempt.findMany({
+          where: { userId },
+          include: { exam: { select: { title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        db.programExamAttempt.findMany({
+          where: { userId },
+          include: { exam: { select: { title: true, program: { select: { titleAr: true } } } } },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        db.assignmentSubmission.findMany({
+          where: { userId },
+          include: { assignment: { select: { title: true, points: true, program: { select: { titleAr: true } } } } },
+          orderBy: { submittedAt: 'desc' },
+          take: 30,
+        }),
+        db.thesisSubmission.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 10 }),
+        db.thesisTopicRequest.findMany({
+          where: { userId },
+          include: { topic: { select: { title: true } }, program: { select: { titleAr: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        }),
+        db.certificate.findMany({ where: { userId }, select: { id: true, serial: true, type: true, program: true, grade: true, issuedAt: true, valid: true }, orderBy: { issuedAt: 'desc' }, take: 20 }),
+      ])
+
+      return NextResponse.json({
+        student: { ...studentCore, enrollments, ownedAdmissions, payments, examAttempts, programExamAttempts, assignmentSubmissions, theses, thesisTopicRequests, certificates },
+      })
     }
 
     const q = clean(req.nextUrl.searchParams.get('q'), 120).toLowerCase()
@@ -44,17 +110,14 @@ export async function GET(req: NextRequest) {
         { country: { contains: q, mode: 'insensitive' } },
       ]
     }
-    const students = await db.user.findMany({
+
+    const users = await db.user.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }],
       take: 100,
-      include: {
-        enrollments: { include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, status: true, amount: true } } }, orderBy: { createdAt: 'desc' } },
-        ownedAdmissions: { select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 },
-        payments: { select: { id: true, status: true, amount: true, purpose: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 10 },
-        _count: { select: { examAttempts: true, assignmentSubmissions: true, thesisTopicRequests: true } },
-      },
+      select: { id: true, email: true, name: true, country: true, status: true, createdAt: true },
     })
+    const students = await Promise.all(users.map(buildStudentSummary))
     return NextResponse.json({ students })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
