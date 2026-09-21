@@ -434,6 +434,22 @@ model ThesisSubmission {
   updatedAt   DateTime @updatedAt
 }
 
+model ThesisReviewNote {
+  id        String   @id @default(cuid())
+  thesisId  String
+  thesis    ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  stage     String   // PLAN | FINAL | RESULT | GENERAL
+  action    String   // APPROVE_PLAN | REQUEST_PLAN_REVISION | REQUEST_FINAL_REVISION | RESULT_NOTE
+  note      String
+  authorId  String?
+  authorName String?
+  visibleToStudent Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([thesisId, createdAt])
+  @@index([stage])
+}
+
 model ThesisTopic {
   id           String   @id @default(cuid())
   programId    String
