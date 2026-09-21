@@ -104,9 +104,9 @@ export async function PATCH(req: NextRequest) {
         }
         continue
       }
-      if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL'].includes(key)) {
+      if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key)) {
         value = normalizeGeminiModelName(value)
-        if (key === 'GEMINI_LIVE_MODEL' && value && !isValidGeminiLiveModel(value)) value = 'gemini-3.1-flash-live-preview'
+        if (['GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key) && value && !isValidGeminiLiveModel(value)) value = key === 'GEMINI_DISCUSSION_LIVE_MODEL' ? 'gemini-3.8-live-extended-thinking' : 'gemini-3.8-live'
       }
       await db.setting.upsert({
         where: { key },
