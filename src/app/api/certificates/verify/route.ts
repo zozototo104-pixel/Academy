@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
     if (!cert) {
       return NextResponse.json({ valid: false, message: byToken ? 'رابط QR غير صحيح أو لم تعد الشهادة متاحة للتحقق' : 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
     }
-    const program = cert.program
+    const program = byToken && cert.program
       ? await db.program.findFirst({
           where: { titleAr: cert.program },
           select: {
