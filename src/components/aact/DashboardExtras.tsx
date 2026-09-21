@@ -366,6 +366,27 @@ interface AdmissionData {
   supervisorName?: string | null
 }
 
+interface ThesisTopicItem {
+  id: string
+  title: string
+  description?: string | null
+  objectives?: string | null
+  methodology?: string | null
+  keywords?: string | null
+  source?: string | null
+}
+
+interface ThesisTopicRequestItem {
+  id: string
+  topicId?: string | null
+  proposedTitle: string
+  rationale?: string | null
+  status: string
+  adminNote?: string | null
+  createdAt: string
+  topic?: { title: string } | null
+}
+
 export function ThesisTab() {
   const { toast } = useToast()
   const { navigate } = useAppStore()
