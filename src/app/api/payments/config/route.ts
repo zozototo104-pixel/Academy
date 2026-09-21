@@ -22,6 +22,6 @@ export async function GET() {
       ],
     })
   } catch {
-    return NextResponse.json({ mode: 'SANDBOX', providers: { STRIPE: false, PAYPAL: false }, methods: [] })
+    return NextResponse.json({ mode: 'SANDBOX', sandboxAllowed: sandboxPaymentsAllowed(), providers: { STRIPE: false, PAYPAL: false }, methods: [] })
   }
 }
