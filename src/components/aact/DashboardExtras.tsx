@@ -123,6 +123,12 @@ export function PaymentsTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const openPaymentDialog = (payment: Payment) => {
+    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    if (firstEnabled) setMethod(firstEnabled)
+    setPayTarget(payment)
+  }
+
   const pay = async () => {
     if (!payTarget) return
     const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
