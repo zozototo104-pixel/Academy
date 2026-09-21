@@ -196,6 +196,10 @@ interface StorageSafetyReport {
     heavyDbFileBytes: number
     heavyDbFileHighRisk: number
     heavyDbFileWarnings: number
+    externallyStoredAssignments: number
+    externallyStoredAssignmentBytes: number
+    externallyStoredDefenseRecordings: number
+    externallyStoredDefenseRecordingBytes: number
     suspiciousBooks: number
     orphanUploadChunks: number
     questionBankBookRefsMissing: number
