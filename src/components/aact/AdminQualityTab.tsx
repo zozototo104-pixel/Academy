@@ -1450,6 +1450,43 @@ export function AdminQualityTab() {
                 </div>
               </>
             )}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h4 className="text-xs font-black text-[#0f2b46]">العناوين الحالية لهذا البرنامج</h4>
+                <Button size="sm" variant="outline" className="h-8 text-[11px] font-black" disabled={!thesisProgramId || thesisTopicLoading} onClick={() => loadThesisTopics()}>
+                  {thesisTopicLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  تحديث
+                </Button>
+              </div>
+              {thesisTopicLoading ? (
+                <div className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">جاري تحميل العناوين...</div>
+              ) : thesisTopicList.length ? (
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {thesisTopicList.map((topic: any) => (
+                    <div key={topic.id} className="rounded-xl border border-slate-100 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black leading-6 text-[#0f2b46]">{topic.title}</p>
+                          {topic.description ? <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{topic.description}</p> : null}
+                          <p className="mt-1 text-[11px] font-black text-slate-400">الحالة: {topic.status === 'APPROVED' ? 'معتمد للطلاب' : topic.status === 'NEEDS_REVIEW' ? 'بانتظار مراجعة الإدارة' : topic.status === 'DISABLED' ? 'معطل' : topic.status}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          {topic.status !== 'APPROVED' ? (
+                            <Button size="sm" className="h-8 bg-emerald-600 px-2 text-[11px] font-black text-white hover:bg-emerald-700" disabled={thesisTopicBusy} onClick={() => updateThesisTopicStatus(topic.id, 'APPROVED')}>اعتماد</Button>
+                          ) : null}
+                          {topic.status !== 'DISABLED' ? (
+                            <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] font-black" disabled={thesisTopicBusy} onClick={() => updateThesisTopicStatus(topic.id, 'DISABLED')}>تعطيل</Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">لا توجد عناوين لهذا البرنامج بعد.</div>
+              )}
+            </div>
+
             <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-slate-100 bg-white/95 p-3 backdrop-blur sm:-mx-6 sm:px-6">
               <Button variant="outline" className="h-11 flex-1" onClick={() => setThesisTopicDialogOpen(false)}>إلغاء</Button>
               <Button className="h-11 flex-1 bg-[#0f2b46] font-black text-[#f5f0e1]" disabled={thesisTopicBusy || !thesisProgramId} onClick={submitThesisTopicAction}>
