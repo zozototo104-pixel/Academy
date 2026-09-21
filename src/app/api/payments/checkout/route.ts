@@ -19,6 +19,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
 
+    const cfg = await getGatewayConfig()
+    const methodStatus = paymentMethodStatus(String(method), cfg)
+    if (!methodStatus?.enabled) {
+      return NextResponse.json({ error: methodStatus?.reason || 'طريقة الدفع غير متاحة حالياً' }, { status: 400 })
+    }
+
     const origin = req.headers.get('origin') || new URL(req.url).origin
     const result = await createProviderCheckout({
       method: String(method),
