@@ -105,6 +105,10 @@ export async function GET() {
     const linkedR2Bytes = linkedR2.reduce((sum, b) => sum + bytes(b.size || 0), 0)
     const legacyBase64Bytes = legacyBase64.reduce((sum, b) => sum + approxBase64Bytes(b.data), 0)
     const chunkBytes = chunks.reduce((sum, c) => sum + bytes(c.size || 0), 0)
+    const heavyDbFileRows = heavyDbFiles.reduce((sum, item) => sum + item.rows, 0)
+    const heavyDbFileBytes = heavyDbFiles.reduce((sum, item) => sum + item.approxBytes, 0)
+    const heavyDbFileHighRisk = heavyDbFiles.filter((item) => item.status === 'HIGH_RISK').length
+    const heavyDbFileWarnings = heavyDbFiles.filter((item) => item.status === 'WARNING' || item.status === 'WATCH').length
 
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
