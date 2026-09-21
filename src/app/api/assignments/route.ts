@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!assignmentId) return NextResponse.json({ error: 'معرف الواجب مطلوب' }, { status: 400 })
-    if (!answerText && !data) return NextResponse.json({ error: 'اكتب إجابتك أو أرفق ملف الواجب قبل التسليم' }, { status: 400 })
+    if (!answerText && !fileStorageKey && !data) return NextResponse.json({ error: 'اكتب إجابتك أو أرفق ملف الواجب قبل التسليم' }, { status: 400 })
 
     const assignment = await db.programAssignment.findUnique({
       where: { id: assignmentId },
