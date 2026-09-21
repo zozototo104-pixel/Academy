@@ -173,7 +173,7 @@ export function AdminSystemTab() {
   const save = async () => {
     setSaving(true)
     try {
-      const d = await api<{ ok: boolean; values: Record<string, string>; gemini?: SystemData['gemini']; agent?: SystemData['agent'] }>('/api/admin/system', {
+      const d = await api<{ ok: boolean; values: Record<string, string>; gemini?: SystemData['gemini']; textAi?: SystemData['textAi']; agent?: SystemData['agent'] }>('/api/admin/system', {
         method: 'PATCH',
         body: JSON.stringify(form),
       })
