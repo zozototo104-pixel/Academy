@@ -1744,6 +1744,42 @@ export function AdminQualityTab() {
                 {studentsLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null} بحث
               </Button>
             </div>
+
+            {selectedStudent ? (
+              <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-black text-[#0f2b46]">ملف الطالب: {selectedStudent.name || 'طالب'}</h4>
+                    <p className="mt-1 text-[11px] font-bold text-slate-600">{selectedStudent.email} · الحالة: {selectedStudent.status === 'DISABLED' ? 'معطل' : selectedStudent.status === 'ARCHIVED' ? 'مؤرشف' : 'نشط'}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedStudent(null)} className="text-xs font-black">إغلاق التفاصيل</Button>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">التسجيلات<br /><span className="text-lg text-[#0f2b46]">{selectedStudent.enrollments?.length || 0}</span></div>
+                  <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">المدفوعات<br /><span className="text-lg text-[#0f2b46]">{selectedStudent.payments?.length || 0}</span></div>
+                  <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الاختبارات<br /><span className="text-lg text-[#0f2b46]">{(selectedStudent.examAttempts?.length || 0) + (selectedStudent.programExamAttempts?.length || 0)}</span></div>
+                  <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الشهادات<br /><span className="text-lg text-[#0f2b46]">{selectedStudent.certificates?.length || 0}</span></div>
+                </div>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="mb-2 text-xs font-black text-[#0f2b46]">آخر التسجيلات والمدفوعات</p>
+                    <div className="max-h-44 space-y-2 overflow-y-auto">
+                      {selectedStudent.enrollments?.length ? selectedStudent.enrollments.map((e: any) => <div key={e.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">{e.program?.titleAr || 'برنامج'} · {e.status} · مدفوعات: {e.payments?.length || 0}</div>) : <p className="text-[11px] font-bold text-slate-400">لا توجد تسجيلات.</p>}
+                      {selectedStudent.payments?.slice(0, 6).map((p: any) => <div key={p.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">فاتورة: {p.invoiceNo || '-'} · {p.status} · {p.amount}</div>)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="mb-2 text-xs font-black text-[#0f2b46]">آخر النشاط الأكاديمي</p>
+                    <div className="max-h-44 space-y-2 overflow-y-auto">
+                      {selectedStudent.programExamAttempts?.slice(0, 5).map((a: any) => <div key={a.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">اختبار: {a.exam?.title || '-'} · {a.score ?? '-'} · {a.status}</div>)}
+                      {selectedStudent.assignmentSubmissions?.slice(0, 5).map((s: any) => <div key={s.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">واجب: {s.assignment?.title || '-'} · {s.score ?? '-'} · {s.status}</div>)}
+                      {selectedStudent.thesisSubmissions?.slice(0, 3).map((t: any) => <div key={t.id} className="rounded-lg bg-slate-50 p-2 text-[11px] font-bold text-slate-600">بحث: {t.title || '-'} · {t.status}</div>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="max-h-[62dvh] space-y-3 overflow-y-auto pr-1">
               {studentsLoading ? (
                 <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">جاري تحميل الطلاب...</div>
