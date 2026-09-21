@@ -181,6 +181,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
+    const limited = enforceApiRateLimit(req, 'admin-question-bank', 10, 60 * 1000, admin.id)
+    if (limited) return limited
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const count = Math.max(4, Math.min(30, Number(body?.count || 12)))
