@@ -300,6 +300,48 @@ export async function emailExamPublished(to: string, name: string, program: stri
   })
 }
 
+export async function emailAssignmentPublished(to: string, name: string, program: string, assignmentTitle: string, dueDays?: number | null) {
+  await sendEmail({
+    to,
+    event: 'ASSIGNMENT_PUBLISHED',
+    subject: `واجب جديد متاح — ${assignmentTitle}`,
+    html: emailTemplate(
+      'تم نشر واجب جديد 📌',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>تم نشر واجب جديد ضمن برنامجك:</p>
+       ${infoRows([
+         { label: 'البرنامج', value: program },
+         { label: 'الواجب', value: assignmentTitle },
+         { label: 'المهلة', value: dueDays ? `${dueDays} يوم من تاريخ النشر` : 'حسب تعليمات الإدارة داخل المنصة' },
+       ])}
+       <p>يرجى فتح بوابة الطالب وقراءة تعليمات الواجب وتسليمه قبل انتهاء المهلة.</p>`,
+      { label: 'فتح الواجبات', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
+export async function emailAssignmentGraded(to: string, name: string, assignmentTitle: string, status: string, score?: number | null, points?: number | null, feedback?: string | null) {
+  const needsRevision = status === 'NEEDS_REVISION'
+  await sendEmail({
+    to,
+    event: needsRevision ? 'ASSIGNMENT_NEEDS_REVISION' : 'ASSIGNMENT_GRADED',
+    subject: needsRevision ? `واجب يحتاج تعديلًا — ${assignmentTitle}` : `تم تصحيح واجبك — ${assignmentTitle}`,
+    html: emailTemplate(
+      needsRevision ? 'واجبك يحتاج تعديلًا' : 'تم تصحيح واجبك ✅',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>يوجد تحديث على واجبك:</p>
+       ${infoRows([
+         { label: 'الواجب', value: assignmentTitle },
+         { label: 'الحالة', value: needsRevision ? 'يحتاج تعديل' : 'تم التصحيح' },
+         { label: 'الدرجة', value: score == null || points == null ? 'لم تُحدد درجة' : `${score}/${points}` },
+       ])}
+       ${feedback ? `<p><strong>ملاحظات المصحح:</strong> ${escapeHtml(feedback)}</p>` : ''}
+       <p>يرجى فتح بوابة الطالب للاطلاع على التفاصيل.</p>`,
+      { label: 'فتح بوابة الطالب', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailDefenseScheduled(to: string, name: string, thesisTitle: string, defenseDate: Date, committee: string[], tzNote: string) {
   const dateAr = new Intl.DateTimeFormat('ar-EG', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
