@@ -35,6 +35,9 @@ model User {
   programExamAttempts ProgramExamAttempt[]
   assignmentSubmissions AssignmentSubmission[]
   microCredentialAwards UserMicroCredential[]
+  proposedThesisTopics ThesisTopic[] @relation("ThesisTopicProposer")
+  reviewedThesisTopics ThesisTopic[] @relation("ThesisTopicReviewer")
+  thesisTopicRequests ThesisTopicRequest[]
   ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
 }
 
