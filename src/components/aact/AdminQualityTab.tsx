@@ -824,6 +824,24 @@ export function AdminQualityTab() {
     }
   }
 
+  const exportSelectedStudent = () => {
+    if (!selectedStudent) return
+    const safeName = String(selectedStudent.name || selectedStudent.email || selectedStudent.id || 'student').replace(/[^a-zA-Z0-9\u0600-\u06FF_-]+/g, '-').slice(0, 80)
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      student: selectedStudent,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `student-${safeName}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const openStudentsManager = () => {
     setStudentsOpen(true)
     void loadStudents()
