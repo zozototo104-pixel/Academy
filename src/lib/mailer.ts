@@ -324,6 +324,30 @@ export async function emailDefenseScheduled(to: string, name: string, thesisTitl
   })
 }
 
+export async function emailThesisTopicDecision(to: string, name: string, title: string, status: string, adminNote?: string) {
+  const approved = status === 'APPROVED'
+  const rejected = status === 'REJECTED'
+  const needsRevision = status === 'NEEDS_REVISION'
+  const label = approved ? 'تم اعتماد عنوان بحث التخرج' : needsRevision ? 'عنوان بحث التخرج يحتاج تعديلًا' : rejected ? 'تم رفض عنوان بحث التخرج' : 'تحديث على عنوان بحث التخرج'
+  await sendEmail({
+    to,
+    event: `THESIS_TOPIC_${status}`,
+    subject: label,
+    html: emailTemplate(
+      label,
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>،</p>
+       <p>يوجد تحديث على طلب عنوان بحث التخرج الخاص بك:</p>
+       ${infoRows([
+         { label: 'عنوان البحث', value: title },
+         { label: 'الحالة', value: approved ? 'معتمد' : needsRevision ? 'يحتاج تعديل' : rejected ? 'مرفوض' : status },
+       ])}
+       ${adminNote ? `<p><strong>ملاحظة الإدارة:</strong> ${escapeHtml(adminNote)}</p>` : ''}
+       ${approved ? '<p>يمكنك الآن متابعة خطة البحث وتسليم البحث وفق تعليمات البرنامج داخل بوابة الطالب.</p>' : '<p>يرجى فتح بوابة الطالب وقراءة الملاحظة ثم تعديل/إرسال العنوان عند الحاجة.</p>'}`,
+      { label: 'فتح بوابة الطالب', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailCertificateIssued(to: string, name: string, program: string, serial: string) {
   await sendEmail({
     to,
