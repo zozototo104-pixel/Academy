@@ -102,6 +102,9 @@ export async function PATCH(req: NextRequest) {
         `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
         'dashboard'
       )
+      if (thesis.user?.email) {
+        emailThesisPlanDecision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, false).catch(() => {})
+      }
       await audit(admin, 'REQUEST_THESIS_PLAN_REVISION', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
     }
