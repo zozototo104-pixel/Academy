@@ -804,8 +804,6 @@ export function AdminQualityTab() {
     void loadStudents()
   }
 
-  const thesisProgramOptions = data.programs.map((p: any) => ({ id: p.id, titleAr: p.titleAr, category: p.category }))
-
   const loadThesisTopics = async (programId = thesisProgramId) => {
     if (!programId) return
     setThesisTopicLoading(true)
