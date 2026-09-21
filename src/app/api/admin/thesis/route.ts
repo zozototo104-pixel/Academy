@@ -126,6 +126,7 @@ export async function PATCH(req: NextRequest) {
           : `خطة بحث «${thesis.title}» تحتاج تعديلًا قبل اعتمادها. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
         'dashboard'
       )
+      await saveReviewHistory('PLAN', 'REQUEST_PLAN_REVISION', safeReviewNote || 'خطة البحث تحتاج تعديلًا')
       if (thesis.user?.email) {
         emailThesisPlanDecision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, false).catch(() => {})
       }
