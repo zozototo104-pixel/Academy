@@ -339,11 +339,21 @@ function DefenseCountdown({ defenseDate }: { defenseDate: string }) {
   )
 }
 
+interface ThesisReviewNoteItem {
+  id: string
+  stage: string
+  action: string
+  note: string
+  authorName?: string | null
+  createdAt: string
+}
+
 interface ThesisData {
   id: string
   title: string
   abstract: string
   reviewNote?: string | null
+  reviewNotes?: ThesisReviewNoteItem[]
   status: string
   defenseDate?: string | null
   committee?: string | null
