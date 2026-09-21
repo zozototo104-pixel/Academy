@@ -148,7 +148,7 @@ export function PaymentsTab() {
       const co = await api<{ mode: 'SANDBOX' | 'LIVE'; redirectUrl: string | null; provider: string }>('/api/payments/checkout', {
         method: 'POST',
         body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
-      }).catch(() => null)
+      })
       if (co?.redirectUrl) {
         // دفع حقيقي: تحويل الطالب لصفحة الدفع الرسمية لدى Stripe/PayPal
         window.location.href = co.redirectUrl
