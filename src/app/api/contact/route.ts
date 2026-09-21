@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 
 // POST /api/contact — نموذج التواصل/الاستفسار العام
 export async function POST(req: NextRequest) {
   try {
+    const ipLimit = enforceApiRateLimit(req, 'contact:ip', 20, 10 * 60 * 1000, clientIpFromHeaders(req.headers))
+    if (ipLimit) return ipLimit
+
     const { name, email, phone, subject, message } = await req.json()
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
       return NextResponse.json({ error: 'الاسم والبريد والرسالة مطلوبة' }, { status: 400 })
