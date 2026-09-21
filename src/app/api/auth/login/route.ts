@@ -42,6 +42,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
     }
 
+    if ((user as any).status === 'DISABLED' || (user as any).status === 'ARCHIVED') {
+      return NextResponse.json({ error: 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.' }, { status: 403 })
+    }
+
     const token = await createSession(user.id)
 
     return NextResponse.json({
