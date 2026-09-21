@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
-import { emailAdmissionSubmitted } from '@/lib/mailer'
+import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
 import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
