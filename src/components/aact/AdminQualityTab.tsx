@@ -1577,6 +1577,116 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={launchHealthOpen} onOpenChange={setLaunchHealthOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراقبة جاهزية الإطلاق</DialogTitle>
+            <DialogDescription>لوحة فحص سريعة للبيئة، المحتوى، البريد، آخر العمليات، والتحذيرات الحرجة قبل استقبال أعداد كبيرة من الطلاب.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={loadLaunchHealth} disabled={launchHealthLoading} className="bg-[#0f2b46] font-black text-[#f5f0e1]">
+                {launchHealthLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+                تحديث مراقبة الإطلاق
+              </Button>
+            </div>
+            {launchHealthLoading ? (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">جاري فحص جاهزية الإطلاق...</div>
+            ) : launchHealth ? (
+              <>
+                <div className={`rounded-2xl p-5 ${launchHealth.level === 'READY' ? 'bg-emerald-50' : launchHealth.level === 'NEEDS_ATTENTION' ? 'bg-amber-50' : 'bg-red-50'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-slate-500">مؤشر الجاهزية</p>
+                      <h3 className={`text-3xl font-black ${launchHealth.level === 'READY' ? 'text-emerald-700' : launchHealth.level === 'NEEDS_ATTENTION' ? 'text-amber-700' : 'text-red-700'}`}>{launchHealth.score}%</h3>
+                    </div>
+                    <Badge className={launchHealth.level === 'READY' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : launchHealth.level === 'NEEDS_ATTENTION' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}>
+                      {launchHealth.level === 'READY' ? 'جاهز غالبًا' : launchHealth.level === 'NEEDS_ATTENTION' ? 'يحتاج انتباه' : 'غير جاهز'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ['قاعدة البيانات', launchHealth.env?.database],
+                    ['Cloudflare R2', launchHealth.env?.r2],
+                    ['Gemini AI', launchHealth.env?.gemini],
+                    ['البريد Resend', launchHealth.env?.resend],
+                    ['DB Push', launchHealth.env?.dbPushEnabled ? false : true],
+                    ['DB Setup', launchHealth.env?.dbSetupEnabled ? false : true],
+                    ['Create Admin', launchHealth.env?.createAdminEnabled ? false : true],
+                    ['برامج مفتوحة', (launchHealth.counts?.openPrograms || 0) > 0],
+                  ].map(([label, ok]: any) => (
+                    <div key={label} className="rounded-2xl border border-slate-100 bg-white p-4 text-center">
+                      <p className="text-xs font-black text-slate-500">{label}</p>
+                      <p className={`mt-1 text-sm font-black ${ok ? 'text-emerald-700' : 'text-red-700'}`}>{ok ? 'سليم' : 'يحتاج ضبط'}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  {[
+                    ['الطلاب', launchHealth.counts?.students || 0],
+                    ['التسجيلات النشطة', launchHealth.counts?.activeEnrollments || 0],
+                    ['البرامج', launchHealth.counts?.programs || 0],
+                    ['الكتب', launchHealth.counts?.books || 0],
+                    ['الاختبارات', launchHealth.counts?.programExams || 0],
+                    ['الواجبات', launchHealth.counts?.assignments || 0],
+                    ['عناوين البحث', launchHealth.counts?.thesisTopics || 0],
+                    ['الأبحاث', launchHealth.counts?.thesisSubmissions || 0],
+                    ['المدفوعات', launchHealth.counts?.paidPayments || 0],
+                    ['الشهادات', launchHealth.counts?.certificates || 0],
+                  ].map(([label, value]: any) => (
+                    <div key={label} className="rounded-2xl bg-white p-4 text-center text-xs font-black text-slate-600">
+                      {label}<br /><span className="text-lg text-[#0f2b46]">{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {launchHealth.warnings?.length ? (
+                  <div className="rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-800">
+                    <p className="mb-2 font-black text-[#0f2b46]">تحذيرات قبل الإطلاق</p>
+                    {launchHealth.warnings.map((warning: string, index: number) => <div key={index}>• {warning}</div>)}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-emerald-50 p-4 text-xs font-bold leading-6 text-emerald-700">لا توجد تحذيرات إطلاق حالية.</div>
+                )}
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <h4 className="mb-3 text-sm font-black text-[#0f2b46]">آخر رسائل البريد</h4>
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {launchHealth.recentEmails?.length ? launchHealth.recentEmails.map((log: any) => (
+                        <div key={log.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-black text-[#0f2b46]">{log.subject}</span>
+                            <Badge className={log.status === 'SENT' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : log.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{log.status}</Badge>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-500">{log.event || 'غير محدد'} · {log.to}</p>
+                        </div>
+                      )) : <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد سجلات بريد.</div>}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <h4 className="mb-3 text-sm font-black text-[#0f2b46]">آخر العمليات الإدارية</h4>
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {launchHealth.recentAudits?.length ? launchHealth.recentAudits.map((log: any) => (
+                        <div key={log.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <p className="font-black text-[#0f2b46]">{log.action} · {log.entity}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{log.actorName || 'النظام'} · {log.details || '-'}</p>
+                        </div>
+                      )) : <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد عمليات حديثة.</div>}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">اضغط تحديث مراقبة الإطلاق للتحميل.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={mailStatusOpen} onOpenChange={setMailStatusOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-4xl sm:p-6" dir="rtl">
           <DialogHeader>
