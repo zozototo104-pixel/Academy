@@ -1460,6 +1460,105 @@ export function AdminQualityTab() {
         </Card>
       </div>
 
+      <Dialog open={studentPreviewOpen} onOpenChange={setStudentPreviewOpen}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">معاينة تجربة الطالب</DialogTitle>
+            <DialogDescription>معاينة قراءة فقط لما سيظهر للطالب في البرنامج، بدون إنشاء طالب أو تسجيل أو بيانات تجريبية.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-2 md:grid-cols-[1fr_120px]">
+              <select
+                value={studentPreviewProgramId}
+                onChange={(e) => {
+                  setStudentPreviewProgramId(e.target.value)
+                  void loadStudentPreview(e.target.value)
+                }}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+              >
+                {studentPreviewPrograms.map((p) => <option key={p.id} value={p.id}>{p.titleAr}</option>)}
+              </select>
+              <Button onClick={() => loadStudentPreview()} disabled={studentPreviewLoading} className="h-11 bg-[#0f2b46] font-black text-[#f5f0e1]">
+                {studentPreviewLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null}
+                تحديث
+              </Button>
+            </div>
+
+            {studentPreviewLoading ? (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">جاري بناء معاينة الطالب...</div>
+            ) : studentPreview ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
+                  <h3 className="text-base font-black text-[#0f2b46]">{studentPreview.program.titleAr}</h3>
+                  <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{studentPreview.program.description || 'لا يوجد وصف مختصر لهذا البرنامج.'}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الكتب<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.books}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الوحدات<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.units}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">بنك المعرفة<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.knowledgeItems}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الاختبارات<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.readyProgramExams}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">الواجبات<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.publishedAssignments}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-center text-xs font-black text-slate-600">عناوين البحث<br /><span className="text-lg text-[#0f2b46]">{studentPreview.counts.thesisTopics}</span></div>
+                  </div>
+                </div>
+
+                {studentPreview.warnings?.length ? (
+                  <div className="rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-700">
+                    {studentPreview.warnings.map((w: string, i: number) => <div key={i}>• {w}</div>)}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h4 className="mb-2 text-sm font-black text-[#0f2b46]">ما سيراه الطالب في الكتب</h4>
+                    <div className="max-h-56 space-y-2 overflow-y-auto">
+                      {studentPreview.program.books?.length ? studentPreview.program.books.map((b: any) => (
+                        <div key={b.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <b className="text-[#0f2b46]">{b.title}</b><br />الفصل: {b.semester || '-'} · التخزين: {b.storageProvider || 'غير محدد'}
+                        </div>
+                      )) : <p className="text-xs font-bold text-slate-500">لا توجد كتب.</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h4 className="mb-2 text-sm font-black text-[#0f2b46]">ما سيراه الطالب في الوحدات</h4>
+                    <div className="max-h-56 space-y-2 overflow-y-auto">
+                      {studentPreview.program.units?.length ? studentPreview.program.units.map((u: any) => (
+                        <div key={u.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                          <b className="text-[#0f2b46]">{u.title}</b><br />الفصل: {u.semester || '-'} · {u.objectives ? 'الأهداف موجودة' : 'الأهداف غير مكتملة'}
+                        </div>
+                      )) : <p className="text-xs font-bold text-slate-500">لا توجد وحدات.</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h4 className="mb-2 text-sm font-black text-[#0f2b46]">الاختبارات والواجبات الظاهرة</h4>
+                    <div className="max-h-56 space-y-2 overflow-y-auto">
+                      {[...(studentPreview.program.programExams || []), ...(studentPreview.program.assignments || [])].length ? (
+                        <>
+                          {studentPreview.program.programExams?.map((e: any) => <div key={`e-${e.id}`} className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">اختبار: <b>{e.title}</b> · الأسئلة: {e._count?.questions || 0}</div>)}
+                          {studentPreview.program.assignments?.map((a: any) => <div key={`a-${a.id}`} className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">واجب: <b>{a.title}</b></div>)}
+                        </>
+                      ) : <p className="text-xs font-bold text-slate-500">لا توجد اختبارات أو واجبات منشورة.</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h4 className="mb-2 text-sm font-black text-[#0f2b46]">عناوين بحث التخرج المعتمدة</h4>
+                    <div className="max-h-56 space-y-2 overflow-y-auto">
+                      {studentPreview.thesisTopics?.length ? studentPreview.thesisTopics.map((t: any) => (
+                        <div key={t.id} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600"><b className="text-[#0f2b46]">{t.title}</b>{t.description ? <><br />{t.description}</> : null}</div>
+                      )) : <p className="text-xs font-bold text-slate-500">لا توجد عناوين معتمدة بعد.</p>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد برامج متاحة للمعاينة.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={studentsOpen} onOpenChange={setStudentsOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">
           <DialogHeader>
