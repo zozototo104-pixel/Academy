@@ -452,7 +452,7 @@ export function AdminSystemTab() {
             </div>
             {F('PAYPAL_CLIENT_ID', 'Client ID', '', 'text', 'من developer.paypal.com → تطبيقك')}
             {F('PAYPAL_SECRET', 'Client Secret', data.secretsSet.PAYPAL_SECRET ? 'محفوظ — اكتب جديداً للتغيير' : '', 'password')}
-            {F('PAYPAL_API_BASE', 'API Base', 'https://api-m.sandbox.paypal.com', 'text', 'اختبار: api-m.sandbox.paypal.com — حقيقي: api-m.paypal.com')}
+            {F('PAYPAL_API_BASE', 'API Base', 'https://api-m.paypal.com', 'text', 'حقيقي: api-m.paypal.com — اختبار فقط: api-m.sandbox.paypal.com')}
           </div>
           <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
             {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات الدفع
