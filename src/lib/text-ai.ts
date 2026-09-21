@@ -241,8 +241,8 @@ async function callZAI(s: Awaited<ReturnType<typeof settings>>, model: string, o
       messages: toChatMessages(opts),
       temperature: opts.temperature ?? (opts.json ? 0.25 : 0.6),
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
-      thinking: { type: model.startsWith('glm-5') ? 'enabled' : 'disabled' },
-      reasoning_effort: model.startsWith('glm-5') ? 'max' : undefined,
+      thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' },
+      reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined,
     }),
   })
   const data: any = await response.json().catch(() => ({}))
