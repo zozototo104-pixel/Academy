@@ -396,6 +396,14 @@ export function ThesisTab() {
   const [examsGate, setExamsGate] = useState<{ required: number; passed: number; complete: boolean; hasAnyExam: boolean; missing: { kind: string; title: string }[] } | null>(null)
   const [form, setForm] = useState({ title: '', abstract: '', fileNote: '' })
   const [saving, setSaving] = useState(false)
+  const [topicProgramId, setTopicProgramId] = useState('')
+  const [topics, setTopics] = useState<ThesisTopicItem[]>([])
+  const [topicRequests, setTopicRequests] = useState<ThesisTopicRequestItem[]>([])
+  const [selectedTopicId, setSelectedTopicId] = useState('')
+  const [customTopicTitle, setCustomTopicTitle] = useState('')
+  const [topicRationale, setTopicRationale] = useState('')
+  const [topicLoading, setTopicLoading] = useState(false)
+  const [topicSaving, setTopicSaving] = useState(false)
 
   const load = () => {
     api<{ thesis: ThesisData | null; admission: AdmissionData | null; examsGate?: any }>('/api/thesis')
