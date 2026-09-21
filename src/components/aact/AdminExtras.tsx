@@ -259,6 +259,11 @@ export function AdminThesisTab() {
                       الباحث: {studentName} — {programName}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
+                    {t.reviewNote ? (
+                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-800">
+                        <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
+                      </div>
+                    ) : null}
                     <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
                       {journey.map((step, index) => (
                         <div key={step.title} className={`rounded-xl border px-2 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : step.active ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-100 bg-slate-50'}`}>
