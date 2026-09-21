@@ -80,6 +80,9 @@ export async function PATCH(req: NextRequest) {
         `تم اعتماد خطة بحث «${thesis.title}». يمكنك الآن متابعة إعداد البحث النهائي وتسليمه من بوابة الطالب.`,
         'dashboard'
       )
+      if (thesis.user?.email) {
+        emailThesisPlanDecision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, true).catch(() => {})
+      }
       await audit(admin, 'APPROVE_THESIS_PLAN', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
     }
