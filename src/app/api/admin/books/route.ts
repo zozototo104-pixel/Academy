@@ -325,6 +325,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
+    const limited = enforceApiRateLimit(req, 'admin-books-source-update', 10, 60 * 1000, admin.id)
+    if (limited) return limited
     const form = await req.formData()
     const bookId = String(form.get('bookId') || '').trim()
     if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
