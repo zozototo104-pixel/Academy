@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
           examAttempts: { include: { exam: { select: { title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
           programExamAttempts: { include: { exam: { select: { title: true, program: { select: { titleAr: true } } } } }, orderBy: { createdAt: 'desc' }, take: 30 },
           assignmentSubmissions: { include: { assignment: { select: { title: true, points: true, program: { select: { titleAr: true } } } } }, orderBy: { submittedAt: 'desc' }, take: 30 },
-          thesisSubmissions: { orderBy: { createdAt: 'desc' }, take: 10 },
+          theses: { orderBy: { createdAt: 'desc' }, take: 10 },
           thesisTopicRequests: { include: { topic: { select: { title: true } }, program: { select: { titleAr: true } } }, orderBy: { createdAt: 'desc' }, take: 20 },
         },
       })
