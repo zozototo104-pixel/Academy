@@ -1291,7 +1291,7 @@ export function AdminQualityTab() {
             <Textarea
               value={catalogImportText}
               onChange={(e) => setCatalogImportText(e.target.value)}
-              className="max-h-80 min-h-40 text-xs leading-6 sm:min-h-80"
+              className="max-h-56 min-h-32 w-full max-w-full overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 sm:max-h-80 sm:min-h-64"
               dir="ltr"
               placeholder='{ "format": "AACT_PROGRAM_CATALOG_V1", "programs": [...] }'
             />
