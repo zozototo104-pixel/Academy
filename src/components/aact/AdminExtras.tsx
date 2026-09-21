@@ -187,7 +187,9 @@ export function AdminThesisTab() {
   )
 
   const ST: Record<string, { label: string; cls: string }> = {
-    SUBMITTED: { label: 'مسلَّم — بانتظار الجدولة', cls: 'bg-amber-100 text-amber-700' },
+    PLAN_SUBMITTED: { label: 'خطة البحث قيد المراجعة', cls: 'bg-amber-100 text-amber-700' },
+    PLAN_APPROVED: { label: 'خطة البحث معتمدة', cls: 'bg-emerald-100 text-emerald-700' },
+    SUBMITTED: { label: 'البحث النهائي — بانتظار الجدولة', cls: 'bg-amber-100 text-amber-700' },
     SCHEDULED: { label: 'مجدول للمناقشة', cls: 'bg-blue-100 text-blue-700' },
     RESULT_APPROVED: { label: 'تم اعتماد النتيجة', cls: 'bg-emerald-100 text-emerald-700' },
     NEEDS_REVISION: { label: 'يحتاج تعديلات', cls: 'bg-red-100 text-red-600' },
