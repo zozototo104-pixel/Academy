@@ -64,7 +64,6 @@ export async function GET() {
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
       },
       smtpEnabled: smtp.enabled,
-      smtpEnabled: smtp.enabled,
       resendConfigured,
       paymentMode: payment.mode,
       payment,
