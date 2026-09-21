@@ -322,6 +322,9 @@ export async function POST(req: NextRequest) {
       maxTotal,
       passScore: exam.passScore,
       passed,
+      rawScoreBeforeCourseworkCap: roundedRawScore,
+      maxExamScore: readiness.maxExamScore,
+      courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
       results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
     })
