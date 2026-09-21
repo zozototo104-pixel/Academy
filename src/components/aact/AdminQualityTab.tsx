@@ -1564,6 +1564,23 @@ export function AdminQualityTab() {
                   <p><b>مفتاح Resend:</b> {mailStatus.config?.resendKey || 'غير موجود'}</p>
                 </div>
 
+                <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
+                  <h4 className="mb-2 text-sm font-black text-[#0f2b46]">إرسال رسالة اختبار</h4>
+                  <div className="grid gap-2 md:grid-cols-[1fr_160px]">
+                    <input
+                      value={mailTestEmail}
+                      onChange={(e) => setMailTestEmail(e.target.value)}
+                      className="h-11 rounded-xl border border-sky-100 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                      placeholder="اكتب بريدك لتجربة الإرسال"
+                    />
+                    <Button onClick={sendMailTest} disabled={mailTestSending} className="h-11 bg-sky-700 font-black text-white hover:bg-sky-800">
+                      {mailTestSending ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null}
+                      إرسال اختبار
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-[11px] font-bold leading-5 text-sky-700">ستظهر نتيجة الرسالة في سجل البريد أسفل هذه النافذة.</p>
+                </div>
+
                 {mailStatus.warnings?.length ? (
                   <div className="rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-700">
                     {mailStatus.warnings.map((warning: string, index: number) => <div key={index}>• {warning}</div>)}
