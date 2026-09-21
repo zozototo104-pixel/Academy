@@ -604,6 +604,14 @@ export function ThesisTab() {
         </CardContent>
       </Card>
 
+      <Card className="border-[#c9a227]/40 bg-[#fffaf0]">
+        <CardContent className="p-5">
+          <p className="text-[11px] font-black text-[#a8841a]">الإجراء المطلوب الآن</p>
+          <h3 className="mt-1 text-lg font-black text-[#0f2b46]">{thesisRequiredAction.title}</h3>
+          <p className="mt-1 text-xs font-bold leading-7 text-slate-600">{thesisRequiredAction.body}</p>
+        </CardContent>
+      </Card>
+
       {/* المشرف */}
       {admission?.supervisorName && (
         <div className="flex items-center gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
