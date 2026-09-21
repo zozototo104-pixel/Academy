@@ -483,8 +483,8 @@ export function ThesisTab() {
     e.preventDefault()
     setSaving(true)
     try {
-      await api('/api/thesis', { method: 'POST', body: JSON.stringify(form) })
-      toast({ title: 'تم التسليم', description: 'وصل بحثك — سيتم جدولة المناقشة وإبلاغك' })
+      await api('/api/thesis', { method: 'POST', body: JSON.stringify({ ...form, stage: thesisStage }) })
+      toast({ title: 'تم التسليم', description: thesisStage === 'PLAN' ? 'وصلت خطة البحث — سيتم مراجعتها واعتمادها قبل البحث النهائي' : 'وصل البحث النهائي — سيتم جدولة المناقشة وإبلاغك' })
       load()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
