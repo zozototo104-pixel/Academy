@@ -151,6 +151,7 @@ export async function PATCH(req: NextRequest) {
           : `البحث النهائي «${thesis.title}» يحتاج تعديلًا قبل المناقشة. راجع ملاحظات الإدارة/المشرف داخل المنصة.`,
         'dashboard'
       )
+      await saveReviewHistory('FINAL', 'REQUEST_FINAL_REVISION', safeReviewNote || 'البحث النهائي يحتاج تعديلًا')
       if (thesis.user?.email) {
         emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null).catch(() => {})
       }
