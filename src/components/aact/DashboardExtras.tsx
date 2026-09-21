@@ -772,12 +772,18 @@ export function ThesisTab() {
           <Card className="border-[#0f2b46]/15">
             <CardContent className="p-5">
               <h3 className="mb-1 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
-                <FileText className="h-5 w-5 text-[#c9a227]" /> {thesis ? 'تعديل وإعادة تسليم البحث' : 'تسليم بحث التخرج'}
+                <FileText className="h-5 w-5 text-[#c9a227]" /> {!thesis ? 'تسليم خطة بحث التخرج' : thesis.status === 'PLAN_APPROVED' ? 'تسليم البحث النهائي' : 'تعديل وإعادة تسليم الخطة'}
               </h3>
               <p className="mb-4 text-xs text-slate-500">
-                قدّم عنوان بحثك وملخصه (لا يقل عن 50 حرفاً) — ستتم جدولة مناقشتك أمام لجنة متخصصة بعد المراجعة.
+                {!thesis || thesis.status === 'NEEDS_REVISION'
+                  ? 'ابدأ بتسليم خطة البحث: العنوان، المشكلة البحثية، المنهجية المتوقعة، والمراجع/الملف إن وجد. بعد اعتماد الخطة ستُفتح مرحلة البحث النهائي.'
+                  : 'قدّم البحث النهائي بعد اعتماد الخطة — ستتم جدولة المناقشة أمام لجنة متخصصة بعد المراجعة.'}
               </p>
               <form onSubmit={submit} className="space-y-3">
+                <input type="hidden" value={thesisStage} readOnly />
+                <div className="rounded-xl bg-[#fffaf0] p-3 text-[11px] font-bold leading-6 text-[#5c4d1a]">
+                  المرحلة الحالية: {!thesis || thesis.status === 'NEEDS_REVISION' ? 'خطة البحث' : 'البحث النهائي'}
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="t-title">عنوان البحث *</Label>
                   <Input id="t-title" required value={form.title}
