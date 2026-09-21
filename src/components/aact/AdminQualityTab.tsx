@@ -795,12 +795,14 @@ export function AdminQualityTab() {
   }
 
   const openThesisTopicDialog = (mode: 'manual' | 'generate') => {
+    const selectedProgramId = thesisProgramId || thesisProgramOptions[0]?.id || ''
     setThesisTopicMode(mode)
-    setThesisProgramId(thesisProgramId || thesisProgramOptions[0]?.id || '')
+    setThesisProgramId(selectedProgramId)
     setThesisTopicTitle('')
     setThesisTopicDescription('')
     setThesisGenerateCount(6)
     setThesisTopicDialogOpen(true)
+    if (selectedProgramId) void loadThesisTopics(selectedProgramId)
   }
 
   const submitThesisTopicAction = async () => {
