@@ -27,6 +27,21 @@ function env(name: string): string {
   }
 }
 
+function isTruthy(value: string): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
+}
+
+export function sandboxPaymentsAllowed(): boolean {
+  const vercelEnv = env('VERCEL_ENV')
+  const isProduction = vercelEnv ? vercelEnv === 'production' : env('NODE_ENV') === 'production'
+  if (!isProduction) return true
+  return isTruthy(env('AACT_ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION'))
+}
+
+export function sandboxPaymentsBlockedMessage(): string {
+  return 'الدفع التجريبي SANDBOX معطّل في بيئة الإنتاج. فعّل بوابة دفع حقيقية أو اضبط AACT_ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=true لبيئة اختبار مقصودة.'
+}
+
 export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   const keys = ['PAYMENT_MODE', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_SECRET', 'PAYPAL_API_BASE']
   const rows = await db.setting.findMany({ where: { key: { in: keys } } })
