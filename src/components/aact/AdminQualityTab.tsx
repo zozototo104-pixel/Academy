@@ -861,6 +861,22 @@ export function AdminQualityTab() {
     }
   }
 
+  const updateThesisTopicRequestStatus = async (requestId: string, status: string) => {
+    const adminNote = status === 'NEEDS_REVISION' || status === 'REJECTED' ? window.prompt('اكتب ملاحظة للطالب', '') || '' : ''
+    setThesisTopicBusy(true)
+    try {
+      await api('/api/admin/thesis-topics', {
+        method: 'PATCH',
+        body: JSON.stringify({ requestId, status, adminNote }),
+      })
+      await loadThesisTopics()
+    } catch (e: any) {
+      alert(e?.message || 'تعذر تحديث طلب الطالب')
+    } finally {
+      setThesisTopicBusy(false)
+    }
+  }
+
   const openThesisTopicDialog = (mode: 'manual' | 'generate') => {
     const selectedProgramId = thesisProgramId || thesisProgramOptions[0]?.id || ''
     setThesisTopicMode(mode)
