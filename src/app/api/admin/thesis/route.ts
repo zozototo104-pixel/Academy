@@ -59,7 +59,8 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id, action, defenseDate, committee, agentMember, resultScore, passed } = await req.json()
+    const { id, action, defenseDate, committee, agentMember, resultScore, passed, reviewNote } = await req.json()
+    const safeReviewNote = String(reviewNote || '').trim().slice(0, 2000)
     const thesis = await db.thesisSubmission.findUnique({
       where: { id },
       include: { user: { select: { id: true, name: true, email: true, country: true } } },
