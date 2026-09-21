@@ -52,6 +52,7 @@ export async function GET() {
         title: true,
         abstract: true,
         fileNote: true,
+        reviewNote: true,
         status: true,
         defenseDate: true,
         committee: true,
