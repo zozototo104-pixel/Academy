@@ -404,6 +404,7 @@ export function ThesisTab() {
   const [loading, setLoading] = useState(true)
   const [thesis, setThesis] = useState<ThesisData | null>(null)
   const [admission, setAdmission] = useState<AdmissionData | null>(null)
+  const [thesisPlan, setThesisPlan] = useState<ThesisPlanData | null>(null)
   const [examsGate, setExamsGate] = useState<{ required: number; passed: number; complete: boolean; hasAnyExam: boolean; missing: { kind: string; title: string }[] } | null>(null)
   const [form, setForm] = useState({ title: '', abstract: '', fileNote: '' })
   const [saving, setSaving] = useState(false)
