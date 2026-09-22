@@ -102,6 +102,7 @@ interface ServiceWorkflowView {
   stages: ServiceWorkflowStageView[]
   activeStage: ServiceWorkflowStageView
   nextAction: string
+  clientNextAction?: string
   expectedDeliverableTypes: string[]
   paid: boolean
   hasInvoice: boolean
