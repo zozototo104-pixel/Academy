@@ -444,24 +444,33 @@ export function ApplyView() {
   }
 
   const renderAdmissionStatusCard = (app: any) => {
-    const status = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+    const isStudyApp = app.isStudyProgram !== false
+    const baseStatus = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+    const status = !isStudyApp && app.status === 'RESULT_APPROVED'
+      ? { text: 'تم اعتماد الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
+      : !isStudyApp && app.status === 'CERTIFIED'
+        ? { text: 'تم تسليم الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
+        : baseStatus
     const invoices: TrackedInvoice[] = Array.isArray(app.payments) ? app.payments : []
     const unpaid = invoices.filter((p) => p.status !== 'PAID')
     const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
     const tuition = unpaid.find((p) => p.purpose === 'TUITION') || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
     const payable = app.status === 'AWAITING_TUITION' ? tuition : app.status === 'AWAITING_FEE' ? applicationFee : (tuition || applicationFee)
-    const isFinalActive = ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
+    const isStudyFinalActive = ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
+    const isServiceApproved = !isStudyApp && ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const headline = app.status === 'AWAITING_TUITION'
       ? 'تمت الموافقة المبدئية على طلبك'
       : app.status === 'UNDER_REVIEW'
-        ? 'طلبك قيد دراسة الإدارة'
+        ? (isStudyApp ? 'طلبك قيد دراسة الإدارة' : 'طلب الخدمة قيد مراجعة الإدارة')
         : app.status === 'AWAITING_FEE'
           ? 'تم استلام طلبك — بانتظار رسوم التقديم'
-          : isFinalActive
+          : isStudyFinalActive && isStudyApp
             ? 'تم تفعيل قيدك الدراسي'
-            : app.status === 'REJECTED'
-              ? 'تمت مراجعة طلبك'
-              : 'حالة طلب الالتحاق'
+            : isServiceApproved
+              ? 'تم اعتماد طلب الخدمة'
+              : app.status === 'REJECTED'
+                ? 'تمت مراجعة طلبك'
+                : (isStudyApp ? 'حالة طلب الالتحاق' : 'حالة طلب الخدمة')
 
     return (
       <Card className="mx-auto mt-6 max-w-3xl border-[#c9a227]/40 bg-white shadow-xl">
