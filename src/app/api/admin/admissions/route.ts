@@ -47,7 +47,7 @@ export async function GET() {
         files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
       },
     })
-    const programIds = [...new Set(apps.map((a) => a.programId).filter(Boolean) as string[])]
+    const programIds = [...new Set(apps.map((a) => a.programId).filter((id): id is string => Boolean(id)))]
     const programs = programIds.length
       ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true } })
       : []
