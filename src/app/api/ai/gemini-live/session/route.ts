@@ -133,11 +133,11 @@ export async function POST(req: NextRequest) {
   } catch {}
 
   const purpose = cleanPurpose(body.purpose)
-  const liveUsage = body.testOnly
+  const allowance = body.testOnly
     ? null
-    : await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose })
-  if (liveUsage && !liveUsage.ok) {
-    return NextResponse.json({ error: liveUsage.message, liveUsage }, { status: liveUsage.status })
+    : await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
+  if (allowance && !allowance.ok) {
+    return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
   }
 
   const model = cleanModel(body.model) || await geminiActiveLiveModel(purpose)
