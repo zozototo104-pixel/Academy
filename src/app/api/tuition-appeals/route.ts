@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         admissionId: app.id,
         userId: user.id,
         programId: app.programId || null,
-        enrollmentId: app.enrollment?.id || null,
+        enrollmentId: null,
         requestedInitialAmount,
         proposedSchedule: proposedSchedule || null,
         reason: reason || null,
