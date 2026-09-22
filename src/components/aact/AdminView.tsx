@@ -878,7 +878,7 @@ export function AdminView() {
 
                               <div className="grid gap-2 md:grid-cols-2">
                                 <select
-                                  value={deliverableForms[a.id]?.type || 'PACKAGE_DOWNLOAD'}
+                                  value={deliverableForms[a.id]?.type || a.serviceWorkflow?.expectedDeliverableTypes?.[0] || 'PACKAGE_DOWNLOAD'}
                                   onChange={(e) => updateDeliverableForm(a.id, { type: e.currentTarget.value })}
                                   className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
                                 >
