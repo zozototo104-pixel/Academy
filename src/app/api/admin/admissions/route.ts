@@ -42,7 +42,7 @@ export async function GET() {
       include: {
         user: { select: { id: true, name: true, email: true, role: true } },
         supervisor: { select: { id: true, name: true } },
-        payments: { select: { id: true, purpose: true, status: true, amount: true } },
+        payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, method: true, receiptNo: true } },
         theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
         files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
         deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
