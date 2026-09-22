@@ -366,6 +366,12 @@ export async function GET(req: NextRequest) {
       const flow = getServiceFlow(app.programRef?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
       const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
+      const serviceWorkflow = isStudyProgram ? null : deriveServiceWorkflowState({
+        kind: requestKind,
+        status: app.status,
+        payments: app.payments,
+        deliverables: app.deliverables,
+      })
       return {
       reference: app.reference,
       fullName: app.fullName,
