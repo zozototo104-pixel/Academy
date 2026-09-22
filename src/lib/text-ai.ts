@@ -328,6 +328,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     DEEPINFRA: s.deepinfraKeys.length,
     TOGETHER: s.togetherKeys.length,
     UNOROUTER: s.unorouterKeys.length,
+    RELAYROUTER: s.relayrouterKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
