@@ -105,10 +105,19 @@ export function PaymentsTab() {
   const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
   const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
   const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
+  const [appealPlanId, setAppealPlanId] = useState<string | null>(null)
+  const [appealAmount, setAppealAmount] = useState('')
+  const [appealReason, setAppealReason] = useState('')
+  const [appealSchedule, setAppealSchedule] = useState('')
+  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [appealBusy, setAppealBusy] = useState(false)
 
   const load = () => {
-    api<{ payments: Payment[] }>('/api/payments')
-      .then((d) => setPayments(d.payments))
+    api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
+      .then((d) => {
+        setPayments(d.payments)
+        setTuitionPlans(Array.isArray(d.tuitionPlans) ? d.tuitionPlans : [])
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
