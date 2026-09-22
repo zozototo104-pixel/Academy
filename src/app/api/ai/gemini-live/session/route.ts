@@ -209,9 +209,14 @@ export async function POST(req: NextRequest) {
         setupVariant,
         expiresAt: expireTime,
         sessionLimitMinutes,
-        liveUsage,
+        liveUsage: allowance,
         message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
+    }
+
+    const liveUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: sessionLimitMinutes })
+    if (!liveUsage.ok) {
+      return NextResponse.json({ error: liveUsage.message, liveUsage }, { status: liveUsage.status })
     }
 
     return NextResponse.json({
