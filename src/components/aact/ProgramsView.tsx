@@ -254,7 +254,7 @@ export function ProgramsView() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <ul className="space-y-2 pb-1">
-                            {p.features.map((f, i) => (
+                            {displayFeatures.map((f, i) => (
                               <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-slate-600">
                                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                 {f}
