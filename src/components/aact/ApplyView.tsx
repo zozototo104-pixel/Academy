@@ -456,7 +456,7 @@ export function ApplyView() {
     const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
     const tuition = unpaid.find((p) => p.purpose === 'TUITION') || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
     const payable = app.status === 'AWAITING_TUITION' ? tuition : app.status === 'AWAITING_FEE' ? applicationFee : (tuition || applicationFee)
-    const isStudyFinalActive = ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
+    const isStudyFinalActive = isStudyApp && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const isServiceApproved = !isStudyApp && ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const headline = app.status === 'AWAITING_TUITION'
       ? 'تمت الموافقة المبدئية على طلبك'
