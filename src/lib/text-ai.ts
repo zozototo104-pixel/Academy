@@ -418,7 +418,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
 
 async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<string[]> {
   const selected = modelFor(s, provider)
-  const defaults: string[] =
+  const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
     provider === 'OPENAI' ? OPENAI_TEXT_MODELS :
     provider === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
@@ -427,10 +427,13 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<
     provider === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
     provider === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
     provider === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
-    provider === 'UNOROUTER' ? [...UNOROUTER_TEXT_MODELS, ...(await liveUnoRouterFreeModels(s.unorouterBaseUrl))] :
+    provider === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
     provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
-  return [...new Set([selected, ...defaults].filter(Boolean))]
+  const discoveredFree = await liveFreeModels(provider, s)
+  const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
+  const selectedPart = selected && !selectedIsAuto ? [selected] : []
+  return [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
 }
 
 function baseOrder(s: Settings): ConcreteProvider[] {
