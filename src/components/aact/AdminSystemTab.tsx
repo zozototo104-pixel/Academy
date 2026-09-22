@@ -158,6 +158,32 @@ const ZAI_TEXT_MODEL_CHOICES = [
   { value: 'glm-4.5-airx', label: 'GLM-4.5 AirX — سريع عند توفره' },
 ]
 
+const GEMINI_TEXT_ROUTER_MODEL_CHOICES = [
+  { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash — افتراضي للنصوص' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — احتياطي' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — احتياطي قديم' },
+]
+
+const GROQ_TEXT_MODEL_CHOICES = [
+  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile — جودة أفضل' },
+  { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant — أسرع' },
+]
+
+const OPENROUTER_TEXT_MODEL_CHOICES = [
+  { value: 'openrouter/auto', label: 'OpenRouter Auto — يختار المتاح' },
+  { value: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama مجاني عند توفره' },
+]
+
+const OPEN_MODEL_GATEWAY_CHOICES = [
+  { value: 'meta-llama/Llama-3.3-70B-Instruct', label: 'Llama 3.3 70B Instruct' },
+  { value: 'meta-llama/Meta-Llama-3.1-8B-Instruct', label: 'Llama 3.1 8B Instruct' },
+]
+
+const UNOROUTER_TEXT_MODEL_CHOICES = [
+  { value: 'gpt-oss-120b:free', label: 'gpt-oss-120b:free — عند توفره' },
+  { value: 'deepseek/deepseek-chat:free', label: 'DeepSeek Chat Free — عند توفره' },
+]
+
 const GEMINI_VOICE_CHOICES = [
   'Charon', 'Aoede', 'Puck', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Zephyr', 'Achernar', 'Algenib', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Iapetus', 'Laomedeia', 'Pulcherrima', 'Rasalgethi', 'Sadachbia', 'Schedar', 'Sulafat', 'Umbriel', 'Vindemiatrix', 'Zubenelgenubi'
 ]
