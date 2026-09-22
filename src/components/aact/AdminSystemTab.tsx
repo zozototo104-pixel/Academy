@@ -730,6 +730,13 @@ export function AdminSystemTab() {
                 {F('UNOROUTER_BASE_URL', 'UnoRouter Base URL', 'https://api.unorouter.com/v1', 'text')}
               </>
             ) : null}
+            {currentTextProvider === 'RELAYROUTER' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('RELAYROUTER_API_KEYS', 'RelayRouter API Keys', data.secretsSet.RELAYROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'rr_...,rr_...', 'password', 'مفتاح أو أكثر من RelayRouter مفصول بفاصلة.')}
+                {SelectF('RELAYROUTER_TEXT_MODEL', 'نموذج RelayRouter', RELAYROUTER_TEXT_MODEL_CHOICES, 'يمكنك اختيار auto أو نموذج محدد من لوحة RelayRouter.')}
+                {F('RELAYROUTER_BASE_URL', 'RelayRouter Base URL', 'https://relayrouter.io/v1', 'text')}
+              </>
+            ) : null}
             {currentTextProvider === 'OPENAI_COMPAT' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENAI_COMPAT_API_KEYS', 'OpenAI-compatible API Keys', data.secretsSet.OPENAI_COMPAT_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'RelayFreeLLM / LiteLLM / Gateway خاص.')}
