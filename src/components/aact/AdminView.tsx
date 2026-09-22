@@ -745,6 +745,11 @@ export function AdminView() {
                                 <p className="text-[11px] font-black text-purple-700"><Award className="ml-1 inline h-3.5 w-3.5" /> تنفيذ وتسليم الخدمة للعميل</p>
                                 <Badge className="bg-white text-purple-700 hover:bg-white">{a.deliverables?.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length || 0} منشور</Badge>
                               </div>
+                              {!serviceDeliveryReady && (
+                                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-800">
+                                  لا يمكن نشر أي مخرج للعميل قبل اعتماد طلب الخدمة وسداد فاتورتها. اضغط أولاً «اعتماد طلب الخدمة وتحديد المتابعة»، ثم أكد الدفع من تبويب الدفعات.
+                                </div>
+                              )}
 
                               {!!a.deliverables?.length && (
                                 <div className="mb-3 grid gap-2">
