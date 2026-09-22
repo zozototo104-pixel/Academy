@@ -105,6 +105,8 @@ export async function GET() {
         TOGETHER_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'TOGETHER_API_KEYS' } }))?.value,
         UNOROUTER_API_KEY: !!(await db.setting.findUnique({ where: { key: 'UNOROUTER_API_KEY' } }))?.value,
         UNOROUTER_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'UNOROUTER_API_KEYS' } }))?.value,
+        RELAYROUTER_API_KEY: !!(await db.setting.findUnique({ where: { key: 'RELAYROUTER_API_KEY' } }))?.value,
+        RELAYROUTER_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'RELAYROUTER_API_KEYS' } }))?.value,
         OPENAI_COMPAT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEY' } }))?.value,
         OPENAI_COMPAT_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEYS' } }))?.value,
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
