@@ -496,6 +496,24 @@ export function ApplyView() {
             </div>
           </div>
 
+          {!isStudyApp && app.serviceWorkflow && (
+            <div className="mt-5 rounded-2xl border border-purple-100 bg-purple-50/70 p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-black text-[#0f2b46]">{app.serviceWorkflow.workflow?.title || 'مسار تنفيذ الخدمة'}</h3>
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{app.serviceWorkflow.workflow?.summary || 'تتابع الإدارة طلب الخدمة حتى الدفع والتسليم.'}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {app.serviceWorkflow.stages?.map((stage: any, idx: number) => (
+                  <div key={`${app.reference}-${stage.id}`} className={`rounded-xl border p-3 text-xs ${stage.state === 'done' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : stage.state === 'active' ? 'border-purple-200 bg-white text-purple-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                    <p className="font-black">{stage.state === 'done' ? <CheckCircle2 className="ml-1 inline h-4 w-4" /> : <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-[9px]">{idx + 1}</span>}{stage.label}</p>
+                    <p className="mt-1 leading-5 opacity-80">{stage.description}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-bold leading-6 text-purple-800">المرحلة الحالية: {app.serviceWorkflow.activeStage?.label} — {app.serviceWorkflow.nextAction}</p>
+            </div>
+          )}
+
           {app.status === 'AWAITING_TUITION' && (
             <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-800">
               <CheckCircle2 className="ml-1 inline h-5 w-5" />
