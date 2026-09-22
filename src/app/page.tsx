@@ -345,7 +345,10 @@ export default function Home() {
       {showChrome && <Header />}
       <main className="flex-1">
         {!startupDone ? (
-          <AcademyStartupScreen onDone={() => setStartupDone(true)} />
+          <>
+            <HomeView />
+            <AcademyStartupScreen onDone={() => setStartupDone(true)} />
+          </>
         ) : !authChecked ? (
           <LazyViewLoader />
         ) : needsAuthRecovery ? (
