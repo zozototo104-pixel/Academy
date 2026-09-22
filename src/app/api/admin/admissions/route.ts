@@ -47,6 +47,24 @@ export async function GET() {
         files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
       },
     })
+    const programIds = [...new Set(apps.map((a) => a.programId).filter(Boolean) as string[])]
+    const programs = programIds.length
+      ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true } })
+      : []
+    const programMap = new Map(programs.map((p) => [p.id, p]))
+    const enrichedApps = apps.map((app) => {
+      const program = app.programId ? programMap.get(app.programId) : null
+      const flow = getServiceFlow(program?.slug)
+      const isStudyProgram = flow ? flow.isStudyProgram : program?.category !== 'SERVICE'
+      return {
+        ...app,
+        programSlug: program?.slug || null,
+        requestKind: flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST'),
+        requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
+        requestActionLabel: flow?.primaryAction || (isStudyProgram ? 'الإقرار بالقبول' : 'متابعة طلب الخدمة'),
+        isStudyProgram,
+      }
+    })
     // التقييم الذكي المخزّن (aiVerdict/aiScore/aiReviewedAt) يُضمَّن تلقائياً مع الحقول
     const supervisors = await db.user.findMany({
       where: { role: { in: ['ADMIN', 'SUPERVISOR'] } },
