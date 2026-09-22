@@ -686,7 +686,7 @@ export function ApplyView() {
                               <p className="mt-0.5 font-bold text-slate-500"><span dir="ltr">{app.reference}</span> — {app.isStudyProgram ? 'برنامج دراسي' : 'خدمة عابرة'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Badge className={`${status.cls} hover:${status.cls}`}>{status.text}</Badge>
+                              <Badge className={status.cls}>{status.text}</Badge>
                               <Button type="button" size="sm" variant="outline" onClick={() => { setTracked(app); setTrackRef(app.reference); setTrackError(''); setActiveTab('track') }} className="h-8 border-[#c9a227]/50 text-[11px] font-black text-[#a8841a]">عرض</Button>
                             </div>
                           </div>
