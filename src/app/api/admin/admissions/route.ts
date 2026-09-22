@@ -50,6 +50,15 @@ export async function GET() {
         deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
       },
     })
+    const appIds = apps.map((a) => a.id)
+    const appeals = appIds.length
+      ? await db.tuitionInstallmentAppeal.findMany({ where: { admissionId: { in: appIds } }, orderBy: { createdAt: 'desc' } })
+      : []
+    const appealMap = new Map<string, any>()
+    for (const appeal of appeals) {
+      if (!appealMap.has(appeal.admissionId)) appealMap.set(appeal.admissionId, appeal)
+    }
+
     const programIds = [...new Set(apps.map((a) => a.programId).filter((id): id is string => Boolean(id)))]
     const programs = programIds.length
       ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true } })
