@@ -93,8 +93,13 @@ export async function PATCH(req: NextRequest) {
     if (!app) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
     const owner = app.userId ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, name: true, email: true } }) : null
     const ownerIsStudent = !owner || owner.role === 'STUDENT'
+    const programForFlow = app.programId
+      ? await db.program.findUnique({ where: { id: app.programId }, select: { id: true, slug: true, category: true, price: true } })
+      : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true } })
+    const serviceFlow = getServiceFlow(programForFlow?.slug)
+    const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
 
-    if (!ownerIsStudent && (supervisorId !== undefined || ['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(status || '')))) {
+    if (isStudyRequest && !ownerIsStudent && (supervisorId !== undefined || ['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(status || '')))) {
       return NextResponse.json(
         { error: 'هذا الطلب مرتبط بحساب إداري/غير طالب. لا يمكن اعتماده كقيد دراسة. أنشئ حساب طالب منفصل بنفس بيانات الدارس ثم قدّم الطلب من حساب الطالب أو ارفض هذا الطلب كتجريبي.' },
         { status: 400 }
