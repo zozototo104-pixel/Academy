@@ -280,6 +280,23 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
+function modelFallbacks(s: Settings, provider: ConcreteProvider): string[] {
+  const selected = modelFor(s, provider)
+  const defaults: string[] =
+    provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
+    provider === 'OPENAI' ? OPENAI_TEXT_MODELS :
+    provider === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
+    provider === 'ZAI' ? ZAI_TEXT_MODELS :
+    provider === 'GROQ' ? GROQ_TEXT_MODELS :
+    provider === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
+    provider === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
+    provider === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
+    provider === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
+    provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
+    OPENAI_COMPAT_TEXT_MODELS
+  return [...new Set([selected, ...defaults].filter(Boolean))]
+}
+
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
   const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'RELAYROUTER', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
