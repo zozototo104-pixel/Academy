@@ -254,12 +254,18 @@ export function ApplyView() {
     api<{ application: any | null; applications?: any[] }>('/api/admissions?mine=1')
       .then((d) => {
         if (!alive) return
-        const app = d.application || null
-        setMyAdmission(app)
-        if (app?.reference) setTrackRef((v) => v || app.reference)
+        const apps = Array.isArray(d.applications) ? d.applications : (d.application ? [d.application] : [])
+        const blockingApp = apps.find((app: any) => blocksNewApplication(app)) || null
+        setMyApplications(apps)
+        setMyAdmission(blockingApp)
+        const preferredTrackApp = blockingApp || apps[0] || null
+        if (preferredTrackApp?.reference) setTrackRef((v) => v || preferredTrackApp.reference)
       })
       .catch(() => {
-        if (alive) setMyAdmission(null)
+        if (alive) {
+          setMyAdmission(null)
+          setMyApplications([])
+        }
       })
       .finally(() => {
         if (alive) setMyAdmissionLoading(false)
