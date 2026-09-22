@@ -141,6 +141,14 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
       kind: 'manual',
       reason: sandboxReady ? undefined : 'التحويل البنكي يحتاج تعليمات ومراجعة يدوية من الإدارة. هذه الطريقة غير مفعلة للدفع الذاتي حالياً.',
     },
+    {
+      id: 'DIRECT_PAYMENT',
+      label: 'دفع مباشر — تواصل مع الإدارة',
+      enabled: true,
+      configured: true,
+      kind: 'manual',
+      reason: undefined,
+    },
   ]
 
   return {
