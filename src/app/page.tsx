@@ -319,8 +319,10 @@ export default function Home() {
       <PWARegister />
       {showChrome && <Header />}
       <main className="flex-1">
-        {!startupDone || !authChecked ? (
+        {!startupDone ? (
           <AcademyStartupScreen onDone={() => setStartupDone(true)} />
+        ) : !authChecked ? (
+          <LazyViewLoader />
         ) : needsAuthRecovery ? (
           <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-4">
             <div className="rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg">
