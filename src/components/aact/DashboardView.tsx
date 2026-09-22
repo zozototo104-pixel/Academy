@@ -1148,6 +1148,22 @@ export function DashboardView() {
 
         {/* Sidebar */}
         <div className="space-y-5">
+          {!hasProgramDashboard ? (
+            <Card className="border-[#0f2b46]/10 bg-white">
+              <CardContent className="p-5">
+                <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Award className="h-5 w-5 text-[#c9a227]" /> بوابة خدماتك</h2>
+                <p className="mt-2 text-xs font-bold leading-6 text-slate-600">أنت حالياً في مسار خدمة عابرة، لذلك لا تظهر لك تبويبات البرامج، بحث التخرج أو السجل الأكاديمي. تابع الدفع والمخرجات والإشعارات فقط.</p>
+                <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-600">
+                  <div className="rounded-xl bg-slate-50 p-3">الدفعات المعلقة: <b className="text-[#0f2b46]">{studentSummary?.summary.unpaidPayments || 0}</b></div>
+                  <div className="rounded-xl bg-slate-50 p-3">المخرجات المتاحة: <b className="text-[#0f2b46]">{serviceDeliverables.length}</b></div>
+                  <div className="rounded-xl bg-slate-50 p-3">طلباتك: <b className="text-[#0f2b46]">{studentSummary?.admissions.length || 0}</b></div>
+                </div>
+                <Button size="sm" onClick={() => setDashboardTab('payments')} className="mt-3 w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">فتح الدفعات</Button>
+                <Button size="sm" variant="outline" onClick={() => setDashboardTab('deliverables')} className="mt-2 w-full border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">فتح المخرجات</Button>
+              </CardContent>
+            </Card>
+          ) : (
+          <>
           {/* Academic memory */}
           <Card className="border-[#0f2b46]/10 bg-white">
             <CardContent className="p-5">
