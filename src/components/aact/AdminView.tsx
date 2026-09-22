@@ -1129,9 +1129,9 @@ export function AdminView() {
                             </Button>
                           </div>
                         )}
-                        {a.status === 'CERTIFIED' && (
+                        {isStudyAdmission && a.status === 'CERTIFIED' && (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <Award className="ml-1 h-3.5 w-3.5" /> شهادة صادرة — ظاهرة في تبويب الشهادات
+                            <Award className="ml-1 h-3.5 w-3.5" /> شهادة دراسية صادرة — ظاهرة في تبويب الشهادات
                           </Badge>
                         )}
                       </div>
