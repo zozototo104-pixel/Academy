@@ -356,7 +356,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<
     provider === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
     provider === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
     provider === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
-    provider === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
+    provider === 'UNOROUTER' ? [...UNOROUTER_TEXT_MODELS, ...(await liveUnoRouterFreeModels(s.unorouterBaseUrl))] :
     provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
   return [...new Set([selected, ...defaults].filter(Boolean))]
