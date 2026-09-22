@@ -229,6 +229,7 @@ export function AdminSystemTab() {
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
 
   const load = () => {
     setLoading(true)
