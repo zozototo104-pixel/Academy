@@ -621,7 +621,7 @@ export function AdminView() {
       </Card>
 
       {/* KPIs */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {kpis.map((k) => (
           <Card key={k.label} className="border-[#0f2b46]/10">
             <CardContent className="p-4">
