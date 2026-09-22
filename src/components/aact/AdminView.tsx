@@ -735,6 +735,94 @@ export function AdminView() {
                           ) : (
                             <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
                           )}
+
+                          {!isStudyAdmission && (
+                            <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3">
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-purple-700"><Award className="ml-1 inline h-3.5 w-3.5" /> تنفيذ وتسليم الخدمة للعميل</p>
+                                <Badge className="bg-white text-purple-700 hover:bg-white">{a.deliverables?.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length || 0} منشور</Badge>
+                              </div>
+
+                              {!!a.deliverables?.length && (
+                                <div className="mb-3 grid gap-2">
+                                  {a.deliverables.map((d) => (
+                                    <div key={d.id} className="rounded-lg border border-purple-100 bg-white p-2 text-[10px]">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <p className="font-black text-[#0f2b46]">{d.title}</p>
+                                          <p className="mt-0.5 text-slate-500">{DELIVERABLE_TYPE_AR[d.type] || d.type} — {d.status === 'PUBLISHED' ? 'منشور' : d.status === 'REVOKED' ? 'ملغى' : 'مسودة'} {d.visibleToStudent === false ? '— مخفي عن العميل' : ''}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                          {d.status !== 'REVOKED' && (
+                                            <Button size="sm" variant="outline" onClick={() => revokeDeliverable(d.id)} className="h-7 text-[10px] font-black text-red-600">إلغاء</Button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {d.externalUrl && <p className="mt-1 truncate text-slate-400" dir="ltr">{d.externalUrl}</p>}
+                                      {d.fileName && <p className="mt-1 text-slate-400"><Paperclip className="ml-1 inline h-3 w-3" />{d.fileName}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="grid gap-2 md:grid-cols-2">
+                                <select
+                                  value={deliverableForms[a.id]?.type || 'PACKAGE_DOWNLOAD'}
+                                  onChange={(e) => updateDeliverableForm(a.id, { type: e.currentTarget.value })}
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                                >
+                                  {DELIVERABLE_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                </select>
+                                <input
+                                  value={deliverableForms[a.id]?.title || ''}
+                                  onChange={(e) => updateDeliverableForm(a.id, { title: e.currentTarget.value })}
+                                  placeholder="عنوان يظهر للعميل: شهادة معادلة / رابط تحميل / تقرير..."
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                                />
+                                <input
+                                  value={deliverableForms[a.id]?.externalUrl || ''}
+                                  onChange={(e) => updateDeliverableForm(a.id, { externalUrl: e.currentTarget.value })}
+                                  placeholder="رابط خارجي اختياري: تحميل، اجتماع، ملف..."
+                                  dir="ltr"
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                                />
+                                <input
+                                  type="file"
+                                  onChange={(e) => setDeliverableFiles((prev) => ({ ...prev, [a.id]: e.currentTarget.files?.[0] || null }))}
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 py-1 text-[11px] font-bold text-[#0f2b46]"
+                                />
+                                <input
+                                  value={deliverableForms[a.id]?.certificateId || ''}
+                                  onChange={(e) => updateDeliverableForm(a.id, { certificateId: e.currentTarget.value })}
+                                  placeholder="رقم شهادة/عضوية اختياري"
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                                />
+                                <input
+                                  value={deliverableForms[a.id]?.verificationUrl || ''}
+                                  onChange={(e) => updateDeliverableForm(a.id, { verificationUrl: e.currentTarget.value })}
+                                  placeholder="رابط تحقق اختياري"
+                                  dir="ltr"
+                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                                />
+                              </div>
+                              <textarea
+                                value={deliverableForms[a.id]?.description || ''}
+                                onChange={(e) => updateDeliverableForm(a.id, { description: e.currentTarget.value })}
+                                placeholder="وصف مختصر أو تعليمات للعميل..."
+                                className="mt-2 min-h-[58px] w-full rounded-lg border border-purple-100 bg-white px-2 py-2 text-[11px] font-bold text-[#0f2b46]"
+                              />
+                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                                  <input type="checkbox" checked={deliverableForms[a.id]?.visibleToStudent !== false} onChange={(e) => updateDeliverableForm(a.id, { visibleToStudent: e.currentTarget.checked })} />
+                                  يظهر للعميل فوراً ويرسل إشعاراً بالبريد
+                                </label>
+                                <Button size="sm" disabled={deliverableLoading === a.id} onClick={() => submitDeliverable(a)} className="bg-purple-700 text-white hover:bg-purple-800">
+                                  {deliverableLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Award className="ml-1 h-3.5 w-3.5" />}
+                                  تسليم المخرج
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                           {a.thesisDeadline && (
                             <p className="mt-1 text-[11px] font-bold text-[#a8841a]">
                               مهلة بحث التخرج حتى: {new Date(a.thesisDeadline).toLocaleDateString('ar-EG')} (6 أشهر من القبول)
