@@ -214,9 +214,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const liveUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: sessionLimitMinutes })
-    if (!liveUsage.ok) {
-      return NextResponse.json({ error: liveUsage.message, liveUsage }, { status: liveUsage.status })
+    const reservedUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: sessionLimitMinutes })
+    if (!reservedUsage.ok) {
+      return NextResponse.json({ error: reservedUsage.message, liveUsage: reservedUsage }, { status: reservedUsage.status })
     }
 
     return NextResponse.json({
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
       setupVariant,
       expiresAt: expireTime,
       sessionLimitMinutes,
-      liveUsage,
+      liveUsage: reservedUsage,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
       sdkConfig: {
