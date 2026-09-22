@@ -111,6 +111,26 @@ interface AdmissionApp {
   aiReviewedAt?: string | null
 }
 
+interface DeliverableFormState {
+  type: string
+  title: string
+  description: string
+  externalUrl: string
+  certificateId: string
+  verificationUrl: string
+  visibleToStudent: boolean
+}
+
+const emptyDeliverableForm = (): DeliverableFormState => ({
+  type: 'PACKAGE_DOWNLOAD',
+  title: '',
+  description: '',
+  externalUrl: '',
+  certificateId: '',
+  verificationUrl: '',
+  visibleToStudent: true,
+})
+
 interface ChecklistItem { requirement: string; status: string; detail: string }
 interface AIFinding { severity: string; title: string; detail: string }
 interface AdmissionDocumentAnalysis {
