@@ -161,7 +161,8 @@ export async function POST(req: NextRequest) {
   const setup = buildSetup(setupVariant, model, systemInstruction, voice)
 
   const now = Date.now()
-  const expireTime = new Date(now + 30 * 60 * 1000).toISOString()
+  const sessionLimitMinutes = liveUsage?.sessionLimitMinutes || 10
+  const expireTime = new Date(now + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
   // التوكن المؤقت قصير العمر ويُستخدم مرة واحدة. الإعدادات تُرسل كأول رسالة setup عبر WebSocket.
