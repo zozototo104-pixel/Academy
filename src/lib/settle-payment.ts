@@ -69,10 +69,11 @@ export async function markInvoicePaid(
         }
       }
 
-      // 2) بعد موافقة الإدارة وسداد الرسوم الدراسية كاملة: التسجيل النهائي وتفعيل الالتحاق
-      if (allPaid && app.status === 'AWAITING_TUITION') {
+      // 2) بعد موافقة الإدارة وسداد الرسوم الدراسية كاملة، أو قبول التقسيط وسداد الدفعة الأولى المعتمدة: تفعيل الالتحاق
+      if ((allPaid || installmentActivationReady) && app.status === 'AWAITING_TUITION') {
         newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
         finalRegistration = true
+        installmentRegistration = !!installmentActivationReady && !allPaid
         if (app.programId && app.userId) {
           const existingEnrollment = await db.enrollment.findUnique({
             where: { userId_programId: { userId: app.userId, programId: app.programId } },
