@@ -806,7 +806,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'OPENAI_COMPAT' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENAI_COMPAT_API_KEYS', 'OpenAI-compatible API Keys', data.secretsSet.OPENAI_COMPAT_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'RelayFreeLLM / LiteLLM / Gateway خاص.')}
-                {F('OPENAI_COMPAT_TEXT_MODEL', 'نموذج OpenAI-compatible', 'auto', 'text')}
+                {SelectF('OPENAI_COMPAT_TEXT_MODEL', 'نموذج OpenAI-compatible', modelOptions('OPENAI_COMPAT', [{ value: 'auto', label: 'auto — يختار Gateway النموذج' }]), modelHint('OPENAI_COMPAT', 'إذا عرض Gateway نماذج مجانية عبر /models ستظهر هنا تلقائياً.'))}
                 {F('OPENAI_COMPAT_BASE_URL', 'OpenAI-compatible Base URL', 'https://your-gateway.example/v1', 'text', 'يجب أن يدعم /chat/completions.')}
               </>
             ) : null}
