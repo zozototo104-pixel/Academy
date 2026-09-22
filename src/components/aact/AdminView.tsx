@@ -697,7 +697,7 @@ export function AdminView() {
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center">
                   <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
-                  <p className="text-sm font-black text-[#0f2b46]">جاري تحميل طلبات الالتحاق...</p>
+                  <p className="text-sm font-black text-[#0f2b46]">جاري تحميل {activeTab === 'service-requests' ? 'طلبات الخدمات العابرة' : 'طلبات الالتحاق الدراسي'}...</p>
                   <p className="text-xs font-bold text-slate-400">تفتح لوحة الإدارة الآن بينما تُحمّل التفاصيل في الخلفية.</p>
                 </CardContent>
               </Card>
