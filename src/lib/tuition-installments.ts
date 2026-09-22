@@ -36,6 +36,19 @@ export function inferTotalTuition(payments: Array<{ purpose: string; status: str
   return roundMoney(Math.max(fallback, installments))
 }
 
+async function findActiveAppeal(admissionId: string) {
+  try {
+    return await db.tuitionInstallmentAppeal.findFirst({
+      where: { admissionId, status: { in: ['PENDING', 'APPROVED'] } },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (e) {
+    // يحافظ على عمل لوحة الإدارة والطالب إذا لم يتم تشغيل db push بعد إضافة جدول التقسيط.
+    console.warn('tuition installment appeal table is not ready yet:', e)
+    return null
+  }
+}
+
 export async function getAdmissionTuitionPlan(admissionId: string): Promise<TuitionPlanSummary | null> {
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
@@ -44,10 +57,7 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
     },
   })
   if (!app) return null
-  const appeal = await db.tuitionInstallmentAppeal.findFirst({
-    where: { admissionId: app.id, status: { in: ['PENDING', 'APPROVED'] } },
-    orderBy: { createdAt: 'desc' },
-  })
+  const appeal = await findActiveAppeal(app.id)
   const totalTuition = inferTotalTuition(app.payments)
   const paidTuition = tuitionPaidTotal(app.payments)
   const halfRequired = roundMoney(appeal?.firstSemesterRequiredAmount ?? totalTuition / 2)
@@ -78,10 +88,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     include: { payments: { select: { purpose: true, status: true, amount: true } } },
   })
   if (!app) return null
-  const appeal = await db.tuitionInstallmentAppeal.findFirst({
-    where: { admissionId: app.id, status: { in: ['PENDING', 'APPROVED'] } },
-    orderBy: { createdAt: 'desc' },
-  })
+  const appeal = await findActiveAppeal(app.id)
   const totalTuition = inferTotalTuition(app.payments)
   const paidTuition = tuitionPaidTotal(app.payments)
   const halfRequired = roundMoney(appeal?.firstSemesterRequiredAmount ?? totalTuition / 2)
