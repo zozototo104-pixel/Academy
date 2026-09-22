@@ -356,6 +356,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     deepinfraModel: s.deepinfraModel,
     togetherModel: s.togetherModel,
     unorouterModel: s.unorouterModel,
+    relayrouterModel: s.relayrouterModel,
     openaiCompatModel: s.openaiCompatModel,
     keyCounts: counts,
     cooldowns: cooldownList(),
