@@ -682,6 +682,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'ZAI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('ZAI_API_KEY', 'Z.AI / GLM API Key', data.secretsSet.ZAI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'zai-...', 'password', 'يستخدم GLM-4.5 للنصوص والتحليل.')}
+                {F('ZAI_API_KEYS', 'Z.AI / GLM API Keys متعددة', data.secretsSet.ZAI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'اختياري: مفاتيح متعددة مفصولة بفاصلة للـ failover.')}
                 {SelectF('ZAI_TEXT_MODEL', 'نموذج GLM للنصوص', ZAI_TEXT_MODEL_CHOICES, 'GLM-4.5 أحدث عائلة GLM قوية للنصوص والاستدلال.')}
                 {F('ZAI_API_BASE', 'Z.AI API Base', 'https://api.z.ai/api/paas/v4', 'text', 'متوافق مع chat/completions.')}
               </>
