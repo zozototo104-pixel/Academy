@@ -799,7 +799,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'RELAYROUTER' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('RELAYROUTER_API_KEYS', 'RelayRouter API Keys', data.secretsSet.RELAYROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'rr_...,rr_...', 'password', 'مفتاح أو أكثر من RelayRouter مفصول بفاصلة.')}
-                {SelectF('RELAYROUTER_TEXT_MODEL', 'نموذج RelayRouter', RELAYROUTER_TEXT_MODEL_CHOICES, 'يمكنك اختيار auto أو نموذج محدد من لوحة RelayRouter.')}
+                {SelectF('RELAYROUTER_TEXT_MODEL', 'نموذج RelayRouter', modelOptions('RELAYROUTER', RELAYROUTER_TEXT_MODEL_CHOICES), modelHint('RELAYROUTER', 'يمكنك اختيار auto أو نموذج محدد من لوحة RelayRouter.'))}
                 {F('RELAYROUTER_BASE_URL', 'RelayRouter Base URL', 'https://relayrouter.io/v1', 'text')}
               </>
             ) : null}
