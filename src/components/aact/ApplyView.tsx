@@ -704,7 +704,13 @@ export function ApplyView() {
                         </div>
                       </div>
 
-                      {selectedProgram && (selectedProgram.category === 'MASTERS' || selectedProgram.category === 'DOCTORATE') && (
+                      {selectedFlow ? (
+                        <div className="rounded-xl border border-[#c9a227]/30 bg-[#f7edd0]/40 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">
+                          <p className="font-black text-[#a8841a]">المسار الرسمي: {selectedFlow.kicker}</p>
+                          <p className="mt-1">{selectedFlow.summary}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">الخطوات: {selectedFlow.steps.slice(0, 4).join(' ← ')}</p>
+                        </div>
+                      ) : selectedProgram && (selectedProgram.category === 'MASTERS' || selectedProgram.category === 'DOCTORATE') && (
                         <div className="rounded-xl border border-[#c9a227]/30 bg-[#f7edd0]/40 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">
                           اخترت: {PROGRAM_CATEGORY_LABEL[selectedProgram.category] || selectedProgram.category} — التخصص: {selectedProgram.specialty || selectedProgram.titleAr}. الكتب والاختبارات والمشرف الذكي ستُبنى على هذا التخصص تحديداً.
                         </div>
