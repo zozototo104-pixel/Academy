@@ -471,6 +471,49 @@ function cooldownList() {
     .map(([id, v]) => ({ provider: id.split(':')[0], key: id.split(':')[1], until: new Date(v.until).toISOString(), reason: v.reason }))
 }
 
+export async function textAiFreeModelsForProvider(providerValue: unknown): Promise<{ provider: string; models: string[]; discoveredCount: number; staticCount: number; message: string }> {
+  const s = await settings()
+  const provider = normalizeProvider(providerValue)
+  if (provider === 'AUTO') {
+    const providers = providerOrder(s)
+    const all: string[] = []
+    for (const p of providers) all.push(...(await modelFallbacks(s, p)).map((m) => `${p}:${m}`))
+    return {
+      provider: 'AUTO',
+      models: [...new Set(all)],
+      discoveredCount: all.length,
+      staticCount: 0,
+      message: all.length ? 'تم تحميل نماذج AUTO المتاحة حسب المفاتيح المضبوطة.' : 'لا توجد نماذج متاحة في وضع AUTO حالياً.',
+    }
+  }
+  const concrete = provider as ConcreteProvider
+  const staticDefaults: string[] =
+    concrete === 'GEMINI' ? GEMINI_TEXT_MODELS :
+    concrete === 'OPENAI' ? OPENAI_TEXT_MODELS :
+    concrete === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
+    concrete === 'ZAI' ? ZAI_TEXT_MODELS :
+    concrete === 'GROQ' ? GROQ_TEXT_MODELS :
+    concrete === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
+    concrete === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
+    concrete === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
+    concrete === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
+    concrete === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
+    OPENAI_COMPAT_TEXT_MODELS
+  const discovered = await liveFreeModels(concrete, s)
+  const selected = modelFor(s, concrete)
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
+  const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
+  return {
+    provider: concrete,
+    models,
+    discoveredCount: discovered.length,
+    staticCount: staticDefaults.length,
+    message: discovered.length
+      ? `تم اكتشاف ${discovered.length} نموذج مجاني من المزود.`
+      : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
+  }
+}
+
 export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
   const s = await settings()
   const order = providerOrder(s)
