@@ -391,11 +391,9 @@ export async function GET(req: NextRequest) {
       documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
       payments: app.payments || [],
       theses: app.theses || [],
-      nextAction: !isStudyProgram && app.status === 'RESULT_APPROVED'
-        ? 'تم اعتماد طلب الخدمة. تابع الدفعات والمخرجات التي تنشرها الإدارة من بوابة العميل.'
-        : !isStudyProgram && app.status === 'UNDER_REVIEW'
-          ? 'طلب الخدمة قيد مراجعة الإدارة. ستصلك تعليمات المتابعة أو التسعير أو موعد الخدمة حسب المسار.'
-          : app.status === 'AWAITING_FEE'
+      nextAction: !isStudyProgram && serviceWorkflow
+        ? serviceWorkflow.nextAction
+        : app.status === 'AWAITING_FEE'
             ? (isStudyProgram ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.' : 'سداد رسوم فتح الطلب حتى ينتقل ملف الخدمة للإدارة.')
             : app.status === 'UNDER_REVIEW'
               ? 'ملفك قيد دراسة الإدارة. ستصلك رسالة عند صدور قرار القبول أو تعليمات المتابعة.'
