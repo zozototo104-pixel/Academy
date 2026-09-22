@@ -287,6 +287,26 @@ export async function emailPaymentReceipt(to: string, name: string, invoiceNo: s
   })
 }
 
+export async function emailServiceDeliverablePublished(to: string, name: string, reference: string, title: string, typeLabel: string) {
+  await sendEmail({
+    to,
+    event: 'SERVICE_DELIVERABLE_PUBLISHED',
+    subject: `تم تجهيز مخرج جديد لطلبك — ${title}`,
+    html: emailTemplate(
+      'تم تجهيز مخرج جديد لطلبك ✅',
+      `<p>عزيزي/عزيزتي <strong>${escapeHtml(name)}</strong>،</p>
+       <p>تم تجهيز مخرج جديد مرتبط بطلبك في منصة الأكاديمية.</p>
+       ${infoRows([
+         { label: 'كود الطلب', value: reference },
+         { label: 'نوع المخرج', value: typeLabel },
+         { label: 'العنوان', value: title },
+         { label: 'الخطوة التالية', value: 'افتح حسابك ثم انتقل إلى تبويب مخرجاتي/خدماتي لتحميل الملف أو فتح الرابط.' },
+       ])}`,
+      { label: 'فتح حسابي', url: `${APP_URL}/?view=dashboard` }
+    ),
+  })
+}
+
 export async function emailAdmissionDecision(to: string, name: string, reference: string, program: string, approved: boolean, note?: string) {
   await sendEmail({
     to,
