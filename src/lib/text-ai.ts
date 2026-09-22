@@ -286,7 +286,7 @@ function baseOrder(s: Settings): ConcreteProvider[] {
   const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'RELAYROUTER', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
   const primary: ConcreteProvider[] = selected
     ? [selected, ...quality.filter((p) => p !== selected)]
-    : ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
+    : ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
   if (s.policy === 'quality_first') return quality
   if (s.policy === 'cost_saver') return cost
   if (s.policy === 'fallback_only' && selected) return [selected]
