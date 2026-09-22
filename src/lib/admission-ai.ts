@@ -1047,6 +1047,9 @@ async function buildFileEvidence(files: {
       textSnippet,
       textReader,
       textNote,
+      storageProvider: f.storageProvider,
+      storageKey: f.storageKey,
+      fileUrl: f.fileUrl,
       ocrRead,
     })
   }
