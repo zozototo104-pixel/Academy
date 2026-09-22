@@ -220,6 +220,8 @@ export async function POST(req: NextRequest) {
       voice,
       setupVariant,
       expiresAt: expireTime,
+      sessionLimitMinutes,
+      liveUsage,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
       sdkConfig: {
