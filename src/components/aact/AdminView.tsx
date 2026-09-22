@@ -752,6 +752,35 @@ export function AdminView() {
                             <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
                           )}
 
+                          {!!a.payments?.length && (
+                            <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/40 p-2.5">
+                              <p className="mb-1.5 text-[11px] font-black text-amber-700"><Banknote className="ml-1 inline h-3.5 w-3.5" /> فواتير هذا الطلب</p>
+                              <div className="grid gap-1.5">
+                                {a.payments.map((p) => (
+                                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[10px]">
+                                    <div className="min-w-0">
+                                      <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
+                                      <span className="mr-2 font-bold text-slate-500">{p.purpose} — {p.amount}$</span>
+                                      {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      {p.status === 'PAID' ? (
+                                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مدفوعة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
+                                      ) : (
+                                        <>
+                                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الدفع</Badge>
+                                          <Button size="sm" variant="outline" onClick={() => confirmAdmissionPayment(p.id)} className="h-7 border-emerald-200 px-2 text-[10px] font-black text-emerald-700">
+                                            تأكيد استلام الدفع المباشر
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {!isStudyAdmission && (
                             <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3">
                               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
