@@ -476,6 +476,7 @@ export function AdminView() {
       await api('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id, status }) })
       setAdmissions((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
       toast({ title: 'تم التحديث', description: `حالة الطلب أصبحت: ${STATUS_LABEL[status] || status}` })
+      await load()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     }
