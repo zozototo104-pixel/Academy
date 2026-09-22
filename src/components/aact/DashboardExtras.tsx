@@ -293,6 +293,7 @@ export function PaymentsTab() {
                     { id: 'STRIPE', label: 'Stripe — بطاقة دولية', enabled: false, configured: false, kind: 'gateway' as const },
                     { id: 'PAYPAL', label: 'PayPal — خارج مصر', enabled: false, configured: false, kind: 'gateway' as const },
                     { id: 'BANK_TRANSFER', label: 'تحويل بنكي — مراجعة الإدارة', enabled: false, configured: false, kind: 'manual' as const },
+                    { id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const },
                   ]).map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.label}{m.enabled ? '' : ' — غير مفعلة'}
