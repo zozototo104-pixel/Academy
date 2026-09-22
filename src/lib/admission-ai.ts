@@ -343,6 +343,26 @@ function evidenceBlob(f: AdmissionFileEvidence): string {
   ].filter(Boolean).join(' ')
 }
 
+function visualTruthBlob(f: AdmissionFileEvidence): string {
+  // هذا هو المصدر الوحيد للتصنيف الإيجابي: ما قُرئ/شوهد فعلياً داخل الملف.
+  // لا نضيف اسم خانة الرفع ولا matchNote/qualityNote لأنها قد تحتوي عبارة مثل "لا يطابق الشهادة" فتخدع التصنيف.
+  if (isVisionUnavailable(f)) return ''
+  return [
+    f.textSnippet,
+    f.ocrRead?.docTypeDetected,
+    f.ocrRead?.degreeMentioned && f.ocrRead.degreeMentioned !== 'NONE' ? f.ocrRead.degreeMentioned : '',
+    f.ocrRead?.nameOnDoc,
+    f.ocrRead?.institution,
+    f.ocrRead?.issueDate,
+    f.ocrRead?.extractedText,
+  ].filter(Boolean).join(' ')
+}
+
+function negativeVisualCues(f: AdmissionFileEvidence): string {
+  if (isVisionUnavailable(f)) return ''
+  return [f.ocrRead?.docTypeDetected, f.ocrRead?.extractedText, f.ocrRead?.qualityNote, f.ocrRead?.matchNote].filter(Boolean).join(' ')
+}
+
 function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_RANK {
   if (!f || nonAdmissionAttachmentReason(f)) return 'NONE'
   const actual = detectAdmissionDocumentKind(f)
