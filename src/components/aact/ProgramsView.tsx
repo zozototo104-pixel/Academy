@@ -272,7 +272,7 @@ export function ProgramsView() {
                       onClick={() => openProgramDetails(p.id)}
                       className="w-full border-[#0f2b46]/20 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46]/5"
                     >
-                      {p.category === 'SERVICE' ? 'تفاصيل هذه الخدمة' : 'تفاصيل هذا البرنامج'}
+                      {serviceLike ? 'تفاصيل هذه الخدمة' : 'تفاصيل هذا البرنامج'}
                       <ChevronLeft className="mr-1 h-4 w-4" />
                     </Button>
                     <Button
