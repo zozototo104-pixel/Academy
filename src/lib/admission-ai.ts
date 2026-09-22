@@ -503,6 +503,10 @@ function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { o
     }
   }
 
+  const expectedKey = expectedType === 'DEGREE' ? 'DEGREE' : expectedType === 'ID' ? 'ID' : expectedType === 'CV' ? 'CV' : expectedType === 'PHOTO' ? 'PHOTO' : undefined
+  const contradiction = expectedKey ? hasContradictingVisualEvidence(f, expectedKey) : null
+  if (contradiction) return { ok: false, problem: true, reason: contradiction }
+
   const actual = detectAdmissionDocumentKind(f)
   if (actual.kind === 'NON_ADMISSION' || actual.kind === 'LOGO') {
     return { ok: false, problem: true, reason: actual.reason }
