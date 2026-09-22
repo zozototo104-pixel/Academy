@@ -89,11 +89,31 @@ interface AgentApp {
   applicationFee?: { invoiceNo: string; amount: number; status: string } | null
 }
 
+interface ServiceWorkflowStageView {
+  id: string
+  label: string
+  description: string
+  deliverableTypes?: string[]
+  state: 'done' | 'active' | 'pending'
+}
+
+interface ServiceWorkflowView {
+  workflow: { kind: string; title: string; summary: string }
+  stages: ServiceWorkflowStageView[]
+  activeStage: ServiceWorkflowStageView
+  nextAction: string
+  expectedDeliverableTypes: string[]
+  paid: boolean
+  hasInvoice: boolean
+  publishedDeliverables: number
+}
+
 interface AdmissionApp {
   id: string; reference: string; fullName: string; email: string; phone: string
   country: string; education: string; program: string; documents: string; notes?: string | null
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
   deliverables?: { id: string; type: string; status: string; title: string; description?: string | null; fileName?: string | null; mimeType?: string | null; size?: number | null; externalUrl?: string | null; certificateId?: string | null; verificationUrl?: string | null; meetingAt?: string | null; expiresAt?: string | null; visibleToStudent?: boolean; createdAt: string }[]
+  serviceWorkflow?: ServiceWorkflowView | null
   status: string; createdAt: string
   programSlug?: string | null
   requestKind?: string | null
