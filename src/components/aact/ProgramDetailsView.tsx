@@ -283,7 +283,7 @@ export function ProgramDetailsView() {
                 {flow?.kicker || (isService ? categoryLabel : 'التعليم العالي المهني المعتمد')}
               </Badge>
               <h1 className="text-4xl font-black leading-[1.25] text-white sm:text-5xl lg:text-6xl">
-                {program.titleAr}
+                {displayTitle}
               </h1>
               {program.titleEn && <p className="mt-3 text-sm font-black tracking-[0.18em] text-[#d2ad5a]/85">{program.titleEn}</p>}
               <p className="mx-auto mt-5 max-w-3xl text-base font-bold leading-9 text-white/64 lg:mx-0">
