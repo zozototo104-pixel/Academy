@@ -23,8 +23,10 @@ export async function GET() {
     const refById: Record<string, string> = {}
     for (const a of ownAdmissions) refById[a.id] = a.reference
     const tuitionPlans = (await Promise.all(admissionIds.map((id) => getAdmissionTuitionPlan(id)))).filter(Boolean)
+    const approvedInstallmentAdmissions = new Set(tuitionPlans.filter((p: any) => p?.appealStatus === 'APPROVED').map((p: any) => p.admissionId))
+    const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedInstallmentAdmissions.has(p.admissionId)))
     return NextResponse.json({
-      payments: payments.map((p) => ({ ...p, reference: p.admissionId ? refById[p.admissionId] : null })),
+      payments: visiblePayments.map((p) => ({ ...p, reference: p.admissionId ? refById[p.admissionId] : null })),
       tuitionPlans,
     })
   } catch (e) {
