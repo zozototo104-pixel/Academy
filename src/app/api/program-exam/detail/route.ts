@@ -41,6 +41,11 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const tuitionGate = await enforceSemesterTuitionGate(user.id, exam.programId, exam.semester)
+    if (!tuitionGate.ok) {
+      return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
+    }
+
     // 12.2: الامتحانان متسلسلان وفق آلة الحالات — اجتياز امتحان الفصل الأول شرط لفتح الفصل الثاني
     if (exam.semester === 2) {
       const sem1 = await db.programExam.findFirst({
