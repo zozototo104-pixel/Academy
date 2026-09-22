@@ -778,7 +778,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'DEEPINFRA' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('DEEPINFRA_API_KEYS', 'DeepInfra API Keys', data.secretsSet.DEEPINFRA_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password')}
-                {SelectF('DEEPINFRA_TEXT_MODEL', 'نموذج DeepInfra', OPEN_MODEL_GATEWAY_CHOICES, 'نماذج مفتوحة عبر DeepInfra.')}
+                {SelectF('DEEPINFRA_TEXT_MODEL', 'نموذج DeepInfra', modelOptions('DEEPINFRA', OPEN_MODEL_GATEWAY_CHOICES), modelHint('DEEPINFRA', 'نماذج مفتوحة عبر DeepInfra.'))}
                 {F('DEEPINFRA_BASE_URL', 'DeepInfra Base URL', 'https://api.deepinfra.com/v1', 'text')}
               </>
             ) : null}
