@@ -1077,7 +1077,7 @@ export function AdminView() {
                               )}
                               {a.status === 'PENDING' && (
                                 <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'UNDER_REVIEW')} className="border-blue-200 font-bold text-blue-600">
-                                  <Search className="ml-1 h-3.5 w-3.5" /> بدء الدراسة
+                                  <Search className="ml-1 h-3.5 w-3.5" /> {isStudyAdmission ? 'بدء الدراسة' : 'بدء مراجعة الخدمة'}
                                 </Button>
                               )}
                               {['UNDER_REVIEW', 'PENDING'].includes(a.status) && (
