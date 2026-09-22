@@ -549,20 +549,23 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
   const s = await settings()
   const providers = providerOrder(s)
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
+  const errors: string[] = []
   for (const provider of providers) {
-    const model = modelFor(s, provider)
-    for (const key of candidateKeys(provider, s).slice(0, 2)) {
-      try {
-        const reply = await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة فقط.', history: [{ role: 'user', text: 'اكتب: جاهز' }], maxOutputTokens: 32 })
-        lastResult = { provider, model, ok: true, at: new Date().toISOString() }
-        return { ok: true, provider, model, reply }
-      } catch (e: any) {
-        const msg = String(e?.message || e).slice(0, 240)
-        lastResult = { provider, model, ok: false, error: msg, at: new Date().toISOString() }
-        if (isQuotaLike(e)) markCooldown(provider, key, msg)
-        if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+    for (const model of modelFallbacks(s, provider)) {
+      for (const key of candidateKeys(provider, s).slice(0, 2)) {
+        try {
+          const reply = await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة فقط.', history: [{ role: 'user', text: 'اكتب: جاهز' }], maxOutputTokens: 32 })
+          lastResult = { provider, model, ok: true, at: new Date().toISOString() }
+          return { ok: true, provider, model, reply }
+        } catch (e: any) {
+          const msg = String(e?.message || e).slice(0, 260)
+          lastResult = { provider, model, ok: false, error: msg, at: new Date().toISOString() }
+          errors.push(`${provider}/${model}/${keyHash(key)}: ${msg}`)
+          if (isQuotaLike(e)) markCooldown(provider, key, msg)
+          if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+        }
       }
     }
   }
-  return { ok: false, error: 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.' }
+  return { ok: false, error: errors.slice(0, 4).join(' | ') || 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.' }
 }
