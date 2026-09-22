@@ -357,10 +357,17 @@ export async function GET(req: NextRequest) {
         orderBy: { updatedAt: 'desc' as const },
       },
     }
-    const serialize = (app: any) => ({
+    const serialize = (app: any) => {
+      const flow = getServiceFlow(app.programRef?.slug)
+      const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
+      return {
       reference: app.reference,
       fullName: app.fullName,
       program: app.program,
+      programSlug: app.programRef?.slug || null,
+      requestKind: flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST'),
+      requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
+      isStudyProgram,
       status: app.status,
       statusLabel: STATUS_LABEL[app.status] || app.status,
       supervisorName: app.supervisor?.name || null,
