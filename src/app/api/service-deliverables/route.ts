@@ -48,15 +48,18 @@ export async function GET() {
       },
     })
 
-    const rows = applications.map((app) => ({
-      ...app,
-      deliverables: app.deliverables.map((d) => ({
-        ...d,
-        typeLabel: deliverableTypeLabel(d.type),
-        statusLabel: deliverableStatusLabel(d.status),
-        downloadUrl: `/api/service-deliverables/${d.id}/download`,
-      })),
-    }))
+    const rows = applications.map((app) => {
+      const eligible = ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status) && app.payments.length > 0 && app.payments.every((p) => p.status === 'PAID')
+      return {
+        ...app,
+        deliverables: eligible ? app.deliverables.map((d) => ({
+          ...d,
+          typeLabel: deliverableTypeLabel(d.type),
+          statusLabel: deliverableStatusLabel(d.status),
+          downloadUrl: `/api/service-deliverables/${d.id}/download`,
+        })) : [],
+      }
+    })
     return NextResponse.json({ applications: rows, deliverables: rows.flatMap((a) => a.deliverables.map((d) => ({ ...d, application: { id: a.id, reference: a.reference, program: a.program } }))) })
   } catch (e: any) {
     const msg = String(e?.message || e || '')
