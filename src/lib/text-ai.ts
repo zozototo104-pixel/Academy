@@ -44,6 +44,7 @@ export interface TextAiDiagnostics {
   deepinfraConfigured: boolean
   togetherConfigured: boolean
   unorouterConfigured: boolean
+  relayrouterConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
