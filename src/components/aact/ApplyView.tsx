@@ -517,7 +517,7 @@ export function ApplyView() {
                 }}
                 className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
               >
-                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'TUITION' ? 'ادفع باقي الرسوم الآن' : 'ادفع رسوم التقديم الآن'}
+                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'TUITION' ? 'ادفع باقي الرسوم الآن' : payable.purpose === 'SERVICE_FEE' ? 'ادفع رسوم الخدمة الآن' : 'ادفع رسوم التقديم الآن'}
               </Button>
             </div>
           )}
