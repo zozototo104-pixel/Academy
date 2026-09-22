@@ -701,12 +701,12 @@ export function AdminView() {
                   <p className="text-xs font-bold text-slate-400">تفتح لوحة الإدارة الآن بينما تُحمّل التفاصيل في الخلفية.</p>
                 </CardContent>
               </Card>
-            ) : admissions.length === 0 ? (
+            ) : visibleAdmissionRows.length === 0 ? (
               <Card className="border-[#0f2b46]/10">
-                <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات التحقق بعد</CardContent>
+                <CardContent className="p-10 text-center text-sm text-slate-400">{activeTab === 'service-requests' ? 'لا توجد طلبات خدمات عابرة حالياً' : 'لا توجد طلبات التحاق دراسي حالياً'}</CardContent>
               </Card>
             ) : (
-              admissions.map((a) => {
+              visibleAdmissionRows.map((a) => {
                 const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
                 const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
                 const isStudyAdmission = a.isStudyProgram !== false
