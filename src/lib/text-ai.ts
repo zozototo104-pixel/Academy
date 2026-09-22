@@ -616,7 +616,7 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
   const errors: string[] = []
   for (const provider of providers) {
-    for (const model of modelFallbacks(s, provider)) {
+    for (const model of await modelFallbacks(s, provider)) {
       for (const key of candidateKeys(provider, s).slice(0, 2)) {
         try {
           const reply = await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة فقط.', history: [{ role: 'user', text: 'اكتب: جاهز' }], maxOutputTokens: 32 })
