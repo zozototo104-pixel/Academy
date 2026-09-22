@@ -51,9 +51,12 @@ export async function GET() {
       db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 15, select: { id: true, actorName: true, action: true, entity: true, details: true, createdAt: true } }),
     ])
 
+    const r2LegacyConfigured = enabled(process.env.R2_ACCOUNT_ID) && enabled(process.env.R2_ACCESS_KEY_ID) && enabled(process.env.R2_SECRET_ACCESS_KEY) && enabled(process.env.R2_BUCKET)
+    const s3CompatibleConfigured = enabled(process.env.AACT_S3_ENDPOINT) && enabled(process.env.AACT_S3_BUCKET) && enabled(process.env.AACT_S3_ACCESS_KEY_ID) && enabled(process.env.AACT_S3_SECRET_ACCESS_KEY)
     const env = {
       database: enabled(process.env.DATABASE_URL),
-      r2: enabled(process.env.R2_ACCOUNT_ID) && enabled(process.env.R2_ACCESS_KEY_ID) && enabled(process.env.R2_SECRET_ACCESS_KEY) && enabled(process.env.R2_BUCKET),
+      r2: r2LegacyConfigured || s3CompatibleConfigured,
+      storageProvider: s3CompatibleConfigured ? 'AACT_S3' : r2LegacyConfigured ? 'R2_LEGACY' : 'MISSING',
       gemini: enabled(process.env.GEMINI_API_KEY),
       resend: enabled(process.env.RESEND_API_KEY) && enabled(process.env.MAIL_FROM || process.env.RESEND_FROM),
       dbPushEnabled: enabled(process.env.AACT_RUN_DB_PUSH),
