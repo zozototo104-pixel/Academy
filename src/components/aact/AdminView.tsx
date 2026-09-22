@@ -752,6 +752,15 @@ export function AdminView() {
                             <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
                           )}
 
+                          {!isStudyAdmission && !(a.payments?.length || 0) && (
+                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] font-bold leading-5 text-amber-800">
+                              لا توجد فاتورة خدمة لهذا الطلب بعد. اضغط الزر لإصدار فاتورة الخدمة ثم اطلب من العميل اختيار «دفع مباشر» أو أي وسيلة متاحة.
+                              <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="mt-2 h-7 bg-amber-600 px-2 text-[10px] font-black text-white hover:bg-amber-700">
+                                إصدار فاتورة الخدمة
+                              </Button>
+                            </div>
+                          )}
+
                           {!!a.payments?.length && (
                             <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/40 p-2.5">
                               <p className="mb-1.5 text-[11px] font-black text-amber-700"><Banknote className="ml-1 inline h-3.5 w-3.5" /> فواتير هذا الطلب</p>
