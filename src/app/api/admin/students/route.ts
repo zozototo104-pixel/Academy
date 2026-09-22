@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
     const programId = clean(req.nextUrl.searchParams.get('programId'), 120)
     const paymentStatus = clean(req.nextUrl.searchParams.get('paymentStatus'), 40)
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
-    const where: any = { role: 'STUDENT' }
+    const where: any = { role: 'STUDENT', enrollments: { some: {} } }
     if (status && status !== 'ALL') where.status = status
     if (q) {
       where.OR = [
