@@ -288,7 +288,7 @@ export function ProgramsView() {
                       ) : (
                         <>
                           <ClipboardList className="ml-2 h-4 w-4" />
-                          {p.category === 'SERVICE' ? 'اطلب الخدمة الآن' : 'قدّم طلب الالتحاق بالبرنامج'}
+                          {displayAction}
                         </>
                       )}
                     </Button>
