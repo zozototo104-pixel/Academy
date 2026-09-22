@@ -181,8 +181,33 @@ const OPEN_MODEL_GATEWAY_CHOICES = [
 ]
 
 const UNOROUTER_TEXT_MODEL_CHOICES = [
-  { value: 'gpt-oss-120b:free', label: 'gpt-oss-120b:free — عند توفره' },
-  { value: 'deepseek/deepseek-chat:free', label: 'DeepSeek Chat Free — عند توفره' },
+  { value: 'gpt-5.6-sol:free', label: 'gpt-5.6-sol:free — مجاني' },
+  { value: 'gpt-5.4:free', label: 'gpt-5.4:free — مجاني' },
+  { value: 'gpt-5.2:free', label: 'gpt-5.2:free — مجاني' },
+  { value: 'gpt-oss-120b:free', label: 'gpt-oss-120b:free — مجاني' },
+  { value: 'gpt-oss-120b-turbo:free', label: 'gpt-oss-120b-turbo:free — مجاني' },
+  { value: 'gpt-oss-20b:free', label: 'gpt-oss-20b:free — مجاني' },
+  { value: 'gpt-oss-20b-turbo:free', label: 'gpt-oss-20b-turbo:free — مجاني' },
+  { value: 'glm-5.3-search:free', label: 'glm-5.3-search:free — مجاني' },
+  { value: 'glm-5.3-flash-search:free', label: 'glm-5.3-flash-search:free — مجاني' },
+  { value: 'glm-5.3-flash-think-search:free', label: 'glm-5.3-flash-think-search:free — مجاني' },
+  { value: 'glm-5.1-thinking:free', label: 'glm-5.1-thinking:free — مجاني' },
+  { value: 'glm-5.1:free', label: 'glm-5.1:free — مجاني' },
+  { value: 'gemini-3.8-flash-free:free', label: 'gemini-3.8-flash-free:free — مجاني' },
+  { value: 'gemini-3.7-flash-free:free', label: 'gemini-3.7-flash-free:free — مجاني' },
+  { value: 'nemotron-3-super-120b-a12b:free', label: 'nemotron-3-super-120b-a12b:free — مجاني' },
+  { value: 'llama-4-maverick-17b-128e-instruct:free', label: 'llama-4-maverick-17b-128e-instruct:free — مجاني' },
+  { value: 'llama-4-scout:free', label: 'llama-4-scout:free — مجاني' },
+  { value: 'llama-3.1-8b:free', label: 'llama-3.1-8b:free — مجاني' },
+  { value: 'minimax-m2.5:free', label: 'minimax-m2.5:free — مجاني' },
+  { value: 'deepseek/deepseek-v3.2:free', label: 'deepseek/deepseek-v3.2:free — مجاني' },
+  { value: 'deepseek/deepseek-chat:free', label: 'DeepSeek Chat Free — مجاني' },
+  { value: 'mistral-medium-3.5:free', label: 'mistral-medium-3.5:free — مجاني' },
+  { value: 'allam-2-7b:free', label: 'allam-2-7b:free — مجاني' },
+  { value: 'bielik-11b-v3.0-instruct:free', label: 'bielik-11b-v3.0-instruct:free — مجاني' },
+  { value: 'muse-glimmer-30b:free', label: 'muse-glimmer-30b:free — مجاني' },
+  { value: 'ox-alpha:free', label: 'ox-alpha:free — مجاني' },
+  { value: 'ling-3.0-flash-fin:free', label: 'ling-3.0-flash-fin:free — مجاني' },
 ]
 
 const RELAYROUTER_TEXT_MODEL_CHOICES = [
