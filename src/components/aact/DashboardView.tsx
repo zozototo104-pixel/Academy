@@ -117,6 +117,23 @@ interface MyEnrollment {
   program?: { titleAr?: string }
 }
 
+interface ServiceDeliverableRow {
+  id: string
+  type: string
+  typeLabel: string
+  title: string
+  description?: string | null
+  fileName?: string | null
+  externalUrl?: string | null
+  certificateId?: string | null
+  verificationUrl?: string | null
+  meetingAt?: string | null
+  expiresAt?: string | null
+  createdAt: string
+  downloadUrl: string
+  application?: { id: string; reference: string; program: string }
+}
+
 interface StudentAssignment {
   id: string
   programId: string
