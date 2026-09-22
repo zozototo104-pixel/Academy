@@ -187,7 +187,7 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
 function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|capacity/i.test(msg)
+  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package|no credits|credit balance|please recharge|recharge|capacity/i.test(msg)
 }
 
 function isAuthLike(e: any): boolean {
