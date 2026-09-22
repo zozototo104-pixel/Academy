@@ -735,7 +735,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('GEMINI_API_KEYS', 'مفاتيح Gemini للنصوص — متعددة', data.secretsSet.GEMINI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2,key3', 'password', 'اكتب أكثر من مفتاح مفصولاً بفاصلة. الحصص غالباً على مستوى المشروع، لكن هذا يفيد عند وجود مشاريع/مفاتيح مستقلة.')}
-                {SelectF('GEMINI_TEXT_MODEL', 'نموذج Gemini داخل Router', GEMINI_TEXT_ROUTER_MODEL_CHOICES, 'يستخدم للنصوص فقط، وليس Gemini Live.')}
+                {SelectF('GEMINI_TEXT_MODEL', 'نموذج Gemini داخل Router', modelOptions('GEMINI', GEMINI_TEXT_ROUTER_MODEL_CHOICES), modelHint('GEMINI', 'يستخدم للنصوص فقط، وليس Gemini Live.'))}
               </>
             ) : null}
             {currentTextProvider === 'OPENAI' || currentTextProvider === 'AUTO' ? (
