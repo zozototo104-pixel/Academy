@@ -1320,6 +1320,8 @@ export function DashboardView() {
               </ul>
             </CardContent>
           </Card>
+          </>
+          )}
         </div>
       </div>
     </div>
