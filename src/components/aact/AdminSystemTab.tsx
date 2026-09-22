@@ -771,7 +771,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'OPENROUTER' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENROUTER_API_KEYS', 'OpenRouter API Keys', data.secretsSet.OPENROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-or-...,sk-or-...', 'password', 'يستخدم فقط عند تفعيل البوابات العامة أو اختياره مباشرة.')}
-                {SelectF('OPENROUTER_TEXT_MODEL', 'نموذج OpenRouter', OPENROUTER_TEXT_MODEL_CHOICES, 'openrouter/auto يختار مساراً متاحاً عند المزود.')}
+                {SelectF('OPENROUTER_TEXT_MODEL', 'نموذج OpenRouter', modelOptions('OPENROUTER', OPENROUTER_TEXT_MODEL_CHOICES), modelHint('OPENROUTER', 'openrouter/auto يختار مساراً متاحاً عند المزود.'))}
                 {F('OPENROUTER_BASE_URL', 'OpenRouter Base URL', 'https://openrouter.ai/api/v1', 'text')}
               </>
             ) : null}
