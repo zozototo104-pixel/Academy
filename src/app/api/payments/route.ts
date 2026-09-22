@@ -19,11 +19,13 @@ export async function GET() {
       where: { OR: [{ userId: user.id }, { admissionId: { in: admissionIds } }, { payerEmail: user.email }] },
       orderBy: { createdAt: 'desc' },
     })
-    // إثراء البيانات بمرجع الطلب
+    // إثراء البيانات بمرجع الطلب وخطط التقسيط الدراسية
     const refById: Record<string, string> = {}
     for (const a of ownAdmissions) refById[a.id] = a.reference
+    const tuitionPlans = (await Promise.all(admissionIds.map((id) => getAdmissionTuitionPlan(id)))).filter(Boolean)
     return NextResponse.json({
       payments: payments.map((p) => ({ ...p, reference: p.admissionId ? refById[p.admissionId] : null })),
+      tuitionPlans,
     })
   } catch (e) {
     console.error('payments GET error:', e)
