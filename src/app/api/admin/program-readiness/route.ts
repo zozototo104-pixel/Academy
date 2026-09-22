@@ -57,6 +57,7 @@ async function buildProgramReadiness(programId: string) {
     },
   })
   if (!program) return null
+  if (!isCurriculumProgram(program)) return null
 
   const semestersCount = Math.max(1, Number(program.semestersCount || 2))
   const booksBySemester = Array.from({ length: semestersCount }, (_, i) => i + 1).map((semester) => ({
