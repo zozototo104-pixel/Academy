@@ -349,7 +349,8 @@ export function AdminView() {
   }
 
   const submitDeliverable = async (admission: AdmissionApp) => {
-    const formState = Object.assign(emptyDeliverableForm(), deliverableForms[admission.id] || {})
+    const recommendedType = admission.serviceWorkflow?.expectedDeliverableTypes?.[0] || 'PACKAGE_DOWNLOAD'
+    const formState = Object.assign(emptyDeliverableForm(), { type: recommendedType }, deliverableForms[admission.id] || {})
     if (!formState.title.trim()) {
       toast({ title: 'العنوان مطلوب', description: 'اكتب عنوان المخرج الذي سيظهر للعميل.', variant: 'destructive' })
       return
