@@ -127,12 +127,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
   }
 
-  let body: { model?: string; voice?: string; context?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
+  let body: { model?: string; voice?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
   } catch {}
 
-  const model = cleanModel(body.model) || await geminiActiveLiveModel()
+  const purpose = cleanPurpose(body.purpose)
+  const liveUsage = body.testOnly
+    ? null
+    : await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose })
+  if (liveUsage && !liveUsage.ok) {
+    return NextResponse.json({ error: liveUsage.message, liveUsage }, { status: liveUsage.status })
+  }
+
+  const model = cleanModel(body.model) || await geminiActiveLiveModel(purpose)
   if (!isValidGeminiLiveModel(model)) {
     return NextResponse.json(
       { error: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.', model },
