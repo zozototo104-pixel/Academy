@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const tuitionGate = await enforceSemesterTuitionGate(user.id, exam.programId, exam.semester)
+    if (!tuitionGate.ok) {
+      return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
+    }
+
     const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
     if (!readiness.readyMarked) {
       return NextResponse.json({ error: 'اضغط أولاً زر «جاهز للامتحان» من بوابة الطالب قبل بدء الامتحان النهائي للفصل', code: 'EXAM_NOT_READY_MARKED' }, { status: 403 })
