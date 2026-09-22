@@ -689,6 +689,8 @@ export function AdminView() {
                 const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
                 const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
                 const isStudyAdmission = a.isStudyProgram !== false
+                const serviceHasInvoice = !isStudyAdmission && (a.payments || []).length > 0
+                const serviceDeliveryReady = !isStudyAdmission && a.status === 'RESULT_APPROVED' && serviceHasInvoice && unpaid.length === 0
                 const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
                 return (
                   <Card
