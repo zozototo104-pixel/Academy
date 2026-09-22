@@ -215,7 +215,7 @@ export function ProgramsView() {
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
-                          {CATEGORY_LABEL[p.category]}
+                          {flow?.kicker || CATEGORY_LABEL[p.category]}
                         </Badge>
                         {p.enrolled && (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
