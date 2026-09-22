@@ -81,6 +81,16 @@ export async function GET() {
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
         requestActionLabel: flow?.primaryAction || (isStudyProgram ? 'الإقرار بالقبول' : 'متابعة طلب الخدمة'),
         isStudyProgram,
+        tuitionAppeal,
+        tuitionPlan: isStudyProgram ? {
+          totalTuition,
+          paidTuition,
+          remainingTuition: roundMoney(Math.max(0, totalTuition - paidTuition)),
+          firstSemesterRequiredAmount,
+          finalRequiredAmount,
+          firstSemesterAllowed: totalTuition <= 0 || paidTuition >= firstSemesterRequiredAmount,
+          secondSemesterAllowed: totalTuition <= 0 || paidTuition >= finalRequiredAmount,
+        } : null,
         serviceWorkflow: isStudyProgram ? null : deriveServiceWorkflowState({
           kind: requestKind,
           status: app.status,
