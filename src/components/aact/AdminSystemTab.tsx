@@ -247,6 +247,27 @@ export function AdminSystemTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const activeTextProviderForModels = form.AI_TEXT_PROVIDER || data?.textAi?.selectedProvider || 'GEMINI'
+
+  useEffect(() => {
+    if (!data || !activeTextProviderForModels || textModelCatalog[activeTextProviderForModels]) return
+    let cancelled = false
+    api<{ ok: boolean; provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'text-ai-models', provider: activeTextProviderForModels }),
+    })
+      .then((r) => {
+        if (cancelled || !r?.provider) return
+        setTextModelCatalog((prev) => ({
+          ...prev,
+          [r.provider]: { models: r.models || [], message: r.message || '', discoveredCount: r.discoveredCount || 0, staticCount: r.staticCount || 0 },
+        }))
+      })
+      .catch(() => null)
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, activeTextProviderForModels])
+
   const set = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }))
 
   const save = async () => {
