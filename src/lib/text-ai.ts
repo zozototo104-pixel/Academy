@@ -581,7 +581,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const errors: string[] = []
 
   for (const provider of providers) {
-    for (const model of modelFallbacks(s, provider)) {
+    for (const model of await modelFallbacks(s, provider)) {
       for (const key of candidateKeys(provider, s)) {
         if (isCooling(provider, key)) continue
         try {
