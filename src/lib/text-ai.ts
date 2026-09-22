@@ -110,6 +110,7 @@ const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const cooldowns = new Map<string, { until: number; reason: string }>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
+let unorouterFreeModelsCache: { at: number; models: string[] } | null = null
 
 function env(name: string): string {
   try {
