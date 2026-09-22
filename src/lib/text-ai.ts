@@ -71,7 +71,39 @@ const GROQ_TEXT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
 const OPENROUTER_TEXT_MODELS = ['openrouter/auto', 'meta-llama/llama-3.1-8b-instruct:free']
 const DEEPINFRA_TEXT_MODELS = ['meta-llama/Llama-3.3-70B-Instruct', 'meta-llama/Meta-Llama-3.1-8B-Instruct']
 const TOGETHER_TEXT_MODELS = ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo']
-const UNOROUTER_TEXT_MODELS = ['gpt-oss-120b:free', 'deepseek/deepseek-chat:free']
+const UNOROUTER_TEXT_MODELS = [
+  'gpt-5.6-sol:free',
+  'gpt-5.4:free',
+  'gpt-5.2:free',
+  'gpt-oss-120b:free',
+  'gpt-oss-120b-turbo:free',
+  'gpt-oss-20b:free',
+  'gpt-oss-20b-turbo:free',
+  'glm-5.3-search:free',
+  'glm-5.3-flash-search:free',
+  'glm-5.3-flash-think-search:free',
+  'glm-5.1-thinking:free',
+  'glm-5.1:free',
+  'gemini-3.8-flash-free:free',
+  'gemini-3.7-flash-free:free',
+  'nemotron-3-super-120b-a12b:free',
+  'llama-4-maverick-17b-128e-instruct:free',
+  'llama-4-scout:free',
+  'llama-3.1-8b:free',
+  'minimax-m2.5:free',
+  'deepseek/deepseek-v3.2:free',
+  'deepseek/deepseek-chat:free',
+  'dall-e-3:free',
+  'gpt-3.5-turbo:free',
+  'gpt-4-turbo:free',
+  'agnes-2.0-flash:free',
+  'agnes-1.5-flash:free',
+  'allam-2-7b:free',
+  'bielik-11b-v3.0-instruct:free',
+  'muse-glimmer-30b:free',
+  'ox-alpha:free',
+  'ling-3.0-flash-fin:free',
+]
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 
