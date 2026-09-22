@@ -579,6 +579,11 @@ export function AdminView() {
     setActiveTab('admissions')
   }
 
+  const studyAdmissions = admissions.filter((a) => a.isStudyProgram !== false)
+  const serviceRequests = admissions.filter((a) => a.isStudyProgram === false)
+  const visibleAdmissionRows = activeTab === 'service-requests' ? serviceRequests : studyAdmissions
+  const academicStudents = students.filter((s) => (s.enrollments?.length || 0) > 0)
+
   const kpis = data
     ? [
         { icon: Users2, label: 'الطلاب المسجلون', value: data.stats.totalStudents, color: 'bg-[#0f2b46] text-[#e0b83a]' },
