@@ -185,8 +185,11 @@ export function ApplyView() {
   const [missingDocs, setMissingDocs] = useState<string[]>([])
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  const isServiceRequest = selectedCategory === 'SERVICE'
-  const activeDocs = isServiceRequest ? SERVICE_REQUEST_DOCS : REQUIRED_DOCS
+  const selectedProgram = programs.find((x) => x.titleAr === form.program)
+  const selectedFlow = getServiceFlow(selectedProgram?.slug)
+  const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'
+  const flowDocs = selectedFlow?.requiredDocuments?.map((label, i) => ({ type: `FLOW_DOC_${i + 1}`, label })) || []
+  const activeDocs = selectedFlow ? flowDocs : isServiceRequest ? SERVICE_REQUEST_DOCS : REQUIRED_DOCS
   const requiredDocs = isServiceRequest ? [] : REQUIRED_DOCS
   const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
 
