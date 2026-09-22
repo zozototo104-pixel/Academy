@@ -162,7 +162,8 @@ export async function POST(req: NextRequest) {
     const programRec = programId
       ? await db.program.findUnique({ where: { id: programId } })
       : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
-    const isServiceRequest = programRec?.category === 'SERVICE'
+    const serviceFlow = getServiceFlow(programRec?.slug)
+    const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : programRec?.category === 'SERVICE'
 
     if (!isServiceRequest && !String(nationalId || '').trim()) {
       return NextResponse.json(
