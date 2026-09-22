@@ -35,6 +35,11 @@ export async function GET() {
       ])
 
     const passRate = totalAttempts > 0 ? Math.round((passedAttempts / totalAttempts) * 100) : 0
+    const pendingAdmissions = pendingAdmissionApps.filter((app) => {
+      const flow = getServiceFlow(app.programRef?.slug)
+      return flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
+    }).length
+    const pendingServices = pendingAdmissionApps.length - pendingAdmissions
 
     return NextResponse.json({
       stats: {
