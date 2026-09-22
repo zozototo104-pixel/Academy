@@ -244,6 +244,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'DEEPINFRA': return s.deepinfraKeys
     case 'TOGETHER': return s.togetherKeys
     case 'UNOROUTER': return s.unorouterKeys
+    case 'RELAYROUTER': return s.relayrouterKeys
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
 }
