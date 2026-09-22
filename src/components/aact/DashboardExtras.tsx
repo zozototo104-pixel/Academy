@@ -64,6 +64,7 @@ const PURPOSE_LABEL: Record<string, string> = {
   ACCREDITATION_FEE: 'رسوم تقديم اعتماد (100$)',
   ACCREDITATION: 'رسوم اعتماد',
   SERVICE_FEE: 'رسوم تنفيذ خدمة',
+  TUITION_INSTALLMENT: 'دفعة جزئية من الرسوم الدراسية',
   OTHER: 'رسوم أخرى',
 }
 
