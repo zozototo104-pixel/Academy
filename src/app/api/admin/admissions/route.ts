@@ -214,6 +214,44 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, application: updated })
     }
 
+    // ===== اعتماد طلب خدمة مهنية عابرة: إنشاء فاتورة خدمة بدون فتح مسار دراسة/بحث تخرج =====
+    if (!isStudyRequest && status === 'RESULT_APPROVED') {
+      data.status = 'RESULT_APPROVED'
+      if (!app.approvedAt) data.approvedAt = new Date()
+      const existingServiceInvoice = await db.payment.findFirst({
+        where: { admissionId: id, purpose: 'SERVICE_FEE' },
+      })
+      if (!existingServiceInvoice) {
+        const settings = await getSettings()
+        const amount = Number(programForFlow?.price || parseFloat(settings.FEE_SERVICE_DEFAULT || '50') || 50)
+        await db.payment.create({
+          data: {
+            admissionId: id,
+            userId: app.userId,
+            invoiceNo: await nextInvoiceNo(),
+            purpose: 'SERVICE_FEE',
+            description: `رسوم تنفيذ الخدمة — ${app.program}`,
+            amount,
+            payerName: app.fullName,
+            payerEmail: app.email,
+            payerCountry: app.country,
+          },
+        })
+      }
+      const updated = await db.admissionApplication.update({ where: { id }, data })
+      await notify(
+        app.userId || null,
+        'PAYMENT',
+        'تم قبول طلب الخدمة — بانتظار السداد',
+        `تم قبول طلبك (${app.reference}) لخدمة «${app.program}». يرجى سداد فاتورة الخدمة من تبويب «الدفعات» حتى تتمكن الإدارة من تسليم الشهادة أو الحقيبة أو المخرج النهائي.`,
+        'dashboard'
+      )
+      await audit(user, AUDIT_ACTIONS['APPROVE_ADMISSION'] || 'APPROVE_SERVICE_REQUEST', 'AdmissionApplication', id,
+        `اعتماد طلب خدمة ${app.fullName} (${app.reference}) — أُصدرت فاتورة الخدمة`)
+      emailAdmissionDecision(app.email, app.fullName, app.reference, app.program, true, 'تم قبول طلب الخدمة. يرجى سداد فاتورة الخدمة من حسابك ليتم تسليم المخرج النهائي.').catch(() => {})
+      return NextResponse.json({ ok: true, application: updated })
+    }
+
     const updated = await db.admissionApplication.update({ where: { id }, data })
 
     // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED
