@@ -280,7 +280,7 @@ export function ProgramDetailsView() {
             <div className="text-center lg:text-right">
               <Badge className="mb-5 rounded-full border border-[#b08a38]/45 bg-[#b08a38]/10 px-5 py-2 text-sm font-black text-[#d2ad5a] hover:bg-[#b08a38]/10">
                 <Icon className="ml-2 h-4 w-4" />
-                {isService ? categoryLabel : 'التعليم العالي المهني المعتمد'}
+                {flow?.kicker || (isService ? categoryLabel : 'التعليم العالي المهني المعتمد')}
               </Badge>
               <h1 className="text-4xl font-black leading-[1.25] text-white sm:text-5xl lg:text-6xl">
                 {program.titleAr}
