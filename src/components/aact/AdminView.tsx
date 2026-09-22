@@ -372,6 +372,18 @@ export function AdminView() {
     }
   }
 
+  const confirmAdmissionPayment = async (paymentId: string) => {
+    const ok = window.confirm('تأكيد استلام الدفع المباشر؟ سيتم إصدار إيصال وتحديث إجراءات الطلب تلقائياً.')
+    if (!ok) return
+    try {
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentId }) })
+      toast({ title: 'تم تأكيد الدفع المباشر', description: 'تم إصدار الإيصال وتحديث الطلب حسب نوع الفاتورة.' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تأكيد الدفع', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(true)
