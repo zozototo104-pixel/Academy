@@ -398,8 +398,9 @@ export function DashboardView() {
     return null
   }
 
+  const hasProgramDashboard = enrollments.length > 0
   const myProgramIds = new Set(enrollments.map((e) => e.programId))
-  const available = programs.filter((p) => !myProgramIds.has(p.id))
+  const available = hasProgramDashboard ? programs.filter((p) => !myProgramIds.has(p.id)) : []
   const activeAcademicProfile = active ? buildAcademicProgramProfile(active.program) : null
   const curriculumReady = !!active?.program.curriculumReadiness?.approved
   const curriculumMessage = active?.program.curriculumReadiness?.message || 'جاري تجهيز المنهج الأكاديمي لهذا التخصص. سيتم تجهيز الكتب والوحدات خلال 24 ساعة.'
