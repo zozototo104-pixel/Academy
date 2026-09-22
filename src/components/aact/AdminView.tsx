@@ -726,7 +726,7 @@ export function AdminView() {
                             <span className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{a.reference}</span>
                             <h3 className="text-sm font-black text-[#0f2b46]">{a.fullName}</h3>
                             <Badge className={`${STATUS_BADGE[a.status] || 'bg-slate-100 text-slate-600'} hover:bg-inherit`}>
-                              <Clock3 className="ml-1 h-3 w-3" /> {STATUS_LABEL[a.status] || a.status}
+                              <Clock3 className="ml-1 h-3 w-3" /> {!isStudyAdmission && a.status === 'RESULT_APPROVED' ? 'تم اعتماد الخدمة' : STATUS_LABEL[a.status] || a.status}
                             </Badge>
                             <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
                               {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
