@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { createGeminiLiveEphemeralToken, ensureGeminiKey, type GeminiLivePurpose } from '@/lib/gemini'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
-import { reserveGeminiLiveUsage } from '@/lib/live-usage-guard'
+import { getGeminiLiveAllowance, reserveGeminiLiveUsage } from '@/lib/live-usage-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
