@@ -24,8 +24,14 @@ async function handler(req: NextRequest) {
       const body = await req.json().catch(() => null) as any
       bodyPurpose = body?.purpose
     }
-    const payload = await createGeminiLiveEphemeralToken(normalizePurpose(bodyPurpose || urlPurpose))
-    return NextResponse.json(payload)
+    const purpose = normalizePurpose(bodyPurpose || urlPurpose)
+    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose })
+    if (!usage.ok) {
+      return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
+    }
+
+    const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: usage.sessionLimitMinutes })
+    return NextResponse.json({ ...payload, liveUsage: usage, sessionLimitMinutes: usage.sessionLimitMinutes })
   } catch (e: any) {
     const msg = String(e?.message || e || '')
     if (msg === 'UNAUTHORIZED') return NextResponse.json({ error: 'يلزم تسجيل الدخول قبل إنشاء جلسة Gemini Live' }, { status: 401 })
