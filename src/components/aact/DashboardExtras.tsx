@@ -141,10 +141,10 @@ export function PaymentsTab() {
       })
       return
     }
-    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE') {
+    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE' && method !== 'DIRECT_PAYMENT') {
       toast({
         title: 'الدفع الإلكتروني غير متاح حالياً',
-        description: 'لا توجد بوابة دفع حقيقية مفعلة الآن. يرجى مراجعة الإدارة لاستلام تعليمات التحويل أو تفعيل وسيلة دفع أخرى.',
+        description: 'لا توجد بوابة دفع حقيقية مفعلة الآن. اختر «دفع مباشر» للتواصل مع الإدارة أو فعّل بوابة دفع إلكترونية.',
         variant: 'destructive',
       })
       return
