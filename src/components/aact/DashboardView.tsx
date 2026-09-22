@@ -500,12 +500,16 @@ export function DashboardView() {
         <div>
           <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
             <TabsList className="grid h-auto w-full grid-cols-4 gap-1 sm:grid-cols-8">
-              <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
-                <BookOpen className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> برامجي
-              </TabsTrigger>
-              <TabsTrigger value="supervision" className="text-[11px] font-bold sm:text-sm">
-                <MessageCircle className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> إشرافي
-              </TabsTrigger>
+              {hasProgramDashboard && (
+                <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
+                  <BookOpen className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> برامجي
+                </TabsTrigger>
+              )}
+              {hasProgramDashboard && (
+                <TabsTrigger value="supervision" className="text-[11px] font-bold sm:text-sm">
+                  <MessageCircle className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> إشرافي
+                </TabsTrigger>
+              )}
               <TabsTrigger value="payments" className="text-[11px] font-bold sm:text-sm">
                 <Banknote className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الدفعات
               </TabsTrigger>
