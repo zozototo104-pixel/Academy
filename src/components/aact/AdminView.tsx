@@ -320,34 +320,15 @@ export function AdminView() {
     return () => window.removeEventListener('aact-admin-tab', handler as EventListener)
   }, [])
 
-  const updateDeliverableForm = (admissionId: string, patch: Partial<{ type: string; title: string; description: string; externalUrl: string; certificateId: string; verificationUrl: string; visibleToStudent: boolean }>) => {
+  const updateDeliverableForm = (admissionId: string, patch: Partial<DeliverableFormState>) => {
     setDeliverableForms((prev) => ({
       ...prev,
-      [admissionId]: {
-        type: 'PACKAGE_DOWNLOAD',
-        title: '',
-        description: '',
-        externalUrl: '',
-        certificateId: '',
-        verificationUrl: '',
-        visibleToStudent: true,
-        ...(prev[admissionId] || {}),
-        ...patch,
-      },
+      [admissionId]: Object.assign(emptyDeliverableForm(), prev[admissionId] || {}, patch),
     }))
   }
 
   const submitDeliverable = async (admission: AdmissionApp) => {
-    const formState = {
-      type: 'PACKAGE_DOWNLOAD',
-      title: '',
-      description: '',
-      externalUrl: '',
-      certificateId: '',
-      verificationUrl: '',
-      visibleToStudent: true,
-      ...(deliverableForms[admission.id] || {}),
-    }
+    const formState = Object.assign(emptyDeliverableForm(), deliverableForms[admission.id] || {})
     if (!formState.title.trim()) {
       toast({ title: 'العنوان مطلوب', description: 'اكتب عنوان المخرج الذي سيظهر للعميل.', variant: 'destructive' })
       return
