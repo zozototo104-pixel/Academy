@@ -519,15 +519,21 @@ export function DashboardView() {
               <TabsTrigger value="notifications" className="text-[11px] font-bold sm:text-sm">
                 <Bell className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الإشعارات {studentSummary?.unread ? `(${studentSummary.unread})` : ''}
               </TabsTrigger>
-              <TabsTrigger value="thesis" className="text-[11px] font-bold sm:text-sm">
-                <FileText className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> بحث التخرج
-              </TabsTrigger>
-              <TabsTrigger value="transcript" className="text-[11px] font-bold sm:text-sm">
-                <ScrollText className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> سجلي الأكاديمي
-              </TabsTrigger>
-              <TabsTrigger value="certs" className="text-[11px] font-bold sm:text-sm">
-                <Award className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> شهاداتي
-              </TabsTrigger>
+              {hasProgramDashboard && (
+                <TabsTrigger value="thesis" className="text-[11px] font-bold sm:text-sm">
+                  <FileText className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> بحث التخرج
+                </TabsTrigger>
+              )}
+              {hasProgramDashboard && (
+                <TabsTrigger value="transcript" className="text-[11px] font-bold sm:text-sm">
+                  <ScrollText className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> سجلي الأكاديمي
+                </TabsTrigger>
+              )}
+              {hasProgramDashboard && (
+                <TabsTrigger value="certs" className="text-[11px] font-bold sm:text-sm">
+                  <Award className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> شهاداتي
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="programs" className="mt-6 space-y-6">
