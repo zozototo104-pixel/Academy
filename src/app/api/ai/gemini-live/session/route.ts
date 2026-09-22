@@ -38,6 +38,11 @@ function cleanVariant(v: unknown): SetupVariant {
   return v === 'generationConfig' || v === 'bare' ? v : 'minimal'
 }
 
+function cleanPurpose(value: unknown): LivePurpose {
+  const v = String(value || '').trim().toUpperCase()
+  return v === 'DISCUSSION' || v === 'DEFENSE' ? 'DISCUSSION' : 'SUPERVISOR'
+}
+
 function httpStatusForGeminiError(e: any): number {
   if (isAuthError(e)) return 401
   if (isQuotaError(e)) return 429
