@@ -307,6 +307,7 @@ export function DashboardView() {
 
       return e.enrollments || []
     } catch {
+      setServiceDeliverablesLoading(false)
       return []
     }
   }, [])
