@@ -572,11 +572,11 @@ export function ApplyView() {
     <div className="aact-fade-in mx-auto max-w-6xl px-4 py-10">
       <div className="mb-8 text-center">
         <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/10 text-[#a8841a] hover:bg-[#c9a227]/10">
-          <ClipboardList className="ml-1 h-3.5 w-3.5" /> دليل إجراءات وشروط الالتحاق
+          <ClipboardList className="ml-1 h-3.5 w-3.5" /> طلبات الأكاديمية وخدماتها
         </Badge>
-        <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">الالتحاق ببرامج الأكاديمية الأمريكية للاستشارات والتدريب</h1>
+        <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">تقديم طلب برنامج دراسي أو خدمة مهنية</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-          اختر الدرجة أولاً، ثم اختر التخصص. الماجستير والدكتوراه تُدار كتخصصات مستقلة، والكتب والاختبارات تُبنى على التخصص المختار تحديداً.
+          اختر المسار المناسب: البرامج الدراسية تفتح بوابة الطالب بعد القبول والسداد، أما الخدمات العابرة فتُدار كطلب خدمة وتظهر مخرجاتها في بوابة العميل.
         </p>
       </div>
 
