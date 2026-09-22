@@ -208,6 +208,8 @@ export async function POST(req: NextRequest) {
         voice,
         setupVariant,
         expiresAt: expireTime,
+        sessionLimitMinutes,
+        liveUsage,
         message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
     }
