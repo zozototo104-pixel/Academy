@@ -277,6 +277,9 @@ export function AdminView() {
   const [aiReviews, setAiReviews] = useState<Record<string, AdmissionAIReview | null>>({})
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState<Record<string, boolean>>({})
+  const [deliverableForms, setDeliverableForms] = useState<Record<string, { type: string; title: string; description: string; externalUrl: string; certificateId: string; verificationUrl: string; visibleToStudent: boolean }>>({})
+  const [deliverableFiles, setDeliverableFiles] = useState<Record<string, File | null>>({})
+  const [deliverableLoading, setDeliverableLoading] = useState<string | null>(null)
 
   useEffect(() => {
     const handler = (event: Event) => {
