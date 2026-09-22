@@ -368,9 +368,9 @@ export function ProgramDetailsView() {
               </DetailSection>
 
               <DetailSection title={isService ? 'مكونات وفوائد الخدمة' : 'لماذا هذا البرنامج؟'} icon={CheckCircle2}>
-                {(program.features || []).length ? (
+                {displayFeatures.length ? (
                   <div className="space-y-2">
-                    {program.features.slice(0, 8).map((feature, i) => (
+                    {displayFeatures.slice(0, 8).map((feature, i) => (
                       <p key={String(i)} className="flex gap-2 text-xs font-bold leading-7 text-white/62">
                         <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /> {feature}
                       </p>
