@@ -25,6 +25,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: methodStatus?.reason || 'طريقة الدفع غير متاحة حالياً' }, { status: 400 })
     }
 
+    if (String(method) === 'DIRECT_PAYMENT') {
+      await db.payment.update({
+        where: { id: payment.id },
+        data: {
+          provider: 'DIRECT_PAYMENT',
+          providerRef: `DIRECT-${Date.now()}`,
+          checkoutUrl: null,
+          method: 'DIRECT_PAYMENT',
+          userId: payment.userId || user?.id || null,
+        },
+      })
+      return NextResponse.json({
+        ok: true,
+        mode: 'MANUAL',
+        provider: 'DIRECT_PAYMENT',
+        redirectUrl: null,
+        message: 'تم تسجيل طلب الدفع المباشر. تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة السداد من لوحة الإدارة.',
+      })
+    }
+
     const origin = req.headers.get('origin') || new URL(req.url).origin
     const result = await createProviderCheckout({
       method: String(method),
