@@ -659,7 +659,7 @@ export function ApplyView() {
               <CardContent className="flex h-44 flex-col items-center justify-center gap-3 text-center">
                 <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
                 <p className="text-sm font-black text-[#0f2b46]">جاري فحص طلبك الحالي...</p>
-                <p className="text-xs font-bold text-slate-400">إذا كان لديك طلب سابق ستظهر حالته والخطوة التالية بدلاً من نموذج جديد.</p>
+                <p className="text-xs font-bold text-slate-400">إذا كان لديك طلب دراسي نشط ستظهر حالته، أما الخدمات السابقة فلا تمنع تقديم طلب جديد.</p>
               </CardContent>
             </Card>
           ) : myAdmission && myAdmission.status !== 'REJECTED' ? (
