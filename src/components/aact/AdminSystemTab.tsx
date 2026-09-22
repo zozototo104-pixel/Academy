@@ -667,6 +667,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'OPENAI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENAI_API_KEY', 'OpenAI API Key', data.secretsSet.OPENAI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'sk-...', 'password', 'يستخدم لنماذج ChatGPT / OpenAI النصية فقط.')}
+                {F('OPENAI_API_KEYS', 'OpenAI API Keys متعددة', data.secretsSet.OPENAI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-...,sk-...', 'password', 'اختياري: مفاتيح متعددة مفصولة بفاصلة للـ failover.')}
                 {SelectF('OPENAI_TEXT_MODEL', 'نموذج OpenAI للنصوص', OPENAI_TEXT_MODEL_CHOICES, 'للتوليد والتحليل والأسئلة. يمكن كتابة نموذج محفوظ سابقاً أيضاً.')}
                 {F('OPENAI_BASE_URL', 'OpenAI Base URL اختياري', 'https://api.openai.com/v1', 'text', 'اتركه افتراضياً إلا إذا كنت تستخدم بوابة متوافقة.')}
               </>
