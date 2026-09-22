@@ -205,8 +205,9 @@ export interface CheckoutResult {
   ok: boolean
   redirectUrl?: string
   providerRef?: string
-  provider?: ProviderId
+  provider?: ProviderId | 'DIRECT_PAYMENT'
   error?: string
+  message?: string
 }
 
 // ===== Stripe Checkout Session (REST مباشر) =====
