@@ -615,7 +615,7 @@ export function AdminFinanceTab() {
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const PURPOSE_L: Record<string, string> = {
-    APPLICATION_FEE: 'رسوم تقديم', TUITION: 'رسوم دراسية', ACCREDITATION_APP: 'تقديم اعتماد', ACCREDITATION_FEE: 'رسوم تقديم اعتماد', ACCREDITATION: 'اعتماد', OTHER: 'أخرى',
+    APPLICATION_FEE: 'رسوم تقديم', TUITION: 'رسوم دراسية', ACCREDITATION_APP: 'تقديم اعتماد', ACCREDITATION_FEE: 'رسوم تقديم اعتماد', ACCREDITATION: 'اعتماد', SERVICE_FEE: 'رسوم خدمة', OTHER: 'أخرى',
   }
 
   return (
