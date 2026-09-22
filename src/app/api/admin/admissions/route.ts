@@ -45,6 +45,7 @@ export async function GET() {
         payments: { select: { id: true, purpose: true, status: true, amount: true } },
         theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
         files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
+        deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
       },
     })
     const programIds = [...new Set(apps.map((a) => a.programId).filter((id): id is string => Boolean(id)))]
