@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const app = await db.admissionApplication.findFirst({
       where: { id: admissionId, OR: [{ userId: user.id }, { email: user.email }] },
-      include: { programRef: { select: { id: true } }, enrollment: { select: { id: true } } },
+      include: { programRef: { select: { id: true } } },
     })
     if (!app) return NextResponse.json({ error: 'الطلب غير مرتبط بحسابك' }, { status: 403 })
     if (!['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'].includes(app.status)) {
