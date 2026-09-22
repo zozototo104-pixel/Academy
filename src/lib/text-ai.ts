@@ -282,8 +282,8 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
 
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'RELAYROUTER', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'RELAYROUTER', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
   const primary: ConcreteProvider[] = selected
     ? [selected, ...quality.filter((p) => p !== selected)]
     : ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
