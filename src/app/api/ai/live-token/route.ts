@@ -25,6 +25,7 @@ async function handler(req: NextRequest) {
       bodyPurpose = body?.purpose
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
+    await ensureGeminiKey()
     const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose })
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
