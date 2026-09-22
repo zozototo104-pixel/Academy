@@ -159,6 +159,59 @@ export function PaymentsTab() {
     setPayTarget(payment)
   }
 
+  const submitInstallmentAppeal = async (plan: TuitionPlan) => {
+    const amount = Number(appealAmount || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغاً صحيحاً', description: 'حدد الدفعة التي تستطيع دفعها الآن.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      await api('/api/tuition-appeals', {
+        method: 'POST',
+        body: JSON.stringify({
+          admissionId: plan.admissionId,
+          requestedInitialAmount: amount,
+          reason: appealReason,
+          proposedSchedule: appealSchedule,
+        }),
+      })
+      toast({ title: 'تم إرسال الالتماس', description: 'سيظهر القرار بعد مراجعة الإدارة، وستصلك رسالة عند القبول أو الرفض.' })
+      setAppealPlanId(null)
+      setAppealAmount('')
+      setAppealReason('')
+      setAppealSchedule('')
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال الالتماس', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const createInstallmentInvoice = async (plan: TuitionPlan) => {
+    const amount = Number(partialAmount[plan.admissionId] || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      const r = await api<{ payment: Payment }>('/api/payments/installment', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, amount }),
+      })
+      toast({ title: 'تم إنشاء فاتورة دفعة جزئية', description: `يمكنك الآن دفع ${amount}$ من الفواتير.` })
+      setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: '' }))
+      load()
+      if (r.payment) setPayTarget(r.payment)
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء الدفعة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
   const pay = async () => {
     if (!payTarget) return
     const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
