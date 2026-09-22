@@ -608,6 +608,9 @@ export function AdminView() {
                             <Badge className={`${STATUS_BADGE[a.status] || 'bg-slate-100 text-slate-600'} hover:bg-inherit`}>
                               <Clock3 className="ml-1 h-3 w-3" /> {STATUS_LABEL[a.status] || a.status}
                             </Badge>
+                            <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
+                              {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
+                            </Badge>
                           </div>
                           <p className="mt-1.5 text-xs font-bold text-slate-600">
                             البرنامج: {a.program} — المؤهل: {EDUCATION_LABEL[a.education] || a.education} — {a.country}
