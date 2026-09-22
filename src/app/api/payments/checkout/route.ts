@@ -37,6 +37,16 @@ export async function POST(req: NextRequest) {
           userId: payment.userId || user?.id || null,
         },
       })
+      const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      for (const admin of admins) {
+        await notify(
+          admin.id,
+          'PAYMENT',
+          'طالب اختار الدفع المباشر',
+          `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ بانتظار تأكيد الإدارة بعد استلام المبلغ.`,
+          'admin'
+        ).catch(() => {})
+      }
       return NextResponse.json({
         ok: true,
         mode: 'MANUAL',
