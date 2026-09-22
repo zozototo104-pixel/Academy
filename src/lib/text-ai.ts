@@ -274,6 +274,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'DEEPINFRA': return s.deepinfraBaseUrl
     case 'TOGETHER': return s.togetherBaseUrl
     case 'UNOROUTER': return s.unorouterBaseUrl
+    case 'RELAYROUTER': return s.relayrouterBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
