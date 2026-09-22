@@ -638,7 +638,32 @@ export function AdminSystemTab() {
             </div>
             <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
+              {textAiDiag?.lastResult && (
+                <p className={textAiDiag.lastResult.ok ? 'mt-1 text-emerald-700' : 'mt-1 text-red-600'}>
+                  آخر محاولة: {textAiDiag.lastResult.provider}/{textAiDiag.lastResult.model} — {textAiDiag.lastResult.ok ? 'نجحت' : textAiDiag.lastResult.error}
+                </p>
+              )}
             </div>
+            {textAiDiag?.keyCounts && (
+              <div className="grid gap-2 rounded-xl bg-white p-3 text-[10px] font-bold text-slate-600 ring-1 ring-indigo-100 sm:col-span-2 sm:grid-cols-5">
+                {Object.entries(textAiDiag.keyCounts).map(([provider, count]) => (
+                  <div key={provider} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1">
+                    <span>{provider}</span><Badge className={count ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}>{count}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!textAiDiag?.cooldowns?.length && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[10px] font-bold leading-relaxed text-amber-700 sm:col-span-2">
+                مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider}/${c.key} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
+              </div>
+            )}
+            {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('GEMINI_API_KEYS', 'مفاتيح Gemini للنصوص — متعددة', data.secretsSet.GEMINI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2,key3', 'password', 'اكتب أكثر من مفتاح مفصولاً بفاصلة. الحصص غالباً على مستوى المشروع، لكن هذا يفيد عند وجود مشاريع/مفاتيح مستقلة.')}
+                {SelectF('GEMINI_TEXT_MODEL', 'نموذج Gemini داخل Router', GEMINI_TEXT_ROUTER_MODEL_CHOICES, 'يستخدم للنصوص فقط، وليس Gemini Live.')}
+              </>
+            ) : null}
             {currentTextProvider === 'OPENAI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENAI_API_KEY', 'OpenAI API Key', data.secretsSet.OPENAI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'sk-...', 'password', 'يستخدم لنماذج ChatGPT / OpenAI النصية فقط.')}
