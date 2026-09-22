@@ -97,6 +97,7 @@ const METHOD_LABEL: Record<string, string> = {
 export function PaymentsTab() {
   const { toast } = useToast()
   const [payments, setPayments] = useState<Payment[]>([])
+  const [tuitionPlans, setTuitionPlans] = useState<TuitionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [payTarget, setPayTarget] = useState<Payment | null>(null)
   const [method, setMethod] = useState('PAYMOB')
