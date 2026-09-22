@@ -82,7 +82,7 @@ export async function GET() {
 
     const checklist = [
       { group: 'البيئة', item: 'قاعدة البيانات متصلة', ok: env.database, severity: 'CRITICAL', action: 'تحقق من DATABASE_URL في Vercel.' },
-      { group: 'البيئة', item: 'Cloudflare R2 مهيأ', ok: env.r2, severity: 'HIGH', action: 'أكمل متغيرات R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY و R2_BUCKET.' },
+      { group: 'البيئة', item: 'Cloudflare R2 مهيأ', ok: env.r2, severity: 'HIGH', action: 'أكمل متغيرات التخزين: AACT_S3_ENDPOINT و AACT_S3_BUCKET و AACT_S3_ACCESS_KEY_ID و AACT_S3_SECRET_ACCESS_KEY، أو متغيرات R2 القديمة R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY و R2_BUCKET.' },
       { group: 'البيئة', item: 'Gemini AI مهيأ', ok: env.gemini, severity: 'MEDIUM', action: 'أضف GEMINI_API_KEY حتى تعمل ميزات الذكاء.' },
       { group: 'البريد', item: 'البريد الرسمي مفعّل', ok: env.resend, severity: 'HIGH', action: 'أضف RESEND_API_KEY و MAIL_FROM أو فعّل SMTP من لوحة الإدارة.' },
       { group: 'الأمان', item: 'تهيئة القاعدة التلقائية معطلة', ok: !env.dbSetupEnabled, severity: 'CRITICAL', action: 'عطّل AACT_RUN_DB_SETUP بعد الإطلاق.' },
