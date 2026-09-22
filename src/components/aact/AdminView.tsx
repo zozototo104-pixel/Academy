@@ -300,6 +300,77 @@ export function AdminView() {
     return () => window.removeEventListener('aact-admin-tab', handler as EventListener)
   }, [])
 
+  const updateDeliverableForm = (admissionId: string, patch: Partial<{ type: string; title: string; description: string; externalUrl: string; certificateId: string; verificationUrl: string; visibleToStudent: boolean }>) => {
+    setDeliverableForms((prev) => ({
+      ...prev,
+      [admissionId]: {
+        type: 'PACKAGE_DOWNLOAD',
+        title: '',
+        description: '',
+        externalUrl: '',
+        certificateId: '',
+        verificationUrl: '',
+        visibleToStudent: true,
+        ...(prev[admissionId] || {}),
+        ...patch,
+      },
+    }))
+  }
+
+  const submitDeliverable = async (admission: AdmissionApp) => {
+    const formState = {
+      type: 'PACKAGE_DOWNLOAD',
+      title: '',
+      description: '',
+      externalUrl: '',
+      certificateId: '',
+      verificationUrl: '',
+      visibleToStudent: true,
+      ...(deliverableForms[admission.id] || {}),
+    }
+    if (!formState.title.trim()) {
+      toast({ title: 'العنوان مطلوب', description: 'اكتب عنوان المخرج الذي سيظهر للعميل.', variant: 'destructive' })
+      return
+    }
+    if (!deliverableFiles[admission.id] && !formState.externalUrl.trim() && !formState.certificateId.trim() && !formState.verificationUrl.trim()) {
+      toast({ title: 'أضف ملفاً أو رابطاً', description: 'يجب رفع ملف أو إدخال رابط تحميل/اجتماع أو رقم شهادة/تحقق.', variant: 'destructive' })
+      return
+    }
+    setDeliverableLoading(admission.id)
+    try {
+      const fd = new FormData()
+      fd.append('admissionId', admission.id)
+      fd.append('type', formState.type)
+      fd.append('title', formState.title)
+      fd.append('description', formState.description)
+      fd.append('externalUrl', formState.externalUrl)
+      fd.append('certificateId', formState.certificateId)
+      fd.append('verificationUrl', formState.verificationUrl)
+      fd.append('visibleToStudent', String(formState.visibleToStudent))
+      const file = deliverableFiles[admission.id]
+      if (file) fd.append('file', file)
+      await api('/api/admin/service-deliverables', { method: 'POST', body: fd })
+      toast({ title: 'تم تسليم المخرج', description: 'تم نشر المخرج للعميل وإرسال إشعار عند تفعيل البريد.' })
+      setDeliverableForms((prev) => ({ ...prev, [admission.id]: { type: 'PACKAGE_DOWNLOAD', title: '', description: '', externalUrl: '', certificateId: '', verificationUrl: '', visibleToStudent: true } }))
+      setDeliverableFiles((prev) => ({ ...prev, [admission.id]: null }))
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تسليم المخرج', description: e?.data?.message || e.message, variant: 'destructive' })
+    } finally {
+      setDeliverableLoading(null)
+    }
+  }
+
+  const revokeDeliverable = async (id: string) => {
+    try {
+      await api(`/api/admin/service-deliverables?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      toast({ title: 'تم إلغاء المخرج', description: 'لن يظهر هذا المخرج للعميل.' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إلغاء المخرج', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(true)
