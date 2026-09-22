@@ -44,8 +44,15 @@ export async function markInvoicePaid(
       const all = await db.payment.findMany({ where: { admissionId: app.id } })
       const allPaid = all.every((p) => p.status === 'PAID')
       const feePaid = all.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
+      const tuitionPlan = await getAdmissionTuitionPlan(app.id)
+      const installmentActivationReady =
+        tuitionPlan?.appealStatus === 'APPROVED' &&
+        app.status === 'AWAITING_TUITION' &&
+        tuitionPlan.approvedInitialAmount !== null &&
+        tuitionPlan.paidTuition >= tuitionPlan.approvedInitialAmount
       let newStatus = app.status
       let finalRegistration = false
+      let installmentRegistration = false
 
       // 1) بعد سداد رسوم التقديم (30$): الملف يُحوَّل تلقائياً للإدارة للدراسة والإقرار
       if (feePaid && app.status === 'AWAITING_FEE') {
