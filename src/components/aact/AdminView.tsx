@@ -1210,8 +1210,8 @@ export function AdminView() {
                     <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
                     جاري تحميل الطلاب...
                   </div>
-                ) : students.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب بعد</div>
+                ) : academicStudents.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب ملتحقون ببرامج دراسية بعد</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
                     <thead className="sticky top-0 bg-[#f7edd0] text-[#0f2b46]">
