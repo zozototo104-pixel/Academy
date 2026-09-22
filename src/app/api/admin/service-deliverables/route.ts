@@ -144,11 +144,36 @@ export async function PATCH(req: Request) {
     const body = await req.json()
     const id = String(body?.id || '').trim()
     if (!id) return NextResponse.json({ error: 'ID_REQUIRED' }, { status: 400 })
+    const existing = await db.serviceDeliverable.findUnique({
+      where: { id },
+      include: {
+        admission: {
+          select: {
+            id: true,
+            status: true,
+            programRef: { select: { slug: true, category: true } },
+            payments: { select: { status: true } },
+          },
+        },
+      },
+    })
+    if (!existing) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
     const data: any = {}
     if (typeof body?.status === 'string' && ['DRAFT', 'PUBLISHED', 'REVOKED'].includes(body.status)) data.status = body.status
     if (typeof body?.visibleToStudent === 'boolean') data.visibleToStudent = body.visibleToStudent
     if (typeof body?.title === 'string' && body.title.trim()) data.title = body.title.trim().slice(0, 220)
     if (typeof body?.description === 'string') data.description = body.description.trim().slice(0, 2000) || null
+    const nextStatus = data.status || existing.status
+    const nextVisible = data.visibleToStudent ?? existing.visibleToStudent
+    const wantsPublish = nextStatus === 'PUBLISHED' && nextVisible !== false
+    const flow = getServiceFlow(existing.admission.programRef?.slug)
+    const isStudyRequest = flow ? flow.isStudyProgram : existing.admission.programRef?.category !== 'SERVICE'
+    const approvedForDelivery = isStudyRequest
+      ? ['RESULT_APPROVED', 'CERTIFIED'].includes(existing.admission.status)
+      : ['RESULT_APPROVED', 'CERTIFIED'].includes(existing.admission.status)
+    const allPaymentsPaid = existing.admission.payments.length > 0 && existing.admission.payments.every((p) => p.status === 'PAID')
+    if (wantsPublish && !approvedForDelivery) return NextResponse.json({ error: 'APPROVAL_REQUIRED', message: 'لا يمكن نشر مخرج للعميل قبل اعتماد الطلب من الإدارة.' }, { status: 400 })
+    if (wantsPublish && !allPaymentsPaid) return NextResponse.json({ error: 'PAYMENT_REQUIRED', message: existing.admission.payments.length ? 'لا يمكن نشر المخرج للعميل قبل سداد الفواتير المستحقة.' : 'لا يمكن نشر المخرج قبل اعتماد الطلب وإصدار فاتورة الخدمة.' }, { status: 400 })
     const deliverable = await db.serviceDeliverable.update({ where: { id }, data })
     return NextResponse.json({ ok: true, deliverable })
   } catch (e: any) {
