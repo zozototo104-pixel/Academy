@@ -58,13 +58,20 @@ export async function GET() {
       const program = app.programId ? programMap.get(app.programId) : null
       const flow = getServiceFlow(program?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : program?.category !== 'SERVICE'
+      const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
       return {
         ...app,
         programSlug: program?.slug || null,
-        requestKind: flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST'),
+        requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
         requestActionLabel: flow?.primaryAction || (isStudyProgram ? 'الإقرار بالقبول' : 'متابعة طلب الخدمة'),
         isStudyProgram,
+        serviceWorkflow: isStudyProgram ? null : deriveServiceWorkflowState({
+          kind: requestKind,
+          status: app.status,
+          payments: app.payments,
+          deliverables: app.deliverables,
+        }),
       }
     })
     // التقييم الذكي المخزّن (aiVerdict/aiScore/aiReviewedAt) يُضمَّن تلقائياً مع الحقول
