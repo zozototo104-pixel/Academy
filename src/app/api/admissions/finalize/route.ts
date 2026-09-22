@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا تملك صلاحية إكمال هذا الطلب' }, { status: 403 })
     }
 
-    const isServiceRequest = app.programRef?.category === 'SERVICE'
+    const serviceFlow = getServiceFlow(app.programRef?.slug)
+    const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
     const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
     const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
