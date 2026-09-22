@@ -200,6 +200,11 @@ export function ProgramsView() {
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           {filtered.map((p) => {
             const Icon = ICONS[p.icon] || GraduationCap
+            const flow = getServiceFlow(p.slug)
+            const serviceLike = flow ? !flow.isStudyProgram : p.category === 'SERVICE'
+            const displayDescription = flow?.summary || p.description
+            const displayFeatures = flow?.highlights?.length ? flow.highlights : p.features
+            const displayAction = flow?.cardAction || (serviceLike ? 'اطلب الخدمة الآن' : 'قدّم طلب الالتحاق بالبرنامج')
             return (
               <Card key={p.id} className="aact-card flex flex-col border-[#0f2b46]/10 bg-white">
                 <CardContent className="flex flex-1 flex-col p-6">
