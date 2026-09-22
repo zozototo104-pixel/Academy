@@ -619,7 +619,7 @@ export function AdminView() {
                           {(a.files?.length || 0) > 0 ? (
                             <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
                               <p className="text-[11px] font-black text-emerald-700">
-                                <Paperclip className="ml-0.5 inline h-3.5 w-3.5" /> المستندات المرفوعة ({a.files!.length}/4):
+                                <Paperclip className="ml-0.5 inline h-3.5 w-3.5" /> المستندات المرفوعة ({a.files!.length}{isStudyAdmission ? '/4' : ''}):
                               </p>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {a.files!.map((f) => (
