@@ -687,6 +687,48 @@ export function AdminSystemTab() {
                 {F('ZAI_API_BASE', 'Z.AI API Base', 'https://api.z.ai/api/paas/v4', 'text', 'متوافق مع chat/completions.')}
               </>
             ) : null}
+            {currentTextProvider === 'GROQ' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('GROQ_API_KEYS', 'Groq API Keys', data.secretsSet.GROQ_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'gsk_...,gsk_...', 'password', 'مفاتيح متعددة مفصولة بفاصلة.')}
+                {SelectF('GROQ_TEXT_MODEL', 'نموذج Groq', GROQ_TEXT_MODEL_CHOICES, 'مناسب للمسودات السريعة والأسئلة القصيرة.')}
+                {F('GROQ_API_BASE', 'Groq Base URL', 'https://api.groq.com/openai/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'OPENROUTER' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('OPENROUTER_API_KEYS', 'OpenRouter API Keys', data.secretsSet.OPENROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-or-...,sk-or-...', 'password', 'يستخدم فقط عند تفعيل البوابات العامة أو اختياره مباشرة.')}
+                {SelectF('OPENROUTER_TEXT_MODEL', 'نموذج OpenRouter', OPENROUTER_TEXT_MODEL_CHOICES, 'openrouter/auto يختار مساراً متاحاً عند المزود.')}
+                {F('OPENROUTER_BASE_URL', 'OpenRouter Base URL', 'https://openrouter.ai/api/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'DEEPINFRA' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('DEEPINFRA_API_KEYS', 'DeepInfra API Keys', data.secretsSet.DEEPINFRA_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password')}
+                {SelectF('DEEPINFRA_TEXT_MODEL', 'نموذج DeepInfra', OPEN_MODEL_GATEWAY_CHOICES, 'نماذج مفتوحة عبر DeepInfra.')}
+                {F('DEEPINFRA_BASE_URL', 'DeepInfra Base URL', 'https://api.deepinfra.com/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'TOGETHER' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('TOGETHER_API_KEYS', 'Together API Keys', data.secretsSet.TOGETHER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password')}
+                {SelectF('TOGETHER_TEXT_MODEL', 'نموذج Together', OPEN_MODEL_GATEWAY_CHOICES, 'نماذج مفتوحة عبر Together.')}
+                {F('TOGETHER_BASE_URL', 'Together Base URL', 'https://api.together.ai/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'UNOROUTER' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('UNOROUTER_API_KEYS', 'UnoRouter API Keys', data.secretsSet.UNOROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'خط دفاع أخير عند توفره.')}
+                {SelectF('UNOROUTER_TEXT_MODEL', 'نموذج UnoRouter', UNOROUTER_TEXT_MODEL_CHOICES, 'استخدم النماذج المجانية فقط عندما تكون متاحة في حسابك.')}
+                {F('UNOROUTER_BASE_URL', 'UnoRouter Base URL', 'https://api.unorouter.com/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'OPENAI_COMPAT' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('OPENAI_COMPAT_API_KEYS', 'OpenAI-compatible API Keys', data.secretsSet.OPENAI_COMPAT_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'RelayFreeLLM / LiteLLM / Gateway خاص.')}
+                {F('OPENAI_COMPAT_TEXT_MODEL', 'نموذج OpenAI-compatible', 'auto', 'text')}
+                {F('OPENAI_COMPAT_BASE_URL', 'OpenAI-compatible Base URL', 'https://your-gateway.example/v1', 'text', 'يجب أن يدعم /chat/completions.')}
+              </>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
