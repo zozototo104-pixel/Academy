@@ -246,6 +246,7 @@ export function ApplyView() {
   useEffect(() => {
     if (!user || user.role !== 'STUDENT') {
       setMyAdmission(null)
+      setMyApplications([])
       setMyAdmissionLoading(false)
       return
     }
