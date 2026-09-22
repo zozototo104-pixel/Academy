@@ -591,7 +591,8 @@ export function AdminView() {
         { icon: ClipboardCheck, label: 'امتحانات مصححة AI', value: data.stats.totalAttempts, color: 'bg-emerald-600 text-white' },
         { icon: Bot, label: 'رسائل المشرف الذكي', value: data.stats.totalChats, color: 'bg-[#b22234] text-white' },
         { icon: TrendingUp, label: 'نسبة النجاح', value: `${data.stats.passRate}%`, color: 'bg-[#12365c] text-[#e0b83a]' },
-        { icon: ClipboardList, label: 'طلبات التحقق معلقة', value: data.stats.pendingAdmissions, color: 'bg-amber-500 text-white' },
+        { icon: ClipboardList, label: 'طلبات التحاق دراسي معلقة', value: data.stats.pendingAdmissions, color: 'bg-amber-500 text-white' },
+        { icon: PackageCheck, label: 'خدمات عابرة معلقة', value: data.stats.pendingServices || 0, color: 'bg-purple-600 text-white' },
         { icon: Globe2, label: 'طلبات وكالة/اعتماد معلقة', value: data.stats.pendingAgents, color: 'bg-slate-600 text-white' },
       ]
     : []
