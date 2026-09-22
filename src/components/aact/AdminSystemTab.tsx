@@ -185,6 +185,13 @@ const UNOROUTER_TEXT_MODEL_CHOICES = [
   { value: 'deepseek/deepseek-chat:free', label: 'DeepSeek Chat Free — عند توفره' },
 ]
 
+const RELAYROUTER_TEXT_MODEL_CHOICES = [
+  { value: 'relayrouter/auto', label: 'RelayRouter Auto — يختار النموذج المناسب' },
+  { value: 'claude-opus-4-8', label: 'Claude Opus 4.8 عبر RelayRouter' },
+  { value: 'gpt-5.5', label: 'GPT-5.5 عبر RelayRouter' },
+  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash عبر RelayRouter' },
+]
+
 const GEMINI_VOICE_CHOICES = [
   'Charon', 'Aoede', 'Puck', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Zephyr', 'Achernar', 'Algenib', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Iapetus', 'Laomedeia', 'Pulcherrima', 'Rasalgethi', 'Sadachbia', 'Schedar', 'Sulafat', 'Umbriel', 'Vindemiatrix', 'Zubenelgenubi'
 ]
