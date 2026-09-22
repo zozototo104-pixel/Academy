@@ -345,6 +345,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     deepinfraConfigured: counts.DEEPINFRA > 0,
     togetherConfigured: counts.TOGETHER > 0,
     unorouterConfigured: counts.UNOROUTER > 0,
+    relayrouterConfigured: counts.RELAYROUTER > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
