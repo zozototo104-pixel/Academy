@@ -54,6 +54,41 @@ model Session {
   createdAt DateTime @default(now())
 }
 
+model AiLiveUsage {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           String   // YYYY-MM
+  purpose         String   @default("SUPERVISOR") // SUPERVISOR | DISCUSSION
+  freeMinutesUsed Int      @default(0)
+  paidMinutesUsed Int      @default(0)
+  sessionsCount   Int      @default(0)
+  lastSessionAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, month, purpose])
+  @@index([month, purpose])
+}
+
+model AiLiveCredit {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minutes          Int
+  remainingMinutes Int
+  source           String   @default("ADMIN_GRANT") // PURCHASE | ADMIN_GRANT | REFUND | PROMO
+  status           String   @default("ACTIVE") // ACTIVE | CONSUMED | EXPIRED | REVOKED
+  paymentId        String?
+  note             String?
+  expiresAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
 model Program {
   id          String       @id @default(cuid())
   slug        String       @unique
