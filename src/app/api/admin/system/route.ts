@@ -219,6 +219,10 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ ok: false, title: 'فشل اختبار Gemini', message: String(test.error || 'تعذر الاتصال بـ Gemini').slice(0, 300), gemini: diag })
     }
+    if (action === 'text-ai-models') {
+      const result = await textAiFreeModelsForProvider(modelProvider)
+      return NextResponse.json({ ok: true, ...result })
+    }
     if (action === 'test-text-ai') {
       const diag = await textAiDiagnostics()
       const test = await textAiTestConnection()
