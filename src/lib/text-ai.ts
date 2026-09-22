@@ -313,36 +313,107 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
-async function liveUnoRouterFreeModels(baseUrl: string): Promise<string[]> {
-  const now = Date.now()
-  if (unorouterFreeModelsCache && now - unorouterFreeModelsCache.at < 30 * 60 * 1000) return unorouterFreeModelsCache.models
-  const root = (baseUrl || 'https://api.unorouter.com/v1').replace(/\/$/, '').replace(/\/v1$/, '')
+function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string): string {
+  return `${provider}:${(baseUrl || '').replace(/\/$/, '')}`
+}
+
+function apiRootFromBase(baseUrl: string, fallback: string): string {
+  return (baseUrl || fallback).replace(/\/$/, '').replace(/\/v1$/, '')
+}
+
+function validModelName(name: string): boolean {
+  return /^[a-z0-9][a-z0-9_.\/:-]{1,180}$/i.test(name)
+}
+
+function modelId(row: any): string {
+  return String(row?.id || row?.model_name || row?.model || row?.name || '').trim()
+}
+
+function isTextLikeModel(row: any): boolean {
+  const type = String(row?.type || row?.modality || row?.architecture?.modality || row?.input_modalities?.join?.(',') || 'text').toLowerCase()
+  if (/image|video|audio|embedding|moderation|rerank|tts|stt/.test(type)) return false
+  const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
+  return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
+}
+
+function zeroish(value: unknown): boolean {
+  if (value === 0) return true
+  const n = Number(String(value ?? '').replace(/[^0-9.e-]/gi, ''))
+  return Number.isFinite(n) && n === 0
+}
+
+function isFreeModel(row: any, id: string): boolean {
+  if (!id) return false
+  if (id.endsWith(':free') || /(^|[-_/:])free($|[-_/:])/.test(id)) return true
+  if (row?.is_free === true || row?.free === true) return true
+  const pricing = row?.pricing || row?.price || row?.cost || {}
+  const prompt = pricing.prompt ?? pricing.input ?? pricing.prompt_tokens ?? pricing.input_tokens
+  const completion = pricing.completion ?? pricing.output ?? pricing.completion_tokens ?? pricing.output_tokens
+  return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
+}
+
+function rowsFromModelPayload(data: any): any[] {
+  if (Array.isArray(data?.models)) return data.models
+  if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.results)) return data.results
+  if (Array.isArray(data)) return data
+  return []
+}
+
+function normalizeFreeModelName(provider: ConcreteProvider, name: string): string {
+  if (provider === 'UNOROUTER' && name && !name.endsWith(':free')) return `${name}:free`
+  return name
+}
+
+async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
   try {
-    const response = await fetch(`${root}/api/pricing/catalog`, { cache: 'no-store' })
-    const data: any = await response.json().catch(() => ({}))
-    const rows: any[] = Array.isArray(data?.models)
-      ? data.models
-      : Array.isArray(data)
-        ? data
-        : []
-    const models = rows
-      .filter((m) => m?.is_free === true)
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    })
+    const data = await response.json().catch(() => ({}))
+    return rowsFromModelPayload(data)
       .filter((m) => m?.online !== false)
-      .filter((m) => {
-        const endpoints = Array.isArray(m?.supported_endpoint_types) ? m.supported_endpoint_types : []
-        return endpoints.length === 0 || endpoints.includes('openai')
-      })
-      .filter((m) => !/image|video|audio/i.test(String(m?.type || 'text')))
-      .map((m) => String(m?.model_name || '').trim())
-      .filter(Boolean)
-      .map((name) => name.endsWith(':free') ? name : `${name}:free`)
-      .filter((name) => /^[a-z0-9][a-z0-9_.\/:-]{1,180}$/i.test(name))
-    unorouterFreeModelsCache = { at: now, models: [...new Set(models)] }
-    return unorouterFreeModelsCache.models
+      .filter(isTextLikeModel)
+      .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
+      .filter(({ raw, id }) => validModelName(id) && isFreeModel(raw, id))
+      .map(({ id }) => id)
   } catch {
-    unorouterFreeModelsCache = { at: now, models: [] }
     return []
   }
+}
+
+async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
+  const baseUrl = baseFor(s, provider)
+  const key = providerKeys(s, provider)[0]
+  const cacheKey = cacheKeyForFreeModels(provider, baseUrl)
+  const now = Date.now()
+  const cached = freeModelsCache.get(cacheKey)
+  if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
+
+  let models: string[] = []
+  if (provider === 'UNOROUTER') {
+    const root = apiRootFromBase(s.unorouterBaseUrl, 'https://api.unorouter.com/v1')
+    try {
+      const response = await fetch(`${root}/api/pricing/catalog`, { cache: 'no-store' })
+      const data: any = await response.json().catch(() => ({}))
+      models = rowsFromModelPayload(data)
+        .filter((m) => m?.is_free === true)
+        .filter((m) => m?.online !== false)
+        .filter(isTextLikeModel)
+        .map((m) => normalizeFreeModelName(provider, modelId(m)))
+        .filter((name) => validModelName(name))
+    } catch {
+      models = []
+    }
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'OPENAI_COMPAT', 'GROQ', 'ZAI'].includes(provider)) {
+    models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
+  }
+
+  models = [...new Set(models)]
+  freeModelsCache.set(cacheKey, { at: now, models })
+  return models
 }
 
 async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<string[]> {
