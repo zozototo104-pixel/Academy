@@ -364,7 +364,7 @@ export function ProgramDetailsView() {
 
             <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
               <DetailSection title={isService ? 'تفاصيل الخدمة' : 'تفاصيل البرنامج'} icon={ClipboardList}>
-                <p className="text-sm font-bold leading-9 text-white/64">{program.description}</p>
+                <p className="text-sm font-bold leading-9 text-white/64">{displayDescription}</p>
               </DetailSection>
 
               <DetailSection title={isService ? 'مكونات وفوائد الخدمة' : 'لماذا هذا البرنامج؟'} icon={CheckCircle2}>
