@@ -438,43 +438,45 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
   const nonDoc = nonAdmissionAttachmentReason(f)
   if (nonDoc) return { kind: 'NON_ADMISSION', reason: nonDoc }
 
-  const blob = evidenceBlob(f)
-  const detected = [f.ocrRead?.docTypeDetected, f.ocrRead?.matchNote, f.ocrRead?.qualityNote].filter(Boolean).join(' ')
-  const n = normalize(`${detected} ${blob}`)
+  const visual = visualTruthBlob(f)
+  const negative = negativeVisualCues(f)
+  const n = normalize(`${visual} ${negative}`)
+  const contradiction = hasContradictingVisualEvidence(f)
+  if (contradiction) return { kind: 'OTHER_DOCUMENT', reason: contradiction }
 
-  if (hasAny(blob, KEYWORDS.logo) && !hasOfficialAdmissionDocumentSignals(`${detected} ${blob}`)) {
+  if (hasAny(visual, KEYWORDS.logo) && !hasOfficialAdmissionDocumentSignals(visual)) {
     return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
   }
 
-  if (hasAny(detected, KEYWORDS.photoDoc) || (/صوره شخصيه|صورة شخصية|وجه|بورتريه|portrait|headshot|personal photo/.test(n) && !hasAny(blob, KEYWORDS.idDoc) && !hasAny(blob, KEYWORDS.degreeDoc))) {
-    return { kind: 'PHOTO', reason: 'تم التعرف عليه كصورة شخصية/وجه' }
+  const idSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|date of birth|place of birth|الجنسية|الجنسيه/.test(n)
+  if (idSignal) {
+    return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر داخل الملف المقروء' }
   }
 
-  if (hasAny(blob, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية/.test(n)) {
-    return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر' }
+  const transcriptSignal = hasAny(visual, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه|مواد دراسية|الساعات المعتمده|الساعات المعتمدة/.test(n)
+  if (transcriptSignal) {
+    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي داخل الملف' }
   }
 
-  const strongDegreeSignal =
-    (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.bachelor) || hasAny(blob, KEYWORDS.master) || hasAny(blob, KEYWORDS.phd) || hasAny(blob, KEYWORDS.highSchool)) &&
-    /university|faculty|deanery|admission|registration|dean|president|جامعه|جامعة|كليه|كلية|عماده|عمادة|قبول|تسجيل|شهادة|شهاده/.test(n)
-  if (strongDegreeSignal) {
-    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي حتى لو كان مصوراً أو ملتقطاً من شاشة' }
+  const degreeSignal = hasAny(visual, KEYWORDS.degreeDoc) || hasAny(visual, KEYWORDS.bachelor) || hasAny(visual, KEYWORDS.master) || hasAny(visual, KEYWORDS.phd) || hasAny(visual, KEYWORDS.highSchool)
+  const institutionalSignal = /university|faculty|deanery|admission|registration|dean|president|college|institute|جامعه|جامعة|كليه|كلية|عماده|عمادة|قبول|تسجيل|رئيس الجامعه|عميد/.test(n)
+  if (degreeSignal && institutionalSignal) {
+    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي صادرة من جهة تعليمية' }
   }
 
-  if (hasAny(blob, KEYWORDS.cvDoc) || /education|work experience|professional experience|الموارد البشريه|الخبرات العمليه|المؤهلات العلميه|المهارات|objective|profile/.test(n)) {
-    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات' }
+  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /education|work experience|professional experience|employment|skills|profile|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المؤهلات العلميه|المؤهلات العلمية|المهارات/.test(n)
+  if (cvSignal) {
+    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
   }
 
-  if (hasAny(blob, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه/.test(n)) {
-    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي' }
-  }
-
-  if (hasAny(blob, KEYWORDS.degreeDoc) || hasAny(blob, KEYWORDS.highSchool) || hasAny(blob, KEYWORDS.bachelor) || hasAny(blob, KEYWORDS.master) || hasAny(blob, KEYWORDS.phd)) {
-    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي' }
+  const explicitFaceSignal = /وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n)
+  const negativePhoto = /تصميم|رمزي|ديني|شعار|ليست صوره شخصيه|ليست صورة شخصية|not a personal photo/.test(n)
+  if (explicitFaceSignal && !negativePhoto && !idSignal && !degreeSignal && !transcriptSignal && !cvSignal) {
+    return { kind: 'PHOTO', reason: 'تم التعرف على صورة وجه شخصية فعلية بدون مؤشرات مستند رسمي آخر' }
   }
 
   if ((f.textSnippet || f.ocrRead?.extractedText || '').replace(/\s+/g, '').length >= 30 || f.ocrRead?.readable) {
-    return { kind: 'OTHER_DOCUMENT', reason: 'تمت قراءته لكنه لا يطابق الأنواع المطلوبة بوضوح' }
+    return { kind: 'OTHER_DOCUMENT', reason: 'تمت قراءة الملف لكنه لا يطابق الأنواع المطلوبة بوضوح' }
   }
 
   return { kind: 'UNVERIFIED', reason: 'لم يظهر دليل كافٍ لتحديد نوع المستند' }
