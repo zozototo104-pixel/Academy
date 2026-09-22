@@ -494,6 +494,22 @@ function isImageFile(f: AdmissionFileEvidence): boolean {
   return f.mimeType.startsWith('image/')
 }
 
+function fileIdentityKey(f: AdmissionFileEvidence): string {
+  const storage = `${f.storageProvider || ''}:${f.storageKey || ''}:${f.fileUrl || ''}`.trim()
+  if (storage.replace(/[:]/g, '')) return normalize(storage)
+  return normalize(`${f.fileName}|${f.mimeType}|${f.size}`)
+}
+
+function isMultiPageContainer(f: AdmissionFileEvidence): boolean {
+  return /pdf/i.test(f.mimeType) || /\.pdf$/i.test(f.fileName)
+}
+
+function duplicateFileReason(f: AdmissionFileEvidence, duplicateKeys: Set<string>): string | null {
+  if (!duplicateKeys.has(fileIdentityKey(f))) return null
+  if (isMultiPageContainer(f)) return null
+  return 'تم رفع نفس الملف في أكثر من خانة مطلوبة. لا يُحتسب الملف الواحد لتلبية عدة متطلبات إلا إذا كان PDF متعدد الصفحات ومقروءاً بوضوح.'
+}
+
 function expectedDocMatches(expectedType: string, f: AdmissionFileEvidence): { ok: boolean; problem: boolean; reason: string } {
   if (isVisionUnavailable(f)) {
     return {
