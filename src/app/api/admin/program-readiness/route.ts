@@ -145,11 +145,12 @@ export async function GET(req: NextRequest) {
           { admissions: { some: {} } },
         ],
       },
-      select: { id: true },
+      select: { id: true, slug: true, category: true },
       orderBy: { order: 'asc' },
     })
 
-    const items = (await Promise.all(demanded.map((p) => buildProgramReadiness(p.id)))).filter(Boolean) as any[]
+    const curriculumDemanded = demanded.filter((p) => isCurriculumProgram(p))
+    const items = (await Promise.all(curriculumDemanded.map((p) => buildProgramReadiness(p.id)))).filter(Boolean) as any[]
     const needsPreparation = items.filter((item) => !item.isCurriculumReady || item.registrationStatus !== 'OPEN')
     return NextResponse.json({ items: needsPreparation, generatedAt: new Date() })
   } catch (e: any) {
