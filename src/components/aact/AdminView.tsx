@@ -854,6 +854,40 @@ export function AdminView() {
                             </div>
                           )}
 
+                          {isStudyAdmission && a.tuitionPlan && (
+                            <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-blue-800"><Banknote className="ml-1 inline h-3.5 w-3.5" /> خطة الرسوم والتقسيط</p>
+                                <Badge className="bg-white text-blue-700 hover:bg-white">مدفوع {a.tuitionPlan.paidTuition}$ / {a.tuitionPlan.totalTuition}$</Badge>
+                              </div>
+                              <div className="mt-2 grid gap-2 text-[10px] font-bold text-blue-900 sm:grid-cols-3">
+                                <div className="rounded-lg bg-white p-2">المتبقي: {a.tuitionPlan.remainingTuition}$</div>
+                                <div className="rounded-lg bg-white p-2">شرط الفصل الأول: {a.tuitionPlan.firstSemesterRequiredAmount}$ {a.tuitionPlan.firstSemesterAllowed ? '✓' : '✕'}</div>
+                                <div className="rounded-lg bg-white p-2">شرط الفصل الثاني: {a.tuitionPlan.finalRequiredAmount}$ {a.tuitionPlan.secondSemesterAllowed ? '✓' : '✕'}</div>
+                              </div>
+                              {a.tuitionAppeal && (
+                                <div className="mt-2 rounded-lg border border-blue-100 bg-white p-2 text-[10px] font-bold leading-5 text-slate-600">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <span className="font-black text-[#0f2b46]">التماس تقسيط: </span>
+                                      <Badge className={a.tuitionAppeal.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : a.tuitionAppeal.status === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}>{a.tuitionAppeal.status}</Badge>
+                                      <span className="mr-2">الدفعة المقترحة: {a.tuitionAppeal.requestedInitialAmount}$</span>
+                                    </div>
+                                    {a.tuitionAppeal.status === 'PENDING' && (
+                                      <div className="flex gap-1">
+                                        <Button size="sm" onClick={() => decideTuitionAppeal(a.tuitionAppeal!, 'APPROVE', a.tuitionPlan)} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول التقسيط</Button>
+                                        <Button size="sm" variant="outline" onClick={() => decideTuitionAppeal(a.tuitionAppeal!, 'REJECT', a.tuitionPlan)} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-700">رفض</Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {a.tuitionAppeal.reason && <p className="mt-1">سبب الطالب: {a.tuitionAppeal.reason}</p>}
+                                  {a.tuitionAppeal.proposedSchedule && <p className="mt-1">جدول مقترح: {a.tuitionAppeal.proposedSchedule}</p>}
+                                  {a.tuitionAppeal.adminNote && <p className="mt-1 text-blue-700">ملاحظة الإدارة: {a.tuitionAppeal.adminNote}</p>}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {!isStudyAdmission && (
                             <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3">
                               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
