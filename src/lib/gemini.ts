@@ -289,13 +289,17 @@ export interface GeminiLiveTokenPayload {
   apiVersion: 'v1beta'
 }
 
-export async function createGeminiLiveEphemeralToken(purpose: GeminiLivePurpose = 'SUPERVISOR'): Promise<GeminiLiveTokenPayload> {
+export async function createGeminiLiveEphemeralToken(
+  purpose: GeminiLivePurpose = 'SUPERVISOR',
+  opts?: { sessionLimitMinutes?: number }
+): Promise<GeminiLiveTokenPayload> {
   await refreshFromDb()
   const key = resolvedKey()
   if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
   const model = await geminiActiveLiveModel(purpose)
   const config = await geminiLiveConnectConfig(purpose, model)
-  const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  const sessionLimitMinutes = Math.max(1, Math.min(30, Math.floor(opts?.sessionLimitMinutes || 10)))
+  const expireTime = new Date(Date.now() + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
   const client = new GoogleGenAI({ apiKey: key, httpOptions: { apiVersion: 'v1beta' } } as any)
   const token = await (client as any).authTokens.create({
