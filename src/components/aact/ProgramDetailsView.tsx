@@ -287,7 +287,7 @@ export function ProgramDetailsView() {
               </h1>
               {program.titleEn && <p className="mt-3 text-sm font-black tracking-[0.18em] text-[#d2ad5a]/85">{program.titleEn}</p>}
               <p className="mx-auto mt-5 max-w-3xl text-base font-bold leading-9 text-white/64 lg:mx-0">
-                {program.description}
+                {displayDescription}
               </p>
               <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                 <Button onClick={startAdmission} className="rounded-[1.35rem] bg-[#a98a52] px-8 py-6 text-base font-black text-white shadow-xl shadow-black/20 hover:bg-[#b7975d]">
