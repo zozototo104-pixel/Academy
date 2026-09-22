@@ -49,6 +49,7 @@ export async function GET() {
         totalChats,
         pendingAgents,
         pendingAdmissions,
+        pendingServices,
         passRate,
       },
       recentAttempts: recentAttempts.map((a) => ({
