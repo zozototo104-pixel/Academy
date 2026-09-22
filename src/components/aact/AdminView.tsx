@@ -374,7 +374,7 @@ export function AdminView() {
       if (file) fd.append('file', file)
       await api('/api/admin/service-deliverables', { method: 'POST', body: fd })
       toast({ title: 'تم تسليم المخرج', description: 'تم نشر المخرج للعميل وإرسال إشعار عند تفعيل البريد.' })
-      setDeliverableForms((prev) => ({ ...prev, [admission.id]: emptyDeliverableForm() }))
+      setDeliverableForms((prev) => ({ ...prev, [admission.id]: Object.assign(emptyDeliverableForm(), { type: recommendedType }) }))
       setDeliverableFiles((prev) => ({ ...prev, [admission.id]: null }))
       await load()
     } catch (e: any) {
