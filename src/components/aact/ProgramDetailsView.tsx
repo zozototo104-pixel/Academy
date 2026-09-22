@@ -291,7 +291,7 @@ export function ProgramDetailsView() {
               </p>
               <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                 <Button onClick={startAdmission} className="rounded-[1.35rem] bg-[#a98a52] px-8 py-6 text-base font-black text-white shadow-xl shadow-black/20 hover:bg-[#b7975d]">
-                  {program.enrolled && !isService ? 'الدخول إلى البرنامج' : isService ? 'اطلب الخدمة الآن' : 'قدّم طلب الانضمام الآن'}
+                  {program.enrolled && !isService ? 'الدخول إلى البرنامج' : displayPrimaryAction}
                   <ChevronLeft className="mr-2 h-5 w-5" />
                 </Button>
                 <Button variant="outline" onClick={() => navigate('contact')} className="rounded-[1.35rem] border-white/15 bg-white/[0.03] px-8 py-6 text-base font-black text-white hover:bg-white/10 hover:text-white">
