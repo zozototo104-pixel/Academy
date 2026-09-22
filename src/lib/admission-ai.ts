@@ -472,7 +472,7 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
   }
 
-  const explicitFaceSignal = /وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n)
+  const explicitFaceSignal = /صوره شخصيه|صورة شخصية|وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n)
   const negativePhoto = /تصميم|رمزي|ديني|شعار|ليست صوره شخصيه|ليست صورة شخصية|not a personal photo/.test(n)
   if (explicitFaceSignal && !negativePhoto && !idSignal && !degreeSignal && !transcriptSignal && !cvSignal) {
     return { kind: 'PHOTO', reason: 'تم التعرف على صورة وجه شخصية فعلية بدون مؤشرات مستند رسمي آخر' }
