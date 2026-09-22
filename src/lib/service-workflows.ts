@@ -225,6 +225,7 @@ export function deriveServiceWorkflowState(input: {
     activeIndex,
     activeStage,
     nextAction,
+    clientNextAction,
     expectedDeliverableTypes,
     paid,
     hasInvoice,
