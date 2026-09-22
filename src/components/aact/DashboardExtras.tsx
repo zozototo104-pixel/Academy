@@ -55,6 +55,23 @@ interface Payment {
   paidAt?: string | null
   createdAt: string
   reference?: string | null
+  admissionId?: string | null
+}
+
+interface TuitionPlan {
+  admissionId: string
+  reference: string
+  program: string
+  totalTuition: number
+  paidTuition: number
+  remainingTuition: number
+  halfRequired: number
+  finalRequired: number
+  firstSemesterAllowed: boolean
+  secondSemesterAllowed: boolean
+  appealStatus: string | null
+  appealId: string | null
+  approvedInitialAmount: number | null
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
