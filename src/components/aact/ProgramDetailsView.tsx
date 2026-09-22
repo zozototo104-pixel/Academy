@@ -379,6 +379,43 @@ export function ProgramDetailsView() {
                 ) : <p className="text-xs font-bold leading-6 text-white/60">{isService ? 'خدمة مهنية قابلة للمتابعة من داخل المنصة.' : 'برنامج مهني مصمم وفق خطة أكاديمية ومخرجات تعلم قابلة للقياس.'}</p>}
               </DetailSection>
             </div>
+
+            {flow && (
+              <div className="grid gap-5 lg:grid-cols-2">
+                <DetailSection title="المستندات أو البيانات المطلوبة" icon={FileText}>
+                  <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                    {flow.requiredDocuments.map((item, i) => (
+                      <li key={String(i)} className="flex gap-2"><FileCheck2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
+                    ))}
+                  </ul>
+                </DetailSection>
+                <DetailSection title="المخرجات التي يحصل عليها المتقدم" icon={Award}>
+                  <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                    {flow.outputs.map((item, i) => (
+                      <li key={String(i)} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
+                    ))}
+                  </ul>
+                </DetailSection>
+                {!!flow.options?.length && (
+                  <DetailSection title="خيارات الخدمة أو المسارات المتاحة" icon={Layers}>
+                    <div className="grid gap-3">
+                      {flow.options.map((option, i) => (
+                        <div key={String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-black text-white">{option.title}</p>
+                            {option.price && <span className="rounded-full bg-[#b08a38]/20 px-3 py-1 text-xs font-black text-[#d2ad5a]">{option.price}</span>}
+                          </div>
+                          {option.description && <p className="mt-2 text-xs font-bold leading-6 text-white/58">{option.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+                <DetailSection title="المسار الرسمي المطابق" icon={Globe} accent>
+                  <p className="text-xs font-bold leading-7 text-white/62">تمت مواءمة هذه الصفحة مع مسار الخدمة الرسمي: {flow.officialPath}</p>
+                </DetailSection>
+              </div>
+            )}
           </TabsContent>
 
           {!isService && academicProfile && (
