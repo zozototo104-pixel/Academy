@@ -297,6 +297,7 @@ export function ApplyView() {
   const selectedProgramId = selectedProgram?.id || ''
   const selectedRules = selectedProgram?.admissionRules || null
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
+  const recentApplications = myApplications.slice(0, 5)
 
   const pickFile = (type: string, f: File | null) => {
     setMissingDocs([])
