@@ -10,7 +10,7 @@ import { db } from '@/lib/db'
 
 export type ProviderId = 'STRIPE' | 'PAYPAL' | 'SANDBOX'
 
-export type PaymentMethodId = 'PAYMOB' | 'FAWRY' | 'STRIPE' | 'PAYPAL' | 'BANK_TRANSFER'
+export type PaymentMethodId = 'PAYMOB' | 'FAWRY' | 'STRIPE' | 'PAYPAL' | 'BANK_TRANSFER' | 'DIRECT_PAYMENT'
 
 export interface PaymentMethodStatus {
   id: PaymentMethodId
