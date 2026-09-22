@@ -489,10 +489,10 @@ export function ApplyView() {
 
           <div className="mt-5 rounded-2xl border border-[#c9a227]/20 bg-[#f7edd0]/40 p-4">
             <div className="grid gap-3 text-xs font-bold text-slate-600 sm:grid-cols-2">
-              <p><b className="text-[#0f2b46]">الطالب:</b> {app.fullName}</p>
-              <p><b className="text-[#0f2b46]">البرنامج:</b> {app.program}</p>
+              <p><b className="text-[#0f2b46]">{isStudyApp ? 'الطالب' : 'العميل'}:</b> {app.fullName}</p>
+              <p><b className="text-[#0f2b46]">{isStudyApp ? 'البرنامج' : 'الخدمة'}:</b> {app.program}</p>
               <p><b className="text-[#0f2b46]">تاريخ الطلب:</b> {app.createdAt ? new Date(app.createdAt).toLocaleDateString('ar-EG') : '—'}</p>
-              <p><b className="text-[#0f2b46]">المشرف:</b> {app.supervisorName || 'لم يعين بعد'}</p>
+              {isStudyApp ? <p><b className="text-[#0f2b46]">المشرف:</b> {app.supervisorName || 'لم يعين بعد'}</p> : <p><b className="text-[#0f2b46]">نوع الطلب:</b> خدمة عابرة</p>}
             </div>
           </div>
 
