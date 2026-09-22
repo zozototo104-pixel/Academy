@@ -380,12 +380,7 @@ export async function GET(req: NextRequest) {
       requestKind,
       requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
       isStudyProgram,
-      serviceWorkflow: isStudyProgram ? null : deriveServiceWorkflowState({
-        kind: requestKind,
-        status: app.status,
-        payments: app.payments,
-        deliverables: app.deliverables,
-      }),
+      serviceWorkflow,
       status: app.status,
       statusLabel: STATUS_LABEL[app.status] || app.status,
       supervisorName: app.supervisor?.name || null,
