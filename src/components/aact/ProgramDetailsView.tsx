@@ -314,9 +314,17 @@ export function ProgramDetailsView() {
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <StatCard icon={Clock3} label={isService ? 'مدة الخدمة' : 'الساعات التدريبية'} value={program.hours ? String(program.hours) + ' ساعة' : isService ? 'حسب طبيعة الطلب' : 'حسب مسار البرنامج'} />
-            <StatCard icon={BadgeCheck} label="الرسوم" value={moneyLabel(program.price, isService)} />
-            <StatCard icon={Users2} label={isService ? 'المتابعة' : 'المحتوى'} value={program.unitsCount > 0 ? String(program.unitsCount) + ' وحدات' : isService ? 'طلب خدمة ومتابعة' : 'اعتماد مباشر'} />
+            {flow?.metrics?.length ? (
+              flow.metrics.slice(0, 3).map((metric, i) => (
+                <StatCard key={metric.label} icon={[Clock3, BadgeCheck, Users2][i] || BadgeCheck} label={metric.label} value={metric.value} />
+              ))
+            ) : (
+              <>
+                <StatCard icon={Clock3} label={isService ? 'مدة الخدمة' : 'الساعات التدريبية'} value={program.hours ? String(program.hours) + ' ساعة' : isService ? 'حسب طبيعة الطلب' : 'حسب مسار البرنامج'} />
+                <StatCard icon={BadgeCheck} label="الرسوم" value={moneyLabel(program.price, isService)} />
+                <StatCard icon={Users2} label={isService ? 'المتابعة' : 'المحتوى'} value={program.unitsCount > 0 ? String(program.unitsCount) + ' وحدات' : isService ? 'طلب خدمة ومتابعة' : 'اعتماد مباشر'} />
+              </>
+            )}
           </div>
         </div>
       </section>
