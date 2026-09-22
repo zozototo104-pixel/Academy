@@ -154,7 +154,7 @@ export default function Home() {
     if (typeof window === 'undefined') return false
     try {
       const q = new URLSearchParams(window.location.search)
-      return q.has('authToken') || sessionStorage.getItem('aact_skip_startup') === '1' || Boolean(getToken())
+      return q.has('authToken') || hasSeenStartup() || Boolean(getToken())
     } catch {
       return false
     }
