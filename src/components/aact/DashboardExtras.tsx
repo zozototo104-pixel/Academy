@@ -72,6 +72,7 @@ const METHOD_LABEL: Record<string, string> = {
   STRIPE: 'Stripe (بطاقة دولية)',
   PAYPAL: 'PayPal',
   BANK_TRANSFER: 'تحويل بنكي',
+  DIRECT_PAYMENT: 'دفع مباشر',
 }
 
 export function PaymentsTab() {
