@@ -824,7 +824,7 @@ export function AdminView() {
                                   <input type="checkbox" checked={deliverableForms[a.id]?.visibleToStudent !== false} onChange={(e) => updateDeliverableForm(a.id, { visibleToStudent: e.currentTarget.checked })} />
                                   يظهر للعميل فوراً ويرسل إشعاراً بالبريد
                                 </label>
-                                <Button size="sm" disabled={deliverableLoading === a.id} onClick={() => submitDeliverable(a)} className="bg-purple-700 text-white hover:bg-purple-800">
+                                <Button size="sm" disabled={deliverableLoading === a.id || !serviceDeliveryReady} onClick={() => submitDeliverable(a)} className="bg-purple-700 text-white hover:bg-purple-800 disabled:opacity-50">
                                   {deliverableLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Award className="ml-1 h-3.5 w-3.5" />}
                                   تسليم المخرج
                                 </Button>
