@@ -343,6 +343,7 @@ export async function GET(req: NextRequest) {
     const mine = req.nextUrl.searchParams.get('mine') === '1'
     const include: any = {
       supervisor: { select: { name: true } },
+      programRef: { select: { slug: true, category: true, titleAr: true } },
       files: { select: { id: true, docType: true, fileName: true, size: true } },
       payments: {
         select: {
