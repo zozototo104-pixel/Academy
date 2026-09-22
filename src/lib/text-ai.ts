@@ -72,6 +72,7 @@ const OPENROUTER_TEXT_MODELS = ['openrouter/auto', 'meta-llama/llama-3.1-8b-inst
 const DEEPINFRA_TEXT_MODELS = ['meta-llama/Llama-3.3-70B-Instruct', 'meta-llama/Meta-Llama-3.1-8B-Instruct']
 const TOGETHER_TEXT_MODELS = ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo']
 const UNOROUTER_TEXT_MODELS = ['gpt-oss-120b:free', 'deepseek/deepseek-chat:free']
+const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 
 const cooldowns = new Map<string, { until: number; reason: string }>()
