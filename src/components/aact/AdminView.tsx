@@ -843,9 +843,15 @@ export function AdminView() {
                                       </div>
                                     )
                                   })()}
-                                  <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'AWAITING_TUITION')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
-                                    <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> الإقرار بالقبول وإصدار فاتورة الرسوم الدراسية
-                                  </Button>
+                                  {isStudyAdmission ? (
+                                    <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'AWAITING_TUITION')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                                      <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> الإقرار بالقبول وإصدار فاتورة الرسوم الدراسية
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                                      <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد طلب الخدمة وتحديد المتابعة
+                                    </Button>
+                                  )}
                                 </>
                               )}
                               {a.status === 'AWAITING_TUITION' && (
