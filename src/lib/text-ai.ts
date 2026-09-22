@@ -260,6 +260,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'DEEPINFRA': return s.deepinfraModel
     case 'TOGETHER': return s.togetherModel
     case 'UNOROUTER': return s.unorouterModel
+    case 'RELAYROUTER': return s.relayrouterModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
