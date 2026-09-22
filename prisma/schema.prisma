@@ -659,6 +659,31 @@ model AdmissionApplication {
   supervisionMode String @default("AI")
 }
 
+model TuitionInstallmentAppeal {
+  id                         String   @id @default(cuid())
+  admissionId                String
+  userId                     String?
+  programId                  String?
+  enrollmentId               String?
+  status                     String   @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedInitialAmount     Float
+  proposedSchedule           String?
+  reason                     String?
+  adminNote                  String?
+  approvedInitialAmount      Float?
+  firstSemesterRequiredAmount Float?
+  finalRequiredAmount        Float?
+  decidedById                String?
+  decidedAt                  DateTime?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([admissionId, status])
+  @@index([userId, status])
+  @@index([programId])
+  @@index([enrollmentId])
+}
+
 // ===== الإشراف الأكاديمي البشري/الذكي الخاص بالطالب =====
 
 model SupervisorChannelMessage {
