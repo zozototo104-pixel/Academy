@@ -1114,7 +1114,7 @@ model AdmissionDocument {
   id              String   @id @default(cuid())
   admissionId     String
   admission       AdmissionApplication @relation(fields: [admissionId], references: [id], onDelete: Cascade)
-  docType         String   // DEGREE | TRANSCRIPT | ID | PHOTO | CV
+  docType         String   // DEGREE | TRANSCRIPT | ID | PHOTO | CV | SERVICE_FILE | FLOW_DOC_*
   fileName        String
   mimeType        String
   size            Int
@@ -1124,5 +1124,36 @@ model AdmissionDocument {
   fileUrl         String?
   createdAt       DateTime @default(now())
 
+  @@index([storageProvider])
+}
+
+model ServiceDeliverable {
+  id              String   @id @default(cuid())
+  admissionId     String
+  admission       AdmissionApplication @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  type            String   // CERTIFICATE_PDF | EQUIVALENCY_CERTIFICATE | PACKAGE_DOWNLOAD | CONSULTATION_LINK | CONSULTATION_REPORT | MEMBERSHIP_CARD | ACCREDITATION_CERTIFICATE | CUSTOM_PACKAGE_DRAFT | CUSTOM_PACKAGE_FINAL | OTHER
+  status          String   @default("PUBLISHED") // DRAFT | PUBLISHED | REVOKED
+  title           String
+  description     String?
+  fileName        String?
+  mimeType        String?
+  size            Int      @default(0)
+  storageProvider String?
+  storageKey      String?
+  fileUrl         String?
+  externalUrl     String?
+  certificateId   String?
+  verificationUrl String?
+  meetingAt       DateTime?
+  expiresAt       DateTime?
+  visibleToStudent Boolean @default(true)
+  createdById     String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([admissionId, status])
+  @@index([type])
+  @@index([visibleToStudent])
   @@index([storageProvider])
 }
