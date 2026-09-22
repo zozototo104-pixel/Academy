@@ -41,6 +41,8 @@ model User {
   reviewedThesisTopics ThesisTopic[] @relation("ThesisTopicReviewer")
   thesisTopicRequests ThesisTopicRequest[]
   ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
+  aiLiveUsages  AiLiveUsage[]
+  aiLiveCredits AiLiveCredit[]
 }
 
 model Session {
