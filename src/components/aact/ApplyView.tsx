@@ -664,6 +664,34 @@ export function ApplyView() {
           ) : (
             <Card className="mx-auto mt-6 max-w-3xl border-[#0f2b46]/15 shadow-xl">
               <CardContent className="p-6 sm:p-8">
+                {recentApplications.length > 0 && (
+                  <div className="mb-5 rounded-2xl border border-[#c9a227]/30 bg-[#f7edd0]/40 p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-[#0f2b46]">طلباتك السابقة والحالية</p>
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">يمكنك تقديم طلب جديد الآن، مع الاحتفاظ بسجل الخدمات أو البرامج السابقة في التتبع وبوابة العميل/الطالب.</p>
+                      </div>
+                      <Badge className="bg-white text-[#a8841a] hover:bg-white">{recentApplications.length} طلب</Badge>
+                    </div>
+                    <div className="grid gap-2">
+                      {recentApplications.map((app: any) => {
+                        const status = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+                        return (
+                          <div key={app.reference} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
+                            <div className="min-w-0">
+                              <p className="truncate font-black text-[#0f2b46]">{app.program}</p>
+                              <p className="mt-0.5 font-bold text-slate-500"><span dir="ltr">{app.reference}</span> — {app.isStudyProgram ? 'برنامج دراسي' : 'خدمة عابرة'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${status.cls} hover:${status.cls}`}>{status.text}</Badge>
+                              <Button type="button" size="sm" variant="outline" onClick={() => { setTracked(app); setTrackRef(app.reference); setTrackError(''); setActiveTab('track') }} className="h-8 border-[#c9a227]/50 text-[11px] font-black text-[#a8841a]">عرض</Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
                 <h2 className="mb-1 text-lg font-black text-[#0f2b46]">{isServiceRequest ? 'نموذج طلب الخدمة الإلكتروني' : 'نموذج طلب القبول الإلكتروني'}</h2>
                 <p className="mb-6 text-xs text-slate-500">{isServiceRequest ? 'أكمل بياناتك واشرح احتياجك لتتمكن الإدارة من دراسة الطلب والمتابعة.' : 'أكمل البيانات التالية بدقة لدراسة ملفك والالتحاق بالبرنامج.'}</p>
 
