@@ -98,6 +98,9 @@ interface AdmissionFileEvidence {
   textSnippet: string
   textReader: ExtractedDocumentText['reader'] | 'IMAGE'
   textNote: string
+  storageProvider?: string | null
+  storageKey?: string | null
+  fileUrl?: string | null
   ocrRead?: ImageDocRead | null
 }
 
