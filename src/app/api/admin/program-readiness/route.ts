@@ -11,6 +11,13 @@ function cleanText(value: unknown, max = 1000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max) || null
 }
 
+function isCurriculumProgram(program: { slug?: string | null; category?: string | null }) {
+  const flow = getServiceFlow(program.slug || undefined)
+  if (flow && flow.isStudyProgram === false) return false
+  if (program.category === 'SERVICE') return false
+  return true
+}
+
 function safeJsonHasRules(value: any) {
   if (!value) return false
   const rules = typeof value === 'string' ? (() => { try { return JSON.parse(value) } catch { return null } })() : value
