@@ -31,6 +31,7 @@ export interface ServiceWorkflowState {
   activeIndex: number
   activeStage: ServiceWorkflowStage
   nextAction: string
+  clientNextAction: string
   expectedDeliverableTypes: string[]
   paid: boolean
   hasInvoice: boolean
