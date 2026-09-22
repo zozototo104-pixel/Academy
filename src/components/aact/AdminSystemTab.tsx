@@ -116,11 +116,25 @@ const GEMINI_THINKING_CHOICES = [
 ]
 
 const TEXT_PROVIDER_CHOICES = [
-  { value: 'GEMINI', label: 'Gemini فقط — الافتراضي' },
-  { value: 'AUTO', label: 'تلقائي — OpenAI ثم Claude ثم GLM ثم Gemini احتياطي' },
+  { value: 'GEMINI', label: 'Gemini Router — مفاتيح Gemini متعددة للنصوص' },
+  { value: 'AUTO', label: 'تلقائي — Router بين كل المزودين المتاحين' },
   { value: 'OPENAI', label: 'OpenAI / ChatGPT للنصوص' },
   { value: 'ANTHROPIC', label: 'Claude للنصوص' },
   { value: 'ZAI', label: 'GLM / Z.AI للنصوص' },
+  { value: 'GROQ', label: 'Groq — سريع للنماذج المفتوحة' },
+  { value: 'OPENROUTER', label: 'OpenRouter — بوابة نماذج متعددة' },
+  { value: 'DEEPINFRA', label: 'DeepInfra — نماذج مفتوحة' },
+  { value: 'TOGETHER', label: 'Together AI — نماذج مفتوحة' },
+  { value: 'UNOROUTER', label: 'UnoRouter — خط احتياطي أخير' },
+  { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
+]
+
+const ROUTER_POLICY_CHOICES = [
+  { value: 'primary_first', label: 'Primary First — يبدأ بالمزود المختار ثم الاحتياطات' },
+  { value: 'balanced', label: 'Balanced — تدوير بسيط بين المزودين' },
+  { value: 'quality_first', label: 'Quality First — Claude/OpenAI ثم البقية' },
+  { value: 'cost_saver', label: 'Cost Saver — Groq/GLM/Gateways أولاً' },
+  { value: 'fallback_only', label: 'Fallback Only — المزود المختار فقط' },
 ]
 
 const OPENAI_TEXT_MODEL_CHOICES = [
