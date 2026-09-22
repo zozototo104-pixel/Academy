@@ -41,7 +41,8 @@ export async function PATCH(req: NextRequest) {
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
 
-    const r = await markInvoicePaid(payment.invoiceNo, 'BANK_TRANSFER', {
+    const confirmMethod = payment.method === 'DIRECT_PAYMENT' ? 'DIRECT_PAYMENT' : 'BANK_TRANSFER'
+    const r = await markInvoicePaid(payment.invoiceNo, confirmMethod, {
       actor: { id: admin.id, name: admin.name },
     })
     if (!r.ok) return NextResponse.json({ error: r.error || 'تعذر تأكيد السداد' }, { status: 400 })
