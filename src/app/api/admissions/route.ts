@@ -365,6 +365,7 @@ export async function GET(req: NextRequest) {
     const serialize = (app: any) => {
       const flow = getServiceFlow(app.programRef?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
+      const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
       return {
       reference: app.reference,
       fullName: app.fullName,
