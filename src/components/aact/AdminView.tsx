@@ -825,6 +825,29 @@ export function AdminView() {
                                 <p className="text-[11px] font-black text-purple-700"><Award className="ml-1 inline h-3.5 w-3.5" /> تنفيذ وتسليم الخدمة للعميل</p>
                                 <Badge className="bg-white text-purple-700 hover:bg-white">{a.deliverables?.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length || 0} منشور</Badge>
                               </div>
+                              {a.serviceWorkflow && (
+                                <div className="mb-3 rounded-xl border border-purple-100 bg-white p-3">
+                                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-[11px] font-black text-[#0f2b46]">{a.serviceWorkflow.workflow.title}</p>
+                                      <p className="mt-1 text-[10px] font-bold leading-5 text-slate-500">{a.serviceWorkflow.workflow.summary}</p>
+                                    </div>
+                                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">المرحلة: {a.serviceWorkflow.activeStage.label}</Badge>
+                                  </div>
+                                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                    {a.serviceWorkflow.stages.map((stage, idx) => (
+                                      <div key={`${a.id}-${stage.id}`} className={`rounded-lg border p-2 text-[10px] ${stage.state === 'done' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : stage.state === 'active' ? 'border-purple-200 bg-purple-50 text-purple-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                                        <p className="font-black">{stage.state === 'done' ? <CheckCircle2 className="ml-1 inline h-3.5 w-3.5" /> : stage.state === 'active' ? <Clock3 className="ml-1 inline h-3.5 w-3.5" /> : <span className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-200 text-[8px]">{idx + 1}</span>}{stage.label}</p>
+                                        <p className="mt-1 leading-5 opacity-80">{stage.description}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="mt-2 rounded-lg bg-purple-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-purple-800">
+                                    الإجراء التالي: {a.serviceWorkflow.nextAction}
+                                    {a.serviceWorkflow.expectedDeliverableTypes?.length ? <span className="block text-slate-500">المخرج المتوقع: {a.serviceWorkflow.expectedDeliverableTypes.map((t) => DELIVERABLE_TYPE_AR[t] || t).join(' / ')}</span> : null}
+                                  </div>
+                                </div>
+                              )}
                               {!serviceDeliveryReady && (
                                 <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-800">
                                   لا يمكن نشر أي مخرج للعميل قبل اعتماد طلب الخدمة وسداد فاتورتها. اضغط أولاً «اعتماد طلب الخدمة وتحديد المتابعة»، ثم أكد الدفع من تبويب الدفعات.
