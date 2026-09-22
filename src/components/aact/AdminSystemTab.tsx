@@ -126,6 +126,7 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'DEEPINFRA', label: 'DeepInfra — نماذج مفتوحة' },
   { value: 'TOGETHER', label: 'Together AI — نماذج مفتوحة' },
   { value: 'UNOROUTER', label: 'UnoRouter — خط احتياطي أخير' },
+  { value: 'RELAYROUTER', label: 'RelayRouter — بوابة نماذج متعددة مدفوعة' },
   { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
 ]
 
