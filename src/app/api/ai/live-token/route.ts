@@ -26,12 +26,16 @@ async function handler(req: NextRequest) {
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
     await ensureGeminiKey()
-    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose })
+    const allowance = await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
+    if (!allowance.ok) {
+      return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
+    }
+
+    const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: allowance.sessionLimitMinutes })
+    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: allowance.sessionLimitMinutes })
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
     }
-
-    const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: usage.sessionLimitMinutes })
     return NextResponse.json({ ...payload, liveUsage: usage, sessionLimitMinutes: usage.sessionLimitMinutes })
   } catch (e: any) {
     const msg = String(e?.message || e || '')
