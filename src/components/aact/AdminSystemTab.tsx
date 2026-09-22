@@ -675,6 +675,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'ANTHROPIC' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('ANTHROPIC_API_KEY', 'Anthropic API Key', data.secretsSet.ANTHROPIC_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'sk-ant-...', 'password', 'يستخدم Claude للنصوص والتحليل.')}
+                {F('ANTHROPIC_API_KEYS', 'Anthropic API Keys متعددة', data.secretsSet.ANTHROPIC_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-ant-...,sk-ant-...', 'password', 'اختياري: مفاتيح متعددة مفصولة بفاصلة للـ failover.')}
                 {SelectF('ANTHROPIC_TEXT_MODEL', 'نموذج Claude للنصوص', ANTHROPIC_TEXT_MODEL_CHOICES, 'Sonnet للتحليل المتوازن، Opus للمهام الأثقل عند توفره.')}
               </>
             ) : null}
