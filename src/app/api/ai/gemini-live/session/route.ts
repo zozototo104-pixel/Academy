@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
   const setup = buildSetup(setupVariant, model, systemInstruction, voice)
 
   const now = Date.now()
-  const sessionLimitMinutes = liveUsage?.sessionLimitMinutes || 10
+  const sessionLimitMinutes = allowance?.sessionLimitMinutes || 10
   const expireTime = new Date(now + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
