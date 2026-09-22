@@ -198,9 +198,14 @@ export function ProgramDetailsView() {
   }, [programDetailsId, loading, navigate])
 
   const program = programs.find((p) => p.id === programDetailsId || p.slug === programDetailsId)
-  const isService = program?.category === 'SERVICE'
+  const flow = getServiceFlow(program?.slug)
+  const isService = flow ? !flow.isStudyProgram : program?.category === 'SERVICE'
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
   const academicProfile = program && !isService ? buildAcademicProgramProfile(program) : null
+  const displayTitle = flow?.title || program?.titleAr || ''
+  const displayDescription = flow?.summary || program?.description || ''
+  const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
+  const displayPrimaryAction = flow?.primaryAction || (isService ? 'طلب هذه الخدمة' : 'قدّم طلب الالتحاق بهذا البرنامج')
 
   const startAdmission = () => {
     if (!program) return
