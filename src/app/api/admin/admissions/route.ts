@@ -99,6 +99,13 @@ export async function PATCH(req: NextRequest) {
     const serviceFlow = getServiceFlow(programForFlow?.slug)
     const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
 
+    if (!isStudyRequest && supervisorId !== undefined) {
+      return NextResponse.json({ error: 'طلبات الخدمات العابرة لا تحتاج مشرفاً أكاديمياً. استخدم قسم تنفيذ وتسليم الخدمة بدلاً من مسار الطلاب.' }, { status: 400 })
+    }
+    if (!isStudyRequest && ['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'CERTIFIED'].includes(String(status || ''))) {
+      return NextResponse.json({ error: 'هذه خدمة عابرة وليست التحاقاً دراسياً؛ لا يمكن نقلها إلى مسارات الطالب أو إصدار شهادة دراسية. سلّم الناتج من قسم مخرجات الخدمة.' }, { status: 400 })
+    }
+
     if (isStudyRequest && !ownerIsStudent && (supervisorId !== undefined || ['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(status || '')))) {
       return NextResponse.json(
         { error: 'هذا الطلب مرتبط بحساب إداري/غير طالب. لا يمكن اعتماده كقيد دراسة. أنشئ حساب طالب منفصل بنفس بيانات الدارس ثم قدّم الطلب من حساب الطالب أو ارفض هذا الطلب كتجريبي.' },
