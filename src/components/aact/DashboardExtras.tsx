@@ -315,8 +315,8 @@ export function PaymentsTab() {
               )}
             </div>
             {payConfig && payConfig.trueGatewayCount === 0 && !payConfig.sandboxAllowed && (
-              <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-relaxed text-red-700">
-                الدفع الإلكتروني غير متاح حالياً. يرجى مراجعة الإدارة لاستلام تعليمات التحويل أو انتظار تفعيل وسيلة دفع إلكترونية.
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-relaxed text-amber-700">
+                الدفع الإلكتروني غير متاح حالياً، لكن يمكنك اختيار «دفع مباشر» ثم التواصل مع الإدارة لتسليم المبلغ وتأكيده يدوياً.
               </div>
             )}
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
