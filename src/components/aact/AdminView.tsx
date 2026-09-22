@@ -115,6 +115,8 @@ interface AdmissionApp {
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
   deliverables?: { id: string; type: string; status: string; title: string; description?: string | null; fileName?: string | null; mimeType?: string | null; size?: number | null; externalUrl?: string | null; certificateId?: string | null; verificationUrl?: string | null; meetingAt?: string | null; expiresAt?: string | null; visibleToStudent?: boolean; createdAt: string }[]
   serviceWorkflow?: ServiceWorkflowView | null
+  tuitionAppeal?: { id: string; status: string; requestedInitialAmount: number; proposedSchedule?: string | null; reason?: string | null; adminNote?: string | null; approvedInitialAmount?: number | null; firstSemesterRequiredAmount?: number | null; finalRequiredAmount?: number | null; createdAt: string } | null
+  tuitionPlan?: { totalTuition: number; paidTuition: number; remainingTuition: number; firstSemesterRequiredAmount: number; finalRequiredAmount: number; firstSemesterAllowed: boolean; secondSemesterAllowed: boolean } | null
   status: string; createdAt: string
   programSlug?: string | null
   requestKind?: string | null
