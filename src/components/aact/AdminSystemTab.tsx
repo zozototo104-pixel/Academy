@@ -785,7 +785,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'TOGETHER' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('TOGETHER_API_KEYS', 'Together API Keys', data.secretsSet.TOGETHER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password')}
-                {SelectF('TOGETHER_TEXT_MODEL', 'نموذج Together', OPEN_MODEL_GATEWAY_CHOICES, 'نماذج مفتوحة عبر Together.')}
+                {SelectF('TOGETHER_TEXT_MODEL', 'نموذج Together', modelOptions('TOGETHER', OPEN_MODEL_GATEWAY_CHOICES), modelHint('TOGETHER', 'نماذج مفتوحة عبر Together.'))}
                 {F('TOGETHER_BASE_URL', 'Together Base URL', 'https://api.together.ai/v1', 'text')}
               </>
             ) : null}
