@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { markInvoicePaid } from '@/lib/settle-payment'
 import { sandboxPaymentsAllowed, sandboxPaymentsBlockedMessage } from '@/lib/payments'
+import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 
 // GET /api/payments — فواتير المستخدم (حسب حسابه أو بريده في طلبات الالتحاق)
 export async function GET() {
