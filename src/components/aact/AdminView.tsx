@@ -103,7 +103,7 @@ interface AdmissionApp {
   supervisor?: { id: string; name: string } | null
   supervisorId?: string | null
   thesisDeadline?: string | null
-  payments?: { id: string; purpose: string; status: string; amount: number }[]
+  payments?: { id: string; invoiceNo?: string; purpose: string; status: string; amount: number; method?: string | null; receiptNo?: string | null }[]
   theses?: { id: string; status: string; title: string }[]
   // التقييم الذكي المخزّن — يظهر للإدارة قبل زر الاعتماد
   aiVerdict?: string | null
