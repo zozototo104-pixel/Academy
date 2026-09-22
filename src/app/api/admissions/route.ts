@@ -357,6 +357,10 @@ export async function GET(req: NextRequest) {
         select: { id: true, title: true, status: true, createdAt: true, updatedAt: true },
         orderBy: { updatedAt: 'desc' as const },
       },
+      deliverables: {
+        select: { id: true, type: true, status: true, visibleToStudent: true, title: true, createdAt: true },
+        orderBy: { createdAt: 'desc' as const },
+      },
     }
     const serialize = (app: any) => {
       const flow = getServiceFlow(app.programRef?.slug)
