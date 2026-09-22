@@ -648,9 +648,10 @@ export function AdminView() {
               <UserCheck className="h-3.5 w-3.5" /> القبول والتسجيل
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
-              <TabsTrigger value="admissions" className="gap-1 text-[10px] font-bold sm:text-xs">الالتحاق ({admissionsLoading ? '…' : admissions.length})</TabsTrigger>
+              <TabsTrigger value="admissions" className="gap-1 text-[10px] font-bold sm:text-xs">الالتحاق الدراسي ({admissionsLoading ? '…' : studyAdmissions.length})</TabsTrigger>
+              <TabsTrigger value="service-requests" className="gap-1 text-[10px] font-bold sm:text-xs">الخدمات العابرة ({admissionsLoading ? '…' : serviceRequests.length})</TabsTrigger>
               <TabsTrigger value="rules" className="gap-1 text-[10px] font-bold sm:text-xs">قواعد القبول</TabsTrigger>
-              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({studentsLoading ? '…' : students.length})</TabsTrigger>
+              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({studentsLoading ? '…' : academicStudents.length})</TabsTrigger>
               <TabsTrigger value="supervisors" className="gap-1 text-[10px] font-bold sm:text-xs">إدارة المشرفين</TabsTrigger>
               <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({appsLoading ? '…' : apps.length})</TabsTrigger>
             </TabsList>
