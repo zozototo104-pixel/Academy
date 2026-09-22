@@ -409,6 +409,38 @@ export function AdminView() {
     }
   }
 
+  const decideTuitionAppeal = async (appeal: NonNullable<AdmissionApp['tuitionAppeal']>, decision: 'APPROVE' | 'REJECT', plan?: AdmissionApp['tuitionPlan']) => {
+    try {
+      let body: any = { id: appeal.id, decision }
+      if (decision === 'APPROVE') {
+        const total = plan?.totalTuition || appeal.finalRequiredAmount || 0
+        const initialDefault = appeal.requestedInitialAmount || Math.ceil(total * 0.25)
+        const initial = window.prompt('الدفعة الأولى المقبولة بالدولار', String(initialDefault))
+        if (initial === null) return
+        const sem1 = window.prompt('المبلغ المطلوب قبل فتح امتحان الفصل الأول', String(plan?.firstSemesterRequiredAmount || Math.ceil(total / 2)))
+        if (sem1 === null) return
+        const final = window.prompt('المبلغ المطلوب قبل فتح امتحان الفصل الثاني', String(plan?.finalRequiredAmount || total))
+        if (final === null) return
+        const note = window.prompt('ملاحظة الإدارة للطالب (اختياري)', appeal.adminNote || '')
+        body = {
+          ...body,
+          approvedInitialAmount: Number(initial),
+          firstSemesterRequiredAmount: Number(sem1),
+          finalRequiredAmount: Number(final),
+          adminNote: note || undefined,
+        }
+      } else {
+        const note = window.prompt('سبب رفض الالتماس (اختياري)', appeal.adminNote || '')
+        body.adminNote = note || undefined
+      }
+      await api('/api/admin/tuition-appeals', { method: 'PATCH', body: JSON.stringify(body) })
+      toast({ title: decision === 'APPROVE' ? 'تم قبول التقسيط' : 'تم رفض الالتماس', description: 'تم إشعار الطالب بالقرار.' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث الالتماس', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(true)
