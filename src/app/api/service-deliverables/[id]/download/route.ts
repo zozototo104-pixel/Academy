@@ -24,9 +24,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           OR: [{ userId: user.id }, { email: user.email }],
         },
       },
-      include: { admission: { select: { reference: true } } },
+      include: { admission: { select: { reference: true, status: true, payments: { select: { status: true } } } } },
     })
     if (!deliverable) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+    const eligible = ['RESULT_APPROVED', 'CERTIFIED'].includes(deliverable.admission.status) && deliverable.admission.payments.length > 0 && deliverable.admission.payments.every((p) => p.status === 'PAID')
+    if (!eligible) return NextResponse.json({ error: 'PAYMENT_REQUIRED', message: 'هذا المخرج لا يصبح متاحاً إلا بعد اعتماد الطلب وسداد الفواتير المستحقة.' }, { status: 403 })
 
     if (deliverable.externalUrl && /^https?:\/\//i.test(deliverable.externalUrl)) {
       return NextResponse.redirect(deliverable.externalUrl)
