@@ -69,6 +69,11 @@ export async function GET() {
       const flow = getServiceFlow(program?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : program?.category !== 'SERVICE'
       const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
+      const tuitionAppeal = appealMap.get(app.id) || null
+      const totalTuition = inferTotalTuition(app.payments)
+      const paidTuition = tuitionPaidTotal(app.payments)
+      const firstSemesterRequiredAmount = roundMoney(tuitionAppeal?.firstSemesterRequiredAmount ?? totalTuition / 2)
+      const finalRequiredAmount = roundMoney(tuitionAppeal?.finalRequiredAmount ?? totalTuition)
       return {
         ...app,
         programSlug: program?.slug || null,
