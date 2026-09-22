@@ -295,7 +295,7 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 }
 
 function providerOrder(s: Settings): ConcreteProvider[] {
-  const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT'])
+  const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'OPENAI_COMPAT'])
   return baseOrder(s).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
     if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider) return false
