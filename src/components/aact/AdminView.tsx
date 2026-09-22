@@ -219,6 +219,21 @@ const DOC_TYPE_AR: Record<string, string> = {
   FLOW_DOC_5: 'مستند مسار الخدمة 5',
 }
 
+const DELIVERABLE_TYPE_AR: Record<string, string> = {
+  CERTIFICATE_PDF: 'شهادة PDF',
+  EQUIVALENCY_CERTIFICATE: 'شهادة معادلة',
+  PACKAGE_DOWNLOAD: 'رابط/ملف تحميل حقيبة',
+  CONSULTATION_LINK: 'رابط جلسة استشارية',
+  CONSULTATION_REPORT: 'تقرير استشارة',
+  MEMBERSHIP_CARD: 'بطاقة عضوية',
+  ACCREDITATION_CERTIFICATE: 'شهادة اعتماد',
+  CUSTOM_PACKAGE_DRAFT: 'مسودة حقيبة مخصصة',
+  CUSTOM_PACKAGE_FINAL: 'التسليم النهائي للحقيبة',
+  OTHER: 'مخرج آخر',
+}
+
+const DELIVERABLE_TYPE_OPTIONS = Object.entries(DELIVERABLE_TYPE_AR).map(([value, label]) => ({ value, label }))
+
 // وثائق طلبات الاعتماد الرسمية (وفق دليل الإجراءات — خطوة إرفاق الوثائق)
 const AGENT_DOC_AR: Record<string, string> = {
   LICENSE: 'شهادة الترخيص/مزاولة المهنة',
