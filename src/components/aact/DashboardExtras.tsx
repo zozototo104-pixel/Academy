@@ -152,10 +152,16 @@ export function PaymentsTab() {
     setPaying(true)
     try {
       // 1) إنشاء جلسة دفع لدى المزود — يُعيد رابط دفع حقيقي عند تهيئة المفاتيح (وضع LIVE)
-      const co = await api<{ mode: 'SANDBOX' | 'LIVE'; redirectUrl: string | null; provider: string }>('/api/payments/checkout', {
+      const co = await api<{ mode: 'SANDBOX' | 'LIVE' | 'MANUAL'; redirectUrl: string | null; provider: string; message?: string }>('/api/payments/checkout', {
         method: 'POST',
         body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
       })
+      if (co?.provider === 'DIRECT_PAYMENT') {
+        toast({ title: 'تم اختيار الدفع المباشر', description: co.message || 'تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة الدفع من لوحة الإدارة.' })
+        setPayTarget(null)
+        load()
+        return
+      }
       if (co?.redirectUrl) {
         // دفع حقيقي: تحويل الطالب لصفحة الدفع الرسمية لدى Stripe/PayPal
         window.location.href = co.redirectUrl
