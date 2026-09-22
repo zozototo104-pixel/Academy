@@ -23,6 +23,7 @@ export async function GET() {
         program: true,
         status: true,
         createdAt: true,
+        payments: { select: { status: true } },
         deliverables: {
           where: { status: 'PUBLISHED', visibleToStudent: true },
           orderBy: { createdAt: 'desc' },
