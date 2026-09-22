@@ -228,7 +228,7 @@ export function ProgramsView() {
                     </div>
                   </div>
 
-                  <p className="text-sm leading-relaxed text-slate-600">{p.description}</p>
+                  <p className="text-sm leading-relaxed text-slate-600">{displayDescription}</p>
 
                   <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
                     {p.hours && (
