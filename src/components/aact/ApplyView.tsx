@@ -510,7 +510,7 @@ export function ApplyView() {
                   </div>
                 ))}
               </div>
-              <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-bold leading-6 text-purple-800">المرحلة الحالية: {app.serviceWorkflow.activeStage?.label} — {app.serviceWorkflow.nextAction}</p>
+              <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-bold leading-6 text-purple-800">المرحلة الحالية: {app.serviceWorkflow.activeStage?.label} — {app.serviceWorkflow.clientNextAction || app.nextAction}</p>
             </div>
           )}
 
