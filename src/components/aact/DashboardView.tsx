@@ -386,6 +386,14 @@ export function DashboardView() {
     if (!user) navigate('auth')
   }, [user, navigate])
 
+  useEffect(() => {
+    if (!user) return
+    const academicTabs = ['programs', 'supervision', 'thesis', 'transcript', 'certs']
+    if (enrollments.length === 0 && academicTabs.includes(dashboardTab)) {
+      setDashboardTab(serviceDeliverables.length ? 'deliverables' : 'payments')
+    }
+  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab])
+
   if (!user) {
     return null
   }
