@@ -209,6 +209,16 @@ export function deriveServiceWorkflowState(input: {
         ? 'ارفع أو انشر المخرج المناسب لهذه المرحلة حتى يظهر للعميل.'
         : activeStage.description
 
+  const clientNextAction = !hasInvoice
+    ? 'طلبك قيد مراجعة الإدارة. ستصدر الفاتورة أو تعليمات المتابعة بعد اعتماد تفاصيل الخدمة.'
+    : !paid
+      ? 'يرجى سداد الفاتورة أو اختيار الدفع المباشر والتواصل مع الإدارة لتأكيد الاستلام.'
+      : activeStage.deliverableTypes?.length
+        ? 'تم تأكيد الدفع. الإدارة تعمل الآن على تجهيز المخرج المناسب لهذه المرحلة.'
+        : activeIndex >= workflow.stages.length - 1
+          ? 'تم اكتمال الخدمة. راجع بوابة العميل للاطلاع على المخرجات.'
+          : activeStage.description
+
   return {
     workflow,
     stages,
