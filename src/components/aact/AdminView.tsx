@@ -690,8 +690,8 @@ export function AdminView() {
           </div>
         </div>
 
-        {/* Admissions applications */}
-        <TabsContent value="admissions">
+        {/* Study admissions + transient service requests. نفس قالب البطاقة، لكن كل مسار في تبويب منفصل. */}
+        <TabsContent value={activeTab === 'service-requests' ? 'service-requests' : 'admissions'}>
           <div className="mt-4 space-y-4">
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
