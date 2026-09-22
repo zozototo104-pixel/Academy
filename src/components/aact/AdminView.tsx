@@ -1111,9 +1111,9 @@ export function AdminView() {
                                   تم الإقرار بالقبول — بانتظار سداد المتقدم الرسوم الدراسية كاملة (يُفعَّل التسجيل النهائي تلقائياً فور السداد)
                                 </div>
                               )}
-                              {['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED'].includes(a.status) && (
+                              {isStudyAdmission && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED'].includes(a.status) && (
                                 <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'CERTIFIED')} className="border-[#c9a227] font-bold text-[#a8841a] hover:bg-[#f7edd0]">
-                                  <Award className="ml-1 h-3.5 w-3.5" /> إصدار الشهادة
+                                  <Award className="ml-1 h-3.5 w-3.5" /> إصدار الشهادة الدراسية
                                 </Button>
                               )}
                               <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
