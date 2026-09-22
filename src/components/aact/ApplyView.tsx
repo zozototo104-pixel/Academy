@@ -582,7 +582,7 @@ export function ApplyView() {
 
       <Tabs defaultValue="apply" dir="rtl" className="w-full">
         <TabsList className="mx-auto grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="apply" className="text-xs font-bold sm:text-sm">طلب الالتحاق</TabsTrigger>
+          <TabsTrigger value="apply" className="text-xs font-bold sm:text-sm">طلب خدمة/التحاق</TabsTrigger>
           <TabsTrigger value="track" className="text-xs font-bold sm:text-sm">تتبع طلبك</TabsTrigger>
         </TabsList>
 
