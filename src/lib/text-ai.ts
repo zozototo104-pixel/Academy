@@ -11,6 +11,7 @@ export type TextAiProvider =
   | 'DEEPINFRA'
   | 'TOGETHER'
   | 'UNOROUTER'
+  | 'RELAYROUTER'
   | 'OPENAI_COMPAT'
   | 'AUTO'
 
