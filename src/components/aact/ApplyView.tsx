@@ -522,11 +522,20 @@ export function ApplyView() {
             </div>
           )}
 
-          {isFinalActive && (
+          {isStudyFinalActive && (
             <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-bold leading-7 text-emerald-800">تم استكمال التسجيل. يمكنك متابعة الدراسة والكتب والاختبارات من بوابة الطالب.</p>
               <Button onClick={() => navigate('dashboard')} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
                 <GraduationCap className="ml-2 h-4 w-4" /> دخول بوابة الطالب
+              </Button>
+            </div>
+          )}
+
+          {isServiceApproved && (
+            <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold leading-7 text-emerald-800">تم اعتماد طلب الخدمة. تابع الدفعات والمخرجات التي تنشرها الإدارة من بوابة العميل.</p>
+              <Button onClick={() => navigate('dashboard')} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+                <ClipboardList className="ml-2 h-4 w-4" /> دخول بوابة العميل
               </Button>
             </div>
           )}
