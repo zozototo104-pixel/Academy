@@ -8,14 +8,17 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissions, passedAttempts, recentAttempts, programCounts] =
+    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, passedAttempts, recentAttempts, programCounts] =
       await Promise.all([
-        db.user.count({ where: { role: 'STUDENT' } }),
+        db.user.count({ where: { role: 'STUDENT', enrollments: { some: {} } } }),
         db.enrollment.count(),
         db.examAttempt.count(),
         db.chatMessage.count({ where: { role: 'user' } }),
         db.agentApplication.count({ where: { status: 'PENDING' } }),
-        db.admissionApplication.count({ where: { status: { in: ['PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'] } } }),
+        db.admissionApplication.findMany({
+          where: { status: { in: ['PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'] } },
+          select: { programRef: { select: { slug: true, category: true } } },
+        }),
         db.examAttempt.count({ where: { passed: true } }),
         db.examAttempt.findMany({
           orderBy: { submittedAt: 'desc' },
