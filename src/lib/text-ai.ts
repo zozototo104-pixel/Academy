@@ -313,7 +313,39 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
-function modelFallbacks(s: Settings, provider: ConcreteProvider): string[] {
+async function liveUnoRouterFreeModels(baseUrl: string): Promise<string[]> {
+  const now = Date.now()
+  if (unorouterFreeModelsCache && now - unorouterFreeModelsCache.at < 30 * 60 * 1000) return unorouterFreeModelsCache.models
+  const root = (baseUrl || 'https://api.unorouter.com/v1').replace(/\/$/, '').replace(/\/v1$/, '')
+  try {
+    const response = await fetch(`${root}/api/pricing/catalog`, { cache: 'no-store' })
+    const data: any = await response.json().catch(() => ({}))
+    const rows: any[] = Array.isArray(data?.models)
+      ? data.models
+      : Array.isArray(data)
+        ? data
+        : []
+    const models = rows
+      .filter((m) => m?.is_free === true)
+      .filter((m) => m?.online !== false)
+      .filter((m) => {
+        const endpoints = Array.isArray(m?.supported_endpoint_types) ? m.supported_endpoint_types : []
+        return endpoints.length === 0 || endpoints.includes('openai')
+      })
+      .filter((m) => !/image|video|audio/i.test(String(m?.type || 'text')))
+      .map((m) => String(m?.model_name || '').trim())
+      .filter(Boolean)
+      .map((name) => name.endsWith(':free') ? name : `${name}:free`)
+      .filter((name) => /^[a-z0-9][a-z0-9_.\/:-]{1,180}$/i.test(name))
+    unorouterFreeModelsCache = { at: now, models: [...new Set(models)] }
+    return unorouterFreeModelsCache.models
+  } catch {
+    unorouterFreeModelsCache = { at: now, models: [] }
+    return []
+  }
+}
+
+async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<string[]> {
   const selected = modelFor(s, provider)
   const defaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
