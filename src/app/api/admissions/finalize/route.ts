@@ -90,7 +90,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!isServiceRequest) {
+    if (isServiceRequest) {
+      emailServiceRequestSubmitted(app.email, app.fullName, app.reference, selectedTitle).catch(() => {})
+    } else {
       emailAdmissionSubmitted(app.email, app.fullName, app.reference, selectedTitle, appFee).catch(() => {})
     }
     await audit(
