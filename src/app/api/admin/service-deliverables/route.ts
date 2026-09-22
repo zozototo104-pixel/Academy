@@ -49,9 +49,32 @@ export async function POST(req: Request) {
 
     const admission = await db.admissionApplication.findUnique({
       where: { id: admissionId },
-      select: { id: true, fullName: true, email: true, reference: true, program: true },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        reference: true,
+        program: true,
+        status: true,
+        programRef: { select: { slug: true, category: true } },
+        payments: { select: { id: true, purpose: true, status: true, amount: true } },
+      },
     })
     if (!admission) return NextResponse.json({ error: 'ADMISSION_NOT_FOUND' }, { status: 404 })
+
+    const flow = getServiceFlow(admission.programRef?.slug)
+    const isStudyRequest = flow ? flow.isStudyProgram : admission.programRef?.category !== 'SERVICE'
+    const wantsPublish = status === 'PUBLISHED' && visibleToStudent
+    const approvedForDelivery = isStudyRequest
+      ? ['RESULT_APPROVED', 'CERTIFIED'].includes(admission.status)
+      : ['RESULT_APPROVED', 'CERTIFIED'].includes(admission.status)
+    const allPaymentsPaid = admission.payments.length > 0 && admission.payments.every((p) => p.status === 'PAID')
+    if (wantsPublish && !approvedForDelivery) {
+      return NextResponse.json({ error: 'APPROVAL_REQUIRED', message: 'لا يمكن نشر مخرج للعميل قبل اعتماد الطلب من الإدارة.' }, { status: 400 })
+    }
+    if (wantsPublish && !allPaymentsPaid) {
+      return NextResponse.json({ error: 'PAYMENT_REQUIRED', message: admission.payments.length ? 'لا يمكن نشر المخرج للعميل قبل سداد الفواتير المستحقة.' : 'لا يمكن نشر المخرج قبل اعتماد الطلب وإصدار فاتورة الخدمة.' }, { status: 400 })
+    }
 
     let stored: { provider?: string; key?: string; url?: string; fileName?: string; mimeType?: string; size?: number } = {}
     if (file instanceof File && file.size > 0) {
