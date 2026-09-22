@@ -140,6 +140,14 @@
     radial-gradient(circle at 50% 33%, rgba(255, 255, 255, 0.07), transparent 24rem),
     radial-gradient(circle at 18% 78%, rgba(191, 22, 70, 0.16), transparent 26rem),
     linear-gradient(180deg, #1d2947 0%, #202c4b 58%, #1d2947 100%);
+  will-change: transform, opacity;
+  transform: translateY(0);
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.42s ease;
+}
+.aact-startup-screen.is-exiting {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-9vh);
 }
 
 .aact-startup-screen img,
