@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { getServiceFlow } from '@/lib/service-flows'
 
 // GET /api/admin/stats — إحصائيات لوحة الإدارة
 export async function GET() {
