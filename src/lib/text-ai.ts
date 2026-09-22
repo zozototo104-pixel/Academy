@@ -55,6 +55,7 @@ export interface TextAiDiagnostics {
   deepinfraModel: string
   togetherModel: string
   unorouterModel: string
+  relayrouterModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
