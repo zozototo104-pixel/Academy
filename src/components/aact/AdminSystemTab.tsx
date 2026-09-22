@@ -764,7 +764,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'GROQ' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('GROQ_API_KEYS', 'Groq API Keys', data.secretsSet.GROQ_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'gsk_...,gsk_...', 'password', 'مفاتيح متعددة مفصولة بفاصلة.')}
-                {SelectF('GROQ_TEXT_MODEL', 'نموذج Groq', GROQ_TEXT_MODEL_CHOICES, 'مناسب للمسودات السريعة والأسئلة القصيرة.')}
+                {SelectF('GROQ_TEXT_MODEL', 'نموذج Groq', modelOptions('GROQ', GROQ_TEXT_MODEL_CHOICES), modelHint('GROQ', 'مناسب للمسودات السريعة والأسئلة القصيرة.'))}
                 {F('GROQ_API_BASE', 'Groq Base URL', 'https://api.groq.com/openai/v1', 'text')}
               </>
             ) : null}
