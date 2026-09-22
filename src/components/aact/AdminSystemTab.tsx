@@ -792,7 +792,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'UNOROUTER' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('UNOROUTER_API_KEYS', 'UnoRouter API Keys', data.secretsSet.UNOROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'خط دفاع أخير عند توفره.')}
-                {SelectF('UNOROUTER_TEXT_MODEL', 'نموذج UnoRouter', UNOROUTER_TEXT_MODEL_CHOICES, 'استخدم النماذج المجانية فقط عندما تكون متاحة في حسابك.')}
+                {SelectF('UNOROUTER_TEXT_MODEL', 'نموذج UnoRouter', modelOptions('UNOROUTER', UNOROUTER_TEXT_MODEL_CHOICES), modelHint('UNOROUTER', 'استخدم النماذج المجانية فقط عندما تكون متاحة في حسابك.'))}
                 {F('UNOROUTER_BASE_URL', 'UnoRouter Base URL', 'https://api.unorouter.com/v1', 'text')}
               </>
             ) : null}
