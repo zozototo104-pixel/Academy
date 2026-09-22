@@ -306,6 +306,359 @@ export function PaymentsTab() {
         </Card>
       </div>
 
+      {tuitionPlans.filter((plan) => plan.totalTuition > 0 && plan.remainingTuition > 0).map((plan) => (
+        <Card key={plan.admissionId} className="border-blue-100 bg-blue-50/40">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-[#0f2b46]">خطة الرسوم الدراسية — {plan.program}</p>
+                <p className="mt-1 text-xs font-bold text-slate-600">المسدد {plan.paidTuition}$ من أصل {plan.totalTuition}$ — المتبقي {plan.remainingTuition}$</p>
+              </div>
+              <Badge className={plan.appealStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : plan.appealStatus === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
+                {plan.appealStatus === 'APPROVED' ? 'تقسيط معتمد' : plan.appealStatus === 'PENDING' ? 'التماس قيد الدراسة' : 'بدون تقسيط'}
+              </Badge>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الأول: يلزم سداد {plan.halfRequired}$ {plan.firstSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
+              <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الثاني: يلزم سداد {plan.finalRequired}$ {plan.secondSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
+            </div>
+            {plan.appealStatus === 'APPROVED' ? (
+              <div className="mt-3 rounded-xl border border-emerald-100 bg-white p-3">
+                <p className="text-xs font-black text-emerald-800">يمكنك دفع أي مبلغ متوفر لديك حتى اكتمال الرسوم.</p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <Input value={partialAmount[plan.admissionId] || ''} onChange={(e) => setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: e.target.value }))} inputMode="decimal" placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}'use client'
+
+import { useEffect, useState } from 'react'
+import { api, useAppStore } from '@/lib/store'
+import { buildAcademicProgramProfile } from '@/lib/program-tracks'
+import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import { DefenseRoom } from '@/components/aact/DefenseRoom'
+import { AcademyLogo } from '@/components/aact/Shell'
+import {
+  Banknote, Loader2, ReceiptText, Wallet, CheckCircle2, Clock3, Landmark,
+  FileText, Hourglass, CalendarClock, Award, Gavel, Users2, Info, CreditCard, Printer,
+  GraduationCap, ScrollText, Trophy, BookOpen, ClipboardCheck,
+} from 'lucide-react'
+
+// ============ تبويب الدفعات والفواتير ============
+
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentConfig {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+}
+
+interface Payment {
+  id: string
+  invoiceNo: string
+  purpose: string
+  description: string
+  amount: number
+  currency: string
+  method?: string | null
+  status: string
+  receiptNo?: string | null
+  paidAt?: string | null
+  createdAt: string
+  reference?: string | null
+  admissionId?: string | null
+}
+
+interface TuitionPlan {
+  admissionId: string
+  reference: string
+  program: string
+  totalTuition: number
+  paidTuition: number
+  remainingTuition: number
+  halfRequired: number
+  finalRequired: number
+  firstSemesterAllowed: boolean
+  secondSemesterAllowed: boolean
+  appealStatus: string | null
+  appealId: string | null
+  approvedInitialAmount: number | null
+}
+
+const PURPOSE_LABEL: Record<string, string> = {
+  APPLICATION_FEE: 'رسوم تقديم وحجز مقعد',
+  TUITION: 'الرسوم الدراسية الكاملة',
+  ACCREDITATION_APP: 'رسوم تقديم اعتماد',
+  ACCREDITATION_FEE: 'رسوم تقديم اعتماد (100$)',
+  ACCREDITATION: 'رسوم اعتماد',
+  SERVICE_FEE: 'رسوم تنفيذ خدمة',
+  TUITION_INSTALLMENT: 'دفعة جزئية من الرسوم الدراسية',
+  OTHER: 'رسوم أخرى',
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  PAYMOB: 'Paymob (فوري/بطاقة)',
+  FAWRY: 'فوري',
+  STRIPE: 'Stripe (بطاقة دولية)',
+  PAYPAL: 'PayPal',
+  BANK_TRANSFER: 'تحويل بنكي',
+  DIRECT_PAYMENT: 'دفع مباشر',
+}
+
+export function PaymentsTab() {
+  const { toast } = useToast()
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [tuitionPlans, setTuitionPlans] = useState<TuitionPlan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [payTarget, setPayTarget] = useState<Payment | null>(null)
+  const [method, setMethod] = useState('PAYMOB')
+  const [paying, setPaying] = useState(false)
+  const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
+  const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
+  const [appealPlanId, setAppealPlanId] = useState<string | null>(null)
+  const [appealAmount, setAppealAmount] = useState('')
+  const [appealReason, setAppealReason] = useState('')
+  const [appealSchedule, setAppealSchedule] = useState('')
+  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [appealBusy, setAppealBusy] = useState(false)
+
+  const load = () => {
+    api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
+      .then((d) => {
+        setPayments(d.payments)
+        setTuitionPlans(Array.isArray(d.tuitionPlans) ? d.tuitionPlans : [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => {
+    load()
+    // جلب وضع الدفع الحالي وحالة كل بوابة لتوجيه الطالب للبوابة المناسبة
+    api<PaymentConfig>('/api/payments/config')
+      .then((d) => {
+        setPayMode(d.mode || 'SANDBOX')
+        setPayConfig(d)
+      })
+      .catch(() => {})
+    // العودة من بوابة الدفع الحقيقية (Stripe/PayPal): تحقق خادمي من المزود ثم اعتماد — لا ثقة بالمتصفح
+    const q = new URLSearchParams(window.location.search)
+    const paid = q.get('paid')
+    if (paid) {
+      api<{ ok: boolean; status: string; receiptNo?: string; note?: string }>(
+        `/api/payments/verify-session?invoiceNo=${encodeURIComponent(paid)}`
+      )
+        .then((d) => {
+          if (d.status === 'PAID') {
+            toast({ title: 'تم تأكيد الدفع', description: `سُددت الفاتورة ${paid} بنجاح — الإيصال ${d.receiptNo || ''} متاح الآن` })
+          } else if (d.note === 'NO_PROVIDER_SESSION') {
+            toast({ title: 'الفاتورة بانتظار السداد', description: 'أكمل السداد من زر «ادفع الآن» أو أبلغ الإدارة بالتحويل' })
+          } else {
+            toast({ title: 'لم يُؤكد المزود السداد بعد', description: d.note || 'إن أكملت الدفع فسيُعتمد تلقائياً خلال دقائق' })
+          }
+          load()
+        })
+        .catch(() => {})
+      window.history.replaceState({}, '', '/?view=dashboard')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openPaymentDialog = (payment: Payment) => {
+    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    if (firstEnabled) setMethod(firstEnabled)
+    setPayTarget(payment)
+  }
+
+  const submitInstallmentAppeal = async (plan: TuitionPlan) => {
+    const amount = Number(appealAmount || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغاً صحيحاً', description: 'حدد الدفعة التي تستطيع دفعها الآن.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      await api('/api/tuition-appeals', {
+        method: 'POST',
+        body: JSON.stringify({
+          admissionId: plan.admissionId,
+          requestedInitialAmount: amount,
+          reason: appealReason,
+          proposedSchedule: appealSchedule,
+        }),
+      })
+      toast({ title: 'تم إرسال الالتماس', description: 'سيظهر القرار بعد مراجعة الإدارة، وستصلك رسالة عند القبول أو الرفض.' })
+      setAppealPlanId(null)
+      setAppealAmount('')
+      setAppealReason('')
+      setAppealSchedule('')
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال الالتماس', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const createInstallmentInvoice = async (plan: TuitionPlan) => {
+    const amount = Number(partialAmount[plan.admissionId] || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      const r = await api<{ payment: Payment }>('/api/payments/installment', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, amount }),
+      })
+      toast({ title: 'تم إنشاء فاتورة دفعة جزئية', description: `يمكنك الآن دفع ${amount}$ من الفواتير.` })
+      setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: '' }))
+      load()
+      if (r.payment) setPayTarget(r.payment)
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء الدفعة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const pay = async () => {
+    if (!payTarget) return
+    const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
+    if (selectedMethod && !selectedMethod.enabled) {
+      toast({
+        title: 'طريقة الدفع غير متاحة حالياً',
+        description: selectedMethod.reason || 'هذه الطريقة لم تُفعّل بعد من الإدارة. يرجى اختيار وسيلة أخرى أو مراجعة الإدارة.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE' && method !== 'DIRECT_PAYMENT') {
+      toast({
+        title: 'الدفع الإلكتروني غير متاح حالياً',
+        description: 'لا توجد بوابة دفع حقيقية مفعلة الآن. اختر «دفع مباشر» للتواصل مع الإدارة أو فعّل بوابة دفع إلكترونية.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setPaying(true)
+    try {
+      // 1) إنشاء جلسة دفع لدى المزود — يُعيد رابط دفع حقيقي عند تهيئة المفاتيح (وضع LIVE)
+      const co = await api<{ mode: 'SANDBOX' | 'LIVE' | 'MANUAL'; redirectUrl: string | null; provider: string; message?: string }>('/api/payments/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
+      })
+      if (co?.provider === 'DIRECT_PAYMENT') {
+        toast({ title: 'تم اختيار الدفع المباشر', description: co.message || 'تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة الدفع من لوحة الإدارة.' })
+        setPayTarget(null)
+        load()
+        return
+      }
+      if (co?.redirectUrl) {
+        // دفع حقيقي: تحويل الطالب لصفحة الدفع الرسمية لدى Stripe/PayPal
+        window.location.href = co.redirectUrl
+        return
+      }
+      if (co?.provider !== 'SANDBOX') {
+        throw new Error('تعذر استلام رابط الدفع من البوابة. حاول لاحقاً أو راجع الإدارة.')
+      }
+      // 2) SANDBOX المسموح فقط: تأكيد آمن داخل المنصة مع إيصال فوري في بيئات الاختبار
+      const d = await api<{ payment: Payment; receiptNo: string }>('/api/payments', {
+        method: 'POST',
+        body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
+      })
+      setPayTarget(null)
+      setReceipt({ payment: { ...payTarget, status: 'PAID', receiptNo: d.receiptNo, method, paidAt: new Date().toISOString() } })
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ في الدفع', description: e.message, variant: 'destructive' })
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+  }
+
+  const totalDue = payments.filter((p) => p.status === 'UNPAID').reduce((s, p) => s + p.amount, 0)
+
+  return (
+    <div className="space-y-4">
+      {/* ملخص */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="rounded-xl bg-amber-100 p-2.5 text-amber-600"><Clock3 className="h-5 w-5" /></span>
+            <div>
+              <p className="text-lg font-black text-[#0f2b46]">{totalDue}$</p>
+              <p className="text-[10px] font-bold text-slate-500">مستحق السداد</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-600"><Wallet className="h-5 w-5" /></span>
+            <div>
+              <p className="text-lg font-black text-[#0f2b46]">{payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)}$</p>
+              <p className="text-[10px] font-bold text-slate-500">إجمالي المسدد</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="rounded-xl bg-[#f7edd0] p-2.5 text-[#a8841a]"><ReceiptText className="h-5 w-5" /></span>
+            <div>
+              <p className="text-lg font-black text-[#0f2b46]">{payments.length}</p>
+              <p className="text-[10px] font-bold text-slate-500">عدد الفواتير</p>
+            </div>
+          </CardContent>
+        </Card>
+} />
+                  <Button disabled={appealBusy} onClick={() => createInstallmentInvoice(plan)} className="bg-emerald-700 font-black text-white hover:bg-emerald-800">إنشاء فاتورة دفعة</Button>
+                </div>
+              </div>
+            ) : plan.appealStatus === 'PENDING' ? (
+              <div className="mt-3 rounded-xl border border-amber-100 bg-white p-3 text-xs font-bold text-amber-800">التماس التقسيط قيد دراسة الإدارة. ستظهر لك إمكانية الدفع الجزئي بعد القبول.</div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-blue-100 bg-white p-3">
+                {appealPlanId === plan.admissionId ? (
+                  <div className="grid gap-2">
+                    <Input value={appealAmount} onChange={(e) => setAppealAmount(e.target.value)} inputMode="decimal" placeholder="المبلغ الذي تستطيع دفعه الآن" />
+                    <Textarea value={appealReason} onChange={(e) => setAppealReason(e.target.value)} placeholder="سبب الالتماس أو ظرف الدفع" />
+                    <Textarea value={appealSchedule} onChange={(e) => setAppealSchedule(e.target.value)} placeholder="اقتراحك لتسديد الباقي خلال الفصل" />
+                    <div className="flex gap-2">
+                      <Button disabled={appealBusy} onClick={() => submitInstallmentAppeal(plan)} className="bg-blue-700 font-black text-white hover:bg-blue-800">إرسال الالتماس</Button>
+                      <Button variant="outline" onClick={() => setAppealPlanId(null)}>إلغاء</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={() => { setAppealPlanId(plan.admissionId); setAppealAmount(String(Math.ceil(plan.remainingTuition * 0.25))) }} variant="outline" className="border-blue-200 font-black text-blue-700">طلب تقسيط الرسوم</Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
       {payments.length === 0 ? (
         <Card className="border-[#0f2b46]/10">
           <CardContent className="p-10 text-center text-sm text-slate-400">
