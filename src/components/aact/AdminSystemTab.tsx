@@ -425,6 +425,25 @@ export function AdminSystemTab() {
     )
   }
 
+  const modelOptions = (provider: string, fallback: { value: string; label: string }[]) => {
+    const catalog = textModelCatalog[provider]
+    const dynamic = (catalog?.models || []).map((model) => ({
+      value: model,
+      label: `${model}${catalog?.discoveredCount ? ' — مكتشف تلقائياً' : ''}`,
+    }))
+    const seen = new Set<string>()
+    return [...dynamic, ...fallback].filter((opt) => {
+      if (!opt.value || seen.has(opt.value)) return false
+      seen.add(opt.value)
+      return true
+    })
+  }
+
+  const modelHint = (provider: string, fallback = '') => {
+    const catalog = textModelCatalog[provider]
+    return catalog?.message ? `${catalog.message}${fallback ? ` — ${fallback}` : ''}` : fallback
+  }
+
   const geminiDiag = data.gemini
   const geminiSourceLabel = geminiDiag?.source === 'db'
     ? 'مفتاح لوحة الإدارة'
