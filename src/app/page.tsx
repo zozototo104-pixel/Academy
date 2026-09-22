@@ -28,29 +28,61 @@ function LazyViewLoader() {
   )
 }
 
-function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone }: { label?: string; onDone?: () => void }) {
+const STARTUP_SEEN_KEY = 'aact_startup_seen_v2'
+
+function hasSeenStartup(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem(STARTUP_SEEN_KEY) === '1' || sessionStorage.getItem('aact_skip_startup') === '1'
+  } catch {
+    return false
+  }
+}
+
+function markStartupSeen() {
+  try {
+    localStorage.setItem(STARTUP_SEEN_KEY, '1')
+    sessionStorage.setItem('aact_skip_startup', '1')
+  } catch {}
+}
+
+function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, durationMs = 1180 }: { label?: string; onDone?: () => void; durationMs?: number }) {
   const [progress, setProgress] = useState(1)
+  const [exiting, setExiting] = useState(false)
   const onDoneRef = useRef(onDone)
+  const doneRef = useRef(false)
 
   useEffect(() => {
     onDoneRef.current = onDone
   }, [onDone])
 
+  const finish = () => {
+    if (doneRef.current) return
+    doneRef.current = true
+    setProgress(100)
+    markStartupSeen()
+    setExiting(true)
+    window.setTimeout(() => onDoneRef.current?.(), 430)
+  }
+
   useEffect(() => {
-    let value = 1
+    const start = performance.now()
+    const total = Math.max(720, durationMs)
     const t = window.setInterval(() => {
-      value += 1
-      setProgress(Math.min(100, value))
-      if (value >= 100) {
+      const elapsed = performance.now() - start
+      const next = Math.min(100, Math.max(1, Math.floor((elapsed / total) * 100)))
+      setProgress(next)
+      if (next >= 100) {
         window.clearInterval(t)
-        onDoneRef.current?.()
+        finish()
       }
-    }, 18)
+    }, 16)
     return () => window.clearInterval(t)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [durationMs])
 
   return (
-    <div className="aact-startup-screen relative flex min-h-screen items-center justify-center px-8 text-white">
+    <div className={`aact-startup-screen ${exiting ? 'is-exiting' : ''} fixed inset-0 z-[9999] flex min-h-screen items-center justify-center px-8 text-white`}>
       <div className="w-full max-w-xl text-center">
         <div className="aact-startup-logo mx-auto mb-12 flex h-48 w-48 items-center justify-center rounded-full sm:h-56 sm:w-56">
           <img
