@@ -652,6 +652,9 @@ export function ApplyView() {
                   </p>
                 )}
                 {paidRef && <p className="mt-4 text-sm font-bold text-emerald-700">تم الدفع بنجاح — ملفك الآن قيد دراسة الإدارة.</p>}
+                <Button type="button" variant="outline" onClick={() => { setDone(null); setPaidRef(null); setActiveTab('apply') }} className="mt-5 border-[#c9a227]/50 font-black text-[#a8841a]">
+                  تقديم طلب آخر
+                </Button>
               </CardContent>
             </Card>
           ) : myAdmissionLoading ? (
