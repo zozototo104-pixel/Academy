@@ -363,12 +363,34 @@ function negativeVisualCues(f: AdmissionFileEvidence): string {
   return [f.ocrRead?.docTypeDetected, f.ocrRead?.extractedText, f.ocrRead?.qualityNote, f.ocrRead?.matchNote].filter(Boolean).join(' ')
 }
 
+function hasContradictingVisualEvidence(f: AdmissionFileEvidence, expected?: string): string | null {
+  const n = normalize(negativeVisualCues(f))
+  const visual = normalize(visualTruthBlob(f))
+  const combined = `${visual} ${n}`
+  if (/تصميم ديني|صوره رمزيه|صورة رمزية|رمزي|زخرفه|زخرفة|قلب احمر|قلب أحمر|محمد صلي|محمد صلى|ليست مستندا رسميا|ليست مستند رسمي|ليست وثيقه رسميه|ليست وثيقة رسمية|not an official document/.test(combined)) {
+    return 'المرفق يظهر كتصميم/صورة رمزية أو محتوى غير رسمي، وليس مستند قبول قابل للاعتماد.'
+  }
+  if (expected === 'PHOTO' && /ليست صوره شخصيه|ليست صورة شخصية|not a personal photo|not a headshot|تصميم|رمزي/.test(combined)) {
+    return 'المرفق ليس صورة شخصية فعلية واضحة؛ ظهر كتصميم أو صورة رمزية.'
+  }
+  if (expected === 'DEGREE' && /لا يحتوي شهاده|لا يحتوي شهادة|لا يظهر دليل|ليس شهاده|ليس شهادة|not a certificate|not a transcript/.test(combined)) {
+    return 'لا يظهر داخل الملف دليل شهادة أو كشف علامات رسمي قابل للقراءة.'
+  }
+  if (expected === 'ID' && /لا يطابق.*هويه|لا يطابق.*هوية|لا يحتوي.*جواز|not an id|not a passport/.test(combined)) {
+    return 'لا يظهر داخل الملف دليل هوية أو جواز سفر رسمي.'
+  }
+  if (expected === 'CV' && /لا يطابق.*سيره|لا يطابق.*سيرة|not a cv|not a resume/.test(combined)) {
+    return 'لا يظهر داخل الملف دليل سيرة ذاتية أو خبرات مكتوبة.'
+  }
+  return null
+}
+
 function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_RANK {
-  if (!f || nonAdmissionAttachmentReason(f)) return 'NONE'
+  if (!f || nonAdmissionAttachmentReason(f) || hasContradictingVisualEvidence(f, 'DEGREE')) return 'NONE'
   const actual = detectAdmissionDocumentKind(f)
   if (!['DEGREE_CERTIFICATE', 'TRANSCRIPT'].includes(actual.kind)) return 'NONE'
   if (f.ocrRead?.degreeMentioned && f.ocrRead.degreeMentioned !== 'NONE') return f.ocrRead.degreeMentioned as keyof typeof EDU_RANK
-  const blob = evidenceBlob(f)
+  const blob = visualTruthBlob(f)
   if (hasAny(blob, KEYWORDS.phd)) return 'PHD'
   if (hasAny(blob, KEYWORDS.master)) return 'MASTER'
   if (hasAny(blob, KEYWORDS.bachelor)) return 'BACHELOR'
