@@ -613,7 +613,7 @@ export function AdminView() {
                             </Badge>
                           </div>
                           <p className="mt-1.5 text-xs font-bold text-slate-600">
-                            البرنامج: {a.program} — المؤهل: {EDUCATION_LABEL[a.education] || a.education} — {a.country}
+                            {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</p>
                           {(a.files?.length || 0) > 0 ? (
