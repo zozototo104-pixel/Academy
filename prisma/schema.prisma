@@ -654,6 +654,7 @@ model AdmissionApplication {
   payments   Payment[]
   certificates Certificate[]
   files      AdmissionDocument[]
+  deliverables ServiceDeliverable[]
   // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
   supervisionMode String @default("AI")
 }
