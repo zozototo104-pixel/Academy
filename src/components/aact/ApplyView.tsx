@@ -234,7 +234,10 @@ export function ApplyView() {
         country: f.country || user.country || '',
       }))
     }
-    if (applyProgramTitle) setForm((f) => ({ ...f, program: applyProgramTitle }))
+    if (applyProgramTitle) {
+      setForm((f) => ({ ...f, program: applyProgramTitle }))
+      setActiveTab('apply')
+    }
   }, [user, applyProgramTitle])
 
   useEffect(() => {
