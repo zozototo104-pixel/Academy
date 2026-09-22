@@ -819,7 +819,10 @@ function runRules(app: {
       continue
     }
 
-    const evaluated = candidates.map((f) => ({ f, match: expectedDocMatches(type, f) }))
+    const evaluated = candidates.map((f) => {
+      const duplicateReason = duplicateFileReason(f, duplicateKeys)
+      return { f, match: duplicateReason ? { ok: false, problem: true, reason: duplicateReason } : expectedDocMatches(type, f) }
+    })
     const good = evaluated.find((x) => x.match.ok)
     const bad = evaluated.find((x) => x.match.problem)
 
