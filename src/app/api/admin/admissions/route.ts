@@ -51,9 +51,15 @@ export async function GET() {
       },
     })
     const appIds = apps.map((a) => a.id)
-    const appeals = appIds.length
-      ? await db.tuitionInstallmentAppeal.findMany({ where: { admissionId: { in: appIds } }, orderBy: { createdAt: 'desc' } })
-      : []
+    let appeals: any[] = []
+    if (appIds.length) {
+      try {
+        appeals = await db.tuitionInstallmentAppeal.findMany({ where: { admissionId: { in: appIds } }, orderBy: { createdAt: 'desc' } })
+      } catch (e) {
+        console.warn('tuition installment appeal table is not ready yet; continuing admissions load without appeals:', e)
+        appeals = []
+      }
+    }
     const appealMap = new Map<string, any>()
     for (const appeal of appeals) {
       if (!appealMap.has(appeal.admissionId)) appealMap.set(appeal.admissionId, appeal)
