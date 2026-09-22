@@ -123,6 +123,15 @@ function cachePrograms(list: ProgramLite[]) {
   } catch {}
 }
 
+const TERMINAL_APPLICATION_STATUSES = ['CERTIFIED', 'REJECTED', 'WITHDRAWN', 'CANCELLED']
+
+function blocksNewApplication(app: any) {
+  if (!app) return false
+  if (TERMINAL_APPLICATION_STATUSES.includes(app.status)) return false
+  // الخدمات العابرة لا تمنع تقديم خدمة/برنامج جديد؛ تظهر فقط في قائمة الطلبات السابقة والحالية.
+  return app.isStudyProgram === true
+}
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   UPLOADING_DOCUMENTS: { text: 'جاري رفع المستندات', cls: 'bg-blue-100 text-blue-700' },
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
