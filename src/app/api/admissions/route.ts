@@ -392,7 +392,7 @@ export async function GET(req: NextRequest) {
       payments: app.payments || [],
       theses: app.theses || [],
       nextAction: !isStudyProgram && serviceWorkflow
-        ? serviceWorkflow.nextAction
+        ? serviceWorkflow.clientNextAction
         : app.status === 'AWAITING_FEE'
             ? (isStudyProgram ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.' : 'سداد رسوم فتح الطلب حتى ينتقل ملف الخدمة للإدارة.')
             : app.status === 'UNDER_REVIEW'
