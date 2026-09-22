@@ -1037,6 +1037,56 @@ export function DashboardView() {
               {dashboardTab === 'payments' ? <PaymentsTab /> : null}
             </TabsContent>
 
+            <TabsContent value="deliverables" className="mt-6">
+              <Card className="border-[#0f2b46]/10 bg-white">
+                <CardContent className="p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h2 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Award className="h-5 w-5 text-[#c9a227]" /> مخرجاتي وخدماتي</h2>
+                      <p className="mt-1 text-xs font-bold text-slate-500">هنا تظهر الشهادات، المعادلات، روابط تحميل الحقائب، تقارير الاستشارة أو أي مخرج تنشره الإدارة لطلبك.</p>
+                    </div>
+                    <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{serviceDeliverables.length} مخرج</Badge>
+                  </div>
+                  {serviceDeliverablesLoading ? (
+                    <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm font-black text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> جاري تحميل المخرجات...
+                    </div>
+                  ) : serviceDeliverables.length ? (
+                    <div className="grid gap-3">
+                      {serviceDeliverables.map((d) => (
+                        <div key={d.id} className="rounded-2xl border border-[#0f2b46]/10 bg-slate-50 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <Badge className="mb-2 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{d.typeLabel || d.type}</Badge>
+                              <h3 className="text-sm font-black text-[#0f2b46]">{d.title}</h3>
+                              <p className="mt-1 text-[11px] font-bold text-slate-400">الطلب: {d.application?.program || 'طلب خدمة'} — {d.application?.reference}</p>
+                              {d.description && <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{d.description}</p>}
+                              {d.meetingAt && <p className="mt-1 text-[11px] font-bold text-[#a8841a]">موعد الجلسة: {new Date(d.meetingAt).toLocaleString('ar-EG')}</p>}
+                              {d.certificateId && <p className="mt-1 text-[11px] font-bold text-emerald-700">رقم الشهادة/الاعتماد: {d.certificateId}</p>}
+                            </div>
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg bg-[#0f2b46] px-3 text-xs font-black text-white hover:bg-[#1b3a5d]">
+                                <FileText className="ml-1 h-3.5 w-3.5" /> فتح/تحميل
+                              </a>
+                              {d.verificationUrl && (
+                                <a href={d.verificationUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-[#c9a227] px-3 text-xs font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                                  تحقق
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold leading-7 text-slate-500">
+                      لا توجد مخرجات منشورة بعد. عندما تعتمد الإدارة شهادة أو معادلة أو رابط حقيبة أو تقرير استشارة سيظهر هنا مباشرة.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="notifications" className="mt-6">
               <Card className="border-[#0f2b46]/10 bg-white">
                 <CardContent className="p-5">
