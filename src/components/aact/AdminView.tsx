@@ -352,7 +352,7 @@ export function AdminView() {
       if (file) fd.append('file', file)
       await api('/api/admin/service-deliverables', { method: 'POST', body: fd })
       toast({ title: 'تم تسليم المخرج', description: 'تم نشر المخرج للعميل وإرسال إشعار عند تفعيل البريد.' })
-      setDeliverableForms((prev) => ({ ...prev, [admission.id]: { type: 'PACKAGE_DOWNLOAD', title: '', description: '', externalUrl: '', certificateId: '', verificationUrl: '', visibleToStudent: true } }))
+      setDeliverableForms((prev) => ({ ...prev, [admission.id]: emptyDeliverableForm() }))
       setDeliverableFiles((prev) => ({ ...prev, [admission.id]: null }))
       await load()
     } catch (e: any) {
