@@ -789,6 +789,20 @@ function runRules(app: {
   let requiredFound = 0
 
   const reqDocs = rules.requiredDocuments || DEFAULT_REQUIRED_DOCS
+  const fileGroups = new Map<string, AdmissionFileEvidence[]>()
+  for (const f of app.files) {
+    const key = fileIdentityKey(f)
+    fileGroups.set(key, [...(fileGroups.get(key) || []), f])
+  }
+  const duplicateKeys = new Set<string>()
+  for (const [key, group] of fileGroups.entries()) {
+    const slots = new Set(group.map((f) => f.docType))
+    if (group.length > 1 && slots.size > 1 && !group.some(isMultiPageContainer)) duplicateKeys.add(key)
+  }
+  if (duplicateKeys.size) {
+    findings.push({ severity: 'HIGH', title: 'تكرار نفس الملف في عدة خانات', detail: 'تم استخدام نفس الملف لتلبية أكثر من متطلب. يجب رفع كل مستند في خانته الصحيحة، ولا يُقبل التكرار إلا لملف PDF متعدد الصفحات واضح.' })
+    hardProblems++
+  }
 
   for (const type of reqDocs) {
     const label = DOC_TYPE_AR[type] || type
