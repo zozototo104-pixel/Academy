@@ -251,6 +251,29 @@ export function AdminThesisTab() {
         </Button>
       </div>
 
+      <AdminListToolbar
+        search={thesisSearch}
+        onSearchChange={(v) => { setThesisSearch(v); setThesisPage(1) }}
+        searchPlaceholder="ابحث باسم الباحث أو عنوان البحث أو البرنامج أو كود الطلب..."
+        status={thesisStatusFilter}
+        onStatusChange={(v) => { setThesisStatusFilter(v); setThesisPage(1) }}
+        statusOptions={[
+          { value: 'ACTIVE', label: 'النشطة فقط' },
+          { value: 'PLAN_SUBMITTED', label: 'خطة قيد المراجعة' },
+          { value: 'PLAN_NEEDS_REVISION', label: 'خطة تحتاج تعديل' },
+          { value: 'PLAN_APPROVED', label: 'خطة معتمدة' },
+          { value: 'SUBMITTED', label: 'بحث نهائي مسلم' },
+          { value: 'SCHEDULED', label: 'مجدول' },
+          { value: 'RESULT_APPROVED', label: 'نتيجة معتمدة' },
+          { value: 'ALL', label: 'كل الأبحاث' },
+        ]}
+        pageSize={thesisPageSize}
+        onPageSizeChange={(v) => { setThesisPageSize(v); setThesisPage(1) }}
+        total={theses.length}
+        filtered={filteredTheses.length}
+        label="بحث"
+      />
+
       {loadError ? (
         <Card className="border-red-100 bg-red-50">
           <CardContent className="p-6 text-center">
