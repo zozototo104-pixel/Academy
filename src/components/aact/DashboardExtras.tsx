@@ -219,8 +219,9 @@ export function PaymentsTab() {
       toast({ title: 'طريقة الدفع غير متاحة حالياً', description: selectedMethod.reason || 'اختر وسيلة أخرى أو راجع الإدارة.', variant: 'destructive' })
       return
     }
-    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE' && method !== 'DIRECT_PAYMENT') {
-      toast({ title: 'الدفع الإلكتروني غير متاح حالياً', description: 'اختر «دفع مباشر» للتواصل مع الإدارة.', variant: 'destructive' })
+    const selectedKind = selectedMethod?.kind
+    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE' && selectedKind !== 'manual') {
+      toast({ title: 'الدفع الإلكتروني غير متاح حالياً', description: 'اختر وسيلة دفع يدوية مثل «دفع مباشر» أو USDT إذا كانت مفعلة.', variant: 'destructive' })
       return
     }
     setPaying(true)
