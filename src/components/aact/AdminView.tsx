@@ -673,6 +673,25 @@ export function AdminView() {
   }, [user, studentSearch, studentStatusFilter, studentPage, studentPageSize])
 
   useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    let cancelled = false
+    setAttemptsLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(attemptPage), pageSize: String(attemptPageSize), status: attemptStatusFilter })
+      if (attemptSearch.trim()) params.set('search', attemptSearch.trim())
+      api<{ attempts: Stats['recentAttempts']; total: number }>(`/api/admin/exam-attempts?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setAttemptRows(Array.isArray(d.attempts) ? d.attempts : [])
+          setAttemptTotal(Number(d.total || 0))
+        })
+        .catch(() => { if (!cancelled) { setAttemptRows([]); setAttemptTotal(0) } })
+        .finally(() => { if (!cancelled) setAttemptsLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [user, attemptSearch, attemptStatusFilter, attemptPage, attemptPageSize])
+
+  useEffect(() => {
     if (activeTab !== 'admissions' || !highlightAdmissionId) return
     const t = setTimeout(() => {
       const el = document.getElementById(`admission-${highlightAdmissionId}`)
