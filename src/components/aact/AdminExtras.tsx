@@ -1479,27 +1479,33 @@ export function AdminAuditTab() {
   const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
   const [auditPage, setAuditPage] = useState(1)
   const [auditPageSize, setAuditPageSize] = useState(50)
+  const [auditTotal, setAuditTotal] = useState(0)
+  const [actionOptions, setActionOptions] = useState<string[]>([])
+  const [entityOptions, setEntityOptions] = useState<string[]>([])
 
   useEffect(() => {
-    api<{ logs: AuditRow[] }>('/api/admin/audit')
-      .then((d) => setLogs(d.logs))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(auditPage), pageSize: String(auditPageSize) })
+      if (filters.search.trim()) params.set('search', filters.search.trim())
+      if (filters.action !== 'ALL') params.set('action', filters.action)
+      if (filters.entity !== 'ALL') params.set('entity', filters.entity)
+      api<{ logs: AuditRow[]; total: number; actions: string[]; entities: string[] }>(`/api/admin/audit?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setLogs(Array.isArray(d.logs) ? d.logs : [])
+          setAuditTotal(Number(d.total || 0))
+          setActionOptions(Array.isArray(d.actions) ? d.actions : [])
+          setEntityOptions(Array.isArray(d.entities) ? d.entities : [])
+        })
+        .catch(() => { if (!cancelled) setLogs([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [filters, auditPage, auditPageSize])
 
-  const actionOptions = useMemo(() => Array.from(new Set(logs.map((l) => l.action))).sort(), [logs])
-  const entityOptions = useMemo(() => Array.from(new Set(logs.map((l) => l.entity))).sort(), [logs])
-  const filteredLogs = useMemo(() => {
-    const q = filters.search.trim().toLowerCase()
-    return logs.filter((l) => {
-      const actionOk = filters.action === 'ALL' || l.action === filters.action
-      const entityOk = filters.entity === 'ALL' || l.entity === filters.entity
-      const searchOk = !q || `${l.actorName} ${l.details || ''} ${l.entity} ${l.action}`.toLowerCase().includes(q)
-      return actionOk && entityOk && searchOk
-    })
-  }, [logs, filters])
-  const pagedLogs = pageItems(filteredLogs, auditPage, auditPageSize)
-  const currentAuditPage = safePage(filteredLogs.length, auditPageSize, auditPage)
+  const currentAuditPage = auditPage
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
