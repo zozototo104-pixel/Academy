@@ -352,6 +352,8 @@ export function AdminView() {
     cryptoVerificationStatus?: string | null
   }>(null)
   const [paymentConfirmSubmitting, setPaymentConfirmSubmitting] = useState(false)
+  const [revokeDialog, setRevokeDialog] = useState<null | { app: AgentApp; reason: string }>(null)
+  const [revokeSubmitting, setRevokeSubmitting] = useState(false)
 
   useEffect(() => {
     const handler = (event: Event) => {
