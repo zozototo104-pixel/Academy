@@ -178,7 +178,8 @@ export default function Home() {
       const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
       window.history.replaceState(null, '', cleanUrl)
     }
-    const currentView = q.get('view') || view
+    const routeState = routeStateFromLocation(window.location.pathname, window.location.search)
+    const currentView = routeState.view || view
     const oauthReturn = q.get('oauth') || ''
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
