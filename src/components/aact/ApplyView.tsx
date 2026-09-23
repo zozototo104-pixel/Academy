@@ -915,8 +915,8 @@ export function ApplyView() {
         <TabsContent value="track">
           <Card className="mx-auto mt-6 max-w-2xl border-[#0f2b46]/15 shadow-xl">
             <CardContent className="p-6 sm:p-8">
-              <h2 className="mb-1 flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Search className="h-5 w-5 text-[#c9a227]" /> تتبع حالة طلب الالتحاق</h2>
-              <p className="mb-6 text-xs text-slate-500">أدخل كود التتبع الذي استلمته عند تقديم الطلب.</p>
+              <h2 className="mb-1 flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Search className="h-5 w-5 text-[#c9a227]" /> تتبع حالة طلب الالتحاق أو الخدمة</h2>
+              <p className="mb-6 text-xs text-slate-500">أدخل كود التتبع الذي استلمته عند تقديم طلب برنامج دراسي أو خدمة عابرة.</p>
               <form onSubmit={track} className="flex flex-col gap-3 sm:flex-row">
                 <Input dir="ltr" className="flex-1 text-left font-mono" placeholder="AACT-2026-XXXX" value={trackRef} onChange={(e) => setTrackRef(e.target.value)} required />
                 <Button type="submit" disabled={tracking} className="bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
