@@ -53,8 +53,26 @@ export async function GET() {
         orderBy: { updatedAt: 'desc' },
         select: { id: true, title: true, status: true, reviewNote: true, defenseDate: true, resultScore: true, reviewedAt: true, updatedAt: true },
       }),
+      db.serviceDeliverable.findMany({
+        where: { admission: { userId: user.id }, status: 'PUBLISHED', visibleToStudent: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: { id: true, admissionId: true, type: true, title: true, createdAt: true },
+      }),
     ])
 
+    const admissions = rawAdmissions.map((a) => {
+      const flow = getServiceFlow(a.programRef?.slug)
+      const isStudyProgram = flow ? flow.isStudyProgram : a.programRef?.category !== 'SERVICE'
+      return {
+        ...a,
+        requestType: isStudyProgram ? 'STUDY' : 'SERVICE',
+        serviceKind: flow?.kind || null,
+        displayTitle: a.programRef?.titleAr || a.program,
+      }
+    })
+    const studyAdmissions = admissions.filter((a) => a.requestType === 'STUDY')
+    const serviceAdmissions = admissions.filter((a) => a.requestType === 'SERVICE')
     const latestAdmission = admissions[0] || null
     const unpaidPayments = payments.filter((p) => p.status !== 'PAID')
     const paidPayments = payments.filter((p) => p.status === 'PAID')
