@@ -73,7 +73,7 @@ export async function PUT(req: NextRequest) {
 
     const saved = await db.program.update({ where: { id: programId }, data: { admissionRules: JSON.parse(JSON.stringify(clean)) } })
     await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ قواعد قبول مخصصة لبرنامج «${program.titleAr}»`)
-    return NextResponse.json({ ok: true, rules: resolveRules(program.category, saved.admissionRules), custom: true })
+    return NextResponse.json({ ok: true, rules: resolveRules(program.category, saved.admissionRules, isStudyProgram), custom: true })
   } catch (e: any) {
     console.error('program-rules error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر حفظ القواعد' }, { status: 500 })
