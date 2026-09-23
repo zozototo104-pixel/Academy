@@ -1176,6 +1176,10 @@ export function AdminMessagesTab() {
   const { toast } = useToast()
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [loading, setLoading] = useState(true)
+  const [msgSearch, setMsgSearch] = useState('')
+  const [msgStatusFilter, setMsgStatusFilter] = useState('OPEN')
+  const [msgPage, setMsgPage] = useState(1)
+  const [msgPageSize, setMsgPageSize] = useState(25)
 
   const load = () => {
     api<{ messages: Msg[] }>('/api/admin/contact')
