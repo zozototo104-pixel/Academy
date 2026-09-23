@@ -1092,7 +1092,7 @@ export async function analyzeAdmission(
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
     include: {
-      programRef: { select: { titleAr: true, category: true, admissionRules: true } },
+      programRef: { select: { titleAr: true, category: true, slug: true, admissionRules: true } },
       files: { select: { id: true, docType: true, fileName: true, mimeType: true, size: true, data: true, storageProvider: true, storageKey: true, fileUrl: true } },
     },
   })
