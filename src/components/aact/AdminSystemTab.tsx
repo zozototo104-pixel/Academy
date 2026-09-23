@@ -656,7 +656,7 @@ export function AdminSystemTab() {
               </h4>
             </div>
             {F('USDT_WALLET_ADDRESS', 'عنوان محفظة USDT', 'مثال: T... أو 0x...', 'text', 'يظهر للطالب عند اختيار USDT، ولا يتم اعتماد السداد حتى تؤكده الإدارة.')}
-            {F('USDT_NETWORK', 'الشبكة', 'TRC20', 'text', 'الأكثر شيوعاً: TRC20. يمكن كتابة ERC20 أو BEP20 حسب محفظتك.')}
+            {F('USDT_NETWORK', 'الشبكة', 'TRC20', 'text', 'التحقق الآلي مفعّل حالياً لشبكة TRC20. استخدم ERC20/BEP20 لاحقاً بعد إضافة مزود تحقق خاص بها.')}
             {F('USDT_PAYMENT_INSTRUCTIONS', 'تعليمات إضافية', 'أرسل لقطة/Hash التحويل للإدارة عبر واتساب أو البريد', 'text', 'اختياري: تعليمات تظهر ضمن رسالة الدفع للطالب.')}
           </div>
           <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
