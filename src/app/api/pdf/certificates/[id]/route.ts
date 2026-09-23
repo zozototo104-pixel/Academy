@@ -47,7 +47,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
     const holder = pdfSafeText(certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
     const program = pdfSafeText(certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')
-    const verificationUrl = `https://aactacademy.com/verify/${certificate.qrToken}`
+    const verificationUrl = certificateVerificationUrl(certificate)
+    const credentialUrl = certificateCredentialUrl(certificate)
 
     const pdf = await renderOfficialPdf({
       title: 'شهادة رسمية',
