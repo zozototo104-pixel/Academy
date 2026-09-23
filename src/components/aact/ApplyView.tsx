@@ -376,7 +376,7 @@ export function ApplyView() {
 
       // لا نرسل كل المرفقات دفعة واحدة حتى لا يصطدم الطلب بحد Vercel ويرجع HTTP 413.
       // ننشئ الطلب أولاً، ثم نرفع كل ملف في طلب مستقل، ثم نكمل التقديم ونصدر الفاتورة.
-      const staged = await api<{ reference: string; applicationId: string; staged: boolean }>('/api/admissions', { method: 'POST', body: fd })
+      const staged = await api<{ reference: string; applicationId: string; uploadToken: string; staged: boolean }>('/api/admissions', { method: 'POST', body: fd })
       const docsToUpload = activeDocs.filter((d) => files[d.type])
       for (let i = 0; i < docsToUpload.length; i++) {
         const d = docsToUpload[i]
