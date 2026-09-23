@@ -669,7 +669,9 @@ main,
   #aact-certificate,
   #aact-certificate *,
   #aact-transcript,
-  #aact-transcript * {
+  #aact-transcript *,
+  #aact-print-page,
+  #aact-print-page * {
     visibility: visible !important;
   }
   #aact-certificate {
