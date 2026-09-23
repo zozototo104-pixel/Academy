@@ -53,7 +53,7 @@ export async function PUT(req: NextRequest) {
     if (rules?.reset) {
       await db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } })
       await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية`)
-      return NextResponse.json({ ok: true, rules: resolveRules(program.category, null), custom: false })
+      return NextResponse.json({ ok: true, rules: resolveRules(program.category, null, isStudyProgram), custom: false })
     }
 
     // تنقية القواعد الواردة
