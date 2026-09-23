@@ -510,7 +510,7 @@ export function DashboardView() {
                 <>
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات دراسة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.studyRequests || 0}</span></div>
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
-                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">حالة القبول<br /><span className="text-sm text-[#0f2b46]">{studentSummary.summary.latestStudy?.status || studentSummary.summary.latestAdmission?.status || 'قيد المتابعة'}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">حالة القبول<br /><span className="text-sm text-[#0f2b46]">{studentStatusLabel(studentSummary.summary.latestStudy?.status || studentSummary.summary.latestAdmission?.status)}</span></div>
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">التسجيل الدراسي<br /><span className="text-sm text-[#0f2b46]">{hasProgramDashboard ? 'مفعل' : 'بانتظار الاعتماد'}</span></div>
                 </>
               ) : (
