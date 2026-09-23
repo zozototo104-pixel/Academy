@@ -973,6 +973,22 @@ export function AdminSettingsTab() {
   const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(true)
+  const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [adminForm, setAdminForm] = useState({
+    name: 'QA Admin',
+    email: 'qa-admin@aactacademy.com',
+    password: '',
+  })
+
+  const loadSystemAdmins = () => {
+    setAdminsLoading(true)
+    api<{ admins: SystemAdminAccount[] }>('/api/admin/system-admins')
+      .then((d) => setAdmins(Array.isArray(d.admins) ? d.admins : []))
+      .catch((e: any) => toast({ title: 'تعذر تحميل مدراء النظام', description: e.message, variant: 'destructive' }))
+      .finally(() => setAdminsLoading(false))
+  }
 
   useEffect(() => {
     api<{ values: any; defs?: any[] }>('/api/settings')
