@@ -192,6 +192,9 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   const paypalClientId = map.PAYPAL_CLIENT_ID || env('PAYPAL_CLIENT_ID') || ''
   const paypalSecret = map.PAYPAL_SECRET || env('PAYPAL_SECRET') || ''
   const paypalApiBase = (map.PAYPAL_API_BASE || env('PAYPAL_API_BASE') || 'https://api-m.sandbox.paypal.com').replace(/\/$/, '')
+  const usdtWalletAddress = map.USDT_WALLET_ADDRESS || env('USDT_WALLET_ADDRESS') || ''
+  const usdtNetwork = map.USDT_NETWORK || env('USDT_NETWORK') || 'TRC20'
+  const usdtInstructions = map.USDT_PAYMENT_INSTRUCTIONS || env('USDT_PAYMENT_INSTRUCTIONS') || ''
   const modeSetting = map.PAYMENT_MODE || env('PAYMENT_MODE') || 'SANDBOX'
   const hasRealProviders = !!(stripeSecret || (paypalClientId && paypalSecret))
   const mode: 'SANDBOX' | 'LIVE' = modeSetting === 'LIVE' && hasRealProviders ? 'LIVE' : 'SANDBOX'
