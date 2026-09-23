@@ -147,6 +147,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ admin: disabled })
   } catch (e) {
     console.error('system-admins DELETE error:', e)
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
     return NextResponse.json({ error: 'تعذر تعطيل حساب الإدارة' }, { status: 500 })
   }
 }
