@@ -36,7 +36,7 @@ const BACKUP_TABLES: BackupTableSpec[] = [
   { name: 'UserMicroCredential', delegate: 'userMicroCredential' },
   { name: 'Notification', delegate: 'notification' },
   { name: 'AuditLog', delegate: 'auditLog' },
-  { name: 'Setting', delegate: 'setting' },
+  { name: 'Setting', delegate: 'setting', orderBy: { key: 'asc' } },
   { name: 'EmailLog', delegate: 'emailLog' },
   { name: 'ContactMessage', delegate: 'contactMessage' },
   { name: 'ThesisSubmission', delegate: 'thesisSubmission' },
