@@ -882,6 +882,16 @@ export function AdminCertificatesTab() {
           <Plus className="ml-1 h-4 w-4" /> إصدار شهادة يدوياً
         </Button>
       </div>
+      <AdminListToolbar
+        search={certSearch}
+        onSearchChange={(v) => { setCertSearch(v); setCertPage(1) }}
+        searchPlaceholder="ابحث بالاسم أو الرقم التسلسلي أو البرنامج..."
+        pageSize={certPageSize}
+        onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
+        total={certs.length}
+        filtered={filteredCerts.length}
+        label="شهادة"
+      />
       {certs.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات بعد — تُصدر تلقائياً عند إكمال برنامج أو اعتماد طلب اعتماد</CardContent></Card>
       ) : (
