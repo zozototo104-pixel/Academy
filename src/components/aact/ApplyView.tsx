@@ -79,6 +79,11 @@ const SERVICE_REQUEST_DOCS = [
   { type: 'SERVICE_FILE', label: 'ملف يوضح الاحتياج أو الوثائق الداعمة للخدمة' },
 ]
 
+const EXTRA_DOCS = [
+  { type: 'EXPERIENCE', label: 'إثبات خبرات عملية' },
+  { type: 'TRANSCRIPT', label: 'كشف درجات منفصل' },
+]
+
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
 
