@@ -42,14 +42,15 @@ export async function GET(req: NextRequest, context: RouteContext) {
     }
 
     const credential = buildCertificateCredential(cert)
-    return NextResponse.json(
-      {
+    return new NextResponse(
+      JSON.stringify({
         valid: cert.valid,
         proofVerified: verifyCertificateCredential(credential),
         verificationUrl: certificateVerificationUrl(cert),
         credential,
-      },
+      }),
       {
+        status: 200,
         headers: {
           'Content-Type': 'application/ld+json; charset=utf-8',
           'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
