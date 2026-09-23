@@ -461,8 +461,8 @@ export function DashboardView() {
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">{hasProgramDashboard ? 'بوابة الطالب' : 'بوابة العميل'}</h1>
-          <p className="mt-1 text-sm text-slate-500">أهلاً {user.name} — {hasProgramDashboard ? 'رحلتك التدريبية في مكان واحد' : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+          <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">{hasStudyIdentity ? 'بوابة الطالب' : 'بوابة العميل'}</h1>
+          <p className="mt-1 text-sm text-slate-500">أهلاً {user.name} — {hasStudyIdentity ? (hasProgramDashboard ? 'رحلتك التدريبية في مكان واحد' : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
         </div>
         <Button onClick={() => navigate('chat')} className="bg-[#0f2b46] font-extrabold text-[#e0b83a] hover:bg-[#12365c]">
           <Bot className="ml-2 h-4 w-4" /> اسأل المشرف الذكي
