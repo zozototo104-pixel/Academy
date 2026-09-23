@@ -244,6 +244,21 @@ export async function PATCH(req: NextRequest) {
           where: { id: thesis.admissionId },
           data: { status: 'RESULT_APPROVED' },
         }).catch(() => {})
+        if (passed) {
+          const admission = await db.admissionApplication.findUnique({
+            where: { id: thesis.admissionId },
+            select: { programId: true, userId: true },
+          })
+          if (admission?.programId && admission.userId) {
+            const finalGrade = await calculateFinalGrade({ userId: admission.userId, programId: admission.programId, admissionId: thesis.admissionId })
+            if (finalGrade.score !== null) {
+              await db.enrollment.updateMany({
+                where: { userId: admission.userId, programId: admission.programId },
+                data: { finalScore: finalGrade.score },
+              })
+            }
+          }
+        }
       }
       await notify(
         thesis.userId,
