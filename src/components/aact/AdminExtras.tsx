@@ -1062,6 +1062,8 @@ export function AdminAuditTab() {
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditPageSize, setAuditPageSize] = useState(50)
 
   useEffect(() => {
     api<{ logs: AuditRow[] }>('/api/admin/audit')
