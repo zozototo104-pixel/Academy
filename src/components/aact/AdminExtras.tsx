@@ -658,6 +658,37 @@ export function AdminFinanceTab() {
     }
   }
 
+  const openInvoicePdf = async (id: string) => {
+    setPdfBusy(id)
+    try {
+      const token = getToken()
+      const res = await fetch(`/pdf/invoices/${encodeURIComponent(id)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, '_blank', 'noopener,noreferrer')
+      if (!win) {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'aact-invoice.pdf'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e: any) {
+      toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const filteredPayments = payments.filter((p) => {
