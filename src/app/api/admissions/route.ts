@@ -10,6 +10,7 @@ import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
+import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
 // لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
