@@ -1573,7 +1573,7 @@ export function AdminAuditTab() {
           )}
         </div>
         <div className="p-3">
-          <AdminPager page={currentAuditPage} pageSize={auditPageSize} total={filteredLogs.length} onPageChange={setAuditPage} label="إجراء" />
+          <AdminPager page={currentAuditPage} pageSize={auditPageSize} total={auditTotal} onPageChange={setAuditPage} label="إجراء" />
         </div>
       </CardContent>
     </Card>
