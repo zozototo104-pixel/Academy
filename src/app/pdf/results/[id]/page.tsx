@@ -60,6 +60,7 @@ export default async function ResultPdfPage({ params, searchParams }: PageProps)
   if (!canView(user, attempt.userId)) return <AccessDeniedPdf />
 
   const score = attempt.finalScore != null ? attempt.finalScore : attempt.score
+  const sortedAnswers = attempt.answers.slice().sort((a, b) => a.question.order - b.question.order)
   const autoPrint = firstParam(query.print) === '1'
 
   return (
