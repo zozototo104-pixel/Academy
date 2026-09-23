@@ -109,7 +109,7 @@ const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'الخدمات المهنية',
 }
 const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
-const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v3'
+const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v4'
 
 function readCachedPrograms(): ProgramLite[] {
   if (typeof window === 'undefined') return []
