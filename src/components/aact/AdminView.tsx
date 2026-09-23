@@ -1881,7 +1881,7 @@ export function AdminView() {
                   </CardContent>
                 </Card>
               )})}
-              <AdminPager page={currentAgentPage} pageSize={agentPageSize} total={filteredApps.length} onPageChange={setAgentPage} label="طلب وكالة/اعتماد" />
+              <AdminPager page={currentAgentPage} pageSize={agentPageSize} total={agentTotal} onPageChange={setAgentPage} label="طلب وكالة/اعتماد" />
               </>
             )}
           </div>
