@@ -1536,6 +1536,8 @@ export function AdminView() {
                   </div>
                 ) : academicStudents.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب ملتحقون ببرامج دراسية بعد</div>
+                ) : filteredStudents.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
                     <thead className="sticky top-0 bg-[#f7edd0] text-[#0f2b46]">
