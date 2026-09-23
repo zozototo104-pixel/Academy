@@ -230,8 +230,8 @@ export function PaymentsTab() {
         method: 'POST',
         body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
       })
-      if (co?.provider === 'DIRECT_PAYMENT') {
-        toast({ title: 'تم اختيار الدفع المباشر', description: co.message || 'تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة الدفع من لوحة الإدارة.' })
+      if (co?.provider === 'DIRECT_PAYMENT' || co?.provider === 'USDT') {
+        toast({ title: co.provider === 'USDT' ? 'تم اختيار الدفع عبر USDT' : 'تم اختيار الدفع المباشر', description: co.message || 'تواصل مع الإدارة لتأكيد السداد.' })
         setPayTarget(null)
         load()
         return
