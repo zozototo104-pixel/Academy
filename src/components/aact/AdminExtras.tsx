@@ -1225,8 +1225,10 @@ export function AdminMessagesTab() {
       />
       {msgs.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا رسائل تواصل بعد</CardContent></Card>
+      ) : filteredMsgs.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد رسائل مطابقة للبحث أو الفلتر الحالي.</CardContent></Card>
       ) : (
-        msgs.map((m) => (
+        pagedMsgs.map((m) => (
           <Card key={m.id} className={`border ${m.handled ? 'border-slate-100 opacity-60' : 'border-[#c9a227]/40 bg-[#f7edd0]/30'}`}>
             <CardContent className="p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
