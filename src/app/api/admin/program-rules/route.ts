@@ -44,8 +44,10 @@ export async function PUT(req: NextRequest) {
     const rules = (body.rules || {}) as (AdmissionRules & { reset?: boolean }) | undefined
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true } })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, slug: true, titleAr: true, category: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+    const flow = getServiceFlow(program.slug)
+    const isStudyProgram = flow ? flow.isStudyProgram : program.category !== 'SERVICE'
 
     // reset=true يعيد القواعد الافتراضية (يمسح التخصيص)
     if (rules?.reset) {
