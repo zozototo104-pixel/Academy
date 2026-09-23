@@ -322,6 +322,10 @@ export async function PATCH(req: NextRequest) {
           orderBy: { updatedAt: 'desc' },
           select: { resultScore: true },
         })
+        const finalGrade = app.programId && app.userId
+          ? await calculateFinalGrade({ userId: app.userId, programId: app.programId, admissionId: id })
+          : { score: null }
+        const certificateScore = finalGrade.score ?? (typeof lastThesis?.resultScore === 'number' ? lastThesis.resultScore : null)
         const cert = await db.certificate.create({
           data: {
             serial: await nextCertSerial(),
@@ -329,7 +333,7 @@ export async function PATCH(req: NextRequest) {
             type: 'PROGRAM_COMPLETION',
             holderName: app.fullName,
             program: app.program,
-            grade: lastThesis?.resultScore ? `${lastThesis.resultScore}%` : null,
+            grade: certificateScore !== null ? `${certificateScore}%` : null,
             country: app.country,
             userId: app.userId,
             admissionId: id,
