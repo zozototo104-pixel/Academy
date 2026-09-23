@@ -30,8 +30,8 @@ export interface PaymentDiagnostics {
   paypalConfigured: boolean
   paypalApiBase: string
   paypalBaseKind: 'live' | 'sandbox' | 'custom' | 'missing'
-  usdtConfigured: boolean
-  usdtNetwork: string
+  usdtConfigured?: boolean
+  usdtNetwork?: string
   trueGatewayCount: number
   warnings: string[]
   errors: string[]
