@@ -248,34 +248,45 @@ export async function POST(req: NextRequest) {
       data: { completedUnits: JSON.stringify(completedUnits), status, finalScore },
     })
 
-    // إصدار رقم الشهادة تلقائياً عند إكمال البرنامج (وفق اللوائح: خلال 30 يوماً)
+    // إصدار شهادة تلقائية فقط للبرامج التدريبية البسيطة. برامج الماجستير/الدكتوراه لا تصدر شهادتها من إكمال الوحدات؛ تنتظر البحث والمناقشة واعتماد النتيجة من الإدارة.
     let certificate: { serial: string } | null = null
     if (status === 'COMPLETED' && !updated.certificateNo) {
       const program = await db.program.findUnique({ where: { id: programId } })
-      const serial = await nextCertSerial()
-      certificate = await db.certificate.create({
-        data: {
-          serial,
-          qrToken: randomBytes(16).toString('hex'),
-          type: 'PROGRAM_COMPLETION',
-          holderName: user.name,
-          program: program?.titleAr || 'برنامج تدريبي',
-          grade: finalScore != null ? `${finalScore}%` : null,
-          userId: user.id,
-          enrollmentId: enrollment.id,
-        },
-      })
-      await db.enrollment.update({
-        where: { id: enrollment.id },
-        data: { certificateNo: certificate.serial },
-      })
-      await notify(
-        user.id,
-        'CERTIFICATE',
-        'تم إصدار شهادتك المعتمدة',
-        `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
-        'dashboard'
-      )
+      const requiresFinalReview = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
+      if (requiresFinalReview) {
+        await notify(
+          user.id,
+          'THESIS',
+          'اكتمل محتوى البرنامج — انتقل إلى بحث التخرج',
+          `أكملت وحدات «${program?.titleAr}». شهادة هذا المسار تصدر بعد اعتماد البحث والمناقشة والنتيجة النهائية من الإدارة.`,
+          'dashboard'
+        )
+      } else {
+        const serial = await nextCertSerial()
+        certificate = await db.certificate.create({
+          data: {
+            serial,
+            qrToken: randomBytes(16).toString('hex'),
+            type: 'PROGRAM_COMPLETION',
+            holderName: user.name,
+            program: program?.titleAr || 'برنامج تدريبي',
+            grade: finalScore != null ? `${finalScore}%` : null,
+            userId: user.id,
+            enrollmentId: enrollment.id,
+          },
+        })
+        await db.enrollment.update({
+          where: { id: enrollment.id },
+          data: { certificateNo: certificate.serial },
+        })
+        await notify(
+          user.id,
+          'CERTIFICATE',
+          'تم إصدار شهادتك المعتمدة',
+          `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
+          'dashboard'
+        )
+      }
     }
 
     return NextResponse.json({
