@@ -414,6 +414,79 @@ export function getServiceFlow(slug?: string | null): ServiceFlow | null {
   return SERVICE_FLOWS[slug] || null
 }
 
+export function serviceDocType(index: number): string {
+  return `FLOW_DOC_${index + 1}`
+}
+
+export function getServiceDocumentOptions(flow?: ServiceFlow | null) {
+  if (!flow) return []
+  return flow.requiredDocuments.map((label, index) => ({ type: serviceDocType(index), value: serviceDocType(index), label }))
+}
+
+export function getDefaultRequiredServiceDocumentTypes(flow?: ServiceFlow | null): string[] {
+  if (!flow || flow.isStudyProgram) return []
+  const all = getServiceDocumentOptions(flow).map((d) => d.type)
+  switch (flow.kind) {
+    case 'READY_PACKAGE':
+    case 'CONSULTING':
+      return []
+    case 'CUSTOM_PACKAGE':
+      return all.slice(0, 3)
+    case 'EXPERIENCE_EQUIVALENCY':
+      return all.slice(0, 3)
+    case 'CERTIFICATE_EQUIVALENCY':
+    case 'ACCREDITATION_MEMBERSHIP':
+      return all
+    default:
+      return all
+  }
+}
+
+export function buildServiceProfileFromFlow(flow: ServiceFlow) {
+  const options = flow.options?.map((o) => [o.title, o.price, o.description].filter(Boolean).join(' — ')).filter(Boolean) || []
+  return {
+    degreeLabel: flow.isStudyProgram ? 'برنامج دراسي' : 'خدمة مهنية عابرة',
+    specialization: flow.kicker,
+    academicTitle: flow.title,
+    levelDescription: flow.summary,
+    creditHoursLabel: flow.isStudyProgram ? undefined : 'لا توجد ساعات دراسية؛ خدمة تنفيذ وتسليم حسب الطلب',
+    durationLabel: flow.metrics.map((m) => `${m.label}: ${m.value}`).join(' — '),
+    learningOutcomes: flow.highlights,
+    skills: flow.outputs,
+    studyPlan: flow.steps.map((step, index) => ({
+      title: `مرحلة ${index + 1}`,
+      description: step,
+      deliverable: flow.outputs[index] || flow.outputs[0] || 'مخرج خدمة موثق',
+    })),
+    graduationRequirements: flow.requiredDocuments,
+    assessmentComponents: options.length ? options : flow.steps,
+    thesisRequirement: flow.isStudyProgram ? undefined : 'لا يوجد بحث تخرج أو امتحان فصلي؛ تعتمد الخدمة على مراجعة الإدارة وتسليم المخرج المتفق عليه.',
+    qualityControls: [
+      'مطابقة المرفقات أو البيانات لمتطلبات الخدمة المختارة',
+      'مراجعة إدارية قبل اعتماد الطلب أو التسليم النهائي',
+      'توثيق المخرجات في بوابة العميل وسجل الإدارة',
+      ...(flow.notes || []),
+    ],
+  }
+}
+
+export function buildServiceAdmissionDefaults(flow?: ServiceFlow | null) {
+  if (!flow || flow.isStudyProgram) return null
+  return {
+    minEducation: 'NONE',
+    requireMasterForDoctorate: false,
+    allowExperienceEquivalency: false,
+    minYearsExperience: undefined,
+    requiredDocuments: getDefaultRequiredServiceDocumentTypes(flow),
+    minAge: undefined,
+    customRules: `هذا الطلب خدمة عابرة وليس برنامجاً تعليمياً. تراجع الإدارة البيانات والمرفقات وفق مسار الخدمة: ${flow.primaryAction}.`,
+    displayNote: flow.requiredDocuments.length
+      ? `متطلبات الخدمة: ${flow.requiredDocuments.join('، ')}. لا يلزم رفع ملف أكاديمي جامعي إلا إذا كان مذكوراً ضمن متطلبات هذه الخدمة.`
+      : 'هذه خدمة عابرة؛ لا يلزم ملف أكاديمي جامعي. اكتب تفاصيل الطلب في الملاحظات وارفع أي مرفق داعم عند الحاجة.',
+    academicProfile: buildServiceProfileFromFlow(flow),
+  }
+}
+
 export function isOfficialServiceSlug(slug?: string | null): boolean {
   return Boolean(slug && SERVICE_FLOWS[slug])
 }
