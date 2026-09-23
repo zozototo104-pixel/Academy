@@ -700,14 +700,9 @@ export function AdminView() {
   const pagedAttempts = pageItems(filteredAttempts, attemptPage, attemptPageSize)
   const currentAttemptPage = safePage(filteredAttempts.length, attemptPageSize, attemptPage)
 
-  const filteredApps = useMemo(() => apps.filter((a) => {
-    const statusOk = agentStatusFilter === 'ALL'
-      || (agentStatusFilter === 'ACTIVE' && !['REJECTED', 'REVOKED'].includes(a.status))
-      || a.status === agentStatusFilter
-    return statusOk && matchesAdminSearch(agentSearch, [a.orgName, a.repName, a.email, a.phone, a.country, a.territory, a.status, a.contractNo, a.accreditationType])
-  }), [agentSearch, agentStatusFilter, apps])
-  const pagedApps = pageItems(filteredApps, agentPage, agentPageSize)
-  const currentAgentPage = safePage(filteredApps.length, agentPageSize, agentPage)
+  const filteredApps = apps
+  const pagedApps = apps
+  const currentAgentPage = agentPage
 
   if (!user) {
     navigate('auth')
