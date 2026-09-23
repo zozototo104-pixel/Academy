@@ -689,7 +689,7 @@ function requirementWeight(type: string): number {
 }
 
 function requirementCoverageMap(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): Record<string, number> {
-  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const reqs = Array.isArray(requiredDocuments) ? requiredDocuments : DEFAULT_REQUIRED_DOCS
   const out: Record<string, number> = {}
   for (const req of reqs) {
     const best = analyses
