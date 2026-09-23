@@ -2113,7 +2113,7 @@ export function AdminBooksTab() {
                         <p className="text-[11px] font-bold text-slate-500">لا توجد تسليمات بعد.</p>
                       ) : (
                         <div className="space-y-2">
-                          {a.submissions.map((s) => (
+                          {a.submissions.slice(0, 3).map((s) => (
                             <div key={s.id} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600 ring-1 ring-slate-100">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-black text-[#0f2b46]">{s.studentName} <span className="font-bold text-slate-400">{s.studentEmail}</span></p>
