@@ -659,6 +659,11 @@ export function AdminFinanceTab() {
   }
 
   const openInvoicePdf = async (id: string) => {
+    const popup = window.open('', '_blank')
+    if (popup) {
+      popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing invoice PDF...</p>')
+      try { popup.opener = null } catch {}
+    }
     setPdfBusy(id)
     try {
       const token = getToken()
@@ -672,8 +677,9 @@ export function AdminFinanceTab() {
       }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const win = window.open(url, '_blank', 'noopener,noreferrer')
-      if (!win) {
+      if (popup) {
+        popup.location.href = url
+      } else {
         const a = document.createElement('a')
         a.href = url
         a.download = 'aact-invoice.pdf'
@@ -683,6 +689,7 @@ export function AdminFinanceTab() {
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e: any) {
+      try { popup?.close() } catch {}
       toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
     } finally {
       setPdfBusy(null)
