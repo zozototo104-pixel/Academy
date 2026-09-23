@@ -182,6 +182,15 @@ export function VerifyView() {
                       {new Date(result.certificate.issuedAt).toLocaleDateString('ar-EG')}
                     </span>
                   </div>
+                  {(result.certificate.verificationUrl || result.certificate.credentialUrl) && (
+                    <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="font-black text-emerald-800">W3C Verifiable Credential</p>
+                      <div className="mt-2 grid gap-2">
+                        {result.certificate.verificationUrl && <a className="truncate rounded-lg bg-white p-2 font-mono text-[10px] font-bold text-[#0f2b46] ring-1 ring-emerald-100" href={result.certificate.verificationUrl} target="_blank" rel="noreferrer" dir="ltr">{result.certificate.verificationUrl}</a>}
+                        {result.certificate.credentialUrl && <a className="truncate rounded-lg bg-white p-2 font-mono text-[10px] font-bold text-[#0f2b46] ring-1 ring-emerald-100" href={result.certificate.credentialUrl} target="_blank" rel="noreferrer" dir="ltr">{result.certificate.credentialUrl}</a>}
+                      </div>
+                    </div>
+                  )}
                   {result.certificate.academicProfile && (
                     <div className="sm:col-span-2 rounded-xl border border-[#c9a227]/25 bg-[#fffaf0] p-3">
                       <p className="font-black text-[#0f2b46]">الملف الأكاديمي المرتبط بالشهادة</p>
