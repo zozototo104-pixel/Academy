@@ -401,8 +401,8 @@ export function AdminRulesTab() {
                       <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: ماجستير مهني' : 'مثال: خدمة مهنية عابرة'} value={draft.academicProfile?.degreeLabel || ''} onChange={(e) => patchAcademic({ degreeLabel: e.target.value })} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">التخصص</label>
-                      <Input className="text-xs" placeholder="مثال: الأمن السيبراني" value={draft.academicProfile?.specialization || ''} onChange={(e) => patchAcademic({ specialization: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'التخصص' : 'تصنيف الخدمة'}</label>
+                      <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: الأمن السيبراني' : 'مثال: معادلة / حقيبة / استشارة'} value={draft.academicProfile?.specialization || ''} onChange={(e) => patchAcademic({ specialization: e.target.value })} />
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">المدة/المسار</label>
