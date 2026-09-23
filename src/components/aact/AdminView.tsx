@@ -917,7 +917,7 @@ export function AdminView() {
                                       ) : (
                                         <>
                                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الدفع</Badge>
-                                          <Button size="sm" variant="outline" onClick={() => confirmAdmissionPayment(p.id)} className="h-7 border-emerald-200 px-2 text-[10px] font-black text-emerald-700">
+                                          <Button size="sm" variant="outline" onClick={() => openPaymentConfirmDialog(p)} className="h-7 border-emerald-200 px-2 text-[10px] font-black text-emerald-700">
                                             {p.method === 'USDT' ? 'تأكيد USDT بعد التحقق' : 'تأكيد استلام الدفع المباشر'}
                                           </Button>
                                         </>
