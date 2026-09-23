@@ -384,6 +384,7 @@ export function AdminView() {
   const [studentStatusFilter, setStudentStatusFilter] = useState('ALL')
   const [studentPage, setStudentPage] = useState(1)
   const [studentPageSize, setStudentPageSize] = useState(25)
+  const [studentTotal, setStudentTotal] = useState(0)
   const [attemptSearch, setAttemptSearch] = useState('')
   const [attemptStatusFilter, setAttemptStatusFilter] = useState('ALL')
   const [attemptPage, setAttemptPage] = useState(1)
