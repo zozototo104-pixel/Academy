@@ -256,8 +256,12 @@ async function assertMonitoringEndpoints(page: Page, token: string, testInfo: Te
     headers: { Authorization: `Bearer ${token}` },
   })
   const monitorBody = await monitorRes.json().catch(() => ({}))
+  const backupsRes = await page.request.get('/api/admin/backups', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const backupsBody = await backupsRes.json().catch(() => ({}))
   await testInfo.attach('monitoring-smoke', {
-    body: `healthStatus=${healthRes.status()}\nhealth=${JSON.stringify(healthBody).slice(0, 600)}\nmonitorStatus=${monitorRes.status()}\nmonitor=${JSON.stringify(monitorBody).slice(0, 900)}`,
+    body: `healthStatus=${healthRes.status()}\nhealth=${JSON.stringify(healthBody).slice(0, 600)}\nmonitorStatus=${monitorRes.status()}\nmonitor=${JSON.stringify(monitorBody).slice(0, 900)}\nbackupsStatus=${backupsRes.status()}\nbackups=${JSON.stringify(backupsBody).slice(0, 600)}`,
     contentType: 'text/plain',
   })
 
@@ -265,6 +269,8 @@ async function assertMonitoringEndpoints(page: Page, token: string, testInfo: Te
   expect(healthBody.status, 'Health endpoint must expose status').toBeTruthy()
   expect(monitorRes.ok(), `Admin monitoring endpoint failed with ${monitorRes.status()}`).toBeTruthy()
   expect(monitorBody.checks?.database?.ok, 'Admin monitoring database check must pass').toBe(true)
+  expect(backupsRes.ok(), `Admin backups status endpoint failed with ${backupsRes.status()}`).toBeTruthy()
+  expect(backupsBody.configured, 'Admin backups status must expose configuration').toBeTruthy()
 }
 
 async function assertFirstCertificateCredential(page: Page, token: string, testInfo: TestInfo) {
