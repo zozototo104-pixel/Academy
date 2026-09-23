@@ -380,6 +380,8 @@ export function AdminView() {
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState('ACTIVE')
   const [admissionPage, setAdmissionPage] = useState(1)
   const [admissionPageSize, setAdmissionPageSize] = useState(10)
+  const [admissionTotal, setAdmissionTotal] = useState(0)
+  const [admissionRefresh, setAdmissionRefresh] = useState(0)
   const [studentSearch, setStudentSearch] = useState('')
   const [studentStatusFilter, setStudentStatusFilter] = useState('ALL')
   const [studentPage, setStudentPage] = useState(1)
