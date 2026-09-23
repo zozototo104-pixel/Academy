@@ -1450,7 +1450,7 @@ export function AdminBooksTab() {
   const resumeExam = async (exam: ExamRow) => {
     if (!programId) return
     const semLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
-    if (!confirm(`سيستكمل خبير الذكاء الاصطناعي توليد ${semLabel} من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً. متابعة؟`)) return
+    if (!(await askAdminConfirm({ title: `استكمال توليد ${semLabel}`, description: `سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً.`, confirmLabel: 'استكمال التوليد' }))) return
     setGenerating(true)
     try {
       const d = await api<{ examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
