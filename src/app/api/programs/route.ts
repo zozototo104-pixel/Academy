@@ -131,10 +131,10 @@ export async function GET(req: NextRequest) {
           studyGuides,
           exams: programExams.map((e: any) => ({ id: e.id, title: e.title, semester: e.semester, status: e.status, questionCount: e._count?.questions || 0 })),
           enrolled: enrolledProgramIds.includes(row.id),
-          // قواعد قبول مخصصة يعرضها نموذج الالتحاق للمتقدم (شروط إضافية تضبطها الإدارة)
-          admissionRules: row.admissionRules || null,
-          // الملف الأكاديمي المخصص الذي تضبطه الإدارة لكل برنامج، إن وجد.
-          academicProfile: academicProfileFromRules(row.admissionRules),
+          // قواعد قبول/متطلبات خدمة يعرضها نموذج التقديم للمتقدم.
+          admissionRules,
+          // الملف الرسمي المخصص الذي تضبطه الإدارة لكل برنامج أو خدمة، إن وجد.
+          academicProfile: academicProfileFromRules(admissionRules),
         }
       }),
     }
