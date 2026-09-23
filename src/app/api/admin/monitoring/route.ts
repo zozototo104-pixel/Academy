@@ -61,6 +61,7 @@ export async function GET() {
       uptimeSeconds: Math.round(process.uptime()),
       version: appVersion(),
       configured: serviceConfigurationStatus(),
+      backup: backupConfigurationStatus(),
       checks: {
         database: { ok: dbCheck.ok, ms: dbCheck.ms },
       },
