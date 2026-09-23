@@ -589,20 +589,23 @@ export function AdminView() {
   }
 
   const revokeApp = async (a: AgentApp) => {
-    const reason = window.prompt(
-      `اكتب سبب إلغاء ${a.kind === 'AGENCY' ? 'الوكالة' : 'الاعتماد'} باسم ${a.orgName}.\n\nيجب أن يكون السبب موثقاً مثل إخلال بالعقد، مخالفة شروط التمثيل، إساءة استخدام الشهادة، أو مخالفة مهنية.`
-    )
-    if (reason == null) return
-    const cleanReason = reason.replace(/\s+/g, ' ').trim()
+    setRevokeDialog({ app: a, reason: '' })
+  }
+
+  const submitRevokeApp = async () => {
+    if (!revokeDialog) return
+    const cleanReason = revokeDialog.reason.replace(/\s+/g, ' ').trim()
     if (cleanReason.length < 25) {
       toast({ title: 'سبب غير كافٍ', description: 'اكتب سبباً واضحاً لا يقل عن 25 حرفاً حتى يظهر في سجل التدقيق.', variant: 'destructive' })
       return
     }
-    const ok = window.confirm(
-      `تأكيد سحب الاعتماد/الوكالة؟\n\nسيتم تغيير الحالة إلى ملغى، وتعطيل أي شهادة اعتماد مرتبطة في صفحة التحقق.\n\nالسبب: ${cleanReason}`
-    )
-    if (!ok) return
-    await setAppStatus(a.id, 'REVOKED', { revokedReason: cleanReason, revocationAcknowledged: true })
+    try {
+      setRevokeSubmitting(true)
+      await setAppStatus(revokeDialog.app.id, 'REVOKED', { revokedReason: cleanReason, revocationAcknowledged: true })
+      setRevokeDialog(null)
+    } finally {
+      setRevokeSubmitting(false)
+    }
   }
 
   const setAdmissionStatus = async (id: string, status: string) => {
