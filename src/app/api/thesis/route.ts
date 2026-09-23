@@ -140,10 +140,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const admission = await db.admissionApplication.findFirst({
-      where: { OR: [{ userId: user.id }, { email: user.email }], status: { not: 'REJECTED' } },
-      orderBy: { createdAt: 'desc' },
-    })
+    const { admission } = await findLatestStudyAdmission(user, false)
 
     // بوابة 1: لا تسليم بحث قبل التسجيل النهائي (سداد كامل + قبول إدارة) — إغلاق باب تجاوز الدفع
     // (SCHEDULED/RESULT_APPROVED لمن لديه بحث مسلم مسبقاً — منع التعديل يبقى من حالة البحث أدناه)
