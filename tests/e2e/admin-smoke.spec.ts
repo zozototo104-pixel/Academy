@@ -338,6 +338,12 @@ test.describe('Admin dashboard launch smoke test', () => {
         await assertFirstCertificateCredential(page, adminToken, testInfo)
       })
 
+      await test.step('المراقبة والصحة', async () => {
+        currentStage = 'المراقبة والصحة'
+        console.log('[admin-smoke] Checking health and monitoring endpoints')
+        await assertMonitoringEndpoints(page, adminToken, testInfo)
+      })
+
       await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
         currentStage = 'الكتب والاختبارات'
         console.log('[admin-smoke] Checking tab: الكتب والاختبارات')
