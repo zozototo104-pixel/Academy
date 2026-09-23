@@ -828,9 +828,9 @@ export function AdminFinanceTab() {
         <CardContent className="p-0">
           <h3 className="border-b border-slate-100 p-4 text-sm font-black text-[#0f2b46]">كل الفواتير والإيصالات</h3>
           <div className="aact-scroll max-h-96 overflow-y-auto">
-            {payments.length === 0 ? (
+            {paymentTotal === 0 && !paymentSearch && paymentStatusFilter === 'ALL' ? (
               <p className="p-8 text-center text-xs text-slate-400">لا توجد فواتير بعد</p>
-            ) : filteredPayments.length === 0 ? (
+            ) : payments.length === 0 ? (
               <p className="p-8 text-center text-xs text-slate-400">لا توجد فواتير مطابقة للبحث أو الفلتر الحالي.</p>
             ) : (
               <table className="w-full text-right text-xs">
