@@ -2169,9 +2169,10 @@ export function AdminBooksTab() {
                       تخصص: {selectedProgram?.titleAr || 'اختر تخصصاً'} — هنا تُصحح تسليمات الواجبات بدل تكدسها داخل بطاقة كل واجب. الامتحانات الآلية تظهر ملخصاتها واعتراضاتها في الأسفل.
                     </p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black">
+                  <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-black sm:grid-cols-4">
                     <div className="rounded-2xl bg-amber-50 px-3 py-2 text-amber-700"><p className="text-lg">{pendingGradingCount}</p><p>بانتظار</p></div>
                     <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-emerald-700"><p className="text-lg">{gradedCount}</p><p>مصحح</p></div>
+                    <div className="rounded-2xl bg-orange-50 px-3 py-2 text-orange-700"><p className="text-lg">{revisionCount}</p><p>تعديل</p></div>
                     <div className="rounded-2xl bg-blue-50 px-3 py-2 text-blue-700"><p className="text-lg">{exams.reduce((sum, e) => sum + (e.attemptsCount || 0), 0)}</p><p>محاولات امتحان</p></div>
                   </div>
                 </div>
