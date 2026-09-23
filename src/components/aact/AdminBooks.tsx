@@ -3051,7 +3051,7 @@ export function AdminBooksTab() {
             <div className="space-y-4">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
-                  {confirmDialog.danger ? <AlertTriangle className="h-5 w-5 text-red-500" /> : <InfoIcon className="h-5 w-5 text-[#a8841a]" />}
+                  {confirmDialog.danger ? <AlertTriangle className="h-5 w-5 text-red-500" /> : <Info className="h-5 w-5 text-[#a8841a]" />}
                   {confirmDialog.title}
                 </DialogTitle>
                 <DialogDescription className="text-sm font-bold leading-7 text-slate-600">
