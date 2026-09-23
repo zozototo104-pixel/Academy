@@ -157,7 +157,7 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
 
       for (let skip = 0; skip < total; skip += safeBatchSize) {
         const rows = await delegate.findMany({
-          orderBy: { id: 'asc' },
+          orderBy: table.orderBy || { id: 'asc' },
           skip,
           take: safeBatchSize,
         })
