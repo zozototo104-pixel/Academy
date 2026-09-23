@@ -120,12 +120,30 @@ jobs:
             echo "Admin route attempt $i: HTTP ${code:-000}"
             if [ "${code:-000}" != "404" ] && [ "${code:-000}" != "000" ]; then
               echo "Frontend admin route is deployed."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "Frontend admin route was not deployed after waiting. Last response:"
+              cat /tmp/admin-route-check.txt || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "Waiting for deployed health route: $base/api/health"
+          for i in {1..60}; do
+            curl_check "$base/api/health" /tmp/health-route-check.txt /tmp/health-route-headers.txt
+            code=$(awk 'NR==1 {print $2}' /tmp/health-route-headers.txt | tail -1)
+            content_type=$(grep -i '^content-type:' /tmp/health-route-headers.txt | tail -1 | tr -d '\r' | cut -d' ' -f2- || true)
+            echo "Health route attempt $i: HTTP ${code:-000}; content-type=${content_type:-unknown}"
+            if [ "${code:-000}" != "404" ] && echo "$content_type" | grep -qi 'application/json'; then
+              echo "Health route is deployed."
               exit 0
             fi
             sleep 10
           done
-          echo "Frontend admin route was not deployed after waiting. Last response:"
-          cat /tmp/admin-route-check.txt || true
+          echo "Health route was not deployed after waiting. Last response:"
+          cat /tmp/health-route-check.txt || true
           exit 1
 
       - name: Run admin smoke test
