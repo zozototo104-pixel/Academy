@@ -1340,9 +1340,9 @@ export function AdminBooksTab() {
   const submitGradingDialog = async () => {
     if (!programId || !gradingDialog) return
     const { mode, submission, assignment } = gradingDialog
-    const score = mode === 'GRADE' ? Number(gradingDialog.score) : null
+    const parsedScore = Number(gradingDialog.score)
     const feedback = gradingDialog.feedback.trim()
-    if (mode === 'GRADE' && (!Number.isFinite(score) || score < 0 || score > assignment.points)) {
+    if (mode === 'GRADE' && (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > assignment.points)) {
       toast({ title: 'درجة غير صالحة', description: `أدخل درجة بين 0 و ${assignment.points}.`, variant: 'destructive' })
       return
     }
@@ -1356,13 +1356,13 @@ export function AdminBooksTab() {
         method: 'PATCH',
         body: JSON.stringify({
           submissionId: submission.id,
-          score: mode === 'GRADE' ? String(score) : undefined,
+          score: mode === 'GRADE' ? String(parsedScore) : undefined,
           feedback,
           status: mode === 'GRADE' ? 'GRADED' : 'NEEDS_REVISION',
         }),
       })
       await loadProgramData(programId, true)
-      toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${score}/${assignment.points}` : undefined })
+      toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${parsedScore}/${assignment.points}` : undefined })
       setGradingDialog(null)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
