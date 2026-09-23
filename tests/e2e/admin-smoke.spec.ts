@@ -314,6 +314,12 @@ test.describe('Admin dashboard launch smoke test', () => {
         await assertTranscriptPdf(page, adminToken, testInfo)
       })
 
+      await test.step('W3C للشهادات', async () => {
+        currentStage = 'W3C للشهادات'
+        console.log('[admin-smoke] Checking W3C certificate credential endpoint')
+        await assertFirstCertificateCredential(page, adminToken, testInfo)
+      })
+
       await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
         currentStage = 'الكتب والاختبارات'
         console.log('[admin-smoke] Checking tab: الكتب والاختبارات')
