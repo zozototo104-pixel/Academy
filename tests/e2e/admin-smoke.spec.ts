@@ -257,6 +257,12 @@ test.describe('Admin dashboard launch smoke test', () => {
         })
       }
 
+      await test.step('PDF الفواتير', async () => {
+        currentStage = 'PDF الفواتير'
+        console.log('[admin-smoke] Checking invoice PDF endpoint')
+        await assertFirstInvoicePdf(page, adminToken, testInfo)
+      })
+
       await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
         currentStage = 'الكتب والاختبارات'
         console.log('[admin-smoke] Checking tab: الكتب والاختبارات')
