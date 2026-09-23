@@ -429,6 +429,19 @@ export function AdminBooksTab() {
   const [genSemester, setGenSemester] = useState('1')
   const [reviewingExam, setReviewingExam] = useState<{ id: string; title: string } | null>(null)
 
+  const askAdminConfirm = useCallback((dialog: { title: string; description: string; confirmLabel?: string; danger?: boolean }) => {
+    return new Promise<boolean>((resolve) => {
+      confirmResolveRef.current = resolve
+      setConfirmDialog(dialog)
+    })
+  }, [])
+
+  const closeAdminConfirm = (ok: boolean) => {
+    confirmResolveRef.current?.(ok)
+    confirmResolveRef.current = null
+    setConfirmDialog(null)
+  }
+
   useEffect(() => {
     api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
       .then((d) => setPrograms(d.programs))
