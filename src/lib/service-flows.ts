@@ -473,9 +473,9 @@ export function buildServiceProfileFromFlow(flow: ServiceFlow) {
 export function buildServiceAdmissionDefaults(flow?: ServiceFlow | null) {
   if (!flow || flow.isStudyProgram) return null
   return {
-    minEducation: 'NONE',
-    requireMasterForDoctorate: false,
-    allowExperienceEquivalency: false,
+    minEducation: 'NONE' as const,
+    requireMasterForDoctorate: false as const,
+    allowExperienceEquivalency: false as const,
     minYearsExperience: undefined,
     requiredDocuments: getDefaultRequiredServiceDocumentTypes(flow),
     minAge: undefined,
