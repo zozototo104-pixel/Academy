@@ -459,6 +459,468 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       )
     }
 
+    if (enrollments.length === 0 && !thesis && !admission && activePrograms.length > 0) {
+      const programLines = activePrograms.slice(0, 40).map((p, i) => {
+        const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
+import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
+
+const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
+  CONCEPT: 'مفهوم',
+  THEORY: 'نظرية أو إطار',
+  METHOD: 'منهجية',
+  CASE: 'حالة تطبيقية',
+  DEFINITION: 'تعريف',
+  QUESTION_SEED: 'محور سؤال',
+  SUMMARY: 'ملخص محوري',
+}
+
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+type StudentMemorySignalKind = 'CHAT' | 'EXAM' | 'DEFENSE' | 'FILE' | 'THESIS'
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
+function labelKnowledgeCategory(category: string) {
+  return KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || 'محور معرفي'
+}
+
+function parseArray(value?: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function compactText(value?: string | null, max = 240): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function cleanMemoryItem(value: unknown, max = 220): string | null {
+  const text = compactText(String(value || ''), max)
+  return text.length >= 3 ? text : null
+}
+
+function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
+  const merged: string[] = []
+  for (const item of [...parseArray(existing), ...additions]) {
+    const clean = cleanMemoryItem(item)
+    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
+  }
+  return JSON.stringify(merged.slice(-max))
+}
+
+function formatJsonList(title: string, value?: string | null, max = 8): string | null {
+  const items = parseArray(value).slice(-max)
+  return items.length ? `${title}: ${items.join(' | ')}` : null
+}
+
+function formatAcademicMemory(memory: any): string {
+  const rows = [
+    memory.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
+    formatJsonList('نقاط القوة المتكررة', memory.strengths),
+    formatJsonList('نقاط الضعف/الفجوات', memory.weaknesses),
+    formatJsonList('مفاهيم يجب مراجعتها', memory.conceptsToReview),
+    formatJsonList('خطوات التعلم المقترحة', memory.recommendedNextActions),
+    memory.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
+    formatJsonList('إشارات الاختبارات', memory.examSignals, 6),
+    formatJsonList('إشارات البحث/المناقشة', memory.thesisSignals, 6),
+    memory.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
+  ].filter(Boolean)
+  return rows.join('\n')
+}
+
+/**
+ * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
+ * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
+ * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
+ */
+export async function buildSupervisorContext(userId: string): Promise<string> {
+  try {
+    const [studentProfile, enrollments, thesis, admission, activePrograms] = await Promise.all([
+      db.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
+      }),
+      db.enrollment.findMany({
+        where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
+        include: {
+          program: {
+            include: {
+              units: { orderBy: { order: 'asc' }, select: { title: true, summary: true, objectives: true } },
+              books: {
+                orderBy: { createdAt: 'asc' },
+                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true },
+              },
+              studyGuides: {
+                where: { status: 'PUBLISHED' },
+                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
+                select: { title: true, overview: true, objectives: true, keyTerms: true, discussionQuestions: true, semester: true },
+              },
+              programExams: { select: { id: true, title: true, semester: true, status: true, passScore: true } },
+            },
+          },
+        },
+      }),
+      db.thesisSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+      db.admissionApplication.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: { reference: true, program: true, status: true, thesisDeadline: true },
+      }),
+      db.program.findMany({
+        where: { active: true },
+        orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+        take: 100,
+        select: {
+          titleAr: true,
+          titleEn: true,
+          category: true,
+          hours: true,
+          price: true,
+          description: true,
+          books: {
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+            select: { title: true, titleEn: true, author: true, description: true, textContent: true },
+          },
+        },
+      }),
+    ])
+
+    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments] = await Promise.all([
+      db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
+      db.chatMessage.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { role: true, content: true, mode: true, kind: true, createdAt: true },
+      }).catch(() => []),
+      db.assignmentSubmission.findMany({
+        where: { userId },
+        orderBy: { submittedAt: 'desc' },
+        take: 5,
+        include: { assignment: { select: { title: true, type: true, semester: true, program: { select: { titleAr: true } } } } },
+      }).catch(() => []),
+      db.supervisorChannelMessage.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: { senderRole: true, mode: true, content: true, createdAt: true },
+      }).catch(() => []),
+      db.supervisorAssessment.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 1 } },
+      }).catch(() => []),
+    ])
+
+    const parts: string[] = []
+
+    if (studentProfile) {
+      parts.push(
+        `بطاقة ملف الطالب الأساسية: الاسم ${studentProfile.name} — البريد ${studentProfile.email}` +
+          (studentProfile.phone ? ` — الهاتف ${studentProfile.phone}` : '') +
+          (studentProfile.country ? ` — الدولة ${studentProfile.country}` : '') +
+          ` — الدور ${studentProfile.role} — تاريخ إنشاء الملف ${new Date(studentProfile.createdAt).toLocaleDateString('ar-EG')}`
+      )
+    }
+
+    if (academicMemory) {
+      const memoryBlock = formatAcademicMemory(academicMemory)
+      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
+    }
+
+    if (recentMessages.length > 0) {
+      const chatDigest = recentMessages
+        .slice()
+        .reverse()
+        .map((m) => `${m.role === 'assistant' ? 'المشرف' : 'الطالب'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
+        .join('\n')
+      parts.push(`آخر محادثات محفوظة في ملف الطالب (لا تكررها؛ استخدمها لفهم السياق):\n${chatDigest}`)
+    }
+
+    if (latestAssignments.length > 0) {
+      parts.push(
+        `آخر الواجبات/المشاريع التطبيقية:\n${latestAssignments.map((a) => {
+          const status = a.score != null ? ` — الدرجة ${a.score}` : ` — الحالة ${a.status}`
+          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester})${status}${a.feedback ? ` — ملاحظة: ${compactText(a.feedback, 160)}` : ''}`
+        }).join('\n')}`
+      )
+    }
+
+    if (supervisorMessages.length > 0) {
+      parts.push(
+        `آخر مراسلات المشرف البشري مع الطالب:\n${supervisorMessages.slice().reverse().map((m) => `${m.senderRole}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`).join('\n')}`
+      )
+    }
+
+    if (privateAssessments.length > 0) {
+      parts.push(
+        `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
+          const attempt = a.attempts?.[0]
+          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة${attempt ? ` — آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.feedback ? compactText(attempt.feedback, 180) : attempt.status}` : ' — لم يسلّم بعد'}`
+        }).join('\n')}`
+      )
+    }
+
+    if (enrollments.length === 0 && !thesis && !admission && activePrograms.length > 0) {
+      const programLines = activePrograms.slice(0, 40).map((p, i) => {
+        const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
+import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
+
+const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
+  CONCEPT: 'مفهوم',
+  THEORY: 'نظرية أو إطار',
+  METHOD: 'منهجية',
+  CASE: 'حالة تطبيقية',
+  DEFINITION: 'تعريف',
+  QUESTION_SEED: 'محور سؤال',
+  SUMMARY: 'ملخص محوري',
+}
+
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+type StudentMemorySignalKind = 'CHAT' | 'EXAM' | 'DEFENSE' | 'FILE' | 'THESIS'
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
+function labelKnowledgeCategory(category: string) {
+  return KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || 'محور معرفي'
+}
+
+function parseArray(value?: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function compactText(value?: string | null, max = 240): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function cleanMemoryItem(value: unknown, max = 220): string | null {
+  const text = compactText(String(value || ''), max)
+  return text.length >= 3 ? text : null
+}
+
+function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
+  const merged: string[] = []
+  for (const item of [...parseArray(existing), ...additions]) {
+    const clean = cleanMemoryItem(item)
+    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
+  }
+  return JSON.stringify(merged.slice(-max))
+}
+
+function formatJsonList(title: string, value?: string | null, max = 8): string | null {
+  const items = parseArray(value).slice(-max)
+  return items.length ? `${title}: ${items.join(' | ')}` : null
+}
+
+function formatAcademicMemory(memory: any): string {
+  const rows = [
+    memory.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
+    formatJsonList('نقاط القوة المتكررة', memory.strengths),
+    formatJsonList('نقاط الضعف/الفجوات', memory.weaknesses),
+    formatJsonList('مفاهيم يجب مراجعتها', memory.conceptsToReview),
+    formatJsonList('خطوات التعلم المقترحة', memory.recommendedNextActions),
+    memory.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
+    formatJsonList('إشارات الاختبارات', memory.examSignals, 6),
+    formatJsonList('إشارات البحث/المناقشة', memory.thesisSignals, 6),
+    memory.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
+  ].filter(Boolean)
+  return rows.join('\n')
+}
+
+/**
+ * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
+ * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
+ * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
+ */
+export async function buildSupervisorContext(userId: string): Promise<string> {
+  try {
+    const [studentProfile, enrollments, thesis, admission, activePrograms] = await Promise.all([
+      db.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
+      }),
+      db.enrollment.findMany({
+        where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
+        include: {
+          program: {
+            include: {
+              units: { orderBy: { order: 'asc' }, select: { title: true, summary: true, objectives: true } },
+              books: {
+                orderBy: { createdAt: 'asc' },
+                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true },
+              },
+              studyGuides: {
+                where: { status: 'PUBLISHED' },
+                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
+                select: { title: true, overview: true, objectives: true, keyTerms: true, discussionQuestions: true, semester: true },
+              },
+              programExams: { select: { id: true, title: true, semester: true, status: true, passScore: true } },
+            },
+          },
+        },
+      }),
+      db.thesisSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+      db.admissionApplication.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: { reference: true, program: true, status: true, thesisDeadline: true },
+      }),
+      db.program.findMany({
+        where: { active: true },
+        orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+        take: 100,
+        select: {
+          titleAr: true,
+          titleEn: true,
+          category: true,
+          hours: true,
+          price: true,
+          description: true,
+          books: {
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+            select: { title: true, titleEn: true, author: true, description: true, textContent: true },
+          },
+        },
+      }),
+    ])
+
+    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments] = await Promise.all([
+      db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
+      db.chatMessage.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { role: true, content: true, mode: true, kind: true, createdAt: true },
+      }).catch(() => []),
+      db.assignmentSubmission.findMany({
+        where: { userId },
+        orderBy: { submittedAt: 'desc' },
+        take: 5,
+        include: { assignment: { select: { title: true, type: true, semester: true, program: { select: { titleAr: true } } } } },
+      }).catch(() => []),
+      db.supervisorChannelMessage.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: { senderRole: true, mode: true, content: true, createdAt: true },
+      }).catch(() => []),
+      db.supervisorAssessment.findMany({
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 1 } },
+      }).catch(() => []),
+    ])
+
+    const parts: string[] = []
+
+    if (studentProfile) {
+      parts.push(
+        `بطاقة ملف الطالب الأساسية: الاسم ${studentProfile.name} — البريد ${studentProfile.email}` +
+          (studentProfile.phone ? ` — الهاتف ${studentProfile.phone}` : '') +
+          (studentProfile.country ? ` — الدولة ${studentProfile.country}` : '') +
+          ` — الدور ${studentProfile.role} — تاريخ إنشاء الملف ${new Date(studentProfile.createdAt).toLocaleDateString('ar-EG')}`
+      )
+    }
+
+    if (academicMemory) {
+      const memoryBlock = formatAcademicMemory(academicMemory)
+      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
+    }
+
+    if (recentMessages.length > 0) {
+      const chatDigest = recentMessages
+        .slice()
+        .reverse()
+        .map((m) => `${m.role === 'assistant' ? 'المشرف' : 'الطالب'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
+        .join('\n')
+      parts.push(`آخر محادثات محفوظة في ملف الطالب (لا تكررها؛ استخدمها لفهم السياق):\n${chatDigest}`)
+    }
+
+    if (latestAssignments.length > 0) {
+      parts.push(
+        `آخر الواجبات/المشاريع التطبيقية:\n${latestAssignments.map((a) => {
+          const status = a.score != null ? ` — الدرجة ${a.score}` : ` — الحالة ${a.status}`
+          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester})${status}${a.feedback ? ` — ملاحظة: ${compactText(a.feedback, 160)}` : ''}`
+        }).join('\n')}`
+      )
+    }
+
+    if (supervisorMessages.length > 0) {
+      parts.push(
+        `آخر مراسلات المشرف البشري مع الطالب:\n${supervisorMessages.slice().reverse().map((m) => `${m.senderRole}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`).join('\n')}`
+      )
+    }
+
+    if (privateAssessments.length > 0) {
+      parts.push(
+        `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
+          const attempt = a.attempts?.[0]
+          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة${attempt ? ` — آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.feedback ? compactText(attempt.feedback, 180) : attempt.status}` : ' — لم يسلّم بعد'}`
+        }).join('\n')}`
+      )
  : ''
         const desc = p.description ? ` — ${p.description.replace(/\s+/g, ' ').slice(0, 90)}` : ''
         const books = p.books.length ? ` — أمثلة مراجع: ${p.books.map((b) => `«${b.title}»`).join('، ')}` : ''
