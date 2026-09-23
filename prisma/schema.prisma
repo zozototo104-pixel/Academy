@@ -311,10 +311,18 @@ model Payment {
   status      String   @default("UNPAID") // UNPAID | PAID
   receiptNo   String?  // AACT-REC-2026-XXXX عند السداد
   // الربط الحقيقي ببوابات الدفع: جلسة الدفع لدى المزود والتوفيق عبر Webhook
-  provider       String?  // STRIPE | PAYPAL | SANDBOX
+  provider       String?  // STRIPE | PAYPAL | SANDBOX | USDT
   providerRef    String?  // معرف جلسة الدفع لدى المزود (checkout session / order id)
   checkoutUrl    String?  // رابط الدفع المعاد من المزود
   paidViaWebhook Boolean  @default(false)
+  // حقول الدفع بالعملات المستقرة: يتم التحقق آلياً من Hash التحويل ثم تؤكد الإدارة السداد يدوياً.
+  cryptoNetwork            String?
+  cryptoWalletAddress      String?
+  cryptoTxHash             String?
+  cryptoVerificationStatus String?   // WAITING_TX | VERIFIED | FAILED | UNSUPPORTED
+  cryptoVerificationNote   String?
+  cryptoVerifiedAt         DateTime?
+  cryptoVerificationRaw    Json?
   paidAt      DateTime?
   payerName   String?
   payerEmail  String?
