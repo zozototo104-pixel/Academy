@@ -842,8 +842,16 @@ export function AdminFinanceTab() {
                         )}
                       </td>
                       <td className="p-3">
-                        <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
-                          <a href={`/pdf/invoices/${encodeURIComponent(p.id)}?print=1`} target="_blank" rel="noreferrer"><FileDown className="ml-1 h-3 w-3" /> PDF</a>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pdfBusy === p.id}
+                          onClick={() => openInvoicePdf(p.id)}
+                          className="border-[#c9a227]/40 font-bold text-[#a8841a]"
+                        >
+                          {pdfBusy === p.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <FileDown className="ml-1 h-3 w-3" />}
+                          PDF
                         </Button>
                       </td>
                       <td className="p-3">
