@@ -119,7 +119,7 @@ export async function verifyUsdtTransaction(params: {
       return { status: 'FAILED', note: 'تم العثور على العملية، لكنها لا تحتوي على تحويل إلى عنوان محفظة المنصة المضبوط.', txHash, raw }
     }
 
-    const tokenMatches = matches.filter((item) => !item.contract || TRC20_USDT_CONTRACTS.has(item.contract) || TRC20_USDT_CONTRACTS.has(String(item.event?.contract_address || '')))
+    const tokenMatches = matches.filter((item) => item.contract && TRC20_USDT_CONTRACTS.has(item.contract))
     if (!tokenMatches.length) {
       return { status: 'FAILED', note: 'التحويل لا يبدو أنه على عقد USDT TRC20 المعتمد.', txHash, raw }
     }
