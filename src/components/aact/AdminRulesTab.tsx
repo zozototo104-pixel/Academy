@@ -323,9 +323,9 @@ export function AdminRulesTab() {
 
                 {/* الوثائق الإلزامية */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">الوثائق الإلزامية عند التقديم</label>
+                  <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الوثائق الإلزامية عند التقديم' : 'مرفقات الخدمة المطلوبة عند التقديم'}</label>
                   <div className="flex flex-wrap gap-2">
-                    {DOC_OPTIONS.map((d) => {
+                    {activeDocOptions.map((d) => {
                       const on = (draft.requiredDocuments || []).includes(d.value)
                       return (
                         <button
