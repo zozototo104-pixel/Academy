@@ -63,11 +63,7 @@ export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ thesis: null, admission: null })
-    const admission = await db.admissionApplication.findFirst({
-      where: { OR: [{ userId: user.id }, { email: user.email }], status: { not: 'REJECTED' } },
-      orderBy: { createdAt: 'desc' },
-      include: { supervisor: { select: { name: true } } },
-    })
+    const { admission } = await findLatestStudyAdmission(user, true)
     const thesis = await db.thesisSubmission.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
