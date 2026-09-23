@@ -11,7 +11,7 @@ export interface UsdtVerificationResult {
 const TRC20_USDT_CONTRACTS = new Set([
   'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj',
   '41a614f803b6fd780986a42c78ec9c7f77e6ded13c',
-])
+].map((v) => v.toLowerCase()))
 
 function env(name: string): string {
   try {
