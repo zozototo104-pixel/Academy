@@ -383,6 +383,7 @@ export function ApplyView() {
         const uploadFd = new FormData()
         uploadFd.append('applicationId', staged.applicationId)
         uploadFd.append('reference', staged.reference)
+        uploadFd.append('uploadToken', staged.uploadToken)
         uploadFd.append('docType', d.type)
         uploadFd.append('file', files[d.type])
         toast({ title: 'جاري رفع المستندات', description: `رفع ${i + 1} من ${docsToUpload.length}: ${d.label}` })
