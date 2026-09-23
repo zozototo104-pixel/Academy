@@ -1608,9 +1608,9 @@ export function AdminView() {
                     <Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" />
                     جاري تحميل الطلاب...
                   </div>
-                ) : academicStudents.length === 0 ? (
+                ) : studentTotal === 0 && !studentSearch && studentStatusFilter === 'ALL' ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب ملتحقون ببرامج دراسية بعد</div>
-                ) : filteredStudents.length === 0 ? (
+                ) : academicStudents.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
