@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
 import { ADMISSION_GUIDE, ADMISSION_FEES, ACADEMY_INFO } from '@/lib/academyData'
-import { getServiceFlow } from '@/lib/service-flows'
+import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
