@@ -304,13 +304,16 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const pdf = await svgToPdfBuffer(svg)
     const filename = `${fileSafe(payment.invoiceNo || payment.id)}.pdf`
 
-    return new NextResponse(pdf, {
+    const body = new ArrayBuffer(pdf.byteLength)
+    new Uint8Array(body).set(pdf)
+
+    return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${filename}"`,
         'Cache-Control': 'private, no-store, max-age=0',
-        'Content-Length': String(pdf.length),
+        'Content-Length': String(pdf.byteLength),
       },
     })
   } catch (e) {
