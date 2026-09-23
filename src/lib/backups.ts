@@ -206,12 +206,13 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
     },
   }
 
-  await audit({
-    action: errors.length ? 'DB_BACKUP_PARTIAL' : 'DB_BACKUP_SUCCESS',
-    entity: 'Backup',
-    entityId: stored.key,
-    details: `trigger=${trigger} | provider=${stored.provider} | bytes=${stored.size} | tables=${tables.length} | errors=${errors.length}`,
-  }).catch(() => {})
+  await audit(
+    null,
+    errors.length ? 'DB_BACKUP_PARTIAL' : 'DB_BACKUP_SUCCESS',
+    'Backup',
+    stored.key,
+    `trigger=${trigger} | provider=${stored.provider} | bytes=${stored.size} | tables=${tables.length} | errors=${errors.length}`
+  ).catch(() => {})
 
   return result
 }
