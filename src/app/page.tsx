@@ -235,29 +235,20 @@ export default function Home() {
     // فتح قناة الصوت عالمياً بأول لمسة — يضمن عمل النطق (TTS) على iOS Safari
     unlockAudioOnFirstGesture()
 
-    // دعم فتح الصفحات مباشرة برابط: /?view=admin أو /?view=verify&serial=...
-    const v = q.get('view')
-    const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'supervisor', 'student-preview', 'agent-preview', 'verify', 'directory', 'about', 'contact']
-    if (v && validViews.includes(v)) {
-      const programId = q.get('programId') || q.get('program') || q.get('slug')
-      if (v === 'program-detail' && programId) {
-        useAppStore.getState().openProgramDetails(programId)
-      } else if (v === 'programs' && q.get('filter')) {
-        useAppStore.getState().openPrograms(q.get('filter') || undefined)
-      } else if (v === 'dashboard' && programId) {
-        useAppStore.getState().openProgram(programId)
-      } else if (v === 'unit' && q.get('unitId')) {
-        useAppStore.getState().openUnit(q.get('unitId') || '')
-      } else if (v === 'exam' && q.get('examId')) {
-        useAppStore.getState().openExam(q.get('examId') || '', q.get('kind') === 'final' ? 'final' : 'unit')
-      } else if (v === 'student-preview' && q.get('studentId')) {
-        useAppStore.getState().openStudentPreview(q.get('studentId') || '')
-      } else if (v === 'agent-preview' && q.get('agentId')) {
-        useAppStore.getState().openAgentPreview(q.get('agentId') || '')
-      } else {
-        useAppStore.getState().navigate(v as any)
-      }
-    }
+    // دعم فتح الصفحات مباشرة برابط حقيقي مثل /admin مع استمرار دعم /?view=admin القديم.
+    const directRoute = routeStateFromLocation(window.location.pathname, window.location.search)
+    useAppStore.setState({
+      view: directRoute.view,
+      mobileMenuOpen: false,
+      programsFilter: directRoute.programsFilter || null,
+      programDetailsId: directRoute.programDetailsId || null,
+      activeProgramId: directRoute.activeProgramId || null,
+      activeUnitId: directRoute.activeUnitId || null,
+      activeExamId: directRoute.activeExamId || null,
+      activeExamKind: directRoute.activeExamKind || 'unit',
+      studentPreviewId: directRoute.studentPreviewId || null,
+      agentPreviewId: directRoute.agentPreviewId || null,
+    })
     return () => { alive = false }
   }, [])
 
