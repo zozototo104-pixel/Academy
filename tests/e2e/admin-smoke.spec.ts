@@ -218,7 +218,7 @@ async function assertFirstInvoicePdf(page: Page, token: string, testInfo: TestIn
     return
   }
 
-  const pdfRes = await page.request.get(`/pdf/invoices/${encodeURIComponent(firstPayment.id)}`, {
+  const pdfRes = await page.request.get(`/api/pdf/invoices/${encodeURIComponent(firstPayment.id)}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const contentType = pdfRes.headers()['content-type'] || ''
