@@ -44,6 +44,7 @@ interface PaymentConfig {
   warnings: string[]
   errors: string[]
   methods: PaymentMethodStatus[]
+  usdt?: { configured: boolean; network: string; instructions: string }
 }
 
 interface Payment {
