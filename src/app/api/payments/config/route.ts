@@ -13,6 +13,12 @@ export async function GET() {
       providers: {
         STRIPE: diagnostics.methods.find((m) => m.id === 'STRIPE')?.enabled || false,
         PAYPAL: diagnostics.methods.find((m) => m.id === 'PAYPAL')?.enabled || false,
+        USDT: diagnostics.methods.find((m) => m.id === 'USDT')?.enabled || false,
+      },
+      usdt: {
+        configured: diagnostics.usdtConfigured || false,
+        network: cfg.usdtNetwork || 'TRC20',
+        instructions: cfg.usdtInstructions || '',
       },
       trueGatewayCount: diagnostics.trueGatewayCount,
       warnings: diagnostics.warnings,
