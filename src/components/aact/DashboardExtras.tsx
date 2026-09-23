@@ -220,6 +220,32 @@ export function PaymentsTab() {
     }
   }
 
+  const submitUsdtProof = async (payment: Payment) => {
+    const txHash = (usdtHashes[payment.id] || payment.cryptoTxHash || '').trim()
+    if (!txHash) {
+      toast({ title: 'أدخل TX Hash', description: 'انسخ Hash عملية تحويل USDT من المحفظة وألصقه هنا.', variant: 'destructive' })
+      return
+    }
+    setVerifyingUsdt(payment.id)
+    try {
+      const res = await api<{ verification: { status: string; note: string }; payment: Payment }>('/api/payments/usdt-proof', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, invoiceNo: payment.invoiceNo, txHash }),
+      })
+      toast({
+        title: res.verification.status === 'VERIFIED' ? 'تم التحقق آلياً' : 'نتيجة التحقق من USDT',
+        description: res.verification.note,
+        variant: res.verification.status === 'FAILED' ? 'destructive' : undefined,
+      })
+      setUsdtHashes((prev) => ({ ...prev, [payment.id]: txHash }))
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر التحقق من USDT', description: e.message, variant: 'destructive' })
+    } finally {
+      setVerifyingUsdt(null)
+    }
+  }
+
   const pay = async () => {
     if (!payTarget) return
     const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
