@@ -20,6 +20,20 @@ import {
   BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks,
 } from 'lucide-react'
 
+const STUDENT_STATUS_LABEL: Record<string, string> = {
+  AWAITING_FEE: 'بانتظار رسوم التقديم',
+  UNDER_REVIEW: 'قيد مراجعة الإدارة',
+  AWAITING_TUITION: 'مقبول — بانتظار الرسوم',
+  SUPERVISOR_ASSIGNED: 'تم تفعيل التسجيل',
+  THESIS: 'قيد الدراسة والبحث',
+  SCHEDULED: 'مجدول للمناقشة',
+  RESULT_APPROVED: 'تم اعتماد النتيجة',
+  CERTIFIED: 'تم إصدار الشهادة',
+  REJECTED: 'غير مقبول',
+  PENDING: 'تم التقديم',
+}
+const studentStatusLabel = (status?: string | null) => (status ? STUDENT_STATUS_LABEL[status] || status : 'قيد المتابعة')
+
 interface UnitInfo {
   id: string
   order: number
