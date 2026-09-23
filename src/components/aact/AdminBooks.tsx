@@ -2267,6 +2267,9 @@ export function AdminBooksTab() {
                     </article>
                   ))}
                 </div>
+                <div className="mt-3">
+                  <AdminPager page={currentGradingPage} pageSize={gradingPageSize} total={filteredGradingQueue.length} onPageChange={setGradingPage} label="تسليم" />
+                </div>
               </CardContent>
             </Card>
 
