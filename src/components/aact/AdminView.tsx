@@ -1651,8 +1651,13 @@ export function AdminView() {
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات وكالة بعد</CardContent>
               </Card>
+            ) : filteredApps.length === 0 ? (
+              <Card className="border-[#0f2b46]/10">
+                <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات مطابقة للبحث أو الفلتر الحالي.</CardContent>
+              </Card>
             ) : (
-              apps.map((a) => {
+              <>
+              {pagedApps.map((a) => {
                 const submittedByStaff = !!a.submittedByStaff || (!!a.user && ['ADMIN', 'SUPERVISOR'].includes(a.user.role))
                 return (
                 <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
