@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
+import { getServiceFlow } from '@/lib/service-flows'
 
 function jsonArray(value: unknown, fallback: any[] = []) {
   if (Array.isArray(value)) return value
