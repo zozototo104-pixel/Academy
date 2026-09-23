@@ -25,8 +25,12 @@ function normalize(value?: string | null): string {
   return String(value || '').trim().toLowerCase()
 }
 
+function normalizeTxHash(txHash: string): string {
+  return txHash.trim().replace(/^0x/i, '').toLowerCase()
+}
+
 function validTxHash(txHash: string): boolean {
-  return /^[a-fA-F0-9]{64}$/.test(txHash.trim())
+  return /^[a-fA-F0-9]{64}$/.test(normalizeTxHash(txHash))
 }
 
 function numberFromTokenValue(value: unknown): number | null {
