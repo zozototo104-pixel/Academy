@@ -228,7 +228,7 @@ export function PaymentsTab() {
     }
     setVerifyingUsdt(payment.id)
     try {
-      const res = await api<{ verification: { status: string; note: string }; payment: Payment }>('/api/payments/usdt-proof', {
+      const res = await api<{ verification: { status: string; note: string }; payment: Payment }>('/api/payments/usdt/verify', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, invoiceNo: payment.invoiceNo, txHash }),
       })
