@@ -126,9 +126,9 @@ export async function markInvoicePaid(
         }
         await audit(actor, 'SERVICE_READY_FOR_DELIVERY', 'AdmissionApplication', app.id, `${app.reference} — خدمة مدفوعة وجاهزة للتسليم`)
       }
-      if (finalRegistration && app.userId) {
+      if (finalRegistration && linkedUserId) {
         await notify(
-          app.userId,
+          linkedUserId,
           'ADMISSION',
           installmentRegistration ? 'تم تفعيل تسجيلك وفق خطة التقسيط المعتمدة' : 'التسجيل النهائي مكتمل — أهلاً بك في برنامجك!',
           installmentRegistration
@@ -136,10 +136,10 @@ export async function markInvoicePaid(
             : `مبروك! بعد سداد الرسوم الدراسية كاملة أصبح تسجيلك النهائي في «${app.program}» فعالاً — يمكنك الآن الدخول لبوابة الطالب وقراءة الكتب المقررة والبدء مع مشرفك الذكي${app.supervisorId ? ' ومشرفك الأكاديمي' : ''}.`,
           'dashboard'
         )
-        const student = await db.user.findUnique({ where: { id: app.userId }, select: { email: true, name: true } })
+        const student = await db.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } })
         if (student) await emailFinalRegistration(student.email, student.name, app.program)
         await audit(
-          { id: app.userId, name: app.fullName },
+          { id: linkedUserId, name: app.fullName },
           'FINAL_REGISTRATION',
           'Enrollment',
           app.id,
