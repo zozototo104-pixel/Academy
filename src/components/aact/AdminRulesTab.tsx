@@ -393,8 +393,8 @@ export function AdminRulesTab() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">المسمى الأكاديمي الظاهر</label>
-                      <Input className="text-xs" placeholder="مثال: الماجستير المهني في الأمن السيبراني" value={draft.academicProfile?.academicTitle || ''} onChange={(e) => patchAcademic({ academicTitle: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'المسمى الأكاديمي الظاهر' : 'اسم الخدمة الظاهر'}</label>
+                      <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: الماجستير المهني في الأمن السيبراني' : 'مثال: طلب حقيبة تدريبية جاهزة أو معادلة خبرة'} value={draft.academicProfile?.academicTitle || ''} onChange={(e) => patchAcademic({ academicTitle: e.target.value })} />
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الدرجة</label>
