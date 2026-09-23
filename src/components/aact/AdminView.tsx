@@ -650,6 +650,7 @@ export function AdminView() {
         { icon: TrendingUp, label: 'نسبة النجاح', value: `${data.stats.passRate}%`, color: 'bg-[#12365c] text-[#e0b83a]' },
         { icon: ClipboardList, label: 'طلبات التحاق دراسي معلقة', value: data.stats.pendingAdmissions, color: 'bg-amber-500 text-white' },
         { icon: PackageCheck, label: 'خدمات عابرة معلقة', value: data.stats.pendingServices || 0, color: 'bg-purple-600 text-white' },
+        { icon: Award, label: 'خدمات مدفوعة تنتظر التسليم', value: data.stats.paidServicesWaitingDelivery || 0, color: 'bg-indigo-600 text-white' },
         { icon: Globe2, label: 'طلبات وكالة/اعتماد معلقة', value: data.stats.pendingAgents, color: 'bg-slate-600 text-white' },
       ]
     : []
