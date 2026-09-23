@@ -7,7 +7,8 @@ import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
 import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
-import { getServiceFlow } from '@/lib/service-flows'
+import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
+import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
