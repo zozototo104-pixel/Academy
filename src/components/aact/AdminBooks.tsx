@@ -582,6 +582,8 @@ export function AdminBooksTab() {
       return statusOk && semesterOk && (!q || text.includes(q))
     })
   }, [gradingQueue, gradingSearch, gradingSemesterFilter, gradingStatusFilter])
+  const pagedGradingQueue = pageItems(filteredGradingQueue, gradingPage, gradingPageSize)
+  const currentGradingPage = safePage(filteredGradingQueue.length, gradingPageSize, gradingPage)
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
