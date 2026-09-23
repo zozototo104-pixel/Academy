@@ -78,13 +78,23 @@ export async function GET() {
     const paidPayments = payments.filter((p) => p.status === 'PAID')
     const activeEnrollment = enrollments.find((e) => e.status === 'ACTIVE') || enrollments[0] || null
 
+    const latestService = serviceAdmissions[0] || null
+    const latestStudy = studyAdmissions[0] || null
+    const paidServiceWithoutOutput = serviceAdmissions.find((a) => {
+      const servicePayments = payments.filter((p) => p.admissionId === a.id)
+      if (!servicePayments.length || !servicePayments.every((p) => p.status === 'PAID')) return false
+      return !deliverables.some((d) => d.admissionId === a.id)
+    })
+
     let requiredAction: { title: string; body: string; target: string } | null = null
-    if (latestAdmission && ['PENDING', 'UNDER_REVIEW', 'SUBMITTED'].includes(latestAdmission.status)) {
-      requiredAction = { title: 'طلبك قيد المراجعة', body: `طلب ${latestAdmission.reference || ''} بانتظار قرار الإدارة.`, target: 'payments' }
-    } else if (unpaidPayments.length) {
+    if (unpaidPayments.length) {
       requiredAction = { title: 'دفعة مطلوبة', body: `يوجد ${unpaidPayments.length} دفعة/فاتورة تحتاج متابعة.`, target: 'payments' }
-    } else if (!activeEnrollment) {
-      requiredAction = { title: 'ابدأ التسجيل في برنامج', body: 'اختر برنامجًا مناسبًا وقدم طلب الالتحاق.', target: 'programs' }
+    } else if (paidServiceWithoutOutput) {
+      requiredAction = { title: 'خدمة مدفوعة بانتظار التسليم', body: `طلب ${paidServiceWithoutOutput.reference || ''} مدفوع. ستظهر المخرجات في تبويب «مخرجاتي» عند نشرها من الإدارة.`, target: 'deliverables' }
+    } else if (latestAdmission && ['PENDING', 'UNDER_REVIEW', 'SUBMITTED'].includes(latestAdmission.status)) {
+      requiredAction = { title: latestAdmission.requestType === 'SERVICE' ? 'طلب الخدمة قيد المراجعة' : 'طلب الالتحاق قيد المراجعة', body: `طلب ${latestAdmission.reference || ''} بانتظار قرار الإدارة.`, target: 'notifications' }
+    } else if (!activeEnrollment && !latestService) {
+      requiredAction = { title: 'ابدأ طلباً جديداً', body: 'اختر برنامجاً دراسياً أو خدمة مهنية من صفحة التقديم.', target: 'payments' }
     } else if (thesis?.status === 'PLAN_NEEDS_REVISION') {
       requiredAction = { title: 'عدّل خطة البحث', body: thesis.reviewNote || 'خطة البحث تحتاج تعديلًا قبل الاعتماد.', target: 'thesis' }
     } else if (thesis?.status === 'FINAL_NEEDS_REVISION') {
