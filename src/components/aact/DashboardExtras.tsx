@@ -94,6 +94,7 @@ const METHOD_LABEL: Record<string, string> = {
   FAWRY: 'فوري',
   STRIPE: 'Stripe',
   PAYPAL: 'PayPal',
+  USDT: 'USDT / Tether',
   BANK_TRANSFER: 'تحويل بنكي',
   DIRECT_PAYMENT: 'دفع مباشر',
   SANDBOX: 'محاكاة آمنة',
