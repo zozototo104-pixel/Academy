@@ -905,6 +905,9 @@ export function AdminSystemTab() {
               <Button asChild size="sm" variant="outline" className="border-emerald-200 font-black text-emerald-700">
                 <a href="/api/admin/monitoring" target="_blank" rel="noreferrer">تقرير الأداء والمراقبة JSON</a>
               </Button>
+              <Button asChild size="sm" variant="outline" className="border-purple-200 font-black text-purple-700">
+                <a href="/api/admin/launch-quality" target="_blank" rel="noreferrer">فحص جودة الذكاء والسرعة JSON</a>
+              </Button>
               <Button asChild size="sm" variant="outline" className="border-blue-200 font-black text-blue-700">
                 <a href="/api/health" target="_blank" rel="noreferrer">Health Check عام</a>
               </Button>
