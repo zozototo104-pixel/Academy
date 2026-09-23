@@ -409,8 +409,8 @@ export function AdminRulesTab() {
                       <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: فصلان دراسيان + بحث تخرج مهني' : 'مثال: 48 ساعة دراسة ملف أو تحميل فوري'} value={draft.academicProfile?.durationLabel || ''} onChange={(e) => patchAcademic({ durationLabel: e.target.value })} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الساعات/الرصيد</label>
-                      <Input className="text-xs" placeholder="مثال: 700 ساعة تدريبية أو حسب الخطة" value={draft.academicProfile?.creditHoursLabel || ''} onChange={(e) => patchAcademic({ creditHoursLabel: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'الساعات/الرصيد' : 'طبيعة الرسوم/التسليم'}</label>
+                      <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: 700 ساعة تدريبية أو حسب الخطة' : 'مثال: خدمة تنفيذ وتسليم بلا ساعات دراسية'} value={draft.academicProfile?.creditHoursLabel || ''} onChange={(e) => patchAcademic({ creditHoursLabel: e.target.value })} />
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">متطلب البحث/المشروع</label>
