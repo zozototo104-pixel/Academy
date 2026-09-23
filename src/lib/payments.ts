@@ -174,6 +174,8 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     paypalConfigured: !!(cfg.paypalClientId && cfg.paypalSecret),
     paypalApiBase: cfg.paypalApiBase,
     paypalBaseKind: paypalKind,
+    usdtConfigured: usdtReady,
+    usdtNetwork: cfg.usdtNetwork,
     trueGatewayCount: [stripeReady, paypalReady].filter(Boolean).length,
     warnings,
     errors,
