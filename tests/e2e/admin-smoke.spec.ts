@@ -227,6 +227,7 @@ test.describe('Admin dashboard launch smoke test', () => {
         currentStage = 'الكتب والاختبارات'
         console.log('[admin-smoke] Checking tab: الكتب والاختبارات')
         await clickVisibleTab(page, /الكتب والاختبارات/, 'الكتب والاختبارات')
+        await selectBooksProgramIfNeeded(page)
         for (const item of ADMIN_BOOKS_NESTED_TABS) {
           currentStage = `الكتب والاختبارات / ${item.label}`
           console.log(`[admin-smoke] Checking nested tab: ${currentStage}`)
