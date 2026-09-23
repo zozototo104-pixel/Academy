@@ -397,10 +397,15 @@ export function DashboardView() {
   useEffect(() => {
     if (!user) return
     const academicTabs = ['programs', 'supervision', 'thesis', 'transcript', 'certs']
+    const hasStudySummary = (studentSummary?.summary?.studyRequests || 0) > 0 || !!studentSummary?.summary?.latestStudy
+    const hasServiceSummary = (studentSummary?.summary?.serviceRequests || 0) > 0 || serviceDeliverables.length > 0
     if (enrollments.length === 0 && academicTabs.includes(dashboardTab)) {
-      setDashboardTab(serviceDeliverables.length ? 'deliverables' : 'payments')
+      setDashboardTab(hasServiceSummary && !hasStudySummary ? 'deliverables' : 'payments')
     }
-  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab])
+    if (hasStudySummary && !hasServiceSummary && dashboardTab === 'deliverables') {
+      setDashboardTab('payments')
+    }
+  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab, studentSummary])
 
   if (!user) {
     return null
