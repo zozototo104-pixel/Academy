@@ -71,10 +71,10 @@ export async function GET() {
     const resendConfigured = !!((resendKeyRow?.value || process.env.RESEND_API_KEY) && (mailFromRow?.value || resendFromRow?.value || process.env.MAIL_FROM || process.env.RESEND_FROM))
     const appUrlConfigured = !!(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL)
     const objectStorageConfigured = !!(
-      (rawValues.AACT_S3_ENDPOINT || process.env.AACT_S3_ENDPOINT) &&
-      (rawValues.AACT_S3_BUCKET || process.env.AACT_S3_BUCKET) &&
-      (rawValues.AACT_S3_ACCESS_KEY_ID || process.env.AACT_S3_ACCESS_KEY_ID) &&
-      (rawValues.AACT_S3_SECRET_ACCESS_KEY || process.env.AACT_S3_SECRET_ACCESS_KEY)
+      process.env.AACT_S3_ENDPOINT &&
+      process.env.AACT_S3_BUCKET &&
+      process.env.AACT_S3_ACCESS_KEY_ID &&
+      process.env.AACT_S3_SECRET_ACCESS_KEY
     )
     const launchReadiness = [
       { id: 'database', label: 'قاعدة البيانات', status: 'ok', detail: 'الاتصال بقاعدة البيانات يعمل وتم تحميل الإعدادات.' },
