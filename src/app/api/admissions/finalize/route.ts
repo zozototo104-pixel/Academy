@@ -42,10 +42,15 @@ export async function POST(req: NextRequest) {
     const serviceFlow = getServiceFlow(app.programRef?.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
     const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const missing = isServiceRequest ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
+    const rules = resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest)
+    const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
+    const requiredDocList = isServiceRequest
+      ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
+      : REQUIRED_DOCS
+    const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json({
-        error: 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',
+        error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',
         missing: missing.map((m) => m.label),
       }, { status: 400 })
     }
