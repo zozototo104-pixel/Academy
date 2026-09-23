@@ -240,7 +240,7 @@ test.describe('Admin dashboard launch smoke test', () => {
 
     try {
       currentStage = 'تسجيل دخول الأدمن عبر API'
-      await loginAsAdmin(page)
+      const adminToken = await loginAsAdmin(page)
 
       currentStage = 'فتح لوحة الإدارة'
       await page.goto('/?view=admin', { waitUntil: 'domcontentloaded' })
