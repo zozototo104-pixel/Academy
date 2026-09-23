@@ -63,7 +63,7 @@ export async function verifyUsdtTransaction(params: {
   walletAddress: string
   expectedAmount: number
 }): Promise<UsdtVerificationResult> {
-  const txHash = params.txHash.trim()
+  const txHash = normalizeTxHash(params.txHash)
   const network = normalize(params.network || 'TRC20')
   const walletAddress = params.walletAddress.trim()
   const expectedAmount = Number(params.expectedAmount || 0)
