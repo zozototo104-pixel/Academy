@@ -15,7 +15,7 @@ const ADMIN_MAIN_TABS: Array<{ label: string; tab: RegExp; search?: boolean }> =
 
 const ADMIN_BOOKS_NESTED_TABS: Array<{ label: string; tab: RegExp; search?: boolean }> = [
   { label: 'مركز التصحيح', tab: /مركز التصحيح/, search: true },
-  { label: 'الامتحانات', tab: /الامتحانات/, search: true },
+  { label: 'الامتحانات', tab: /^الامتحانات/, search: true },
 ]
 
 function requiredEnv(name: string) {
