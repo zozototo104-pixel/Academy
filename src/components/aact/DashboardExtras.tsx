@@ -60,6 +60,12 @@ interface Payment {
   createdAt: string
   reference?: string | null
   admissionId?: string | null
+  provider?: string | null
+  cryptoNetwork?: string | null
+  cryptoWalletAddress?: string | null
+  cryptoTxHash?: string | null
+  cryptoVerificationStatus?: string | null
+  cryptoVerificationNote?: string | null
 }
 
 interface TuitionPlan {
