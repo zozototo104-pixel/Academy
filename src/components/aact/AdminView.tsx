@@ -1827,6 +1827,11 @@ export function AdminView() {
           <AdminSettingsTab />
         </TabsContent>
 
+        {/* مدراء النظام وحسابات الاختبار */}
+        <TabsContent value="admins">
+          <AdminAdminsTab />
+        </TabsContent>
+
         {/* النظام: البريد + بوابات الدفع + TURN */}
         <TabsContent value="system">
           <AdminSystemTab />
