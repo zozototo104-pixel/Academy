@@ -1616,6 +1616,7 @@ export function AdminBooksTab() {
               <TabsTrigger value="units" className="text-[10px] font-black sm:text-xs"><Layers className="ml-1 h-3.5 w-3.5" /> الوحدات ({curriculumUnits.length})</TabsTrigger>
               <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><FileText className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({displayStudyGuides.length})</TabsTrigger>
               <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><FileCheck2 className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
+              <TabsTrigger value="grading" className="text-[10px] font-black sm:text-xs"><CheckCircle2 className="ml-1 h-3.5 w-3.5" /> مركز التصحيح ({pendingGradingCount})</TabsTrigger>
               <TabsTrigger value="exams" className="text-[10px] font-black sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> الامتحانات ({exams.length})</TabsTrigger>
             </TabsList>
           </div>
