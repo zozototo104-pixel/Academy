@@ -595,11 +595,6 @@ export function AdminView() {
       .catch(() => setApps([]))
       .finally(() => setAppsLoading(false))
 
-    void api<{ students: unknown[] }>('/api/admin/students')
-      .then((st) => setStudents((Array.isArray(st.students) ? st.students : []).map(normalizeStudentRow)))
-      .catch(() => setStudents([]))
-      .finally(() => setStudentsLoading(false))
-
     void api<{ applications: AdmissionApp[]; supervisors: SupervisorOption[] }>('/api/admin/admissions')
       .then((ad) => {
         setAdmissions(Array.isArray(ad.applications) ? ad.applications : [])
