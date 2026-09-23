@@ -85,7 +85,7 @@ test.describe('AACT launch quality suite', () => {
   test('pages are fast and AI knows student context, curriculum, thesis, and voice config', async ({ page }, testInfo: TestInfo) => {
     const token = await loginAsAdmin(page)
     const routesToMeasure = ['/', '/programs', '/apply', '/verify', '/admin', '/dashboard']
-    const routes = []
+    const routes: Array<Awaited<ReturnType<typeof measureRoute>>> = []
 
     for (const path of routesToMeasure) {
       const result = await measureRoute(page, path)
