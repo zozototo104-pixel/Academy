@@ -227,7 +227,7 @@ export interface CheckoutResult {
   ok: boolean
   redirectUrl?: string
   providerRef?: string
-  provider?: ProviderId | 'DIRECT_PAYMENT'
+  provider?: ProviderId | 'DIRECT_PAYMENT' | 'USDT'
   error?: string
   message?: string
 }
