@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
         deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
       },
     })
+    const total = await db.admissionApplication.count({ where })
     const appIds = apps.map((a) => a.id)
     let appeals: any[] = []
     if (appIds.length) {
