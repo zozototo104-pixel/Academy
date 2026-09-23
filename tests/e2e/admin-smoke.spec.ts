@@ -105,6 +105,42 @@ async function assertNoFatalScreen(page: Page, context: string) {
   await expect(page.getByText(/رفض الخادم الطلب 403|صلاحيات الإدارة مطلوبة/)).toHaveCount(0)
 }
 
+function safeFileName(value: string) {
+  return value.replace(/[^\p{L}\p{N}-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'admin-smoke'
+}
+
+async function captureAdminDiagnostics(page: Page, testInfo: TestInfo, stage: string) {
+  const dir = 'test-results/admin-smoke-diagnostics'
+  await mkdir(dir, { recursive: true }).catch(() => {})
+
+  const [title, url, tabs, headings, bodyText] = await Promise.all([
+    page.title().catch((e) => `TITLE_ERROR: ${String(e)}`),
+    Promise.resolve(page.url()).catch((e) => `URL_ERROR: ${String(e)}`),
+    page.locator('[role="tab"]').evaluateAll((els) => els.map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch((e) => [`TABS_ERROR: ${String(e)}`]),
+    page.locator('h1,h2,h3,[role="heading"]').evaluateAll((els) => els.map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch((e) => [`HEADINGS_ERROR: ${String(e)}`]),
+    page.locator('body').innerText({ timeout: 5_000 }).catch((e) => `BODY_ERROR: ${String(e)}`),
+  ])
+
+  const diagnostic = [
+    `FAILED_STAGE: ${stage}`,
+    `URL: ${url}`,
+    `TITLE: ${title}`,
+    `VISIBLE_TABS: ${JSON.stringify(tabs, null, 2)}`,
+    `VISIBLE_HEADINGS: ${JSON.stringify(headings, null, 2)}`,
+    'BODY_TEXT_START:',
+    bodyText.slice(0, 4000),
+  ].join('\n\n')
+
+  const baseName = safeFileName(stage)
+  const textPath = `${dir}/${baseName}.txt`
+  const screenshotPath = `${dir}/${baseName}.png`
+  await writeFile(textPath, diagnostic, 'utf8').catch(() => {})
+  await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {})
+
+  console.error(`\n[admin-smoke] DIAGNOSTICS\n${diagnostic}\n[/admin-smoke] DIAGNOSTICS\n`)
+  await testInfo.attach(`admin-smoke-diagnostics-${baseName}`, { body: diagnostic, contentType: 'text/plain' }).catch(() => {})
+}
+
 async function clickVisibleTab(page: Page, tabName: RegExp, label: string) {
   const tab = page.getByRole('tab', { name: tabName }).first()
   await expect(tab, `Admin tab not visible: ${label}`).toBeVisible({ timeout: 25_000 })
