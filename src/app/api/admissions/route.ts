@@ -174,13 +174,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ===== الخطوة 2: المستندات الرسمية =====
+    // ===== الخطوة 2: المستندات الرسمية أو مرفقات الخدمة المخصصة =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
-    const missing = isServiceRequest || stagedUpload ? [] : REQUIRED_DOCS.filter((d) => !uploadedTypes.has(d.type))
+    const rules = resolveRules(programRec?.category || 'DIPLOMA', programRec?.admissionRules, !isServiceRequest)
+    const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
+    const requiredDocList = isServiceRequest
+      ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
+      : REQUIRED_DOCS
+    const missing = stagedUpload ? [] : requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json(
         {
-          error: 'لا يمكن تقديم الطلب: المستندات المطلوبة غير مكتملة. يرجى رفع جميع الوثائق التالية أولاً',
+          error: isServiceRequest ? 'لا يمكن تقديم طلب الخدمة: المرفقات المطلوبة لهذه الخدمة غير مكتملة' : 'لا يمكن تقديم الطلب: المستندات المطلوبة غير مكتملة. يرجى رفع جميع الوثائق التالية أولاً',
           missing: missing.map((m) => m.label),
         },
         { status: 400 }
