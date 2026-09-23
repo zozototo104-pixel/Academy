@@ -9,7 +9,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const publicRoutes: MetadataRoute.Sitemap = PUBLIC_SEO_ROUTES.map((route) => ({
     url: absoluteUrl(route.path),
     lastModified: now,
-    changeFrequency: (route.path === '/' || route.path === '/programs' ? 'weekly' : 'monthly') as const,
+    changeFrequency: route.path === '/' || route.path === '/programs' ? ('weekly' as const) : ('monthly' as const),
     priority: route.priority,
   }))
 
