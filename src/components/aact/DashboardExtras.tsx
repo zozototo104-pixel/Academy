@@ -299,7 +299,13 @@ export function PaymentsTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
-  const totalDue = payments.filter((p) => p.status === 'UNPAID').reduce((s, p) => s + p.amount, 0)
+  const approvedPlanIds = new Set(tuitionPlans.filter((p) => p.appealStatus === 'APPROVED').map((p) => p.admissionId))
+  const tuitionRemainingDue = tuitionPlans.filter((p) => p.appealStatus === 'APPROVED' && p.totalTuition > 0).reduce((s, p) => s + p.remainingTuition, 0)
+  const invoiceDueOutsideApprovedPlans = payments
+    .filter((p) => p.status === 'UNPAID')
+    .filter((p) => !(p.admissionId && approvedPlanIds.has(p.admissionId) && ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)))
+    .reduce((s, p) => s + p.amount, 0)
+  const totalDue = Math.round((invoiceDueOutsideApprovedPlans + tuitionRemainingDue) * 100) / 100
   const totalPaid = payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)
   const plansWithBalance = tuitionPlans.filter((p) => p.totalTuition > 0 && p.remainingTuition > 0)
 
