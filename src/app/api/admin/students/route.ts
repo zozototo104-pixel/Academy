@@ -142,22 +142,26 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const q = clean(req.nextUrl.searchParams.get('q'), 120).toLowerCase()
+    const { page, pageSize, skip, take } = parseAdminPagination(req.nextUrl.searchParams, { pageSize: 25, maxPageSize: 100 })
+    const q = clean(req.nextUrl.searchParams.get('q') || req.nextUrl.searchParams.get('search'), 120)
     const status = clean(req.nextUrl.searchParams.get('status'), 40)
     const programId = clean(req.nextUrl.searchParams.get('programId'), 120)
     const paymentStatus = clean(req.nextUrl.searchParams.get('paymentStatus'), 40)
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
-    const where: any = { role: 'STUDENT', enrollments: { some: {} } }
-    if (status && status !== 'ALL') where.status = status
+    const enrollmentWhere: any = {}
+    if (programId && programId !== 'ALL') enrollmentWhere.programId = programId
+    if (status && status !== 'ALL') enrollmentWhere.status = status
+
+    const where: any = { role: 'STUDENT', enrollments: { some: enrollmentWhere } }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { email: { contains: q, mode: 'insensitive' } },
         { country: { contains: q, mode: 'insensitive' } },
+        { enrollments: { some: { program: { titleAr: { contains: q, mode: 'insensitive' } } } } },
+        { ownedAdmissions: { some: { reference: { contains: q, mode: 'insensitive' } } } },
+        { ownedAdmissions: { some: { program: { contains: q, mode: 'insensitive' } } } },
       ]
-    }
-    if (programId && programId !== 'ALL') {
-      where.enrollments = { some: { programId } }
     }
     if (paymentStatus && paymentStatus !== 'ALL') {
       where.payments = { some: { status: paymentStatus } }
@@ -166,14 +170,18 @@ export async function GET(req: NextRequest) {
       where.theses = { some: { status: thesisStatus } }
     }
 
-    const users = await db.user.findMany({
-      where,
-      orderBy: [{ createdAt: 'desc' }],
-      take: 100,
-      select: { id: true, email: true, name: true, country: true, status: true, createdAt: true },
-    })
+    const [users, total] = await Promise.all([
+      db.user.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip,
+        take,
+        select: { id: true, email: true, name: true, country: true, status: true, createdAt: true },
+      }),
+      db.user.count({ where }),
+    ])
     const students = await Promise.all(users.map(buildStudentSummary))
-    return NextResponse.json({ students })
+    return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin students GET error:', e)
