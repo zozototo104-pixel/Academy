@@ -79,6 +79,8 @@ export async function GET(req: NextRequest) {
       : []
     const auditSubmitterMap = new Map(submitAudits.filter((a) => a.entityId && a.actor).map((a) => [a.entityId as string, a.actor!]))
     return NextResponse.json({
+      total,
+      pagination: adminPaginationMeta(page, pageSize, total),
       applications: applications.map((a) => {
         const submitter = a.user || userMap.get(a.email) || auditSubmitterMap.get(a.id) || null
         const submittedByStaff = !!submitter && ['ADMIN', 'SUPERVISOR'].includes(submitter.role)
