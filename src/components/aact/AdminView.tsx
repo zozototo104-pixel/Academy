@@ -128,7 +128,7 @@ interface AdmissionApp {
   supervisor?: { id: string; name: string } | null
   supervisorId?: string | null
   thesisDeadline?: string | null
-  payments?: { id: string; invoiceNo?: string; purpose: string; status: string; amount: number; method?: string | null; receiptNo?: string | null }[]
+  payments?: { id: string; invoiceNo?: string; purpose: string; status: string; amount: number; method?: string | null; receiptNo?: string | null; cryptoNetwork?: string | null; cryptoTxHash?: string | null; cryptoVerificationStatus?: string | null; cryptoVerificationNote?: string | null }[]
   theses?: { id: string; status: string; title: string }[]
   // التقييم الذكي المخزّن — يظهر للإدارة قبل زر الاعتماد
   aiVerdict?: string | null
