@@ -453,7 +453,9 @@ export function AdminThesisTab() {
               </CardContent>
             </Card>
           )
-        })
+        })}
+        <AdminPager page={currentThesisPage} pageSize={thesisPageSize} total={filteredTheses.length} onPageChange={setThesisPage} label="بحث" />
+        </>
       )}
 
       {/* نافذة الجدولة */}
