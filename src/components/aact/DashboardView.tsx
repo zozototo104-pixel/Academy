@@ -1116,7 +1116,8 @@ export function DashboardView() {
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold leading-7 text-slate-500">
-                      لا توجد مخرجات منشورة بعد. عندما تعتمد الإدارة شهادة أو معادلة أو رابط حقيبة أو تقرير استشارة سيظهر هنا مباشرة.
+                      <p>لا توجد مخرجات منشورة بعد. عندما تعتمد الإدارة شهادة أو معادلة أو رابط حقيبة أو تقرير استشارة سيظهر هنا مباشرة.</p>
+                      <Button size="sm" onClick={() => navigate('apply')} className="mt-4 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تقديم طلب جديد</Button>
                     </div>
                   )}
                 </CardContent>
