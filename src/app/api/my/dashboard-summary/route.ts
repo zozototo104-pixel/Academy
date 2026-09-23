@@ -24,7 +24,7 @@ export async function GET() {
         },
       }),
       db.payment.findMany({
-        where: { OR: [{ userId: user.id }, { payerEmail: user.email }, { admission: { email: user.email } }] },
+        where: { OR: [{ userId: user.id }, { payerEmail: user.email }, { admission: { is: { email: user.email } } }] },
         orderBy: { createdAt: 'desc' },
         take: 12,
         select: { id: true, admissionId: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, paidAt: true, createdAt: true },
