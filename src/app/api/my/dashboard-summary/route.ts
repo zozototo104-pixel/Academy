@@ -81,6 +81,7 @@ export async function GET() {
     const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status !== 'PAID' && p.admissionId && approvedPlanIds.has(p.admissionId)))
     const unpaidPayments = visiblePayments.filter((p) => p.status !== 'PAID')
     const paidPayments = visiblePayments.filter((p) => p.status === 'PAID')
+    const tuitionPlanPaymentNeededCount = tuitionPlans.filter((p) => p?.appealStatus === 'APPROVED' && Number(p?.remainingTuition || 0) > 0).length
     const activeEnrollment = enrollments.find((e) => e.status === 'ACTIVE') || enrollments[0] || null
 
     const latestService = serviceAdmissions[0] || null
