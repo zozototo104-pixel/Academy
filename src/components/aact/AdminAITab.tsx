@@ -139,6 +139,7 @@ export function AdminAITab() {
           ))}
         </div>
       )}
+      <AdminPager page={currentChatPage} pageSize={chatPageSize} total={filteredStudents.length} onPageChange={setChatPage} label="طالب/محادثة" />
 
       {/* نافذة المحادثة الكاملة */}
       <Dialog open={!!active} onOpenChange={(v) => !v && setActive(null)}>
