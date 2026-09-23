@@ -375,7 +375,7 @@ export function AdminRulesTab() {
                     <div>
                       <h4 className="flex items-center gap-1.5 text-sm font-black text-[#0f2b46]">
                         <BookOpen className="h-4 w-4 text-[#a8841a]" />
-                        الملف الأكاديمي الرسمي للبرنامج
+                        {isStudyProgram ? 'الملف الأكاديمي الرسمي للبرنامج' : 'ملف الخدمة الرسمي ومسار التسليم'}
                       </h4>
                       <p className="mt-1 text-[10px] leading-5 text-slate-500">هذه البيانات تظهر في تفاصيل البرنامج، بوابة الطالب، السجل الأكاديمي، والتحقق من الشهادة. اترك الحقول فارغة ليستخدم النظام الملف التلقائي.</p>
                     </div>
