@@ -64,12 +64,12 @@ export default async function TranscriptPdfPage({ params, searchParams }: PagePr
 
   const [examAttempts, assignmentSubmissions, certificates, admission] = await Promise.all([
     db.programExamAttempt.findMany({
-      where: { userId: enrollment.userId, exam: { programId: enrollment.programId } },
+      where: { userId: enrollment.userId, exam: { is: { programId: enrollment.programId } } },
       orderBy: { createdAt: 'desc' },
       include: { exam: { select: { title: true, semester: true, passScore: true } } },
     }),
     db.assignmentSubmission.findMany({
-      where: { userId: enrollment.userId, assignment: { programId: enrollment.programId } },
+      where: { userId: enrollment.userId, assignment: { is: { programId: enrollment.programId } } },
       orderBy: { submittedAt: 'desc' },
       include: { assignment: { select: { title: true, semester: true, points: true, weight: true, type: true } } },
     }),
