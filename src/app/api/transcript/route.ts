@@ -140,6 +140,8 @@ export async function GET() {
       programs.push({
         enrollmentId: en.id,
         programId: en.programId,
+        admissionReference: programAdmission?.reference || null,
+        admissionStatus: programAdmission?.status || null,
         title: en.program.titleAr,
         titleEn: en.program.titleEn,
         description: en.program.description,
