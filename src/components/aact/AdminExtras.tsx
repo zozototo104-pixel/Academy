@@ -810,6 +810,11 @@ export function AdminFinanceTab() {
                         )}
                       </td>
                       <td className="p-3">
+                        <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
+                          <a href={`/pdf/invoices/${encodeURIComponent(p.id)}?print=1`} target="_blank" rel="noreferrer"><FileDown className="ml-1 h-3 w-3" /> PDF</a>
+                        </Button>
+                      </td>
+                      <td className="p-3">
                         {p.status === 'UNPAID' ? (
                           <Button size="sm" variant="outline" onClick={() => confirm(p.id)}
                             className="border-emerald-200 font-bold text-emerald-600">
