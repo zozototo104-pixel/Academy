@@ -406,7 +406,9 @@ export function DashboardView() {
     return null
   }
 
+  const hasStudyApplication = (studentSummary?.summary?.studyRequests || 0) > 0 || !!studentSummary?.summary?.latestStudy
   const hasProgramDashboard = enrollments.length > 0
+  const hasStudyIdentity = hasProgramDashboard || hasStudyApplication
   const myProgramIds = new Set(enrollments.map((e) => e.programId))
   const available = hasProgramDashboard ? programs.filter((p) => !myProgramIds.has(p.id)) : []
   const activeAcademicProfile = active ? buildAcademicProgramProfile(active.program) : null
