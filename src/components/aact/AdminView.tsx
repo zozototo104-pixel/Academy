@@ -938,7 +938,7 @@ export function AdminView() {
               <TabsTrigger value="rules" className="gap-1 text-[10px] font-bold sm:text-xs">قواعد القبول</TabsTrigger>
               <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({studentsLoading ? '…' : studentTotal})</TabsTrigger>
               <TabsTrigger value="supervisors" className="gap-1 text-[10px] font-bold sm:text-xs">إدارة المشرفين</TabsTrigger>
-              <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({appsLoading ? '…' : apps.length})</TabsTrigger>
+              <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({appsLoading ? '…' : agentTotal})</TabsTrigger>
             </TabsList>
           </div>
           <div className="border-t border-dashed border-slate-100 pt-2.5">
