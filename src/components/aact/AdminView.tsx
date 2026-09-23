@@ -1782,7 +1782,9 @@ export function AdminView() {
                     </div>
                   </CardContent>
                 </Card>
-              )})
+              )})}
+              <AdminPager page={currentAgentPage} pageSize={agentPageSize} total={filteredApps.length} onPageChange={setAgentPage} label="طلب وكالة/اعتماد" />
+              </>
             )}
           </div>
         </TabsContent>
