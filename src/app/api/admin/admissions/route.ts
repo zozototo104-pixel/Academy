@@ -34,15 +34,43 @@ export const STATUS_LABEL: Record<string, string> = {
 }
 
 // GET /api/admin/admissions — قائمة طلبات الالتحاق (للإدارة فقط)
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
+    const sp = req.nextUrl.searchParams
+    const { page, pageSize, skip, take } = parseAdminPagination(sp, { pageSize: 10, maxPageSize: 100 })
+    const search = cleanAdminQuery(sp.get('search'))
+    const status = cleanAdminQuery(sp.get('status'))
+    const kind = cleanAdminQuery(sp.get('kind'))
+    const filters: any[] = []
+    if (status && status !== 'ALL') {
+      if (status === 'ACTIVE') filters.push({ status: { notIn: ['REJECTED', 'CERTIFIED'] } })
+      else filters.push({ status })
+    }
+    if (kind === 'SERVICE') filters.push({ programRef: { is: { category: 'SERVICE' } } })
+    if (kind === 'STUDY') filters.push({ OR: [{ programId: null }, { programRef: { is: { category: { not: 'SERVICE' } } } }] })
+    if (search) {
+      filters.push({
+        OR: [
+          { reference: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { country: { contains: search, mode: 'insensitive' } },
+          { program: { contains: search, mode: 'insensitive' } },
+        ],
+      })
+    }
+    const where: any = filters.length ? { AND: filters } : {}
+
     const apps = await db.admissionApplication.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      skip,
+      take,
       include: {
         user: { select: { id: true, name: true, email: true, role: true } },
         supervisor: { select: { id: true, name: true } },
