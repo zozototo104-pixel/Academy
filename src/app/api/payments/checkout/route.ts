@@ -48,6 +48,14 @@ export async function POST(req: NextRequest) {
           checkoutUrl: null,
           method: manualProvider,
           userId: payment.userId || user?.id || null,
+          ...(manualProvider === 'USDT'
+            ? {
+                cryptoNetwork: cfg.usdtNetwork || 'TRC20',
+                cryptoWalletAddress: cfg.usdtWalletAddress,
+                cryptoVerificationStatus: 'WAITING_TX',
+                cryptoVerificationNote: 'بانتظار إدخال TX Hash من الطالب/العميل ثم التحقق الآلي.',
+              }
+            : {}),
         },
       })
       const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
