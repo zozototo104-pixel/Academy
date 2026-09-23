@@ -206,11 +206,11 @@ function buildInvoiceSvg(data: {
 </svg>`
 }
 
-async function svgToPdfBuffer(svg: string) {
+async function svgToPdfBuffer(svg: string): Promise<Uint8Array> {
   const png = await sharp(Buffer.from(svg)).png().toBuffer()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: true })
   doc.addImage(new Uint8Array(png), 'PNG', 0, 0, PAGE_W, PAGE_H)
-  return Buffer.from(doc.output('arraybuffer'))
+  return new Uint8Array(doc.output('arraybuffer'))
 }
 
 export async function GET(_req: NextRequest, context: RouteContext) {
