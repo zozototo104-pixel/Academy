@@ -82,6 +82,8 @@ interface TuitionPlan {
   appealStatus: string | null
   appealId: string | null
   approvedInitialAmount: number | null
+  firstSemesterRequiredAmount?: number | null
+  finalRequiredAmount?: number | null
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
