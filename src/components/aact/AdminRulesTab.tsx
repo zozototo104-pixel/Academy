@@ -163,6 +163,18 @@ export function AdminRulesTab() {
 
   const fillAcademicFromDefault = () => {
     if (!selected) return
+    const flow = getServiceFlow(selected.slug)
+    if (flow && !flow.isStudyProgram) {
+      const serviceDefaults = buildServiceAdmissionDefaults(flow)
+      if (serviceDefaults) {
+        setDraft({
+          ...draft,
+          ...serviceDefaults,
+          academicProfile: serviceDefaults.academicProfile,
+        })
+      }
+      return
+    }
     const profile = buildAcademicProgramProfile({
       titleAr: selected.titleAr,
       titleEn: selected.titleEn,
