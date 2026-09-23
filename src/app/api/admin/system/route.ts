@@ -92,6 +92,8 @@ export async function GET() {
       secretsSet: {
         SMTP_PASS: !!(await db.setting.findUnique({ where: { key: 'SMTP_PASS' } }))?.value,
         RESEND_API_KEY: !!(await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }))?.value,
+        AACT_S3_ACCESS_KEY_ID: !!(await db.setting.findUnique({ where: { key: 'AACT_S3_ACCESS_KEY_ID' } }))?.value,
+        AACT_S3_SECRET_ACCESS_KEY: !!(await db.setting.findUnique({ where: { key: 'AACT_S3_SECRET_ACCESS_KEY' } }))?.value,
         STRIPE_SECRET_KEY: !!(await db.setting.findUnique({ where: { key: 'STRIPE_SECRET_KEY' } }))?.value,
         STRIPE_WEBHOOK_SECRET: !!(await db.setting.findUnique({ where: { key: 'STRIPE_WEBHOOK_SECRET' } }))?.value,
         PAYPAL_SECRET: !!(await db.setting.findUnique({ where: { key: 'PAYPAL_SECRET' } }))?.value,
