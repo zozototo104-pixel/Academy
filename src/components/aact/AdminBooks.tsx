@@ -3045,6 +3045,30 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) closeAdminConfirm(false) }}>
+        <DialogContent className="max-w-lg rounded-3xl" dir="rtl">
+          {confirmDialog && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+                  {confirmDialog.danger ? <AlertTriangle className="h-5 w-5 text-red-500" /> : <InfoIcon className="h-5 w-5 text-[#a8841a]" />}
+                  {confirmDialog.title}
+                </DialogTitle>
+                <DialogDescription className="text-sm font-bold leading-7 text-slate-600">
+                  {confirmDialog.description}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => closeAdminConfirm(false)} className="flex-1 rounded-2xl font-black">إلغاء</Button>
+                <Button onClick={() => closeAdminConfirm(true)} className={confirmDialog.danger ? 'flex-1 rounded-2xl bg-red-600 font-black text-white hover:bg-red-700' : 'flex-1 rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>
+                  {confirmDialog.confirmLabel || 'متابعة'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!gradingDialog} onOpenChange={(open) => { if (!open) setGradingDialog(null) }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">
           {gradingDialog && (
