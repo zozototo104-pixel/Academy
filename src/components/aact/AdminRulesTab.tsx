@@ -362,7 +362,7 @@ export function AdminRulesTab() {
 
                 {/* ملاحظة للمتقدمين */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">ملاحظة تُعرض للمتقدمين في نموذج طلب الالتحاق</label>
+                  <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">ملاحظة تُعرض للمتقدمين في نموذج {isStudyProgram ? 'طلب الالتحاق' : 'طلب الخدمة'}</label>
                   <Input
                     className="text-xs"
                     placeholder="مثال: يُفضل إرفاق شهادة خبرة لمن يتقدم بمعادلة خبرات"
