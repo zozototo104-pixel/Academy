@@ -150,7 +150,7 @@ export function routeStateFromLocation(pathname: string, search: string): AppRou
   if (first === 'admin' && second === 'agents' && third) return { view: 'agent-preview' as View, agentPreviewId: third }
   if (first === 'admin') return { view: 'admin' as View }
   if (first === 'supervisor') return { view: 'supervisor' as View }
-  if (first === 'verify') return { view: 'verify' as View }
+  if (first === 'verify' || first === 'certificates') return { view: 'verify' as View }
   if (first === 'directory') return { view: 'directory' as View }
   if (first === 'about') return { view: 'about' as View }
   if (first === 'contact') return { view: 'contact' as View }
