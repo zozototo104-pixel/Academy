@@ -4,9 +4,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { SITE_DESCRIPTION, SITE_NAME, organizationJsonLd, siteUrl, websiteJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "الأكاديمية الأمريكية للاستشارات والتدريب | AACT",
-  description:
-    "منصة الأكاديمية الأمريكية للاستشارات والتدريب — دبلومات مهنية معتمدة، دكتوراه وماجستير مهني، اعتماد المستشارين والمدربين، مع مشرف ذكي بالذكاء الاصطناعي يرافقك صوتاً وكتابة",
+  metadataBase: new URL(siteUrl()),
+  title: {
+    default: SITE_NAME,
+    template: `%s | AACT`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  category: "education",
   keywords: [
     "الأكاديمية الأمريكية",
     "استشارات",
