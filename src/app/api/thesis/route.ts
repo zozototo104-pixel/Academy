@@ -18,6 +18,32 @@ function jsonArray(value: unknown, fallback: any[] = []) {
   return fallback
 }
 
+function isStudyAdmission(admission: any) {
+  if (!admission?.programId) return false
+  const flow = getServiceFlow(admission.programRef?.slug)
+  return flow ? flow.isStudyProgram : admission.programRef?.category !== 'SERVICE'
+}
+
+async function findLatestStudyAdmission(user: { id: string; email: string }, includeSupervisor = false) {
+  const admissions = await db.admissionApplication.findMany({
+    where: { OR: [{ userId: user.id }, { email: user.email }], status: { not: 'REJECTED' } },
+    orderBy: { createdAt: 'desc' },
+    take: 12,
+    include: {
+      programRef: { select: { id: true, slug: true, category: true } },
+      ...(includeSupervisor ? { supervisor: { select: { name: true } } } : {}),
+    },
+  })
+  const admission = admissions.find(isStudyAdmission) || null
+  if (!admission?.programId) return { admission: null, enrollment: null }
+  const enrollment = await db.enrollment.findUnique({
+    where: { userId_programId: { userId: user.id, programId: admission.programId } },
+    select: { id: true, status: true },
+  })
+  if (!enrollment || !['ACTIVE', 'COMPLETED'].includes(enrollment.status)) return { admission: null, enrollment: null }
+  return { admission, enrollment }
+}
+
 function mapThesisPlan(guide: any) {
   if (!guide) return null
   return {
