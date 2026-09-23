@@ -841,6 +841,9 @@ export function AdminCertificatesTab() {
   const [issueOpen, setIssueOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ holderName: '', program: '', grade: '', country: '' })
+  const [certSearch, setCertSearch] = useState('')
+  const [certPage, setCertPage] = useState(1)
+  const [certPageSize, setCertPageSize] = useState(25)
 
   const load = () => {
     api<{ certificates: CertificateData[] }>('/api/admin/certificates')
