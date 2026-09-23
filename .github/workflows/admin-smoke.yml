@@ -138,12 +138,30 @@ jobs:
             echo "Health route attempt $i: HTTP ${code:-000}; content-type=${content_type:-unknown}"
             if [ "${code:-000}" != "404" ] && echo "$content_type" | grep -qi 'application/json'; then
               echo "Health route is deployed."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "Health route was not deployed after waiting. Last response:"
+              cat /tmp/health-route-check.txt || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "Waiting for deployed backups route: $base/api/admin/backups"
+          for i in {1..60}; do
+            curl_check "$base/api/admin/backups" /tmp/backups-route-check.txt /tmp/backups-route-headers.txt
+            code=$(awk 'NR==1 {print $2}' /tmp/backups-route-headers.txt | tail -1)
+            content_type=$(grep -i '^content-type:' /tmp/backups-route-headers.txt | tail -1 | tr -d '\r' | cut -d' ' -f2- || true)
+            echo "Backups route attempt $i: HTTP ${code:-000}; content-type=${content_type:-unknown}"
+            if [ "${code:-000}" != "404" ] && echo "$content_type" | grep -qi 'application/json'; then
+              echo "Backups route is deployed."
               exit 0
             fi
             sleep 10
           done
-          echo "Health route was not deployed after waiting. Last response:"
-          cat /tmp/health-route-check.txt || true
+          echo "Backups route was not deployed after waiting. Last response:"
+          cat /tmp/backups-route-check.txt || true
           exit 1
 
       - name: Run admin smoke test
