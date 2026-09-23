@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { adminPaginationMeta, parseAdminPagination } from '@/lib/admin-query'
 
 export const runtime = 'nodejs'
 
