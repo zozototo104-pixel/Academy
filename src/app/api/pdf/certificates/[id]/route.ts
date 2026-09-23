@@ -81,6 +81,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
           title: 'التحقق / Verification',
           rows: [
             { label: 'رابط التحقق', value: verificationUrl, dir: 'ltr' },
+            { label: 'JSON-LD / W3C VC', value: credentialUrl, dir: 'ltr' },
             { label: 'مرجع الطلب', value: certificate.admission?.reference || certificate.agent?.territory || '—', dir: 'ltr' },
           ],
           lines: ['تؤكد الأكاديمية أن هذه الوثيقة صادرة إلكترونياً من منصة AACT ويمكن التحقق منها عبر رمز التحقق أعلاه.'],
