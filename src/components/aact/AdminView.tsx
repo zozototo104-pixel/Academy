@@ -309,6 +309,60 @@ interface StudentRow {
   latestAdmission?: { id: string; reference: string; status: string; program: string; createdAt: string } | null
 }
 
+function studentText(value: unknown, fallback = '—'): string {
+  if (typeof value === 'string') return value.trim() || fallback
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>
+    return studentText(v.titleAr ?? v.title ?? v.name ?? v.reference ?? v.email ?? v.program, fallback)
+  }
+  return fallback
+}
+
+function studentNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+function normalizeStudentRow(raw: any): StudentRow {
+  const enrollmentsSource = Array.isArray(raw?.enrollments) ? raw.enrollments : []
+  const ownedAdmissions = Array.isArray(raw?.ownedAdmissions) ? raw.ownedAdmissions : []
+  const admission = raw?.latestAdmission || ownedAdmissions[0] || null
+  const bestScore = studentNumber(raw?.bestScore)
+  const attemptsCount = studentNumber(raw?.attemptsCount) ?? studentNumber(raw?._count?.examAttempts) ?? 0
+  const aiChats = studentNumber(raw?.aiChats) ?? studentNumber(raw?._count?.aiChats) ?? 0
+
+  return {
+    id: studentText(raw?.id, ''),
+    name: studentText(raw?.name, 'طالب بدون اسم'),
+    email: studentText(raw?.email, '—'),
+    country: raw?.country == null ? null : studentText(raw.country, ''),
+    createdAt: studentText(raw?.createdAt, new Date().toISOString()),
+    enrollments: enrollmentsSource.map((e: any) => ({
+      program: studentText(e?.program?.titleAr ?? e?.program, 'برنامج غير محدد'),
+      status: studentText(e?.status, 'ACTIVE'),
+      certificateNo: e?.certificateNo == null ? null : studentText(e.certificateNo, ''),
+      finalScore: studentNumber(e?.finalScore),
+    })),
+    attemptsCount,
+    bestScore,
+    aiChats,
+    latestAdmission: admission
+      ? {
+          id: studentText(admission.id, ''),
+          reference: studentText(admission.reference ?? admission.id, 'طلب غير محدد'),
+          status: studentText(admission.status, 'PENDING'),
+          program: studentText(admission.programRef?.titleAr ?? admission.program, 'برنامج غير محدد'),
+          createdAt: studentText(admission.createdAt, new Date().toISOString()),
+        }
+      : null,
+  }
+}
+
 export function AdminView() {
   const { user, navigate, openStudentPreview, openAgentPreview } = useAppStore()
   const { toast } = useToast()
