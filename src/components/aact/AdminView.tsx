@@ -712,16 +712,10 @@ export function AdminView() {
   const pagedStudents = academicStudents
   const currentStudentPage = studentPage
 
-  const recentAttempts = data?.recentAttempts || []
-  const filteredAttempts = useMemo(() => recentAttempts.filter((a) => {
-    const statusOk = attemptStatusFilter === 'ALL'
-      || (attemptStatusFilter === 'PASSED' && a.passed === true)
-      || (attemptStatusFilter === 'FAILED' && a.passed === false)
-      || (attemptStatusFilter === 'UNSCORED' && a.passed == null)
-    return statusOk && matchesAdminSearch(attemptSearch, [a.student, a.email, a.exam, a.program, a.score])
-  }), [attemptSearch, attemptStatusFilter, recentAttempts])
-  const pagedAttempts = pageItems(filteredAttempts, attemptPage, attemptPageSize)
-  const currentAttemptPage = safePage(filteredAttempts.length, attemptPageSize, attemptPage)
+  const recentAttempts = attemptRows
+  const filteredAttempts = attemptRows
+  const pagedAttempts = attemptRows
+  const currentAttemptPage = attemptPage
 
   const filteredApps = apps
   const pagedApps = apps
