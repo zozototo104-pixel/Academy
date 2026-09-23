@@ -103,12 +103,29 @@ jobs:
             echo "W3C attempt $i: HTTP ${code:-000}; content-type=${content_type:-unknown}"
             if echo "$content_type" | grep -qi 'application/json\|application/ld+json'; then
               echo "W3C certificate route is deployed."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "W3C certificate route was not deployed after waiting. Last response:"
+              cat /tmp/w3c-route-check.txt || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "Waiting for deployed frontend admin route: $base/admin"
+          for i in {1..60}; do
+            curl_check "$base/admin" /tmp/admin-route-check.txt /tmp/admin-route-headers.txt
+            code=$(awk 'NR==1 {print $2}' /tmp/admin-route-headers.txt | tail -1)
+            echo "Admin route attempt $i: HTTP ${code:-000}"
+            if [ "${code:-000}" != "404" ] && [ "${code:-000}" != "000" ]; then
+              echo "Frontend admin route is deployed."
               exit 0
             fi
             sleep 10
           done
-          echo "W3C certificate route was not deployed after waiting. Last response:"
-          cat /tmp/w3c-route-check.txt || true
+          echo "Frontend admin route was not deployed after waiting. Last response:"
+          cat /tmp/admin-route-check.txt || true
           exit 1
 
       - name: Run admin smoke test
