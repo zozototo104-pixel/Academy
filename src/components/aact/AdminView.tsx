@@ -428,35 +428,53 @@ export function AdminView() {
     }
   }
 
-  const decideTuitionAppeal = async (appeal: NonNullable<AdmissionApp['tuitionAppeal']>, decision: 'APPROVE' | 'REJECT', plan?: AdmissionApp['tuitionPlan']) => {
+  const openTuitionAppealDialog = (
+    appeal: NonNullable<AdmissionApp['tuitionAppeal']>,
+    decision: 'APPROVE' | 'REJECT',
+    plan: AdmissionApp['tuitionPlan'] | undefined,
+    app: AdmissionApp
+  ) => {
+    const total = plan?.totalTuition || appeal.finalRequiredAmount || 0
+    const initialDefault = appeal.approvedInitialAmount || appeal.requestedInitialAmount || Math.ceil(total * 0.25)
+    setTuitionAppealDialog({ appeal, plan, decision, studentName: app.fullName, program: app.program })
+    setTuitionAppealForm({
+      approvedInitialAmount: String(initialDefault || ''),
+      firstSemesterRequiredAmount: String(appeal.firstSemesterRequiredAmount || plan?.firstSemesterRequiredAmount || Math.ceil(total / 2) || ''),
+      finalRequiredAmount: String(appeal.finalRequiredAmount || plan?.finalRequiredAmount || total || ''),
+      adminNote: appeal.adminNote || '',
+    })
+  }
+
+  const submitTuitionAppealDecision = async () => {
+    if (!tuitionAppealDialog) return
+    const { appeal, decision } = tuitionAppealDialog
     try {
-      let body: any = { id: appeal.id, decision }
+      setTuitionAppealSubmitting(true)
+      const body: any = { id: appeal.id, decision, adminNote: tuitionAppealForm.adminNote.trim() || undefined }
       if (decision === 'APPROVE') {
-        const total = plan?.totalTuition || appeal.finalRequiredAmount || 0
-        const initialDefault = appeal.requestedInitialAmount || Math.ceil(total * 0.25)
-        const initial = window.prompt('الدفعة الأولى المقبولة بالدولار', String(initialDefault))
-        if (initial === null) return
-        const sem1 = window.prompt('المبلغ المطلوب قبل فتح امتحان الفصل الأول', String(plan?.firstSemesterRequiredAmount || Math.ceil(total / 2)))
-        if (sem1 === null) return
-        const final = window.prompt('المبلغ المطلوب قبل فتح امتحان الفصل الثاني', String(plan?.finalRequiredAmount || total))
-        if (final === null) return
-        const note = window.prompt('ملاحظة الإدارة للطالب (اختياري)', appeal.adminNote || '')
-        body = {
-          ...body,
-          approvedInitialAmount: Number(initial),
-          firstSemesterRequiredAmount: Number(sem1),
-          finalRequiredAmount: Number(final),
-          adminNote: note || undefined,
+        const approvedInitialAmount = Number(tuitionAppealForm.approvedInitialAmount)
+        const firstSemesterRequiredAmount = Number(tuitionAppealForm.firstSemesterRequiredAmount)
+        const finalRequiredAmount = Number(tuitionAppealForm.finalRequiredAmount)
+        if (![approvedInitialAmount, firstSemesterRequiredAmount, finalRequiredAmount].every((n) => Number.isFinite(n) && n > 0)) {
+          toast({ title: 'أدخل مبالغ صحيحة', description: 'الدفعة الأولى وشرط الفصل الأول والمبلغ النهائي يجب أن تكون أرقاماً أكبر من صفر.', variant: 'destructive' })
+          return
         }
-      } else {
-        const note = window.prompt('سبب رفض الالتماس (اختياري)', appeal.adminNote || '')
-        body.adminNote = note || undefined
+        if (approvedInitialAmount > firstSemesterRequiredAmount || firstSemesterRequiredAmount > finalRequiredAmount) {
+          toast({ title: 'ترتيب مبالغ غير منطقي', description: 'يجب أن تكون الدفعة الأولى ≤ شرط الفصل الأول ≤ إجمالي المطلوب قبل الفصل الثاني.', variant: 'destructive' })
+          return
+        }
+        body.approvedInitialAmount = approvedInitialAmount
+        body.firstSemesterRequiredAmount = firstSemesterRequiredAmount
+        body.finalRequiredAmount = finalRequiredAmount
       }
       await api('/api/admin/tuition-appeals', { method: 'PATCH', body: JSON.stringify(body) })
       toast({ title: decision === 'APPROVE' ? 'تم قبول التقسيط' : 'تم رفض الالتماس', description: 'تم إشعار الطالب بالقرار.' })
+      setTuitionAppealDialog(null)
       await load()
     } catch (e: any) {
       toast({ title: 'تعذر تحديث الالتماس', description: e.message, variant: 'destructive' })
+    } finally {
+      setTuitionAppealSubmitting(false)
     }
   }
 
