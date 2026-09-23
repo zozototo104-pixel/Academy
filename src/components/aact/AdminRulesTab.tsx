@@ -254,7 +254,7 @@ export function AdminRulesTab() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-black text-[#0f2b46]">{selected.titleAr}</h3>
                   <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
-                    {custom ? 'قواعد مخصصة مفعلة' : 'قواعد افتراضية للدرجة'}
+                    {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
                   </Badge>
                 </div>
 
