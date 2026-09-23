@@ -150,15 +150,19 @@ export default function Home() {
   } = useAppStore()
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
-  const [startupDone, setStartupDone] = useState(() => {
-    if (typeof window === 'undefined') return false
+  // Keep the first client render identical to the server HTML.
+  // Reading localStorage/getToken() inside the useState initializer causes React hydration
+  // mismatch #418 for returning users and for Playwright, which injects the token before page load.
+  const [startupDone, setStartupDone] = useState(false)
+
+  useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search)
-      return q.has('authToken') || hasSeenStartup() || Boolean(getToken())
-    } catch {
-      return false
-    }
-  })
+      if (q.has('authToken') || hasSeenStartup() || Boolean(getToken())) {
+        setStartupDone(true)
+      }
+    } catch {}
+  }, [])
 
   // Load current user on mount
   useEffect(() => {
