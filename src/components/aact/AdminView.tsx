@@ -1497,6 +1497,8 @@ export function AdminView() {
               </div>
             </CardContent>
           </Card>
+          <AdminPager page={currentAttemptPage} pageSize={attemptPageSize} total={filteredAttempts.length} onPageChange={setAttemptPage} label="محاولة" />
+          </div>
         </TabsContent>
 
         {/* Students */}
