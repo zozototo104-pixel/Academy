@@ -32,11 +32,32 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
     shortcut: "/icon-192.png",
   },
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
     title: "الأكاديمية الأمريكية للاستشارات والتدريب",
-    description: "بناء القيادات، صقل المهارات — منصة تعليمية بمشرف ذكي بالذكاء الاصطناعي",
+    description: SITE_DESCRIPTION,
     siteName: "AACT",
     type: "website",
+    locale: "ar",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
 };
 
