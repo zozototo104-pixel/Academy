@@ -391,7 +391,7 @@ export function ApplyView() {
       }
       const d = await api<{ reference: string; message: string; invoice: any }>('/api/admissions/finalize', {
         method: 'POST',
-        body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference }),
+        body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference, uploadToken: staged.uploadToken }),
       })
       setDone({ reference: d.reference, invoice: d.invoice || null })
       try {
