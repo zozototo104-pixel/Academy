@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { resolveRules, type AdmissionRules } from '@/lib/admission-ai'
 import { normalizeAcademicProfileOverride } from '@/lib/program-tracks'
+import { getServiceFlow } from '@/lib/service-flows'
 
 // GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها (المخصصة + المفعّلة فعلياً)
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
