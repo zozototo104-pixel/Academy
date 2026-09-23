@@ -105,15 +105,23 @@ export async function GET() {
 
     return NextResponse.json({
       admissions,
+      studyAdmissions,
+      serviceAdmissions,
       payments,
       enrollments,
       notifications,
       unread,
       assignmentSubmissions,
       thesis,
+      serviceDeliverables: deliverables,
       summary: {
         latestAdmission,
+        latestStudy,
+        latestService,
         activeEnrollment,
+        studyRequests: studyAdmissions.length,
+        serviceRequests: serviceAdmissions.length,
+        serviceDeliverables: deliverables.length,
         unpaidPayments: unpaidPayments.length,
         paidPayments: paidPayments.length,
         requiredAction,
