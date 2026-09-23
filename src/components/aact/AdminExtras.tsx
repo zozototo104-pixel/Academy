@@ -786,6 +786,7 @@ export function AdminFinanceTab() {
                     <th className="p-3 font-black">الوصف</th>
                     <th className="p-3 font-black">المبلغ</th>
                     <th className="p-3 font-black">الحالة</th>
+                    <th className="p-3 font-black">PDF</th>
                     <th className="p-3 font-black">تأكيد يدوي</th>
                   </tr>
                 </thead>
