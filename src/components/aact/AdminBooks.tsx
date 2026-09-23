@@ -413,6 +413,8 @@ export function AdminBooksTab() {
   const [gradingStatusFilter, setGradingStatusFilter] = useState('PENDING')
   const [gradingSemesterFilter, setGradingSemesterFilter] = useState('ALL')
   const [gradingSearch, setGradingSearch] = useState('')
+  const [gradingPage, setGradingPage] = useState(1)
+  const [gradingPageSize, setGradingPageSize] = useState(25)
   const [gradingDialog, setGradingDialog] = useState<null | { mode: 'GRADE' | 'REVISION'; submission: AssignmentSubmissionRow; assignment: AssignmentRow; score: string; feedback: string }>(null)
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; danger?: boolean }>(null)
   const confirmResolveRef = useRef<((ok: boolean) => void) | null>(null)
