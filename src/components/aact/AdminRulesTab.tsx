@@ -446,7 +446,7 @@ export function AdminRulesTab() {
                   </div>
 
                   <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
-                    <p className="text-xs font-black text-[#0f2b46]">الخطة الدراسية المعتمدة</p>
+                    <p className="text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الخطة الدراسية المعتمدة' : 'مراحل تنفيذ الخدمة المعتمدة'}</p>
                     {[0, 1, 2].map((i) => {
                       const stage = stageAt(draft.academicProfile, i)
                       return (
