@@ -537,9 +537,16 @@ export function TranscriptTab() {
                       <p className="font-black text-[#0f2b46]">{p.title || p.programTitle || 'برنامج'}</p>
                       <p className="mt-1 text-[11px] font-bold text-slate-500">الحالة: {p.status || '—'}{p.certificateNo ? ` — شهادة ${p.certificateNo}` : ''}</p>
                     </div>
-                    <Badge className={gradebook?.score != null ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
-                      الدرجة النهائية: {gradebook?.score != null ? `${gradebook.score}%` : p.finalScore != null ? `${p.finalScore}%` : 'قيد الاكتمال'}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {p.enrollmentId ? (
+                        <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
+                          <a href={`/pdf/transcripts/${encodeURIComponent(p.enrollmentId)}?print=1`} target="_blank" rel="noreferrer"><FileText className="ml-1 h-3.5 w-3.5" /> PDF</a>
+                        </Button>
+                      ) : null}
+                      <Badge className={gradebook?.score != null ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                        الدرجة النهائية: {gradebook?.score != null ? `${gradebook.score}%` : p.finalScore != null ? `${p.finalScore}%` : 'قيد الاكتمال'}
+                      </Badge>
+                    </div>
                   </div>
                   {gradebook?.components?.length ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
