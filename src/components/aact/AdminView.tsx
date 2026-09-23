@@ -908,8 +908,13 @@ export function AdminView() {
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">{activeTab === 'service-requests' ? 'لا توجد طلبات خدمات عابرة حالياً' : 'لا توجد طلبات التحاق دراسي حالياً'}</CardContent>
               </Card>
+            ) : filteredAdmissionRows.length === 0 ? (
+              <Card className="border-[#0f2b46]/10">
+                <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</CardContent>
+              </Card>
             ) : (
-              visibleAdmissionRows.map((a) => {
+              <>
+              {pagedAdmissionRows.map((a) => {
                 const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
                 const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
                 const isStudyAdmission = a.isStudyProgram !== false
