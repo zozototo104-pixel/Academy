@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     })
 
     const updateData: any = {
-      cryptoTxHash: cleanHash,
+      cryptoTxHash: normalizedHash,
       cryptoNetwork: network,
       cryptoWalletAddress: walletAddress,
       cryptoVerificationStatus: result.status,
