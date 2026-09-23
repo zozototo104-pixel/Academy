@@ -14,8 +14,20 @@ export async function POST(req: NextRequest) {
     if (!invoiceNo || !method) {
       return NextResponse.json({ error: 'رقم الفاتورة وطريقة الدفع مطلوبان' }, { status: 400 })
     }
-    const payment = await db.payment.findUnique({ where: { invoiceNo } })
+    const payment = await db.payment.findUnique({
+      where: { invoiceNo },
+      include: { admission: { select: { userId: true, email: true } } },
+    })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
+    const isPrivileged = ['ADMIN', 'STAFF'].includes(user?.role || '')
+    const ownerMatches =
+      payment.userId === user?.id ||
+      payment.payerEmail?.toLowerCase() === user?.email?.toLowerCase() ||
+      payment.admission?.userId === user?.id ||
+      payment.admission?.email?.toLowerCase() === user?.email?.toLowerCase()
+    if (!isPrivileged && !ownerMatches) {
+      return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
+    }
     if (payment.status === 'PAID') {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
