@@ -1601,14 +1601,25 @@ export function AdminMessagesTab() {
   const [msgStatusFilter, setMsgStatusFilter] = useState('OPEN')
   const [msgPage, setMsgPage] = useState(1)
   const [msgPageSize, setMsgPageSize] = useState(25)
+  const [msgTotal, setMsgTotal] = useState(0)
 
-  const load = () => {
-    api<{ messages: Msg[] }>('/api/admin/contact')
-      .then((d) => setMsgs(d.messages))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(msgPage), pageSize: String(msgPageSize), status: msgStatusFilter })
+      if (msgSearch.trim()) params.set('search', msgSearch.trim())
+      api<{ messages: Msg[]; total: number }>(`/api/admin/contact?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setMsgs(Array.isArray(d.messages) ? d.messages : [])
+          setMsgTotal(Number(d.total || 0))
+        })
+        .catch(() => { if (!cancelled) setMsgs([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [msgSearch, msgStatusFilter, msgPage, msgPageSize])
 
   const mark = async (id: string, handled: boolean) => {
     await api('/api/admin/contact', { method: 'PATCH', body: JSON.stringify({ id, handled }) }).catch(() => {})
