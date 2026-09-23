@@ -1606,6 +1606,8 @@ export function AdminView() {
               </div>
             </CardContent>
           </Card>
+          <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={filteredStudents.length} onPageChange={setStudentPage} label="طالب" />
+          </div>
         </TabsContent>
 
         {/* إدارة حسابات المشرفين البشريين */}
