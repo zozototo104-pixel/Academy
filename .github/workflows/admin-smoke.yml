@@ -58,31 +58,57 @@ jobs:
             exit 1
           fi
 
-      - name: Wait for deployed PDF routes
+      - name: Wait for deployed PDF and W3C routes
         shell: bash
         run: |
           set -euo pipefail
           base="${E2E_BASE_URL%/}"
-          url="$base/api/pdf/transcript"
-          echo "Waiting for deployed route: $url"
-          for i in {1..60}; do
+
+          curl_check() {
+            local url="$1"
+            local body="$2"
+            local headers="$3"
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
-              code=$(curl -sS -o /tmp/pdf-route-check.txt -w "%{http_code}" \
+              curl -sS -D "$headers" -o "$body" \
                 -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
                 -H "x-vercel-set-bypass-cookie: true" \
-                "$url" || true)
+                "$url" || true
             else
-              code=$(curl -sS -o /tmp/pdf-route-check.txt -w "%{http_code}" "$url" || true)
+              curl -sS -D "$headers" -o "$body" "$url" || true
             fi
-            echo "Attempt $i: HTTP $code"
-            if [ "$code" != "404" ] && [ "$code" != "000" ]; then
+          }
+
+          echo "Waiting for deployed PDF route: $base/api/pdf/transcript"
+          for i in {1..60}; do
+            curl_check "$base/api/pdf/transcript" /tmp/pdf-route-check.txt /tmp/pdf-route-headers.txt
+            code=$(awk 'NR==1 {print $2}' /tmp/pdf-route-headers.txt | tail -1)
+            echo "PDF attempt $i: HTTP ${code:-000}"
+            if [ "${code:-000}" != "404" ] && [ "${code:-000}" != "000" ]; then
               echo "PDF transcript route is deployed."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "PDF transcript route was not deployed after waiting. Last response:"
+              cat /tmp/pdf-route-check.txt || true
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "Waiting for deployed W3C route: $base/api/verify/certificates/__route_probe__"
+          for i in {1..60}; do
+            curl_check "$base/api/verify/certificates/__route_probe__" /tmp/w3c-route-check.txt /tmp/w3c-route-headers.txt
+            code=$(awk 'NR==1 {print $2}' /tmp/w3c-route-headers.txt | tail -1)
+            content_type=$(grep -i '^content-type:' /tmp/w3c-route-headers.txt | tail -1 | tr -d '\r' | cut -d' ' -f2- || true)
+            echo "W3C attempt $i: HTTP ${code:-000}; content-type=${content_type:-unknown}"
+            if echo "$content_type" | grep -qi 'application/json\|application/ld+json'; then
+              echo "W3C certificate route is deployed."
               exit 0
             fi
             sleep 10
           done
-          echo "PDF transcript route was not deployed after waiting. Last response:"
-          cat /tmp/pdf-route-check.txt || true
+          echo "W3C certificate route was not deployed after waiting. Last response:"
+          cat /tmp/w3c-route-check.txt || true
           exit 1
 
       - name: Run admin smoke test
