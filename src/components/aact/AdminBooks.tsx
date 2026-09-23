@@ -2139,6 +2139,14 @@ export function AdminBooksTab() {
                               </div>
                             </div>
                           ))}
+                          {a.submissions.length > 3 && (
+                            <div className="rounded-xl border border-[#c9a227]/20 bg-[#fffaf0] p-3 text-[11px] font-bold leading-5 text-[#7a5b13]">
+                              تظهر آخر 3 تسليمات فقط هنا حتى لا تتكدس الصفحة. افتح مركز التصحيح لعرض كل التسليمات وفرزها حسب الطالب والحالة.
+                              <Button size="sm" variant="outline" onClick={() => { setWorkspaceTab('grading'); setGradingSearch(a.title) }} className="mt-2 h-8 border-[#c9a227] px-3 text-[10px] font-black text-[#a8841a]">
+                                فتح كل التسليمات في مركز التصحيح
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
