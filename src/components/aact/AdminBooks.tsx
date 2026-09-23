@@ -1305,7 +1305,7 @@ export function AdminBooksTab() {
   }
 
   const deleteAssignment = async (id: string) => {
-    if (!programId || !confirm('حذف هذا الواجب وكل تسليماته؟ هذا الإجراء نهائي.')) return
+    if (!programId || !(await askAdminConfirm({ title: 'حذف واجب وتسليماته', description: 'سيتم حذف هذا الواجب وكل تسليمات الطلاب المرتبطة به. هذا الإجراء نهائي.', confirmLabel: 'حذف الواجب', danger: true }))) return
     try {
       await api(`/api/admin/assignments?id=${id}`, { method: 'DELETE' })
       await loadProgramData(programId, true)
