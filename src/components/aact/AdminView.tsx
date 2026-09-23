@@ -1495,7 +1495,7 @@ export function AdminView() {
                   </Card>
                 )
               })}
-              <AdminPager page={currentAdmissionPage} pageSize={admissionPageSize} total={filteredAdmissionRows.length} onPageChange={setAdmissionPage} label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'} />
+              <AdminPager page={currentAdmissionPage} pageSize={admissionPageSize} total={admissionTotal} onPageChange={setAdmissionPage} label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'} />
               </>
             )}
           </div>
