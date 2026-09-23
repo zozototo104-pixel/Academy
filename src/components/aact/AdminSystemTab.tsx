@@ -261,10 +261,14 @@ export function AdminSystemTab() {
 
   const load = () => {
     setLoading(true)
-    api<SystemData>('/api/admin/system')
-      .then((d) => {
+    Promise.all([
+      api<SystemData>('/api/admin/system'),
+      api<BackupStatus>('/api/admin/backups').catch(() => null),
+    ])
+      .then(([d, backups]) => {
         setData(d)
         setForm(d.values)
+        if (backups) setBackupStatus(backups)
       })
       .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
