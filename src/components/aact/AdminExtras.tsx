@@ -606,6 +606,12 @@ interface PaymentRow {
   amount: number
   status: string
   method?: string | null
+  provider?: string | null
+  cryptoNetwork?: string | null
+  cryptoTxHash?: string | null
+  cryptoWalletAddress?: string | null
+  cryptoVerificationStatus?: string | null
+  cryptoVerificationNote?: string | null
   receiptNo?: string | null
   payerName?: string | null
   payerCountry?: string | null
