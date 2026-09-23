@@ -6,6 +6,12 @@ import { buildCertificateCredential, certificateCredentialUrl, certificateVerifi
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+export const metadata: Metadata = {
+  title: 'التحقق من شهادة AACT',
+  description: 'صفحة تحقق إلكترونية من شهادة صادرة عن الأكاديمية الأمريكية للاستشارات والتدريب.',
+  robots: { index: false, follow: false, nocache: true },
+}
+
 type PageProps = { params: Promise<{ token: string }> | { token: string } }
 
 function fmt(value: Date | string | null | undefined) {
