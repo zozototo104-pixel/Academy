@@ -141,8 +141,9 @@ function buildInvoiceSvg(data: {
 }) {
   const descLines = wrapText(data.description, 72).slice(0, 4)
   const programLines = wrapText(data.programOrService, 66).slice(0, 3)
-  const statusColor = data.status.includes('PAID') ? '#047857' : '#b45309'
-  const statusBg = data.status.includes('PAID') ? '#d1fae5' : '#fef3c7'
+  const isPaid = data.status === 'مسددة / PAID'
+  const statusColor = isPaid ? '#047857' : '#b45309'
+  const statusBg = isPaid ? '#d1fae5' : '#fef3c7'
 
   const invoiceRows = lineRows([
     { label: 'رقم الفاتورة / Invoice No.', value: data.invoiceNo, dir: 'ltr' },
