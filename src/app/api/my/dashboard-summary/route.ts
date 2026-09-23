@@ -8,18 +8,26 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const user = await requireUser()
-    const [admissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis] = await Promise.all([
+    const [rawAdmissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis, deliverables] = await Promise.all([
       db.admissionApplication.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: { id: true, reference: true, status: true, program: true, createdAt: true, programRef: { select: { titleAr: true } } },
+        take: 12,
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          program: true,
+          programId: true,
+          createdAt: true,
+          programRef: { select: { titleAr: true, slug: true, category: true } },
+        },
       }),
       db.payment.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
-        take: 8,
-        select: { id: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, paidAt: true, createdAt: true },
+        take: 12,
+        select: { id: true, admissionId: true, invoiceNo: true, status: true, amount: true, purpose: true, description: true, paidAt: true, createdAt: true },
       }),
       db.enrollment.findMany({
         where: { userId: user.id },
