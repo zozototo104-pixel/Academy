@@ -48,6 +48,14 @@ export async function GET() {
       return flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
     }).length
     const pendingServices = pendingAdmissionApps.length - pendingAdmissions
+    const paidServicesWaitingDelivery = serviceDeliveryApps.filter((app) => {
+      const flow = getServiceFlow(app.programRef?.slug)
+      const isService = flow ? !flow.isStudyProgram : app.programRef?.category === 'SERVICE'
+      if (!isService) return false
+      const paid = app.payments.length > 0 && app.payments.every((p) => p.status === 'PAID')
+      const hasVisibleOutput = app.deliverables.some((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false)
+      return paid && !hasVisibleOutput
+    }).length
 
     return NextResponse.json({
       stats: {
