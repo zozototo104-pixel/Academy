@@ -631,6 +631,7 @@ export function AdminFinanceTab() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL')
   const [paymentPage, setPaymentPage] = useState(1)
   const [paymentPageSize, setPaymentPageSize] = useState(25)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
 
   const load = () => {
     Promise.all([
