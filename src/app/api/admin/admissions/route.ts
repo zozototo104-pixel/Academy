@@ -324,7 +324,16 @@ export async function PATCH(req: NextRequest) {
         })
         const finalGrade = app.programId && app.userId
           ? await calculateFinalGrade({ userId: app.userId, programId: app.programId, admissionId: id })
-          : { score: null }
+          : { score: null, missing: [] }
+        const programCategory = app.programId
+          ? (await db.program.findUnique({ where: { id: app.programId }, select: { category: true } }))?.category
+          : null
+        if (['MASTERS', 'DOCTORATE'].includes(programCategory || '') && finalGrade.score === null) {
+          return NextResponse.json(
+            { error: `لا يمكن إصدار شهادة هذا المسار قبل اكتمال عناصر الدرجة النهائية: ${(finalGrade as any).missing?.join('، ') || 'عناصر غير مكتملة'}` },
+            { status: 400 }
+          )
+        }
         const certificateScore = finalGrade.score ?? (typeof lastThesis?.resultScore === 'number' ? lastThesis.resultScore : null)
         const cert = await db.certificate.create({
           data: {
