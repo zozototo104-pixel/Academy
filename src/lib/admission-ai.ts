@@ -919,6 +919,7 @@ function runRules(app: {
       if (detectedRank === 0) unverifiableRequired++
     }
   }
+  }
 
   const minAge = rules.minAge || 16
   if (app.birthDate) {
