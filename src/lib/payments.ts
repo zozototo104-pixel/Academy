@@ -103,7 +103,7 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
   if (cfg.mode === 'LIVE' && cfg.stripeSecret && stripeKind === 'unknown') warnings.push('مفتاح Stripe لا يبدأ بـ sk_live أو sk_test؛ تحقق من نسخه من لوحة Stripe.')
   if (cfg.mode === 'LIVE' && cfg.stripeSecret && !cfg.stripeWebhookSecret) warnings.push('Stripe Secret موجود لكن Webhook Secret غير مضبوط؛ قد لا يعتمد السداد تلقائياً بعد الدفع.')
   if (cfg.mode === 'LIVE' && cfg.paypalClientId && cfg.paypalSecret && paypalKind === 'sandbox') warnings.push('PayPal مضبوط على sandbox في وضع LIVE؛ استخدم https://api-m.paypal.com للدفع الحقيقي.')
-  if (cfg.mode === 'LIVE' && !stripeReady && !paypalReady) errors.push('لا توجد بوابة دفع حقيقية مفعلة حالياً. الدفع الإلكتروني غير متاح للطلاب حتى ضبط Stripe live أو PayPal live.')
+  if (cfg.mode === 'LIVE' && !stripeReady && !paypalReady && !usdtReady) errors.push('لا توجد بوابة دفع حقيقية أو وسيلة USDT مفعلة حالياً. الدفع الإلكتروني غير متاح للطلاب حتى ضبط Stripe live أو PayPal live أو عنوان USDT.')
   if (cfg.mode === 'SANDBOX' && !sandboxAllowed) errors.push(sandboxPaymentsBlockedMessage())
 
   const methods: PaymentMethodStatus[] = [
