@@ -84,6 +84,16 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-background text-foreground font-cairo">
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
+        />
         {children}
         <Toaster />
       </body>
