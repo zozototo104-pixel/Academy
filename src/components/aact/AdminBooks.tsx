@@ -2149,6 +2149,113 @@ export function AdminBooksTab() {
           </Card>
           </TabsContent>
 
+          <TabsContent value="grading" className="mt-0 space-y-4">
+            <Card className="border-[#0f2b46]/10 bg-white">
+              <CardContent className="p-5 sm:p-6">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-base font-black text-[#0f2b46]">
+                      <CheckCircle2 className="h-5 w-5 text-[#a8841a]" /> مركز التصحيح والمراجعة
+                    </h2>
+                    <p className="mt-1 text-xs font-bold leading-6 text-slate-500">
+                      تخصص: {selectedProgram?.titleAr || 'اختر تخصصاً'} — هنا تُصحح تسليمات الواجبات بدل تكدسها داخل بطاقة كل واجب. الامتحانات الآلية تظهر ملخصاتها واعتراضاتها في الأسفل.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black">
+                    <div className="rounded-2xl bg-amber-50 px-3 py-2 text-amber-700"><p className="text-lg">{pendingGradingCount}</p><p>بانتظار</p></div>
+                    <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-emerald-700"><p className="text-lg">{gradedCount}</p><p>مصحح</p></div>
+                    <div className="rounded-2xl bg-blue-50 px-3 py-2 text-blue-700"><p className="text-lg">{exams.reduce((sum, e) => sum + (e.attemptsCount || 0), 0)}</p><p>محاولات امتحان</p></div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_160px_160px]">
+                  <Input value={gradingSearch} onChange={(e) => setGradingSearch(e.target.value)} placeholder="ابحث باسم الطالب أو عنوان الواجب" className="bg-white" />
+                  <Select value={gradingStatusFilter} onValueChange={setGradingStatusFilter}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDING">بانتظار التصحيح</SelectItem>
+                      <SelectItem value="SUBMITTED">مسلم فقط</SelectItem>
+                      <SelectItem value="NEEDS_REVISION">يحتاج تعديل</SelectItem>
+                      <SelectItem value="GRADED">مصحح</SelectItem>
+                      <SelectItem value="ALL">كل الحالات</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={gradingSemesterFilter} onValueChange={setGradingSemesterFilter}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">كل الفصول</SelectItem>
+                      <SelectItem value="1">الفصل الأول</SelectItem>
+                      <SelectItem value="2">الفصل الثاني</SelectItem>
+                      <SelectItem value="3">بحث/مشروع</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {filteredGradingQueue.length === 0 ? (
+                    <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد تسليمات مطابقة للفلتر الحالي.</div>
+                  ) : filteredGradingQueue.map(({ assignment, submission }) => (
+                    <article key={submission.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="text-[10px]">{assignment.semester === 2 ? 'الفصل الثاني' : assignment.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول'}</Badge>
+                            <Badge className={`text-[10px] ${submission.status === 'GRADED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : submission.status === 'NEEDS_REVISION' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}`}>{submission.status === 'GRADED' ? 'مصحح' : submission.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار التصحيح'}</Badge>
+                            {submission.score != null && <Badge className="bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50">{submission.score}/{assignment.points}</Badge>}
+                          </div>
+                          <h3 className="mt-2 text-sm font-black text-[#0f2b46]">{assignment.title}</h3>
+                          <p className="mt-1 text-xs font-bold text-slate-500">{submission.studentName || 'طالب'} — {submission.studentEmail || 'بريد غير متوفر'}</p>
+                          {submission.answerText && <p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">{submission.answerText.slice(0, 900)}{submission.answerText.length > 900 ? '…' : ''}</p>}
+                          {submission.fileName && (
+                            <a href={`/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1d4ed8] hover:bg-blue-100">
+                              <FileText className="h-3.5 w-3.5" /> ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}
+                            </a>
+                          )}
+                          {submission.feedback && <p className="mt-2 rounded-xl bg-emerald-50 p-2 text-xs font-bold leading-5 text-emerald-700">ملاحظة التصحيح: {submission.feedback}</p>}
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2 sm:w-36">
+                          <Button size="sm" onClick={() => gradeSubmission(submission, assignment)} disabled={gradingSubmissionId === submission.id} className="h-9 bg-emerald-600 px-3 text-[11px] font-black text-white hover:bg-emerald-700">
+                            {gradingSubmissionId === submission.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تصحيح'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => requestAssignmentRevision(submission, assignment)} disabled={gradingSubmissionId === submission.id} className="h-9 px-3 text-[11px] font-black text-amber-700">
+                            طلب تعديل
+                          </Button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-[#0f2b46]/10 bg-white">
+              <CardContent className="p-5 sm:p-6">
+                <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><ClipboardList className="h-4 w-4 text-[#a8841a]" /> متابعة الامتحانات لهذا التخصص</h3>
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-500">الامتحانات الموضوعية تُصحح آلياً. راجع عدد المحاولات وحالات الأسئلة، واعتراضات النتائج من هنا.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {exams.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">لا توجد امتحانات لهذا التخصص بعد.</div> : exams.map((exam) => (
+                    <div key={exam.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-black text-[#0f2b46]">{exam.title}</p>
+                          <p className="mt-1 text-[11px] font-bold text-slate-500">{exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'} — {exam.questionCount} سؤال — {exam.attemptsCount} محاولة</p>
+                        </div>
+                        <Badge className={exam.status === 'READY' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : exam.status === 'REVIEW' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>{exam.status}</Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {exam.pendingReview > 0 && <Button size="sm" onClick={() => setReviewingExam({ id: exam.id, title: exam.title })} className="h-8 bg-[#0f2b46] px-3 text-[10px] font-black text-[#f5f0e1]">مراجعة الأسئلة ({exam.pendingReview})</Button>}
+                        <Button size="sm" variant="outline" onClick={() => setWorkspaceTab('exams')} className="h-8 px-3 text-[10px] font-black">فتح تبويب الامتحانات</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                  <AdminAppealsSection />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="books" className="mt-0 space-y-4">
           {/* الكتب المقررة */}
           <Card className="border-[#0f2b46]/10">
