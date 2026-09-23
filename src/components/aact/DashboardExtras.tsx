@@ -469,7 +469,7 @@ export function PaymentsTab() {
                   {p.status === 'UNPAID' && p.method === 'USDT' && (
                     <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-blue-900">
-                        <span>تحقق USDT: {p.cryptoVerificationStatus === 'VERIFIED' ? 'تم التحقق آلياً — بانتظار تأكيد الإدارة' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق — راجع Hash أو المبلغ/المحفظة' : 'بانتظار Hash التحويل'}</span>
+                        <span>تحقق USDT: {p.cryptoVerificationStatus === 'VERIFIED' ? 'تم التحقق آلياً — بانتظار تأكيد الإدارة' : p.cryptoVerificationStatus === 'UNSUPPORTED' ? 'الشبكة تحتاج مراجعة يدوية من الإدارة بعد TxID' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق — راجع Hash أو المبلغ/المحفظة' : 'بانتظار Hash التحويل'}</span>
                         {p.cryptoNetwork && <span className="rounded-full bg-white px-2 py-0.5">{p.cryptoNetwork}</span>}
                       </div>
                       {p.cryptoWalletAddress && <p className="mt-1 break-all font-mono text-[10px] text-slate-500" dir="ltr">{p.cryptoWalletAddress}</p>}
