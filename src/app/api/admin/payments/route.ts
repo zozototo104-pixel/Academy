@@ -6,23 +6,57 @@ import { notify, audit } from '@/lib/notify'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 
 // GET /api/admin/payments — كل الفواتير والمستحقات (للإدارة)
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
-    const payments = await db.payment.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 300,
-      include: {
-        admission: { select: { reference: true, fullName: true, country: true, program: true } },
-      },
-    })
-    const totals = {
-      collected: payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0),
-      pending: payments.filter((p) => p.status === 'UNPAID').reduce((s, p) => s + p.amount, 0),
-      count: payments.length,
-      paidCount: payments.filter((p) => p.status === 'PAID').length,
+    const sp = req.nextUrl.searchParams
+    const { page, pageSize, skip, take } = parseAdminPagination(sp, { pageSize: 25, maxPageSize: 100 })
+    const search = cleanAdminQuery(sp.get('search'))
+    const status = cleanAdminQuery(sp.get('status'))
+    const method = cleanAdminQuery(sp.get('method'))
+
+    const where: any = {
+      ...(status && status !== 'ALL' ? { status } : {}),
+      ...(method && method !== 'ALL' ? { OR: [{ method }, { provider: method }] } : {}),
+      ...(search
+        ? {
+            OR: [
+              { invoiceNo: { contains: search, mode: 'insensitive' } },
+              { receiptNo: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { payerName: { contains: search, mode: 'insensitive' } },
+              { payerEmail: { contains: search, mode: 'insensitive' } },
+              { cryptoTxHash: { contains: search, mode: 'insensitive' } },
+              { admission: { reference: { contains: search, mode: 'insensitive' } } },
+              { admission: { fullName: { contains: search, mode: 'insensitive' } } },
+              { admission: { program: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     }
-    return NextResponse.json({ payments, totals })
+
+    const [payments, total, paidCount, paidSum, unpaidSum] = await Promise.all([
+      db.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        include: {
+          admission: { select: { reference: true, fullName: true, country: true, program: true } },
+        },
+      }),
+      db.payment.count({ where }),
+      db.payment.count({ where: { ...where, status: 'PAID' } }),
+      db.payment.aggregate({ where: { ...where, status: 'PAID' }, _sum: { amount: true } }),
+      db.payment.aggregate({ where: { ...where, status: 'UNPAID' }, _sum: { amount: true } }),
+    ])
+    const totals = {
+      collected: paidSum._sum.amount || 0,
+      pending: unpaidSum._sum.amount || 0,
+      count: total,
+      paidCount,
+    }
+    return NextResponse.json({ payments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
