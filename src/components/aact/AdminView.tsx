@@ -395,6 +395,8 @@ export function AdminView() {
   const [agentStatusFilter, setAgentStatusFilter] = useState('ACTIVE')
   const [agentPage, setAgentPage] = useState(1)
   const [agentPageSize, setAgentPageSize] = useState(10)
+  const [agentTotal, setAgentTotal] = useState(0)
+  const [agentRefresh, setAgentRefresh] = useState(0)
   const [highlightAdmissionId, setHighlightAdmissionId] = useState<string | null>(null)
   const [creatingDemoThesis, setCreatingDemoThesis] = useState(false)
   // ===== التقييم الذكي للطلب قبل الاعتماد: خبير AI يحلل المدخلات والمرفقات ويقارنها بالمطلوب =====
