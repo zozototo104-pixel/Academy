@@ -325,6 +325,20 @@ export function AdminView() {
   const [deliverableForms, setDeliverableForms] = useState<Record<string, DeliverableFormState>>({})
   const [deliverableFiles, setDeliverableFiles] = useState<Record<string, File | null>>({})
   const [deliverableLoading, setDeliverableLoading] = useState<string | null>(null)
+  const [tuitionAppealDialog, setTuitionAppealDialog] = useState<null | {
+    appeal: NonNullable<AdmissionApp['tuitionAppeal']>
+    plan?: AdmissionApp['tuitionPlan']
+    decision: 'APPROVE' | 'REJECT'
+    studentName: string
+    program: string
+  }>(null)
+  const [tuitionAppealForm, setTuitionAppealForm] = useState({
+    approvedInitialAmount: '',
+    firstSemesterRequiredAmount: '',
+    finalRequiredAmount: '',
+    adminNote: '',
+  })
+  const [tuitionAppealSubmitting, setTuitionAppealSubmitting] = useState(false)
 
   useEffect(() => {
     const handler = (event: Event) => {
