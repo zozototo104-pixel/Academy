@@ -1104,7 +1104,9 @@ export async function analyzeAdmission(
     } catch {}
   }
 
-  const programRules = resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules)
+  const flow = getServiceFlow(app.programRef?.slug)
+  const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
+  const programRules = resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, isStudyProgram)
   const files = await buildFileEvidence(app.files)
   const rules = runRules({
     fullName: app.fullName,
