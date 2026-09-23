@@ -15,6 +15,7 @@ import { AboutView } from '@/components/aact/AboutView'
 import { ContactView } from '@/components/aact/ContactView'
 import { Loader2 } from 'lucide-react'
 import { unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
+import { routeStateFromLocation } from '@/lib/app-routes'
 
 function LazyViewLoader() {
   return (
