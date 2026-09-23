@@ -656,8 +656,12 @@ export function AdminSystemTab() {
               </h4>
             </div>
             {F('USDT_WALLET_ADDRESS', 'عنوان محفظة USDT', 'مثال: T... أو 0x...', 'text', 'يظهر للطالب عند اختيار USDT، ولا يتم اعتماد السداد حتى تؤكده الإدارة.')}
-            {F('USDT_NETWORK', 'الشبكة', 'TRC20', 'text', 'التحقق الآلي مفعّل حالياً لشبكة TRC20. استخدم ERC20/BEP20 لاحقاً بعد إضافة مزود تحقق خاص بها.')}
-            {F('USDT_PAYMENT_INSTRUCTIONS', 'تعليمات إضافية', 'أرسل لقطة/Hash التحويل للإدارة عبر واتساب أو البريد', 'text', 'اختياري: تعليمات تظهر ضمن رسالة الدفع للطالب.')}
+            {SelectF('USDT_NETWORK', 'الشبكة', [
+              { value: 'TRC20', label: 'TRC20 — تحقق آلي عبر TronGrid' },
+              { value: 'BEP20', label: 'BEP20 — مراجعة إدارية عبر TxID' },
+              { value: 'ERC20', label: 'ERC20 — مراجعة إدارية عبر TxID' },
+            ], 'التحقق الآلي مفعّل حالياً لشبكة TRC20 فقط. BEP20/ERC20 تُقبل بـ TxID وتحتاج اعتماداً إدارياً بعد المراجعة.')}
+            {F('USDT_PAYMENT_INSTRUCTIONS', 'تعليمات إضافية', 'أرسل TxID بعد التحويل ولا تعتمد الدفعة قبل تأكيد الإدارة', 'text', 'اختياري: تعليمات تظهر ضمن رسالة الدفع للطالب.')}
           </div>
           <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
             {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات الدفع
