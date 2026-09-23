@@ -1503,7 +1503,30 @@ export function AdminView() {
 
         {/* Students */}
         <TabsContent value="students">
-          <Card className="mt-4 border-[#0f2b46]/10">
+          <div className="mt-4 space-y-3">
+            {!studentsLoading && (
+              <AdminListToolbar
+                search={studentSearch}
+                onSearchChange={(v) => { setStudentSearch(v); setStudentPage(1) }}
+                searchPlaceholder="ابحث باسم الطالب أو البريد أو البرنامج أو كود الطلب..."
+                status={studentStatusFilter}
+                onStatusChange={(v) => { setStudentStatusFilter(v); setStudentPage(1) }}
+                statusOptions={[
+                  { value: 'ALL', label: 'كل الطلاب' },
+                  { value: 'ACTIVE', label: 'تسجيل نشط' },
+                  { value: 'COMPLETED', label: 'مكتمل' },
+                  { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل دراسياً' },
+                  { value: 'THESIS', label: 'بحث التخرج' },
+                  { value: 'CERTIFIED', label: 'شهادة صادرة' },
+                ]}
+                pageSize={studentPageSize}
+                onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}
+                total={academicStudents.length}
+                filtered={filteredStudents.length}
+                label="طالب"
+              />
+            )}
+          <Card className="border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
                 {studentsLoading ? (
