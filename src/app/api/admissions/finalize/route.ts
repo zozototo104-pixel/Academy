@@ -37,8 +37,19 @@ export async function POST(req: NextRequest) {
     if (!app) return NextResponse.json({ error: 'لم يتم العثور على طلب الالتحاق' }, { status: 404 })
 
     const me = await getCurrentUser().catch(() => null)
-    if (me && me.role === 'STUDENT' && app.userId && app.userId !== me.id) {
-      return NextResponse.json({ error: 'لا تملك صلاحية إكمال هذا الطلب' }, { status: 403 })
+    const sessionAllowed = Boolean(
+      me && (
+        me.role === 'ADMIN' ||
+        me.role === 'STAFF' ||
+        (me.role === 'STUDENT' && app.userId && app.userId === me.id)
+      )
+    )
+    const tokenAllowed = verifyAdmissionUploadToken(uploadToken, app)
+    if (!sessionAllowed && !tokenAllowed) {
+      return NextResponse.json({ error: 'رابط إكمال التقديم غير صالح أو انتهت صلاحيته. أعد فتح نموذج التقديم وأرسل الطلب من جديد.' }, { status: 403 })
+    }
+    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'].includes(app.status)) {
+      return NextResponse.json({ error: 'لا يمكن إكمال هذا الطلب لأنه انتقل إلى مرحلة لاحقة' }, { status: 400 })
     }
 
     const serviceFlow = getServiceFlow(app.programRef?.slug)
