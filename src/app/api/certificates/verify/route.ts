@@ -248,6 +248,8 @@ export async function GET(req: NextRequest) {
         valid: cert.valid,
         academicProfile,
         academicRecord,
+        verificationUrl: certificateVerificationUrl(cert),
+        credentialUrl: certificateCredentialUrl(cert),
       },
       message: cert.valid
         ? 'شهادة صحيحة ومسجلة رسمياً في سجلات الأكاديمية الأمريكية للاستشارات والتدريب'
