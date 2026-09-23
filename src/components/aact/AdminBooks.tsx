@@ -1397,7 +1397,11 @@ export function AdminBooksTab() {
     const pending = suggestions.filter((x) => !x.added)
     const withoutDirect = pending.filter((x) => !x.link || x.linkType === 'CATALOG_SEARCH' || x.linkType === 'MISSING_DIRECT_LINK')
     if (withoutDirect.length > 0) {
-      const ok = confirm(`يوجد ${withoutDirect.length} كتاباً بلا رابط قراءة مباشر. ستُضاف كمراجع مقررة فقط ولن تدخل بنك المعرفة أو الامتحانات حتى ترفع ملفاتها أو تضيف روابط PDF/TXT/HTML مفتوحة. متابعة؟`)
+      const ok = await askAdminConfirm({
+        title: 'كتب بلا رابط قراءة مباشر',
+        description: `يوجد ${withoutDirect.length} كتاباً بلا رابط قراءة مباشر. ستُضاف كمراجع مقررة فقط ولن تدخل بنك المعرفة أو الامتحانات حتى ترفع ملفاتها أو تضيف روابط PDF/TXT/HTML مفتوحة.`,
+        confirmLabel: 'إضافة كمراجع فقط',
+      })
       if (!ok) return
     }
     for (const s of pending) {
