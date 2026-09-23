@@ -701,7 +701,7 @@ function requirementCoverageMap(requiredDocuments: string[] | undefined, analyse
 }
 
 function weightedDocumentFitScore(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): number {
-  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const reqs = Array.isArray(requiredDocuments) ? requiredDocuments : DEFAULT_REQUIRED_DOCS
   if (!reqs.length) return 0
   const coverage = requirementCoverageMap(reqs, analyses)
   let totalWeight = 0
