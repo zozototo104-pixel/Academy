@@ -29,7 +29,8 @@ export function middleware(req: NextRequest) {
     const qs = new URLSearchParams()
     if (serial) qs.set('serial', serial)
     if (token) qs.set('token', token)
-    canonical = qs.size ? `/verify?${qs.toString()}` : '/verify'
+    const query = qs.toString()
+    canonical = query ? `/verify?${query}` : '/verify'
   }
 
   const next = req.nextUrl.clone()
