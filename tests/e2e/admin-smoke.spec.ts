@@ -249,6 +249,35 @@ async function assertTranscriptPdf(page: Page, token: string, testInfo: TestInfo
   expect(pdfBody.subarray(0, 4).toString('utf8'), 'Transcript PDF response must start with %PDF').toBe('%PDF')
 }
 
+async function assertFirstCertificateCredential(page: Page, token: string, testInfo: TestInfo) {
+  const certsRes = await page.request.get('/api/admin/certificates', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const certsBody = await certsRes.json().catch(() => ({}))
+  expect(certsRes.ok(), `Cannot load admin certificates for W3C smoke: ${certsRes.status()} ${JSON.stringify(certsBody)}`).toBeTruthy()
+  const cert = Array.isArray(certsBody.certificates) ? certsBody.certificates[0] : null
+  if (!cert?.qrToken) {
+    await testInfo.attach('w3c-certificate-smoke', {
+      body: 'Skipped: no certificate rows with qrToken are available in this environment.',
+      contentType: 'text/plain',
+    })
+    return
+  }
+
+  const vcRes = await page.request.get(`/api/verify/certificates/${encodeURIComponent(cert.qrToken)}`)
+  const contentType = vcRes.headers()['content-type'] || ''
+  const vcBody = await vcRes.json().catch(() => ({}))
+  await testInfo.attach('w3c-certificate-smoke', {
+    body: `serial=${cert.serial}\nstatus=${vcRes.status()}\ncontent-type=${contentType}\nproofVerified=${vcBody.proofVerified}\ncredentialType=${JSON.stringify(vcBody.credential?.type || [])}`,
+    contentType: 'text/plain',
+  })
+
+  expect(vcRes.ok(), `W3C certificate endpoint failed with ${vcRes.status()}`).toBeTruthy()
+  expect(contentType, 'W3C certificate endpoint must return JSON-LD').toContain('application/ld+json')
+  expect(vcBody.proofVerified, 'W3C certificate proof must verify').toBe(true)
+  expect(vcBody.credential?.type || [], 'W3C credential must include VerifiableCredential').toContain('VerifiableCredential')
+}
+
 test.describe('Admin dashboard launch smoke test', () => {
   test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
     const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
