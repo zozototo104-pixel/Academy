@@ -185,7 +185,7 @@ function buildBodies(opts: OfficialPdfOptions) {
   return bodies
 }
 
-export async function renderOfficialPdf(opts: OfficialPdfOptions) {
+export async function renderOfficialPdf(opts: OfficialPdfOptions): Promise<Uint8Array> {
   const bodies = buildBodies(opts)
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PDF_PAGE_W, PDF_PAGE_H], compress: true })
   for (let i = 0; i < bodies.length; i++) {
@@ -194,12 +194,14 @@ export async function renderOfficialPdf(opts: OfficialPdfOptions) {
     const png = await sharp(Buffer.from(svg)).png().toBuffer()
     doc.addImage(new Uint8Array(png), 'PNG', 0, 0, PDF_PAGE_W, PDF_PAGE_H)
   }
-  return Buffer.from(doc.output('arraybuffer'))
+  return new Uint8Array(doc.output('arraybuffer'))
 }
 
-export function pdfResponse(pdf: Buffer, filename: string) {
+export function pdfResponse(pdf: Uint8Array, filename: string) {
   const safe = filename.replace(/[^a-zA-Z0-9._-]+/g, '-')
-  return new Response(new Uint8Array(pdf), {
+  const body = new ArrayBuffer(pdf.byteLength)
+  new Uint8Array(body).set(pdf)
+  return new Response(body, {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
