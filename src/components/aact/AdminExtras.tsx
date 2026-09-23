@@ -1197,8 +1197,32 @@ export function AdminMessagesTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
+  const filteredMsgs = msgs.filter((m) => {
+    const statusOk = msgStatusFilter === 'ALL' || (msgStatusFilter === 'OPEN' && !m.handled) || (msgStatusFilter === 'HANDLED' && m.handled)
+    return statusOk && matchesAdminSearch(msgSearch, [m.name, m.email, m.phone, m.subject, m.message])
+  })
+  const pagedMsgs = pageItems(filteredMsgs, msgPage, msgPageSize)
+  const currentMsgPage = safePage(filteredMsgs.length, msgPageSize, msgPage)
+
   return (
     <div className="mt-4 space-y-3">
+      <AdminListToolbar
+        search={msgSearch}
+        onSearchChange={(v) => { setMsgSearch(v); setMsgPage(1) }}
+        searchPlaceholder="ابحث باسم المرسل أو البريد أو الموضوع أو نص الرسالة..."
+        status={msgStatusFilter}
+        onStatusChange={(v) => { setMsgStatusFilter(v); setMsgPage(1) }}
+        statusOptions={[
+          { value: 'OPEN', label: 'الجديدة/المفتوحة' },
+          { value: 'HANDLED', label: 'المعالجة' },
+          { value: 'ALL', label: 'كل الرسائل' },
+        ]}
+        pageSize={msgPageSize}
+        onPageSizeChange={(v) => { setMsgPageSize(v); setMsgPage(1) }}
+        total={msgs.length}
+        filtered={filteredMsgs.length}
+        label="رسالة"
+      />
       {msgs.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا رسائل تواصل بعد</CardContent></Card>
       ) : (
