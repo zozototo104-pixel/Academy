@@ -5,7 +5,8 @@ import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { getServiceFlow } from '@/lib/service-flows'
+import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
+import { resolveRules } from '@/lib/admission-ai'
 const REQUIRED_DOCS: { type: string; label: string }[] = [
   { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
   { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
