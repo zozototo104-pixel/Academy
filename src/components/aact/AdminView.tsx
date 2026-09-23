@@ -591,6 +591,7 @@ export function AdminView() {
     setAdmissionsLoading(true)
     setStudentsLoading(true)
     setAppsLoading(true)
+    setAttemptsLoading(true)
     setAdmissionRefresh((v) => v + 1)
     setAgentRefresh((v) => v + 1)
 
