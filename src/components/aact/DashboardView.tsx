@@ -1142,6 +1142,9 @@ export function DashboardView() {
                               <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg bg-[#0f2b46] px-3 text-xs font-black text-white hover:bg-[#1b3a5d]">
                                 <FileText className="ml-1 h-3.5 w-3.5" /> فتح/تحميل
                               </a>
+                              <a href={`/pdf/deliverables/${encodeURIComponent(d.id)}?print=1`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-[#c9a227] bg-white px-3 text-xs font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                                <ScrollText className="ml-1 h-3.5 w-3.5" /> PDF
+                              </a>
                               {d.verificationUrl && (
                                 <a href={d.verificationUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-[#c9a227] px-3 text-xs font-black text-[#a8841a] hover:bg-[#f7edd0]">
                                   تحقق
