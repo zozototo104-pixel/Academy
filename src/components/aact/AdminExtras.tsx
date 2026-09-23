@@ -1005,7 +1005,7 @@ export function AdminCertificatesTab() {
           ))}
         </div>
       )}
-      <AdminPager page={currentCertPage} pageSize={certPageSize} total={filteredCerts.length} onPageChange={setCertPage} label="شهادة" />
+      <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />
 
       <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
 
