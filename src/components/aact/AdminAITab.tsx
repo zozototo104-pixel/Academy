@@ -71,6 +71,13 @@ export function AdminAITab() {
     return <div className="mt-4 flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
   }
 
+  const filteredStudents = students.filter((s) => {
+    const statusOk = chatStatusFilter === 'ALL' || (chatStatusFilter === 'VOICE' && s.voice > 0) || (chatStatusFilter === 'TEXT' && s.total > 0 && s.voice === 0)
+    return statusOk && matchesAdminSearch(chatSearch, [s.name, s.email, s.country, s.total, s.voice])
+  })
+  const pagedStudents = pageItems(filteredStudents, chatPage, chatPageSize)
+  const currentChatPage = safePage(filteredStudents.length, chatPageSize, chatPage)
+
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-[11px] font-bold leading-relaxed text-emerald-800">
