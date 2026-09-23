@@ -1474,7 +1474,7 @@ export function AdminBooksTab() {
     const msg = exam.questionCount > 0
       ? `سيتم إيقاف التوليد الآن، وستبقى ${exam.questionCount} سؤالاً محفوظة وتتحول مباشرة إلى مراجعة الإدارة للتعديل/الاعتماد/الحذف. متابعة؟`
       : 'سيتم إيقاف التوليد الآن. لم تُحفظ أي أسئلة بعد، ويمكنك استكماله لاحقاً من زر الاستكمال. متابعة؟'
-    if (!confirm(msg)) return
+    if (!(await askAdminConfirm({ title: 'إيقاف توليد الامتحان', description: msg, confirmLabel: 'إيقاف التوليد', danger: exam.questionCount === 0 }))) return
     setStoppingExamId(exam.id)
     try {
       const d = await api<{ ok: boolean; status: string; questionCount: number; totalPoints: number }>('/api/admin/program-exams/generate', {
