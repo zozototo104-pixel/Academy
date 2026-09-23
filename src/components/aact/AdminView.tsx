@@ -1547,6 +1547,11 @@ export function AdminView() {
                           <td className="hidden p-3 text-slate-400 sm:table-cell">
                             {new Date(a.submittedAt).toLocaleDateString('ar')}
                           </td>
+                          <td className="p-3">
+                            <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
+                              <a href={`/api/pdf/results/${encodeURIComponent(a.id)}`} target="_blank" rel="noreferrer"><FileText className="ml-1 h-3.5 w-3.5" /> PDF</a>
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
