@@ -38,10 +38,9 @@ export function CertificateDialog({
 
   useEffect(() => {
     if (!certificate || !open) return
-    const verifyParam = certificate.qrToken
-      ? `token=${encodeURIComponent(certificate.qrToken)}`
-      : `serial=${encodeURIComponent(certificate.serial)}`
-    const verifyUrl = `${window.location.origin}/?view=verify&${verifyParam}`
+    const verifyUrl = certificate.qrToken
+      ? `${window.location.origin}/verify/certificates/${encodeURIComponent(certificate.qrToken)}`
+      : `${window.location.origin}/?view=verify&serial=${encodeURIComponent(certificate.serial)}`
     api<{ qr: string }>(`/api/certificates/qr?data=${encodeURIComponent(verifyUrl)}`)
       .then((d) => setQr(d.qr))
       .catch(() => setQr(null))
