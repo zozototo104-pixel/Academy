@@ -70,8 +70,10 @@ export async function GET() {
     const resendFromRow = await db.setting.findUnique({ where: { key: 'RESEND_FROM' } }).catch(() => null)
     const resendConfigured = !!((resendKeyRow?.value || process.env.RESEND_API_KEY) && (mailFromRow?.value || resendFromRow?.value || process.env.MAIL_FROM || process.env.RESEND_FROM))
     const appUrlConfigured = !!(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL)
+    const objectStorageConfigured = !!(process.env.AACT_S3_ENDPOINT && process.env.AACT_S3_BUCKET && process.env.AACT_S3_ACCESS_KEY_ID && process.env.AACT_S3_SECRET_ACCESS_KEY)
     const launchReadiness = [
       { id: 'database', label: 'قاعدة البيانات', status: 'ok', detail: 'الاتصال بقاعدة البيانات يعمل وتم تحميل الإعدادات.' },
+      { id: 'storage', label: 'التخزين الخارجي R2/S3', status: objectStorageConfigured ? 'ok' : 'warn', detail: objectStorageConfigured ? 'التخزين الخارجي مضبوط لحفظ مرفقات الطلبات والمخرجات خارج قاعدة البيانات.' : 'التخزين الخارجي غير مكتمل؛ اضبط AACT_S3_ENDPOINT و AACT_S3_BUCKET و AACT_S3_ACCESS_KEY_ID و AACT_S3_SECRET_ACCESS_KEY.' },
       { id: 'mail', label: 'Resend / البريد', status: resendConfigured || smtp.enabled ? 'ok' : 'warn', detail: resendConfigured ? 'Resend مضبوط لإرسال الإشعارات.' : smtp.enabled ? 'SMTP مضبوط كبديل لإرسال الإشعارات.' : 'الإشعارات البريدية غير مفعلة بعد؛ اضبط RESEND_API_KEY و MAIL_FROM أو SMTP.' },
       { id: 'payment', label: 'الدفع الإلكتروني', status: payment.trueGatewayCount > 0 ? 'ok' : payment.errors.length > 0 ? 'error' : 'warn', detail: payment.trueGatewayCount > 0 ? `بوابات الدفع الحقيقية المفعلة: ${payment.trueGatewayCount}.` : payment.errors[0] || 'لا توجد بوابة دفع حقيقية مفعلة حالياً؛ Stripe/PayPal بحاجة لإعداد live.' },
       { id: 'gemini', label: 'Gemini / الذكاء الاصطناعي', status: gemini.source === 'none' && !textAi.externalConfigured ? 'warn' : 'ok', detail: textAi.externalConfigured ? `${textAi.message} — Gemini يبقى للصوت/Live أو كاحتياط.` : gemini.source === 'none' ? 'مفتاح Gemini غير موجود؛ وظائف الذكاء الاصطناعي ستكون محدودة.' : `مفتاح Gemini مستخدم من ${gemini.source === 'db' ? 'لوحة الإدارة' : 'Vercel'}.` },
