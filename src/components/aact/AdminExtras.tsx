@@ -845,6 +845,13 @@ export function AdminFinanceTab() {
                       <td className="max-w-48 p-3">
                         <div className="truncate font-bold text-slate-600">{p.description}</div>
                         <div className="text-[10px] text-slate-400">{PURPOSE_L[p.purpose] || p.purpose}{p.admission ? ` — ${p.admission.reference}` : ''}</div>
+                        {(p.method === 'USDT' || p.provider === 'USDT') && (
+                          <div className="mt-1 space-y-0.5 rounded-lg bg-slate-50 p-2 text-[10px] font-bold text-slate-500">
+                            <div>USDT: {p.cryptoNetwork || '—'} · {p.cryptoVerificationStatus || 'WAITING_TX'}</div>
+                            {p.cryptoTxHash && <div className="font-mono" dir="ltr">Tx: {p.cryptoTxHash.slice(0, 12)}…{p.cryptoTxHash.slice(-8)}</div>}
+                            {p.cryptoVerificationNote && <div className="line-clamp-2 text-slate-400">{p.cryptoVerificationNote}</div>}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 font-black text-[#0f2b46]">{p.amount}$</td>
                       <td className="p-3">
