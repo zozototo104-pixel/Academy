@@ -88,13 +88,13 @@ export async function markInvoicePaid(
         newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
         finalRegistration = true
         installmentRegistration = !!installmentActivationReady && !allPaid
-        if (app.programId && app.userId) {
+        if (app.programId && linkedUserId) {
           const existingEnrollment = await db.enrollment.findUnique({
-            where: { userId_programId: { userId: app.userId, programId: app.programId } },
+            where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
           })
           if (!existingEnrollment) {
             await db.enrollment.create({
-              data: { userId: app.userId, programId: app.programId, status: 'ACTIVE' },
+              data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
             })
           }
         }
