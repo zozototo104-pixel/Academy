@@ -54,7 +54,7 @@ export async function GET() {
         select: { id: true, title: true, status: true, reviewNote: true, defenseDate: true, resultScore: true, reviewedAt: true, updatedAt: true },
       }),
       db.serviceDeliverable.findMany({
-        where: { admission: { userId: user.id }, status: 'PUBLISHED', visibleToStudent: true },
+        where: { admission: { OR: [{ userId: user.id }, { email: user.email }] }, status: 'PUBLISHED', visibleToStudent: true },
         orderBy: { createdAt: 'desc' },
         take: 20,
         select: { id: true, admissionId: true, type: true, title: true, createdAt: true },
