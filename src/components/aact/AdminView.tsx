@@ -1645,6 +1645,115 @@ export function AdminView() {
         </TabsContent>
       </Tabs>
 
+      <Dialog open={!!tuitionAppealDialog} onOpenChange={(open) => { if (!open) setTuitionAppealDialog(null) }}>
+        <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto rounded-3xl border-[#c9a227]/25 bg-gradient-to-b from-white to-[#fffaf0] p-0 sm:max-w-2xl">
+          {tuitionAppealDialog && (
+            <div>
+              <DialogHeader className="border-b border-[#c9a227]/20 bg-[#0f2b46] px-5 py-5 text-right text-white sm:px-6">
+                <DialogTitle className="flex items-center gap-2 text-xl font-black text-white">
+                  <Banknote className="h-5 w-5 text-[#f4d36d]" />
+                  {tuitionAppealDialog.decision === 'APPROVE' ? 'قبول طلب التقسيط' : 'رفض طلب التقسيط'}
+                </DialogTitle>
+                <DialogDescription className="pt-1 text-xs font-bold leading-6 text-blue-100">
+                  {tuitionAppealDialog.studentName} — {tuitionAppealDialog.program}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="grid gap-3 rounded-2xl border border-[#c9a227]/20 bg-white p-4 text-xs font-bold text-slate-600 shadow-sm sm:grid-cols-3">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-400">إجمالي الرسوم</p>
+                    <p className="mt-1 text-lg font-black text-[#0f2b46]">{tuitionAppealDialog.plan?.totalTuition || tuitionAppealDialog.appeal.finalRequiredAmount || 0}$</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-400">اقتراح الطالب</p>
+                    <p className="mt-1 text-lg font-black text-[#0f2b46]">{tuitionAppealDialog.appeal.requestedInitialAmount}$</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-400">المدفوع حالياً</p>
+                    <p className="mt-1 text-lg font-black text-emerald-700">{tuitionAppealDialog.plan?.paidTuition || 0}$</p>
+                  </div>
+                </div>
+
+                {tuitionAppealDialog.appeal.reason && (
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-900">
+                    <p className="mb-1 font-black text-[#0f2b46]">سبب الطالب</p>
+                    {tuitionAppealDialog.appeal.reason}
+                  </div>
+                )}
+
+                {tuitionAppealDialog.decision === 'APPROVE' ? (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black text-[#0f2b46]">الدفعة الأولى المقبولة</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={tuitionAppealForm.approvedInitialAmount}
+                        onChange={(e) => setTuitionAppealForm((f) => ({ ...f, approvedInitialAmount: e.target.value }))}
+                        className="h-12 rounded-2xl border-[#c9a227]/30 bg-white text-center text-lg font-black"
+                      />
+                      <p className="text-[10px] font-bold text-slate-400">تفعيل التسجيل يتم بعد سدادها.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black text-[#0f2b46]">قبل امتحان الفصل الأول</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={tuitionAppealForm.firstSemesterRequiredAmount}
+                        onChange={(e) => setTuitionAppealForm((f) => ({ ...f, firstSemesterRequiredAmount: e.target.value }))}
+                        className="h-12 rounded-2xl border-[#c9a227]/30 bg-white text-center text-lg font-black"
+                      />
+                      <p className="text-[10px] font-bold text-slate-400">غالباً نصف الرسوم.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black text-[#0f2b46]">قبل امتحان الفصل الثاني</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={tuitionAppealForm.finalRequiredAmount}
+                        onChange={(e) => setTuitionAppealForm((f) => ({ ...f, finalRequiredAmount: e.target.value }))}
+                        className="h-12 rounded-2xl border-[#c9a227]/30 bg-white text-center text-lg font-black"
+                      />
+                      <p className="text-[10px] font-bold text-slate-400">عادة كامل الرسوم.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold leading-6 text-red-800">
+                    سيتم إشعار الطالب بأن الالتماس مرفوض، ولن يتم إنشاء خطة تقسيط من هذا الطلب.
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-black text-[#0f2b46]">ملاحظة الإدارة للطالب</Label>
+                  <Textarea
+                    value={tuitionAppealForm.adminNote}
+                    onChange={(e) => setTuitionAppealForm((f) => ({ ...f, adminNote: e.target.value }))}
+                    placeholder={tuitionAppealDialog.decision === 'APPROVE' ? 'مثال: تمت الموافقة بشرط الالتزام بمواعيد السداد المحددة.' : 'مثال: يرجى التواصل مع الإدارة لتوضيح خطة السداد.'}
+                    className="min-h-24 rounded-2xl border-[#c9a227]/30 bg-white text-sm font-bold leading-7"
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs font-bold leading-6 text-blue-900">
+                  عند قبول التقسيط: لا يفتح امتحان الفصل الأول قبل بلوغ مبلغ الفصل الأول، ولا يفتح امتحان الفصل الثاني قبل بلوغ المبلغ النهائي.
+                </div>
+              </div>
+
+              <DialogFooter className="border-t border-[#c9a227]/20 bg-white px-5 py-4 sm:px-6">
+                <Button variant="outline" onClick={() => setTuitionAppealDialog(null)} disabled={tuitionAppealSubmitting} className="rounded-2xl font-black">
+                  إلغاء
+                </Button>
+                <Button
+                  onClick={submitTuitionAppealDecision}
+                  disabled={tuitionAppealSubmitting}
+                  className={tuitionAppealDialog.decision === 'APPROVE' ? 'rounded-2xl bg-emerald-600 font-black text-white hover:bg-emerald-700' : 'rounded-2xl bg-red-600 font-black text-white hover:bg-red-700'}
+                >
+                  {tuitionAppealSubmitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                  {tuitionAppealDialog.decision === 'APPROVE' ? 'اعتماد خطة التقسيط' : 'تأكيد رفض الالتماس'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Program enrollment chart-like bars */}
       {data && data.programCounts.length > 0 && (
         <Card className="mt-8 border-[#0f2b46]/10">
