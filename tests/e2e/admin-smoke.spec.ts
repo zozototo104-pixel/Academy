@@ -49,7 +49,7 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
   })
 
   await testInfo.attach('guarded-errors-note', {
-    body: 'Browser page errors and console.error messages are captured as report-only diagnostics for this launch smoke test.',
+    body: 'Uncaught browser page errors fail this launch smoke test. Browser console errors are attached for diagnostics.',
     contentType: 'text/plain',
   })
 
@@ -57,8 +57,8 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
     const pageErrorReport = pageErrors.length ? pageErrors.join('\n\n') : 'No uncaught browser page errors captured.'
     const consoleErrorReport = consoleErrors.length ? consoleErrors.join('\n\n') : 'No non-ignored console.error messages captured.'
 
-    if (pageErrors.length) console.warn(`[admin-smoke] Browser page errors captured but not treated as fatal:\n${pageErrorReport}`)
-    if (consoleErrors.length) console.warn(`[admin-smoke] Browser console errors captured but not treated as fatal:\n${consoleErrorReport}`)
+    if (pageErrors.length) console.error(`[admin-smoke] Fatal browser page errors captured:\n${pageErrorReport}`)
+    if (consoleErrors.length) console.warn(`[admin-smoke] Browser console errors captured as diagnostics:\n${consoleErrorReport}`)
 
     await testInfo.attach('browser-page-errors', {
       body: pageErrorReport,
@@ -68,6 +68,7 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
       body: consoleErrorReport,
       contentType: 'text/plain',
     })
+    expect(pageErrors, `Uncaught browser page errors:\n${pageErrorReport}`).toEqual([])
   }
 }
 
