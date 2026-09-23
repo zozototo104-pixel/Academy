@@ -288,7 +288,7 @@ test.describe('Admin dashboard launch smoke test', () => {
       const adminToken = await loginAsAdmin(page)
 
       currentStage = 'فتح لوحة الإدارة'
-      await page.goto('/?view=admin', { waitUntil: 'domcontentloaded' })
+      await page.goto('/admin', { waitUntil: 'domcontentloaded' })
       await waitForAdminReady(page)
       await assertNoFatalScreen(page, 'admin landing')
 
