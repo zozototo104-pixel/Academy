@@ -307,7 +307,7 @@ model Payment {
   description String
   amount      Float
   currency    String   @default("USD")
-  method      String?  // PAYMOB | FAWRY | STRIPE | PAYPAL | BANK_TRANSFER
+  method      String?  // PAYMOB | FAWRY | STRIPE | PAYPAL | USDT | BANK_TRANSFER | DIRECT_PAYMENT
   status      String   @default("UNPAID") // UNPAID | PAID
   receiptNo   String?  // AACT-REC-2026-XXXX عند السداد
   // الربط الحقيقي ببوابات الدفع: جلسة الدفع لدى المزود والتوفيق عبر Webhook
