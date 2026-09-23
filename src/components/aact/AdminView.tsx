@@ -971,8 +971,8 @@ export function AdminView() {
                 ]}
                 pageSize={admissionPageSize}
                 onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
-                total={visibleAdmissionRows.length}
-                filtered={filteredAdmissionRows.length}
+                total={admissionTotal}
+                filtered={admissionTotal}
                 label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
               />
             )}
