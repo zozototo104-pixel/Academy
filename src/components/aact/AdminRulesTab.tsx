@@ -377,7 +377,7 @@ export function AdminRulesTab() {
                         <BookOpen className="h-4 w-4 text-[#a8841a]" />
                         {isStudyProgram ? 'الملف الأكاديمي الرسمي للبرنامج' : 'ملف الخدمة الرسمي ومسار التسليم'}
                       </h4>
-                      <p className="mt-1 text-[10px] leading-5 text-slate-500">هذه البيانات تظهر في تفاصيل البرنامج، بوابة الطالب، السجل الأكاديمي، والتحقق من الشهادة. اترك الحقول فارغة ليستخدم النظام الملف التلقائي.</p>
+                      <p className="mt-1 text-[10px] leading-5 text-slate-500">{isStudyProgram ? 'هذه البيانات تظهر في تفاصيل البرنامج، بوابة الطالب، السجل الأكاديمي، والتحقق من الشهادة. اترك الحقول فارغة ليستخدم النظام الملف التلقائي.' : 'هذه البيانات تظهر كملف خدمة: وصف المسار، المرفقات، خطوات التنفيذ، والمخرجات التي ستُسلم للعميل. زر الملء ينسخ متطلبات الخدمة الرسمية تلقائياً.'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={fillAcademicFromDefault} className="border-[#c9a227]/40 text-xs font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
