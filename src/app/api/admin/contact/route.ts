@@ -2,16 +2,41 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 
 // GET /api/admin/contact — رسائل التواصل الواردة
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
-    const messages = await db.contactMessage.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    })
-    return NextResponse.json({ messages })
+    const sp = req.nextUrl.searchParams
+    const { page, pageSize, skip, take } = parseAdminPagination(sp, { pageSize: 25, maxPageSize: 100 })
+    const search = cleanAdminQuery(sp.get('search'))
+    const status = cleanAdminQuery(sp.get('status'))
+    const where: any = {
+      ...(status === 'OPEN' ? { handled: false } : status === 'HANDLED' ? { handled: true } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+              { subject: { contains: search, mode: 'insensitive' } },
+              { message: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    }
+
+    const [messages, total] = await Promise.all([
+      db.contactMessage.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      db.contactMessage.count({ where }),
+    ])
+    return NextResponse.json({ messages, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
