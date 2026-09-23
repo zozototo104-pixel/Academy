@@ -633,6 +633,25 @@ export function AdminView() {
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
     let cancelled = false
+    setAppsLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(agentPage), pageSize: String(agentPageSize), status: agentStatusFilter })
+      if (agentSearch.trim()) params.set('search', agentSearch.trim())
+      api<{ applications: AgentApp[]; total: number }>(`/api/admin/applications?${params.toString()}`)
+        .then((a) => {
+          if (cancelled) return
+          setApps(Array.isArray(a.applications) ? a.applications : [])
+          setAgentTotal(Number(a.total || 0))
+        })
+        .catch(() => { if (!cancelled) { setApps([]); setAgentTotal(0) } })
+        .finally(() => { if (!cancelled) setAppsLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [user, agentSearch, agentStatusFilter, agentPage, agentPageSize, agentRefresh])
+
+  useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    let cancelled = false
     setStudentsLoading(true)
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: studentStatusFilter })
