@@ -45,6 +45,9 @@ export interface PaymentGatewayConfig {
   paypalClientId: string
   paypalSecret: string
   paypalApiBase: string
+  usdtWalletAddress: string
+  usdtNetwork: string
+  usdtInstructions: string
 }
 
 function env(name: string): string {
