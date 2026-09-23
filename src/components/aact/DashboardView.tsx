@@ -199,6 +199,9 @@ interface AcademicMemorySnapshot {
 
 interface StudentDashboardSummary {
   admissions: any[]
+  studyAdmissions?: any[]
+  serviceAdmissions?: any[]
+  serviceDeliverables?: any[]
   payments: any[]
   enrollments: any[]
   notifications: { id: string; type: string; title: string; body: string; link?: string | null; read: boolean; createdAt: string }[]
@@ -207,7 +210,12 @@ interface StudentDashboardSummary {
   thesis: any | null
   summary: {
     latestAdmission: any | null
+    latestStudy?: any | null
+    latestService?: any | null
     activeEnrollment: any | null
+    studyRequests?: number
+    serviceRequests?: number
+    serviceDeliverables?: number
     unpaidPayments: number
     paidPayments: number
     requiredAction: { title: string; body: string; target: string } | null
