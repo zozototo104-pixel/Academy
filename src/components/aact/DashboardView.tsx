@@ -1078,7 +1078,10 @@ export function DashboardView() {
                       <h2 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Award className="h-5 w-5 text-[#c9a227]" /> مخرجاتي وخدماتي</h2>
                       <p className="mt-1 text-xs font-bold text-slate-500">هنا تظهر الشهادات، المعادلات، روابط تحميل الحقائب، تقارير الاستشارة أو أي مخرج تنشره الإدارة لطلبك.</p>
                     </div>
-                    <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{serviceDeliverables.length} مخرج</Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{serviceDeliverables.length} مخرج</Badge>
+                      <Button size="sm" onClick={() => navigate('apply')} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">طلب خدمة/برنامج جديد</Button>
+                    </div>
                   </div>
                   {serviceDeliverablesLoading ? (
                     <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm font-black text-slate-500">
