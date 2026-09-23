@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { pdfDate, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
+import { certificateVerificationUrl, certificateCredentialUrl } from '@/lib/w3c/certificate-credential'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
