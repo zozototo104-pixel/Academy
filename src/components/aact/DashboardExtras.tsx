@@ -199,10 +199,16 @@ export function PaymentsTab() {
     }
   }
 
+  const approvedInitialRemaining = (plan: TuitionPlan) =>
+    plan.appealStatus === 'APPROVED' && plan.approvedInitialAmount !== null && plan.paidTuition < plan.approvedInitialAmount
+      ? Math.max(0, Math.round((plan.approvedInitialAmount - plan.paidTuition) * 100) / 100)
+      : 0
+
   const createInstallmentInvoice = async (plan: TuitionPlan) => {
-    const amount = Number(partialAmount[plan.admissionId] || 0)
+    const initialDue = approvedInitialRemaining(plan)
+    const amount = initialDue > 0 ? initialDue : Number(partialAmount[plan.admissionId] || 0)
     if (!amount || amount <= 0) {
-      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي.', variant: 'destructive' })
+      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي بعد تفعيل التسجيل.', variant: 'destructive' })
       return
     }
     setAppealBusy(true)
