@@ -17,7 +17,7 @@ import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage }
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
-  FileSignature, Video, RefreshCw,
+  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound,
 } from 'lucide-react'
 
 const DefenseRoom = dynamic(
