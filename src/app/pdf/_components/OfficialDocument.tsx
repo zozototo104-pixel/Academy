@@ -97,7 +97,7 @@ export function PdfTable({
           ) : rows.map((row, i) => (
             <tr key={i} className={i % 2 ? 'bg-[#fbfcff]' : 'bg-white'}>
               {row.map((cell, j) => (
-                <td key={j} className="border-t border-[#eef1f6] px-3 py-3 align-top font-bold leading-relaxed text-slate-700">{cell || '—'}</td>
+                <td key={j} className="border-t border-[#eef1f6] px-3 py-3 align-top font-bold leading-relaxed text-slate-700">{cell === null || cell === undefined || cell === '' ? '—' : cell}</td>
               ))}
             </tr>
           ))}
