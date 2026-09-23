@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     })
-    return NextResponse.json({ applications: enrichedApps, supervisors, statusLabels: STATUS_LABEL })
+    return NextResponse.json({ applications: enrichedApps, supervisors, statusLabels: STATUS_LABEL, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     console.error('admin admissions GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل طلبات الالتحاق' }, { status: 500 })
