@@ -19,6 +19,14 @@ export async function GET() {
           where: { status: { in: ['PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'] } },
           select: { programRef: { select: { slug: true, category: true } } },
         }),
+        db.admissionApplication.findMany({
+          where: { status: { in: ['RESULT_APPROVED', 'CERTIFIED'] } },
+          select: {
+            programRef: { select: { slug: true, category: true } },
+            payments: { select: { status: true } },
+            deliverables: { select: { status: true, visibleToStudent: true } },
+          },
+        }),
         db.examAttempt.count({ where: { passed: true } }),
         db.examAttempt.findMany({
           orderBy: { submittedAt: 'desc' },
