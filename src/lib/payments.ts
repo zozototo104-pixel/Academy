@@ -140,6 +140,14 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
       reason: paypalReady ? undefined : paypalKind === 'sandbox' && cfg.paypalClientId && cfg.paypalSecret ? 'PayPal مضبوط على sandbox. استخدم رابط api-m.paypal.com لتفعيل الدفع الحقيقي.' : 'PayPal غير متاح حالياً لأن Client ID و Secret غير مضبوطين للدفع الحقيقي.',
     },
     {
+      id: 'USDT',
+      label: `USDT / Tether${cfg.usdtNetwork ? ` — ${cfg.usdtNetwork}` : ''}`,
+      enabled: usdtReady,
+      configured: usdtReady,
+      kind: 'manual',
+      reason: usdtReady ? undefined : 'لم يتم ضبط عنوان محفظة USDT بعد. أضف USDT_WALLET_ADDRESS من إعدادات الدفع أو Vercel.',
+    },
+    {
       id: 'BANK_TRANSFER',
       label: 'تحويل بنكي — مراجعة الإدارة',
       enabled: sandboxReady,
