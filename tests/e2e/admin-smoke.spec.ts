@@ -160,6 +160,6 @@ test.describe('Admin dashboard launch smoke test', () => {
       }
     })
 
-    assertNoBrowserErrors()
+    await assertNoBrowserErrors()
   })
 })
