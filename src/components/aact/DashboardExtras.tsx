@@ -415,8 +415,8 @@ export function PaymentsTab() {
               </Select>
               {payConfig?.methods?.find((m) => m.id === method && !m.enabled)?.reason && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700">{payConfig.methods.find((m) => m.id === method)?.reason}</p>}
             </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500"><Info className="mb-1 h-3.5 w-3.5 text-[#c9a227]" /> الدفع المباشر لا يخصم تلقائياً؛ تؤكد الإدارة السداد بعد استلام المبلغ.</div>
-            <Button onClick={pay} disabled={paying} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">{paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Landmark className="ml-2 h-4 w-4" />}{method === 'DIRECT_PAYMENT' ? 'اختيار الدفع المباشر وإبلاغ الإدارة' : `ادفع ${payTarget?.amount}$ الآن`}</Button>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500"><Info className="mb-1 h-3.5 w-3.5 text-[#c9a227]" /> الدفع اليدوي لا يخصم تلقائياً؛ في USDT أدخل Hash التحويل بعد الدفع ليتم التحقق آلياً ثم تؤكد الإدارة السداد.</div>
+            <Button onClick={pay} disabled={paying} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">{paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Landmark className="ml-2 h-4 w-4" />}{method === 'DIRECT_PAYMENT' ? 'اختيار الدفع المباشر وإبلاغ الإدارة' : method === 'USDT' ? 'اختيار USDT وإظهار تعليمات التحويل' : `ادفع ${payTarget?.amount}$ الآن`}</Button>
           </div>
         </DialogContent>
       </Dialog>
