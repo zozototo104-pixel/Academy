@@ -1618,6 +1618,28 @@ export function AdminView() {
         {/* Agent applications */}
         <TabsContent value="agents">
           <div className="mt-4 space-y-4">
+            {!appsLoading && (
+              <AdminListToolbar
+                search={agentSearch}
+                onSearchChange={(v) => { setAgentSearch(v); setAgentPage(1) }}
+                searchPlaceholder="ابحث باسم الجهة أو الممثل أو البلد أو العقد..."
+                status={agentStatusFilter}
+                onStatusChange={(v) => { setAgentStatusFilter(v); setAgentPage(1) }}
+                statusOptions={[
+                  { value: 'ACTIVE', label: 'النشطة فقط' },
+                  { value: 'PENDING', label: 'معلقة' },
+                  { value: 'APPROVED', label: 'مقبولة' },
+                  { value: 'REJECTED', label: 'مرفوضة' },
+                  { value: 'REVOKED', label: 'ملغاة' },
+                  { value: 'ALL', label: 'كل الطلبات' },
+                ]}
+                pageSize={agentPageSize}
+                onPageSizeChange={(v) => { setAgentPageSize(v); setAgentPage(1) }}
+                total={apps.length}
+                filtered={filteredApps.length}
+                label="طلب وكالة/اعتماد"
+              />
+            )}
             {appsLoading ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center text-sm text-slate-500">
