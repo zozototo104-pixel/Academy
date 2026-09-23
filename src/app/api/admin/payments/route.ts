@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { markInvoicePaid } from '@/lib/settle-payment'
 import { notify, audit } from '@/lib/notify'
+import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 
 // GET /api/admin/payments — كل الفواتير والمستحقات (للإدارة)
 export async function GET() {
