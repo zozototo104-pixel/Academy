@@ -55,7 +55,9 @@ export async function POST(req: NextRequest) {
     const serviceFlow = getServiceFlow(app.programRef?.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
     const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const rules = resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest)
+    const rules = app.programRef?.admissionRules
+      ? resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef.admissionRules, !isServiceRequest)
+      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest))
     const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
     const requiredDocList = isServiceRequest
       ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
