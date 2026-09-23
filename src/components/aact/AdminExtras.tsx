@@ -977,8 +977,8 @@ export function AdminCertificatesTab() {
         searchPlaceholder="ابحث بالاسم أو الرقم التسلسلي أو البرنامج..."
         pageSize={certPageSize}
         onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
-        total={certs.length}
-        filtered={filteredCerts.length}
+        total={certTotal}
+        filtered={certTotal}
         label="شهادة"
       />
       {certs.length === 0 ? (
