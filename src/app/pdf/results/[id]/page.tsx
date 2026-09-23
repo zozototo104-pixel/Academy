@@ -52,7 +52,6 @@ export default async function ResultPdfPage({ params, searchParams }: PageProps)
       exam: { include: { program: { select: { titleAr: true, category: true } } } },
       answers: {
         include: { question: { select: { order: true, text: true, type: true, points: true, sourceBookTitle: true, cognitiveSkill: true, difficulty: true } } },
-        orderBy: { question: { order: 'asc' } },
       },
     },
   })
