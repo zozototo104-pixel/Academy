@@ -1466,7 +1466,7 @@ export function AdminView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data?.recentAttempts.map((a) => (
+                      {pagedAttempts.map((a) => (
                         <tr key={a.id} className="border-t border-slate-100">
                           <td className="p-3">
                             <div className="font-extrabold text-[#0f2b46]">{a.student}</div>
