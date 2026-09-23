@@ -249,6 +249,24 @@ async function assertTranscriptPdf(page: Page, token: string, testInfo: TestInfo
   expect(pdfBody.subarray(0, 4).toString('utf8'), 'Transcript PDF response must start with %PDF').toBe('%PDF')
 }
 
+async function assertMonitoringEndpoints(page: Page, token: string, testInfo: TestInfo) {
+  const healthRes = await page.request.get('/api/health')
+  const healthBody = await healthRes.json().catch(() => ({}))
+  const monitorRes = await page.request.get('/api/admin/monitoring', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const monitorBody = await monitorRes.json().catch(() => ({}))
+  await testInfo.attach('monitoring-smoke', {
+    body: `healthStatus=${healthRes.status()}\nhealth=${JSON.stringify(healthBody).slice(0, 600)}\nmonitorStatus=${monitorRes.status()}\nmonitor=${JSON.stringify(monitorBody).slice(0, 900)}`,
+    contentType: 'text/plain',
+  })
+
+  expect(healthRes.ok(), `Health endpoint failed with ${healthRes.status()}`).toBeTruthy()
+  expect(healthBody.status, 'Health endpoint must expose status').toBeTruthy()
+  expect(monitorRes.ok(), `Admin monitoring endpoint failed with ${monitorRes.status()}`).toBeTruthy()
+  expect(monitorBody.checks?.database?.ok, 'Admin monitoring database check must pass').toBe(true)
+}
+
 async function assertFirstCertificateCredential(page: Page, token: string, testInfo: TestInfo) {
   const certsRes = await page.request.get('/api/admin/certificates', {
     headers: { Authorization: `Bearer ${token}` },
