@@ -11,30 +11,72 @@ function clean(value: unknown, max = 500) {
 }
 
 async function buildStudentSummary(user: { id: string; email: string; name: string; country: string | null; status: string; createdAt: Date }) {
-  const [enrollments, ownedAdmissions, payments, examAttempts, assignmentSubmissions, thesisTopicRequests] = await Promise.all([
+  const [enrollments, ownedAdmissions, unitAttempts, programAttempts, aiChats] = await Promise.all([
     db.enrollment.findMany({
       where: { userId: user.id },
-      include: { program: { select: { titleAr: true, category: true } }, payments: { select: { id: true, status: true, amount: true } } },
+      select: {
+        status: true,
+        certificateNo: true,
+        finalScore: true,
+        program: { select: { titleAr: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 10,
     }),
     db.admissionApplication.findMany({
       where: { userId: user.id },
-      select: { id: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
+      select: { id: true, reference: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take: 5,
     }),
-    db.payment.findMany({
+    db.examAttempt.findMany({
       where: { userId: user.id },
-      select: { id: true, status: true, amount: true, purpose: true, createdAt: true },
+      select: { score: true },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 200,
     }),
-    db.examAttempt.count({ where: { userId: user.id } }),
-    db.assignmentSubmission.count({ where: { userId: user.id } }),
-    db.thesisTopicRequest.count({ where: { userId: user.id } }),
+    db.programExamAttempt.findMany({
+      where: { userId: user.id },
+      select: { score: true, finalScore: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    db.chatMessage.count({ where: { userId: user.id } }),
   ])
-  return { ...user, enrollments, ownedAdmissions, payments, _count: { examAttempts, assignmentSubmissions, thesisTopicRequests } }
+
+  const scorePool = [
+    ...enrollments.map((e) => e.finalScore),
+    ...unitAttempts.map((a) => a.score),
+    ...programAttempts.flatMap((a) => [a.finalScore, a.score]),
+  ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const latestAdmission = ownedAdmissions[0]
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    country: user.country,
+    status: user.status,
+    createdAt: user.createdAt,
+    enrollments: enrollments.map((e) => ({
+      program: e.program?.titleAr || 'برنامج غير محدد',
+      status: e.status,
+      certificateNo: e.certificateNo,
+      finalScore: e.finalScore,
+    })),
+    attemptsCount: unitAttempts.length + programAttempts.length,
+    bestScore: scorePool.length ? Math.max(...scorePool) : null,
+    aiChats,
+    latestAdmission: latestAdmission
+      ? {
+          id: latestAdmission.id,
+          reference: latestAdmission.reference,
+          status: latestAdmission.status,
+          program: latestAdmission.programRef?.titleAr || latestAdmission.program || 'برنامج غير محدد',
+          createdAt: latestAdmission.createdAt,
+        }
+      : null,
+  }
 }
 
 export async function GET(req: NextRequest) {
