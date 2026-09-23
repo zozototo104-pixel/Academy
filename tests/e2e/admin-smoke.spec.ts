@@ -233,6 +233,22 @@ async function assertFirstInvoicePdf(page: Page, token: string, testInfo: TestIn
   expect(pdfBody.subarray(0, 4).toString('utf8'), 'Invoice PDF response must start with %PDF').toBe('%PDF')
 }
 
+async function assertTranscriptPdf(page: Page, token: string, testInfo: TestInfo) {
+  const pdfRes = await page.request.get('/api/pdf/transcript', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const contentType = pdfRes.headers()['content-type'] || ''
+  const pdfBody = await pdfRes.body().catch(() => Buffer.from(''))
+  await testInfo.attach('transcript-pdf-smoke', {
+    body: `status=${pdfRes.status()}\ncontent-type=${contentType}\nbytes=${pdfBody.length}`,
+    contentType: 'text/plain',
+  })
+
+  expect(pdfRes.ok(), `Transcript PDF endpoint failed with ${pdfRes.status()}`).toBeTruthy()
+  expect(contentType, 'Transcript PDF endpoint must return application/pdf').toContain('application/pdf')
+  expect(pdfBody.subarray(0, 4).toString('utf8'), 'Transcript PDF response must start with %PDF').toBe('%PDF')
+}
+
 test.describe('Admin dashboard launch smoke test', () => {
   test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
     const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
