@@ -981,9 +981,9 @@ export function AdminCertificatesTab() {
         filtered={certTotal}
         label="شهادة"
       />
-      {certs.length === 0 ? (
+      {certTotal === 0 && !certSearch ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات بعد — تُصدر تلقائياً عند إكمال برنامج أو اعتماد طلب اعتماد</CardContent></Card>
-      ) : filteredCerts.length === 0 ? (
+      ) : certs.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
