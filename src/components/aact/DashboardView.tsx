@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api } from '@/lib/store'
+import { useAppStore, api, getToken } from '@/lib/store'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList } from '@/lib/academic-output-quality'
 import { useCallback, useEffect, useMemo, useState } from 'react'
