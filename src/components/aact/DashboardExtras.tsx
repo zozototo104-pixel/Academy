@@ -625,8 +625,20 @@ export function TranscriptTab() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {p.enrollmentId ? (
-                        <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
-                          <a href={`/pdf/transcripts/${encodeURIComponent(p.enrollmentId)}?print=1`} target="_blank" rel="noreferrer"><FileText className="ml-1 h-3.5 w-3.5" /> PDF</a>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pdfBusy === p.enrollmentId}
+                          onClick={async () => {
+                            setPdfBusy(p.enrollmentId)
+                            await openAuthenticatedPdf(`/api/pdf/transcript?enrollmentId=${encodeURIComponent(p.enrollmentId)}`, `AACT-TRANSCRIPT-${p.enrollmentId}.pdf`, (message) => toast({ title: 'تعذر فتح PDF السجل الأكاديمي', description: message, variant: 'destructive' }))
+                            setPdfBusy(null)
+                          }}
+                          className="border-[#c9a227]/40 font-bold text-[#a8841a]"
+                        >
+                          {pdfBusy === p.enrollmentId ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <FileText className="ml-1 h-3.5 w-3.5" />}
+                          PDF
                         </Button>
                       ) : null}
                       <Badge className={gradebook?.score != null ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
