@@ -3017,6 +3017,66 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!gradingDialog} onOpenChange={(open) => { if (!open) setGradingDialog(null) }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">
+          {gradingDialog && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+                  <CheckCircle2 className="h-5 w-5 text-[#a8841a]" />
+                  {gradingDialog.mode === 'GRADE' ? 'تصحيح تسليم الواجب' : 'طلب تعديل الواجب'}
+                </DialogTitle>
+                <DialogDescription className="font-bold leading-6">
+                  {gradingDialog.assignment.title} — {gradingDialog.submission.studentName || 'طالب'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">
+                {gradingDialog.submission.answerText ? gradingDialog.submission.answerText.slice(0, 1200) : 'لا يوجد نص مكتوب، راجع الملف المرفق إن وجد.'}
+                {gradingDialog.submission.answerText && gradingDialog.submission.answerText.length > 1200 ? '…' : ''}
+                {gradingDialog.submission.fileName && (
+                  <a href={`/api/admin/assignments/file?id=${gradingDialog.submission.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                    <FileText className="h-3 w-3" /> فتح الملف المرفق: {gradingDialog.submission.fileName}
+                  </a>
+                )}
+              </div>
+              {gradingDialog.assignment.rubric && (
+                <div className="rounded-2xl border border-[#c9a227]/20 bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#7a5b13]">
+                  <b>معايير التصحيح:</b> {gradingDialog.assignment.rubric}
+                </div>
+              )}
+              {gradingDialog.mode === 'GRADE' && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-black text-[#0f2b46]">الدرجة من {gradingDialog.assignment.points}</Label>
+                  <Input
+                    value={gradingDialog.score}
+                    onChange={(e) => setGradingDialog((prev) => prev ? { ...prev, score: e.target.value } : prev)}
+                    inputMode="decimal"
+                    placeholder={`0 - ${gradingDialog.assignment.points}`}
+                    className="h-12 rounded-2xl text-center text-lg font-black"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-[#0f2b46]">ملاحظة للطالب</Label>
+                <Textarea
+                  value={gradingDialog.feedback}
+                  onChange={(e) => setGradingDialog((prev) => prev ? { ...prev, feedback: e.target.value } : prev)}
+                  placeholder={gradingDialog.mode === 'GRADE' ? 'اكتب تغذية راجعة مختصرة للطالب' : 'وضح المطلوب تعديله قبل إعادة التسليم'}
+                  className="min-h-28 rounded-2xl text-sm font-bold leading-7"
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => setGradingDialog(null)} className="flex-1 rounded-2xl font-black">إلغاء</Button>
+                <Button onClick={submitGradingDialog} disabled={gradingSubmissionId === gradingDialog.submission.id} className={gradingDialog.mode === 'GRADE' ? 'flex-1 rounded-2xl bg-emerald-600 font-black text-white hover:bg-emerald-700' : 'flex-1 rounded-2xl bg-amber-600 font-black text-white hover:bg-amber-700'}>
+                  {gradingSubmissionId === gradingDialog.submission.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                  {gradingDialog.mode === 'GRADE' ? 'اعتماد التصحيح' : 'إرسال طلب التعديل'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* حوار مراجعة الأسئلة قبل النشر */}
       {reviewingExam && (
         <QuestionReviewDialog
