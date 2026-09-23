@@ -24,10 +24,15 @@ export const DEFAULT_REQUIRED_DOCS = ['DEGREE', 'ID', 'PHOTO', 'CV']
 const EDU_RANK: Record<string, number> = { NONE: 0, OTHER: 0, HIGH_SCHOOL: 1, BACHELOR: 2, MASTER: 3, PHD: 4 }
 
 /** قواعد البرنامج المخصصة أو الافتراضية وفق درجته */
-export function resolveRules(category: string, raw: unknown): AdmissionRules {
+export function resolveRules(category: string, raw: unknown, isStudyProgram = true): AdmissionRules {
   let r: AdmissionRules = {}
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) r = raw as AdmissionRules
   const def: AdmissionRules = {}
+  if (!isStudyProgram || category === 'SERVICE') {
+    def.minEducation = 'NONE'
+    def.requiredDocuments = []
+    return { ...def, ...r, requiredDocuments: Array.isArray(r.requiredDocuments) ? r.requiredDocuments : def.requiredDocuments }
+  }
   if (category === 'DOCTORATE') {
     def.minEducation = 'BACHELOR'
     def.requireMasterForDoctorate = true
