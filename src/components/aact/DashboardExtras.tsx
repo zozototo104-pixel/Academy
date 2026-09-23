@@ -400,10 +400,19 @@ export function CertificatesTab() {
   )
 }
 
+interface TranscriptGradeComponent {
+  key: string
+  label: string
+  weight: number
+  score: number | null
+  weighted: number
+  ready: boolean
+}
+
 interface TranscriptData {
-  student?: { name?: string; email?: string }
-  programs?: any[]
-  summary?: { credits?: number; average?: number; passedExams?: number }
+  student?: { name?: string; email?: string; reference?: string | null }
+  programs?: Array<any & { gradebook?: { score: number | null; components: TranscriptGradeComponent[]; missing: string[] } | null }>
+  summary?: { programsCount?: number; averageScore?: number | null; passedExams?: number; totalExams?: number }
 }
 
 export function TranscriptTab() {
