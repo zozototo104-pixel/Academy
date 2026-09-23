@@ -1520,6 +1520,7 @@ export function AdminView() {
                         <th className="p-3 font-black">النتيجة</th>
                         <th className="p-3 font-black">الحالة</th>
                         <th className="hidden p-3 font-black sm:table-cell">التاريخ</th>
+                        <th className="p-3 font-black">PDF</th>
                       </tr>
                     </thead>
                     <tbody>
