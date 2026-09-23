@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const programRoutes: MetadataRoute.Sitemap = programs.map((program) => ({
     url: absoluteUrl(`/programs/${program.slug || program.id}`),
     lastModified: now,
-    changeFrequency: 'monthly',
+    changeFrequency: 'monthly' as const,
     priority: 0.82,
   }))
 
