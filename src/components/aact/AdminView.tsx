@@ -343,6 +343,15 @@ export function AdminView() {
     adminNote: '',
   })
   const [tuitionAppealSubmitting, setTuitionAppealSubmitting] = useState(false)
+  const [paymentConfirmDialog, setPaymentConfirmDialog] = useState<null | {
+    paymentId: string
+    method?: string | null
+    amount?: number
+    invoiceNo?: string
+    status?: string
+    cryptoVerificationStatus?: string | null
+  }>(null)
+  const [paymentConfirmSubmitting, setPaymentConfirmSubmitting] = useState(false)
 
   useEffect(() => {
     const handler = (event: Event) => {
