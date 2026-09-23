@@ -1497,7 +1497,7 @@ export function AdminBooksTab() {
   }
 
   const deleteExam = async (id: string) => {
-    if (!confirm('حذف هذا الاختبار الشامل وكل أسئلته ومحاولاته؟ هذا الحذف نهائي.')) return
+    if (!(await askAdminConfirm({ title: 'حذف اختبار شامل', description: 'سيتم حذف هذا الاختبار وكل أسئلته ومحاولات الطلاب المرتبطة به. هذا الحذف نهائي.', confirmLabel: 'حذف الاختبار', danger: true }))) return
     try {
       await api(`/api/admin/program-exams?id=${id}`, { method: 'DELETE' })
       setExams((prev) => prev.filter((e) => e.id !== id))
