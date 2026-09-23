@@ -1676,6 +1676,48 @@ export function AdminView() {
         </TabsContent>
       </Tabs>
 
+      <Dialog open={!!revokeDialog} onOpenChange={(open) => { if (!open) setRevokeDialog(null) }}>
+        <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto rounded-3xl border-red-200 bg-gradient-to-b from-white to-red-50 p-0 sm:max-w-xl">
+          {revokeDialog && (
+            <div>
+              <DialogHeader className="border-b border-red-100 bg-[#0f2b46] px-5 py-5 text-right text-white sm:px-6">
+                <DialogTitle className="flex items-center gap-2 text-xl font-black text-white">
+                  <AlertTriangle className="h-5 w-5 text-red-300" />
+                  سحب الاعتماد/الوكالة
+                </DialogTitle>
+                <DialogDescription className="pt-1 text-xs font-bold leading-6 text-blue-100">
+                  {revokeDialog.app.kind === 'AGENCY' ? 'وكالة' : 'اعتماد'} — {revokeDialog.app.orgName}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold leading-7 text-red-800">
+                  سيتم تغيير الحالة إلى ملغى/مسحوب وتعطيل أي شهادة اعتماد مرتبطة في صفحة التحقق. اكتب سبباً موثقاً وواضحاً.
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-black text-[#0f2b46]">سبب السحب</Label>
+                  <Textarea
+                    value={revokeDialog.reason}
+                    onChange={(e) => setRevokeDialog((prev) => prev ? { ...prev, reason: e.target.value } : prev)}
+                    placeholder="مثال: مخالفة شروط التمثيل، إخلال بالعقد، إساءة استخدام شهادة الاعتماد، أو مخالفة مهنية موثقة."
+                    className="min-h-28 rounded-2xl border-red-100 bg-white text-sm font-bold leading-7"
+                  />
+                  <p className="text-[10px] font-bold text-slate-400">الحد الأدنى 25 حرفاً، وسيظهر السبب في سجل التدقيق.</p>
+                </div>
+              </div>
+              <DialogFooter className="border-t border-red-100 bg-white px-5 py-4 sm:px-6">
+                <Button variant="outline" onClick={() => setRevokeDialog(null)} disabled={revokeSubmitting} className="rounded-2xl font-black">
+                  إلغاء
+                </Button>
+                <Button onClick={submitRevokeApp} disabled={revokeSubmitting} className="rounded-2xl bg-red-600 font-black text-white hover:bg-red-700">
+                  {revokeSubmitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                  تأكيد السحب وتعطيل الشهادات
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!paymentConfirmDialog} onOpenChange={(open) => { if (!open) setPaymentConfirmDialog(null) }}>
         <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto rounded-3xl border-emerald-200 bg-gradient-to-b from-white to-emerald-50 p-0 sm:max-w-lg">
           {paymentConfirmDialog && (
