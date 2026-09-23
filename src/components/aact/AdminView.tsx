@@ -589,6 +589,7 @@ export function AdminView() {
     setStudentsLoading(true)
     setAppsLoading(true)
     setAdmissionRefresh((v) => v + 1)
+    setAgentRefresh((v) => v + 1)
 
     const statsPromise = api<Stats>('/api/admin/stats')
       .then((s) => setData(s))
