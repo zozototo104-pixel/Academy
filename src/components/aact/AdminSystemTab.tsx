@@ -852,6 +852,14 @@ export function AdminSystemTab() {
           <div className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
             <ShieldCheck className="ml-1 inline h-4 w-4 text-emerald-600" />
             هذه اللوحة قراءة وتشخيص فقط: لا تعدّل البيانات ولا ترفع ملفات. هدفها إعطاء الإدارة صورة سريعة قبل الإطلاق.
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline" className="border-emerald-200 font-black text-emerald-700">
+                <a href="/api/admin/monitoring" target="_blank" rel="noreferrer">تقرير الأداء والمراقبة JSON</a>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="border-blue-200 font-black text-blue-700">
+                <a href="/api/health" target="_blank" rel="noreferrer">Health Check عام</a>
+              </Button>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(data.launchReadiness || []).map((item) => (
