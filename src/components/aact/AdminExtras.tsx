@@ -790,7 +790,7 @@ export function AdminFinanceTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {payments.map((p) => (
+                  {pagedPayments.map((p) => (
                     <tr key={p.id} className="border-t border-slate-100">
                       <td className="p-3">
                         <div className="font-mono text-[10px] font-bold text-[#0f2b46]" dir="ltr">{p.invoiceNo}</div>
