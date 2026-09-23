@@ -135,8 +135,13 @@ export function CertificateDialog({
             <ShieldCheck className="h-4 w-4" /> تحقق فوري عبر QR الآمن أو الرقم التسلسلي للشهادة
           </div>
           <div className="flex gap-2">
+            <Button asChild variant="outline" className="border-emerald-200 font-bold text-emerald-700">
+              <a href={`/api/verify/certificates/${encodeURIComponent(certificate.qrToken || certificate.serial)}`} target="_blank" rel="noreferrer">
+                <ShieldCheck className="ml-1.5 h-4 w-4" /> JSON قابل للتحقق
+              </a>
+            </Button>
             <Button asChild variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
-              <a href={`/pdf/certificates/${encodeURIComponent(certificate.serial)}?print=1`} target="_blank" rel="noreferrer">
+              <a href={`/api/pdf/certificates/${encodeURIComponent(certificate.qrToken || certificate.serial)}`} target="_blank" rel="noreferrer">
                 <FileText className="ml-1.5 h-4 w-4" /> نسخة PDF رسمية
               </a>
             </Button>
