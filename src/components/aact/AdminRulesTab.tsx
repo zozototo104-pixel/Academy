@@ -261,7 +261,7 @@ export function AdminRulesTab() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   {/* الحد الأدنى للمؤهل */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">الحد الأدنى للمؤهل المطلوب</label>
+                    <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الحد الأدنى للمؤهل المطلوب' : 'شرط المؤهل للخدمة'}</label>
                     <Select value={draft.minEducation || 'HIGH_SCHOOL'} onValueChange={(v) => setDraft({ ...draft, minEducation: v })}>
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
