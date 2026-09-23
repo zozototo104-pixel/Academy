@@ -549,6 +549,22 @@ export function AdminBooksTab() {
     })
   }, [selectedProgram, books, exams, assignments])
 
+  const gradingQueue = useMemo(() => assignments.flatMap((assignment) => assignment.submissions.map((submission) => ({ assignment, submission }))), [assignments])
+  const pendingGradingCount = gradingQueue.filter(({ submission }) => submission.status !== 'GRADED').length
+  const gradedCount = gradingQueue.filter(({ submission }) => submission.status === 'GRADED').length
+  const revisionCount = gradingQueue.filter(({ submission }) => submission.status === 'NEEDS_REVISION').length
+  const filteredGradingQueue = useMemo(() => {
+    const q = gradingSearch.trim().toLowerCase()
+    return gradingQueue.filter(({ assignment, submission }) => {
+      const statusOk = gradingStatusFilter === 'ALL'
+        || (gradingStatusFilter === 'PENDING' && submission.status !== 'GRADED')
+        || submission.status === gradingStatusFilter
+      const semesterOk = gradingSemesterFilter === 'ALL' || String(assignment.semester) === gradingSemesterFilter
+      const text = `${assignment.title} ${submission.studentName || ''} ${submission.studentEmail || ''} ${submission.answerText || ''}`.toLowerCase()
+      return statusOk && semesterOk && (!q || text.includes(q))
+    })
+  }, [gradingQueue, gradingSearch, gradingSemesterFilter, gradingStatusFilter])
+
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
