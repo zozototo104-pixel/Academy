@@ -924,8 +924,8 @@ export function AdminView() {
                                     </div>
                                     {a.tuitionAppeal.status === 'PENDING' && (
                                       <div className="flex gap-1">
-                                        <Button size="sm" onClick={() => decideTuitionAppeal(a.tuitionAppeal!, 'APPROVE', a.tuitionPlan)} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول التقسيط</Button>
-                                        <Button size="sm" variant="outline" onClick={() => decideTuitionAppeal(a.tuitionAppeal!, 'REJECT', a.tuitionPlan)} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-700">رفض</Button>
+                                        <Button size="sm" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'APPROVE', a.tuitionPlan, a)} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول التقسيط</Button>
+                                        <Button size="sm" variant="outline" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'REJECT', a.tuitionPlan, a)} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-700">رفض</Button>
                                       </div>
                                     )}
                                   </div>
