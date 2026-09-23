@@ -499,7 +499,7 @@ export function DashboardView() {
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات خدمة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceRequests || 0}</span></div>
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
                   <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">مخرجات منشورة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceDeliverables || serviceDeliverables.length}</span></div>
-                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات دراسة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.studyRequests || 0}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">إشعارات جديدة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.unread}</span></div>
                 </>
               )}
             </div>
