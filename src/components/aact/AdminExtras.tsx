@@ -667,7 +667,7 @@ export function AdminFinanceTab() {
     setPdfBusy(id)
     try {
       const token = getToken()
-      const res = await fetch(`/pdf/invoices/${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/pdf/invoices/${encodeURIComponent(id)}`, {
         cache: 'no-store',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
