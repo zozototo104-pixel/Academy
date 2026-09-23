@@ -49,7 +49,7 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
   })
 
   await testInfo.attach('guarded-errors-note', {
-    body: 'The test fails on uncaught page errors and non-ignored console.error messages.',
+    body: 'Browser page errors and console.error messages are captured as report-only diagnostics for this launch smoke test.',
     contentType: 'text/plain',
   })
 
