@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from 'node:fs/promises'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
 const ADMIN_MAIN_TABS: Array<{ label: string; tab: RegExp; search?: boolean }> = [
