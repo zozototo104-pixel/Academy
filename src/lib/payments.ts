@@ -205,6 +205,9 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
     paypalClientId,
     paypalSecret,
     paypalApiBase,
+    usdtWalletAddress,
+    usdtNetwork,
+    usdtInstructions,
   }
 }
 
