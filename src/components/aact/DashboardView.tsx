@@ -396,6 +396,7 @@ export function DashboardView() {
       setAssignmentDrafts((prev) => ({ ...prev, [assignmentId]: '' }))
       setAssignmentFiles((prev) => ({ ...prev, [assignmentId]: null }))
       if (active) await open(active.program.id)
+      window.setTimeout(() => window.scrollTo({ top: scrollBeforeSubmit, behavior: 'smooth' }), 80)
       toast({ title: 'تم تسليم الواجب', description: 'سيظهر في لوحة الإدارة للتصحيح والمراجعة' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
