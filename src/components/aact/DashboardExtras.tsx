@@ -112,6 +112,41 @@ function Money({ value }: { value: number }) {
   return <span dir="ltr">{Math.round((Number(value) || 0) * 100) / 100}$</span>
 }
 
+async function openAuthenticatedPdf(path: string, filename: string, onError: (message: string) => void) {
+  const popup = window.open('', '_blank')
+  if (popup) {
+    popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
+    try { popup.opener = null } catch {}
+  }
+  try {
+    const token = getToken()
+    const res = await fetch(path, {
+      cache: 'no-store',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.error || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    if (popup) {
+      popup.location.href = url
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch (e: any) {
+    try { popup?.close() } catch {}
+    onError(e.message || 'تعذر فتح ملف PDF')
+  }
+}
+
 export function PaymentsTab() {
   const { toast } = useToast()
   const [payments, setPayments] = useState<Payment[]>([])
