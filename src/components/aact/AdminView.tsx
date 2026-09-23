@@ -1552,8 +1552,8 @@ export function AdminView() {
               ]}
               pageSize={attemptPageSize}
               onPageSizeChange={(v) => { setAttemptPageSize(v); setAttemptPage(1) }}
-              total={recentAttempts.length}
-              filtered={filteredAttempts.length}
+              total={attemptTotal}
+              filtered={attemptTotal}
               label="محاولة"
             />
           <Card className="border-[#0f2b46]/10">
