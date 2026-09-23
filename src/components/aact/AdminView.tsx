@@ -1733,8 +1733,8 @@ export function AdminView() {
                 ]}
                 pageSize={agentPageSize}
                 onPageSizeChange={(v) => { setAgentPageSize(v); setAgentPage(1) }}
-                total={apps.length}
-                filtered={filteredApps.length}
+                total={agentTotal}
+                filtered={agentTotal}
                 label="طلب وكالة/اعتماد"
               />
             )}
