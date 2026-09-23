@@ -93,8 +93,9 @@ export async function GET() {
     })
 
     let requiredAction: { title: string; body: string; target: string } | null = null
-    if (unpaidPayments.length) {
-      requiredAction = { title: 'دفعة مطلوبة', body: `يوجد ${unpaidPayments.length} دفعة/فاتورة تحتاج متابعة.`, target: 'payments' }
+    if (unpaidPayments.length || tuitionPlanPaymentNeededCount) {
+      const count = unpaidPayments.length || tuitionPlanPaymentNeededCount
+      requiredAction = { title: 'دفعة مطلوبة', body: `يوجد ${count} دفعة/خطة رسوم تحتاج متابعة.`, target: 'payments' }
     } else if (paidServiceWithoutOutput) {
       requiredAction = { title: 'خدمة مدفوعة بانتظار التسليم', body: `طلب ${paidServiceWithoutOutput.reference || ''} مدفوع. ستظهر المخرجات في تبويب «مخرجاتي» عند نشرها من الإدارة.`, target: 'deliverables' }
     } else if (latestAdmission && ['PENDING', 'UNDER_REVIEW', 'SUBMITTED'].includes(latestAdmission.status)) {
