@@ -94,6 +94,7 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
   const paypalKind = paypalBaseKind(cfg.paypalApiBase)
   const stripeReady = cfg.mode === 'LIVE' && stripeKind === 'live'
   const paypalReady = cfg.mode === 'LIVE' && !!(cfg.paypalClientId && cfg.paypalSecret) && paypalKind === 'live'
+  const usdtReady = !!cfg.usdtWalletAddress
   const sandboxReady = cfg.mode === 'SANDBOX' && sandboxAllowed
   const warnings: string[] = []
   const errors: string[] = []
