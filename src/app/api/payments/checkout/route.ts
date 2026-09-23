@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { createProviderCheckout } from '@/lib/payments'
+import { createProviderCheckout, getGatewayConfig } from '@/lib/payments'
 import { notify } from '@/lib/notify'
 
 // POST /api/payments/checkout — إنشاء جلسة دفع حقيقية لدى المزود
