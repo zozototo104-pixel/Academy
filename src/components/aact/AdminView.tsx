@@ -1577,7 +1577,7 @@ export function AdminView() {
                               <div className="space-y-1">
                                 {s.enrollments.map((e, i) => (
                                   <div key={i} className="max-w-48 truncate text-[11px] font-bold text-slate-600">
-                                    {e.program} {e.status === 'COMPLETED' && '✓'}
+                                    {typeof e.program === 'string' ? e.program : 'برنامج غير محدد'} {e.status === 'COMPLETED' && '✓'}
                                   </div>
                                 ))}
                               </div>
