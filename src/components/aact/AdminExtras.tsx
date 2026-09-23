@@ -208,6 +208,14 @@ export function AdminThesisTab() {
     }
   }
 
+  const filteredTheses = useMemo(() => theses.filter((t) => {
+    const active = !['RESULT_APPROVED'].includes(t.status)
+    const statusOk = thesisStatusFilter === 'ALL' || (thesisStatusFilter === 'ACTIVE' && active) || t.status === thesisStatusFilter
+    return statusOk && matchesAdminSearch(thesisSearch, [t.title, t.abstract, t.status, t.user?.name, t.user?.email, t.admission?.program, t.admission?.reference])
+  }), [theses, thesisSearch, thesisStatusFilter])
+  const pagedTheses = pageItems(filteredTheses, thesisPage, thesisPageSize)
+  const currentThesisPage = safePage(filteredTheses.length, thesisPageSize, thesisPage)
+
   if (loading) return (
     <Card className="mt-4 border-[#0f2b46]/10">
       <CardContent className="flex h-48 flex-col items-center justify-center gap-3 text-center">
