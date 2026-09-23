@@ -32,7 +32,8 @@ export async function markInvoicePaid(
       receiptNo,
       paidAt: new Date(),
       paidViaWebhook: !!opts?.viaWebhook,
-      userId: payment.userId || opts?.actor?.id || null,
+      // لا نربط الفاتورة بمستخدم الإدارة الذي أكد الدفع. سيتم ربطها بصاحب الطلب أدناه عند توفر حساب مطابق.
+      userId: payment.userId || null,
     },
   })
   const actor = opts?.actor || { name: payment.payerName || 'دافع' }
