@@ -1428,10 +1428,29 @@ export function AdminView() {
 
         {/* Recent attempts */}
         <TabsContent value="attempts">
-          <Card className="mt-4 border-[#0f2b46]/10">
+          <div className="mt-4 space-y-3">
+            <AdminListToolbar
+              search={attemptSearch}
+              onSearchChange={(v) => { setAttemptSearch(v); setAttemptPage(1) }}
+              searchPlaceholder="ابحث باسم الطالب أو البريد أو الاختبار أو البرنامج..."
+              status={attemptStatusFilter}
+              onStatusChange={(v) => { setAttemptStatusFilter(v); setAttemptPage(1) }}
+              statusOptions={[
+                { value: 'ALL', label: 'كل النتائج' },
+                { value: 'PASSED', label: 'ناجح' },
+                { value: 'FAILED', label: 'راسب' },
+                { value: 'UNSCORED', label: 'غير محسوب' },
+              ]}
+              pageSize={attemptPageSize}
+              onPageSizeChange={(v) => { setAttemptPageSize(v); setAttemptPage(1) }}
+              total={recentAttempts.length}
+              filtered={filteredAttempts.length}
+              label="محاولة"
+            />
+          <Card className="border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
-                {data?.recentAttempts.length === 0 ? (
+                {recentAttempts.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد محاولات امتحانات بعد</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
