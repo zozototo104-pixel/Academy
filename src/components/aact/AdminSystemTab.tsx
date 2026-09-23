@@ -650,6 +650,14 @@ export function AdminSystemTab() {
             {F('PAYPAL_CLIENT_ID', 'Client ID', '', 'text', 'من developer.paypal.com → تطبيقك')}
             {F('PAYPAL_SECRET', 'Client Secret', data.secretsSet.PAYPAL_SECRET ? 'محفوظ — اكتب جديداً للتغيير' : '', 'password')}
             {F('PAYPAL_API_BASE', 'API Base', 'https://api-m.paypal.com', 'text', 'حقيقي: api-m.paypal.com — اختبار فقط: api-m.sandbox.paypal.com')}
+            <div className="sm:col-span-2">
+              <h4 className="mb-2 mt-1 flex items-center gap-1.5 text-[11px] font-black text-[#a8841a]">
+                <CreditCard className="h-3.5 w-3.5" /> USDT — دفع يدوي بتأكيد الإدارة
+              </h4>
+            </div>
+            {F('USDT_WALLET_ADDRESS', 'عنوان محفظة USDT', 'مثال: T... أو 0x...', 'text', 'يظهر للطالب عند اختيار USDT، ولا يتم اعتماد السداد حتى تؤكده الإدارة.')}
+            {F('USDT_NETWORK', 'الشبكة', 'TRC20', 'text', 'الأكثر شيوعاً: TRC20. يمكن كتابة ERC20 أو BEP20 حسب محفظتك.')}
+            {F('USDT_PAYMENT_INSTRUCTIONS', 'تعليمات إضافية', 'أرسل لقطة/Hash التحويل للإدارة عبر واتساب أو البريد', 'text', 'اختياري: تعليمات تظهر ضمن رسالة الدفع للطالب.')}
           </div>
           <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
             {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات الدفع
