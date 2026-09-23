@@ -273,6 +273,7 @@ export async function POST(req: NextRequest) {
         message: 'تم إنشاء الطلب المؤقت. ارفع المستندات الآن ملفاً ملفاً ثم أكمل التقديم.',
         reference: app.reference,
         applicationId: app.id,
+        uploadToken: createAdmissionUploadToken(app),
         staged: true,
         documentsCount: uniqueFiles.length,
       })
