@@ -129,7 +129,7 @@ export async function GET() {
         studyRequests: studyAdmissions.length,
         serviceRequests: serviceAdmissions.length,
         serviceDeliverables: deliverables.length,
-        unpaidPayments: unpaidPayments.length,
+        unpaidPayments: Math.max(unpaidPayments.length, tuitionPlanPaymentNeededCount),
         paidPayments: paidPayments.length,
         requiredAction,
       },
