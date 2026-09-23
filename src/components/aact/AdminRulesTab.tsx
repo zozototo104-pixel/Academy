@@ -217,7 +217,7 @@ export function AdminRulesTab() {
             <div>
               <h2 className="flex items-center gap-2 text-lg font-black text-[#0f2b46]">
                 <ClipboardCheck className="h-5 w-5 text-[#a8841a]" />
-                قواعد القبول المخصصة لكل برنامج
+                قواعد القبول أو متطلبات الخدمة لكل مسار
               </h2>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 اختر البرنامج واضبط شروط قبوله — يقرأ خبير الذكاء الاصطناعي هذه القواعد ويطبقها آلياً على كل طلب التحاق
