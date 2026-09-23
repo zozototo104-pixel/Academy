@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف — لا نقلل الحد؛ فقط نرفع كل ملف بطلب مستقل لتجنب 413.
+const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف — نرفع كل ملف بطلب مستقل لتجنب 413.
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf',
@@ -22,6 +24,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData()
     const applicationId = String(form.get('applicationId') || '').trim()
     const reference = String(form.get('reference') || '').trim()
+    const uploadToken = String(form.get('uploadToken') || '').trim()
     const docTypeRaw = String(form.get('docType') || '').trim()
     const file = form.get('file') as File | null
 
@@ -39,8 +42,20 @@ export async function POST(req: NextRequest) {
     if (!app) return NextResponse.json({ error: 'لم يتم العثور على طلب الالتحاق' }, { status: 404 })
 
     const me = await getCurrentUser().catch(() => null)
-    if (me && me.role === 'STUDENT' && app.userId && app.userId !== me.id) {
-      return NextResponse.json({ error: 'لا تملك صلاحية رفع مستندات لهذا الطلب' }, { status: 403 })
+    const sessionAllowed = Boolean(
+      me && (
+        me.role === 'ADMIN' ||
+        me.role === 'STAFF' ||
+        (me.role === 'STUDENT' && app.userId && app.userId === me.id)
+      )
+    )
+    const tokenAllowed = verifyAdmissionUploadToken(uploadToken, app)
+    if (!sessionAllowed && !tokenAllowed) {
+      return NextResponse.json({ error: 'رابط رفع المستندات غير صالح أو انتهت صلاحيته. أعد فتح نموذج التقديم وأرسل الطلب من جديد.' }, { status: 403 })
+    }
+
+    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'].includes(app.status)) {
+      return NextResponse.json({ error: 'لا يمكن تعديل مستندات هذا الطلب بعد انتقاله لمرحلة لاحقة' }, { status: 400 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -53,6 +68,17 @@ export async function POST(req: NextRequest) {
 
     const docType = normalizeDocType(docTypeRaw || file.name)
     const buf = Buffer.from(await file.arrayBuffer())
+    let stored
+    try {
+      stored = await storeFileBuffer({
+        buffer: buf,
+        fileName: file.name,
+        mimeType: mime,
+        namespace: `admissions/${app.reference.toLowerCase()}/${docType.toLowerCase()}`,
+      })
+    } catch (error) {
+      return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
+    }
 
     await db.admissionDocument.deleteMany({ where: { admissionId: app.id, docType } })
     const saved = await db.admissionDocument.create({
@@ -60,11 +86,14 @@ export async function POST(req: NextRequest) {
         admissionId: app.id,
         docType,
         fileName: file.name.slice(0, 180),
-        mimeType: mime,
-        size: file.size,
-        data: buf.toString('base64'),
+        mimeType: stored.mimeType || mime,
+        size: stored.size || file.size,
+        data: null,
+        storageProvider: stored.provider,
+        storageKey: stored.key,
+        fileUrl: stored.url,
       },
-      select: { id: true, docType: true, fileName: true, size: true },
+      select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
     })
 
     const docs = await db.admissionDocument.findMany({
