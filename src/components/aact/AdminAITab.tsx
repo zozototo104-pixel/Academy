@@ -105,9 +105,11 @@ export function AdminAITab() {
 
       {students.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد محادثات مع المشرف الذكي بعد</CardContent></Card>
+      ) : filteredStudents.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد محادثات مطابقة للبحث أو الفلتر الحالي.</CardContent></Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {students.map((s) => (
+          {pagedStudents.map((s) => (
             <Card key={s.id} className="cursor-pointer border-[#0f2b46]/10 transition-shadow hover:shadow-md" onClick={() => openStudent(s)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
