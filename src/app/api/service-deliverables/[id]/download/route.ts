@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         status: 'PUBLISHED',
         visibleToStudent: true,
         admission: {
-          OR: [{ userId: user.id }, { email: user.email }],
+          is: { OR: [{ userId: user.id }, { email: user.email }] },
         },
       },
       include: { admission: { select: { reference: true, status: true, payments: { select: { status: true } } } } },
