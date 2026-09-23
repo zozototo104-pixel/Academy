@@ -1,0 +1,153 @@
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
+
+const ADMIN_MAIN_TABS: Array<{ label: string; tab: RegExp; search?: boolean }> = [
+  { label: 'طلبات الالتحاق', tab: /الالتحاق الدراسي/, search: true },
+  { label: 'الخدمات العابرة', tab: /الخدمات العابرة/, search: true },
+  { label: 'الطلاب', tab: /الطلاب/, search: true },
+  { label: 'نتائج الامتحانات', tab: /نتائج الامتحانات/, search: true },
+  { label: 'المالية', tab: /المالية والفواتير/, search: true },
+  { label: 'الشهادات', tab: /^الشهادات/, search: true },
+  { label: 'سجل التدقيق', tab: /سجل التدقيق/, search: true },
+  { label: 'رسائل التواصل', tab: /رسائل التواصل/, search: true },
+  { label: 'المشرف الذكي', tab: /سجل المشرف الذكي/, search: true },
+  { label: 'مدراء النظام', tab: /مدراء النظام/, search: false },
+]
+
+const ADMIN_BOOKS_NESTED_TABS: Array<{ label: string; tab: RegExp; search?: boolean }> = [
+  { label: 'مركز التصحيح', tab: /مركز التصحيح/, search: true },
+  { label: 'الامتحانات', tab: /الامتحانات/, search: true },
+]
+
+function requiredEnv(name: string) {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`Missing required environment variable: ${name}`)
+  return value
+}
+
+function isIgnoredConsoleError(text: string) {
+  return [
+    /favicon/i,
+    /ResizeObserver loop/i,
+    /Failed to load resource.*favicon/i,
+    /The resource .* was preloaded using link preload but not used/i,
+  ].some((pattern) => pattern.test(text))
+}
+
+async function installErrorGuards(page: Page, testInfo: TestInfo) {
+  const consoleErrors: string[] = []
+  const pageErrors: string[] = []
+
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return
+    const text = msg.text()
+    if (!isIgnoredConsoleError(text)) consoleErrors.push(text)
+  })
+
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.stack || error.message)
+  })
+
+  testInfo.attach('guarded-errors-note', {
+    body: 'The test fails on uncaught page errors and non-ignored console.error messages.',
+    contentType: 'text/plain',
+  })
+
+  return () => {
+    expect(pageErrors, `Uncaught browser errors:\n${pageErrors.join('\n\n')}`).toEqual([])
+    expect(consoleErrors, `Browser console errors:\n${consoleErrors.join('\n\n')}`).toEqual([])
+  }
+}
+
+async function loginAsAdmin(page: Page) {
+  const email = requiredEnv('E2E_ADMIN_EMAIL')
+  const password = requiredEnv('E2E_ADMIN_PASSWORD')
+
+  const response = await page.request.post('/api/auth/login', {
+    data: { email, password },
+  })
+  const body = await response.json().catch(() => ({}))
+
+  expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body)}`).toBeTruthy()
+  expect(body?.token, 'Login response must include a session token').toBeTruthy()
+  expect(body?.user?.role, 'Smoke-test account must have ADMIN role').toBe('ADMIN')
+
+  await page.addInitScript((token: string) => {
+    localStorage.setItem('aact_token', token)
+    localStorage.setItem('aact_startup_seen_v2', '1')
+    sessionStorage.setItem('aact_skip_startup', '1')
+  }, body.token)
+}
+
+async function waitForAdminReady(page: Page) {
+  await page.waitForLoadState('domcontentloaded')
+  await page.locator('.aact-startup-screen').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {})
+  await page.getByText('LOADING MODULE').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {})
+  await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
+  await expect(page.getByRole('heading', { name: /لوحة إدارة الأكاديمية/ })).toBeVisible({ timeout: 30_000 })
+}
+
+async function assertNoFatalScreen(page: Page, context: string) {
+  const body = await page.locator('body').innerText({ timeout: 10_000 })
+  expect(body, `${context}: Next.js/application crash screen detected`).not.toMatch(/Application error|Unhandled Runtime Error|خطأ غير متوقع في التطبيق|This page could not be found/i)
+  await expect(page.getByText(/رفض الخادم الطلب 403|صلاحيات الإدارة مطلوبة/)).toHaveCount(0)
+}
+
+async function clickVisibleTab(page: Page, tabName: RegExp, label: string) {
+  const tab = page.getByRole('tab', { name: tabName }).first()
+  await expect(tab, `Admin tab not visible: ${label}`).toBeVisible({ timeout: 25_000 })
+  await tab.scrollIntoViewIfNeeded()
+  await tab.click()
+  await page.waitForTimeout(250)
+  await waitForAdminReady(page)
+}
+
+async function exerciseFirstSearchBox(page: Page, label: string) {
+  const searchBox = page.locator('input[placeholder*="ابحث"]').filter({ hasNot: page.locator('[disabled]') }).first()
+  if (!(await searchBox.isVisible({ timeout: 2_500 }).catch(() => false))) return
+
+  await test.step(`${label}: search accepts input`, async () => {
+    await searchBox.fill('اختبار')
+    await page.waitForTimeout(250)
+    await assertNoFatalScreen(page, `${label} after search`)
+    await searchBox.fill('')
+    await page.waitForTimeout(150)
+  })
+}
+
+async function assertListControlsDoNotExplode(page: Page, label: string) {
+  const pageSizeCombobox = page.getByRole('combobox').filter({ hasText: /عرض\s+(10|25|50|100)/ }).first()
+  if (await pageSizeCombobox.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    await expect(pageSizeCombobox, `${label}: page-size selector should remain visible`).toBeVisible()
+  }
+  await assertNoFatalScreen(page, label)
+}
+
+test.describe('Admin dashboard launch smoke test', () => {
+  test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
+    const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
+    await loginAsAdmin(page)
+
+    await page.goto('/?view=admin', { waitUntil: 'domcontentloaded' })
+    await waitForAdminReady(page)
+    await assertNoFatalScreen(page, 'admin landing')
+
+    for (const item of ADMIN_MAIN_TABS) {
+      await test.step(item.label, async () => {
+        await clickVisibleTab(page, item.tab, item.label)
+        if (item.search) await exerciseFirstSearchBox(page, item.label)
+        await assertListControlsDoNotExplode(page, item.label)
+      })
+    }
+
+    await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
+      await clickVisibleTab(page, /الكتب والاختبارات/, 'الكتب والاختبارات')
+      for (const item of ADMIN_BOOKS_NESTED_TABS) {
+        await clickVisibleTab(page, item.tab, item.label)
+        if (item.search) await exerciseFirstSearchBox(page, item.label)
+        await assertListControlsDoNotExplode(page, item.label)
+      }
+    })
+
+    assertNoBrowserErrors()
+  })
+})
