@@ -870,6 +870,10 @@ export function AdminCertificatesTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
+  const filteredCerts = certs.filter((c: any) => matchesAdminSearch(certSearch, [c.serial, c.holderName, c.program, c.grade, c.country, c.certificateId, c.verificationUrl]))
+  const pagedCerts = pageItems(filteredCerts, certPage, certPageSize)
+  const currentCertPage = safePage(filteredCerts.length, certPageSize, certPage)
+
   return (
     <div className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
