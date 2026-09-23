@@ -128,6 +128,10 @@ export function AdminRulesTab() {
   }
 
   const selected = programs.find((p) => p.id === selectedId)
+  const selectedFlow = getServiceFlow(selected?.slug)
+  const isStudyProgram = selectedFlow ? selectedFlow.isStudyProgram : selected?.category !== 'SERVICE'
+  const serviceDocOptions = selectedFlow ? getServiceDocumentOptions(selectedFlow) : []
+  const activeDocOptions = isStudyProgram ? DOC_OPTIONS : (serviceDocOptions.length ? serviceDocOptions.map((d) => ({ value: d.value, label: d.label, icon: FileText })) : DOC_OPTIONS)
 
   const toggleDoc = (doc: string) => {
     const cur = new Set(draft.requiredDocuments || [])
