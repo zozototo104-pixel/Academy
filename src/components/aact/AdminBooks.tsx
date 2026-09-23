@@ -1119,7 +1119,7 @@ export function AdminBooksTab() {
       try {
         await createExam(false)
       } catch (e: any) {
-        if (String(e?.message || '').includes('بانتظار المراجعة') && confirm('يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله؟')) {
+        if (String(e?.message || '').includes('بانتظار المراجعة') && await askAdminConfirm({ title: 'استبدال اختبار قيد المراجعة', description: 'يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله وإنشاء نسخة جديدة من بنك الأسئلة؟', confirmLabel: 'استبدال الاختبار', danger: true })) {
           await createExam(true)
         } else {
           throw e
