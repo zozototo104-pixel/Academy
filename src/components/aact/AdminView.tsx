@@ -1452,6 +1452,8 @@ export function AdminView() {
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
                 {recentAttempts.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد محاولات امتحانات بعد</div>
+                ) : filteredAttempts.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400">لا توجد محاولات مطابقة للبحث أو الفلتر الحالي.</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
                     <thead className="sticky top-0 bg-[#f7edd0] text-[#0f2b46]">
