@@ -136,11 +136,16 @@ export function CertificateDialog({
             <ShieldCheck className="h-4 w-4" /> تحقق فوري عبر QR الآمن أو الرقم التسلسلي للشهادة
           </div>
           <div className="flex gap-2">
+            <Button asChild variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
+              <a href={`/pdf/certificates/${encodeURIComponent(certificate.serial)}?print=1`} target="_blank" rel="noreferrer">
+                <FileText className="ml-1.5 h-4 w-4" /> نسخة PDF رسمية
+              </a>
+            </Button>
             <Button
               onClick={() => window.print()}
               className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
             >
-              <Printer className="ml-1.5 h-4 w-4" /> طباعة / حفظ PDF
+              <Printer className="ml-1.5 h-4 w-4" /> طباعة النافذة
             </Button>
             <Button variant="outline" onClick={onClose} className="border-[#0f2b46]/20 font-bold text-[#0f2b46]">
               إغلاق
