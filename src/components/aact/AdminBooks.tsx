@@ -1300,39 +1300,55 @@ export function AdminBooksTab() {
     }
   }
 
-  const gradeSubmission = async (submission: AssignmentSubmissionRow, assignment: AssignmentRow) => {
-    if (!programId) return
-    const rawScore = window.prompt(`درجة الطالب من ${assignment.points}`, submission.score != null ? String(submission.score) : '')
-    if (rawScore === null) return
-    const rawFeedback = window.prompt('ملاحظة التصحيح أو التغذية الراجعة', submission.feedback || '')
-    if (rawFeedback === null) return
-    setGradingSubmissionId(submission.id)
-    try {
-      await api('/api/admin/assignments', {
-        method: 'PATCH',
-        body: JSON.stringify({ submissionId: submission.id, score: rawScore, feedback: rawFeedback, status: 'GRADED' }),
-      })
-      await loadProgramData(programId, true)
-      toast({ title: 'تم تصحيح الواجب', description: `${submission.studentName || 'الطالب'} — ${rawScore}/${assignment.points}` })
-    } catch (e: any) {
-      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-    } finally {
-      setGradingSubmissionId(null)
-    }
+  const gradeSubmission = (submission: AssignmentSubmissionRow, assignment: AssignmentRow) => {
+    setGradingDialog({
+      mode: 'GRADE',
+      submission,
+      assignment,
+      score: submission.score != null ? String(submission.score) : '',
+      feedback: submission.feedback || '',
+    })
   }
 
-  const requestAssignmentRevision = async (submission: AssignmentSubmissionRow) => {
-    if (!programId) return
-    const rawFeedback = window.prompt('اكتب سبب طلب التعديل للطالب', submission.feedback || '')
-    if (rawFeedback === null) return
+  const requestAssignmentRevision = (submission: AssignmentSubmissionRow, assignment?: AssignmentRow) => {
+    const ownerAssignment = assignment || assignments.find((a) => a.submissions.some((s) => s.id === submission.id))
+    if (!ownerAssignment) return
+    setGradingDialog({
+      mode: 'REVISION',
+      submission,
+      assignment: ownerAssignment,
+      score: submission.score != null ? String(submission.score) : '',
+      feedback: submission.feedback || '',
+    })
+  }
+
+  const submitGradingDialog = async () => {
+    if (!programId || !gradingDialog) return
+    const { mode, submission, assignment } = gradingDialog
+    const score = mode === 'GRADE' ? Number(gradingDialog.score) : null
+    const feedback = gradingDialog.feedback.trim()
+    if (mode === 'GRADE' && (!Number.isFinite(score) || score < 0 || score > assignment.points)) {
+      toast({ title: 'درجة غير صالحة', description: `أدخل درجة بين 0 و ${assignment.points}.`, variant: 'destructive' })
+      return
+    }
+    if (mode === 'REVISION' && feedback.length < 8) {
+      toast({ title: 'ملاحظة التعديل مطلوبة', description: 'اكتب سبباً واضحاً للطالب قبل طلب التعديل.', variant: 'destructive' })
+      return
+    }
     setGradingSubmissionId(submission.id)
     try {
       await api('/api/admin/assignments', {
         method: 'PATCH',
-        body: JSON.stringify({ submissionId: submission.id, feedback: rawFeedback, status: 'NEEDS_REVISION' }),
+        body: JSON.stringify({
+          submissionId: submission.id,
+          score: mode === 'GRADE' ? String(score) : undefined,
+          feedback,
+          status: mode === 'GRADE' ? 'GRADED' : 'NEEDS_REVISION',
+        }),
       })
       await loadProgramData(programId, true)
-      toast({ title: 'تم طلب تعديل الواجب' })
+      toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${score}/${assignment.points}` : undefined })
+      setGradingDialog(null)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
