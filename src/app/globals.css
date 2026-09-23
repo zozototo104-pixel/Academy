@@ -691,8 +691,24 @@ main,
     width: 100% !important;
     border: none !important;
   }
+  #aact-print-page {
+    position: absolute !important;
+    inset-inline: 0 !important;
+    top: 0 !important;
+    margin: 0 auto !important;
+    padding: 22px !important;
+    width: 100% !important;
+    max-width: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .pdf-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   [role="dialog"] > div:last-child button,
-  .aact-no-print {
+  .aact-no-print,
+  .pdf-no-print {
     display: none !important;
   }
 }
