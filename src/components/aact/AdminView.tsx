@@ -660,18 +660,13 @@ export function AdminView() {
     return () => clearTimeout(t)
   }, [activeTab, highlightAdmissionId, admissions.length])
 
-  const studyAdmissions = admissions.filter((a) => a.isStudyProgram !== false)
-  const serviceRequests = admissions.filter((a) => a.isStudyProgram === false)
-  const visibleAdmissionRows = activeTab === 'service-requests' ? serviceRequests : studyAdmissions
+  const studyAdmissions = activeTab === 'service-requests' ? [] : admissions
+  const serviceRequests = activeTab === 'service-requests' ? admissions : []
+  const visibleAdmissionRows = admissions
   const academicStudents = students.filter((s) => (s.enrollments?.length || 0) > 0)
-  const filteredAdmissionRows = useMemo(() => visibleAdmissionRows.filter((a) => {
-    const statusOk = admissionStatusFilter === 'ALL'
-      || (admissionStatusFilter === 'ACTIVE' && !['REJECTED', 'CERTIFIED'].includes(a.status))
-      || a.status === admissionStatusFilter
-    return statusOk && matchesAdminSearch(admissionSearch, [a.fullName, a.email, a.phone, a.reference, a.program, a.country, a.status])
-  }), [admissionSearch, admissionStatusFilter, visibleAdmissionRows])
-  const pagedAdmissionRows = pageItems(filteredAdmissionRows, admissionPage, admissionPageSize)
-  const currentAdmissionPage = safePage(filteredAdmissionRows.length, admissionPageSize, admissionPage)
+  const filteredAdmissionRows = admissions
+  const pagedAdmissionRows = admissions
+  const currentAdmissionPage = admissionPage
 
   const filteredStudents = academicStudents
   const pagedStudents = academicStudents
