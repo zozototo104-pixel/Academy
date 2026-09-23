@@ -10,7 +10,7 @@ export async function GET() {
     const user = await requireUser()
     const [rawAdmissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis, deliverables] = await Promise.all([
       db.admissionApplication.findMany({
-        where: { userId: user.id },
+        where: { OR: [{ userId: user.id }, { email: user.email }] },
         orderBy: { createdAt: 'desc' },
         take: 12,
         select: {
