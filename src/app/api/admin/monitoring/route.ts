@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { appVersion, serviceConfigurationStatus, timed } from '@/lib/monitoring'
+import { backupConfigurationStatus } from '@/lib/backups'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
