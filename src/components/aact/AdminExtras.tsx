@@ -1203,6 +1203,180 @@ export function AdminSettingsTab() {
   )
 }
 
+export function AdminAdminsTab() {
+  const { toast } = useToast()
+  const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(true)
+  const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [adminForm, setAdminForm] = useState({
+    name: 'QA Admin',
+    email: 'qa-admin@aactacademy.com',
+    password: '',
+  })
+
+  const loadSystemAdmins = () => {
+    setAdminsLoading(true)
+    api<{ admins: SystemAdminAccount[] }>('/api/admin/system-admins')
+      .then((d) => setAdmins(Array.isArray(d.admins) ? d.admins : []))
+      .catch((e: any) => toast({ title: 'تعذر تحميل مدراء النظام', description: e.message, variant: 'destructive' }))
+      .finally(() => setAdminsLoading(false))
+  }
+
+  useEffect(() => {
+    loadSystemAdmins()
+  }, [])
+
+  const createSystemAdmin = async () => {
+    const email = adminForm.email.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      toast({ title: 'البريد مطلوب', description: 'أدخل بريد حساب الإدارة الاختباري بشكل صحيح.', variant: 'destructive' })
+      return
+    }
+    if (adminForm.password.length < 12) {
+      toast({ title: 'كلمة المرور قصيرة', description: 'استخدم كلمة مرور من 12 حرفاً على الأقل.', variant: 'destructive' })
+      return
+    }
+    setAdminBusy('create')
+    try {
+      await api('/api/admin/system-admins', {
+        method: 'POST',
+        body: JSON.stringify({ ...adminForm, email }),
+      })
+      setAdminForm((prev) => ({ ...prev, password: '' }))
+      loadSystemAdmins()
+      toast({ title: 'تم تجهيز حساب الإدارة', description: 'يمكن استخدام الحساب الآن لاختبارات لوحة الإدارة ثم تعطيله من نفس القسم.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء حساب الإدارة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  const disableSystemAdmin = async (admin: SystemAdminAccount) => {
+    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    setAdminBusy(admin.id)
+    try {
+      await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
+      loadSystemAdmins()
+      toast({ title: 'تم تعطيل حساب الإدارة', description: 'لم يتم حذف السجل التاريخي، وتم إبطال جلسات الحساب.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعطيل الحساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-5">
+      <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <ShieldCheck className="h-4.5 w-4.5 text-[#a8841a]" /> مدراء النظام وحساب الاختبار
+              </h3>
+              <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-600">
+                أنشئ حساب إدارة مؤقت لاختبارات الإطلاق من داخل المنصة. التعطيل هنا يحذف جلسات الحساب ويمنع دخوله مع الحفاظ على سجل التدقيق.
+              </p>
+            </div>
+            <Badge className="w-fit bg-[#0f2b46] text-[#f5f0e1]">محمي بصلاحية ADMIN</Badge>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-name" className="text-[11px] font-bold text-slate-600">الاسم</Label>
+              <Input
+                id="admins-tab-admin-name"
+                value={adminForm.name}
+                onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                placeholder="QA Admin"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-email" className="text-[11px] font-bold text-slate-600">البريد الإلكتروني</Label>
+              <Input
+                id="admins-tab-admin-email"
+                dir="ltr"
+                type="email"
+                className="text-left"
+                value={adminForm.email}
+                onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                placeholder="qa-admin@aactacademy.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-password" className="text-[11px] font-bold text-slate-600">كلمة المرور المؤقتة</Label>
+              <Input
+                id="admins-tab-admin-password"
+                dir="ltr"
+                type="password"
+                className="text-left"
+                value={adminForm.password}
+                onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                placeholder="12+ characters"
+              />
+            </div>
+            <Button
+              onClick={createSystemAdmin}
+              disabled={adminBusy === 'create'}
+              className="self-end bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              {adminBusy === 'create' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <KeyRound className="ml-2 h-4 w-4" />}
+              إنشاء / تحديث
+            </Button>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs font-black text-[#0f2b46]">الحسابات الإدارية الحالية</p>
+              <Button type="button" variant="ghost" size="sm" onClick={loadSystemAdmins} disabled={adminsLoading} className="h-8 text-xs font-bold">
+                {adminsLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                تحديث
+              </Button>
+            </div>
+            {adminsLoading ? (
+              <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
+            ) : admins.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد حسابات إدارة ظاهرة.</div>
+            ) : (
+              <div className="space-y-2">
+                {admins.map((admin) => {
+                  const disabled = admin.status === 'DISABLED' || admin.status === 'ARCHIVED'
+                  return (
+                    <div key={admin.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-black text-[#0f2b46]">{admin.name}</p>
+                          <Badge variant={disabled ? 'outline' : 'default'} className={disabled ? 'border-slate-300 text-slate-500' : 'bg-emerald-600 text-white'}>
+                            {disabled ? 'معطّل' : 'نشط'}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500" dir="ltr">{admin.email}</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-400">أُنشئ: {new Date(admin.createdAt).toLocaleDateString('ar-EG')}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled || adminBusy === admin.id}
+                        onClick={() => disableSystemAdmin(admin)}
+                        className="border-red-200 font-extrabold text-red-600 hover:bg-red-50"
+                      >
+                        {adminBusy === admin.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="ml-1 h-3.5 w-3.5" />}
+                        تعطيل / حذف آمن
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ============ سجل التدقيق ============
 
 interface AuditRow {
