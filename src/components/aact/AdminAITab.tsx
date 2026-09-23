@@ -40,6 +40,10 @@ export function AdminAITab() {
   const [active, setActive] = useState<StudentRow | null>(null)
   const [messages, setMessages] = useState<LogMsg[]>([])
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [chatSearch, setChatSearch] = useState('')
+  const [chatStatusFilter, setChatStatusFilter] = useState('ALL')
+  const [chatPage, setChatPage] = useState(1)
+  const [chatPageSize, setChatPageSize] = useState(25)
 
   const load = useCallback(() => {
     api<{ students: StudentRow[] }>('/api/admin/chats')
