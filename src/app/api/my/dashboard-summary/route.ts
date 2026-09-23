@@ -112,7 +112,7 @@ export async function GET() {
       admissions,
       studyAdmissions,
       serviceAdmissions,
-      payments,
+      payments: visiblePayments,
       enrollments,
       notifications,
       unread,
