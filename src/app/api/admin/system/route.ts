@@ -57,7 +57,6 @@ export async function GET() {
     await requireAdmin()
     const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS } } })
     const values: Record<string, string> = {}
-    const rawValues = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Record<string, string>
     for (const k of SYSTEM_KEYS) values[k] = ''
     for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
     const smtp = await getSmtpConfig()
