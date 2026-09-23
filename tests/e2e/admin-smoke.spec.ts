@@ -47,7 +47,7 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
     pageErrors.push(error.stack || error.message)
   })
 
-  testInfo.attach('guarded-errors-note', {
+  await testInfo.attach('guarded-errors-note', {
     body: 'The test fails on uncaught page errors and non-ignored console.error messages.',
     contentType: 'text/plain',
   })
