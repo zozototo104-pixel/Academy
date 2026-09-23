@@ -853,6 +853,7 @@ function runRules(app: {
     }
   }
 
+  if (!isServiceRules) {
   const degreeFiles = app.files.filter((f) => f.docType === 'DEGREE' || kindSatisfiesRequirement('DEGREE', detectAdmissionDocumentKind(f).kind))
   const bestDegree = degreeFiles
     .map((f) => ({ f, degree: degreeFromEvidence(f) }))
