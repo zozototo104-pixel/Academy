@@ -820,8 +820,8 @@ export function AdminFinanceTab() {
           ]}
           pageSize={paymentPageSize}
           onPageSizeChange={(v) => { setPaymentPageSize(v); setPaymentPage(1) }}
-          total={payments.length}
-          filtered={filteredPayments.length}
+          total={paymentTotal}
+          filtered={paymentTotal}
           label="فاتورة"
         />
       <Card className="border-[#0f2b46]/10">
