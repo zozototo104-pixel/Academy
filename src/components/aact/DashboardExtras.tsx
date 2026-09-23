@@ -364,6 +364,29 @@ export function PaymentsTab() {
                     {p.status === 'PAID' ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> مسددة</Badge> : <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock3 className="ml-1 h-3 w-3" /> بانتظار السداد</Badge>}
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">{PURPOSE_LABEL[p.purpose] || p.purpose}{p.reference ? ` — طلب ${p.reference}` : ''}{p.method ? ` — عبر ${METHOD_LABEL[p.method] || p.method}` : ''}{p.receiptNo ? ` — إيصال ${p.receiptNo}` : ''}</p>
+                  {p.status === 'UNPAID' && p.method === 'USDT' && (
+                    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-blue-900">
+                        <span>تحقق USDT: {p.cryptoVerificationStatus === 'VERIFIED' ? 'تم التحقق آلياً — بانتظار تأكيد الإدارة' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق — راجع Hash أو المبلغ/المحفظة' : 'بانتظار Hash التحويل'}</span>
+                        {p.cryptoNetwork && <span className="rounded-full bg-white px-2 py-0.5">{p.cryptoNetwork}</span>}
+                      </div>
+                      {p.cryptoWalletAddress && <p className="mt-1 break-all font-mono text-[10px] text-slate-500" dir="ltr">{p.cryptoWalletAddress}</p>}
+                      {p.cryptoVerificationNote && <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{p.cryptoVerificationNote}</p>}
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          dir="ltr"
+                          value={usdtHashes[p.id] ?? p.cryptoTxHash ?? ''}
+                          onChange={(e) => setUsdtHashes((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          placeholder="TX Hash"
+                          className="font-mono text-xs"
+                        />
+                        <Button size="sm" disabled={verifyingUsdt === p.id} onClick={() => submitUsdtProof(p)} className="bg-blue-700 font-black text-white hover:bg-blue-800">
+                          {verifyingUsdt === p.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                          تحقق من التحويل
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-black text-[#0f2b46]"><Money value={p.amount} /></span>
