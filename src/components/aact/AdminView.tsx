@@ -598,18 +598,6 @@ export function AdminView() {
       .catch(() => setApps([]))
       .finally(() => setAppsLoading(false))
 
-    void api<{ applications: AdmissionApp[]; supervisors: SupervisorOption[] }>('/api/admin/admissions')
-      .then((ad) => {
-        setAdmissions(Array.isArray(ad.applications) ? ad.applications : [])
-        setSupervisors(Array.isArray(ad.supervisors) ? ad.supervisors : [])
-      })
-      .catch((e: any) => {
-        setAdmissions([])
-        setSupervisors([])
-        toast({ title: 'تعذر تحميل طلبات الالتحاق', description: e.message, variant: 'destructive' })
-      })
-      .finally(() => setAdmissionsLoading(false))
-
     await statsPromise
   }
 
