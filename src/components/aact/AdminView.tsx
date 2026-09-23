@@ -1551,7 +1551,7 @@ export function AdminView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {academicStudents.map((s) => (
+                      {pagedStudents.map((s) => (
                         <tr
                           key={s.id}
                           onClick={() => openStudentAdmission(s)}
