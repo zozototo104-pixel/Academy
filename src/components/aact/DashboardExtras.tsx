@@ -556,9 +556,11 @@ export function ThesisTab() {
 }
 
 export function CertificatesTab() {
+  const { toast } = useToast()
   const [certs, setCerts] = useState<CertificateData[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<CertificateData | null>(null)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   useEffect(() => {
     api<{ certificates: CertificateData[] }>('/api/certificates').then((d) => setCerts(Array.isArray(d.certificates) ? d.certificates : [])).catch(() => setCerts([])).finally(() => setLoading(false))
   }, [])
