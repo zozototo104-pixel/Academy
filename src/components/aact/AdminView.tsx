@@ -609,6 +609,32 @@ export function AdminView() {
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
     let cancelled = false
+    setAdmissionsLoading(true)
+    const timer = window.setTimeout(() => {
+      const kind = activeTab === 'service-requests' ? 'SERVICE' : 'STUDY'
+      const params = new URLSearchParams({ page: String(admissionPage), pageSize: String(admissionPageSize), status: admissionStatusFilter, kind })
+      if (admissionSearch.trim()) params.set('search', admissionSearch.trim())
+      api<{ applications: AdmissionApp[]; supervisors: SupervisorOption[]; total: number }>(`/api/admin/admissions?${params.toString()}`)
+        .then((ad) => {
+          if (cancelled) return
+          setAdmissions(Array.isArray(ad.applications) ? ad.applications : [])
+          setSupervisors(Array.isArray(ad.supervisors) ? ad.supervisors : [])
+          setAdmissionTotal(Number(ad.total || 0))
+        })
+        .catch((e: any) => {
+          if (cancelled) return
+          setAdmissions([])
+          setAdmissionTotal(0)
+          toast({ title: 'تعذر تحميل طلبات الالتحاق', description: e.message, variant: 'destructive' })
+        })
+        .finally(() => { if (!cancelled) setAdmissionsLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [user, activeTab, admissionSearch, admissionStatusFilter, admissionPage, admissionPageSize, admissionRefresh])
+
+  useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    let cancelled = false
     setStudentsLoading(true)
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: studentStatusFilter })
