@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const applicationId = String(body.applicationId || '').trim()
     const reference = String(body.reference || '').trim()
+    const uploadToken = String(body.uploadToken || '').trim()
     if (!applicationId && !reference) {
       return NextResponse.json({ error: 'معرّف الطلب أو كود التتبع مطلوب لإكمال التقديم' }, { status: 400 })
     }
