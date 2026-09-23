@@ -35,6 +35,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
     }
 
+    const normalizedHash = cleanHash.replace(/^0x/i, '').toLowerCase()
+    const duplicate = await db.payment.findFirst({
+      where: {
+        id: { not: payment.id },
+        cryptoTxHash: { in: [cleanHash, normalizedHash, `0x${normalizedHash}`] },
+      },
+      select: { invoiceNo: true, status: true },
+    })
+    if (duplicate) {
+      return NextResponse.json({ error: `هذا TX Hash مستخدم مسبقاً على الفاتورة ${duplicate.invoiceNo}` }, { status: 409 })
+    }
+
     const network = payment.cryptoNetwork || 'TRC20'
     const walletAddress = payment.cryptoWalletAddress || ''
     const result = await verifyUsdtTransaction({
