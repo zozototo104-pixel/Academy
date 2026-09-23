@@ -951,7 +951,7 @@ function runRules(app: {
     }
   }
 
-  if (!app.nationalId?.trim()) {
+  if (!isServiceRules && !app.nationalId?.trim()) {
     findings.push({ severity: 'MEDIUM', title: 'رقم الهوية/الجواز غير مذكور', detail: 'حقل الهوية فارغ رغم كونه إلزامياً' })
   }
 
