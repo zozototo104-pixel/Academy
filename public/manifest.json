@@ -1,14 +1,16 @@
 {
-  "name": "الأكاديمية الأمريكية للاستشارات والتدريب",
-  "short_name": "AACT أكاديمية",
-  "description": "منصة الدبلومات المهنية المعتمدة مع مشرف ذكي بالذكاء الاصطناعي",
+  "name": "الأكاديمية الأمريكية للاستشارات والتدريب | AACT",
+  "short_name": "AACT",
+  "description": "منصة الأكاديمية الأمريكية للاستشارات والتدريب للبرامج المهنية، الاعتمادات، والشهادات القابلة للتحقق إلكترونياً.",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f2b46",
   "theme_color": "#0f2b46",
+  "categories": ["education", "business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
