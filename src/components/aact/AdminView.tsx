@@ -1614,7 +1614,7 @@ export function AdminView() {
               </div>
             </CardContent>
           </Card>
-          <AdminPager page={currentAttemptPage} pageSize={attemptPageSize} total={filteredAttempts.length} onPageChange={setAttemptPage} label="محاولة" />
+          <AdminPager page={currentAttemptPage} pageSize={attemptPageSize} total={attemptTotal} onPageChange={setAttemptPage} label="محاولة" />
           </div>
         </TabsContent>
 
