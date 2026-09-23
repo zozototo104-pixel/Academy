@@ -199,7 +199,7 @@ export async function renderOfficialPdf(opts: OfficialPdfOptions) {
 
 export function pdfResponse(pdf: Buffer, filename: string) {
   const safe = filename.replace(/[^a-zA-Z0-9._-]+/g, '-')
-  return new Response(pdf, {
+  return new Response(new Uint8Array(pdf), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
