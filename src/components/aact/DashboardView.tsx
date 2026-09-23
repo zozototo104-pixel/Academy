@@ -541,9 +541,11 @@ export function DashboardView() {
               <TabsTrigger value="payments" className="text-[11px] font-bold sm:text-sm">
                 <Banknote className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الدفعات
               </TabsTrigger>
-              <TabsTrigger value="deliverables" className="text-[11px] font-bold sm:text-sm">
-                <Award className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> مخرجاتي {serviceDeliverables.length ? `(${serviceDeliverables.length})` : ''}
-              </TabsTrigger>
+              {showDeliverablesTab && (
+                <TabsTrigger value="deliverables" className="text-[11px] font-bold sm:text-sm">
+                  <Award className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> مخرجاتي {serviceDeliverables.length ? `(${serviceDeliverables.length})` : ''}
+                </TabsTrigger>
+              )}
               <TabsTrigger value="notifications" className="text-[11px] font-bold sm:text-sm">
                 <Bell className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الإشعارات {studentSummary?.unread ? `(${studentSummary.unread})` : ''}
               </TabsTrigger>
