@@ -301,13 +301,16 @@ export async function PATCH(req: NextRequest) {
     const updated = await db.admissionApplication.update({ where: { id }, data })
 
     // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED
-    // بشرط رسمي: سداد جميع فواتير الطلب كاملة — مع نسخ درجة المناقشة للشهادة
+    // شرط رسمي: تسديد رسوم الطلب. في التقسيط لا نعلّق الشهادة على فاتورة TUITION الأصلية إذا غطاها مجموع دفعات TUITION_INSTALLMENT.
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
-      const allPaid = allPayments.length === 0 || allPayments.every((p) => p.status === 'PAID')
-      if (!allPaid) {
+      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
+      const tuitionTotal = inferTotalTuition(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount })))
+      const tuitionPaid = tuitionPaidTotal(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount })))
+      const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
+      if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
         return NextResponse.json(
-          { error: 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب — تبقى فاتورة غير مسددة' },
+          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${roundMoney(tuitionPaid)}$ من ${roundMoney(tuitionTotal)}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
           { status: 400 }
         )
       }
