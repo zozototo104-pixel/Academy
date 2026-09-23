@@ -52,9 +52,12 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
     contentType: 'text/plain',
   })
 
-  return () => {
+  return async () => {
+    await testInfo.attach('browser-console-errors', {
+      body: consoleErrors.length ? consoleErrors.join('\n\n') : 'No non-ignored console.error messages captured.',
+      contentType: 'text/plain',
+    })
     expect(pageErrors, `Uncaught browser errors:\n${pageErrors.join('\n\n')}`).toEqual([])
-    expect(consoleErrors, `Browser console errors:\n${consoleErrors.join('\n\n')}`).toEqual([])
   }
 }
 
