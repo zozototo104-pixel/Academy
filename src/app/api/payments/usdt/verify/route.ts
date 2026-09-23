@@ -69,7 +69,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: result.status === 'VERIFIED', status: result.status, note: result.note, payment: updated })
+    return NextResponse.json({
+      ok: result.status === 'VERIFIED',
+      status: result.status,
+      note: result.note,
+      verification: { status: result.status, note: result.note, amount: result.amount || null, txHash: result.txHash || cleanHash },
+      payment: updated,
+    })
   } catch (e) {
     console.error('USDT verify error:', e)
     return NextResponse.json({ error: 'تعذر التحقق من تحويل USDT' }, { status: 500 })
