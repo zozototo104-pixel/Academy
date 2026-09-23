@@ -722,7 +722,7 @@ function criticalAdmissionDocsOk(requiredDocuments: string[] | undefined, analys
 }
 
 function weakRequiredDocumentsCount(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): number {
-  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const reqs = Array.isArray(requiredDocuments) ? requiredDocuments : DEFAULT_REQUIRED_DOCS
   const coverage = requirementCoverageMap(reqs, analyses)
   return reqs.filter((r) => (coverage[r] || 0) < 60).length
 }
