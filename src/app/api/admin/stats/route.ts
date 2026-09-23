@@ -8,7 +8,7 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, passedAttempts, recentAttempts, programCounts] =
+    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, serviceDeliveryApps, passedAttempts, recentAttempts, programCounts] =
       await Promise.all([
         db.user.count({ where: { role: 'STUDENT', enrollments: { some: {} } } }),
         db.enrollment.count(),
