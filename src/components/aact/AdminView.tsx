@@ -573,6 +573,47 @@ export function AdminView() {
     return () => clearTimeout(t)
   }, [activeTab, highlightAdmissionId, admissions.length])
 
+  const studyAdmissions = admissions.filter((a) => a.isStudyProgram !== false)
+  const serviceRequests = admissions.filter((a) => a.isStudyProgram === false)
+  const visibleAdmissionRows = activeTab === 'service-requests' ? serviceRequests : studyAdmissions
+  const academicStudents = students.filter((s) => (s.enrollments?.length || 0) > 0)
+  const filteredAdmissionRows = useMemo(() => visibleAdmissionRows.filter((a) => {
+    const statusOk = admissionStatusFilter === 'ALL'
+      || (admissionStatusFilter === 'ACTIVE' && !['REJECTED', 'CERTIFIED'].includes(a.status))
+      || a.status === admissionStatusFilter
+    return statusOk && matchesAdminSearch(admissionSearch, [a.fullName, a.email, a.phone, a.reference, a.program, a.country, a.status])
+  }), [admissionSearch, admissionStatusFilter, visibleAdmissionRows])
+  const pagedAdmissionRows = pageItems(filteredAdmissionRows, admissionPage, admissionPageSize)
+  const currentAdmissionPage = safePage(filteredAdmissionRows.length, admissionPageSize, admissionPage)
+
+  const filteredStudents = useMemo(() => academicStudents.filter((s) => {
+    const enrollments = s.enrollments || []
+    const statusOk = studentStatusFilter === 'ALL' || enrollments.some((e) => e.status === studentStatusFilter) || s.latestAdmission?.status === studentStatusFilter
+    return statusOk && matchesAdminSearch(studentSearch, [s.name, s.email, s.country, s.latestAdmission?.reference, s.latestAdmission?.program, ...enrollments.map((e) => e.program)])
+  }), [academicStudents, studentSearch, studentStatusFilter])
+  const pagedStudents = pageItems(filteredStudents, studentPage, studentPageSize)
+  const currentStudentPage = safePage(filteredStudents.length, studentPageSize, studentPage)
+
+  const recentAttempts = data?.recentAttempts || []
+  const filteredAttempts = useMemo(() => recentAttempts.filter((a) => {
+    const statusOk = attemptStatusFilter === 'ALL'
+      || (attemptStatusFilter === 'PASSED' && a.passed === true)
+      || (attemptStatusFilter === 'FAILED' && a.passed === false)
+      || (attemptStatusFilter === 'UNSCORED' && a.passed == null)
+    return statusOk && matchesAdminSearch(attemptSearch, [a.student, a.email, a.exam, a.program, a.score])
+  }), [attemptSearch, attemptStatusFilter, recentAttempts])
+  const pagedAttempts = pageItems(filteredAttempts, attemptPage, attemptPageSize)
+  const currentAttemptPage = safePage(filteredAttempts.length, attemptPageSize, attemptPage)
+
+  const filteredApps = useMemo(() => apps.filter((a) => {
+    const statusOk = agentStatusFilter === 'ALL'
+      || (agentStatusFilter === 'ACTIVE' && !['REJECTED', 'REVOKED'].includes(a.status))
+      || a.status === agentStatusFilter
+    return statusOk && matchesAdminSearch(agentSearch, [a.orgName, a.repName, a.email, a.phone, a.country, a.territory, a.status, a.contractNo, a.accreditationType])
+  }), [agentSearch, agentStatusFilter, apps])
+  const pagedApps = pageItems(filteredApps, agentPage, agentPageSize)
+  const currentAgentPage = safePage(filteredApps.length, agentPageSize, agentPage)
+
   if (!user) {
     navigate('auth')
     return null
