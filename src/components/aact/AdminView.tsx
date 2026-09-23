@@ -837,6 +837,17 @@ export function AdminView() {
                                       <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
                                       <span className="mr-2 font-bold text-slate-500">{p.purpose} — {p.amount}$</span>
                                       {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method === 'USDT' ? 'USDT' : p.method}</span>}
+                                      {p.method === 'USDT' && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                                          <span>الشبكة: {p.cryptoNetwork || 'TRC20'}</span>
+                                          {p.cryptoTxHash ? <span dir="ltr">TX: {String(p.cryptoTxHash).slice(0, 10)}…{String(p.cryptoTxHash).slice(-6)}</span> : <span className="text-amber-600">بانتظار TX Hash</span>}
+                                          {p.cryptoVerificationStatus && (
+                                            <Badge className={p.cryptoVerificationStatus === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : p.cryptoVerificationStatus === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
+                                              {p.cryptoVerificationStatus === 'VERIFIED' ? 'تحقق آلي ناجح' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق' : p.cryptoVerificationStatus}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       {p.status === 'PAID' ? (
