@@ -379,6 +379,7 @@ export function DashboardView() {
   }
 
   const submitAssignment = async (assignmentId: string) => {
+    const scrollBeforeSubmit = typeof window !== 'undefined' ? window.scrollY : 0
     const answerText = (assignmentDrafts[assignmentId] || '').trim()
     const file = assignmentFiles[assignmentId]
     if (!answerText && !file) {
