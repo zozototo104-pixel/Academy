@@ -20,7 +20,7 @@ function certificateTypeLabel(type?: string | null) {
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
-    const user = await requireUser()
+    const user = await getCurrentUser()
     const { id } = await Promise.resolve(context.params)
     if (!id) return NextResponse.json({ error: 'معرّف الشهادة مطلوب' }, { status: 400 })
 
