@@ -174,29 +174,47 @@ async function assertListControlsDoNotExplode(page: Page, label: string) {
 test.describe('Admin dashboard launch smoke test', () => {
   test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
     const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
-    await loginAsAdmin(page)
+    let currentStage = 'بدء اختبار لوحة الإدارة'
 
-    await page.goto('/?view=admin', { waitUntil: 'domcontentloaded' })
-    await waitForAdminReady(page)
-    await assertNoFatalScreen(page, 'admin landing')
+    try {
+      currentStage = 'تسجيل دخول الأدمن عبر API'
+      await loginAsAdmin(page)
 
-    for (const item of ADMIN_MAIN_TABS) {
-      await test.step(item.label, async () => {
-        await clickVisibleTab(page, item.tab, item.label)
-        if (item.search) await exerciseFirstSearchBox(page, item.label)
-        await assertListControlsDoNotExplode(page, item.label)
-      })
-    }
+      currentStage = 'فتح لوحة الإدارة'
+      await page.goto('/?view=admin', { waitUntil: 'domcontentloaded' })
+      await waitForAdminReady(page)
+      await assertNoFatalScreen(page, 'admin landing')
 
-    await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
-      await clickVisibleTab(page, /الكتب والاختبارات/, 'الكتب والاختبارات')
-      for (const item of ADMIN_BOOKS_NESTED_TABS) {
-        await clickVisibleTab(page, item.tab, item.label)
-        if (item.search) await exerciseFirstSearchBox(page, item.label)
-        await assertListControlsDoNotExplode(page, item.label)
+      for (const item of ADMIN_MAIN_TABS) {
+        await test.step(item.label, async () => {
+          currentStage = item.label
+          console.log(`[admin-smoke] Checking tab: ${item.label}`)
+          await clickVisibleTab(page, item.tab, item.label)
+          if (item.search) await exerciseFirstSearchBox(page, item.label)
+          await assertListControlsDoNotExplode(page, item.label)
+        })
       }
-    })
 
-    await assertNoBrowserErrors()
+      await test.step('الكتب والاختبارات + مركز التصحيح', async () => {
+        currentStage = 'الكتب والاختبارات'
+        console.log('[admin-smoke] Checking tab: الكتب والاختبارات')
+        await clickVisibleTab(page, /الكتب والاختبارات/, 'الكتب والاختبارات')
+        for (const item of ADMIN_BOOKS_NESTED_TABS) {
+          currentStage = `الكتب والاختبارات / ${item.label}`
+          console.log(`[admin-smoke] Checking nested tab: ${currentStage}`)
+          await clickVisibleTab(page, item.tab, item.label)
+          if (item.search) await exerciseFirstSearchBox(page, item.label)
+          await assertListControlsDoNotExplode(page, item.label)
+        }
+      })
+
+      currentStage = 'إنهاء فحص المتصفح'
+      await assertNoBrowserErrors()
+    } catch (error) {
+      await captureAdminDiagnostics(page, testInfo, currentStage)
+      const message = error instanceof Error ? `${error.message}\n${error.stack || ''}` : String(error)
+      console.error(`[admin-smoke] FAILED_STAGE=${currentStage}\n${message}`)
+      throw error
+    }
   })
 })
