@@ -432,7 +432,7 @@ export function AdminRulesTab() {
                       <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.skills)} onChange={(e) => updateAcademicList('skills', e.target.value)} />
                     </div>
                     <div>
-                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ClipboardCheck className="h-3.5 w-3.5 text-[#a8841a]" /> متطلبات التخرج — كل سطر متطلب</label>
+                      <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ClipboardCheck className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'متطلبات التخرج' : 'بيانات/مرفقات الخدمة'} — كل سطر متطلب</label>
                       <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.graduationRequirements)} onChange={(e) => updateAcademicList('graduationRequirements', e.target.value)} />
                     </div>
                     <div>
