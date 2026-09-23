@@ -922,7 +922,7 @@ function runRules(app: {
   }
 
   const minAge = rules.minAge || 16
-  if (app.birthDate) {
+  if (!isServiceRules && app.birthDate) {
     const age = (Date.now() - new Date(app.birthDate).getTime()) / (365.25 * 24 * 3600 * 1000)
     const ageR = Math.floor(age)
     if (ageR < minAge) {
