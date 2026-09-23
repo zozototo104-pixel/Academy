@@ -5,12 +5,16 @@ export function formatPdfDate(value?: Date | string | null, withTime = false): s
   if (!value) return '—'
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('ar-EG', {
+  const options: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
-  }).format(date)
+  }
+  if (withTime) {
+    options.hour = '2-digit'
+    options.minute = '2-digit'
+  }
+  return new Intl.DateTimeFormat('ar-EG', options).format(date)
 }
 
 export function formatPdfMoney(amount?: number | null, currency = 'USD'): string {
