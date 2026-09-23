@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { SITE_DESCRIPTION, SITE_NAME, organizationJsonLd, siteUrl, websiteJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "الأكاديمية الأمريكية للاستشارات والتدريب | AACT",
