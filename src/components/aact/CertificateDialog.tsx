@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { AcademyLogo } from '@/components/aact/Shell'
-import { Printer, ShieldCheck } from 'lucide-react'
+import { FileText, Printer, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/store'
 
 export interface CertificateData {
