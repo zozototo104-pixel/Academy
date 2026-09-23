@@ -407,8 +407,10 @@ export function DashboardView() {
   }
 
   const hasStudyApplication = (studentSummary?.summary?.studyRequests || 0) > 0 || !!studentSummary?.summary?.latestStudy
+  const hasServiceApplication = (studentSummary?.summary?.serviceRequests || 0) > 0 || serviceDeliverables.length > 0
   const hasProgramDashboard = enrollments.length > 0
   const hasStudyIdentity = hasProgramDashboard || hasStudyApplication
+  const showDeliverablesTab = !hasStudyIdentity || hasServiceApplication
   const myProgramIds = new Set(enrollments.map((e) => e.programId))
   const available = hasProgramDashboard ? programs.filter((p) => !myProgramIds.has(p.id)) : []
   const activeAcademicProfile = active ? buildAcademicProgramProfile(active.program) : null
