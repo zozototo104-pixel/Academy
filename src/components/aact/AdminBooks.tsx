@@ -783,7 +783,7 @@ export function AdminBooksTab() {
   }
 
   const deleteBook = async (id: string) => {
-    if (!confirm('حذف هذا الكتاب من الكتب المقررة؟')) return
+    if (!(await askAdminConfirm({ title: 'حذف كتاب مقرر', description: 'سيتم حذف هذا الكتاب من الكتب المقررة وإزالة عناصر المعرفة المرتبطة به من واجهة البرنامج.', confirmLabel: 'حذف الكتاب', danger: true }))) return
     try {
       await api(`/api/admin/books?bookId=${id}`, { method: 'DELETE' })
       setBooks((prev) => prev.filter((b) => b.id !== id))
