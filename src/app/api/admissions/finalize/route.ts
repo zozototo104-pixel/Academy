@@ -5,7 +5,7 @@ import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
+import { buildServiceAdmissionDefaults, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { resolveRules } from '@/lib/admission-ai'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 const REQUIRED_DOCS: { type: string; label: string }[] = [
