@@ -417,8 +417,8 @@ export function AdminRulesTab() {
                       <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: بحث تطبيقي ومناقشة فيديو' : 'مثال: لا يوجد بحث؛ يتم التسليم بعد اعتماد الإدارة'} value={draft.academicProfile?.thesisRequirement || ''} onChange={(e) => patchAcademic({ thesisRequirement: e.target.value })} />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الوصف الأكاديمي الرسمي</label>
-                      <Textarea rows={2} className="text-xs" placeholder="صف البرنامج أكاديمياً بلغة رسمية واضحة" value={draft.academicProfile?.levelDescription || ''} onChange={(e) => patchAcademic({ levelDescription: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'الوصف الأكاديمي الرسمي' : 'وصف الخدمة الرسمي'}</label>
+                      <Textarea rows={2} className="text-xs" placeholder={isStudyProgram ? 'صف البرنامج أكاديمياً بلغة رسمية واضحة' : 'صف الخدمة ومتى تعد مكتملة وماذا يستلم العميل'} value={draft.academicProfile?.levelDescription || ''} onChange={(e) => patchAcademic({ levelDescription: e.target.value })} />
                     </div>
                   </div>
 
