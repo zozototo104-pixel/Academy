@@ -109,6 +109,10 @@ export function AdminThesisTab() {
   const [roomThesis, setRoomThesis] = useState<Thesis | null>(null)
   const [minutesThesis, setMinutesThesis] = useState<Thesis | null>(null)
   const [showRecording, setShowRecording] = useState<Thesis | null>(null)
+  const [thesisSearch, setThesisSearch] = useState('')
+  const [thesisStatusFilter, setThesisStatusFilter] = useState('ACTIVE')
+  const [thesisPage, setThesisPage] = useState(1)
+  const [thesisPageSize, setThesisPageSize] = useState(10)
 
   const load = () => {
     setLoading(true)
