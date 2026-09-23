@@ -110,6 +110,9 @@ function activeBackupTables() {
 function jsonSafe(value: unknown): unknown {
   if (typeof value === 'bigint') return value.toString()
   if (value instanceof Date) return value.toISOString()
+  if (value && typeof value === 'object' && typeof (value as any).toJSON === 'function') {
+    try { return (value as any).toJSON() } catch {}
+  }
   if (Array.isArray(value)) return value.map(jsonSafe)
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
