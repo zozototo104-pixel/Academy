@@ -1186,7 +1186,7 @@ export function AdminBooksTab() {
   }
 
   const deleteStudyGuide = async (id: string) => {
-    if (!programId || !confirm('حذف دليل الدراسة؟')) return
+    if (!programId || !(await askAdminConfirm({ title: 'حذف دليل الدراسة', description: 'سيتم حذف دليل الدراسة من هذا التخصص. يمكن توليده من جديد لاحقاً من بنك المعرفة.', confirmLabel: 'حذف الدليل', danger: true }))) return
     try {
       await api(`/api/admin/study-guides?id=${id}`, { method: 'DELETE' })
       setStudyGuides((prev) => prev.filter((g) => g.id !== id))
