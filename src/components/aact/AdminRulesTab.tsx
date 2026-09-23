@@ -381,7 +381,7 @@ export function AdminRulesTab() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={fillAcademicFromDefault} className="border-[#c9a227]/40 text-xs font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
-                        ملء من الملف التلقائي
+                        {isStudyProgram ? 'ملء من الملف التلقائي' : 'ملء وفق متطلبات الخدمة'}
                       </Button>
                       {draft.academicProfile && (
                         <Button size="sm" variant="outline" onClick={clearAcademicProfile} className="border-red-200 text-xs text-red-600 hover:bg-red-50">
