@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { academicProfileFromRules, buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { certificateCredentialUrl, certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
 
 function toIso(value?: Date | string | null): string | null {
   if (!value) return null
