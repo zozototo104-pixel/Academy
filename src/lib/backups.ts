@@ -11,6 +11,7 @@ interface BackupTableSpec {
   name: string
   delegate: string
   includeByDefault?: boolean
+  orderBy?: Record<string, 'asc' | 'desc'>
 }
 
 const BACKUP_TABLES: BackupTableSpec[] = [
