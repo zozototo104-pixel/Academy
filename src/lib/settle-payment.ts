@@ -104,7 +104,7 @@ export async function markInvoicePaid(
         await db.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
       }
       await notify(
-        app.userId,
+        linkedUserId,
         'PAYMENT',
         'تم استلام دفعتك بنجاح',
         `سُددت فاتورة «${payment.description}» بمبلغ ${payment.amount}$ — رقم الإيصال ${receiptNo}.`,
