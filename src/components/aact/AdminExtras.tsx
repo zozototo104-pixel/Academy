@@ -748,6 +748,28 @@ export function AdminFinanceTab() {
       )}
 
       {/* جدول الفواتير */}
+      <div className="space-y-3">
+        <AdminListToolbar
+          search={paymentSearch}
+          onSearchChange={(v) => { setPaymentSearch(v); setPaymentPage(1) }}
+          searchPlaceholder="ابحث برقم الفاتورة أو الاسم أو الوصف أو البرنامج..."
+          status={paymentStatusFilter}
+          onStatusChange={(v) => { setPaymentStatusFilter(v); setPaymentPage(1) }}
+          statusOptions={[
+            { value: 'ALL', label: 'كل الفواتير' },
+            { value: 'UNPAID', label: 'غير مسددة' },
+            { value: 'PAID', label: 'مسددة' },
+            { value: 'APPLICATION_FEE', label: 'رسوم تقديم' },
+            { value: 'TUITION', label: 'رسوم دراسية' },
+            { value: 'TUITION_INSTALLMENT', label: 'دفعات تقسيط' },
+            { value: 'SERVICE_FEE', label: 'رسوم خدمات' },
+          ]}
+          pageSize={paymentPageSize}
+          onPageSizeChange={(v) => { setPaymentPageSize(v); setPaymentPage(1) }}
+          total={payments.length}
+          filtered={filteredPayments.length}
+          label="فاتورة"
+        />
       <Card className="border-[#0f2b46]/10">
         <CardContent className="p-0">
           <h3 className="border-b border-slate-100 p-4 text-sm font-black text-[#0f2b46]">كل الفواتير والإيصالات</h3>
