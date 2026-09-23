@@ -255,21 +255,18 @@ export default function Home() {
   useEffect(() => {
     const applyBrowserRoute = () => {
       try {
-        const q = new URLSearchParams(window.location.search)
-        const raw = q.get('view') || 'home'
-        const validViews = ['home', 'programs', 'program-detail', 'apply', 'auth', 'dashboard', 'unit', 'exam', 'chat', 'agent', 'admin', 'supervisor', 'student-preview', 'agent-preview', 'verify', 'directory', 'about', 'contact']
-        const nextView = (validViews.includes(raw) ? raw : 'home') as any
+        const next = routeStateFromLocation(window.location.pathname, window.location.search)
         useAppStore.setState({
-          view: nextView,
+          view: next.view,
           mobileMenuOpen: false,
-          programsFilter: q.get('filter') || null,
-          programDetailsId: nextView === 'program-detail' ? (q.get('programId') || q.get('program') || q.get('slug')) : null,
-          activeProgramId: nextView === 'dashboard' ? (q.get('programId') || q.get('program') || null) : null,
-          activeUnitId: nextView === 'unit' ? (q.get('unitId') || null) : null,
-          activeExamId: nextView === 'exam' ? (q.get('examId') || null) : null,
-          activeExamKind: q.get('kind') === 'final' ? 'final' : 'unit',
-          studentPreviewId: nextView === 'student-preview' ? (q.get('studentId') || null) : null,
-          agentPreviewId: nextView === 'agent-preview' ? (q.get('agentId') || null) : null,
+          programsFilter: next.programsFilter || null,
+          programDetailsId: next.programDetailsId || null,
+          activeProgramId: next.activeProgramId || null,
+          activeUnitId: next.activeUnitId || null,
+          activeExamId: next.activeExamId || null,
+          activeExamKind: next.activeExamKind || 'unit',
+          studentPreviewId: next.studentPreviewId || null,
+          agentPreviewId: next.agentPreviewId || null,
         })
       } catch {}
     }
