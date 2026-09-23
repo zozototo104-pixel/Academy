@@ -21,11 +21,15 @@ export async function GET() {
     select: { id: true, slug: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
   })
   return NextResponse.json({
-    programs: programs.map((p) => ({
-      ...p,
-      rules: resolveRules(p.category, p.admissionRules),
-      custom: !!p.admissionRules,
-    })),
+    programs: programs.map((p) => {
+      const flow = getServiceFlow(p.slug)
+      const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
+      return {
+        ...p,
+        rules: resolveRules(p.category, p.admissionRules, isStudyProgram),
+        custom: !!p.admissionRules,
+      }
+    }),
   })
 }
 
