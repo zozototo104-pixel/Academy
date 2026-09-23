@@ -1177,6 +1177,7 @@ export function DashboardView() {
                 </div>
                 <Button size="sm" onClick={() => setDashboardTab('payments')} className="mt-3 w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">فتح الدفعات</Button>
                 <Button size="sm" variant="outline" onClick={() => setDashboardTab('deliverables')} className="mt-2 w-full border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">فتح المخرجات</Button>
+                <Button size="sm" variant="outline" onClick={() => navigate('apply')} className="mt-2 w-full border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تقديم خدمة أو برنامج جديد</Button>
               </CardContent>
             </Card>
           ) : (
