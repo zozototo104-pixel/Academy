@@ -114,7 +114,7 @@ export async function GET() {
             status: admission.status,
             approvedAt: admission.approvedAt,
             thesisDeadline: admission.thesisDeadline,
-            supervisorName: admission.supervisor?.name || null,
+            supervisorName: (admission as any).supervisor?.name || null,
           }
         : null,
     })
