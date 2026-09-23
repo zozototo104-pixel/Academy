@@ -526,7 +526,7 @@ export function DashboardView() {
           <div className="rounded-3xl border border-[#0f2b46]/10 bg-white p-5">
             <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Banknote className="h-5 w-5 text-[#c9a227]" /> حالة الطلبات والدفع</h3>
             <div className="mt-3 space-y-2 text-xs font-bold leading-6 text-slate-600">
-              <p><b>آخر طلب:</b> {studentSummary.summary.latestAdmission ? `${studentSummary.summary.latestAdmission.requestType === 'SERVICE' ? 'خدمة' : 'دراسة'} · ${studentSummary.summary.latestAdmission.reference || '-'} · ${studentSummary.summary.latestAdmission.status}` : 'لا يوجد طلب حديث'}</p>
+              <p><b>آخر طلب:</b> {studentSummary.summary.latestAdmission ? `${studentSummary.summary.latestAdmission.requestType === 'SERVICE' ? 'خدمة' : 'دراسة'} · ${studentSummary.summary.latestAdmission.reference || '-'} · ${studentStatusLabel(studentSummary.summary.latestAdmission.status)}` : 'لا يوجد طلب حديث'}</p>
               <p><b>الدفع:</b> {studentSummary.summary.unpaidPayments ? `يوجد ${studentSummary.summary.unpaidPayments} دفعة تحتاج متابعة` : 'لا توجد دفعات معلقة'}</p>
               <p><b>التسجيل الدراسي:</b> {studentSummary.summary.activeEnrollment ? `مسجل في ${studentSummary.summary.activeEnrollment.program?.titleAr || 'برنامج'}` : 'لا يوجد تسجيل دراسي نشط'}</p>
             </div>
