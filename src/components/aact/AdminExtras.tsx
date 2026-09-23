@@ -955,7 +955,17 @@ export function AdminCertificatesTab() {
   )
 }
 
-// ============ إدارة الرسوم (بدون كود) ============
+// ============ إدارة الرسوم ومدراء النظام (بدون كود) ============
+
+interface SystemAdminAccount {
+  id: string
+  name: string
+  email: string
+  role: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
 
 export function AdminSettingsTab() {
   const { toast } = useToast()
