@@ -910,6 +910,55 @@ export function AdminSystemTab() {
               </Button>
             </div>
           </div>
+          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-[#0f2b46]">النسخ الاحتياطي الدوري</h4>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">
+                  نسخة JSONL مضغوطة يومياً عبر Vercel Cron، ومحفوظة في R2/S3 عند ضبط التخزين الخارجي. النسخ اليدوي قد يستغرق دقيقة حسب حجم البيانات.
+                </p>
+              </div>
+              <Button onClick={runBackup} disabled={backupBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                {backupBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="ml-2 h-4 w-4" />}
+                تشغيل نسخة الآن
+              </Button>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                <p className="text-[10px] font-bold text-slate-500">سر التشغيل</p>
+                <Badge className={backupStatus?.configured.secretConfigured ? 'mt-1 bg-emerald-100 text-emerald-700' : 'mt-1 bg-red-100 text-red-700'}>{backupStatus?.configured.secretConfigured ? 'مضبوط' : 'غير مضبوط'}</Badge>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                <p className="text-[10px] font-bold text-slate-500">التخزين الخارجي</p>
+                <Badge className={backupStatus?.configured.storageConfigured ? 'mt-1 bg-emerald-100 text-emerald-700' : 'mt-1 bg-amber-100 text-amber-700'}>{backupStatus?.configured.storageConfigured ? 'R2/S3' : backupStatus?.configured.localFallbackAllowed ? 'محلي مؤقت' : 'غير مضبوط'}</Badge>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                <p className="text-[10px] font-bold text-slate-500">الجداول</p>
+                <p className="mt-1 font-black text-[#0f2b46]">{backupStatus?.configured.tableCount || 0}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                <p className="text-[10px] font-bold text-slate-500">الجلسات</p>
+                <Badge className={backupStatus?.configured.includeSessions ? 'mt-1 bg-amber-100 text-amber-700' : 'mt-1 bg-slate-200 text-slate-600'}>{backupStatus?.configured.includeSessions ? 'مضمنة' : 'مستبعدة افتراضياً'}</Badge>
+              </div>
+            </div>
+            {lastBackup && (
+              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800">
+                آخر نسخة الآن: {lastBackup.fileName} · {(lastBackup.storage.size / 1024 / 1024).toFixed(2)} MB · SHA256: <span className="font-mono" dir="ltr">{lastBackup.checksum.sha256.slice(0, 16)}…</span>
+              </div>
+            )}
+            {!!backupStatus?.recent?.length && (
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-100">
+                {backupStatus.recent.slice(0, 5).map((b) => (
+                  <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-50 px-3 py-2 text-[10px] font-bold text-slate-500 last:border-0">
+                    <span className={b.action === 'DB_BACKUP_SUCCESS' ? 'text-emerald-700' : b.action === 'DB_BACKUP_PARTIAL' ? 'text-amber-700' : 'text-red-700'}>{b.action}</span>
+                    <span dir="ltr" className="font-mono">{b.entityId || '—'}</span>
+                    <span>{new Date(b.createdAt).toLocaleString('ar-EG')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(data.launchReadiness || []).map((item) => (
               <div key={item.id} className={`rounded-2xl border p-4 ${item.status === 'ok' ? 'border-emerald-100 bg-emerald-50' : item.status === 'error' ? 'border-red-100 bg-red-50' : 'border-amber-100 bg-amber-50'}`}>
