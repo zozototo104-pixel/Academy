@@ -991,6 +991,7 @@ export function AdminSettingsTab() {
   }
 
   useEffect(() => {
+    loadSystemAdmins()
     api<{ values: any; defs?: any[] }>('/api/settings')
       .then((d) => {
         setValues(d.values)
