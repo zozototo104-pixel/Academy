@@ -1095,16 +1095,16 @@ export function AdminAuditTab() {
           <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
             <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
           </h3>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <div className="mt-3 grid gap-2 md:grid-cols-4">
             <Input
               value={filters.search}
-              onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, search: e.target.value })); setAuditPage(1) }}
               placeholder="بحث باسم المنفذ أو تفاصيل العملية"
               className="text-xs font-bold"
             />
             <select
               value={filters.action}
-              onChange={(e) => setFilters((prev) => ({ ...prev, action: e.target.value }))}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, action: e.target.value })); setAuditPage(1) }}
               className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
             >
               <option value="ALL">كل العمليات</option>
@@ -1112,11 +1112,20 @@ export function AdminAuditTab() {
             </select>
             <select
               value={filters.entity}
-              onChange={(e) => setFilters((prev) => ({ ...prev, entity: e.target.value }))}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, entity: e.target.value })); setAuditPage(1) }}
               className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
             >
               <option value="ALL">كل الكيانات</option>
               {entityOptions.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <select
+              value={String(auditPageSize)}
+              onChange={(e) => { setAuditPageSize(Number(e.target.value)); setAuditPage(1) }}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="25">عرض 25</option>
+              <option value="50">عرض 50</option>
+              <option value="100">عرض 100</option>
             </select>
           </div>
           <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {filteredLogs.length} من {logs.length} إجراء</p>
