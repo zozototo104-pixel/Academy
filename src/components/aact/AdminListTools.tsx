@@ -52,7 +52,7 @@ interface AdminListToolbarProps {
   total: number
   filtered: number
   label?: string
-  extra?: React.ReactNode
+  extra?: ReactNode
 }
 
 export function AdminListToolbar({
