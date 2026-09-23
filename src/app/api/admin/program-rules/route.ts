@@ -26,7 +26,9 @@ export async function GET() {
       const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
       return {
         ...p,
-        rules: resolveRules(p.category, p.admissionRules, isStudyProgram),
+        rules: p.admissionRules
+          ? resolveRules(p.category, p.admissionRules, isStudyProgram)
+          : (buildServiceAdmissionDefaults(flow) || resolveRules(p.category, p.admissionRules, isStudyProgram)),
         custom: !!p.admissionRules,
       }
     }),
