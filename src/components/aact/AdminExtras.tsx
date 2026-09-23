@@ -716,12 +716,9 @@ export function AdminFinanceTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
-  const filteredPayments = payments.filter((p) => {
-    const statusOk = paymentStatusFilter === 'ALL' || p.status === paymentStatusFilter || p.purpose === paymentStatusFilter
-    return statusOk && matchesAdminSearch(paymentSearch, [p.invoiceNo, p.description, p.purpose, p.status, p.method, p.receiptNo, p.payerName, p.payerCountry, p.admission?.reference, p.admission?.fullName, p.admission?.program])
-  })
-  const pagedPayments = pageItems(filteredPayments, paymentPage, paymentPageSize)
-  const currentPaymentPage = safePage(filteredPayments.length, paymentPageSize, paymentPage)
+  const filteredPayments = payments
+  const pagedPayments = payments
+  const currentPaymentPage = paymentPage
 
   const PURPOSE_L: Record<string, string> = {
     APPLICATION_FEE: 'رسوم تقديم', TUITION: 'رسوم دراسية', ACCREDITATION_APP: 'تقديم اعتماد', ACCREDITATION_FEE: 'رسوم تقديم اعتماد', ACCREDITATION: 'اعتماد', SERVICE_FEE: 'رسوم خدمة', OTHER: 'أخرى',
