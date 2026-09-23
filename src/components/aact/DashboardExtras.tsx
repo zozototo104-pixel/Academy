@@ -426,10 +426,68 @@ export function TranscriptTab() {
     <Card className="border-[#0f2b46]/10 bg-white">
       <CardContent className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div><h3 className="text-lg font-black text-[#0f2b46]">السجل الأكاديمي</h3><p className="text-xs text-slate-500">{data?.student?.name || 'الطالب'}</p></div>
-          <ScrollText className="h-7 w-7 text-[#c9a227]" />
+          <div>
+            <h3 className="text-lg font-black text-[#0f2b46]">السجل الأكاديمي</h3>
+            <p className="text-xs text-slate-500">{data?.student?.name || 'الطالب'}{data?.student?.reference ? ` — ${data.student.reference}` : ''}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{data?.summary?.programsCount || data?.programs?.length || 0} برنامج</Badge>
+            <ScrollText className="h-7 w-7 text-[#c9a227]" />
+          </div>
         </div>
-        {!data?.programs?.length ? <p className="p-8 text-center text-sm text-slate-400">لا توجد برامج مكتملة في السجل بعد</p> : <div className="mt-4 grid gap-3">{data.programs.map((p, i) => <div key={p.id || i} className="rounded-xl bg-slate-50 p-3"><p className="font-black text-[#0f2b46]">{p.title || p.programTitle || 'برنامج'}</p><p className="text-xs text-slate-500">المعدل/الدرجة: {p.average || p.grade || '—'}</p></div>)}</div>}
+        {!data?.programs?.length ? (
+          <p className="p-8 text-center text-sm text-slate-400">لا توجد برامج مكتملة في السجل بعد</p>
+        ) : (
+          <div className="mt-4 grid gap-4">
+            {data.programs.map((p, i) => {
+              const gradebook = p.gradebook
+              return (
+                <div key={p.enrollmentId || p.id || i} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black text-[#0f2b46]">{p.title || p.programTitle || 'برنامج'}</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">الحالة: {p.status || '—'}{p.certificateNo ? ` — شهادة ${p.certificateNo}` : ''}</p>
+                    </div>
+                    <Badge className={gradebook?.score != null ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                      الدرجة النهائية: {gradebook?.score != null ? `${gradebook.score}%` : p.finalScore != null ? `${p.finalScore}%` : 'قيد الاكتمال'}
+                    </Badge>
+                  </div>
+                  {gradebook?.components?.length ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {gradebook.components.map((c) => (
+                        <div key={c.key} className="rounded-xl bg-white p-3 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-black text-[#0f2b46]">{c.label}</p>
+                            <span className="font-black text-[#a8841a]">{c.weight}%</span>
+                          </div>
+                          <p className="mt-1 font-bold text-slate-500">الدرجة: {c.score != null ? `${c.score}%` : 'غير مكتملة'} — المحتسب: {c.ready ? `${c.weighted}%` : '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {gradebook?.missing?.length ? (
+                    <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+                      عناصر لم تكتمل بعد: {gradebook.missing.join('، ')}
+                    </div>
+                  ) : null}
+                  {!!p.rows?.length && (
+                    <div className="mt-3 rounded-xl bg-white p-3">
+                      <p className="mb-2 text-[11px] font-black text-slate-500">تفاصيل التقييمات المسجلة</p>
+                      <div className="grid gap-1 text-[11px] font-bold text-slate-500">
+                        {p.rows.slice(0, 8).map((r: any, idx: number) => (
+                          <div key={`${r.kind}-${idx}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+                            <span>{r.title}</span>
+                            <span className={r.passed ? 'text-emerald-700' : 'text-slate-400'}>{r.bestScore != null ? `${r.bestScore}%` : '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
