@@ -749,6 +749,7 @@ function computeRuleScore(args: {
   fileCount: number
   docTextFound: boolean
 }): { score: number; verdict: Verdict } {
+  if (args.requiredTotal === 0) return { score: 85, verdict: 'RECOMMEND_APPROVE' }
   if (args.fileCount === 0) return { score: 0, verdict: 'INSUFFICIENT_DATA' }
 
   const missing = args.checklist.filter((c) => c.status === 'MISSING').length
