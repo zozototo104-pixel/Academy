@@ -832,7 +832,7 @@ export function ApplyView() {
 
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">
                     <div className="flex items-center justify-between gap-2 border-b border-[#c9a227]/30 bg-[#f7edd0]/50 px-4 py-2.5">
-                      <h3 className="text-sm font-black text-[#0f2b46]">2. {isServiceRequest ? 'إرفاق ملفات داعمة للخدمة عند الحاجة' : 'إرفاق الوثائق الرسمية المطلوبة'}</h3>
+                      <h3 className="text-sm font-black text-[#0f2b46]">2. {isServiceRequest ? (requiredDocs.length ? 'إرفاق مرفقات الخدمة المطلوبة' : 'إرفاق ملفات داعمة للخدمة عند الحاجة') : 'إرفاق الوثائق الرسمية المطلوبة'}</h3>
                       <Badge className={allDocsUploaded ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
                         {activeDocs.filter((d) => files[d.type]).length} / {activeDocs.length} {isServiceRequest ? (requiredDocs.length ? 'مطلوب' : 'اختياري') : ''}
                       </Badge>
