@@ -616,6 +616,25 @@ export function AdminView() {
   }, [user])
 
   useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    let cancelled = false
+    setStudentsLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: studentStatusFilter })
+      if (studentSearch.trim()) params.set('search', studentSearch.trim())
+      api<{ students: unknown[]; total: number }>(`/api/admin/students?${params.toString()}`)
+        .then((st) => {
+          if (cancelled) return
+          setStudents((Array.isArray(st.students) ? st.students : []).map(normalizeStudentRow))
+          setStudentTotal(Number(st.total || 0))
+        })
+        .catch(() => { if (!cancelled) { setStudents([]); setStudentTotal(0) } })
+        .finally(() => { if (!cancelled) setStudentsLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [user, studentSearch, studentStatusFilter, studentPage, studentPageSize])
+
+  useEffect(() => {
     if (activeTab !== 'admissions' || !highlightAdmissionId) return
     const t = setTimeout(() => {
       const el = document.getElementById(`admission-${highlightAdmissionId}`)
