@@ -663,6 +663,10 @@ main,
 
 /* ===== طباعة الشهادة أو السجل الأكاديمي: إظهار الوثيقة المستهدفة فقط ===== */
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
   body * {
     visibility: hidden !important;
   }
