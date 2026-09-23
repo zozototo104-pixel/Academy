@@ -10,6 +10,7 @@ import { notify } from '@/lib/notify'
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     const { invoiceNo, method } = await req.json()
     if (!invoiceNo || !method) {
       return NextResponse.json({ error: 'رقم الفاتورة وطريقة الدفع مطلوبان' }, { status: 400 })
