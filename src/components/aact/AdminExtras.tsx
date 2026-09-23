@@ -919,14 +919,28 @@ export function AdminCertificatesTab() {
   const [certSearch, setCertSearch] = useState('')
   const [certPage, setCertPage] = useState(1)
   const [certPageSize, setCertPageSize] = useState(25)
+  const [certTotal, setCertTotal] = useState(0)
+  const [certRefresh, setCertRefresh] = useState(0)
 
-  const load = () => {
-    api<{ certificates: CertificateData[] }>('/api/admin/certificates')
-      .then((d) => setCerts(d.certificates))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  const load = () => setCertRefresh((v) => v + 1)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(certPage), pageSize: String(certPageSize) })
+      if (certSearch.trim()) params.set('search', certSearch.trim())
+      api<{ certificates: CertificateData[]; total: number }>(`/api/admin/certificates?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setCerts(Array.isArray(d.certificates) ? d.certificates : [])
+          setCertTotal(Number(d.total || 0))
+        })
+        .catch(() => { if (!cancelled) setCerts([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [certSearch, certPage, certPageSize, certRefresh])
 
   const issue = async () => {
     setBusy(true)
