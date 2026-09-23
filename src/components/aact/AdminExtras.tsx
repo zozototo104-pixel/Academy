@@ -1222,6 +1222,8 @@ const ACTION_L: Record<string, string> = {
   PAYMENT_RECEIVED: 'استلام دفعة', CONFIRM_PAYMENT: 'تأكيد دفعة يدوياً',
   SCHEDULE_DEFENSE: 'جدولة مناقشة', APPROVE_RESULT: 'اعتماد نتيجة',
   SUBMIT_THESIS: 'تسليم بحث', UPDATE_SETTINGS: 'تحديث الرسوم/الإعدادات',
+  CREATE_ADMIN_ACCOUNT: 'إنشاء حساب إدارة', UPDATE_ADMIN_ACCOUNT: 'تحديث حساب إدارة',
+  DISABLE_ADMIN_ACCOUNT: 'تعطيل حساب إدارة',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
   RESOLVE_MESSAGE: 'معالجة رسالة',
   GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',
