@@ -1559,9 +1559,11 @@ export function AdminView() {
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
-                {recentAttempts.length === 0 ? (
+                {attemptsLoading ? (
+                  <div className="flex h-32 items-center justify-center gap-2 p-10 text-center text-sm text-slate-400"><Loader2 className="h-5 w-5 animate-spin text-[#c9a227]" /> جاري تحميل نتائج الامتحانات...</div>
+                ) : attemptTotal === 0 && !attemptSearch && attemptStatusFilter === 'ALL' ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد محاولات امتحانات بعد</div>
-                ) : filteredAttempts.length === 0 ? (
+                ) : recentAttempts.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد محاولات مطابقة للبحث أو الفلتر الحالي.</div>
                 ) : (
                   <table className="w-full text-right text-xs sm:text-sm">
