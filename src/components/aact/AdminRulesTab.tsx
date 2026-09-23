@@ -85,7 +85,9 @@ const CAT_AR: Record<string, string> = {
   DOCTORATE: 'دكتوراة',
   MASTERS: 'ماجستير',
   DIPLOMA: 'دبلوم',
+  INTL_CERT: 'شهادة دولية',
   ACCREDITATION: 'اعتماد',
+  SERVICE: 'خدمة عابرة',
 }
 
 function listToText(list?: string[]) {
