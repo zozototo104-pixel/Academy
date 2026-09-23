@@ -596,11 +596,6 @@ export function AdminView() {
       .catch((e: any) => toast({ title: 'تعذر تحميل مؤشرات الإدارة', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
 
-    void api<{ applications: AgentApp[] }>('/api/admin/applications')
-      .then((a) => setApps(Array.isArray(a.applications) ? a.applications : []))
-      .catch(() => setApps([]))
-      .finally(() => setAppsLoading(false))
-
     await statsPromise
   }
 
