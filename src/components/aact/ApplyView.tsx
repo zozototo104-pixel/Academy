@@ -819,7 +819,7 @@ export function ApplyView() {
 
                   {selectedRules && (selectedRules.displayNote || selectedRules.customRules || selectedRules.minEducation || selectedRules.minAge || selectedRules.minYearsExperience) && (
                     <section className="rounded-xl border border-[#c9a227]/50 bg-[#f7edd0]/60 p-4">
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#a8841a]"><Sparkles className="h-4 w-4" /> شروط خاصة بالبرنامج المختار</p>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#a8841a]"><Sparkles className="h-4 w-4" /> {isServiceRequest ? 'متطلبات خاصة بالخدمة المختارة' : 'شروط خاصة بالبرنامج المختار'}</p>
                       <ul className="space-y-1 text-[11px] leading-relaxed text-[#0f2b46]">
                         {selectedRules.minEducation && <li>الحد الأدنى للمؤهل: {EDU_MIN_AR[selectedRules.minEducation] || selectedRules.minEducation}</li>}
                         {selectedRules.minAge && <li>الحد الأدنى للعمر: {selectedRules.minAge} سنة</li>}
