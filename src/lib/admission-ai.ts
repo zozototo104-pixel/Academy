@@ -4,6 +4,7 @@ import { readDocumentImage, DOC_TYPE_AR, inferMimeFromFileName, isVisualFile, ty
 import { extractDocumentText, type ExtractedDocumentText } from '@/lib/document-extract'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { getServiceFlow } from '@/lib/service-flows'
 
 // ===== قواعد القبول المخصصة لكل برنامج (تضبطها الإدارة من لوحة الإدارة) =====
 export interface AdmissionRules {
