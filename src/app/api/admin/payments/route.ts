@@ -15,25 +15,25 @@ export async function GET(req: NextRequest) {
     const status = cleanAdminQuery(sp.get('status'))
     const method = cleanAdminQuery(sp.get('method'))
 
-    const where: any = {
-      ...(status && status !== 'ALL' ? { status } : {}),
-      ...(method && method !== 'ALL' ? { OR: [{ method }, { provider: method }] } : {}),
-      ...(search
-        ? {
-            OR: [
-              { invoiceNo: { contains: search, mode: 'insensitive' } },
-              { receiptNo: { contains: search, mode: 'insensitive' } },
-              { description: { contains: search, mode: 'insensitive' } },
-              { payerName: { contains: search, mode: 'insensitive' } },
-              { payerEmail: { contains: search, mode: 'insensitive' } },
-              { cryptoTxHash: { contains: search, mode: 'insensitive' } },
-              { admission: { reference: { contains: search, mode: 'insensitive' } } },
-              { admission: { fullName: { contains: search, mode: 'insensitive' } } },
-              { admission: { program: { contains: search, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
+    const andFilters: any[] = []
+    if (status && status !== 'ALL') andFilters.push({ status })
+    if (method && method !== 'ALL') andFilters.push({ OR: [{ method }, { provider: method }] })
+    if (search) {
+      andFilters.push({
+        OR: [
+          { invoiceNo: { contains: search, mode: 'insensitive' } },
+          { receiptNo: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { payerName: { contains: search, mode: 'insensitive' } },
+          { payerEmail: { contains: search, mode: 'insensitive' } },
+          { cryptoTxHash: { contains: search, mode: 'insensitive' } },
+          { admission: { reference: { contains: search, mode: 'insensitive' } } },
+          { admission: { fullName: { contains: search, mode: 'insensitive' } } },
+          { admission: { program: { contains: search, mode: 'insensitive' } } },
+        ],
+      })
     }
+    const where: any = andFilters.length ? { AND: andFilters } : {}
 
     const [payments, total, paidCount, paidSum, unpaidSum] = await Promise.all([
       db.payment.findMany({
