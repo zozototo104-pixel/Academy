@@ -40,8 +40,11 @@ export async function PATCH(req: NextRequest) {
     const payment = await db.payment.findUnique({ where: { id } })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
+    if (payment.method === 'USDT' && payment.cryptoVerificationStatus !== 'VERIFIED') {
+      return NextResponse.json({ error: 'لا يمكن تأكيد دفع USDT قبل إدخال TX Hash والتحقق الآلي منه بنجاح.' }, { status: 400 })
+    }
 
-    const confirmMethod = payment.method === 'DIRECT_PAYMENT' ? 'DIRECT_PAYMENT' : 'BANK_TRANSFER'
+    const confirmMethod = payment.method === 'DIRECT_PAYMENT' ? 'DIRECT_PAYMENT' : payment.method === 'USDT' ? 'USDT' : 'BANK_TRANSFER'
     const r = await markInvoicePaid(payment.invoiceNo, confirmMethod, {
       actor: { id: admin.id, name: admin.name },
     })
