@@ -51,8 +51,10 @@ export async function markInvoicePaid(
         if (matchedUser?.role === 'STUDENT') {
           linkedUserId = matchedUser.id
           await db.admissionApplication.update({ where: { id: app.id }, data: { userId: linkedUserId } }).catch(() => {})
-          await db.payment.updateMany({ where: { admissionId: app.id, OR: [{ userId: null }, { NOT: { userId: linkedUserId } }] }, data: { userId: linkedUserId } }).catch(() => {})
         }
+      }
+      if (linkedUserId) {
+        await db.payment.updateMany({ where: { admissionId: app.id, OR: [{ userId: null }, { NOT: { userId: linkedUserId } }] }, data: { userId: linkedUserId } }).catch(() => {})
       }
 
       const all = await db.payment.findMany({ where: { admissionId: app.id } })
