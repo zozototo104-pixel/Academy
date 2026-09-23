@@ -798,7 +798,8 @@ function runRules(app: {
   let docTextFound = false
   let requiredFound = 0
 
-  const reqDocs = rules.requiredDocuments || DEFAULT_REQUIRED_DOCS
+  const reqDocs = Array.isArray(rules.requiredDocuments) ? rules.requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const isServiceRules = app.programCategory === 'SERVICE' || rules.minEducation === 'NONE'
   const fileGroups = new Map<string, AdmissionFileEvidence[]>()
   for (const f of app.files) {
     const key = fileIdentityKey(f)
