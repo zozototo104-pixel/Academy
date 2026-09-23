@@ -449,8 +449,16 @@ export function PaymentsTab() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-lg font-black text-[#0f2b46]"><Money value={p.amount} /></span>
-                  <Button asChild size="sm" variant="outline" className="border-[#c9a227]/40 font-bold text-[#a8841a]">
-                    <a href={`/pdf/invoices/${encodeURIComponent(p.id)}?print=1`} target="_blank" rel="noreferrer"><FileText className="ml-1 h-3.5 w-3.5" /> PDF</a>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pdfBusy === p.id}
+                    onClick={() => openInvoicePdf(p)}
+                    className="border-[#c9a227]/40 font-bold text-[#a8841a]"
+                  >
+                    {pdfBusy === p.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <FileText className="ml-1 h-3.5 w-3.5" />}
+                    PDF
                   </Button>
                   {p.status === 'UNPAID' ? <Button size="sm" onClick={() => openPaymentDialog(p)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"><CreditCard className="ml-1 h-3.5 w-3.5" /> ادفع الآن</Button> : <Button size="sm" variant="outline" onClick={() => setReceipt({ payment: p })} className="border-emerald-200 font-bold text-emerald-700"><ReceiptText className="ml-1 h-3.5 w-3.5" /> الإيصال</Button>}
                 </div>
