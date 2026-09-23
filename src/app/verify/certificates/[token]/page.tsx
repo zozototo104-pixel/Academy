@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
 import { buildCertificateCredential, certificateCredentialUrl, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
