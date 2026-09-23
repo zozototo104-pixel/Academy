@@ -1256,6 +1256,7 @@ export function AdminMessagesTab() {
           </Card>
         ))
       )}
+      <AdminPager page={currentMsgPage} pageSize={msgPageSize} total={filteredMsgs.length} onPageChange={setMsgPage} label="رسالة" />
     </div>
   )
 }
