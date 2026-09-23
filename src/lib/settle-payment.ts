@@ -41,6 +41,19 @@ export async function markInvoicePaid(
   if (payment.admissionId) {
     const app = await db.admissionApplication.findUnique({ where: { id: payment.admissionId } })
     if (app) {
+      let linkedUserId = app.userId
+      if (!linkedUserId && app.email) {
+        const matchedUser = await db.user.findUnique({
+          where: { email: app.email.trim().toLowerCase() },
+          select: { id: true, role: true },
+        }).catch(() => null)
+        if (matchedUser?.role === 'STUDENT') {
+          linkedUserId = matchedUser.id
+          await db.admissionApplication.update({ where: { id: app.id }, data: { userId: linkedUserId } }).catch(() => {})
+          await db.payment.updateMany({ where: { admissionId: app.id, userId: null }, data: { userId: linkedUserId } }).catch(() => {})
+        }
+      }
+
       const all = await db.payment.findMany({ where: { admissionId: app.id } })
       const allPaid = all.every((p) => p.status === 'PAID')
       const feePaid = all.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
