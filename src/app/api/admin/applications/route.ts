@@ -14,12 +14,40 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 }
 
 // GET /api/admin/applications — قائمة طلبات الوكالة والاعتماد
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
+    const sp = req.nextUrl.searchParams
+    const { page, pageSize, skip, take } = parseAdminPagination(sp, { pageSize: 10, maxPageSize: 100 })
+    const search = cleanAdminQuery(sp.get('search'))
+    const status = cleanAdminQuery(sp.get('status'))
+    const kind = cleanAdminQuery(sp.get('kind'))
+    const andFilters: any[] = []
+    if (status && status !== 'ALL') {
+      if (status === 'ACTIVE') andFilters.push({ status: { notIn: ['REJECTED', 'REVOKED'] } })
+      else andFilters.push({ status })
+    }
+    if (kind && kind !== 'ALL') andFilters.push({ kind })
+    if (search) {
+      andFilters.push({
+        OR: [
+          { orgName: { contains: search, mode: 'insensitive' } },
+          { repName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { country: { contains: search, mode: 'insensitive' } },
+          { territory: { contains: search, mode: 'insensitive' } },
+          { contractNo: { contains: search, mode: 'insensitive' } },
+        ],
+      })
+    }
+    const where: any = andFilters.length ? { AND: andFilters } : {}
+
     const applications = await db.agentApplication.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      skip,
+      take,
       include: {
         user: { select: { id: true, name: true, email: true, role: true } },
         revenueShares: { orderBy: { createdAt: 'desc' }, take: 20 },
