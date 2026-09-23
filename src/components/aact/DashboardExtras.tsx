@@ -589,8 +589,10 @@ interface TranscriptData {
 }
 
 export function TranscriptTab() {
+  const { toast } = useToast()
   const [data, setData] = useState<TranscriptData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   useEffect(() => {
     api<TranscriptData>('/api/transcript').then((d) => setData(d)).catch(() => setData(null)).finally(() => setLoading(false))
   }, [])
