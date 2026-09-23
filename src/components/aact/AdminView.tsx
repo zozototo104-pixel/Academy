@@ -656,13 +656,9 @@ export function AdminView() {
   const pagedAdmissionRows = pageItems(filteredAdmissionRows, admissionPage, admissionPageSize)
   const currentAdmissionPage = safePage(filteredAdmissionRows.length, admissionPageSize, admissionPage)
 
-  const filteredStudents = useMemo(() => academicStudents.filter((s) => {
-    const enrollments = s.enrollments || []
-    const statusOk = studentStatusFilter === 'ALL' || enrollments.some((e) => e.status === studentStatusFilter) || s.latestAdmission?.status === studentStatusFilter
-    return statusOk && matchesAdminSearch(studentSearch, [s.name, s.email, s.country, s.latestAdmission?.reference, s.latestAdmission?.program, ...enrollments.map((e) => e.program)])
-  }), [academicStudents, studentSearch, studentStatusFilter])
-  const pagedStudents = pageItems(filteredStudents, studentPage, studentPageSize)
-  const currentStudentPage = safePage(filteredStudents.length, studentPageSize, studentPage)
+  const filteredStudents = academicStudents
+  const pagedStudents = academicStudents
+  const currentStudentPage = studentPage
 
   const recentAttempts = data?.recentAttempts || []
   const filteredAttempts = useMemo(() => recentAttempts.filter((a) => {
