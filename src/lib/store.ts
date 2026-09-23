@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { pathForView } from './app-routes'
 
 export type View =
   | 'home'
