@@ -1595,8 +1595,8 @@ export function AdminView() {
                 ]}
                 pageSize={studentPageSize}
                 onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}
-                total={academicStudents.length}
-                filtered={filteredStudents.length}
+                total={studentTotal}
+                filtered={studentTotal}
                 label="طالب"
               />
             )}
