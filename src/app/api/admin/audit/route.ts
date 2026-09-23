@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
         ? {
             OR: [
               { actorName: { contains: search, mode: 'insensitive' } },
-              { actorEmail: { contains: search, mode: 'insensitive' } },
               { action: { contains: search, mode: 'insensitive' } },
               { entity: { contains: search, mode: 'insensitive' } },
               { details: { contains: search, mode: 'insensitive' } },
