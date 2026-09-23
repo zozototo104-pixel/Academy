@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import {
   BookMarked, Loader2, Plus, Sparkles, Trash2, FileText, Bot,
   Hourglass, RefreshCw, Upload, CheckCircle2, AlertTriangle, XCircle, ClipboardList,
-  Layers, FileCheck2, Link2, StopCircle,
+  Layers, FileCheck2, Link2, StopCircle, Info,
 } from 'lucide-react'
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 
