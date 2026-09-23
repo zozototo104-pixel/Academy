@@ -870,6 +870,32 @@ export function AdminView() {
         {/* Study admissions + transient service requests. نفس قالب البطاقة، لكن كل مسار في تبويب منفصل. */}
         <TabsContent value={activeTab === 'service-requests' ? 'service-requests' : 'admissions'}>
           <div className="mt-4 space-y-4">
+            {!admissionsLoading && (
+              <AdminListToolbar
+                search={admissionSearch}
+                onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
+                searchPlaceholder={activeTab === 'service-requests' ? 'ابحث في الخدمات بالاسم أو الكود أو البريد...' : 'ابحث في طلبات الالتحاق بالاسم أو الكود أو البرنامج...'}
+                status={admissionStatusFilter}
+                onStatusChange={(v) => { setAdmissionStatusFilter(v); setAdmissionPage(1) }}
+                statusOptions={[
+                  { value: 'ACTIVE', label: 'النشطة فقط' },
+                  { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
+                  { value: 'PENDING', label: 'تم التقديم' },
+                  { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
+                  { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
+                  { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
+                  { value: 'RESULT_APPROVED', label: 'نتيجة/خدمة معتمدة' },
+                  { value: 'CERTIFIED', label: 'مكتمل/شهادة' },
+                  { value: 'REJECTED', label: 'مرفوض' },
+                  { value: 'ALL', label: 'كل الحالات' },
+                ]}
+                pageSize={admissionPageSize}
+                onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
+                total={visibleAdmissionRows.length}
+                filtered={filteredAdmissionRows.length}
+                label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
+              />
+            )}
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center">
