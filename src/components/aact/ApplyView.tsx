@@ -95,6 +95,7 @@ const EDUCATION_LABEL: Record<string, string> = {
 }
 
 const EDU_MIN_AR: Record<string, string> = {
+  NONE: 'بلا شرط مؤهل للخدمة',
   HIGH_SCHOOL: 'الثانوية العامة',
   BACHELOR: 'البكالوريوس',
   MASTER: 'الماجستير',
