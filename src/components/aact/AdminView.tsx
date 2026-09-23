@@ -1671,6 +1671,55 @@ export function AdminView() {
         </TabsContent>
       </Tabs>
 
+      <Dialog open={!!paymentConfirmDialog} onOpenChange={(open) => { if (!open) setPaymentConfirmDialog(null) }}>
+        <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto rounded-3xl border-emerald-200 bg-gradient-to-b from-white to-emerald-50 p-0 sm:max-w-lg">
+          {paymentConfirmDialog && (
+            <div>
+              <DialogHeader className="border-b border-emerald-100 bg-[#0f2b46] px-5 py-5 text-right text-white sm:px-6">
+                <DialogTitle className="flex items-center gap-2 text-xl font-black text-white">
+                  <Banknote className="h-5 w-5 text-[#f4d36d]" />
+                  {paymentConfirmDialog.method === 'USDT' ? 'تأكيد دفع USDT' : 'تأكيد استلام الدفع'}
+                </DialogTitle>
+                <DialogDescription className="pt-1 text-xs font-bold leading-6 text-blue-100">
+                  سيتم إصدار إيصال وتحديث إجراءات الطلب تلقائياً بعد التأكيد.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="grid gap-3 rounded-2xl border border-emerald-100 bg-white p-4 text-xs font-bold text-slate-600 shadow-sm sm:grid-cols-2">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-400">رقم الفاتورة</p>
+                    <p className="mt-1 break-all text-sm font-black text-[#0f2b46]">{paymentConfirmDialog.invoiceNo || 'غير محدد'}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-400">المبلغ</p>
+                    <p className="mt-1 text-xl font-black text-emerald-700">{paymentConfirmDialog.amount || 0}$</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-900">
+                  {paymentConfirmDialog.method === 'USDT'
+                    ? paymentConfirmDialog.cryptoVerificationStatus === 'VERIFIED'
+                      ? 'تم التحقق آلياً من التحويل. اضغط التأكيد فقط إذا راجعت العملية وتأكدت من مطابقتها للفاتورة.'
+                      : 'لا تؤكد دفع USDT قبل ظهور حالة التحقق الآلي الناجح. سيمنع النظام التأكيد إذا لم يتحقق التحويل.'
+                    : 'استخدم هذا الزر فقط بعد استلام المبلغ فعلياً عبر الدفع المباشر أو التحويل المتفق عليه.'}
+                </div>
+              </div>
+
+              <DialogFooter className="border-t border-emerald-100 bg-white px-5 py-4 sm:px-6">
+                <Button variant="outline" onClick={() => setPaymentConfirmDialog(null)} disabled={paymentConfirmSubmitting} className="rounded-2xl font-black">
+                  إلغاء
+                </Button>
+                <Button onClick={confirmAdmissionPayment} disabled={paymentConfirmSubmitting} className="rounded-2xl bg-emerald-600 font-black text-white hover:bg-emerald-700">
+                  {paymentConfirmSubmitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                  تأكيد وإصدار الإيصال
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!tuitionAppealDialog} onOpenChange={(open) => { if (!open) setTuitionAppealDialog(null) }}>
         <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto rounded-3xl border-[#c9a227]/25 bg-gradient-to-b from-white to-[#fffaf0] p-0 sm:max-w-2xl">
           {tuitionAppealDialog && (
