@@ -171,6 +171,34 @@ async function assertListControlsDoNotExplode(page: Page, label: string) {
   await assertNoFatalScreen(page, label)
 }
 
+async function chooseFirstVisibleOption(page: Page, label: string) {
+  const option = page.getByRole('option').filter({ hasNotText: /^$/ }).first()
+  await expect(option, `${label}: no selectable option was visible`).toBeVisible({ timeout: 15_000 })
+  await option.click()
+  await page.waitForTimeout(350)
+}
+
+async function selectBooksProgramIfNeeded(page: Page) {
+  const gradingTab = page.getByRole('tab', { name: /مركز التصحيح/ }).first()
+  if (await gradingTab.isVisible({ timeout: 1_500 }).catch(() => false)) return
+
+  await expect(page.getByText(/اختر الدرجة ثم التخصص لإدارة الكتب والاختبارات/)).toBeVisible({ timeout: 15_000 })
+
+  const comboboxes = page.getByRole('combobox')
+  const categoryCombo = comboboxes.nth(0)
+  await expect(categoryCombo, 'Books category selector should be visible').toBeVisible({ timeout: 15_000 })
+  await categoryCombo.click()
+  await chooseFirstVisibleOption(page, 'Books category selector')
+
+  const programCombo = comboboxes.nth(1)
+  await expect(programCombo, 'Books program selector should be visible after choosing a category').toBeVisible({ timeout: 15_000 })
+  await programCombo.click()
+  await chooseFirstVisibleOption(page, 'Books program selector')
+
+  await expect(gradingTab, 'Books workspace tabs should appear after selecting a program').toBeVisible({ timeout: 30_000 })
+  await assertNoFatalScreen(page, 'books program selected')
+}
+
 test.describe('Admin dashboard launch smoke test', () => {
   test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
     const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
