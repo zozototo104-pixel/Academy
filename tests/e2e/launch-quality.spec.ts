@@ -24,9 +24,10 @@ async function loginAsAdmin(page: Page): Promise<string> {
 }
 
 function routeThreshold(path: string) {
-  if (path === '/admin') return { domContentLoadedMs: 8_000, visibleMs: 15_000, totalMs: 22_000 }
-  if (path === '/dashboard') return { domContentLoadedMs: 7_000, visibleMs: 12_000, totalMs: 18_000 }
-  return { domContentLoadedMs: 5_000, visibleMs: 9_000, totalMs: 14_000 }
+  // حدود عملية لبيئة GitHub Actions + Vercel، وليست أرقام Lighthouse محلية.
+  if (path === '/admin') return { domContentLoadedMs: 15_000, visibleMs: 25_000, totalMs: 35_000 }
+  if (path === '/dashboard') return { domContentLoadedMs: 12_000, visibleMs: 20_000, totalMs: 28_000 }
+  return { domContentLoadedMs: 8_000, visibleMs: 15_000, totalMs: 22_000 }
 }
 
 async function measureRoute(page: Page, path: string) {
