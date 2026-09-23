@@ -85,6 +85,24 @@ export function AdminAITab() {
         تُحفظ في ملفه — متاحة لك كمشرف بشري/إدارة لمتابعة تقدمه والتدخل عند الحاجة.
       </div>
 
+      <AdminListToolbar
+        search={chatSearch}
+        onSearchChange={(v) => { setChatSearch(v); setChatPage(1) }}
+        searchPlaceholder="ابحث باسم الطالب أو البريد أو الدولة..."
+        status={chatStatusFilter}
+        onStatusChange={(v) => { setChatStatusFilter(v); setChatPage(1) }}
+        statusOptions={[
+          { value: 'ALL', label: 'كل المحادثات' },
+          { value: 'VOICE', label: 'تتضمن صوت' },
+          { value: 'TEXT', label: 'نصية فقط' },
+        ]}
+        pageSize={chatPageSize}
+        onPageSizeChange={(v) => { setChatPageSize(v); setChatPage(1) }}
+        total={students.length}
+        filtered={filteredStudents.length}
+        label="طالب/محادثة"
+      />
+
       {students.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد محادثات مع المشرف الذكي بعد</CardContent></Card>
       ) : (
