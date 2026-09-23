@@ -485,10 +485,21 @@ export function DashboardView() {
               ) : null}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-4">
-              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات دراسة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.studyRequests || 0}</span></div>
-              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات خدمة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceRequests || 0}</span></div>
-              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
-              <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">مخرجات منشورة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceDeliverables || serviceDeliverables.length}</span></div>
+              {hasStudyIdentity ? (
+                <>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات دراسة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.studyRequests || 0}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">حالة القبول<br /><span className="text-sm text-[#0f2b46]">{studentSummary.summary.latestStudy?.status || studentSummary.summary.latestAdmission?.status || 'قيد المتابعة'}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">التسجيل الدراسي<br /><span className="text-sm text-[#0f2b46]">{hasProgramDashboard ? 'مفعل' : 'بانتظار الاعتماد'}</span></div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات خدمة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceRequests || 0}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">دفعات مطلوبة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.unpaidPayments}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">مخرجات منشورة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.serviceDeliverables || serviceDeliverables.length}</span></div>
+                  <div className="rounded-2xl bg-white p-3 text-center text-xs font-black text-slate-600">طلبات دراسة<br /><span className="text-lg text-[#0f2b46]">{studentSummary.summary.studyRequests || 0}</span></div>
+                </>
+              )}
             </div>
           </div>
           <div className="rounded-3xl border border-[#0f2b46]/10 bg-white p-5">
