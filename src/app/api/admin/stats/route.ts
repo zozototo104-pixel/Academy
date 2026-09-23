@@ -66,6 +66,7 @@ export async function GET() {
         pendingAgents,
         pendingAdmissions,
         pendingServices,
+        paidServicesWaitingDelivery,
         passRate,
       },
       recentAttempts: recentAttempts.map((a) => ({
