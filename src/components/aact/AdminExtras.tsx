@@ -1623,18 +1623,20 @@ export function AdminMessagesTab() {
 
   const mark = async (id: string, handled: boolean) => {
     await api('/api/admin/contact', { method: 'PATCH', body: JSON.stringify({ id, handled }) }).catch(() => {})
-    setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, handled } : m)))
+    setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, handled } : m)).filter((m) => {
+      if (msgStatusFilter === 'OPEN') return !m.handled
+      if (msgStatusFilter === 'HANDLED') return m.handled
+      return true
+    }))
+    if ((msgStatusFilter === 'OPEN' && handled) || (msgStatusFilter === 'HANDLED' && !handled)) {
+      setMsgTotal((prev) => Math.max(0, prev - 1))
+    }
     toast({ title: handled ? 'أُعلّمت كمعالجة' : 'أُعيد فتحها' })
   }
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
-  const filteredMsgs = msgs.filter((m) => {
-    const statusOk = msgStatusFilter === 'ALL' || (msgStatusFilter === 'OPEN' && !m.handled) || (msgStatusFilter === 'HANDLED' && m.handled)
-    return statusOk && matchesAdminSearch(msgSearch, [m.name, m.email, m.phone, m.subject, m.message])
-  })
-  const pagedMsgs = pageItems(filteredMsgs, msgPage, msgPageSize)
-  const currentMsgPage = safePage(filteredMsgs.length, msgPageSize, msgPage)
+  const currentMsgPage = msgPage
 
   return (
     <div className="mt-4 space-y-3">
