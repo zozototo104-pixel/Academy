@@ -33,15 +33,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
 
-    // الدفع المباشر ليس بوابة إلكترونية ولا Sandbox: يسجل طلب دفع يدوي فقط وينتظر تأكيد الإدارة.
-    if (String(method) === 'DIRECT_PAYMENT') {
+    // الطرق اليدوية ليست بوابات إلكترونية ولا Sandbox: تسجل طلب دفع وينتظر تأكيد الإدارة.
+    if (['DIRECT_PAYMENT', 'USDT'].includes(String(method))) {
+      const cfg = await getGatewayConfig()
+      if (String(method) === 'USDT' && !cfg.usdtWalletAddress) {
+        return NextResponse.json({ error: 'USDT غير متاح حالياً لأن عنوان المحفظة غير مضبوط.' }, { status: 400 })
+      }
+      const manualProvider = String(method) === 'USDT' ? 'USDT' : 'DIRECT_PAYMENT'
       await db.payment.update({
         where: { id: payment.id },
         data: {
-          provider: 'DIRECT_PAYMENT',
-          providerRef: `DIRECT-${Date.now()}`,
+          provider: manualProvider,
+          providerRef: `${manualProvider}-${Date.now()}`,
           checkoutUrl: null,
-          method: 'DIRECT_PAYMENT',
+          method: manualProvider,
           userId: payment.userId || user?.id || null,
         },
       })
@@ -50,17 +55,22 @@ export async function POST(req: NextRequest) {
         await notify(
           admin.id,
           'PAYMENT',
-          'طالب اختار الدفع المباشر',
-          `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ بانتظار تأكيد الإدارة بعد استلام المبلغ.`,
+          manualProvider === 'USDT' ? 'طالب اختار الدفع عبر USDT' : 'طالب اختار الدفع المباشر',
+          manualProvider === 'USDT'
+            ? `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ بانتظار وصول USDT على شبكة ${cfg.usdtNetwork || 'TRC20'} وتأكيد الإدارة.`
+            : `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ بانتظار تأكيد الإدارة بعد استلام المبلغ.`,
           'admin'
         ).catch(() => {})
       }
+      const usdtMessage = `تم تسجيل طلب الدفع عبر USDT. أرسل ${payment.amount}$ USDT على شبكة ${cfg.usdtNetwork || 'TRC20'} إلى العنوان: ${cfg.usdtWalletAddress}${cfg.usdtInstructions ? ` — ${cfg.usdtInstructions}` : ''}. ستؤكد الإدارة السداد بعد التحقق من التحويل.`
       return NextResponse.json({
         ok: true,
         mode: 'MANUAL',
-        provider: 'DIRECT_PAYMENT',
+        provider: manualProvider,
         redirectUrl: null,
-        message: 'تم تسجيل طلب الدفع المباشر. تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة السداد من لوحة الإدارة.',
+        walletAddress: manualProvider === 'USDT' ? cfg.usdtWalletAddress : null,
+        network: manualProvider === 'USDT' ? cfg.usdtNetwork : null,
+        message: manualProvider === 'USDT' ? usdtMessage : 'تم تسجيل طلب الدفع المباشر. تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة السداد من لوحة الإدارة.',
       })
     }
 
