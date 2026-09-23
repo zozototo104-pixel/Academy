@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
         _count: { select: { submissions: true } },
         submissions: {
           orderBy: { submittedAt: 'desc' },
-          take: 25,
+          take: 200,
           include: { user: { select: { id: true, name: true, email: true } } },
         },
       },
