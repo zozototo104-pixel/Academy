@@ -39,6 +39,8 @@ interface VerifyResult {
       finalEvaluationFormula?: { label: string; weight: number; description: string }[]
     } | null
     academicRecord?: AcademicRecord | null
+    verificationUrl?: string
+    credentialUrl?: string
   }
   message: string
 }
