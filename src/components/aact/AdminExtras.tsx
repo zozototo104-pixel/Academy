@@ -637,22 +637,34 @@ export function AdminFinanceTab() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL')
   const [paymentPage, setPaymentPage] = useState(1)
   const [paymentPageSize, setPaymentPageSize] = useState(25)
+  const [paymentTotal, setPaymentTotal] = useState(0)
+  const [paymentRefresh, setPaymentRefresh] = useState(0)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
 
-  const load = () => {
-    Promise.all([
-      api<{ payments: PaymentRow[]; totals: any }>('/api/admin/payments'),
-      api<Report>('/api/admin/reports'),
-    ])
-      .then(([p, r]) => {
-        setPayments(p.payments)
-        setTotals(p.totals)
-        setReport(r)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  const load = () => setPaymentRefresh((v) => v + 1)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(paymentPage), pageSize: String(paymentPageSize), status: paymentStatusFilter })
+      if (paymentSearch.trim()) params.set('search', paymentSearch.trim())
+      Promise.all([
+        api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`),
+        api<Report>('/api/admin/reports'),
+      ])
+        .then(([p, r]) => {
+          if (cancelled) return
+          setPayments(Array.isArray(p.payments) ? p.payments : [])
+          setTotals(p.totals || { collected: 0, pending: 0, count: 0, paidCount: 0 })
+          setPaymentTotal(Number(p.total || p.totals?.count || 0))
+          setReport(r)
+        })
+        .catch(() => { if (!cancelled) setPayments([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [paymentSearch, paymentStatusFilter, paymentPage, paymentPageSize, paymentRefresh])
 
   const confirm = async (id: string) => {
     try {
