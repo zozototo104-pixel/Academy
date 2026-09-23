@@ -101,7 +101,19 @@ export function pathForView(view: View, params: Record<string, string | null | u
   }
 }
 
-export function routeStateFromLocation(pathname: string, search: string) {
+export interface AppRouteState {
+  view: View
+  programsFilter?: string | null
+  programDetailsId?: string | null
+  activeProgramId?: string | null
+  activeUnitId?: string | null
+  activeExamId?: string | null
+  activeExamKind?: 'unit' | 'final'
+  studentPreviewId?: string | null
+  agentPreviewId?: string | null
+}
+
+export function routeStateFromLocation(pathname: string, search: string): AppRouteState {
   const q = new URLSearchParams(search || '')
   const legacy = q.get('view')
   if (isValidAppView(legacy)) {
