@@ -2201,9 +2201,9 @@ export function AdminBooksTab() {
                   </div>
                 </div>
 
-                <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_160px_160px]">
-                  <Input value={gradingSearch} onChange={(e) => setGradingSearch(e.target.value)} placeholder="ابحث باسم الطالب أو عنوان الواجب" className="bg-white" />
-                  <Select value={gradingStatusFilter} onValueChange={setGradingStatusFilter}>
+                <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_160px_160px_140px]">
+                  <Input value={gradingSearch} onChange={(e) => { setGradingSearch(e.target.value); setGradingPage(1) }} placeholder="ابحث باسم الطالب أو عنوان الواجب" className="bg-white" />
+                  <Select value={gradingStatusFilter} onValueChange={(v) => { setGradingStatusFilter(v); setGradingPage(1) }}>
                     <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="PENDING">بانتظار التصحيح</SelectItem>
@@ -2213,13 +2213,22 @@ export function AdminBooksTab() {
                       <SelectItem value="ALL">كل الحالات</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select value={gradingSemesterFilter} onValueChange={setGradingSemesterFilter}>
+                  <Select value={gradingSemesterFilter} onValueChange={(v) => { setGradingSemesterFilter(v); setGradingPage(1) }}>
                     <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">كل الفصول</SelectItem>
                       <SelectItem value="1">الفصل الأول</SelectItem>
                       <SelectItem value="2">الفصل الثاني</SelectItem>
                       <SelectItem value="3">بحث/مشروع</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={String(gradingPageSize)} onValueChange={(v) => { setGradingPageSize(Number(v)); setGradingPage(1) }}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">عرض 10</SelectItem>
+                      <SelectItem value="25">عرض 25</SelectItem>
+                      <SelectItem value="50">عرض 50</SelectItem>
+                      <SelectItem value="100">عرض 100</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
