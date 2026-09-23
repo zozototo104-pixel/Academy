@@ -299,12 +299,16 @@ export function ApplyView() {
   )
   const selectedFlow = getServiceFlow(selectedProgram?.slug)
   const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'
-  const flowDocs = selectedFlow?.requiredDocuments?.map((label, i) => ({ type: `FLOW_DOC_${i + 1}`, label })) || []
-  const activeDocs = selectedFlow ? (flowDocs.length ? flowDocs : SERVICE_REQUEST_DOCS) : isServiceRequest ? SERVICE_REQUEST_DOCS : REQUIRED_DOCS
-  const requiredDocs = selectedFlow ? (isServiceRequest ? [] : activeDocs) : isServiceRequest ? [] : REQUIRED_DOCS
-  const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
   const selectedProgramId = selectedProgram?.id || ''
   const selectedRules = selectedProgram?.admissionRules || null
+  const flowDocs = selectedFlow ? getServiceDocumentOptions(selectedFlow).map((d) => ({ type: d.type, label: d.label })) : []
+  const docLabelMap = new Map([...REQUIRED_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_DOCS, ...flowDocs].map((d) => [d.type, d]))
+  const ruleDocCodes = selectedRules?.requiredDocuments || []
+  const activeDocs = ruleDocCodes.length
+    ? ruleDocCodes.map((code) => docLabelMap.get(code) || { type: code, label: code })
+    : selectedFlow ? (flowDocs.length ? flowDocs : SERVICE_REQUEST_DOCS) : isServiceRequest ? SERVICE_REQUEST_DOCS : REQUIRED_DOCS
+  const requiredDocs = ruleDocCodes.length ? activeDocs : isServiceRequest ? [] : REQUIRED_DOCS
+  const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
   const recentApplications = myApplications.slice(0, 5)
 
