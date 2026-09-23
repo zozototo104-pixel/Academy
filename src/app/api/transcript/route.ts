@@ -44,6 +44,12 @@ export async function GET() {
     const scores: number[] = []
 
     for (const en of enrollments) {
+      const programAdmission = await db.admissionApplication.findFirst({
+        where: { OR: [{ userId: user.id }, { email: user.email }], programId: en.programId, status: { not: 'REJECTED' } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, reference: true, status: true },
+      }).catch(() => null)
+
       // اختبارات الوحدات: أفضل نتيجة لكل امتحان
       const unitExams = await db.exam.findMany({
         where: { unit: { programId: en.programId }, questions: { some: {} } },
