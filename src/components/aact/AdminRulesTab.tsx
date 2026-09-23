@@ -413,8 +413,8 @@ export function AdminRulesTab() {
                       <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: 700 ساعة تدريبية أو حسب الخطة' : 'مثال: خدمة تنفيذ وتسليم بلا ساعات دراسية'} value={draft.academicProfile?.creditHoursLabel || ''} onChange={(e) => patchAcademic({ creditHoursLabel: e.target.value })} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">متطلب البحث/المشروع</label>
-                      <Input className="text-xs" placeholder="مثال: بحث تطبيقي ومناقشة فيديو" value={draft.academicProfile?.thesisRequirement || ''} onChange={(e) => patchAcademic({ thesisRequirement: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'متطلب البحث/المشروع' : 'شرط التسليم النهائي'}</label>
+                      <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: بحث تطبيقي ومناقشة فيديو' : 'مثال: لا يوجد بحث؛ يتم التسليم بعد اعتماد الإدارة'} value={draft.academicProfile?.thesisRequirement || ''} onChange={(e) => patchAcademic({ thesisRequirement: e.target.value })} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الوصف الأكاديمي الرسمي</label>
