@@ -474,9 +474,9 @@ export function DashboardView() {
           <div className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black text-[#a8841a]">{hasProgramDashboard ? 'المسار المختصر للطالب' : 'المسار المختصر للعميل'}</p>
-                <h2 className="mt-1 text-lg font-black text-[#0f2b46]">{hasProgramDashboard ? (currentStudentAction?.title || 'تابع برنامجك من هنا') : 'تابع طلباتك ومخرجاتك من هنا'}</h2>
-                <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{hasProgramDashboard ? (currentStudentAction?.text || 'اختر برنامجك النشط وتابع الكتب والاختبارات والواجبات والإشعارات.') : 'هذه بوابة خدماتك العابرة: الدفعات، حالة الطلب، وروابط التحميل أو الشهادات التي تنشرها الإدارة.'}</p>
+                <p className="text-[11px] font-black text-[#a8841a]">{hasStudyIdentity ? 'المسار المختصر للطالب' : 'المسار المختصر للعميل'}</p>
+                <h2 className="mt-1 text-lg font-black text-[#0f2b46]">{hasStudyIdentity ? (currentStudentAction?.title || (hasProgramDashboard ? 'تابع برنامجك من هنا' : 'طلبك الدراسي قيد الإجراء')) : 'تابع طلباتك ومخرجاتك من هنا'}</h2>
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{hasStudyIdentity ? (currentStudentAction?.text || (hasProgramDashboard ? 'اختر برنامجك النشط وتابع الكتب والاختبارات والواجبات والإشعارات.' : 'بعد مراجعة الإدارة وسداد المتطلبات ستُفتح بوابة الدراسة والكتب والاختبارات.')) : 'هذه بوابة خدماتك العابرة: الدفعات، حالة الطلب، وروابط التحميل أو الشهادات التي تنشرها الإدارة.'}</p>
               </div>
               {currentStudentAction?.tab && currentStudentAction.tab !== dashboardTab ? (
                 <Button onClick={() => setDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
