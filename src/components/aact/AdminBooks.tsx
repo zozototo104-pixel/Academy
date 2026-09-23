@@ -881,7 +881,7 @@ export function AdminBooksTab() {
   }
 
   const deleteCurriculumUnit = async (unitId: string) => {
-    if (!programId || !confirm('حذف هذه الوحدة من خطة المنهج؟')) return
+    if (!programId || !(await askAdminConfirm({ title: 'حذف وحدة من المنهج', description: 'سيتم حذف هذه الوحدة من خطة المنهج لهذا التخصص. يمكن إعادة توليد الوحدات لاحقاً من الكتب.', confirmLabel: 'حذف الوحدة', danger: true }))) return
     setUnitBusyId(unitId)
     try {
       const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}&unitId=${unitId}`, { method: 'DELETE' })
