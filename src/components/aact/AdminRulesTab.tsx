@@ -273,14 +273,16 @@ export function AdminRulesTab() {
                   </div>
 
                   {/* الحد الأدنى للعمر */}
-                  <div>
-                    <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">الحد الأدنى للعمر (سنة)</label>
-                    <Input
-                      type="number" min={12} max={80} className="text-xs"
-                      value={draft.minAge ?? 18}
-                      onChange={(e) => setDraft({ ...draft, minAge: Number(e.target.value) })}
-                    />
-                  </div>
+                  {isStudyProgram && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">الحد الأدنى للعمر (سنة)</label>
+                      <Input
+                        type="number" min={12} max={80} className="text-xs"
+                        value={draft.minAge ?? 18}
+                        onChange={(e) => setDraft({ ...draft, minAge: Number(e.target.value) })}
+                      />
+                    </div>
+                  )}
 
                   {/* الدكتوراة: إلزام الماجستير */}
                   {selected.category === 'DOCTORATE' && (
