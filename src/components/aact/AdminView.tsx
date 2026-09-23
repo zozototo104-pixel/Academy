@@ -425,15 +425,32 @@ export function AdminView() {
     }
   }
 
-  const confirmAdmissionPayment = async (paymentId: string) => {
-    const ok = window.confirm('تأكيد استلام الدفع المباشر؟ سيتم إصدار إيصال وتحديث إجراءات الطلب تلقائياً.')
-    if (!ok) return
+  const openPaymentConfirmDialog = (payment: NonNullable<AdmissionApp['payments']>[number]) => {
+    setPaymentConfirmDialog({
+      paymentId: payment.id,
+      method: payment.method,
+      amount: payment.amount,
+      invoiceNo: payment.invoiceNo,
+      status: payment.status,
+      cryptoVerificationStatus: payment.cryptoVerificationStatus,
+    })
+  }
+
+  const confirmAdmissionPayment = async () => {
+    if (!paymentConfirmDialog) return
     try {
-      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentId }) })
-      toast({ title: 'تم تأكيد الدفع المباشر', description: 'تم إصدار الإيصال وتحديث الطلب حسب نوع الفاتورة.' })
+      setPaymentConfirmSubmitting(true)
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: paymentConfirmDialog.paymentId }) })
+      toast({
+        title: paymentConfirmDialog.method === 'USDT' ? 'تم تأكيد دفع USDT' : 'تم تأكيد الدفع المباشر',
+        description: 'تم إصدار الإيصال وتحديث الطلب حسب نوع الفاتورة.',
+      })
+      setPaymentConfirmDialog(null)
       await load()
     } catch (e: any) {
       toast({ title: 'تعذر تأكيد الدفع', description: e.message, variant: 'destructive' })
+    } finally {
+      setPaymentConfirmSubmitting(false)
     }
   }
 
