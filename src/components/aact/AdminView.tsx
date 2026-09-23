@@ -836,7 +836,7 @@ export function AdminView() {
                                     <div className="min-w-0">
                                       <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
                                       <span className="mr-2 font-bold text-slate-500">{p.purpose} — {p.amount}$</span>
-                                      {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method}</span>}
+                                      {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method === 'USDT' ? 'USDT' : p.method}</span>}
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       {p.status === 'PAID' ? (
