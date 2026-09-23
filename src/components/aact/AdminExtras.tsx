@@ -1083,6 +1083,8 @@ export function AdminAuditTab() {
       return actionOk && entityOk && searchOk
     })
   }, [logs, filters])
+  const pagedLogs = pageItems(filteredLogs, auditPage, auditPageSize)
+  const currentAuditPage = safePage(filteredLogs.length, auditPageSize, auditPage)
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
