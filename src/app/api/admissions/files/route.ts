@@ -54,8 +54,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'رابط رفع المستندات غير صالح أو انتهت صلاحيته. أعد فتح نموذج التقديم وأرسل الطلب من جديد.' }, { status: 403 })
     }
 
-    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'].includes(app.status)) {
-      return NextResponse.json({ error: 'لا يمكن تعديل مستندات هذا الطلب بعد انتقاله لمرحلة لاحقة' }, { status: 400 })
+    const adminUploader = Boolean(me && ['ADMIN', 'STAFF'].includes(me.role))
+    if (!adminUploader && app.status !== 'UPLOADING_DOCUMENTS') {
+      return NextResponse.json({ error: 'لا يمكن تعديل مستندات هذا الطلب بعد إكمال التقديم. تواصل مع الإدارة إذا طُلب منك استبدال مرفق.' }, { status: 400 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
