@@ -1013,6 +1013,46 @@ export function AdminSettingsTab() {
     }
   }
 
+  const createSystemAdmin = async () => {
+    const email = adminForm.email.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      toast({ title: 'البريد مطلوب', description: 'أدخل بريد حساب الإدارة الاختباري بشكل صحيح.', variant: 'destructive' })
+      return
+    }
+    if (adminForm.password.length < 12) {
+      toast({ title: 'كلمة المرور قصيرة', description: 'استخدم كلمة مرور من 12 حرفاً على الأقل.', variant: 'destructive' })
+      return
+    }
+    setAdminBusy('create')
+    try {
+      await api('/api/admin/system-admins', {
+        method: 'POST',
+        body: JSON.stringify({ ...adminForm, email }),
+      })
+      setAdminForm((prev) => ({ ...prev, password: '' }))
+      loadSystemAdmins()
+      toast({ title: 'تم تجهيز حساب الإدارة', description: 'يمكن استخدام الحساب الآن لاختبارات لوحة الإدارة ثم تعطيله من نفس القسم.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء حساب الإدارة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  const disableSystemAdmin = async (admin: SystemAdminAccount) => {
+    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    setAdminBusy(admin.id)
+    try {
+      await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
+      loadSystemAdmins()
+      toast({ title: 'تم تعطيل حساب الإدارة', description: 'لم يتم حذف السجل التاريخي، وتم إبطال جلسات الحساب.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعطيل الحساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const groups: { key: string; label: string }[] = [
