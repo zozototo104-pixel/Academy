@@ -89,7 +89,8 @@ async function verifyTrc20(input: UsdtVerificationInput): Promise<UsdtVerificati
   const failed = String(data?.contractRet || data?.receipt?.result || '').toUpperCase().includes('FAIL') || String(data?.contractRet || '').toUpperCase().includes('REVERT')
   const transfers = extractTronTransfers(data)
   const match = transfers.find((t) => {
-    const tokenOk = String(t.token || '').toUpperCase().includes('USDT') || String(t.raw?.contract_address || t.raw?.contractAddress || '').toUpperCase() === 'TXLAQ63XG1NAWKCJYMSJ1BFYVYDSXJCBX'
+    const contractAddress = t.raw?.contract_address || t.raw?.contractAddress || t.raw?.contract || null
+    const tokenOk = String(t.token || '').toUpperCase().includes('USDT') || sameAddress(contractAddress, 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj')
     const toOk = sameAddress(t.to, input.expectedWallet)
     const amountOk = typeof t.amount === 'number' && t.amount + 0.000001 >= Number(input.expectedAmount || 0)
     return tokenOk && toOk && amountOk
