@@ -984,11 +984,11 @@ export function AdminView() {
                   <p className="text-xs font-bold text-slate-400">تفتح لوحة الإدارة الآن بينما تُحمّل التفاصيل في الخلفية.</p>
                 </CardContent>
               </Card>
-            ) : visibleAdmissionRows.length === 0 ? (
+            ) : admissionTotal === 0 && !admissionSearch && admissionStatusFilter === 'ACTIVE' ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">{activeTab === 'service-requests' ? 'لا توجد طلبات خدمات عابرة حالياً' : 'لا توجد طلبات التحاق دراسي حالياً'}</CardContent>
               </Card>
-            ) : filteredAdmissionRows.length === 0 ? (
+            ) : visibleAdmissionRows.length === 0 ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="p-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</CardContent>
               </Card>
