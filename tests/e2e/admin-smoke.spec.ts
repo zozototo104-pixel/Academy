@@ -72,7 +72,7 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
   }
 }
 
-async function loginAsAdmin(page: Page) {
+async function loginAsAdmin(page: Page): Promise<string> {
   const email = requiredEnv('E2E_ADMIN_EMAIL')
   const password = requiredEnv('E2E_ADMIN_PASSWORD')
 
@@ -90,6 +90,8 @@ async function loginAsAdmin(page: Page) {
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
   }, body.token)
+
+  return String(body.token)
 }
 
 async function waitForAdminReady(page: Page) {
