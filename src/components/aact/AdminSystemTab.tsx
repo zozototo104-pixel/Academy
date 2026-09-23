@@ -58,6 +58,29 @@ interface LaunchReadinessItem {
   detail: string
 }
 
+interface BackupStatus {
+  configured: {
+    secretConfigured: boolean
+    storageConfigured: boolean
+    localFallbackAllowed: boolean
+    includeSessions: boolean
+    tableCount: number
+  }
+  recent: Array<{ id: string; action: string; entityId?: string | null; details?: string | null; createdAt: string }>
+}
+
+interface BackupRunResult {
+  ok: boolean
+  fileName: string
+  exportedAt: string
+  durationMs: number
+  tables: number
+  counts: Record<string, number>
+  errors: Array<{ table: string; error: string }>
+  storage: { provider: string; key: string; url: string; size: number; mimeType: string }
+  checksum: { sha256: string; uncompressedSha256: string; uncompressedBytes: number; compressedBytes: number }
+}
+
 interface SystemData {
   values: Record<string, string>
   secretsSet: Record<string, boolean>
