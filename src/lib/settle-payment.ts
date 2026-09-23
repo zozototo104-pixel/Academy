@@ -99,6 +99,19 @@ export async function markInvoicePaid(
       if (app.email) {
         await emailPaymentReceipt(app.email, app.fullName, payment.invoiceNo, payment.description, payment.amount, receiptNo)
       }
+      if (payment.purpose === 'SERVICE_FEE') {
+        const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+        for (const admin of admins) {
+          await notify(
+            admin.id,
+            'SERVICE',
+            'الخدمة مدفوعة وجاهزة للتنفيذ والتسليم',
+            `تم سداد فاتورة خدمة «${app.program}» للعميل ${app.fullName} (${app.reference}) — رقم الإيصال ${receiptNo}. يمكن الآن رفع المخرج من قسم تنفيذ وتسليم الخدمة.`,
+            'admin'
+          )
+        }
+        await audit(actor, 'SERVICE_READY_FOR_DELIVERY', 'AdmissionApplication', app.id, `${app.reference} — خدمة مدفوعة وجاهزة للتسليم`)
+      }
       if (finalRegistration && app.userId) {
         await notify(
           app.userId,
