@@ -8,14 +8,40 @@ import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/li
 import { randomBytes } from 'crypto'
 
 // GET /api/admin/certificates — كل الشهادات الصادرة
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
-    const certificates = await db.certificate.findMany({
-      orderBy: { issuedAt: 'desc' },
-      take: 200,
-    })
-    return NextResponse.json({ certificates })
+    const sp = req.nextUrl.searchParams
+    const { page, pageSize, skip, take } = parseAdminPagination(sp, { pageSize: 25, maxPageSize: 100 })
+    const search = cleanAdminQuery(sp.get('search'))
+    const type = cleanAdminQuery(sp.get('type'))
+    const status = cleanAdminQuery(sp.get('status'))
+    const where: any = {
+      ...(type && type !== 'ALL' ? { type } : {}),
+      ...(status === 'VALID' ? { valid: true } : status === 'REVOKED' ? { valid: false } : {}),
+      ...(search
+        ? {
+            OR: [
+              { serial: { contains: search, mode: 'insensitive' } },
+              { qrToken: { contains: search, mode: 'insensitive' } },
+              { holderName: { contains: search, mode: 'insensitive' } },
+              { program: { contains: search, mode: 'insensitive' } },
+              { grade: { contains: search, mode: 'insensitive' } },
+              { country: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    }
+    const [certificates, total] = await Promise.all([
+      db.certificate.findMany({
+        where,
+        orderBy: { issuedAt: 'desc' },
+        skip,
+        take,
+      }),
+      db.certificate.count({ where }),
+    ])
+    return NextResponse.json({ certificates, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
