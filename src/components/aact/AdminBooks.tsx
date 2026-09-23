@@ -1426,7 +1426,7 @@ export function AdminBooksTab() {
       : failedExam
         ? `يوجد امتحان فاشل سابقاً لهذا الفصل وفيه ${failedExam.questionCount} سؤالاً محفوظاً. سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف دون حذف الأسئلة السابقة. متابعة؟`
         : `سيولّد خبير الذكاء الاصطناعي امتحان ${semLabel} (${books.length} كتاب مقرر متاح) بعدد كبير من الأسئلة المتنوعة ومدة لا تقل عن ساعتين، ثم تمرّ الأسئلة على مراجعتك قبل النشر. التوليد يستغرق عدة دقائق. متابعة؟`
-    if (!confirm(confirmText)) return
+    if (!(await askAdminConfirm({ title: `توليد امتحان ${semLabel}`, description: confirmText, confirmLabel: 'بدء التوليد' }))) return
     setGenerating(true)
     try {
       const d = await api<{ examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
