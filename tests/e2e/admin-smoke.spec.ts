@@ -202,6 +202,37 @@ async function selectBooksProgramIfNeeded(page: Page) {
   await assertNoFatalScreen(page, 'books program selected')
 }
 
+async function assertFirstInvoicePdf(page: Page, token: string, testInfo: TestInfo) {
+  const paymentsRes = await page.request.get('/api/admin/payments', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const paymentsBody = await paymentsRes.json().catch(() => ({}))
+  expect(paymentsRes.ok(), `Cannot load admin payments for invoice PDF smoke: ${paymentsRes.status()} ${JSON.stringify(paymentsBody)}`).toBeTruthy()
+
+  const firstPayment = Array.isArray(paymentsBody.payments) ? paymentsBody.payments[0] : null
+  if (!firstPayment?.id) {
+    await testInfo.attach('invoice-pdf-smoke', {
+      body: 'Skipped: no payment rows are available in this environment.',
+      contentType: 'text/plain',
+    })
+    return
+  }
+
+  const pdfRes = await page.request.get(`/pdf/invoices/${encodeURIComponent(firstPayment.id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const contentType = pdfRes.headers()['content-type'] || ''
+  const pdfBody = await pdfRes.body().catch(() => Buffer.from(''))
+  await testInfo.attach('invoice-pdf-smoke', {
+    body: `invoice=${firstPayment.invoiceNo || firstPayment.id}\nstatus=${pdfRes.status()}\ncontent-type=${contentType}\nbytes=${pdfBody.length}`,
+    contentType: 'text/plain',
+  })
+
+  expect(pdfRes.ok(), `Invoice PDF endpoint failed with ${pdfRes.status()}`).toBeTruthy()
+  expect(contentType, 'Invoice PDF endpoint must return application/pdf').toContain('application/pdf')
+  expect(pdfBody.subarray(0, 4).toString('utf8'), 'Invoice PDF response must start with %PDF').toBe('%PDF')
+}
+
 test.describe('Admin dashboard launch smoke test', () => {
   test('admin tabs load, search boxes work, and paginated screens do not crash', async ({ page }, testInfo) => {
     const assertNoBrowserErrors = await installErrorGuards(page, testInfo)
