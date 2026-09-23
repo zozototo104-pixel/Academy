@@ -238,7 +238,7 @@ export function PaymentsTab() {
     setPdfBusy(payment.id)
     try {
       const token = getToken()
-      const res = await fetch(`/pdf/invoices/${encodeURIComponent(payment.id)}`, {
+      const res = await fetch(`/api/pdf/invoices/${encodeURIComponent(payment.id)}`, {
         cache: 'no-store',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
