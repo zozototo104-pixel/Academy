@@ -287,8 +287,11 @@ export function AdminThesisTab() {
         </Card>
       ) : theses.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث تخرج مسلَّمة بعد</CardContent></Card>
+      ) : filteredTheses.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث مطابقة للبحث أو الفلتر الحالي.</CardContent></Card>
       ) : (
-        theses.map((t) => {
+        <>
+        {pagedTheses.map((t) => {
           const committee = parseCommitteeNames(t.committee)
           const studentName = safeText(t.user?.name, 'طالب غير محدد')
           const programName = safeText(t.admission?.program, 'برنامج غير محدد')
