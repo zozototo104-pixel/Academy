@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         documents: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
       },
     })
+    const total = await db.agentApplication.count({ where })
     // فواتير رسوم تقديم الاعتماد المرتبطة (ACCREDITATION_FEE)
     const agentIds = applications.map((a) => a.id)
     const fees = agentIds.length
