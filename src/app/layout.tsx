@@ -95,6 +95,7 @@ export default function RootLayout({
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
+        <PerformanceMonitor />
         {children}
         <Toaster />
       </body>
