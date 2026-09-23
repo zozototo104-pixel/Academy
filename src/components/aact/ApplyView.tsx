@@ -51,6 +51,7 @@ interface ProgramLite {
     minEducation?: string
     minAge?: number
     minYearsExperience?: number
+    requiredDocuments?: string[]
     customRules?: string
     displayNote?: string
   } | null
