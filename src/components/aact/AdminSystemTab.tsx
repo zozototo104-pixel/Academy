@@ -404,6 +404,25 @@ export function AdminSystemTab() {
     }
   }
 
+  const runBackup = async () => {
+    setBackupBusy(true)
+    try {
+      const result = await api<BackupRunResult>('/api/admin/backups', { method: 'POST' })
+      setLastBackup(result)
+      const status = await api<BackupStatus>('/api/admin/backups').catch(() => null)
+      if (status) setBackupStatus(status)
+      toast({
+        title: result.ok ? 'تم إنشاء النسخة الاحتياطية' : 'اكتملت النسخة مع تنبيهات',
+        description: `${result.storage.provider} · ${(result.storage.size / 1024 / 1024).toFixed(2)} MB · ${result.tables} جدول`,
+        variant: result.ok ? 'default' : 'destructive',
+      } as any)
+    } catch (e: any) {
+      toast({ title: 'فشل النسخ الاحتياطي', description: e.message, variant: 'destructive' })
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
