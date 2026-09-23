@@ -397,8 +397,8 @@ export function AdminRulesTab() {
                       <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: الماجستير المهني في الأمن السيبراني' : 'مثال: طلب حقيبة تدريبية جاهزة أو معادلة خبرة'} value={draft.academicProfile?.academicTitle || ''} onChange={(e) => patchAcademic({ academicTitle: e.target.value })} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الدرجة</label>
-                      <Input className="text-xs" placeholder="مثال: ماجستير مهني" value={draft.academicProfile?.degreeLabel || ''} onChange={(e) => patchAcademic({ degreeLabel: e.target.value })} />
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'الدرجة' : 'نوع المسار'}</label>
+                      <Input className="text-xs" placeholder={isStudyProgram ? 'مثال: ماجستير مهني' : 'مثال: خدمة مهنية عابرة'} value={draft.academicProfile?.degreeLabel || ''} onChange={(e) => patchAcademic({ degreeLabel: e.target.value })} />
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">التخصص</label>
