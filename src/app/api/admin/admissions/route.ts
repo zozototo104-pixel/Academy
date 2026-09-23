@@ -342,7 +342,7 @@ export async function PATCH(req: NextRequest) {
         if (app.programId && app.userId) {
           await db.enrollment.updateMany({
             where: { userId: app.userId, programId: app.programId },
-            data: { certificateNo: cert.serial, status: 'COMPLETED' },
+            data: { certificateNo: cert.serial, status: 'COMPLETED', ...(certificateScore !== null ? { finalScore: certificateScore } : {}) },
           })
         }
         if (app.userId) {
