@@ -715,7 +715,7 @@ function weightedDocumentFitScore(requiredDocuments: string[] | undefined, analy
 }
 
 function criticalAdmissionDocsOk(requiredDocuments: string[] | undefined, analyses: AdmissionDocumentAnalysis[]): boolean {
-  const reqs = requiredDocuments?.length ? requiredDocuments : DEFAULT_REQUIRED_DOCS
+  const reqs = Array.isArray(requiredDocuments) ? requiredDocuments : DEFAULT_REQUIRED_DOCS
   const coverage = requirementCoverageMap(reqs, analyses)
   const critical = reqs.filter((r) => r === 'DEGREE' || r === 'ID')
   return critical.every((r) => (coverage[r] || 0) >= 65)
