@@ -204,7 +204,7 @@ export function PaymentsTab() {
           load()
         })
         .catch(() => {})
-      window.history.replaceState({}, '', '/?view=dashboard')
+      window.history.replaceState({}, '', '/dashboard?tab=payments')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
