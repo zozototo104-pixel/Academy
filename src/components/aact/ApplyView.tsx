@@ -77,6 +77,35 @@ interface TrackedTuitionPlan {
   finalRequired?: number
 }
 
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentConfig {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+  usdt?: { configured: boolean; network: string; instructions: string }
+}
+
+interface PayInvoiceResult {
+  status: 'paid' | 'manual' | 'redirect'
+  provider?: string
+  message?: string
+}
+
+const FALLBACK_PAYMENT_METHODS: PaymentMethodStatus[] = [
+  { id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' },
+]
+
 const REQUIRED_DOCS = [
   { type: 'DEGREE', label: 'الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
   { type: 'ID', label: 'الهوية الشخصية أو جواز السفر' },
