@@ -74,6 +74,16 @@ test.describe('AACT full platform journey suite', () => {
     expect(setupRes.ok(), `Full journey setup failed: ${setupRes.status()} ${JSON.stringify(setup).slice(0, 1200)}`).toBeTruthy()
     expect(setup.ok, `Full journey setup returned non-ok: ${JSON.stringify(setup.steps || setup).slice(0, 1200)}`).toBe(true)
     expect(setup.steps.every((s: any) => s.ok), `A setup step failed: ${JSON.stringify(setup.steps, null, 2)}`).toBe(true)
+    expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.ok, 'Semester 2 exam must be blocked before full installment payment').toBe(false)
+    expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.code, 'Semester 2 block code must be TUITION_FULL_REQUIRED').toBe('TUITION_FULL_REQUIRED')
+    expect(setup.academicJourney?.tuitionGate?.semester2AfterFinalPayment?.ok, 'Semester 2 exam must open after completing installment payment').toBe(true)
+    expect(setup.academicJourney?.semesters?.semester1?.passed, 'Semester 1 assignment/exam average must pass').toBe(true)
+    expect(setup.academicJourney?.semesters?.semester1?.average || 0, 'Semester 1 average must be at least 60').toBeGreaterThanOrEqual(60)
+    expect(setup.academicJourney?.semesters?.semester2?.passed, 'Semester 2 assignment/exam average must pass').toBe(true)
+    expect(setup.academicJourney?.semesters?.semester2?.average || 0, 'Semester 2 average must be at least 60').toBeGreaterThanOrEqual(60)
+    expect(setup.academicJourney?.thesis?.eligible, 'Student must become eligible for thesis after semesters and payment').toBe(true)
+    expect(setup.academicJourney?.finalGrade?.score || 0, 'Final grade must be calculated and passing').toBeGreaterThanOrEqual(60)
+    expect(setup.enrollment?.status, 'Enrollment should complete after final grade and thesis result').toBe('COMPLETED')
 
     const examRes = await page.request.post('/api/admin/program-exams/from-question-bank', {
       headers: { Authorization: `Bearer ${admin.token}` },
