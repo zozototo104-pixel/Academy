@@ -404,6 +404,7 @@ export async function GET(req: NextRequest) {
         finalRequired: totalTuition,
       } : null
       return {
+      id: app.id,
       reference: app.reference,
       fullName: app.fullName,
       program: app.program,
