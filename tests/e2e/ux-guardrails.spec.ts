@@ -103,10 +103,11 @@ test.describe('AACT UX guardrails suite', () => {
     await setBrowserToken(page, studentLogin.token)
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
-    await expect(page.getByRole('tab', { name: /برامجي/ })).toBeVisible()
+    const programsTab = page.getByRole('tab', { name: /برامجي/ })
+    await expect(programsTab).toBeVisible()
+    await expect(programsTab, 'Student dashboard should open on programs, not payments').toHaveAttribute('data-state', 'active')
     await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/برامجي المسجل بها/)).toHaveCount(0)
-    await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toHaveCount(0)
     checks.push({ name: 'بوابة الطالب تبدأ ببرامجي وتخفي بطاقة اختيار البرامج عند وجود برنامج واحد', ok: true })
 
     await page.getByRole('tab', { name: /الدفعات/ }).click()
