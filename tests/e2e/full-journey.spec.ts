@@ -72,6 +72,28 @@ function md(report: any) {
 test.describe('AACT full platform journey suite', () => {
   test.setTimeout(180_000)
 
+  let cleanupTarget: { token: string; stamp: string } | null = null
+
+  test.afterEach(async ({ request }, testInfo: TestInfo) => {
+    if (!cleanupTarget) return
+    const target = cleanupTarget
+    cleanupTarget = null
+    const cleanupRes = await request.delete('/api/admin/full-journey', {
+      headers: { Authorization: `Bearer ${target.token}` },
+      data: { stamp: target.stamp },
+      timeout: 45_000,
+    })
+    const cleanupBody = await cleanupRes.json().catch(() => ({}))
+    await mkdir('test-results/full-journey', { recursive: true }).catch(() => {})
+    const cleanupPath = 'test-results/full-journey/cleanup.json'
+    await writeFile(cleanupPath, JSON.stringify({ status: cleanupRes.status(), body: cleanupBody }, null, 2), 'utf8')
+    await testInfo.attach('full-journey-cleanup-json', { path: cleanupPath, contentType: 'application/json' })
+    const cleanupOk = cleanupRes.ok() && cleanupBody?.ok === true
+    if (!cleanupOk && testInfo.status !== 'failed') {
+      throw new Error(`Full journey cleanup failed after artifact generation: ${cleanupRes.status()} ${JSON.stringify(cleanupBody).slice(0, 1000)}`)
+    }
+  })
+
   test('student, service, payment, admin approval, installments, program access, and exam alignment work end-to-end', async ({ page }, testInfo: TestInfo) => {
     const admin = await loginAsAdmin(page)
 
