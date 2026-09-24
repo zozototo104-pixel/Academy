@@ -94,6 +94,7 @@ test.describe('AACT mobile UX guardrails suite', () => {
     expect(chatBox?.width || 0, `WhatsApp assistant popup is wider than mobile viewport: ${JSON.stringify(chatBox)}`).toBeLessThanOrEqual(390)
     expect(chatBox?.height || 0, `WhatsApp assistant popup is too tall: ${JSON.stringify(chatBox)}`).toBeLessThanOrEqual(700)
     checks.push({ name: 'نافذة وكيل واتساب مناسبة للهاتف ولا تغطي الشاشة كاملة', ok: true, detail: `${Math.round(chatBox?.width || 0)}x${Math.round(chatBox?.height || 0)}px` })
+    await page.getByLabel(/إغلاق وكيل واتساب الذكي/).click()
 
     const adminLogin = await login(page, requiredEnv('E2E_ADMIN_EMAIL'), requiredEnv('E2E_ADMIN_PASSWORD'))
     const setup = await createFullJourneyStudent(page, adminLogin.token)
