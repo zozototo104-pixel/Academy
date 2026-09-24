@@ -528,10 +528,15 @@ export function ApplyView() {
       : !isStudyApp && app.status === 'CERTIFIED'
         ? { text: 'تم تسليم الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
         : baseStatus
-    const invoices: TrackedInvoice[] = sortInvoicesNewest(Array.isArray(app.payments) ? app.payments : [])
+    const rawInvoices: TrackedInvoice[] = sortInvoicesNewest(Array.isArray(app.payments) ? app.payments : [])
+    const tuitionPlan: TrackedTuitionPlan | null = app.tuitionPlan || null
+    const hasTuitionProgress = isStudyApp && !!tuitionPlan && tuitionPlan.totalTuition > 0 && tuitionPlan.paidTuition > 0
+    const invoices = rawInvoices.filter((p) => !(hasTuitionProgress && p.purpose === 'TUITION' && p.status !== 'PAID'))
     const unpaid = invoices.filter((p) => p.status !== 'PAID')
     const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
-    const tuition = unpaid.find((p) => p.purpose === 'TUITION') || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
+    const installmentPayable = unpaid.find((p) => p.purpose === 'TUITION_INSTALLMENT') || null
+    const fullTuitionPayable = hasTuitionProgress ? null : (unpaid.find((p) => p.purpose === 'TUITION') || null)
+    const tuition = installmentPayable || fullTuitionPayable || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
     const payable = app.status === 'AWAITING_TUITION' ? tuition : app.status === 'AWAITING_FEE' ? applicationFee : (tuition || applicationFee)
     const isStudyFinalActive = isStudyApp && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const isServiceApproved = !isStudyApp && ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
