@@ -81,8 +81,8 @@ async function installErrorGuards(page: Page, testInfo: TestInfo) {
 }
 
 async function loginAsAdmin(page: Page): Promise<string> {
-  const email = requiredEnv('E2E_ADMIN_EMAIL')
-  const password = requiredEnv('E2E_ADMIN_PASSWORD')
+  const email = requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL'])
+  const password = requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD'])
 
   const response = await page.request.post('/api/auth/login', {
     data: { email, password },
