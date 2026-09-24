@@ -7,6 +7,14 @@ function requiredEnv(name: string) {
   return value
 }
 
+function requiredAnyEnv(names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim()
+    if (value) return value
+  }
+  throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
+}
+
 async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
