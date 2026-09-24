@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
           durationMin: e.durationMin,
           passScore: e.passScore,
           booksUsed: e.booksUsed,
-          questionCount: e.questions.length,
+          questionCount: questions.length,
           byType,
           totalPoints,
           pendingReview: pending,
