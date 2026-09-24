@@ -69,6 +69,14 @@ interface TrackedInvoice {
   paidAt?: string | null
 }
 
+interface TrackedTuitionPlan {
+  totalTuition: number
+  paidTuition: number
+  remainingTuition: number
+  halfRequired?: number
+  finalRequired?: number
+}
+
 const REQUIRED_DOCS = [
   { type: 'DEGREE', label: 'الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
   { type: 'ID', label: 'الهوية الشخصية أو جواز السفر' },
