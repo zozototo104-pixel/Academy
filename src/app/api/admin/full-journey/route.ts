@@ -335,6 +335,349 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
   }
 }
 
+async function createAcademicAndFinancialJourney(
+  admin: { id: string; name: string },
+  stamp: string,
+  scaffold: Awaited<ReturnType<typeof createProgramScaffold>>,
+  academic: Awaited<ReturnType<typeof createStudentAndAdmission>>,
+) {
+  const userId = academic.student.id
+  const programId = scaffold.program.id
+  const admissionId = academic.admission.id
+  const bookTitle = scaffold.book.title
+
+  const semester1GateBefore = await enforceSemesterTuitionGate(userId, programId, 1)
+  const semester2GateBeforeFinalPayment = await enforceSemesterTuitionGate(userId, programId, 2)
+
+  const sem1Assignment = await db.programAssignment.create({
+    data: {
+      programId,
+      semester: 1,
+      title: `QA واجب الفصل الأول ${stamp}`,
+      description: `حلل الحوكمة وإدارة المخاطر بالاستناد إلى ${bookTitle}.`,
+      type: 'CASE_STUDY',
+      points: 100,
+      weight: 20,
+      rubric: JSON.stringify(['الربط بالكتاب', 'تحليل المخاطر', 'مؤشرات الأداء']),
+      status: 'PUBLISHED',
+    },
+  })
+  const sem1AssignmentSubmission = await db.assignmentSubmission.create({
+    data: {
+      assignmentId: sem1Assignment.id,
+      userId,
+      answerText: 'إجابة QA للفصل الأول تربط الحوكمة بالمخاطر ومؤشرات الأداء.',
+      status: 'GRADED',
+      score: 88,
+      feedback: 'اجتياز جيد للواجب مع ربط واضح بالكتاب.',
+      gradedBy: admin.name,
+      gradedAt: new Date(),
+    },
+  })
+
+  const unit1Exam = await db.exam.create({ data: { unitId: scaffold.unit.id, title: `QA اختبار وحدة الفصل الأول ${stamp}`, passScore: 60 } })
+  const unit1Question = await db.question.create({
+    data: {
+      examId: unit1Exam.id,
+      order: 1,
+      type: 'MCQ',
+      text: `حسب ${bookTitle} ما وظيفة الحوكمة؟`,
+      options: JSON.stringify(['المساءلة والرقابة', 'إلغاء الرقابة', 'تجاهل المخاطر', 'تقليل الجودة']),
+      correctAnswer: '0',
+      points: 100,
+    },
+  })
+  const unit1Attempt = await db.examAttempt.create({
+    data: {
+      userId,
+      examId: unit1Exam.id,
+      score: 90,
+      passed: true,
+      status: 'GRADED',
+      aiGraded: true,
+      feedback: JSON.stringify({ summary: 'اجتاز اختبار الوحدة الأولى.' }),
+      answers: { create: [{ questionId: unit1Question.id, selectedOption: 0, isCorrect: true, points: 100, maxPoints: 100 }] },
+    },
+  })
+
+  const readiness1BeforeMark = await calculateSemesterReadiness(userId, programId, 1)
+  const readiness1AfterMark = await markSemesterReady(userId, programId, 1)
+
+  const sem1Exam = await db.programExam.create({
+    data: {
+      programId,
+      semester: 1,
+      title: `QA امتحان الفصل الأول ${stamp}`,
+      status: 'READY',
+      durationMin: 120,
+      passScore: 60,
+      totalPoints: 100,
+      booksUsed: bookTitle,
+      generatedBy: 'QA_FULL_JOURNEY',
+      questions: {
+        create: [
+          {
+            order: 1,
+            type: 'MCQ',
+            text: `يربط ${bookTitle} الحوكمة بأي عنصر إداري؟`,
+            options: JSON.stringify(['الرقابة والمساءلة', 'الإلغاء', 'العشوائية', 'الصدفة']),
+            correctAnswer: '0',
+            points: 50,
+            status: 'PUBLISHED',
+            sourceBookTitle: bookTitle,
+            sourceEvidence: `الحوكمة إطار ضبط القرار والرقابة والمساءلة — ${bookTitle}`,
+          },
+          {
+            order: 2,
+            type: 'SHORT',
+            text: `اشرح علاقة مؤشرات الأداء بخطة المعالجة حسب ${bookTitle}.`,
+            modelAnswer: 'تقيس مؤشرات الأداء فعالية تنفيذ خطة المعالجة والرقابة الداخلية.',
+            points: 50,
+            status: 'PUBLISHED',
+            sourceBookTitle: bookTitle,
+            sourceEvidence: `يربط الكتاب خطة المعالجة بمؤشرات الأداء — ${bookTitle}`,
+          },
+        ],
+      },
+    },
+    include: { questions: true },
+  })
+  const sem1ExamAttempt = await db.programExamAttempt.create({
+    data: {
+      examId: sem1Exam.id,
+      userId,
+      score: 86,
+      finalScore: 86,
+      passed: true,
+      status: 'GRADED',
+      feedback: JSON.stringify({ summary: 'اجتياز امتحان الفصل الأول.' }),
+      durationUsedMin: 88,
+      submittedAt: new Date(),
+      answers: {
+        create: sem1Exam.questions.map((q) => ({ questionId: q.id, answerText: 'إجابة QA صحيحة مرتبطة بالكتاب.', selectedOption: q.type === 'MCQ' ? 0 : undefined, isCorrect: true, points: q.points, maxPoints: q.points })),
+      },
+    },
+  })
+
+  const unit2 = await db.unit.create({
+    data: {
+      programId,
+      order: 2,
+      semester: 2,
+      status: 'APPROVED',
+      title: 'وحدة التطبيق والتحليل في الرقابة المؤسسية',
+      summary: 'وحدة اختبارية للفصل الثاني تفحص الالتزام المالي قبل فتح الامتحان.',
+      content: JSON.stringify([{ heading: 'التطبيق', body: 'تطبيق الحوكمة وإدارة المخاطر على حالة مؤسسية.' }]),
+      objectives: JSON.stringify(['تطبيق الحوكمة', 'تحليل الرقابة', 'تقييم خطة المعالجة']),
+    },
+  })
+
+  const planBeforeFinal = await getAdmissionTuitionPlan(admissionId)
+  const finalInstallment = await db.payment.create({
+    data: {
+      admissionId,
+      userId,
+      invoiceNo: await nextInvoiceNo(),
+      purpose: 'TUITION_INSTALLMENT',
+      description: `QA سداد بقية الرسوم قبل امتحان الفصل الثاني — ${scaffold.program.titleAr}`,
+      amount: planBeforeFinal?.remainingTuition || 900,
+      payerName: academic.student.name,
+      payerEmail: academic.student.email,
+      payerCountry: academic.student.country,
+      method: 'BANK_TRANSFER',
+    },
+  })
+  const finalInstallmentPaid = await markInvoicePaid(finalInstallment.invoiceNo, 'BANK_TRANSFER', { actor: admin })
+  const planAfterFinal = await getAdmissionTuitionPlan(admissionId)
+  const semester2GateAfterFinalPayment = await enforceSemesterTuitionGate(userId, programId, 2)
+
+  const sem2Assignment = await db.programAssignment.create({
+    data: {
+      programId,
+      semester: 2,
+      title: `QA واجب الفصل الثاني ${stamp}`,
+      description: `طبّق مفاهيم الرقابة الداخلية وخطة المعالجة من ${bookTitle}.`,
+      type: 'PROJECT',
+      points: 100,
+      weight: 20,
+      rubric: JSON.stringify(['التطبيق', 'التحليل', 'الاستنتاج']),
+      status: 'PUBLISHED',
+    },
+  })
+  const sem2AssignmentSubmission = await db.assignmentSubmission.create({
+    data: {
+      assignmentId: sem2Assignment.id,
+      userId,
+      answerText: 'إجابة QA للفصل الثاني تطبق الرقابة ومؤشرات الأداء.',
+      status: 'GRADED',
+      score: 92,
+      feedback: 'اجتياز ممتاز للواجب التطبيقي.',
+      gradedBy: admin.name,
+      gradedAt: new Date(),
+    },
+  })
+
+  const unit2Exam = await db.exam.create({ data: { unitId: unit2.id, title: `QA اختبار وحدة الفصل الثاني ${stamp}`, passScore: 60 } })
+  const unit2Question = await db.question.create({
+    data: {
+      examId: unit2Exam.id,
+      order: 1,
+      type: 'MCQ',
+      text: 'ما دور خطة المعالجة في إدارة المخاطر؟',
+      options: JSON.stringify(['تقليل الاحتمالية أو الأثر ومتابعة التنفيذ', 'حذف المؤشرات', 'إلغاء الحوكمة', 'تجاهل الرقابة']),
+      correctAnswer: '0',
+      points: 100,
+    },
+  })
+  const unit2Attempt = await db.examAttempt.create({
+    data: {
+      userId,
+      examId: unit2Exam.id,
+      score: 94,
+      passed: true,
+      status: 'GRADED',
+      aiGraded: true,
+      feedback: JSON.stringify({ summary: 'اجتاز اختبار وحدة الفصل الثاني.' }),
+      answers: { create: [{ questionId: unit2Question.id, selectedOption: 0, isCorrect: true, points: 100, maxPoints: 100 }] },
+    },
+  })
+
+  const readiness2BeforeMark = await calculateSemesterReadiness(userId, programId, 2)
+  const readiness2AfterMark = await markSemesterReady(userId, programId, 2)
+
+  const sem2Exam = await db.programExam.create({
+    data: {
+      programId,
+      semester: 2,
+      title: `QA امتحان الفصل الثاني ${stamp}`,
+      status: 'READY',
+      durationMin: 120,
+      passScore: 60,
+      totalPoints: 100,
+      booksUsed: bookTitle,
+      generatedBy: 'QA_FULL_JOURNEY',
+      questions: {
+        create: [
+          {
+            order: 1,
+            type: 'MCQ',
+            text: `ما العنصر الذي يقيس فعالية المعالجة في ${bookTitle}؟`,
+            options: JSON.stringify(['مؤشرات الأداء', 'إلغاء القياس', 'العقوبة فقط', 'الحفظ النظري']),
+            correctAnswer: '0',
+            points: 50,
+            status: 'PUBLISHED',
+            sourceBookTitle: bookTitle,
+            sourceEvidence: `تقيس مؤشرات الأداء فعالية الرقابة والمعالجة — ${bookTitle}`,
+          },
+          {
+            order: 2,
+            type: 'ESSAY',
+            text: `حلل التكامل بين الحوكمة وإدارة المخاطر والرقابة الداخلية كما ورد في ${bookTitle}.`,
+            modelAnswer: 'التكامل يبدأ بإطار الحوكمة، ثم تحديد المخاطر، ثم متابعة المعالجة والرقابة بمؤشرات أداء.',
+            points: 50,
+            status: 'PUBLISHED',
+            sourceBookTitle: bookTitle,
+            sourceEvidence: `الحوكمة وإدارة المخاطر ومؤشرات الأداء تعمل معاً لضبط القرار — ${bookTitle}`,
+          },
+        ],
+      },
+    },
+    include: { questions: true },
+  })
+  const sem2ExamAttempt = await db.programExamAttempt.create({
+    data: {
+      examId: sem2Exam.id,
+      userId,
+      score: 90,
+      finalScore: 90,
+      passed: true,
+      status: 'GRADED',
+      feedback: JSON.stringify({ summary: 'اجتياز امتحان الفصل الثاني.' }),
+      durationUsedMin: 91,
+      submittedAt: new Date(),
+      answers: {
+        create: sem2Exam.questions.map((q) => ({ questionId: q.id, answerText: 'إجابة QA صحيحة للفصل الثاني.', selectedOption: q.type === 'MCQ' ? 0 : undefined, isCorrect: true, points: q.points, maxPoints: q.points })),
+      },
+    },
+  })
+
+  const sem1Average = avg([Number(sem1AssignmentSubmission.score), Number(unit1Attempt.score), Number(sem1ExamAttempt.finalScore || sem1ExamAttempt.score)])
+  const sem2Average = avg([Number(sem2AssignmentSubmission.score), Number(unit2Attempt.score), Number(sem2ExamAttempt.finalScore || sem2ExamAttempt.score)])
+  const thesisEligible = readiness1AfterMark.complete && readiness2AfterMark.complete && !!sem1ExamAttempt.passed && !!sem2ExamAttempt.passed && semester2GateAfterFinalPayment.ok
+
+  const thesis = await db.thesisSubmission.create({
+    data: {
+      userId,
+      admissionId,
+      title: `QA بحث التخرج في الحوكمة وإدارة المخاطر ${stamp}`,
+      abstract: 'بحث اختباري يتحقق من فتح مرحلة البحث بعد اجتياز الفصلين والالتزام المالي.',
+      fileNote: 'QA synthetic thesis file linked to full journey test.',
+      status: 'RESULT_APPROVED',
+      defenseDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      committee: JSON.stringify(['QA Committee Chair', 'AI Academic Reviewer']),
+      defenseStatus: 'COMPLETED',
+      aiScore: 88,
+      aiRecommendation: 'البحث مؤهل ومقبول ضمن رحلة الاختبار.',
+      defenseCompletedAt: new Date(),
+      defenseMinutes: 'محضر QA يؤكد معرفة الطالب بالمنهج والبحث.',
+      resultScore: 91,
+      passed: true,
+      reviewedAt: new Date(),
+    },
+  })
+  await db.thesisReviewNote.create({
+    data: {
+      thesisId: thesis.id,
+      stage: 'RESULT',
+      action: 'RESULT_NOTE',
+      note: 'QA: الطالب مؤهل لبحث التخرج بعد استيفاء الفصلين والالتزام المالي.',
+      authorId: admin.id,
+      authorName: admin.name,
+      visibleToStudent: true,
+    },
+  })
+
+  const finalGrade = await calculateFinalGrade({ userId, programId, admissionId })
+  const enrollmentAfterGrade = await db.enrollment.update({
+    where: { userId_programId: { userId, programId } },
+    data: { finalScore: finalGrade.score, status: finalGrade.score != null && finalGrade.score >= 60 ? 'COMPLETED' : 'ACTIVE' },
+  })
+
+  return {
+    tuitionGate: {
+      semester1Before: semester1GateBefore,
+      semester2BeforeFinalPayment,
+      semester2AfterFinalPayment,
+      planBeforeFinal,
+      planAfterFinal,
+      finalInstallmentPaid,
+    },
+    semesters: {
+      semester1: {
+        assignmentScore: sem1AssignmentSubmission.score,
+        unitQuizScore: unit1Attempt.score,
+        examScore: sem1ExamAttempt.finalScore || sem1ExamAttempt.score,
+        average: sem1Average,
+        readinessBeforeMark: readiness1BeforeMark,
+        readinessAfterMark: readiness1AfterMark,
+        passed: sem1Average >= 60 && !!sem1ExamAttempt.passed,
+      },
+      semester2: {
+        assignmentScore: sem2AssignmentSubmission.score,
+        unitQuizScore: unit2Attempt.score,
+        examScore: sem2ExamAttempt.finalScore || sem2ExamAttempt.score,
+        average: sem2Average,
+        readinessBeforeMark: readiness2BeforeMark,
+        readinessAfterMark: readiness2AfterMark,
+        passed: sem2Average >= 60 && !!sem2ExamAttempt.passed,
+      },
+    },
+    thesis: { id: thesis.id, title: thesis.title, eligible: thesisEligible, status: thesis.status, passed: thesis.passed, aiScore: thesis.aiScore, resultScore: thesis.resultScore },
+    finalGrade,
+    enrollmentAfterGrade: { id: enrollmentAfterGrade.id, status: enrollmentAfterGrade.status, finalScore: enrollmentAfterGrade.finalScore },
+  }
+}
+
 async function createServiceAndContact(admin: { id: string; name: string }, stamp: string, student: { id: string; name: string; email: string; phone?: string | null; country?: string | null }) {
   const service = await db.admissionApplication.create({
     data: {
