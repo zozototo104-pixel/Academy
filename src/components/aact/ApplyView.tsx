@@ -541,7 +541,7 @@ export function ApplyView() {
     const payable = app.status === 'AWAITING_TUITION' ? tuition : app.status === 'AWAITING_FEE' ? applicationFee : (tuition || applicationFee)
     const isStudyFinalActive = isStudyApp && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const isServiceApproved = !isStudyApp && ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
-    const tuitionSummaryActive = isStudyApp && !!tuitionPlan && tuitionPlan.totalTuition > 0 && (tuitionPlan.paidTuition > 0 || tuitionPlan.remainingTuition > 0)
+    const tuitionSummaryActive = hasTuitionProgress && !!tuitionPlan && tuitionPlan.totalTuition > 0
     const tuitionTotal = Number(tuitionPlan?.totalTuition || 0)
     const tuitionPaid = Number(tuitionPlan?.paidTuition || 0)
     const tuitionRemaining = Number(tuitionPlan?.remainingTuition || 0)
