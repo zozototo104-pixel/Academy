@@ -139,5 +139,12 @@ export async function enforceSemesterTuitionGate(userId: string, programId: stri
       error: `لا يمكن فتح امتحان الفصل الثاني قبل سداد بقية الرسوم الدراسية كاملة. المسدد حالياً ${plan.paidTuition}$ والمطلوب ${plan.finalRequired}$.`,
     }
   }
-  return { ok: true as const, plan }
+  return {
+    ok: true as const,
+    totalTuition: plan.totalTuition,
+    paidTuition: plan.paidTuition,
+    requiredAmount: semester >= 2 ? plan.finalRequired : plan.halfRequired,
+    remainingTuition: plan.remainingTuition,
+    plan,
+  }
 }
