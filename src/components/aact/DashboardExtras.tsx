@@ -420,7 +420,10 @@ export function PaymentsTab() {
         </div>
       )}
 
-      {plansWithBalance.map((plan) => (
+      {plansWithBalance.map((plan) => {
+        const initialDue = approvedInitialRemaining(plan)
+        const pendingInstallmentInvoice = payments.find((p) => p.admissionId === plan.admissionId && p.status === 'UNPAID' && p.purpose === 'TUITION_INSTALLMENT')
+        return (
         <Card key={plan.admissionId} className="border-blue-100 bg-blue-50/40">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
