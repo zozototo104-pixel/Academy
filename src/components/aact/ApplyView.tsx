@@ -493,6 +493,7 @@ export function ApplyView() {
         method: 'POST',
         body: JSON.stringify({ applicationId: staged.applicationId, reference: staged.reference, uploadToken: staged.uploadToken }),
       })
+      setManualPayNotice(null)
       setDone({ reference: d.reference, invoice: d.invoice || null })
       try {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
