@@ -439,57 +439,6 @@ export function ApplyView() {
     }
   }
 
-  const payTracked = async () => {
-    if (!trackPayTarget || !tracked) return
-    setTrackPaying(true)
-    try {
-      const result = await payInvoice(trackPayTarget.invoiceNo, async () => {
-        const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(tracked.reference)}`)
-        setTracked(d.application)
-        setMyAdmission((current: any) => current?.reference === d.application?.reference ? d.application : current)
-        setTrackPayTarget(null)
-      })
-      if (result.status === 'redirect') return
-      if (result.status === 'manual') {
-        toast({ title: 'تم تسجيل طريقة الدفع', description: result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.' })
-        return
-      }
-      toast({ title: 'تم الدفع بنجاح', description: 'تم تحديث حالة الطلب' })
-    } catch (e: any) {
-      toast({ title: 'خطأ في الدفع', description: e.message || 'تعذر إتمام الدفع', variant: 'destructive' })
-    } finally {
-      setTrackPaying(false)
-    }
-  }
-
-  const createAndPayRemainingTuition = async (app: any) => {
-    const plan: TrackedTuitionPlan | null = app?.tuitionPlan || null
-    if (!app?.id || !app?.reference || !plan?.remainingTuition) return
-    setTrackPaying(true)
-    try {
-      const created = await api<{ payment: TrackedInvoice }>('/api/payments/installment', {
-        method: 'POST',
-        body: JSON.stringify({ admissionId: app.id, amount: plan.remainingTuition }),
-      })
-      const result = await payInvoice(created.payment.invoiceNo, async () => {
-        const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}`)
-        setTracked(d.application)
-        setMyAdmission((current: any) => current?.reference === d.application?.reference ? d.application : current)
-        setTrackPayTarget(null)
-      })
-      if (result.status === 'redirect') return
-      if (result.status === 'manual') {
-        toast({ title: 'تم إنشاء فاتورة المتبقي وتسجيل طريقة الدفع', description: result.message || 'ستؤكد الإدارة السداد بعد استلام المبلغ.' })
-        return
-      }
-      toast({ title: 'تم إنشاء وسداد فاتورة المتبقي', description: 'تم تحديث خطة الرسوم في الطلب.' })
-    } catch (e: any) {
-      toast({ title: 'تعذر دفع المتبقي', description: e.message || 'سجّل الدخول أو راجع الإدارة لإنشاء فاتورة المتبقي.', variant: 'destructive' })
-    } finally {
-      setTrackPaying(false)
-    }
-  }
-
   const renderAdmissionStatusCard = (app: any) => {
     const isStudyApp = app.isStudyProgram !== false
     const baseStatus = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
