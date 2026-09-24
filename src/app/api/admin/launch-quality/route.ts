@@ -237,17 +237,15 @@ export async function POST(req: NextRequest) {
     const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
     const contextCoverage = buildContextCoverage(student, context)
 
-    const voiceSupervisor = await liveReadiness(runVoiceToken, 'SUPERVISOR')
-    const voiceDiscussion = await liveReadiness(runVoiceToken, 'DISCUSSION')
+    const voiceSupervisor = includeVoice ? await liveReadiness(runVoiceToken, 'SUPERVISOR') : null
+    const voiceDiscussion = includeVoice ? await liveReadiness(runVoiceToken, 'DISCUSSION') : null
 
     const probes = runAi && student
-      ? [
-          await runAiProbe('PROFILE', student, context),
-          await runAiProbe('CURRICULUM', student, context),
-          await runAiProbe('THESIS', student, context),
-          await runAiProbe('DEFENSE', student, context),
-        ]
+      ? [] as Awaited<ReturnType<typeof runAiProbe>>[]
       : []
+    if (runAi && student) {
+      for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
+    }
 
     const passedProbes = probes.filter((p: any) => p.passed || p.skipped).length
     const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 100
