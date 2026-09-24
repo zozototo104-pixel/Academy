@@ -240,9 +240,7 @@ export async function POST(req: NextRequest) {
     const voiceSupervisor = includeVoice ? await liveReadiness(runVoiceToken, 'SUPERVISOR') : null
     const voiceDiscussion = includeVoice ? await liveReadiness(runVoiceToken, 'DISCUSSION') : null
 
-    const probes = runAi && student
-      ? [] as Awaited<ReturnType<typeof runAiProbe>>[]
-      : []
+    const probes: Array<Awaited<ReturnType<typeof runAiProbe>>> = []
     if (runAi && student) {
       for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
     }
