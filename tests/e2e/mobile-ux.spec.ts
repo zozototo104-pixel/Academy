@@ -80,8 +80,8 @@ test.describe('AACT mobile UX guardrails suite', () => {
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.getByLabel('القائمة').click()
-    const menu = page.locator('header').getByText('القائمة الرئيسية').locator('..').locator('..')
     await expect(page.getByText('القائمة الرئيسية')).toBeVisible()
+    const menu = page.getByText('القائمة الرئيسية').locator('xpath=ancestor::div[contains(@class,"overflow-y-auto")][1]')
     const menuBox = await menu.boundingBox()
     expect(menuBox?.height || 0, `Mobile menu should fit within viewport: ${JSON.stringify(menuBox)}`).toBeLessThanOrEqual(780)
     await assertNoPageHorizontalOverflow(page, 'mobile-menu')
