@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      require_voice_ready:
+        description: 'Fail the workflow if Gemini Live voice readiness is not OK'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
