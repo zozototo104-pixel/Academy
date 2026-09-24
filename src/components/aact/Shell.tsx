@@ -298,11 +298,7 @@ function NotificationBell() {
                 items.map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => {
-                      setOpen(false)
-                      if (n.link) navigate(n.link as any)
-                      if (!n.read) api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch(() => {})
-                    }}
+                    onClick={() => openNotification(n)}
                     className={`block w-full border-b border-slate-50 px-4 py-3 text-right transition-colors hover:bg-[#f7edd0]/40 ${
                       n.read ? '' : 'bg-[#c9a227]/5'
                     }`}
