@@ -61,7 +61,11 @@ export function pathForView(view: View, params: Record<string, string | null | u
       return '/login'
     case 'dashboard': {
       const id = params.programId || params.program
-      return id ? `/dashboard/program/${enc(id)}` : '/dashboard'
+      const qs = new URLSearchParams()
+      if (params.tab) qs.set('tab', params.tab)
+      if (params.invoice) qs.set('invoice', params.invoice)
+      const suffix = qs.toString() ? `?${qs.toString()}` : ''
+      return id ? `/dashboard/program/${enc(id)}${suffix}` : `/dashboard${suffix}`
     }
     case 'unit': {
       const id = params.unitId
