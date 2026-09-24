@@ -99,8 +99,8 @@ export const useAppStore = create<AppState>((set) => ({
   applyProgramTitle: null,
   setUser: (u) => set({ user: u }),
   setAuthChecked: (v) => set({ authChecked: v }),
-  navigate: (view) => {
-    updateBrowserRoute(view)
+  navigate: (view, params = {}) => {
+    updateBrowserRoute(view, params)
     set({
       view,
       mobileMenuOpen: false,
