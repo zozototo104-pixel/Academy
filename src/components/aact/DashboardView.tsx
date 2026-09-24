@@ -759,7 +759,7 @@ export function DashboardView() {
                   </div>
                 )}
 
-                {activeAcademicProfile && (
+                {programSection === 'academic' && activeAcademicProfile && (
                   <section className="mt-4 rounded-2xl border border-[#c9a227]/35 bg-[#fffaf0] p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
