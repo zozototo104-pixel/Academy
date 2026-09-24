@@ -372,7 +372,7 @@ export async function GET(req: NextRequest) {
           invoiceNo: true, purpose: true, amount: true, status: true,
           description: true, receiptNo: true, paidAt: true, createdAt: true,
         },
-        orderBy: { createdAt: 'asc' as const },
+        orderBy: { createdAt: 'desc' as const },
       },
       theses: {
         select: { id: true, title: true, status: true, createdAt: true, updatedAt: true },
