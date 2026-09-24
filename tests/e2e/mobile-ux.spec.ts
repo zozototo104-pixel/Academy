@@ -86,6 +86,7 @@ test.describe('AACT mobile UX guardrails suite', () => {
     expect(menuBox?.height || 0, `Mobile menu should fit within viewport: ${JSON.stringify(menuBox)}`).toBeLessThanOrEqual(780)
     await assertNoPageHorizontalOverflow(page, 'mobile-menu')
     checks.push({ name: 'القائمة الهاتفية قابلة للتمرير ولا تتجاوز ارتفاع الشاشة', ok: true, detail: `${Math.round(menuBox?.height || 0)}px` })
+    await page.getByLabel('القائمة').click()
 
     await page.getByLabel(/افتح وكيل واتساب الذكي/).click()
     await expect(page.getByText('وكيل واتساب الذكي').first()).toBeVisible()
