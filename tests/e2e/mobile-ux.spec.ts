@@ -40,6 +40,21 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
     const inner = window.innerWidth
     const doc = document.documentElement.scrollWidth
     const body = document.body.scrollWidth
+    const clippedByOverflowAncestor = (el: HTMLElement, rect: DOMRect) => {
+      let parent = el.parentElement
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const style = window.getComputedStyle(parent)
+        const clipsX = ['hidden', 'clip'].includes(style.overflowX) || ['hidden', 'clip'].includes(style.overflow)
+        if (clipsX) {
+          const parentRect = parent.getBoundingClientRect()
+          const childEscapesParent = rect.left < parentRect.left - 1 || rect.right > parentRect.right + 1 || rect.width > parentRect.width + 1
+          const parentIsViewportSafe = parentRect.left >= -4 && parentRect.right <= inner + 4
+          if (childEscapesParent && parentIsViewportSafe) return true
+        }
+        parent = parent.parentElement
+      }
+      return false
+    }
     const offenders = Array.from(document.querySelectorAll<HTMLElement>('body *'))
       .map((el) => {
         const rect = el.getBoundingClientRect()
@@ -51,6 +66,7 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
           position: style.position,
           display: style.display,
           visibility: style.visibility,
+          clipped: clippedByOverflowAncestor(el, rect),
           left: Math.round(rect.left),
           right: Math.round(rect.right),
           width: Math.round(rect.width),
@@ -58,6 +74,7 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
         }
       })
       .filter((item) => item.display !== 'none' && item.visibility !== 'hidden' && item.height > 0 && item.width > 0)
+      .filter((item) => !item.clipped)
       .filter((item) => item.position !== 'fixed' && (item.left < -4 || item.right > inner + 4 || item.width > inner + 4))
       .slice(0, 12)
     const previousX = window.scrollX
