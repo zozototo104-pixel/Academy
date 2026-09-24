@@ -392,8 +392,15 @@ export function PaymentsTab() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-amber-100 p-2.5 text-amber-600"><Clock3 className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]"><Money value={totalDue} /></p><p className="text-[10px] font-bold text-slate-500">مستحق السداد</p></div></CardContent></Card>
         <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-600"><Wallet className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]"><Money value={totalPaid} /></p><p className="text-[10px] font-bold text-slate-500">إجمالي المسدد</p></div></CardContent></Card>
-        <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-[#f7edd0] p-2.5 text-[#a8841a]"><ReceiptText className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]">{payments.length}</p><p className="text-[10px] font-bold text-slate-500">عدد الفواتير</p></div></CardContent></Card>
+        <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-[#f7edd0] p-2.5 text-[#a8841a]"><ReceiptText className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]">{displayPayments.length}</p><p className="text-[10px] font-bold text-slate-500">عدد الفواتير</p></div></CardContent></Card>
       </div>
+
+      {tuitionPlans.some((p) => p.totalTuition > 0) && (
+        <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-[#0f2b46]">
+          <p className="font-black text-[#a8841a]">قواعد فتح الاختبارات حسب السداد</p>
+          <p className="mt-1">يفتح امتحان الفصل الأول بعد سداد نصف الرسوم الدراسية على الأقل، ويفتح امتحان الفصل الثاني بعد استيفاء كامل الرسوم. بطاقة خطة الرسوم أدناه هي مصدر الحقيقة للمتبقي والمسدّد.</p>
+        </div>
+      )}
 
       {plansWithBalance.map((plan) => (
         <Card key={plan.admissionId} className="border-blue-100 bg-blue-50/40">
