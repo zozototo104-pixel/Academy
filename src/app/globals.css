@@ -643,6 +643,15 @@ main,
 }
 
 @media (max-width: 640px) {
+  body {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+  [data-slot="tabs-list"] {
+    scrollbar-width: none;
+  }
+  [data-slot="tabs-list"]::-webkit-scrollbar {
+    display: none;
+  }
   .aact-mobile-stack {
     flex-direction: column !important;
     align-items: stretch !important;
