@@ -60,11 +60,29 @@ export async function GET(req: NextRequest) {
 
     // لا نضيف أسئلة احتياطية عند مجرد تحميل القائمة؛ التوليد يجب أن يتم من محتوى الكتب عبر مسار generate/kick.
 
+    const questionSelect = includeQuestions
+      ? {
+          id: true,
+          order: true,
+          type: true,
+          text: true,
+          points: true,
+          status: true,
+          sourceEvidence: true,
+          sourceBookTitle: true,
+          sourceLocator: true,
+          modelAnswer: true,
+          correctAnswer: true,
+          difficulty: true,
+          cognitiveSkill: true,
+        }
+      : { type: true, points: true, status: true }
+
     const exams = await db.programExam.findMany({
       where: { programId },
       orderBy: { createdAt: 'desc' },
       include: {
-        questions: { select: { type: true, points: true, status: true } },
+        questions: { select: questionSelect },
         _count: { select: { attempts: true } },
       },
     })
