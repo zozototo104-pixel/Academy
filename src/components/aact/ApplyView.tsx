@@ -614,7 +614,7 @@ export function ApplyView() {
                 <div>
                   <p className="text-sm font-black text-[#0f2b46]">خطة الرسوم الدراسية للبرنامج</p>
                   <p className="mt-1 text-xs font-bold leading-6 text-amber-700">
-                    سعر البرنامج: {tuitionPlan.totalTuition}$ — المسدد: {tuitionPlan.paidTuition}$ — المتبقي: {tuitionPlan.remainingTuition}$
+                    سعر البرنامج: {tuitionTotal}$ — المسدد: {tuitionPaid}$ — المتبقي: {tuitionRemaining}$
                   </p>
                   <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
                     لا يُحسب المتبقي من الفاتورة الأصلية إذا تم السداد على دفعات؛ يتم احتسابه من إجمالي الرسوم ناقص الدفعات المسددة.
