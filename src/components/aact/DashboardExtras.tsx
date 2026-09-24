@@ -464,60 +464,6 @@ export function PaymentsTab() {
                         inputMode="decimal"
                         readOnly={initialDue > 0}
                         placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}
-  const [payTarget, setPayTarget] = useState<Payment | null>(null)
-  const [method, setMethod] = useState('DIRECT_PAYMENT')
-  const [paying, setPaying] = useState(false)
-  const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
-  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
-  const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
-  const [appealBusy, setAppealBusy] = useState(false)
-  const [appealPlanId, setAppealPlanId] = useState<string | null>(null)
-  const [appealAmount, setAppealAmount] = useState('')
-  const [appealReason, setAppealReason] = useState('')
-  const [appealSchedule, setAppealSchedule] = useState('')
-  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
-  const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
-  const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
-  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
-  const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
-  const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
-
-  const load = () => {
-    api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
-      .then((d) => {
-        setPayments(Array.isArray(d.payments) ? d.payments : [])
-        setTuitionPlans(Array.isArray(d.tuitionPlans) ? d.tuitionPlans : [])
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    load()
-    api<PaymentConfig>('/api/payments/config')
-      .then((d) => {
-        setPayConfig(d)
-        setPayMode(d.mode || 'SANDBOX')
-        const firstEnabled = d.methods?.find((m) => m.enabled)?.id
-        if (firstEnabled) setMethod(firstEnabled)
-      })
-      .catch(() => {})
-
-    const q = new URLSearchParams(window.location.search)
-    const invoice = q.get('invoice')
-    if (invoice) setInitialInvoiceNo(invoice)
-    const paid = q.get('paid')
-    if (paid) {
-      api<{ ok: boolean; status: string; receiptNo?: string; note?: string }>(`/api/payments/verify-session?invoiceNo=${encodeURIComponent(paid)}`)
-        .then((d) => {
-          if (d.status === 'PAID') toast({ title: 'تم تأكيد الدفع', description: `سُددت الفاتورة ${paid} — الإيصال ${d.receiptNo || ''}` })
-          else toast({ title: 'الدفع قيد التحقق', description: d.note || 'سيُعتمد تلقائياً عند تأكيد المزود.' })
-          load()
-        })
-        .catch(() => {})
-      window.history.replaceState({}, '', '/dashboard?tab=payments')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const openPaymentDialog = (payment: Payment) => {
