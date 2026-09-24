@@ -193,6 +193,8 @@ export function PaymentsTab() {
       .catch(() => {})
 
     const q = new URLSearchParams(window.location.search)
+    const invoice = q.get('invoice')
+    if (invoice) setInitialInvoiceNo(invoice)
     const paid = q.get('paid')
     if (paid) {
       api<{ ok: boolean; status: string; receiptNo?: string; note?: string }>(`/api/payments/verify-session?invoiceNo=${encodeURIComponent(paid)}`)
