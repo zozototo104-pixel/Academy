@@ -168,6 +168,8 @@ export function PaymentsTab() {
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
   const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
+  const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
+  const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
 
   const load = () => {
     api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
