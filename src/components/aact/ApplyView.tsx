@@ -65,6 +65,8 @@ interface TrackedInvoice {
   status: string
   description: string
   currency?: string
+  createdAt?: string
+  paidAt?: string | null
 }
 
 const REQUIRED_DOCS = [
