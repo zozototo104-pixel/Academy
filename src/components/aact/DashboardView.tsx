@@ -314,6 +314,7 @@ export function DashboardView() {
   const [serviceDeliverables, setServiceDeliverables] = useState<ServiceDeliverableRow[]>([])
   const [serviceDeliverablesLoading, setServiceDeliverablesLoading] = useState(true)
   const [dashboardTab, setDashboardTab] = useState('programs')
+  const [programSection, setProgramSection] = useState('academic')
 
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
     ...guide,
