@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const FULL_JOURNEY_SCHEMA_VERSION = 3
+const FULL_JOURNEY_SCHEMA_VERSION = 4
 
 function runStamp() {
   return new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
