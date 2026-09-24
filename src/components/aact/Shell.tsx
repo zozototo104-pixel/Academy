@@ -5,11 +5,23 @@ import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useState } from 'react'
 import { Bot, ChevronDown, ChevronUp, ShieldCheck, Download, Users2, Send, Loader2, X, ExternalLink, MessageCircle } from 'lucide-react'
 
-// أزرار عائمة: واتساب مباشر + العودة للأعلى — تختفي عند الطباعة
+// أزرار عائمة: واتساب ذكي + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
-  const { view, navigate } = useAppStore()
+  const { view } = useAppStore()
   const [showTop, setShowTop] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [messages, setMessages] = useState<{ role: 'assistant' | 'user'; content: string }[]>([
+    {
+      role: 'assistant',
+      content: `أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. رقم واتساب الإدارة: ${ACADEMY_INFO.whatsappDisplay}.`,
+    },
+  ])
   const inChat = view === 'chat'
+  const whatsappNumber = ACADEMY_INFO.whatsapp.replace(/\D/g, '')
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('السلام عليكم، أريد الاستفسار عن برامج الأكاديمية الأمريكية للاستشارات والتدريب.')}`
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
@@ -18,8 +30,98 @@ export function FloatingActions() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const visitorId = () => {
+    try {
+      const key = 'aact_public_whatsapp_visitor'
+      const existing = localStorage.getItem(key)
+      if (existing) return existing
+      const id = `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      localStorage.setItem(key, id)
+      return id
+    } catch {
+      return 'visitor'
+    }
+  }
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || loading) return
+    setInput('')
+    setError('')
+    const nextMessages = [...messages, { role: 'user' as const, content: text }]
+    setMessages(nextMessages)
+    setLoading(true)
+    try {
+      const res = await fetch('/api/public/whatsapp-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: messages.slice(-8), visitorId: visitorId() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'تعذر الرد الآن')
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'أهلاً بك، كيف أساعدك؟' }])
+    } catch (e: any) {
+      setError(String(e?.message || 'تعذر تشغيل وكيل واتساب الذكي مؤقتاً'))
+      setMessages((prev) => [...prev, { role: 'assistant', content: `تعذر الرد الآلي مؤقتاً. يمكنك فتح واتساب المباشر على ${ACADEMY_INFO.whatsappDisplay} وسيتم تحويل استفسارك للإدارة.` }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className={`aact-no-print fixed left-4 z-40 flex flex-col items-center gap-2.5 transition-all duration-300 ${inChat ? 'bottom-28 sm:bottom-24' : 'bottom-4'}`}>
+      {open && (
+        <div className="mb-1 w-[min(92vw,370px)] overflow-hidden rounded-3xl border border-[#25d366]/30 bg-white shadow-2xl" dir="rtl">
+          <div className="flex items-center justify-between gap-2 bg-gradient-to-l from-[#25d366] to-[#128c7e] px-4 py-3 text-white">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/18"><MessageCircle className="h-5 w-5" /></span>
+              <div>
+                <p className="text-sm font-black">وكيل واتساب الذكي</p>
+                <p className="text-[10px] font-semibold text-white/85">يرد آلياً على استفسارات المنصة والبرامج</p>
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} className="rounded-full p-1.5 hover:bg-white/15" aria-label="إغلاق وكيل واتساب الذكي">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="max-h-80 space-y-2 overflow-y-auto bg-[#f6fbf8] px-3 py-3">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                <div className={`max-w-[86%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-[#dcf8c6] text-slate-800' : 'bg-white text-[#0f2b46]'}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-end">
+                <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-bold text-slate-500 shadow-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> يكتب الرد...
+                </div>
+              </div>
+            )}
+            {error && <p className="text-center text-[10px] font-bold text-red-500">{error}</p>}
+          </div>
+          <div className="border-t border-[#25d366]/10 bg-white p-3">
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') send() }}
+                placeholder="اكتب سؤالك عن البرامج أو التسجيل..."
+                className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-[#25d366]"
+                disabled={loading}
+              />
+              <button onClick={send} disabled={loading || !input.trim()} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#25d366] text-white disabled:opacity-50" aria-label="إرسال">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </div>
+            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-1 rounded-2xl border border-[#25d366]/30 px-3 py-2 text-[11px] font-black text-[#128c7e] hover:bg-[#dcf8c6]/40">
+              فتح المحادثة على واتساب الرسمي <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* العودة للأعلى — يظهر بعد التمرير */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -30,15 +132,11 @@ export function FloatingActions() {
       >
         <ChevronUp className="h-5 w-5" />
       </button>
-      {/* واتساب الذكي — يفتح وكيل الأكاديمية داخل المنصة، مع دعم النص والصوت الحي عبر Gemini Live */}
       <button
         type="button"
-        onClick={() => {
-          try { sessionStorage.setItem('aact_open_voice_agent', '1') } catch {}
-          navigate('chat')
-        }}
+        onClick={() => setOpen((v) => !v)}
         aria-label="افتح وكيل واتساب الذكي للأكاديمية"
-        title="وكيل واتساب الذكي — اسأل نصياً أو تحدث صوتياً مع مشرف ذكاء اصطناعي"
+        title="وكيل واتساب الذكي — يجيب على استفسارات الأكاديمية والبرامج"
         className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
       >
         <span className="absolute inset-0 animate-ping rounded-full bg-[#25d366]/40" aria-hidden="true" />
