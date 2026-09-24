@@ -1,0 +1,96 @@
+name: UX Guardrails Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Production or preview URL to test"
+        required: true
+        default: "https://academy-raqaba.vercel.app"
+
+permissions:
+  contents: read
+
+jobs:
+  ux-guardrails:
+    name: UX guardrails and regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install chromium --with-deps
+
+      - name: Verify required UX secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in E2E_BASE_URL E2E_ADMIN_EMAIL E2E_ADMIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required value: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Wait for full journey schema v4 route
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${E2E_BASE_URL%/}"
+          url="$base/api/admin/full-journey"
+          echo "Waiting for full journey schema v4 before UX checks: $url"
+          for i in {1..90}; do
+            if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+              code=$(curl -sS -o /tmp/ux-route-check.txt -w "%{http_code}" \
+                -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
+                -H "x-vercel-set-bypass-cookie: true" \
+                "$url" || true)
+            else
+              code=$(curl -sS -o /tmp/ux-route-check.txt -w "%{http_code}" "$url" || true)
+            fi
+            body=$(cat /tmp/ux-route-check.txt || true)
+            echo "Attempt $i: HTTP $code"
+            if echo "$body" | grep -q '"journeySchemaVersion":4'; then
+              echo "Full journey schema v4 is deployed."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Full journey schema v4 was not deployed after waiting. Last response:"
+          cat /tmp/ux-route-check.txt || true
+          exit 1
+
+      - name: Run UX guardrails suite
+        run: bun run e2e:ux
+
+      - name: Upload UX guardrails report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-guardrails-report
+          path: |
+            test-results/ux-guardrails/**
+            playwright-report/**
+          if-no-files-found: warn
