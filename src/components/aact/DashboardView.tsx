@@ -316,6 +316,12 @@ export function DashboardView() {
   const [dashboardTab, setDashboardTab] = useState('programs')
   const [programSection, setProgramSection] = useState('academic')
 
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab')
+    const allowedTabs = ['programs', 'supervision', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']
+    if (requestedTab && allowedTabs.includes(requestedTab)) setDashboardTab(requestedTab)
+  }, [])
+
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
     ...guide,
     title: cleanAcademicOutput(guide.title, 220),
