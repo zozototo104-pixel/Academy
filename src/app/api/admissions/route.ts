@@ -175,12 +175,17 @@ export async function POST(req: NextRequest) {
       : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
     const serviceFlow = getServiceFlow(programRec?.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : programRec?.category === 'SERVICE'
+    const programRules = programRec?.admissionRules
+      ? resolveRules(programRec?.category || 'DIPLOMA', programRec.admissionRules, !isServiceRequest)
+      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', programRec?.admissionRules, !isServiceRequest))
 
-    if (!isServiceRequest && !String(nationalId || '').trim()) {
-      return NextResponse.json(
-        { error: 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر لطلبات الالتحاق الدراسية' },
-        { status: 400 }
-      )
+    if (!isServiceRequest) {
+      const nationalError = validateNationalIdOrPassport(String(nationalId || ''), country)
+      if (nationalError) return NextResponse.json({ error: nationalError }, { status: 400 })
+      if (programRules.minAge) {
+        const birthError = validateBirthDateForMinAge(String(birthDate || ''), Number(programRules.minAge))
+        if (birthError) return NextResponse.json({ error: birthError }, { status: 400 })
+      }
     }
 
     // ===== الخطوة 2: المستندات الرسمية أو مرفقات الخدمة المخصصة =====
