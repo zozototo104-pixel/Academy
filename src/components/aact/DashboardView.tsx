@@ -834,7 +834,28 @@ export function DashboardView() {
                           </div>
                           <div className="mt-3 rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600">
                             <p className="font-black text-[#0f2b46]">المواد المطلوبة لهذا الفصل</p>
-                            <p className="mt-1">{plan.semesterBooks.slice(0, 6).map((b) => b.title).join(' · ') || 'تظهر الكتب والمواد هنا بعد اعتماد الإدارة للمنهج.'}</p>
+                            {plan.semesterBooks.length ? (
+                              <div className="mt-2 grid gap-2">
+                                {plan.semesterBooks.slice(0, 6).map((book) => {
+                                  const canOpen = Boolean(book.id && (book.hasFile || book.hasLink))
+                                  return (
+                                    <div key={book.id || book.title} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                                      <span className="min-w-0 flex-1 truncate font-black text-[#0f2b46]">{book.title}</span>
+                                      {canOpen ? (
+                                        <Button type="button" size="sm" variant="outline" onClick={() => openBookResource(book)} className="h-8 shrink-0 border-[#c9a227]/40 text-[11px] font-black text-[#a8841a]">
+                                          {book.hasFile ? <Download className="ml-1 h-3.5 w-3.5" /> : <ExternalLink className="ml-1 h-3.5 w-3.5" />}
+                                          {book.hasFile ? 'تحميل الكتاب' : 'فتح الرابط'}
+                                        </Button>
+                                      ) : (
+                                        <Badge className="shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-100">غير مرفوع</Badge>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <p className="mt-1">تظهر الكتب والمواد هنا بعد اعتماد الإدارة للمنهج.</p>
+                            )}
                           </div>
                         </div>
                       ))}
