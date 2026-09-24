@@ -1,6 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = process.env.E2E_BASE_URL || 'https://academy-raqaba.vercel.app'
+const configuredBaseURL =
+  process.env.E2E_BASE_URL ||
+  process.env.NEXTAUTH_URL ||
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+  process.env.VERCEL_URL ||
+  'https://academy-raqaba.vercel.app'
+
+const baseURL = configuredBaseURL.startsWith('http') ? configuredBaseURL : `https://${configuredBaseURL}`
 const automationBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
 
 const extraHTTPHeaders: Record<string, string> = automationBypass
