@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     // لا نضيف أسئلة احتياطية عند مجرد تحميل القائمة؛ التوليد يجب أن يتم من محتوى الكتب عبر مسار generate/kick.
 
-    const questionSelect = includeQuestions
+    const questionSelect: any = includeQuestions
       ? {
           id: true,
           order: true,
