@@ -89,13 +89,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       exams: exams.map((e) => {
+        const questions = e.questions as Array<{ type?: string | null; points?: number | null; status?: string | null }>
         const byType: Record<string, number> = {}
         let totalPoints = 0
         let pending = 0
         let rejected = 0
-        for (const q of e.questions) {
-          byType[q.type] = (byType[q.type] || 0) + 1
-          totalPoints += q.points
+        for (const q of questions) {
+          const type = q.type || 'UNKNOWN'
+          byType[type] = (byType[type] || 0) + 1
+          totalPoints += Number(q.points || 0)
           if (q.status === 'PENDING_REVIEW') pending++
           if (q.status === 'REJECTED') rejected++
         }
