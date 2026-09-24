@@ -131,6 +131,10 @@ export async function enforceSemesterTuitionGate(userId: string, programId: stri
     return {
       ok: false as const,
       code: 'TUITION_FULL_REQUIRED',
+      totalTuition: plan.totalTuition,
+      paidTuition: plan.paidTuition,
+      requiredAmount: plan.finalRequired,
+      remainingTuition: plan.remainingTuition,
       plan,
       error: `لا يمكن فتح امتحان الفصل الثاني قبل سداد بقية الرسوم الدراسية كاملة. المسدد حالياً ${plan.paidTuition}$ والمطلوب ${plan.finalRequired}$.`,
     }
