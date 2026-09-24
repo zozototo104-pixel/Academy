@@ -272,17 +272,20 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
   })
   await audit(admin, 'QA_APPROVE_ADMISSION', 'AdmissionApplication', admission.id, `Full journey approved ${admission.reference}`)
 
+  const totalTuitionAmount = Number(program.price || 1200)
+  const halfTuitionAmount = Math.round((totalTuitionAmount / 2) * 100) / 100
+
   const appeal = await db.tuitionInstallmentAppeal.create({
     data: {
       admissionId: admission.id,
       userId: student.id,
       programId: program.id,
       status: 'APPROVED',
-      requestedInitialAmount: 300,
-      approvedInitialAmount: 300,
-      firstSemesterRequiredAmount: 300,
-      finalRequiredAmount: Number(program.price || 1200),
-      proposedSchedule: JSON.stringify([{ label: 'initial', amount: 300 }, { label: 'remaining', amount: Number(program.price || 1200) - 300 }]),
+      requestedInitialAmount: halfTuitionAmount,
+      approvedInitialAmount: halfTuitionAmount,
+      firstSemesterRequiredAmount: halfTuitionAmount,
+      finalRequiredAmount: totalTuitionAmount,
+      proposedSchedule: JSON.stringify([{ label: 'initial', amount: halfTuitionAmount }, { label: 'remaining', amount: totalTuitionAmount - halfTuitionAmount }]),
       reason: 'QA_FULL_JOURNEY installment request simulation',
       adminNote: 'Approved by automated full journey test',
       decidedById: admin.id,
