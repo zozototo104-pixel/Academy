@@ -119,6 +119,10 @@ export async function enforceSemesterTuitionGate(userId: string, programId: stri
     return {
       ok: false as const,
       code: 'TUITION_HALF_REQUIRED',
+      totalTuition: plan.totalTuition,
+      paidTuition: plan.paidTuition,
+      requiredAmount: plan.halfRequired,
+      remainingTuition: plan.remainingTuition,
       plan,
       error: `لا يمكن فتح امتحان الفصل الأول قبل سداد نصف الرسوم الدراسية على الأقل. المسدد حالياً ${plan.paidTuition}$ والمطلوب ${plan.halfRequired}$.`,
     }
