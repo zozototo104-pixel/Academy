@@ -20,6 +20,13 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 type ProbeKind = 'PROFILE' | 'CURRICULUM' | 'THESIS' | 'DEFENSE'
+const ALL_PROBE_KINDS: ProbeKind[] = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE']
+
+function selectedProbeKinds(body: any): ProbeKind[] {
+  const raw = Array.isArray(body?.probeKinds) ? body.probeKinds : body?.probeKind ? [body.probeKind] : ALL_PROBE_KINDS
+  const selected = raw.filter((kind: unknown): kind is ProbeKind => ALL_PROBE_KINDS.includes(kind as ProbeKind))
+  return selected.length ? selected : ALL_PROBE_KINDS
+}
 
 function normalizeArabic(text: string) {
   return String(text || '')
