@@ -259,6 +259,8 @@ export async function POST(req: NextRequest) {
       durationMs: elapsed(started),
       runAi,
       runVoiceToken,
+      includeVoice,
+      probeKinds,
       version: appVersion(),
       studentContext: contextCoverage,
       voiceReadiness: { supervisor: voiceSupervisor, discussion: voiceDiscussion },
