@@ -338,9 +338,14 @@ export function Header() {
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
   ]
 
+  useEffect(() => {
+    setProfileOpen(false)
+  }, [view])
+
   const isActiveGroup = (targets: any[]) => targets.includes(view)
   const goMobile = (target: any) => {
     setMobileMenuOpen(false)
+    setProfileOpen(false)
     navigate(target)
   }
 
