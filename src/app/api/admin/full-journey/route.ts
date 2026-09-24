@@ -40,6 +40,13 @@ function avg(nums: number[]) {
   return nums.length ? round1(nums.reduce((sum, n) => sum + n, 0) / nums.length) : 0
 }
 
+function programQuestionPoints(type: string | null | undefined) {
+  const t = String(type || '').toUpperCase()
+  if (t === 'ESSAY') return 20
+  if (t === 'SHORT') return 10
+  return 5
+}
+
 async function createProgramScaffold(admin: { id: string; name: string }, stamp: string) {
   const slug = `qa-full-journey-${stamp}`
   const program = await db.program.create({
