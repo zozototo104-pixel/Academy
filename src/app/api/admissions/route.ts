@@ -12,6 +12,7 @@ import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { normalizePhone, isSupportedCountry, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
+import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
 // لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
