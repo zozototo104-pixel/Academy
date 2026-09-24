@@ -16,9 +16,9 @@ export function serviceConfigurationStatus() {
   return {
     database: boolEnv(['DATABASE_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL', 'DATABASE_POSTGRES_URL']),
     resend: boolEnv(['RESEND_API_KEY']),
-    storage: boolEnv(['R2_ACCOUNT_ID', 'R2_BUCKET', 'S3_BUCKET', 'AWS_S3_BUCKET']),
+    storage: boolEnv(['AACT_S3_ENDPOINT', 'AACT_S3_BUCKET', 'AACT_S3_ACCESS_KEY_ID', 'AACT_S3_SECRET_ACCESS_KEY', 'R2_ACCOUNT_ID', 'R2_BUCKET', 'S3_BUCKET', 'AWS_S3_BUCKET']),
     stripe: boolEnv(['STRIPE_SECRET_KEY']),
-    paypal: boolEnv(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET']),
+    paypal: boolEnv(['PAYPAL_CLIENT_ID', 'PAYPAL_SECRET', 'PAYPAL_CLIENT_SECRET']),
     usdt: boolEnv(['USDT_WALLET_ADDRESS', 'NEXT_PUBLIC_USDT_WALLET_ADDRESS']),
     tronGrid: boolEnv(['TRONGRID_API_KEY', 'TRON_GRID_API_KEY']),
     vcSigning: boolEnv(['AACT_VC_SIGNING_SECRET']),
