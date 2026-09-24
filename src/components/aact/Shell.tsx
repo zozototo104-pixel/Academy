@@ -84,7 +84,7 @@ export function FloatingActions() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="max-h-80 space-y-2 overflow-y-auto bg-[#f6fbf8] px-3 py-3">
+          <div className="max-h-[42dvh] space-y-2 overflow-y-auto bg-[#f6fbf8] px-3 py-3 sm:max-h-80">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                 <div className={`max-w-[86%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-[#dcf8c6] text-slate-800' : 'bg-white text-[#0f2b46]'}`}>
