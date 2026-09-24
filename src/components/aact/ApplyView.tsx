@@ -89,6 +89,8 @@ const EXTRA_DOCS = [
 
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
+const invoiceTime = (p: TrackedInvoice) => new Date(p.paidAt || p.createdAt || 0).getTime() || 0
+const sortInvoicesNewest = (items: TrackedInvoice[]) => [...items].sort((a, b) => invoiceTime(b) - invoiceTime(a))
 
 const EDUCATION_LABEL: Record<string, string> = {
   HIGH_SCHOOL: 'ثانوية عامة أو ما يعادلها',
