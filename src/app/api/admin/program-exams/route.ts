@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
     const programId = req.nextUrl.searchParams.get('programId')
+    const includeQuestions = req.nextUrl.searchParams.get('includeQuestions') === '1'
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
     // لا نضيف أسئلة احتياطية عند مجرد تحميل القائمة؛ التوليد يجب أن يتم من محتوى الكتب عبر مسار generate/kick.
