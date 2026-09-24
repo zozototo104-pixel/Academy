@@ -723,7 +723,7 @@ export function ApplyView() {
                 {installmentPayable ? (
                   <Button
                     onClick={() => {
-                      setPayMethod('PAYMOB')
+                      setPayMethod(selectedPaymentMethod?.id || 'DIRECT_PAYMENT')
                       setTracked(app)
                       setTrackPayTarget(installmentPayable)
                     }}
