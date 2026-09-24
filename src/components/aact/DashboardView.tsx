@@ -390,6 +390,7 @@ export function DashboardView() {
       setActive(d)
       setAssignments(a.assignments || [])
       setStudyGuides(g.guides || [])
+      setProgramSection('academic')
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
