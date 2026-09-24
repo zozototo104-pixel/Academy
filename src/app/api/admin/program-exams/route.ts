@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
           rejectedCount: rejected,
           attemptsCount: e._count.attempts,
           createdAt: e.createdAt,
+          ...(includeQuestions ? { questions: e.questions } : {}),
         }
       }),
     })
