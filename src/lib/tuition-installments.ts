@@ -91,8 +91,8 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
   const appeal = await findActiveAppeal(app.id)
   const totalTuition = inferTotalTuition(app.payments)
   const paidTuition = tuitionPaidTotal(app.payments)
-  const halfRequired = roundMoney(appeal?.firstSemesterRequiredAmount ?? totalTuition / 2)
-  const finalRequired = roundMoney(appeal?.finalRequiredAmount ?? totalTuition)
+  const halfRequired = roundMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)))
+  const finalRequired = roundMoney(Math.max(totalTuition, Number(appeal?.finalRequiredAmount ?? 0)))
   return {
     admissionId: app.id,
     reference: app.reference,
