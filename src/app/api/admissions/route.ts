@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
     if (!isServiceRequest) {
       const nationalError = validateNationalIdOrPassport(String(nationalId || ''), country)
       if (nationalError) return NextResponse.json({ error: nationalError }, { status: 400 })
-      if (programRules.minAge) {
+      if (programRules?.minAge) {
         const birthError = validateBirthDateForMinAge(String(birthDate || ''), Number(programRules.minAge))
         if (birthError) return NextResponse.json({ error: birthError }, { status: 400 })
       }
