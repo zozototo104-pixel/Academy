@@ -96,9 +96,9 @@ test.describe('AACT full platform journey suite', () => {
     expect(examsRes.ok(), `Loading generated exam diagnostics failed: ${examsRes.status()} ${JSON.stringify(examsBody).slice(0, 1200)}`).toBeTruthy()
     const exam = (examsBody.exams || []).find((e: any) => e.status === 'READY' && e.semester === 1) || (examsBody.exams || [])[0]
     expect(exam, 'Generated exam must be returned by admin program exams endpoint').toBeTruthy()
-    expect(exam.questionCount, 'Generated exam must include at least two direct QA questions').toBeGreaterThanOrEqual(2)
+    expect(exam.questionCount, 'Generated exam must include at least six direct QA questions').toBeGreaterThanOrEqual(6)
     const alignment = scoreExamAlignment(exam, setup.book.title, setup.book.concepts || [])
-    expect(alignment.total, 'Exam diagnostic must include question details').toBeGreaterThanOrEqual(2)
+    expect(alignment.total, 'Exam diagnostic must include at least six question details').toBeGreaterThanOrEqual(6)
     expect(alignment.score, `Exam questions are not sufficiently aligned to the book: ${JSON.stringify(alignment.rows, null, 2)}`).toBeGreaterThanOrEqual(80)
     const examGen = { ok: true, source: 'full-journey-setup', examId: exam.id, status: exam.status, questionCount: exam.questionCount }
 
