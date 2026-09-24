@@ -1179,19 +1179,28 @@ export function ApplyView() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>اختر بوابة الدفع</Label>
+              <Label>اختر طريقة الدفع</Label>
               <Select value={payMethod} onValueChange={setPayMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PAYMOB">Paymob — بطاقة / محافظ مصر</SelectItem>
-                  <SelectItem value="FAWRY">فوري Fawry — مراكز الدفع</SelectItem>
-                  <SelectItem value="STRIPE">Stripe — بطاقة دولية</SelectItem>
-                  <SelectItem value="PAYPAL">PayPal — خارج مصر</SelectItem>
+                  {enabledPaymentMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id}>{method.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {manualPaymentHint && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-700">
+                  {manualPaymentHint}
+                </div>
+              )}
+              {selectedPaymentMethod?.id === 'USDT' && paymentConfig?.usdt?.instructions && (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] font-bold leading-6 text-slate-600">
+                  {paymentConfig.usdt.instructions}
+                </div>
+              )}
             </div>
             <Button onClick={payApplicationFee} disabled={paying} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-              {paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />} ادفع الآن
+              {paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />} {paymentActionLabel}
             </Button>
           </div>
         </DialogContent>
@@ -1200,24 +1209,33 @@ export function ApplyView() {
       <Dialog open={!!trackPayTarget} onOpenChange={(v) => !v && setTrackPayTarget(null)}>
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><Landmark className="h-5 w-5 text-[#c9a227]" /> إتمام الدفع الإلكتروني</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><Landmark className="h-5 w-5 text-[#c9a227]" /> إتمام الدفع</DialogTitle>
             <DialogDescription>{trackPayTarget?.description} — المبلغ <strong className="text-[#a8841a]">{trackPayTarget?.amount}$</strong></DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>اختر بوابة الدفع</Label>
+              <Label>اختر طريقة الدفع</Label>
               <Select value={payMethod} onValueChange={setPayMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PAYMOB">Paymob — بطاقة / محافظ مصر</SelectItem>
-                  <SelectItem value="FAWRY">فوري Fawry — مراكز الدفع</SelectItem>
-                  <SelectItem value="STRIPE">Stripe — بطاقة دولية</SelectItem>
-                  <SelectItem value="PAYPAL">PayPal — خارج مصر</SelectItem>
+                  {enabledPaymentMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id}>{method.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {manualPaymentHint && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-700">
+                  {manualPaymentHint}
+                </div>
+              )}
+              {selectedPaymentMethod?.id === 'USDT' && paymentConfig?.usdt?.instructions && (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] font-bold leading-6 text-slate-600">
+                  {paymentConfig.usdt.instructions}
+                </div>
+              )}
             </div>
             <Button onClick={payTracked} disabled={trackPaying} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-              {trackPaying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />} ادفع الآن
+              {trackPaying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />} {paymentActionLabel}
             </Button>
           </div>
         </DialogContent>
