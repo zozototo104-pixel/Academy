@@ -302,7 +302,9 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
       method: 'BANK_TRANSFER',
     },
   })
+  const firstSemesterGateBeforeInitialPayment = await enforceSemesterTuitionGate(student.id, program.id, 1)
   const installmentPaid = await markInvoicePaid(installment.invoiceNo, 'BANK_TRANSFER', { actor: admin })
+  const firstSemesterGateAfterInitialPayment = await enforceSemesterTuitionGate(student.id, program.id, 1)
   const finalAdmission = await db.admissionApplication.findUnique({ where: { id: admission.id } })
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: student.id, programId: program.id } } })
   const tuitionPlan = await getAdmissionTuitionPlan(admission.id)
