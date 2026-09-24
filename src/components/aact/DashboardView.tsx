@@ -445,6 +445,7 @@ export function DashboardView() {
   useEffect(() => {
     if (!user) return
     const academicTabs = ['programs', 'supervision', 'thesis', 'transcript', 'certs']
+    if (!studentSummary && serviceDeliverablesLoading) return
     const hasStudySummary = (studentSummary?.summary?.studyRequests || 0) > 0 || !!studentSummary?.summary?.latestStudy
     const hasServiceSummary = (studentSummary?.summary?.serviceRequests || 0) > 0 || serviceDeliverables.length > 0
     if (enrollments.length === 0 && !hasStudySummary && !hasServiceSummary) {
