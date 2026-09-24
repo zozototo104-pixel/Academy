@@ -845,18 +845,13 @@ export function ApplyView() {
                   <div className="text-xs font-bold text-slate-500">كود تتبع حالة طلبك</div>
                   <div className="mt-1 font-mono text-2xl font-black tracking-wider text-[#0f2b46]" dir="ltr">{done.reference}</div>
                 </div>
-                {!paidRef && done.invoice && (
+                {done.invoice && (
                   <>
                     <p className="mx-auto mt-4 max-w-md text-xs font-bold leading-relaxed text-amber-700">
-                      تبقى سداد رسوم التقديم وحجز المقعد ({done.invoice.amount}$ غير مستردة) حتى يُحوَّل الملف للإدارة.
+                      تم إنشاء فاتورة رسوم التقديم وحجز المقعد ({done.invoice.amount}$ غير مستردة). سيتم الدفع من مركز الدفعات نفسه داخل بوابة الطالب.
                     </p>
-                    {manualPayNotice && (
-                      <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-white p-3 text-xs font-bold leading-6 text-amber-700">
-                        {manualPayNotice}
-                      </div>
-                    )}
-                    <Button onClick={() => setPayOpen(true)} className="mt-4 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-                      <CreditCard className="ml-2 h-4 w-4" /> {manualPayNotice ? 'تغيير طريقة الدفع' : 'ادفع رسوم التقديم الآن'}
+                    <Button onClick={() => openStudentPayments(done.invoice?.invoiceNo)} className="mt-4 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+                      <CreditCard className="ml-2 h-4 w-4" /> الانتقال إلى بوابة الطالب لإتمام الدفع
                     </Button>
                   </>
                 )}
