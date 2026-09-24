@@ -715,7 +715,7 @@ export function DashboardView() {
                 )}
 
                 <div className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-slate-50 p-2">
-                  <div className="grid gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
                       ['academic', 'ملفك الأكاديمي'],
                       ['schedule', 'جدول الدراسة'],
