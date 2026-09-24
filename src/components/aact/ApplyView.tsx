@@ -1151,8 +1151,8 @@ export function ApplyView() {
                           <div className="flex items-center gap-3">
                             <span className="text-base font-black text-[#0f2b46]">{inv.amount}$</span>
                             {inv.status === 'UNPAID' && (
-                              <Button size="sm" onClick={() => { setPayMethod(selectedPaymentMethod?.id || 'DIRECT_PAYMENT'); setTrackPayTarget(inv) }} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-                                <CreditCard className="ml-1 h-3.5 w-3.5" /> ادفع الآن
+                              <Button size="sm" onClick={() => openStudentPayments(inv.invoiceNo)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+                                <CreditCard className="ml-1 h-3.5 w-3.5" /> ادفع من بوابة الطالب
                               </Button>
                             )}
                           </div>
