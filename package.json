@@ -22,6 +22,7 @@
     "e2e:quality": "playwright test --config=playwright.config.ts tests/e2e/launch-quality.spec.ts",
     "e2e:journey": "playwright test --config=playwright.config.ts tests/e2e/full-journey.spec.ts",
     "e2e:ux": "playwright test --config=playwright.config.ts tests/e2e/ux-guardrails.spec.ts",
+    "e2e:perf": "playwright test --config=playwright.config.ts tests/e2e/performance-guardrails.spec.ts",
     "e2e:admin:headed": "playwright test --config=playwright.config.ts --headed",
     "setup:local": "bun install && bun run db:push && bun run db:seed"
   },
