@@ -60,8 +60,8 @@ jobs:
           set -euo pipefail
           base="${E2E_BASE_URL%/}"
           url="$base/api/admin/full-journey"
-          echo "Waiting for deployed route: $url"
-          for i in {1..60}; do
+          echo "Waiting for deployed full journey schema v3: $url"
+          for i in {1..90}; do
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" \
                 -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
@@ -70,14 +70,15 @@ jobs:
             else
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" "$url" || true)
             fi
+            body=$(cat /tmp/full-journey-route-check.txt || true)
             echo "Attempt $i: HTTP $code"
-            if [ "$code" != "404" ] && [ "$code" != "000" ]; then
-              echo "Full journey route is deployed."
+            if echo "$body" | grep -q '"journeySchemaVersion":3'; then
+              echo "Full journey route schema v3 is deployed."
               exit 0
             fi
             sleep 10
           done
-          echo "Full journey route was not deployed after waiting. Last response:"
+          echo "Full journey schema v3 was not deployed after waiting. Last response:"
           cat /tmp/full-journey-route-check.txt || true
           exit 1
 
