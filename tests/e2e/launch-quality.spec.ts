@@ -100,6 +100,7 @@ test.describe('AACT launch quality suite', () => {
     expect(readinessRes.ok(), `Launch quality readiness failed with ${readinessRes.status()}: ${JSON.stringify(readiness).slice(0, 800)}`).toBeTruthy()
 
     const runVoiceToken = process.env.E2E_RUN_VOICE_TOKEN === '1' || process.env.E2E_RUN_VOICE_TOKEN === 'true'
+    const requireVoiceReady = process.env.E2E_REQUIRE_VOICE_READY === '1' || process.env.E2E_REQUIRE_VOICE_READY === 'true'
     const voiceRes = await page.request.post('/api/admin/launch-quality', {
       headers: { Authorization: `Bearer ${token}` },
       data: { runAi: false, runVoiceToken, includeVoice: true },
