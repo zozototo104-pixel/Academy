@@ -508,20 +508,25 @@ export function ApplyView() {
     }
   }
 
-  const payInvoice = async (invoiceNo: string, after?: () => Promise<void> | void) => {
-    const checkout = await api<{ redirectUrl: string | null }>('/api/payments/checkout', {
+  const payInvoice = async (invoiceNo: string, after?: () => Promise<void> | void): Promise<PayInvoiceResult> => {
+    const checkout = await api<{ redirectUrl: string | null; mode?: string; provider?: string; message?: string }>('/api/payments/checkout', {
       method: 'POST',
       body: JSON.stringify({ invoiceNo, method: payMethod }),
-    }).catch(() => null)
+    })
     if (checkout?.redirectUrl) {
       window.location.href = checkout.redirectUrl
-      return
+      return { status: 'redirect', provider: checkout.provider, message: checkout.message }
+    }
+    if (checkout?.mode === 'MANUAL' || ['DIRECT_PAYMENT', 'USDT', 'BANK_TRANSFER'].includes(String(checkout?.provider || payMethod))) {
+      await after?.()
+      return { status: 'manual', provider: checkout.provider || payMethod, message: checkout.message }
     }
     await api('/api/payments', {
       method: 'POST',
       body: JSON.stringify({ invoiceNo, method: payMethod }),
     })
     await after?.()
+    return { status: 'paid', provider: checkout.provider || payMethod, message: checkout.message }
   }
 
   const payApplicationFee = async () => {
