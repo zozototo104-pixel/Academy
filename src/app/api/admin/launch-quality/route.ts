@@ -5,12 +5,13 @@ import { requireAdmin } from '@/lib/auth'
 import { buildSupervisorContext } from '@/lib/supervisor-ai'
 import { platformAgentComplete } from '@/lib/platform-agent'
 import {
-  createGeminiLiveEphemeralToken,
   ensureGeminiKey,
   geminiActiveLiveModel,
   geminiActiveTextModel,
+  geminiApiKey,
   geminiDiscussionThinkingLevel,
   geminiTTSVoice,
+  isValidGeminiLiveModel,
   type GeminiLivePurpose,
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
