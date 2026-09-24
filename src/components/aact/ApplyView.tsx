@@ -600,12 +600,17 @@ export function ApplyView() {
         method: 'POST',
         body: JSON.stringify({ admissionId: app.id, amount: plan.remainingTuition }),
       })
-      await payInvoice(created.payment.invoiceNo, async () => {
+      const result = await payInvoice(created.payment.invoiceNo, async () => {
         const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}`)
         setTracked(d.application)
         setMyAdmission((current: any) => current?.reference === d.application?.reference ? d.application : current)
         setTrackPayTarget(null)
       })
+      if (result.status === 'redirect') return
+      if (result.status === 'manual') {
+        toast({ title: 'تم إنشاء فاتورة المتبقي وتسجيل طريقة الدفع', description: result.message || 'ستؤكد الإدارة السداد بعد استلام المبلغ.' })
+        return
+      }
       toast({ title: 'تم إنشاء وسداد فاتورة المتبقي', description: 'تم تحديث خطة الرسوم في الطلب.' })
     } catch (e: any) {
       toast({ title: 'تعذر دفع المتبقي', description: e.message || 'سجّل الدخول أو راجع الإدارة لإنشاء فاتورة المتبقي.', variant: 'destructive' })
