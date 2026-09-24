@@ -27,7 +27,6 @@ import {
   GraduationCap,
   IdCard,
   Info,
-  Landmark,
   Loader2,
   MapPin,
   Paperclip,
