@@ -36,12 +36,39 @@ async function createFullJourneyStudent(page: Page, adminToken: string) {
 }
 
 async function assertNoPageHorizontalOverflow(page: Page, label: string) {
-  const width = await page.evaluate(() => ({
-    inner: window.innerWidth,
-    doc: document.documentElement.scrollWidth,
-    body: document.body.scrollWidth,
-  }))
-  expect(Math.max(width.doc, width.body), `${label} has horizontal page overflow: ${JSON.stringify(width)}`).toBeLessThanOrEqual(width.inner + 4)
+  const width = await page.evaluate(() => {
+    const inner = window.innerWidth
+    const doc = document.documentElement.scrollWidth
+    const body = document.body.scrollWidth
+    const offenders = Array.from(document.querySelectorAll<HTMLElement>('body *'))
+      .map((el) => {
+        const rect = el.getBoundingClientRect()
+        const style = window.getComputedStyle(el)
+        return {
+          tag: el.tagName.toLowerCase(),
+          className: String(el.className || '').slice(0, 160),
+          text: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+          position: style.position,
+          display: style.display,
+          visibility: style.visibility,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        }
+      })
+      .filter((item) => item.display !== 'none' && item.visibility !== 'hidden' && item.height > 0 && item.width > 0)
+      .filter((item) => item.position !== 'fixed' && (item.left < -4 || item.right > inner + 4 || item.width > inner + 4))
+      .slice(0, 12)
+    const previousX = window.scrollX
+    window.scrollTo(9999, window.scrollY)
+    const actualScrollX = window.scrollX
+    window.scrollTo(previousX, window.scrollY)
+    return { inner, doc, body, actualScrollX, offenders }
+  })
+  expect(width.doc, `${label} root has horizontal page overflow: ${JSON.stringify(width)}`).toBeLessThanOrEqual(width.inner + 4)
+  expect(width.actualScrollX, `${label} can actually scroll horizontally: ${JSON.stringify(width)}`).toBeLessThanOrEqual(1)
+  expect(width.offenders, `${label} has visible non-fixed elements outside viewport: ${JSON.stringify(width)}`).toHaveLength(0)
 }
 
 async function collectMobileMetric(page: Page, path: string) {
