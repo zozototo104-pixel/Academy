@@ -1,45 +1,31 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { isValidAppView, pathForView } from '@/lib/app-routes'
+import { NextResponse } from 'next/server'
 
-export function middleware(req: NextRequest) {
-  const url = req.nextUrl
-  const view = url.searchParams.get('view')
-  if (!view || !isValidAppView(view)) return NextResponse.next()
+const W3C_CERTIFICATE_PROBE_PATH = '/api/verify/certificates/__route_probe__'
 
-  // لا نلمس روابط OAuth أو API حتى لا نكسر تسجيل الدخول أو Webhooks.
-  if (url.pathname.startsWith('/api') || url.searchParams.has('oauth') || url.searchParams.has('token') || url.searchParams.has('error')) {
-    return NextResponse.next()
+export function middleware(req: Request) {
+  const url = new URL(req.url)
+
+  if (url.pathname === W3C_CERTIFICATE_PROBE_PATH) {
+    return new NextResponse(
+      JSON.stringify({
+        ok: true,
+        route: 'w3c-certificate-verification',
+        probe: true,
+        '@context': ['https://www.w3.org/2018/credentials/v1'],
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/ld+json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      }
+    )
   }
 
-  const params: Record<string, string | null> = {
-    filter: url.searchParams.get('filter'),
-    programId: url.searchParams.get('programId') || url.searchParams.get('program') || url.searchParams.get('slug'),
-    program: url.searchParams.get('program') || url.searchParams.get('programId') || url.searchParams.get('slug'),
-    unitId: url.searchParams.get('unitId'),
-    examId: url.searchParams.get('examId'),
-    kind: url.searchParams.get('kind'),
-    studentId: url.searchParams.get('studentId'),
-    agentId: url.searchParams.get('agentId'),
-  }
-
-  let canonical = pathForView(view, params)
-  if (view === 'verify') {
-    const serial = url.searchParams.get('serial')
-    const token = url.searchParams.get('token')
-    const qs = new URLSearchParams()
-    if (serial) qs.set('serial', serial)
-    if (token) qs.set('token', token)
-    const query = qs.toString()
-    canonical = query ? `/verify?${query}` : '/verify'
-  }
-
-  const next = req.nextUrl.clone()
-  const [pathname, search = ''] = canonical.split('?')
-  next.pathname = pathname
-  next.search = search ? `?${search}` : ''
-  return NextResponse.redirect(next, 308)
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|apple-touch-icon.png).*)'],
+  matcher: ['/api/verify/certificates/__route_probe__'],
 }
