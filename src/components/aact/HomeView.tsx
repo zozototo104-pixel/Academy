@@ -361,7 +361,7 @@ export function HomeView() {
           <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
         </div>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:py-16 lg:min-h-[720px] lg:grid-cols-[0.96fr_1.04fr] lg:py-20">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:py-12 lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr] lg:py-14">
           <div className="order-2 text-center lg:order-1 lg:text-right">
             <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
               <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
