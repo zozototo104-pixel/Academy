@@ -572,12 +572,17 @@ export function ApplyView() {
     if (!trackPayTarget || !tracked) return
     setTrackPaying(true)
     try {
-      await payInvoice(trackPayTarget.invoiceNo, async () => {
+      const result = await payInvoice(trackPayTarget.invoiceNo, async () => {
         const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(tracked.reference)}`)
         setTracked(d.application)
         setMyAdmission((current: any) => current?.reference === d.application?.reference ? d.application : current)
         setTrackPayTarget(null)
       })
+      if (result.status === 'redirect') return
+      if (result.status === 'manual') {
+        toast({ title: 'تم تسجيل طريقة الدفع', description: result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.' })
+        return
+      }
       toast({ title: 'تم الدفع بنجاح', description: 'تم تحديث حالة الطلب' })
     } catch (e: any) {
       toast({ title: 'خطأ في الدفع', description: e.message || 'تعذر إتمام الدفع', variant: 'destructive' })
