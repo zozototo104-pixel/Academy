@@ -803,6 +803,7 @@ async function cleanupFullJourneyByStamp(stamp: string) {
     where: {
       OR: [
         { details: { contains: stamp } },
+        student ? { actorId: student.id } : undefined,
         program ? { entityId: program.id } : undefined,
         admissionIds.length ? { entityId: { in: admissionIds } } : undefined,
         paymentIds.length ? { entityId: { in: paymentIds } } : undefined,
