@@ -229,6 +229,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const runAi = body.runAi !== false
     const runVoiceToken = body.runVoiceToken === true
+    const includeVoice = body.includeVoice !== false
+    const probeKinds = selectedProbeKinds(body)
     const studentId = typeof body.studentId === 'string' ? body.studentId : undefined
     const started = performance.now()
     const student = await findDiagnosticStudent(studentId)
