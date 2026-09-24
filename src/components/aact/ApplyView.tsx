@@ -748,7 +748,12 @@ export function ApplyView() {
                       <div className="grid gap-4 sm:grid-cols-3">
                         <div className="space-y-2">
                           <Label htmlFor="ad-country">الدولة *</Label>
-                          <Input id="ad-country" required value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} placeholder="مثال: فلسطين" />
+                          <Select value={form.country} onValueChange={(v) => setForm({ ...form, country: v })}>
+                            <SelectTrigger id="ad-country"><SelectValue placeholder="اختر الدولة من القائمة" /></SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {SUPPORTED_COUNTRIES.map((country) => <SelectItem key={country} value={country}>{country}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-birth" className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-[#a8841a]" /> تاريخ الميلاد</Label>
