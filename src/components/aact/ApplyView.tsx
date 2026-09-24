@@ -276,6 +276,34 @@ export function ApplyView() {
   }, [toast])
 
   useEffect(() => {
+    let alive = true
+    fetch('/api/payments/config', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<PaymentConfig>
+      })
+      .then((cfg) => {
+        if (!alive) return
+        const enabled = Array.isArray(cfg.methods) ? cfg.methods.filter((m) => m.enabled) : []
+        setPaymentConfig(cfg)
+        setPayMethod((current) => enabled.some((m) => m.id === current) ? current : (enabled[0]?.id || 'DIRECT_PAYMENT'))
+      })
+      .catch(() => {
+        if (!alive) return
+        setPaymentConfig({
+          mode: 'LIVE',
+          sandboxAllowed: false,
+          trueGatewayCount: 0,
+          warnings: [],
+          errors: [],
+          methods: FALLBACK_PAYMENT_METHODS,
+        })
+        setPayMethod('DIRECT_PAYMENT')
+      })
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
     if (user) {
       setForm((f) => ({
         ...f,
