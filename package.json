@@ -18,7 +18,7 @@
     "db:seed": "bun scripts/seed.ts",
     "db:seed:core": "tsx scripts/seed-core.ts",
     "admin:create": "tsx scripts/create-admin.ts",
-    "e2e:admin": "playwright test --config=playwright.config.ts",
+    "e2e:admin": "playwright test --config=playwright.config.ts tests/e2e/admin-smoke.spec.ts",
     "e2e:quality": "playwright test --config=playwright.config.ts tests/e2e/launch-quality.spec.ts",
     "e2e:admin:headed": "playwright test --config=playwright.config.ts --headed",
     "setup:local": "bun install && bun run db:push && bun run db:seed"
