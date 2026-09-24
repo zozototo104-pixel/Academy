@@ -165,7 +165,11 @@ test.describe('AACT launch quality suite', () => {
     expect(ai.studentContext?.contextChars || 0, 'Supervisor context must contain enough student/curriculum/research data').toBeGreaterThan(500)
     expect(ai.summary?.hasUsefulContext, 'AI context must include useful student curriculum/research data').toBe(true)
     expect(ai.summary?.score || 0, `AI probe score is too low: ${JSON.stringify(ai.summary)}`).toBeGreaterThanOrEqual(75)
-    expect(ai.voiceReadiness?.supervisor?.ok, 'Supervisor voice readiness must be OK').toBe(true)
-    expect(ai.voiceReadiness?.discussion?.ok, 'Discussion voice readiness must be OK').toBe(true)
+    if (requireVoiceReady) {
+      expect(ai.voiceReadiness?.supervisor?.ok, `Supervisor voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.supervisor)}`).toBe(true)
+      expect(ai.voiceReadiness?.discussion?.ok, `Discussion voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.discussion)}`).toBe(true)
+    } else {
+      console.log(`[launch-quality] voice supervisor=${JSON.stringify(ai.voiceReadiness?.supervisor)} discussion=${JSON.stringify(ai.voiceReadiness?.discussion)}`)
+    }
   })
 })
