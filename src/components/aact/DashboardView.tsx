@@ -713,6 +713,26 @@ export function DashboardView() {
                   </div>
                 )}
 
+                <div className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-slate-50 p-2">
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    {[
+                      ['academic', 'ملفك الأكاديمي'],
+                      ['schedule', 'جدول الدراسة'],
+                      ['progress', 'خطة التقدم'],
+                      ['content', 'المحتوى والواجبات'],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setProgramSection(key)}
+                        className={`rounded-xl px-3 py-2 text-[11px] font-black transition-colors ${programSection === key ? 'bg-[#0f2b46] text-[#e0b83a] shadow-sm' : 'bg-white text-[#0f2b46] hover:bg-[#f7edd0]'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {!curriculumReady && (
                   <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-800">
                     <div className="flex items-start gap-2">
