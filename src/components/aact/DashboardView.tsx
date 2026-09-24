@@ -792,7 +792,7 @@ export function DashboardView() {
                   </section>
                 )}
 
-                {semesterStudyPlans.length > 0 && (
+                {programSection === 'schedule' && semesterStudyPlans.length > 0 && (
                   <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة للفصول والمواد المطلوبة</h3>
