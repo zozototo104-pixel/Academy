@@ -3,7 +3,7 @@
 import { useAppStore, api, clearToken } from '@/lib/store'
 import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useState } from 'react'
-import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle } from 'lucide-react'
+import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
 
 // أزرار عائمة: واتساب ذكي + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
