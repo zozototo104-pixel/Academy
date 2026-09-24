@@ -189,14 +189,35 @@ async function liveReadiness(runToken: boolean, purpose: GeminiLivePurpose) {
   const model = await geminiActiveLiveModel(purpose).catch(() => '')
   const voice = await geminiTTSVoice().catch(() => '')
   const thinkingLevel = purpose === 'DISCUSSION' ? await geminiDiscussionThinkingLevel().catch(() => 'high') : undefined
+  const modelValid = isValidGeminiLiveModel(model)
+  const basicOk = hasKey && modelValid && !!voice
+
   if (!runToken) {
-    return { purpose, hasKey, model, voice, thinkingLevel, tokenCreated: false, skippedToken: true, ms: elapsed(started), ok: hasKey && !!model && !!voice }
+    return { purpose, hasKey, model, modelValid, voice, thinkingLevel, tokenCreated: false, skippedToken: true, ms: elapsed(started), ok: basicOk }
   }
+
   try {
-    const token = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: 1 })
-    return { purpose, hasKey, model: token.model, voice, thinkingLevel, tokenCreated: true, tokenName: token.name.slice(0, 24), ms: elapsed(started), ok: true }
+    // نفس منطق اختبار لوحة الإدارة: اختبار auth token العام بدون فرض liveConnectConstraints.
+    // بعض نماذج Gemini Live تقبل token العام ثم تُطبّق إعدادات الجلسة عند connect من المتصفح.
+    const apiKey = await geminiApiKey()
+    const now = Date.now()
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        uses: 1,
+        expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
+        newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+      }),
+    })
+    const d: any = await r.json().catch(() => ({}))
+    if (!r.ok) {
+      const message = d?.error?.message || d?.message || `Gemini Live HTTP ${r.status}`
+      return { purpose, hasKey, model, modelValid, voice, thinkingLevel, tokenCreated: false, ms: elapsed(started), ok: false, httpStatus: r.status, error: String(message).slice(0, 300) }
+    }
+    return { purpose, hasKey, model, modelValid, voice, thinkingLevel, tokenCreated: true, tokenName: String(d?.name || '').slice(0, 40), ms: elapsed(started), ok: basicOk }
   } catch (e: any) {
-    return { purpose, hasKey, model, voice, thinkingLevel, tokenCreated: false, ms: elapsed(started), ok: false, error: String(e?.message || e).slice(0, 300) }
+    return { purpose, hasKey, model, modelValid, voice, thinkingLevel, tokenCreated: false, ms: elapsed(started), ok: false, error: String(e?.message || e).slice(0, 300) }
   }
 }
 
