@@ -24,7 +24,7 @@ async function login(page: Page, email: string, password: string) {
 }
 
 async function loginAsAdmin(page: Page) {
-  return login(page, requiredEnv('E2E_ADMIN_EMAIL'), requiredEnv('E2E_ADMIN_PASSWORD'))
+  return login(page, requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL']), requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD']))
 }
 
 function norm(value: unknown) {
