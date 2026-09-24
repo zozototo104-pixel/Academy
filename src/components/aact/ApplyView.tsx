@@ -214,7 +214,8 @@ export function ApplyView() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState<{ reference: string; invoice: { invoiceNo: string; amount: number; description: string } | null } | null>(null)
   const [payOpen, setPayOpen] = useState(false)
-  const [payMethod, setPayMethod] = useState('PAYMOB')
+  const [payMethod, setPayMethod] = useState('DIRECT_PAYMENT')
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null)
   const [paying, setPaying] = useState(false)
   const [paidRef, setPaidRef] = useState<string | null>(null)
 
