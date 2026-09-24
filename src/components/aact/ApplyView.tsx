@@ -742,7 +742,8 @@ export function ApplyView() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {isServiceRequest ? '(اختياري)' : '*'}</Label>
-                          <Input id="ad-nid" required={!isServiceRequest} dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
+                          <Input id="ad-nid" required={!isServiceRequest} dir="ltr" className="text-left" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} placeholder={form.country === 'فلسطين' || !isServiceRequest ? '9 أرقام للهوية أو رقم جواز صالح' : 'رقم جواز أو هوية'} />
+                          {!isServiceRequest && <p className="text-[10px] font-bold text-slate-400">للهوية الرقمية: يجب أن تتكون من 9 أرقام بالضبط.</p>}
                         </div>
                       </div>
 
