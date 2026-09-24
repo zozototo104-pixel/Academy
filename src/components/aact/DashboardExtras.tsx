@@ -215,6 +215,18 @@ export function PaymentsTab() {
     setPayTarget(payment)
   }
 
+  useEffect(() => {
+    if (!initialInvoiceNo || autoOpenedInvoiceNo === initialInvoiceNo || loading) return
+    const target = payments.find((p) => p.invoiceNo === initialInvoiceNo)
+    if (!target) return
+    setAutoOpenedInvoiceNo(initialInvoiceNo)
+    if (target.status === 'UNPAID') {
+      openPaymentDialog(target)
+    } else {
+      toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
+    }
+  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig])
+
   const submitInstallmentAppeal = async (plan: TuitionPlan) => {
     const amount = Number(appealAmount || 0)
     if (!amount || amount <= 0) {
