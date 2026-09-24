@@ -414,6 +414,63 @@ async function createAcademicAndFinancialJourney(
   const readiness1BeforeMark = await calculateSemesterReadiness(userId, programId, 1)
   const readiness1AfterMark = await markSemesterReady(userId, programId, 1)
 
+  const sem1ProgramQuestionRows = [
+    {
+      order: 1,
+      type: 'MCQ',
+      text: `يربط ${bookTitle} الحوكمة بأي عنصر إداري؟`,
+      options: JSON.stringify(['الرقابة والمساءلة', 'الإلغاء', 'العشوائية', 'الصدفة']),
+      correctAnswer: '0',
+      modelAnswer: null,
+      sourceEvidence: `الحوكمة إطار ضبط القرار والرقابة والمساءلة — ${bookTitle}`,
+    },
+    {
+      order: 2,
+      type: 'TF',
+      text: `يعرض ${bookTitle} إدارة المخاطر بوصفها تحديد الاحتمالية والأثر وخطة المعالجة.`,
+      options: JSON.stringify(['صح', 'خطأ']),
+      correctAnswer: '0',
+      modelAnswer: null,
+      sourceEvidence: `تحدد إدارة المخاطر الاحتمالية والأثر وخطة المعالجة والمتابعة — ${bookTitle}`,
+    },
+    {
+      order: 3,
+      type: 'MCQ',
+      text: `أي عنصر يقيس فعالية الرقابة الداخلية في ${bookTitle}؟`,
+      options: JSON.stringify(['مؤشرات الأداء', 'الحفظ النظري', 'إلغاء التقارير', 'العشوائية']),
+      correctAnswer: '0',
+      modelAnswer: null,
+      sourceEvidence: `يربط الكتاب الرقابة الداخلية بمؤشرات الأداء وخطة المعالجة — ${bookTitle}`,
+    },
+    {
+      order: 4,
+      type: 'SHORT',
+      text: `اشرح علاقة مؤشرات الأداء بخطة المعالجة حسب ${bookTitle}.`,
+      options: null,
+      correctAnswer: null,
+      modelAnswer: 'تقيس مؤشرات الأداء فعالية تنفيذ خطة المعالجة والرقابة الداخلية.',
+      sourceEvidence: `يربط الكتاب خطة المعالجة بمؤشرات الأداء — ${bookTitle}`,
+    },
+    {
+      order: 5,
+      type: 'SHORT',
+      text: `اذكر دور الرقابة الداخلية في متابعة المخاطر كما ورد في ${bookTitle}.`,
+      options: null,
+      correctAnswer: null,
+      modelAnswer: 'تتابع الرقابة الداخلية تنفيذ خطة المعالجة وتقيس النتائج وتدعم المساءلة.',
+      sourceEvidence: `يركز الكتاب على الرقابة الداخلية ومتابعة خطة المعالجة — ${bookTitle}`,
+    },
+    {
+      order: 6,
+      type: 'ESSAY',
+      text: `حلل التكامل بين الحوكمة وإدارة المخاطر ومؤشرات الأداء في ${bookTitle}.`,
+      options: null,
+      correctAnswer: null,
+      modelAnswer: 'التكامل يبدأ بإطار الحوكمة للقرار والمساءلة، ثم تحديد المخاطر، ثم قياس فعالية المعالجة بمؤشرات الأداء.',
+      sourceEvidence: `تجتمع الحوكمة وإدارة المخاطر ومؤشرات الأداء لضبط القرار وقياس فعالية الرقابة والمعالجة — ${bookTitle}`,
+    },
+  ]
+  const sem1ExamTotalPoints = sem1ProgramQuestionRows.reduce((sum, q) => sum + programQuestionPoints(q.type), 0)
   const sem1Exam = await db.programExam.create({
     data: {
       programId,
@@ -422,33 +479,16 @@ async function createAcademicAndFinancialJourney(
       status: 'READY',
       durationMin: 120,
       passScore: 60,
-      totalPoints: 100,
+      totalPoints: sem1ExamTotalPoints,
       booksUsed: bookTitle,
       generatedBy: 'QA_FULL_JOURNEY',
       questions: {
-        create: [
-          {
-            order: 1,
-            type: 'MCQ',
-            text: `يربط ${bookTitle} الحوكمة بأي عنصر إداري؟`,
-            options: JSON.stringify(['الرقابة والمساءلة', 'الإلغاء', 'العشوائية', 'الصدفة']),
-            correctAnswer: '0',
-            points: 50,
-            status: 'PUBLISHED',
-            sourceBookTitle: bookTitle,
-            sourceEvidence: `الحوكمة إطار ضبط القرار والرقابة والمساءلة — ${bookTitle}`,
-          },
-          {
-            order: 2,
-            type: 'SHORT',
-            text: `اشرح علاقة مؤشرات الأداء بخطة المعالجة حسب ${bookTitle}.`,
-            modelAnswer: 'تقيس مؤشرات الأداء فعالية تنفيذ خطة المعالجة والرقابة الداخلية.',
-            points: 50,
-            status: 'PUBLISHED',
-            sourceBookTitle: bookTitle,
-            sourceEvidence: `يربط الكتاب خطة المعالجة بمؤشرات الأداء — ${bookTitle}`,
-          },
-        ],
+        create: sem1ProgramQuestionRows.map((q) => ({
+          ...q,
+          points: programQuestionPoints(q.type),
+          status: 'PUBLISHED',
+          sourceBookTitle: bookTitle,
+        })),
       },
     },
     include: { questions: true },
