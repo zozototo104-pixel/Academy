@@ -83,7 +83,7 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, duratio
   }, [durationMs])
 
   return (
-    <div className={`aact-startup-screen ${exiting ? 'is-exiting' : ''} fixed inset-0 z-[9999] flex min-h-screen items-center justify-center px-8 text-white`}>
+    <div className={`aact-startup-screen ${exiting ? 'is-exiting' : ''} fixed inset-0 z-[9999] flex min-h-screen max-w-[100vw] items-center justify-center overflow-hidden px-4 text-white sm:px-8`}>
       <div className="w-full max-w-xl text-center">
         <div className="aact-startup-logo mx-auto mb-12 flex h-48 w-48 items-center justify-center rounded-full sm:h-56 sm:w-56">
           <img
