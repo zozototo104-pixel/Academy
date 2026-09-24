@@ -187,6 +187,62 @@ function annotateReply(agent: PlatformAgentKind, text: string, engine: string): 
   return clean
 }
 
+function buildPublicVisitorContext(channel?: string) {
+  return [
+    `نوع المستخدم: زائر عام من ${channel === 'WHATSAPP' ? 'واتساب' : 'زر واتساب الذكي داخل الموقع'}.`,
+    'لا يوجد تسجيل دخول أو ملف طالب خاص في هذا السياق؛ أجب من معلومات المنصة العامة فقط.',
+    'لا تطلب من المستخدم إرسال مستندات أو معلومات حساسة داخل الدردشة العامة؛ وجّهه إلى نموذج طلب الالتحاق أو الإدارة عند الحاجة.',
+    `رقم واتساب الأكاديمية الرسمي: ${ACADEMY_INFO.whatsappDisplay || ACADEMY_INFO.whatsapp}.`,
+  ].join('\n')
+}
+
+export async function platformPublicAgentComplete(opts: {
+  messages: { role: string; content: string }[]
+  channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
+  uiContext?: string
+}): Promise<{ reply: string; agent: PlatformAgentKind; engine: 'LOCAL_OPEN_SOURCE' | 'GEMINI_OR_FALLBACK' }> {
+  const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const agent = routeAgent(last, null)
+  const persona = personaForAgent(agent)
+  const context = mergeContext(buildPublicVisitorContext(opts.channel), opts.uiContext)
+  const system = buildPlatformAgentSystem(agent, context)
+
+  const localCfg = await localAgentConfig().catch(() => null)
+  if (localCfg?.enabled) {
+    try {
+      const reply = await localChatComplete({
+        messages: [
+          { role: 'system', content: system },
+          ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
+        ],
+        temperature: 0.35,
+        maxTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
+      })
+      return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
+    } catch (e: any) {
+      console.error('Local public platform agent failed:', String(e?.message || e).slice(0, 400))
+    }
+  }
+
+  const geminiReady = await ensureGeminiKey().catch(() => false)
+  if (geminiReady) {
+    try {
+      const reply = await geminiComplete({
+        system,
+        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+        temperature: 0.35,
+        maxOutputTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
+      })
+      return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
+    } catch (e: any) {
+      console.error('Gemini public platform agent failed:', String(e?.message || e).slice(0, 400))
+    }
+  }
+
+  const reply = await chatComplete(opts.messages, context, persona)
+  return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
+}
+
 export async function platformAgentComplete(opts: {
   userId: string
   messages: { role: string; content: string }[]
