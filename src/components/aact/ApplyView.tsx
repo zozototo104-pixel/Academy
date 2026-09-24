@@ -320,27 +320,6 @@ export function ApplyView() {
   const openStudentPayments = (invoiceNo?: string | null) => {
     navigate('dashboard', { tab: 'payments', invoice: invoiceNo || undefined })
   }
-  const enabledPaymentMethods = useMemo(
-    () => {
-      const methods = Array.isArray(paymentConfig?.methods) ? paymentConfig.methods.filter((m) => m.enabled) : []
-      return methods.length ? methods : FALLBACK_PAYMENT_METHODS
-    },
-    [paymentConfig]
-  )
-  const selectedPaymentMethod = enabledPaymentMethods.find((m) => m.id === payMethod) || enabledPaymentMethods[0] || FALLBACK_PAYMENT_METHODS[0]
-  const isManualPaymentMethod = selectedPaymentMethod?.kind === 'manual' || ['DIRECT_PAYMENT', 'USDT', 'BANK_TRANSFER'].includes(selectedPaymentMethod?.id || '')
-  const paymentActionLabel = selectedPaymentMethod?.id === 'DIRECT_PAYMENT'
-    ? 'اختيار الدفع المباشر وإبلاغ الإدارة'
-    : selectedPaymentMethod?.id === 'USDT'
-      ? 'اختيار الدفع عبر USDT وإبلاغ الإدارة'
-      : selectedPaymentMethod?.id === 'BANK_TRANSFER'
-        ? 'اختيار التحويل البنكي وإبلاغ الإدارة'
-        : 'ادفع الآن'
-  const manualPaymentHint = selectedPaymentMethod?.id === 'USDT'
-    ? `سيتم تسجيل اختيار USDT وإبلاغ الإدارة. ${paymentConfig?.usdt?.network ? `الشبكة: ${paymentConfig.usdt.network}.` : ''} ستبقى الفاتورة بانتظار تأكيد الإدارة بعد التحقق من التحويل.`
-    : isManualPaymentMethod
-      ? 'سيتم تسجيل اختيارك وإبلاغ الإدارة. ستبقى الفاتورة بانتظار السداد حتى تؤكد الإدارة استلام المبلغ.'
-      : ''
 
   const pickFile = (type: string, f: File | null) => {
     setMissingDocs([])
