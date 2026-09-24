@@ -424,53 +424,6 @@ export function ApplyView() {
     }
   }
 
-  const payInvoice = async (invoiceNo: string, after?: () => Promise<void> | void): Promise<PayInvoiceResult> => {
-    const checkout = await api<{ redirectUrl: string | null; mode?: string; provider?: string; message?: string }>('/api/payments/checkout', {
-      method: 'POST',
-      body: JSON.stringify({ invoiceNo, method: payMethod }),
-    })
-    if (checkout?.redirectUrl) {
-      window.location.href = checkout.redirectUrl
-      return { status: 'redirect', provider: checkout.provider, message: checkout.message }
-    }
-    if (checkout?.mode === 'MANUAL' || ['DIRECT_PAYMENT', 'USDT', 'BANK_TRANSFER'].includes(String(checkout?.provider || payMethod))) {
-      await after?.()
-      return { status: 'manual', provider: checkout.provider || payMethod, message: checkout.message }
-    }
-    await api('/api/payments', {
-      method: 'POST',
-      body: JSON.stringify({ invoiceNo, method: payMethod }),
-    })
-    await after?.()
-    return { status: 'paid', provider: checkout.provider || payMethod, message: checkout.message }
-  }
-
-  const payApplicationFee = async () => {
-    if (!done?.invoice) return
-    setPaying(true)
-    try {
-      const result = await payInvoice(done.invoice.invoiceNo, async () => {
-        setPayOpen(false)
-        const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(done.reference)}`)
-        setMyAdmission(d.application)
-        setTracked(d.application)
-      })
-      if (result.status === 'redirect') return
-      if (result.status === 'manual') {
-        setManualPayNotice(result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.')
-        toast({ title: 'تم تسجيل طريقة الدفع', description: result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.' })
-        return
-      }
-      setManualPayNotice(null)
-      setPaidRef(done.reference)
-      toast({ title: 'تم سداد رسوم التقديم بنجاح', description: 'أُحوِّل ملفك للإدارة للدراسة' })
-    } catch (e: any) {
-      toast({ title: 'خطأ في الدفع', description: e.message || 'تعذر إتمام الدفع', variant: 'destructive' })
-    } finally {
-      setPaying(false)
-    }
-  }
-
   const track = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setTracking(true)
