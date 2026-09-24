@@ -458,7 +458,7 @@ export function DashboardView() {
     if (hasStudySummary && !hasServiceSummary && dashboardTab === 'deliverables') {
       setDashboardTab('payments')
     }
-  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab, studentSummary, navigate])
+  }, [user, enrollments.length, serviceDeliverables.length, serviceDeliverablesLoading, dashboardTab, studentSummary, navigate])
 
   if (!user) {
     return null
