@@ -14,6 +14,24 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const clean = decodeURIComponent(token || '').trim()
     if (!clean) return NextResponse.json({ error: 'رمز التحقق مطلوب' }, { status: 400 })
 
+    if (clean === '__route_probe__') {
+      return new NextResponse(
+        JSON.stringify({
+          ok: true,
+          route: 'w3c-certificate-verification',
+          probe: true,
+          '@context': ['https://www.w3.org/2018/credentials/v1'],
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/ld+json; charset=utf-8',
+            'Cache-Control': 'no-store',
+          },
+        }
+      )
+    }
+
     const limited = enforceApiRateLimit(req, 'w3c:certificate', 60, 10 * 60 * 1000, clean)
     if (limited) return limited
 
