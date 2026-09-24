@@ -819,8 +819,11 @@ export async function POST() {
 
     const academic = await createStudentAndAdmission(admin, stamp, scaffold.program)
     steps.push({ name: 'إنشاء طالب وطلب التحاق وسداد رسوم التقديم', ok: academic.appFeePaid.ok && academic.afterFee?.status === 'UNDER_REVIEW', detail: academic.admission.reference, data: { admissionStatusAfterFee: academic.afterFee?.status, invoice: academic.appFee.invoiceNo } })
+    const sem1BeforeGate: any = academic.firstSemesterGateBeforeInitialPayment
+    const sem1AfterGate: any = academic.firstSemesterGateAfterInitialPayment
+    steps.push({ name: 'منع امتحان الفصل الأول قبل سداد نصف الرسوم', ok: sem1BeforeGate.ok === false && sem1BeforeGate.code === 'TUITION_HALF_REQUIRED', detail: sem1BeforeGate.code || 'OK', data: sem1BeforeGate })
     const firstSemesterReady = !!academic.enrollment && !!academic.tuitionPlan?.firstSemesterAllowed && Number(academic.tuitionPlan?.paidTuition || 0) >= Number(academic.tuitionPlan?.halfRequired || 0)
-    steps.push({ name: 'موافقة الإدارة وإنشاء خطة تقسيط وسداد الدفعة الأولى', ok: firstSemesterReady, detail: academic.finalAdmission?.status || '', data: { appealId: academic.appeal.id, enrollmentId: academic.enrollment?.id, tuitionPlan: academic.tuitionPlan } })
+    steps.push({ name: 'موافقة الإدارة وإنشاء خطة تقسيط وسداد الدفعة الأولى وفتح الفصل الأول', ok: firstSemesterReady && sem1AfterGate.ok === true, detail: academic.finalAdmission?.status || '', data: { appealId: academic.appeal.id, enrollmentId: academic.enrollment?.id, tuitionPlan: academic.tuitionPlan, firstSemesterGateAfterInitialPayment: sem1AfterGate } })
 
     const academicJourney = await createAcademicAndFinancialJourney(admin, stamp, scaffold, academic)
     const sem2BeforeGate: any = academicJourney.tuitionGate.semester2BeforeFinalPayment
