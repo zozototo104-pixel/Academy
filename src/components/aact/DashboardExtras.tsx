@@ -463,7 +463,289 @@ export function PaymentsTab() {
                         onChange={(e) => setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: e.target.value }))}
                         inputMode="decimal"
                         readOnly={initialDue > 0}
-                        placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}
+                        placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}'use client'
+
+import { useEffect, useState } from 'react'
+import { api, getToken } from '@/lib/store'
+import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import {
+  Banknote,
+  Loader2,
+  ReceiptText,
+  Wallet,
+  CheckCircle2,
+  Clock3,
+  Landmark,
+  CreditCard,
+  Printer,
+  Info,
+  FileText,
+  Award,
+  ScrollText,
+} from 'lucide-react'
+
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentConfig {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+  usdt?: { configured: boolean; network: string; instructions: string }
+}
+
+interface Payment {
+  id: string
+  invoiceNo: string
+  purpose: string
+  description: string
+  amount: number
+  currency: string
+  method?: string | null
+  status: string
+  receiptNo?: string | null
+  paidAt?: string | null
+  createdAt: string
+  reference?: string | null
+  admissionId?: string | null
+  provider?: string | null
+  cryptoNetwork?: string | null
+  cryptoWalletAddress?: string | null
+  cryptoTxHash?: string | null
+  cryptoVerificationStatus?: string | null
+  cryptoVerificationNote?: string | null
+}
+
+interface TuitionPlan {
+  admissionId: string
+  reference: string
+  program: string
+  totalTuition: number
+  paidTuition: number
+  remainingTuition: number
+  halfRequired: number
+  finalRequired: number
+  firstSemesterAllowed: boolean
+  secondSemesterAllowed: boolean
+  appealStatus: string | null
+  appealId: string | null
+  approvedInitialAmount: number | null
+  firstSemesterRequiredAmount?: number | null
+  finalRequiredAmount?: number | null
+}
+
+const PURPOSE_LABEL: Record<string, string> = {
+  APPLICATION_FEE: 'رسوم تقديم وحجز مقعد',
+  TUITION: 'الرسوم الدراسية الكاملة',
+  TUITION_INSTALLMENT: 'دفعة جزئية من الرسوم الدراسية',
+  ACCREDITATION_APP: 'رسوم تقديم اعتماد',
+  ACCREDITATION_FEE: 'رسوم تقديم اعتماد',
+  ACCREDITATION: 'رسوم اعتماد',
+  SERVICE_FEE: 'رسوم تنفيذ خدمة',
+  OTHER: 'رسوم أخرى',
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  PAYMOB: 'Paymob',
+  FAWRY: 'فوري',
+  STRIPE: 'Stripe',
+  PAYPAL: 'PayPal',
+  USDT: 'USDT / Tether',
+  BANK_TRANSFER: 'تحويل بنكي',
+  DIRECT_PAYMENT: 'دفع مباشر',
+  SANDBOX: 'محاكاة آمنة',
+}
+
+function Money({ value }: { value: number }) {
+  return <span dir="ltr">{Math.round((Number(value) || 0) * 100) / 100}$</span>
+}
+
+async function openAuthenticatedPdf(path: string, filename: string, onError: (message: string) => void) {
+  const popup = window.open('', '_blank')
+  if (popup) {
+    popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
+    try { popup.opener = null } catch {}
+  }
+  try {
+    const token = getToken()
+    const res = await fetch(path, {
+      cache: 'no-store',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.error || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    if (popup) {
+      popup.location.href = url
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch (e: any) {
+    try { popup?.close() } catch {}
+    onError(e.message || 'تعذر فتح ملف PDF')
+  }
+}
+
+export function PaymentsTab() {
+  const { toast } = useToast()
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [tuitionPlans, setTuitionPlans] = useState<TuitionPlan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [payTarget, setPayTarget] = useState<Payment | null>(null)
+  const [method, setMethod] = useState('DIRECT_PAYMENT')
+  const [paying, setPaying] = useState(false)
+  const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
+  const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
+  const [appealBusy, setAppealBusy] = useState(false)
+  const [appealPlanId, setAppealPlanId] = useState<string | null>(null)
+  const [appealAmount, setAppealAmount] = useState('')
+  const [appealReason, setAppealReason] = useState('')
+  const [appealSchedule, setAppealSchedule] = useState('')
+  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
+  const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
+  const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
+  const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
+
+  const load = () => {
+    api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
+      .then((d) => {
+        setPayments(Array.isArray(d.payments) ? d.payments : [])
+        setTuitionPlans(Array.isArray(d.tuitionPlans) ? d.tuitionPlans : [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    api<PaymentConfig>('/api/payments/config')
+      .then((d) => {
+        setPayConfig(d)
+        setPayMode(d.mode || 'SANDBOX')
+        const firstEnabled = d.methods?.find((m) => m.enabled)?.id
+        if (firstEnabled) setMethod(firstEnabled)
+      })
+      .catch(() => {})
+
+    const q = new URLSearchParams(window.location.search)
+    const invoice = q.get('invoice')
+    if (invoice) setInitialInvoiceNo(invoice)
+    const paid = q.get('paid')
+    if (paid) {
+      api<{ ok: boolean; status: string; receiptNo?: string; note?: string }>(`/api/payments/verify-session?invoiceNo=${encodeURIComponent(paid)}`)
+        .then((d) => {
+          if (d.status === 'PAID') toast({ title: 'تم تأكيد الدفع', description: `سُددت الفاتورة ${paid} — الإيصال ${d.receiptNo || ''}` })
+          else toast({ title: 'الدفع قيد التحقق', description: d.note || 'سيُعتمد تلقائياً عند تأكيد المزود.' })
+          load()
+        })
+        .catch(() => {})
+      window.history.replaceState({}, '', '/dashboard?tab=payments')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openPaymentDialog = (payment: Payment) => {
+    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    if (firstEnabled) setMethod(firstEnabled)
+    setPayTarget(payment)
+  }
+
+  useEffect(() => {
+    if (!initialInvoiceNo || autoOpenedInvoiceNo === initialInvoiceNo || loading) return
+    const target = payments.find((p) => p.invoiceNo === initialInvoiceNo)
+    if (!target) return
+    setAutoOpenedInvoiceNo(initialInvoiceNo)
+    if (target.status === 'UNPAID') {
+      const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+      if (firstEnabled) setMethod(firstEnabled)
+      setPayTarget(target)
+    } else {
+      toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
+    }
+  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast])
+
+  const submitInstallmentAppeal = async (plan: TuitionPlan) => {
+    const amount = Number(appealAmount || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغاً صحيحاً', description: 'حدد الدفعة التي تستطيع دفعها الآن.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      await api('/api/tuition-appeals', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, requestedInitialAmount: amount, reason: appealReason, proposedSchedule: appealSchedule }),
+      })
+      toast({ title: 'تم إرسال الالتماس', description: 'سيظهر القرار بعد مراجعة الإدارة.' })
+      setAppealPlanId(null)
+      setAppealAmount('')
+      setAppealReason('')
+      setAppealSchedule('')
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال الالتماس', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const approvedInitialRemaining = (plan: TuitionPlan) =>
+    plan.appealStatus === 'APPROVED' && plan.approvedInitialAmount !== null && plan.paidTuition < plan.approvedInitialAmount
+      ? Math.max(0, Math.round((plan.approvedInitialAmount - plan.paidTuition) * 100) / 100)
+      : 0
+
+  const createInstallmentInvoice = async (plan: TuitionPlan) => {
+    const initialDue = approvedInitialRemaining(plan)
+    const amount = initialDue > 0 ? initialDue : Number(partialAmount[plan.admissionId] || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي بعد تفعيل التسجيل.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      const r = await api<{ payment: Payment }>('/api/payments/installment', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, amount }),
+      })
+      toast({ title: 'تم إنشاء فاتورة دفعة جزئية', description: `يمكنك الآن دفع ${amount}$ من الفواتير.` })
+      setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: '' }))
+      load()
+      if (r.payment) setPayTarget(r.payment)
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء الدفعة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
   }
 
   const openInvoicePdf = async (payment: Payment) => {
@@ -622,6 +904,30 @@ export function PaymentsTab() {
               <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الأول: يلزم <Money value={plan.halfRequired} /> {plan.firstSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
               <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الثاني: يلزم <Money value={plan.finalRequired} /> {plan.secondSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
             </div>
+            {plan.appealStatus === 'APPROVED' ? (
+              <div className="mt-3 rounded-xl border border-emerald-100 bg-white p-3">
+                {pendingInstallmentInvoice ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-black leading-6 text-emerald-800">
+                      توجد فاتورة دفعة جزئية قيد السداد بقيمة <Money value={pendingInstallmentInvoice.amount} />. تم إيقاف إنشاء فاتورة جديدة حتى تؤكد الإدارة هذه الفاتورة أو يتم سدادها.
+                    </p>
+                    <Button onClick={() => openPaymentDialog(pendingInstallmentInvoice)} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+                      <CreditCard className="ml-2 h-4 w-4" /> متابعة دفع الفاتورة الحالية
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {initialDue > 0 ? (
+                      <p className="text-xs font-black text-emerald-800">الدفعة الأولى المعتمدة لتفعيل التسجيل: <Money value={initialDue} />. يجب دفعها كاملة كما اعتمدتها الإدارة.</p>
+                    ) : (
+                      <p className="text-xs font-black text-emerald-800">يمكنك دفع أي مبلغ متوفر لديك حتى اكتمال الرسوم.</p>
+                    )}
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        value={initialDue > 0 ? String(initialDue) : partialAmount[plan.admissionId] || ''}
+                        onChange={(e) => setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: e.target.value }))}
+                        inputMode="decimal"
+                        readOnly={initialDue > 0}
 }
                         className={initialDue > 0 ? 'bg-emerald-50 font-black text-emerald-800' : undefined}
                       />
