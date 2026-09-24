@@ -967,7 +967,7 @@ export function ApplyView() {
                   {tracked.payments?.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">فواتير الطلب</h3>
-                      {tracked.payments.map((inv: TrackedInvoice) => (
+                      {sortInvoicesNewest(tracked.payments).map((inv: TrackedInvoice) => (
                         <div key={inv.invoiceNo} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 ${inv.status === 'PAID' ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
                           <div className="min-w-0">
                             <div className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{inv.invoiceNo}</div>
