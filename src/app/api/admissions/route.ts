@@ -190,9 +190,7 @@ export async function POST(req: NextRequest) {
 
     // ===== الخطوة 2: المستندات الرسمية أو مرفقات الخدمة المخصصة =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
-    const rules = programRec?.admissionRules
-      ? resolveRules(programRec?.category || 'DIPLOMA', programRec.admissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', programRec?.admissionRules, !isServiceRequest))
+    const rules = programRules
     const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
     const requiredDocList = isServiceRequest
       ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
