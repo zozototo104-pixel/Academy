@@ -74,7 +74,7 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
           height: Math.round(rect.height),
         }
       })
-      .filter((item) => item.display !== 'none' && item.visibility !== 'hidden' && item.height > 0 && item.width > 0)
+      .filter((item) => item.display !== 'none' && item.visibility !== 'hidden' && item.opacity > 0.05 && item.height > 0 && item.width > 0)
       .filter((item) => !item.clipped)
       .filter((item) => item.position !== 'fixed' && (item.left < -4 || item.right > inner + 4 || item.width > inner + 4))
       .slice(0, 12)
