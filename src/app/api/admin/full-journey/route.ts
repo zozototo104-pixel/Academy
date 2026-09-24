@@ -823,15 +823,14 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   remember('payments', await db.payment.deleteMany({ where: { id: { in: paymentIds } } }))
   remember('serviceDeliverables', await db.serviceDeliverable.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
   remember('admissionDocuments', await db.admissionDocument.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
+  const appealWhere = [
+    admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+    student ? { userId: student.id } : undefined,
+    program ? { programId: program.id } : undefined,
+    enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+  ].filter(Boolean) as any[]
   remember('tuitionInstallmentAppeals', await db.tuitionInstallmentAppeal.deleteMany({
-    where: {
-      OR: [
-        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
-        student ? { userId: student.id } : undefined,
-        program ? { programId: program.id } : undefined,
-        enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
-      ].filter(Boolean) as any[],
-    },
+    where: appealWhere.length ? { OR: appealWhere } : { id: '__none__' },
   }))
   remember('thesisReviewNotes', await db.thesisReviewNote.deleteMany({ where: thesisIds.length ? { thesisId: { in: thesisIds } } : { id: '__none__' } }))
   remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
