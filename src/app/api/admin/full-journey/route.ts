@@ -406,8 +406,6 @@ async function createServiceAndContact(admin: { id: string; name: string }, stam
       subject: `QA_FULL_JOURNEY_CONTACT_${stamp}`,
       message: 'رسالة اختبارية للتأكد من أن الإدارة تستطيع استقبال الرسالة والرد عليها/معالجتها.',
       handled: true,
-      handledAt: new Date(),
-      handledBy: admin.name,
     },
   })
 
