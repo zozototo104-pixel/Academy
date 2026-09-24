@@ -759,15 +759,13 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   })
   const admissionIds = admissions.map((a) => a.id)
 
-  const enrollments = await db.enrollment.findMany({
-    where: {
-      OR: [
-        student ? { userId: student.id } : undefined,
-        program ? { programId: program.id } : undefined,
-      ].filter(Boolean) as any[],
-    },
-    select: { id: true },
-  })
+  const enrollmentWhere = [
+    student ? { userId: student.id } : undefined,
+    program ? { programId: program.id } : undefined,
+  ].filter(Boolean) as any[]
+  const enrollments = enrollmentWhere.length
+    ? await db.enrollment.findMany({ where: { OR: enrollmentWhere }, select: { id: true } })
+    : []
   const enrollmentIds = enrollments.map((e) => e.id)
 
   const payments = await db.payment.findMany({
