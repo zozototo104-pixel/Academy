@@ -663,6 +663,7 @@ export function DashboardView() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Active program */}
           {loadingActive ? (
