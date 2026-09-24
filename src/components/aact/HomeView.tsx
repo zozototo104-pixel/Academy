@@ -412,7 +412,7 @@ export function HomeView() {
               <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
               <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
               <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
-                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]" />
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
                 <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
                   <span className="block text-3xl font-black text-white">+15</span>
