@@ -530,7 +530,8 @@ export function ApplyView() {
         : baseStatus
     const rawInvoices: TrackedInvoice[] = sortInvoicesNewest(Array.isArray(app.payments) ? app.payments : [])
     const tuitionPlan: TrackedTuitionPlan | null = app.tuitionPlan || null
-    const hasTuitionProgress = isStudyApp && !!tuitionPlan && tuitionPlan.totalTuition > 0 && tuitionPlan.paidTuition > 0
+    const hasInstallmentInvoices = rawInvoices.some((p) => p.purpose === 'TUITION_INSTALLMENT')
+    const hasTuitionProgress = isStudyApp && !!tuitionPlan && tuitionPlan.totalTuition > 0 && (tuitionPlan.paidTuition > 0 || hasInstallmentInvoices)
     const invoices = rawInvoices.filter((p) => !(hasTuitionProgress && p.purpose === 'TUITION' && p.status !== 'PAID'))
     const unpaid = invoices.filter((p) => p.status !== 'PAID')
     const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
