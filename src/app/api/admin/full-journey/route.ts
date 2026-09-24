@@ -734,6 +734,132 @@ async function createAcademicAndFinancialJourney(
   }
 }
 
+async function cleanupFullJourneyByStamp(stamp: string) {
+  if (!/^\d{14}$/.test(stamp)) throw new Error('Invalid full journey cleanup stamp')
+
+  const email = `qa.fulljourney.${stamp}@aact.test`
+  const slug = `qa-full-journey-${stamp}`
+  const contactSubject = `QA_FULL_JOURNEY_CONTACT_${stamp}`
+
+  const [student, program] = await Promise.all([
+    db.user.findUnique({ where: { email }, select: { id: true, email: true } }),
+    db.program.findUnique({ where: { slug }, select: { id: true, slug: true, titleAr: true } }),
+  ])
+
+  const admissions = await db.admissionApplication.findMany({
+    where: {
+      OR: [
+        student ? { userId: student.id } : undefined,
+        { email },
+        program ? { programId: program.id } : undefined,
+        { program: { contains: stamp } },
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true, reference: true },
+  })
+  const admissionIds = admissions.map((a) => a.id)
+
+  const enrollments = await db.enrollment.findMany({
+    where: {
+      OR: [
+        student ? { userId: student.id } : undefined,
+        program ? { programId: program.id } : undefined,
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true },
+  })
+  const enrollmentIds = enrollments.map((e) => e.id)
+
+  const payments = await db.payment.findMany({
+    where: {
+      OR: [
+        student ? { userId: student.id } : undefined,
+        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+        enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+        { payerEmail: email },
+        { description: { contains: stamp } },
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true, invoiceNo: true },
+  })
+  const paymentIds = payments.map((p) => p.id)
+
+  const theses = await db.thesisSubmission.findMany({
+    where: {
+      OR: [
+        student ? { userId: student.id } : undefined,
+        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+        { title: { contains: stamp } },
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true },
+  })
+  const thesisIds = theses.map((t) => t.id)
+
+  const counts: Record<string, number> = {}
+  const remember = (name: string, result: { count: number }) => { counts[name] = result.count }
+
+  remember('contactMessages', await db.contactMessage.deleteMany({ where: { subject: contactSubject } }))
+  remember('emailLogs', await db.emailLog.deleteMany({ where: { OR: [{ to: email }, { subject: { contains: stamp } }] } }))
+  remember('auditLogs', await db.auditLog.deleteMany({
+    where: {
+      OR: [
+        { details: { contains: stamp } },
+        program ? { entityId: program.id } : undefined,
+        admissionIds.length ? { entityId: { in: admissionIds } } : undefined,
+        paymentIds.length ? { entityId: { in: paymentIds } } : undefined,
+      ].filter(Boolean) as any[],
+    },
+  }))
+  remember('certificates', await db.certificate.deleteMany({
+    where: {
+      OR: [
+        student ? { userId: student.id } : undefined,
+        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+        enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+        { holderName: { contains: stamp } },
+        { program: { contains: stamp } },
+      ].filter(Boolean) as any[],
+    },
+  }))
+  remember('payments', await db.payment.deleteMany({ where: { id: { in: paymentIds } } }))
+  remember('serviceDeliverables', await db.serviceDeliverable.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
+  remember('admissionDocuments', await db.admissionDocument.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
+  remember('tuitionInstallmentAppeals', await db.tuitionInstallmentAppeal.deleteMany({
+    where: {
+      OR: [
+        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+        student ? { userId: student.id } : undefined,
+        program ? { programId: program.id } : undefined,
+        enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+      ].filter(Boolean) as any[],
+    },
+  }))
+  remember('thesisReviewNotes', await db.thesisReviewNote.deleteMany({ where: thesisIds.length ? { thesisId: { in: thesisIds } } : { id: '__none__' } }))
+  remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
+  remember('studentAcademicMemory', await db.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  remember('notifications', await db.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  remember('admissions', await db.admissionApplication.deleteMany({ where: { id: { in: admissionIds } } }))
+  remember('enrollments', await db.enrollment.deleteMany({ where: { id: { in: enrollmentIds } } }))
+  remember('student', await db.user.deleteMany({ where: { email } }))
+  remember('program', await db.program.deleteMany({ where: { slug } }))
+
+  return {
+    stamp,
+    email,
+    slug,
+    found: {
+      student: Boolean(student),
+      program: Boolean(program),
+      admissions: admissions.length,
+      payments: payments.length,
+      enrollments: enrollments.length,
+      theses: theses.length,
+    },
+    deleted: counts,
+  }
+}
+
 async function createServiceAndContact(admin: { id: string; name: string }, stamp: string, student: { id: string; name: string; email: string; phone?: string | null; country?: string | null }) {
   const service = await db.admissionApplication.create({
     data: {
