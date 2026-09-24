@@ -657,6 +657,10 @@ main,
   [data-slot="tabs-list"]::-webkit-scrollbar {
     display: none;
   }
+  .aact-scroll-reveal.aact-reveal-from-left,
+  .aact-scroll-reveal.aact-reveal-from-right {
+    transform: translate3d(0, 34px, 0) scale(0.94);
+  }
   .aact-mobile-stack {
     flex-direction: column !important;
     align-items: stretch !important;
