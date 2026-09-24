@@ -505,7 +505,7 @@ async function createAcademicAndFinancialJourney(
       durationUsedMin: 88,
       submittedAt: new Date(),
       answers: {
-        create: sem1Exam.questions.map((q) => ({ questionId: q.id, answerText: 'إجابة QA صحيحة مرتبطة بالكتاب.', selectedOption: q.type === 'MCQ' ? 0 : undefined, isCorrect: true, points: q.points, maxPoints: q.points })),
+        create: sem1Exam.questions.map((q) => ({ questionId: q.id, answerText: 'إجابة QA صحيحة مرتبطة بالكتاب.', selectedOption: q.type === 'MCQ' || q.type === 'TF' ? 0 : null, isCorrect: true, points: Number(q.points || 0), maxPoints: Number(q.points || 0) })),
       },
     },
   })
