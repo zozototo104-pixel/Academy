@@ -24,9 +24,9 @@ jobs:
 
     env:
       CI: true
-      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
-      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
       E2E_RUN_VOICE_TOKEN: ${{ inputs.run_voice_token && '1' || '0' }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
