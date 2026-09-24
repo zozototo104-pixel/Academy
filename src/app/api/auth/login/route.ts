@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
     const demoLoginEnabled = process.env.AACT_ENABLE_DEMO_LOGIN === '1' || process.env.NODE_ENV !== 'production'
     if (demoLoginEnabled && normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
       // يجهّز حساب الطالب التجريبي فقط في البيئات التجريبية أو عند تفعيله صراحةً.
+      const [{ ensureCoreSeed }, { ensureDemoThesisStudent }] = await Promise.all([
+        import('@/lib/bootstrap'),
+        import('@/lib/demo-thesis'),
+      ])
       await ensureCoreSeed(true).catch((err) => console.error('Auto demo seed error:', err))
       await ensureDemoThesisStudent({ resetDefense: true, actor: null }).catch((err) => console.error('Auto demo thesis setup error:', err))
     }
