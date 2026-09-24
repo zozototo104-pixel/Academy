@@ -221,7 +221,9 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
-      openPaymentDialog(target)
+      const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+      if (firstEnabled) setMethod(firstEnabled)
+      setPayTarget(target)
     } else {
       toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
     }
