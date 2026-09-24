@@ -646,8 +646,8 @@ async function createAcademicAndFinancialJourney(
   return {
     tuitionGate: {
       semester1Before: semester1GateBefore,
-      semester2BeforeFinalPayment,
-      semester2AfterFinalPayment,
+      semester2BeforeFinalPayment: semester2GateBeforeFinalPayment,
+      semester2AfterFinalPayment: semester2GateAfterFinalPayment,
       planBeforeFinal,
       planAfterFinal,
       finalInstallmentPaid,
