@@ -937,6 +937,19 @@ export async function GET() {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const body = await req.json().catch(() => ({}))
+    const stamp = String(body?.stamp || '').trim()
+    const cleanup = await cleanupFullJourneyByStamp(stamp)
+    return NextResponse.json({ ok: true, cleanup }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ ok: false, error: e?.message || 'تعذر تنظيف بيانات رحلة الاختبار' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+  }
+}
+
 export async function POST() {
   try {
     const adminUser = await requireAdmin()
