@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
         reference,
         fullName: fullName.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: normalizePhone(phone),
         country: country.trim(),
         nationalId: String(nationalId || '').trim() ? String(nationalId).trim().slice(0, 40) : null,
         birthDate: birth,
