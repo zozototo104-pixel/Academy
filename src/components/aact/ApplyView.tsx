@@ -533,13 +533,18 @@ export function ApplyView() {
     if (!done?.invoice) return
     setPaying(true)
     try {
-      await payInvoice(done.invoice.invoiceNo, async () => {
+      const result = await payInvoice(done.invoice.invoiceNo, async () => {
         setPayOpen(false)
-        setPaidRef(done.reference)
         const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(done.reference)}`)
         setMyAdmission(d.application)
         setTracked(d.application)
       })
+      if (result.status === 'redirect') return
+      if (result.status === 'manual') {
+        toast({ title: 'تم تسجيل طريقة الدفع', description: result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.' })
+        return
+      }
+      setPaidRef(done.reference)
       toast({ title: 'تم سداد رسوم التقديم بنجاح', description: 'أُحوِّل ملفك للإدارة للدراسة' })
     } catch (e: any) {
       toast({ title: 'خطأ في الدفع', description: e.message || 'تعذر إتمام الدفع', variant: 'destructive' })
