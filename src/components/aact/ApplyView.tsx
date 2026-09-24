@@ -758,8 +758,9 @@ export function ApplyView() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="ad-birth" className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-[#a8841a]" /> تاريخ الميلاد</Label>
-                          <Input id="ad-birth" type="date" dir="ltr" className="text-left" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
+                          <Label htmlFor="ad-birth" className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-[#a8841a]" /> تاريخ الميلاد {selectedRules?.minAge ? '*' : ''}</Label>
+                          <Input id="ad-birth" type="date" required={!isServiceRequest && !!selectedRules?.minAge} dir="ltr" className="text-left" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
+                          {selectedRules?.minAge && <p className="text-[10px] font-bold text-slate-400">سيتم التحقق من شرط العمر الأدنى: {selectedRules.minAge} سنة.</p>}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-address" className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-[#a8841a]" /> العنوان</Label>
