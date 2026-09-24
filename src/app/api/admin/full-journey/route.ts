@@ -843,6 +843,7 @@ export async function POST() {
     const allOk = steps.every((s) => s.ok)
     return NextResponse.json({
       ok: allOk,
+      journeySchemaVersion: 3,
       stamp,
       durationMs: Date.now() - startedAt,
       steps,
