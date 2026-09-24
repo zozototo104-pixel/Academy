@@ -102,6 +102,7 @@ test.describe('AACT full platform journey suite', () => {
       timeout: 90_000,
     })
     const setup = await setupRes.json().catch(() => ({}))
+    if (setup?.stamp) cleanupTarget = { token: admin.token, stamp: String(setup.stamp) }
     expect(setupRes.ok(), `Full journey setup failed: ${setupRes.status()} ${JSON.stringify(setup).slice(0, 1200)}`).toBeTruthy()
     expect(setup.ok, `Full journey setup returned non-ok: ${JSON.stringify(setup.steps || setup).slice(0, 1200)}`).toBe(true)
     expect(setup.steps.every((s: any) => s.ok), `A setup step failed: ${JSON.stringify(setup.steps, null, 2)}`).toBe(true)
