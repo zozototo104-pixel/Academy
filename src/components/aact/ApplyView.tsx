@@ -847,8 +847,13 @@ export function ApplyView() {
                     <p className="mx-auto mt-4 max-w-md text-xs font-bold leading-relaxed text-amber-700">
                       تبقى سداد رسوم التقديم وحجز المقعد ({done.invoice.amount}$ غير مستردة) حتى يُحوَّل الملف للإدارة.
                     </p>
+                    {manualPayNotice && (
+                      <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-white p-3 text-xs font-bold leading-6 text-amber-700">
+                        {manualPayNotice}
+                      </div>
+                    )}
                     <Button onClick={() => setPayOpen(true)} className="mt-4 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-                      <CreditCard className="ml-2 h-4 w-4" /> ادفع رسوم التقديم الآن
+                      <CreditCard className="ml-2 h-4 w-4" /> {manualPayNotice ? 'تغيير طريقة الدفع' : 'ادفع رسوم التقديم الآن'}
                     </Button>
                   </>
                 )}
