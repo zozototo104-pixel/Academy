@@ -384,6 +384,9 @@ export function ApplyView() {
   const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
   const recentApplications = myApplications.slice(0, 5)
+  const openStudentPayments = (invoiceNo?: string | null) => {
+    navigate('dashboard', { tab: 'payments', invoice: invoiceNo || undefined })
+  }
   const enabledPaymentMethods = useMemo(
     () => {
       const methods = Array.isArray(paymentConfig?.methods) ? paymentConfig.methods.filter((m) => m.enabled) : []
