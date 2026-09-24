@@ -161,6 +161,13 @@ export async function POST(req: NextRequest) {
     if (!emailRe.test(email.trim())) {
       return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
     }
+    const nameError = validateApplicantFullName(fullName, 3)
+    if (nameError) return NextResponse.json({ error: nameError }, { status: 400 })
+    const phoneError = validatePhone(phone)
+    if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    if (!isSupportedCountry(country)) {
+      return NextResponse.json({ error: 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' }, { status: 400 })
+    }
 
     // البحث عن البرنامج/الخدمة قبل فحص الهوية والمستندات حتى نفرق بين طلب الدراسة وطلب الخدمة المهنية.
     const programRec = programId
