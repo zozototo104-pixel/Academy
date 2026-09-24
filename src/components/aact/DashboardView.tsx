@@ -872,7 +872,7 @@ export function DashboardView() {
                 )}
 
                 {/* تنظيم محتوى البرنامج داخل تبويبات فرعية حتى لا تتكدس أدلة الدراسة والواجبات والوحدات في صفحة واحدة */}
-                {!curriculumReady ? (
+                {programSection === 'content' && (!curriculumReady ? (
                   <section className="mt-5 rounded-2xl border border-amber-200 bg-white p-6 text-center text-sm font-bold leading-7 text-slate-600">
                     <Hourglass className="mx-auto mb-2 h-8 w-8 text-amber-600" />
                     <p className="text-base font-black text-[#0f2b46]">الكتب والوحدات قيد التجهيز</p>
