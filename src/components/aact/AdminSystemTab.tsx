@@ -750,7 +750,7 @@ export function AdminSystemTab() {
             {F('GEMINI_API_KEY', 'مفتاح Gemini API', data.secretsSet.GEMINI_API_KEY ? 'محفوظ — اكتب مفتاحاً جديداً للتغيير' : 'AIza...', 'password', 'يبقى في السيرفر ولا يظهر في المتصفح')}
             {F('GEMINI_TEXT_MODEL', 'نموذج Gemini للنصوص / احتياطي', 'gemini-3.8-flash', 'text', 'يستخدم عند اختيار Gemini أو عند فشل مزود النصوص الخارجي. لا تضع نموذج Live هنا.')}
             {F('GEMINI_TTS_MODEL', 'نموذج TTS', 'gemini-3.1-flash-tts-preview', 'text', 'للردود الصوتية غير Live فقط')}
-            {SelectF('GEMINI_TTS_VOICE', 'صوت Gemini Live / TTS', GEMINI_VOICE_CHOICES.map((v) => ({ value: v, label: v })), 'اختر الصوت من القائمة بدلاً من كتابته يدوياً.')}
+            {SelectF('GEMINI_TTS_VOICE', 'الصوت المختار GEMINI_TTS_VOICE — Gemini Live / TTS', GEMINI_VOICE_CHOICES.map((v) => ({ value: v, label: v })), 'اختر الصوت من القائمة بدلاً من كتابته يدوياً. الموصى به حالياً: Charon.')}
             {SelectF('GEMINI_SUPERVISOR_LIVE_MODEL', 'Live للمشرف الذكي', GEMINI_SUPERVISOR_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live للمشرف اليومي منخفض التأخير.')}
             {SelectF('GEMINI_DISCUSSION_LIVE_MODEL', 'Live للمناقشة / الدفاع', GEMINI_DISCUSSION_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live-extended-thinking للمناقشات والدفاع الأكاديمي.')}
             {SelectF('GEMINI_DISCUSSION_THINKING_LEVEL', 'مستوى التفكير للمناقشة', GEMINI_THINKING_CHOICES, 'يطبق على Live الحديث عند دعم النموذج.')}
