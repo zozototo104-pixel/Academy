@@ -100,12 +100,42 @@ test.describe('AACT launch quality suite', () => {
     expect(readinessRes.ok(), `Launch quality readiness failed with ${readinessRes.status()}: ${JSON.stringify(readiness).slice(0, 800)}`).toBeTruthy()
 
     const runVoiceToken = process.env.E2E_RUN_VOICE_TOKEN === '1' || process.env.E2E_RUN_VOICE_TOKEN === 'true'
-    const aiRes = await page.request.post('/api/admin/launch-quality', {
+    const voiceRes = await page.request.post('/api/admin/launch-quality', {
       headers: { Authorization: `Bearer ${token}` },
-      data: { runAi: true, runVoiceToken },
-      timeout: 160_000,
+      data: { runAi: false, runVoiceToken, includeVoice: true },
+      timeout: 45_000,
     })
-    const ai = await aiRes.json().catch(() => ({}))
+    const voicePayload = await voiceRes.json().catch(() => ({}))
+    expect(voiceRes.ok(), `Launch quality voice readiness failed with ${voiceRes.status()}: ${JSON.stringify(voicePayload).slice(0, 1200)}`).toBeTruthy()
+
+    const probeKinds = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE'] as const
+    const probePayloads: any[] = []
+    for (const probeKind of probeKinds) {
+      const probeRes = await page.request.post('/api/admin/launch-quality', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { runAi: true, runVoiceToken: false, includeVoice: false, probeKind },
+        timeout: 80_000,
+      })
+      const probeBody = await probeRes.json().catch(() => ({}))
+      expect(probeRes.ok(), `Launch quality AI probe ${probeKind} failed with ${probeRes.status()}: ${JSON.stringify(probeBody).slice(0, 1200)}`).toBeTruthy()
+      probePayloads.push(probeBody)
+    }
+
+    const probes = probePayloads.flatMap((p) => Array.isArray(p.probes) ? p.probes : [])
+    const passedProbes = probes.filter((p: any) => p.passed || p.skipped).length
+    const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 0
+    const ai = {
+      ...voicePayload,
+      probes,
+      status: score >= 75 && voicePayload.summary?.hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail',
+      summary: {
+        ...(voicePayload.summary || {}),
+        score,
+        passedProbes,
+        totalProbes: probes.length,
+        hasUsefulContext: !!voicePayload.summary?.hasUsefulContext,
+      },
+    }
 
     const report = {
       generatedAt: new Date().toISOString(),
