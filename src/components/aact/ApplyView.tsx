@@ -753,14 +753,10 @@ export function ApplyView() {
                 <p className="mt-1 text-xs font-bold text-amber-700">المبلغ المطلوب: {payable.amount}$ — الفاتورة <span dir="ltr">{payable.invoiceNo}</span></p>
               </div>
               <Button
-                onClick={() => {
-                  setPayMethod(selectedPaymentMethod?.id || 'DIRECT_PAYMENT')
-                  setTracked(app)
-                  setTrackPayTarget(payable)
-                }}
+                onClick={() => openStudentPayments(payable.invoiceNo)}
                 className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
               >
-                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'SERVICE_FEE' ? 'ادفع رسوم الخدمة الآن' : 'ادفع رسوم التقديم الآن'}
+                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'SERVICE_FEE' ? 'ادفع رسوم الخدمة من بوابة الطالب' : 'ادفع رسوم التقديم من بوابة الطالب'}
               </Button>
             </div>
           )}
