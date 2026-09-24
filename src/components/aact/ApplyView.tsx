@@ -737,7 +737,8 @@ export function ApplyView() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="ad-name">الاسم الكامل *</Label>
-                          <Input id="ad-name" required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="الاسم الثلاثي كما في الوثائق" />
+                          <Input id="ad-name" required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="الاسم الثلاثي على الأقل كما في الوثائق" />
+                          <p className="text-[10px] font-bold text-slate-400">يجب أن يحتوي الاسم على 3 مقاطع على الأقل دون اختصارات.</p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {isServiceRequest ? '(اختياري)' : '*'}</Label>
