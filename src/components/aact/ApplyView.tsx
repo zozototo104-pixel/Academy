@@ -243,7 +243,7 @@ export function ApplyView() {
         ...f,
         fullName: f.fullName || user.name,
         email: f.email || user.email,
-        country: f.country || user.country || '',
+        country: f.country || (user.country && SUPPORTED_COUNTRIES.includes(user.country) ? user.country : ''),
       }))
     }
     if (applyProgramTitle) {
