@@ -605,7 +605,44 @@ export function ApplyView() {
             </div>
           )}
 
-          {payable && (
+          {tuitionSummaryActive && (
+            <div className="mt-5 rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-[#0f2b46]">خطة الرسوم الدراسية للبرنامج</p>
+                  <p className="mt-1 text-xs font-bold leading-6 text-amber-700">
+                    سعر البرنامج: {tuitionPlan.totalTuition}$ — المسدد: {tuitionPlan.paidTuition}$ — المتبقي: {tuitionPlan.remainingTuition}$
+                  </p>
+                  <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
+                    لا يُحسب المتبقي من الفاتورة الأصلية إذا تم السداد على دفعات؛ يتم احتسابه من إجمالي الرسوم ناقص الدفعات المسددة.
+                  </p>
+                </div>
+                {installmentPayable ? (
+                  <Button
+                    onClick={() => {
+                      setPayMethod('PAYMOB')
+                      setTracked(app)
+                      setTrackPayTarget(installmentPayable)
+                    }}
+                    className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
+                  >
+                    <CreditCard className="ml-2 h-4 w-4" /> ادفع الدفعة المستحقة الآن
+                  </Button>
+                ) : canCreateRemainingInvoice ? (
+                  <Button
+                    disabled={trackPaying}
+                    onClick={() => createAndPayRemainingTuition(app)}
+                    className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
+                  >
+                    {trackPaying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />}
+                    إنشاء فاتورة المتبقي وسدادها
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {payable && !(tuitionSummaryActive && ['TUITION', 'TUITION_INSTALLMENT'].includes(payable.purpose)) && (
             <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-black text-[#0f2b46]">{payable.description}</p>
@@ -619,7 +656,7 @@ export function ApplyView() {
                 }}
                 className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
               >
-                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'TUITION' ? 'ادفع باقي الرسوم الآن' : payable.purpose === 'SERVICE_FEE' ? 'ادفع رسوم الخدمة الآن' : 'ادفع رسوم التقديم الآن'}
+                <CreditCard className="ml-2 h-4 w-4" /> {payable.purpose === 'SERVICE_FEE' ? 'ادفع رسوم الخدمة الآن' : 'ادفع رسوم التقديم الآن'}
               </Button>
             </div>
           )}
