@@ -218,6 +218,7 @@ export function ApplyView() {
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null)
   const [paying, setPaying] = useState(false)
   const [paidRef, setPaidRef] = useState<string | null>(null)
+  const [manualPayNotice, setManualPayNotice] = useState<string | null>(null)
 
   const [trackRef, setTrackRef] = useState('')
   const [tracking, setTracking] = useState(false)
