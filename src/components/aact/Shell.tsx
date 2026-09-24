@@ -641,17 +641,27 @@ export function Header() {
               </button>
             )}
             {user ? (
-              <button
-                onClick={async () => {
-                  await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
-                  clearToken()
-                  setUser(null)
-                  goMobile('home')
-                }}
-                className="mt-2 rounded-lg border border-white/25 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/10"
-              >
-                تسجيل الخروج ({user.name})
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => goMobile(user.role === 'STUDENT' ? 'dashboard' : user.role === 'ADMIN' ? 'admin' : 'supervisor')}
+                  className="mt-3 rounded-xl border border-[#c9a227]/35 bg-white/8 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/12"
+                >
+                  <span className="flex items-center gap-2"><UserRound className="h-4 w-4 text-[#e0b83a]" /> {user.name}</span>
+                  <span className="mt-1 block text-[10px] font-semibold text-[#d2ad5a]" dir="ltr">{user.email}</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
+                    clearToken()
+                    setUser(null)
+                    goMobile('home')
+                  }}
+                  className="mt-2 rounded-lg border border-white/25 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/10"
+                >
+                  تسجيل الخروج
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => goMobile('auth')}
