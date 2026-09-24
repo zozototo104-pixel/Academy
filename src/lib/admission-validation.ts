@@ -56,14 +56,18 @@ export function validateApplicantFullName(fullName: string, minParts = 3) {
 
 export function validateNationalIdOrPassport(value: string, country?: string | null, requireStrictNationalId = false) {
   const raw = normalizeDigits(String(value || '').trim()).replace(/\s+/g, '')
-  if (!raw) return 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر.'
-  const digitsOnly = raw.replace(/\D/g, '')
-  const isPalestine = String(country || '').trim() === 'فلسطين'
-  if (requireStrictNationalId || isPalestine || /^\d+$/.test(raw)) {
-    if (!/^\d{9}$/.test(digitsOnly) || digitsOnly !== raw) return 'رقم الهوية يجب أن يتكون من 9 أرقام بالضبط.'
+  if (!raw) return 'يرجى إدخال رقم الهوية الشخصية أو الرقم الوطني أو جواز السفر.'
+
+  // المنصة تستقبل طلاباً من دول متعددة، وأرقام الهوية الوطنية تختلف من دولة لأخرى.
+  // لذلك لا نفرض 9 أرقام إلا إذا طُلب فحص هوية محلية صارم صراحةً من مسار خاص.
+  if (requireStrictNationalId) {
+    if (!/^\d{9}$/.test(raw)) return 'رقم الهوية المحلي يجب أن يتكون من 9 أرقام بالضبط.'
     return null
   }
-  if (!/^[A-Za-z0-9-]{6,20}$/.test(raw)) return 'رقم جواز السفر يجب أن يكون بين 6 و20 خانة من أرقام أو حروف إنجليزية.'
+
+  if (!/^[\p{L}\p{N}-]{5,25}$/u.test(raw)) {
+    return 'رقم الهوية/الرقم الوطني/جواز السفر يجب أن يكون بين 5 و25 خانة، ويمكن أن يحتوي أرقاماً أو حروفاً أو شرطة (-).'
+  }
   return null
 }
 
