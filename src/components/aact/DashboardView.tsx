@@ -447,13 +447,17 @@ export function DashboardView() {
     const academicTabs = ['programs', 'supervision', 'thesis', 'transcript', 'certs']
     const hasStudySummary = (studentSummary?.summary?.studyRequests || 0) > 0 || !!studentSummary?.summary?.latestStudy
     const hasServiceSummary = (studentSummary?.summary?.serviceRequests || 0) > 0 || serviceDeliverables.length > 0
+    if (enrollments.length === 0 && !hasStudySummary && !hasServiceSummary) {
+      navigate('programs')
+      return
+    }
     if (enrollments.length === 0 && academicTabs.includes(dashboardTab)) {
       setDashboardTab(hasServiceSummary && !hasStudySummary ? 'deliverables' : 'payments')
     }
     if (hasStudySummary && !hasServiceSummary && dashboardTab === 'deliverables') {
       setDashboardTab('payments')
     }
-  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab, studentSummary])
+  }, [user, enrollments.length, serviceDeliverables.length, dashboardTab, studentSummary, navigate])
 
   if (!user) {
     return null
