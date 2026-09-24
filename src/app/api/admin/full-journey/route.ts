@@ -32,29 +32,12 @@ function normalize(value: unknown) {
     .trim()
 }
 
-function alignmentScore(questions: Array<{ text?: string | null; sourceEvidence?: string | null; sourceBookTitle?: string | null; modelAnswer?: string | null }>, bookTitle: string, concepts: string[]) {
-  const title = normalize(bookTitle)
-  const conceptNeedles = concepts.map(normalize).filter(Boolean)
-  const rows = questions.map((q) => {
-    const hay = normalize(`${q.text || ''} ${q.sourceEvidence || ''} ${q.sourceBookTitle || ''} ${q.modelAnswer || ''}`)
-    const titleHit = !!title && hay.includes(title)
-    const conceptHits = conceptNeedles.filter((c) => hay.includes(c))
-    return {
-      titleHit,
-      conceptHits,
-      aligned: titleHit || conceptHits.length > 0,
-      text: q.text,
-      sourceBookTitle: q.sourceBookTitle,
-      sourceEvidence: q.sourceEvidence,
-    }
-  })
-  const aligned = rows.filter((r) => r.aligned).length
-  return {
-    aligned,
-    total: rows.length,
-    score: rows.length ? Math.round((aligned / rows.length) * 100) : 0,
-    rows,
-  }
+function round1(n: number) {
+  return Math.round(n * 10) / 10
+}
+
+function avg(nums: number[]) {
+  return nums.length ? round1(nums.reduce((sum, n) => sum + n, 0) / nums.length) : 0
 }
 
 async function createProgramScaffold(admin: { id: string; name: string }, stamp: string) {
