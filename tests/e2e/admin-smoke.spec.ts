@@ -25,6 +25,14 @@ function requiredEnv(name: string) {
   return value
 }
 
+function requiredAnyEnv(names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim()
+    if (value) return value
+  }
+  throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
+}
+
 function isIgnoredConsoleError(text: string) {
   return [
     /favicon/i,
