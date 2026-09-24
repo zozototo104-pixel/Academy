@@ -239,6 +239,26 @@ function NotificationBell() {
     setItems((prev) => prev.map((n) => ({ ...n, read: true })))
   }
 
+  const openNotification = async (n: Notif) => {
+    setOpen(false)
+    if (!n.read) {
+      setUnread((v) => Math.max(0, v - 1))
+      setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item))
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch(() => {})
+    }
+    const link = String(n.link || '').trim()
+    if (!link) return
+    const clean = link.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#]/)[0]
+    const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
+    if (viewLinks.has(clean)) {
+      navigate(clean as any)
+      return
+    }
+    if (/^https?:\/\//.test(link) || link.startsWith('/') || link.startsWith('?')) {
+      window.location.href = link
+    }
+  }
+
   return (
     <div className="relative">
       <button
