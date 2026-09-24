@@ -541,7 +541,10 @@ export function ApplyView() {
     const isStudyFinalActive = isStudyApp && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const isServiceApproved = !isStudyApp && ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status)
     const tuitionSummaryActive = isStudyApp && !!tuitionPlan && tuitionPlan.totalTuition > 0 && (tuitionPlan.paidTuition > 0 || tuitionPlan.remainingTuition > 0)
-    const canCreateRemainingInvoice = tuitionSummaryActive && !installmentPayable && tuitionPlan.remainingTuition > 0 && app.id
+    const tuitionTotal = Number(tuitionPlan?.totalTuition || 0)
+    const tuitionPaid = Number(tuitionPlan?.paidTuition || 0)
+    const tuitionRemaining = Number(tuitionPlan?.remainingTuition || 0)
+    const canCreateRemainingInvoice = tuitionSummaryActive && !installmentPayable && tuitionRemaining > 0 && app.id
     const headline = app.status === 'AWAITING_TUITION'
       ? 'تمت الموافقة المبدئية على طلبك'
       : app.status === 'UNDER_REVIEW'
