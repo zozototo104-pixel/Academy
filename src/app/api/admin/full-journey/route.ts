@@ -801,9 +801,9 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 10,
     })
-    return NextResponse.json({ ok: true, recent }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ ok: true, journeySchemaVersion: FULL_JOURNEY_SCHEMA_VERSION, recent }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة', journeySchemaVersion: FULL_JOURNEY_SCHEMA_VERSION }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
     return NextResponse.json({ error: 'تعذر تحميل حالة رحلة الاختبار' }, { status: 500 })
   }
 }
