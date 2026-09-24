@@ -729,23 +729,17 @@ export function ApplyView() {
                 </div>
                 {installmentPayable ? (
                   <Button
-                    onClick={() => {
-                      setPayMethod(selectedPaymentMethod?.id || 'DIRECT_PAYMENT')
-                      setTracked(app)
-                      setTrackPayTarget(installmentPayable)
-                    }}
+                    onClick={() => openStudentPayments(installmentPayable.invoiceNo)}
                     className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
                   >
-                    <CreditCard className="ml-2 h-4 w-4" /> ادفع الدفعة المستحقة الآن
+                    <CreditCard className="ml-2 h-4 w-4" /> ادفع الدفعة المستحقة من بوابة الطالب
                   </Button>
                 ) : canCreateRemainingInvoice ? (
                   <Button
-                    disabled={trackPaying}
-                    onClick={() => createAndPayRemainingTuition(app)}
+                    onClick={() => openStudentPayments()}
                     className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
                   >
-                    {trackPaying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />}
-                    إنشاء فاتورة المتبقي وسدادها
+                    <CreditCard className="ml-2 h-4 w-4" /> إدارة التقسيط والدفعات من بوابة الطالب
                   </Button>
                 ) : null}
               </div>
