@@ -109,8 +109,8 @@ export async function GET(req: NextRequest) {
       const tuitionAppeal = appealMap.get(app.id) || null
       const totalTuition = inferTotalTuition(app.payments)
       const paidTuition = tuitionPaidTotal(app.payments)
-      const firstSemesterRequiredAmount = roundMoney(tuitionAppeal?.firstSemesterRequiredAmount ?? totalTuition / 2)
-      const finalRequiredAmount = roundMoney(tuitionAppeal?.finalRequiredAmount ?? totalTuition)
+      const firstSemesterRequiredAmount = roundMoney(Math.max(totalTuition / 2, Number(tuitionAppeal?.firstSemesterRequiredAmount ?? 0)))
+      const finalRequiredAmount = roundMoney(Math.max(totalTuition, Number(tuitionAppeal?.finalRequiredAmount ?? 0)))
       return {
         ...app,
         programSlug: program?.slug || null,
