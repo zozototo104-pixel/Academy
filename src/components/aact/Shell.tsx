@@ -564,7 +564,7 @@ export function Header() {
 
       {/* Mobile nav — مجمعة بعناوين أقسام واضحة */}
       {mobileMenuOpen && (
-        <div className="border-t border-white/10 bg-[#1d2947] px-4 pb-4 pt-2 shadow-2xl lg:hidden">
+        <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-white/10 bg-[#1d2947] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl lg:hidden">
           <div className="flex flex-col gap-1">
             <p className="mb-1 mt-2 text-[10px] font-black text-[#d2ad5a]/75">القائمة الرئيسية</p>
             {[
