@@ -17,7 +17,7 @@ import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
-  BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks,
+  BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks, Download, ExternalLink,
 } from 'lucide-react'
 
 const STUDENT_STATUS_LABEL: Record<string, string> = {
