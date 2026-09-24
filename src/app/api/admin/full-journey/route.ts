@@ -849,6 +849,10 @@ export async function POST() {
       student: { id: academic.student.id, email: academic.student.email, password: academic.password, name: academic.student.name },
       program: { id: scaffold.program.id, slug: scaffold.program.slug, title: scaffold.program.titleAr },
       admission: { id: academic.admission.id, reference: academic.admission.reference, status: academic.finalAdmission?.status },
+      tuitionGates: {
+        semester1BeforeInitialPayment: academic.firstSemesterGateBeforeInitialPayment,
+        semester1AfterInitialPayment: academic.firstSemesterGateAfterInitialPayment,
+      },
       enrollment: { id: academicJourney.enrollmentAfterGrade.id, status: academicJourney.enrollmentAfterGrade.status, finalScore: academicJourney.enrollmentAfterGrade.finalScore },
       academicJourney,
       service: { id: service.service.id, reference: service.service.reference, deliverableId: service.deliverable.id },
