@@ -775,7 +775,8 @@ export function ApplyView() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-phone">الهاتف / واتساب *</Label>
-                          <Input id="ad-phone" required dir="ltr" className="text-left" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                          <Input id="ad-phone" required dir="ltr" className="text-left" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} onBlur={() => setForm((f) => ({ ...f, phone: normalizePhone(f.phone) }))} placeholder="+970598400510" />
+                          <p className="text-[10px] font-bold text-slate-400">استخدم صيغة دولية عند الإمكان، من 8 إلى 15 رقماً.</p>
                         </div>
                       </div>
 
