@@ -385,7 +385,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b-4 border-[#bf1646] bg-[#1d2947]/97 shadow-[0_10px_35px_-25px_rgba(0,0,0,0.55)] backdrop-blur supports-[backdrop-filter]:bg-[#1d2947]/92">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-3 px-4">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:h-20 sm:gap-3 sm:px-4">
         <button
           onClick={() => navigate('home')}
           className="flex items-center gap-2.5 text-right"
