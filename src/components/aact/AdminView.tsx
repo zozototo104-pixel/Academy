@@ -1024,9 +1024,19 @@ export function AdminView() {
             ) : (
               <>
               {pagedAdmissionRows.map((a) => {
-                const unpaid = (a.payments || []).filter((p) => p.status === 'UNPAID')
                 const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
                 const isStudyAdmission = a.isStudyProgram !== false
+                const unpaid = (a.payments || []).filter((p) => {
+                  if (p.status !== 'UNPAID') return false
+                  // عند وجود خطة تقسيط أكاديمية، بطاقة الرسوم هي مصدر الحقيقة للمتبقي.
+                  // لا نعرض فاتورة TUITION الأصلية كغير مسددة إذا كانت مغطاة بمدفوعات التقسيط.
+                  if (isStudyAdmission && a.tuitionPlan && (p.purpose === 'TUITION' || p.purpose === 'TUITION_INSTALLMENT')) return false
+                  return true
+                })
+                const visiblePayments = (a.payments || []).filter((p) => {
+                  if (isStudyAdmission && a.tuitionPlan && p.status === 'UNPAID' && p.purpose === 'TUITION') return false
+                  return true
+                })
                 const serviceHasInvoice = !isStudyAdmission && (a.payments || []).length > 0
                 const serviceDeliveryReady = !isStudyAdmission && a.status === 'RESULT_APPROVED' && serviceHasInvoice && unpaid.length === 0
                 const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
