@@ -72,8 +72,8 @@ jobs:
             fi
             body=$(cat /tmp/full-journey-route-check.txt || true)
             echo "Attempt $i: HTTP $code"
-            if echo "$body" | grep -q '"journeySchemaVersion":3'; then
-              echo "Full journey route schema v3 is deployed."
+            if echo "$body" | grep -q '"journeySchemaVersion":4'; then
+              echo "Full journey route schema v4 is deployed."
               exit 0
             fi
             sleep 10
