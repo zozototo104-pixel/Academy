@@ -108,6 +108,18 @@ test.describe('AACT full platform journey suite', () => {
     expect(alignment.score, `Exam questions are not sufficiently aligned to the book: ${JSON.stringify(alignment.rows, null, 2)}`).toBeGreaterThanOrEqual(80)
     const examGen = { ok: true, source: 'full-journey-setup', examId: exam.id, status: exam.status, questionCount: exam.questionCount }
 
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.evaluate((token) => {
+      localStorage.setItem('aact_token', token)
+      localStorage.setItem('aact_startup_seen_v2', '1')
+      sessionStorage.setItem('aact_skip_startup', '1')
+    }, admin.token)
+    await page.goto('/?view=admin', { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    const admissionCard = page.locator(`#admission-${setup.admission.id}`)
+    await expect(admissionCard, 'Admin admission card must be visible for the full journey student').toBeVisible({ timeout: 30_000 })
+    await expect(admissionCard.getByText(/فواتير غير مسددة/), 'Covered tuition installments must not leave a stale unpaid tuition warning').toHaveCount(0)
+
     const studentLogin = await login(page, setup.student.email, setup.student.password)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.evaluate((token) => {
