@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
     const shouldAutoSeedOnLogin = process.env.AACT_AUTO_SEED_ON_LOGIN === '1' || process.env.NODE_ENV !== 'production'
     if (shouldAutoSeedOnLogin) {
       // في الإنتاج لا نشغل seed تلقائياً مع كل تسجيل دخول إلا إذا فُعّل صراحةً عبر AACT_AUTO_SEED_ON_LOGIN=1.
-      void ensureCoreSeed().catch((err) => console.error('Background core seed error:', err))
+      void import('@/lib/bootstrap')
+        .then(({ ensureCoreSeed }) => ensureCoreSeed())
+        .catch((err) => console.error('Background core seed error:', err))
     }
 
     const { email, password } = await req.json()
