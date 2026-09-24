@@ -543,9 +543,11 @@ export function ApplyView() {
       })
       if (result.status === 'redirect') return
       if (result.status === 'manual') {
+        setManualPayNotice(result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.')
         toast({ title: 'تم تسجيل طريقة الدفع', description: result.message || 'تم إبلاغ الإدارة، وستبقى الفاتورة بانتظار تأكيد السداد.' })
         return
       }
+      setManualPayNotice(null)
       setPaidRef(done.reference)
       toast({ title: 'تم سداد رسوم التقديم بنجاح', description: 'أُحوِّل ملفك للإدارة للدراسة' })
     } catch (e: any) {
