@@ -328,7 +328,7 @@ export function HomeView() {
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <span>أبرز البرامج المميزة</span>
           </div>
-          <div className="relative flex-1 overflow-hidden">
+          <div className="relative min-w-0 flex-1 overflow-hidden">
             <div ref={trackRef} className="aact-marquee-track py-2">
               {[0, 1].map((copy) => (
                 <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
