@@ -66,6 +66,7 @@ async function assertNoPageHorizontalOverflow(page: Page, label: string) {
           position: style.position,
           display: style.display,
           visibility: style.visibility,
+          opacity: Number.parseFloat(style.opacity || '1'),
           clipped: clippedByOverflowAncestor(el, rect),
           left: Math.round(rect.left),
           right: Math.round(rect.right),
