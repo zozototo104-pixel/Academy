@@ -394,6 +394,15 @@ export async function GET(req: NextRequest) {
         payments: app.payments,
         deliverables: app.deliverables,
       })
+      const totalTuition = isStudyProgram ? inferTotalTuition(app.payments || []) : 0
+      const paidTuition = isStudyProgram ? tuitionPaidTotal(app.payments || []) : 0
+      const tuitionPlan = isStudyProgram && totalTuition > 0 ? {
+        totalTuition,
+        paidTuition,
+        remainingTuition: roundMoney(Math.max(0, totalTuition - paidTuition)),
+        halfRequired: roundMoney(totalTuition / 2),
+        finalRequired: totalTuition,
+      } : null
       return {
       reference: app.reference,
       fullName: app.fullName,
