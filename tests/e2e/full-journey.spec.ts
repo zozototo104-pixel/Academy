@@ -1,0 +1,143 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
+
+function requiredEnv(name: string) {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`Missing required environment variable: ${name}`)
+  return value
+}
+
+async function login(page: Page, email: string, password: string) {
+  const response = await page.request.post('/api/auth/login', { data: { email, password } })
+  const body = await response.json().catch(() => ({}))
+  expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 700)}`).toBeTruthy()
+  expect(body.token, 'Login response must include token').toBeTruthy()
+  return { token: String(body.token), user: body.user }
+}
+
+async function loginAsAdmin(page: Page) {
+  return login(page, requiredEnv('E2E_ADMIN_EMAIL'), requiredEnv('E2E_ADMIN_PASSWORD'))
+}
+
+function norm(value: unknown) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function scoreExamAlignment(exam: any, bookTitle: string, concepts: string[]) {
+  const title = norm(bookTitle)
+  const conceptNeedles = concepts.map(norm).filter(Boolean)
+  const questions = Array.isArray(exam?.questions) ? exam.questions : []
+  const rows = questions.map((q: any) => {
+    const hay = norm(`${q.text || ''} ${q.sourceEvidence || ''} ${q.sourceBookTitle || ''} ${q.modelAnswer || ''}`)
+    const titleHit = !!title && hay.includes(title)
+    const conceptHits = conceptNeedles.filter((c) => hay.includes(c))
+    return {
+      id: q.id,
+      type: q.type,
+      aligned: titleHit || conceptHits.length > 0,
+      titleHit,
+      conceptHits,
+      sourceBookTitle: q.sourceBookTitle,
+      text: q.text,
+      sourceEvidence: q.sourceEvidence,
+    }
+  })
+  const aligned = rows.filter((r: any) => r.aligned).length
+  return { total: rows.length, aligned, score: rows.length ? Math.round((aligned / rows.length) * 100) : 0, rows }
+}
+
+function md(report: any) {
+  const stepRows = report.setup.steps.map((s: any) => `| ${s.name} | ${s.ok ? '✅' : '❌'} | ${String(s.detail || '').replace(/\|/g, '/')} |`).join('\n')
+  const qRows = report.exam.alignment.rows.map((q: any) => `| ${q.type} | ${q.aligned ? '✅' : '❌'} | ${q.titleHit ? 'book' : q.conceptHits.join(', ')} | ${String(q.text || '').replace(/\|/g, '/').slice(0, 160)} |`).join('\n')
+  return `# AACT Platform Full Journey Report\n\nGenerated: ${new Date().toISOString()}\n\n## Setup and business operations\n\n| Step | Result | Detail |\n|---|---|---|\n${stepRows}\n\n## Student access\n\n- Student login: **${report.studentAccess.loginOk ? 'OK' : 'FAILED'}**\n- Dashboard visible: **${report.studentAccess.dashboardOk ? 'OK' : 'FAILED'}**\n- Program: ${report.setup.program.title}\n\n## Exam generation and book alignment\n\n- Exam generated: **${report.exam.generated ? 'YES' : 'NO'}**\n- Question count: **${report.exam.questionCount}**\n- Alignment score: **${report.exam.alignment.score}%**\n- Book: ${report.setup.book.title}\n\n| Type | Aligned | Evidence | Question |\n|---|---|---|---|\n${qRows}\n`
+}
+
+test.describe('AACT full platform journey suite', () => {
+  test.setTimeout(180_000)
+
+  test('student, service, payment, admin approval, installments, program access, and exam alignment work end-to-end', async ({ page }, testInfo: TestInfo) => {
+    const admin = await loginAsAdmin(page)
+
+    const setupRes = await page.request.post('/api/admin/full-journey', {
+      headers: { Authorization: `Bearer ${admin.token}` },
+      timeout: 90_000,
+    })
+    const setup = await setupRes.json().catch(() => ({}))
+    expect(setupRes.ok(), `Full journey setup failed: ${setupRes.status()} ${JSON.stringify(setup).slice(0, 1200)}`).toBeTruthy()
+    expect(setup.ok, `Full journey setup returned non-ok: ${JSON.stringify(setup.steps || setup).slice(0, 1200)}`).toBe(true)
+    expect(setup.steps.every((s: any) => s.ok), `A setup step failed: ${JSON.stringify(setup.steps, null, 2)}`).toBe(true)
+
+    const examRes = await page.request.post('/api/admin/program-exams/from-question-bank', {
+      headers: { Authorization: `Bearer ${admin.token}` },
+      data: {
+        programId: setup.program.id,
+        semester: 1,
+        count: 6,
+        includeAllSemesters: true,
+        replaceExistingReview: true,
+        difficultyPlan: { EASY: 30, MEDIUM: 50, ADVANCED: 20 },
+        typePlan: { MCQ: 50, TF: 15, SHORT: 20, ESSAY: 15 },
+      },
+      timeout: 45_000,
+    })
+    const examGen = await examRes.json().catch(() => ({}))
+    expect(examRes.ok(), `Exam generation from question bank failed: ${examRes.status()} ${JSON.stringify(examGen).slice(0, 1200)}`).toBeTruthy()
+    expect(examGen.questionCount, 'Generated exam must include at least five questions').toBeGreaterThanOrEqual(5)
+
+    const examsRes = await page.request.get(`/api/admin/program-exams?programId=${encodeURIComponent(setup.program.id)}&includeQuestions=1`, {
+      headers: { Authorization: `Bearer ${admin.token}` },
+    })
+    const examsBody = await examsRes.json().catch(() => ({}))
+    expect(examsRes.ok(), `Loading generated exam diagnostics failed: ${examsRes.status()} ${JSON.stringify(examsBody).slice(0, 1200)}`).toBeTruthy()
+    const exam = (examsBody.exams || []).find((e: any) => e.id === examGen.examId) || (examsBody.exams || [])[0]
+    expect(exam, 'Generated exam must be returned by admin program exams endpoint').toBeTruthy()
+    const alignment = scoreExamAlignment(exam, setup.book.title, setup.book.concepts || [])
+    expect(alignment.total, 'Exam diagnostic must include question details').toBeGreaterThanOrEqual(5)
+    expect(alignment.score, `Exam questions are not sufficiently aligned to the book: ${JSON.stringify(alignment.rows, null, 2)}`).toBeGreaterThanOrEqual(80)
+
+    const studentLogin = await login(page, setup.student.email, setup.student.password)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.evaluate((token) => {
+      localStorage.setItem('aact_token', token)
+      localStorage.setItem('aact_startup_seen_v2', '1')
+      sessionStorage.setItem('aact_skip_startup', '1')
+    }, studentLogin.token)
+    await page.goto(`/dashboard/program/${encodeURIComponent(setup.program.id)}`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    const bodyText = await page.locator('body').innerText({ timeout: 10_000 }).catch(() => '')
+    const dashboardOk = bodyText.includes(setup.program.title) || bodyText.includes('بوابة الطالب') || bodyText.includes('لوحة الطالب')
+    expect(dashboardOk, `Student dashboard did not show program access. Body: ${bodyText.slice(0, 900)}`).toBeTruthy()
+
+    const report = {
+      generatedAt: new Date().toISOString(),
+      setup,
+      exam: {
+        generated: true,
+        generation: examGen,
+        questionCount: exam.questionCount,
+        alignment,
+      },
+      studentAccess: {
+        loginOk: !!studentLogin.token,
+        dashboardOk,
+        bodySample: bodyText.slice(0, 700),
+      },
+    }
+
+    await mkdir('test-results/full-journey', { recursive: true }).catch(() => {})
+    const jsonPath = 'test-results/full-journey/report.json'
+    const mdPath = 'test-results/full-journey/report.md'
+    await writeFile(jsonPath, JSON.stringify(report, null, 2), 'utf8')
+    await writeFile(mdPath, md(report), 'utf8')
+    await testInfo.attach('full-journey-report-json', { path: jsonPath, contentType: 'application/json' })
+    await testInfo.attach('full-journey-report-md', { path: mdPath, contentType: 'text/markdown' })
+  })
+})
