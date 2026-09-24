@@ -462,11 +462,11 @@ export function PaymentsTab() {
         </Card>
       ))}
 
-      {payments.length === 0 ? (
+      {displayPayments.length === 0 ? (
         <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد فواتير بعد</CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {payments.map((p) => (
+          {displayPayments.map((p) => (
             <Card key={p.id} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0 flex-1">
