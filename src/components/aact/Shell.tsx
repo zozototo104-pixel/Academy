@@ -391,9 +391,9 @@ export function Header() {
           className="flex items-center gap-2.5 text-right"
           aria-label="الصفحة الرئيسية"
         >
-          <AcademyLogo size={42} />
-          <div className="leading-tight">
-            <div className="text-[13px] font-extrabold text-[#f5f0e1] sm:text-sm">
+          <AcademyLogo size={36} />
+          <div className="min-w-0 leading-tight">
+            <div className="max-w-[190px] truncate text-[12px] font-extrabold text-[#f5f0e1] sm:max-w-none sm:text-sm">
               الأكاديمية الأمريكية
             </div>
             <div className="text-[10px] font-semibold tracking-[0.08em] text-[#d2ad5a] sm:text-[11px]">
