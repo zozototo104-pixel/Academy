@@ -480,11 +480,43 @@ export function Header() {
           {user ? (
             <div className="mr-2 flex items-center gap-2 border-r border-white/15 pr-3">
               <NotificationBell />
-              <div className="text-left leading-tight">
-                <div className="max-w-[120px] truncate text-xs font-bold text-[#f5f0e1]">
-                  {user.name}
-                </div>
-                <div className="text-[10px] text-[#c9a227]">مرحباً بك مجدداً</div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left leading-tight transition-colors hover:bg-white/10"
+                  aria-label="فتح الملف الشخصي المختصر"
+                  aria-expanded={profileOpen}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c9a227]/18 text-[#e0b83a]"><UserRound className="h-4 w-4" /></span>
+                  <span>
+                    <span className="block max-w-[120px] truncate text-xs font-bold text-[#f5f0e1]">{user.name}</span>
+                    <span className="block text-[10px] text-[#c9a227]">مرحباً بك مجدداً</span>
+                  </span>
+                </button>
+                {profileOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-[#c9a227]/25 bg-white text-right shadow-2xl" dir="rtl">
+                    <div className="bg-gradient-to-l from-[#0f2b46] to-[#1d2947] px-4 py-3 text-white">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#c9a227]/20 text-[#e0b83a]"><UserRound className="h-5 w-5" /></span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black">{user.name}</p>
+                          <p className="text-[10px] font-bold text-[#d2ad5a]">{user.role === 'ADMIN' ? 'مدير نظام' : user.role === 'SUPERVISOR' ? 'مشرف أكاديمي' : 'طالب / عميل'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 p-3 text-xs font-bold text-slate-600">
+                      <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2" dir="ltr"><Mail className="h-3.5 w-3.5 text-[#a8841a]" /> <span className="truncate">{user.email}</span></p>
+                      {user.country && <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2"><Globe2 className="h-3.5 w-3.5 text-[#a8841a]" /> {user.country}</p>}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {canUseStudentPortal && (
+                          <button onClick={() => { setProfileOpen(false); navigate('dashboard') }} className="rounded-xl bg-[#0f2b46] px-3 py-2 text-[11px] font-black text-white hover:bg-[#12365c]">بوابة الطالب</button>
+                        )}
+                        <button onClick={() => { setProfileOpen(false); navigate('apply') }} className="rounded-xl border border-[#c9a227]/30 px-3 py-2 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]/45">تتبع الطلبات</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 onClick={async () => {
