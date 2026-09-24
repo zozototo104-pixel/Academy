@@ -408,7 +408,7 @@ export function HomeView() {
           </div>
 
           <div className="order-1 lg:order-2">
-            <div className="relative mx-auto max-w-[460px] pb-14 sm:max-w-[520px] lg:max-w-none lg:pb-16">
+            <div className="relative mx-auto max-w-[420px] pb-10 sm:max-w-[460px] lg:max-w-[480px] lg:pb-12">
               <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
               <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
               <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
