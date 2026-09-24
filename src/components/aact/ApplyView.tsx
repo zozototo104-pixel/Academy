@@ -753,7 +753,7 @@ export function ApplyView() {
               </div>
               <Button
                 onClick={() => {
-                  setPayMethod('PAYMOB')
+                  setPayMethod(selectedPaymentMethod?.id || 'DIRECT_PAYMENT')
                   setTracked(app)
                   setTrackPayTarget(payable)
                 }}
