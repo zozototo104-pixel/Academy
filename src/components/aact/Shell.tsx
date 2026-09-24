@@ -692,17 +692,6 @@ export function Footer() {
       </div>
       <div className="border-t border-white/10 py-4 text-center text-[11px] text-[#f5f0e1]/60">
         © {new Date().getFullYear()} American Academy for Consulting and Training — جميع الحقوق محفوظة
-        <div className="mt-2">
-          <a
-            href="/AACT-Platform-v1.3.zip"
-            download
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#c9a227]/30 px-3 py-1 text-[10px] font-bold text-[#c9a227]/70 transition-colors hover:bg-[#c9a227]/10 hover:text-[#c9a227]"
-            title="تحميل الكود المصدري الكامل للمنصة كملف ZIP"
-          >
-            <Download className="h-3 w-3" />
-            تحميل كود المنصة (ZIP)
-          </a>
-        </div>
       </div>
     </footer>
   )
