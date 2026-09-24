@@ -497,7 +497,7 @@ export function ApplyView() {
       : !isStudyApp && app.status === 'CERTIFIED'
         ? { text: 'تم تسليم الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
         : baseStatus
-    const invoices: TrackedInvoice[] = Array.isArray(app.payments) ? app.payments : []
+    const invoices: TrackedInvoice[] = sortInvoicesNewest(Array.isArray(app.payments) ? app.payments : [])
     const unpaid = invoices.filter((p) => p.status !== 'PAID')
     const applicationFee = unpaid.find((p) => p.purpose === 'APPLICATION_FEE') || null
     const tuition = unpaid.find((p) => p.purpose === 'TUITION') || unpaid.find((p) => p.purpose !== 'APPLICATION_FEE') || null
