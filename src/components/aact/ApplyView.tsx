@@ -349,8 +349,13 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
-    if (!isServiceRequest && !form.nationalId.trim()) {
-      toast({ title: 'تنبيه', description: 'يرجى إدخال رقم الهوية الشخصية أو جواز السفر', variant: 'destructive' })
+    const validationError = validateApplicantFullName(form.fullName, 3)
+      || validatePhone(form.phone)
+      || (!SUPPORTED_COUNTRIES.includes(form.country) ? 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' : null)
+      || (!isServiceRequest ? validateNationalIdOrPassport(form.nationalId, form.country) : null)
+      || (!isServiceRequest && selectedRules?.minAge ? validateBirthDateForMinAge(form.birthDate, Number(selectedRules.minAge)) : null)
+    if (validationError) {
+      toast({ title: 'راجع البيانات الشخصية', description: validationError, variant: 'destructive' })
       return
     }
     const missing = requiredDocs.filter((d) => !files[d.type])
