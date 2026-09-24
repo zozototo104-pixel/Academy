@@ -382,6 +382,9 @@ export function PaymentsTab() {
     .reduce((s, p) => s + p.amount, 0)
   const totalDue = Math.round((invoiceDueOutsideApprovedPlans + tuitionRemainingDue) * 100) / 100
   const totalPaid = payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)
+  const displayPayments = [...payments]
+    .filter((p) => !(p.status === 'UNPAID' && p.admissionId && approvedPlanIds.has(p.admissionId) && p.purpose === 'TUITION'))
+    .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime())
   const plansWithBalance = tuitionPlans.filter((p) => p.totalTuition > 0 && p.remainingTuition > 0)
 
   return (
