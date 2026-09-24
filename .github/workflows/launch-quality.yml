@@ -3,11 +3,18 @@ name: Launch Quality Suite
 on:
   workflow_dispatch:
     inputs:
+      base_url:
+        description: "Production or preview URL to test"
+        required: true
+        default: "https://academy-raqaba.vercel.app"
       run_voice_token:
         description: 'Create Gemini Live ephemeral token during voice readiness test'
         type: boolean
         required: false
         default: false
+
+permissions:
+  contents: read
 
 jobs:
   launch-quality:
