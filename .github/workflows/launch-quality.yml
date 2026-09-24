@@ -33,6 +33,7 @@ jobs:
       E2E_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL }}
       E2E_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
       E2E_RUN_VOICE_TOKEN: ${{ inputs.run_voice_token && '1' || '0' }}
+      E2E_REQUIRE_VOICE_READY: ${{ inputs.require_voice_ready && '1' || '0' }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
     steps:
