@@ -376,6 +376,8 @@ export function ApplyView() {
         if (value) fd.append(key, value)
       })
       fd.set('program', form.program)
+      fd.set('fullName', form.fullName.trim().replace(/\s+/g, ' '))
+      fd.set('phone', normalizePhone(form.phone))
       fd.append('programId', selectedProgramId)
       fd.append('acknowledged', 'true')
       fd.append('stagedUpload', 'true')
