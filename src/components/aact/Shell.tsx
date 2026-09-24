@@ -69,7 +69,7 @@ export function FloatingActions() {
   }
 
   return (
-    <div className={`aact-no-print fixed left-4 z-40 flex flex-col items-center gap-2.5 transition-all duration-300 ${inChat ? 'bottom-28 sm:bottom-24' : 'bottom-4'}`}>
+    <div className={`aact-no-print fixed left-3 z-40 flex flex-col items-center gap-2.5 transition-all duration-300 sm:left-4 ${inChat ? 'bottom-[calc(7rem+env(safe-area-inset-bottom))] sm:bottom-24' : 'bottom-[calc(1rem+env(safe-area-inset-bottom))]'}`}>
       {open && (
         <div className="mb-1 w-[min(92vw,370px)] overflow-hidden rounded-3xl border border-[#25d366]/30 bg-white shadow-2xl" dir="rtl">
           <div className="flex items-center justify-between gap-2 bg-gradient-to-l from-[#25d366] to-[#128c7e] px-4 py-3 text-white">
