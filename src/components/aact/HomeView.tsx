@@ -356,7 +356,7 @@ export function HomeView() {
       </div>
 
       {/* Hero */}
-      <section className="aact-hero relative text-[#f8f8fb]">
+      <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
         <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
           <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
         </div>
