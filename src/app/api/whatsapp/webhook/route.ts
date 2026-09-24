@@ -1,197 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac, timingSafeEqual } from 'crypto'
-import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
-import { ensureGeminiKey, geminiComplete } from '@/lib/gemini'
+import { ACADEMY_INFO } from '@/lib/academyData'
+import { platformPublicAgentComplete } from '@/lib/platform-agent'
 
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || 'v21.0'
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || ''
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || ''
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || ''
-const APP_SECRET = process.env.WHATSAPP_APP_SECRET || ''
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status })
+const globalState = globalThis as unknown as { __aactWhatsappSeen?: Map<string, number> }
+const seen = globalState.__aactWhatsappSeen || new Map<string, number>()
+globalState.__aactWhatsappSeen = seen
+
+function cleanupSeen() {
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000
+  for (const [id, ts] of seen.entries()) if (ts < cutoff) seen.delete(id)
 }
 
-function safeEqual(a: string, b: string) {
-  try {
-    const aa = Buffer.from(a)
-    const bb = Buffer.from(b)
-    return aa.length === bb.length && timingSafeEqual(aa, bb)
-  } catch {
-    return false
+function json(status: number, payload: any) {
+  return NextResponse.json(payload, { status, headers: { 'Cache-Control': 'no-store' } })
+}
+
+function whatsappEnv() {
+  return {
+    token: process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() || '',
+    verifyToken: process.env.WHATSAPP_VERIFY_TOKEN?.trim() || '',
+    graphVersion: process.env.WHATSAPP_GRAPH_VERSION?.trim() || 'v21.0',
+    enabled: (process.env.WHATSAPP_AI_ENABLED || '1').trim() !== '0',
   }
-}
-
-function verifyMetaSignature(raw: string, signature: string | null) {
-  if (!APP_SECRET) return true
-  if (!signature?.startsWith('sha256=')) return false
-  const expected = `sha256=${createHmac('sha256', APP_SECRET).update(raw).digest('hex')}`
-  return safeEqual(signature, expected)
-}
-
-function academyProgramsDigest(max = 24) {
-  return allSeedPrograms.slice(0, max).map((p, i) => {
-    const fee = p.price ? ` — الرسوم ${p.price}$` : ''
-    const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-    return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''}${hours}${fee}`
-  }).join('\n')
-}
-
-function normalizeReply(text: string) {
-  const clean = String(text || '').replace(/\s+$/g, '').trim()
-  if (!clean) return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. كيف يمكنني مساعدتك؟'
-  // WhatsApp text body limit is high, but keep the assistant practical and readable.
-  return clean.length > 3800 ? `${clean.slice(0, 3750)}\n\nللتفصيل أكثر اكتب: أكمل` : clean
-}
-
-async function buildAcademyReply(message: string, name?: string) {
-  const prompt = String(message || '').trim()
-  if (!prompt) return 'أرسل سؤالك عن برامج الأكاديمية أو القبول أو الرسوم أو الشهادات وسأساعدك مباشرة.'
-
-  const system = `أنت وكيل واتساب الذكي الرسمي لمنصة ${ACADEMY_INFO.nameAr}.
-
-مهمتك:
-- تجيب عن استفسارات الطلاب والزوار بخصوص الأكاديمية والبرامج والقبول والرسوم والشهادات والتحقق والاعتماد والوكالة.
-- لا تدّعي تنفيذ عملية إدارية إن لم تنفذها فعلياً؛ اشرح الخطوة داخل المنصة.
-- إذا احتاج الأمر قراراً بشرياً أو دفعاً أو اعتماداً، قل إن القرار النهائي للإدارة.
-- اكتب بالعربية المختصرة والواضحة، مناسبة لرسالة واتساب.
-- ابدأ بإجابة مباشرة، ثم خطوات عملية عند الحاجة.
-- لا تعرض أسراراً تقنية أو مفاتيح أو أسماء جداول.
-
-بيانات رسمية:
-- اسم الأكاديمية: ${ACADEMY_INFO.nameAr}.
-- البريد: ${ACADEMY_INFO.email}.
-- واتساب التواصل: ${ACADEMY_INFO.whatsapp}.
-- رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.
-- شروط القبول: ${ADMISSION_GUIDE.conditions.join(' / ')}.
-- المستندات المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}.
-- رسوم تقديم طلب الاعتماد: ${ACCREDITATION_GUIDE.applicationFee}$ غير مستردة.
-
-كتالوج مختصر للبرامج:
-${academyProgramsDigest()}
-
-اسم المتواصل إن توفر: ${name || 'غير معروف'}.`
-
-  if (await ensureGeminiKey().catch(() => false)) {
-    try {
-      const reply = await geminiComplete({
-        system,
-        history: [{ role: 'user', text: prompt }],
-        temperature: 0.35,
-        maxOutputTokens: 1100,
-      })
-      return normalizeReply(reply)
-    } catch (e) {
-      console.error('whatsapp academy agent gemini failed:', String((e as any)?.message || e).slice(0, 300))
-    }
-  }
-
-  return normalizeReply(`أهلاً ${name ? name : 'بك'} في ${ACADEMY_INFO.nameAr}.
-
-يمكنني مساعدتك في:
-- اختيار البرنامج المناسب.
-- شروط القبول والمستندات المطلوبة.
-- رسوم التقديم والدفع.
-- الشهادات والتحقق.
-- الاعتماد والوكالة الدولية.
-
-رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.
-المستندات المطلوبة عادةً: ${ADMISSION_GUIDE.documents.join('، ')}.
-
-اكتب سؤالك بالتفصيل وسأوجهك للخطوة الصحيحة.`)
 }
 
 async function sendWhatsAppText(to: string, body: string) {
-  if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
-    console.warn('WhatsApp env not configured: WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID')
-    return
-  }
-  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${PHONE_NUMBER_ID}/messages`, {
+  const env = whatsappEnv()
+  if (!env.token || !env.phoneNumberId) throw new Error('WHATSAPP_CLOUD_API_NOT_CONFIGURED')
+  const endpoint = `https://graph.facebook.com/${env.graphVersion}/${env.phoneNumberId}/messages`
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      Authorization: `Bearer ${env.token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to,
       type: 'text',
-      text: { preview_url: false, body: normalizeReply(body) },
+      text: { preview_url: false, body: body.slice(0, 3900) },
     }),
   })
   if (!res.ok) {
-    const err = await res.text().catch(() => '')
-    console.error('WhatsApp send failed:', res.status, err.slice(0, 500))
+    const text = await res.text().catch(() => '')
+    throw new Error(`WHATSAPP_SEND_FAILED_${res.status}: ${text.slice(0, 500)}`)
   }
+  return res.json().catch(() => ({}))
 }
 
-function extractInboundMessages(payload: any) {
-  const out: { from: string; id?: string; name?: string; text: string; type: string }[] = []
+async function markMessageRead(messageId: string) {
+  const env = whatsappEnv()
+  if (!env.token || !env.phoneNumberId || !messageId) return
+  await fetch(`https://graph.facebook.com/${env.graphVersion}/${env.phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: messageId }),
+  }).catch(() => {})
+}
+
+function extractTextMessages(payload: any) {
+  const messages: Array<{ from: string; id: string; text: string; name?: string }> = []
   const entries = Array.isArray(payload?.entry) ? payload.entry : []
   for (const entry of entries) {
     const changes = Array.isArray(entry?.changes) ? entry.changes : []
     for (const change of changes) {
-      const value = change?.value || {}
-      const contacts = Array.isArray(value.contacts) ? value.contacts : []
+      const value = change?.value
+      const contacts = Array.isArray(value?.contacts) ? value.contacts : []
       const nameByWaId = new Map<string, string>()
-      for (const c of contacts) {
-        if (c?.wa_id) nameByWaId.set(String(c.wa_id), String(c?.profile?.name || ''))
-      }
-      const messages = Array.isArray(value.messages) ? value.messages : []
-      for (const m of messages) {
-        const from = String(m?.from || '')
-        if (!from) continue
-        const type = String(m?.type || 'unknown')
-        let text = ''
-        if (type === 'text') text = String(m?.text?.body || '').trim()
-        else if (type === 'button') text = String(m?.button?.text || '').trim()
-        else if (type === 'interactive') text = String(m?.interactive?.button_reply?.title || m?.interactive?.list_reply?.title || '').trim()
-        else if (type === 'audio') text = 'أرسلت رسالة صوتية عبر واتساب. أجبني بإرشاد واضح، واذكر أن المحادثة الصوتية الحية ثنائية الاتجاه متاحة داخل المنصة من أيقونة واتساب الذكي أو زر الهاتف.'
-        else text = `أرسل المستخدم رسالة من نوع ${type}. وجّهه لإرسال نص واضح أو استخدام الوكيل الصوتي داخل المنصة.`
-        out.push({ from, id: m?.id, name: nameByWaId.get(from) || '', text, type })
+      for (const c of contacts) if (c?.wa_id) nameByWaId.set(String(c.wa_id), String(c?.profile?.name || ''))
+      const rawMessages = Array.isArray(value?.messages) ? value.messages : []
+      for (const m of rawMessages) {
+        const from = String(m?.from || '').trim()
+        const id = String(m?.id || '').trim()
+        const text = String(m?.text?.body || '').trim()
+        if (from && id && text) messages.push({ from, id, text, name: nameByWaId.get(from) })
       }
     }
   }
-  return out
+  return messages
 }
 
 export async function GET(req: NextRequest) {
+  const env = whatsappEnv()
   const url = new URL(req.url)
   const mode = url.searchParams.get('hub.mode')
   const token = url.searchParams.get('hub.verify_token')
-  const challenge = url.searchParams.get('hub.challenge') || ''
-
-  if (mode === 'subscribe' && VERIFY_TOKEN && token === VERIFY_TOKEN) {
-    return new NextResponse(challenge, { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' } })
+  const challenge = url.searchParams.get('hub.challenge')
+  if (mode === 'subscribe' && token && env.verifyToken && token === env.verifyToken) {
+    return new NextResponse(challenge || '', { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
   }
-  return json({ error: 'WhatsApp webhook verification failed' }, 403)
+  return new NextResponse('Forbidden', { status: 403 })
 }
 
 export async function POST(req: NextRequest) {
-  const raw = await req.text()
-  if (!verifyMetaSignature(raw, req.headers.get('x-hub-signature-256'))) {
-    return json({ error: 'Invalid WhatsApp signature' }, 401)
-  }
-
-  let payload: any = null
   try {
-    payload = JSON.parse(raw || '{}')
-  } catch {
-    return json({ error: 'Invalid JSON' }, 400)
-  }
+    const env = whatsappEnv()
+    if (!env.enabled) return json(200, { ok: true, ignored: 'disabled' })
+    const payload = await req.json().catch(() => ({}))
+    const messages = extractTextMessages(payload)
+    if (!messages.length) return json(200, { ok: true, ignored: 'no_text_messages' })
 
-  const messages = extractInboundMessages(payload)
-  // يجب الرد سريعاً لـ Meta، لكن هنا ننتظر الرسائل القصيرة لأن الاستخدام المتوقع محدود. عند التوسع ننقلها إلى queue.
-  await Promise.all(messages.slice(0, 5).map(async (m) => {
-    try {
-      const reply = await buildAcademyReply(m.text, m.name)
-      await sendWhatsAppText(m.from, reply)
-    } catch (e) {
-      console.error('WhatsApp agent message failed:', String((e as any)?.message || e).slice(0, 300))
-      await sendWhatsAppText(m.from, 'تعذر على وكيل الأكاديمية معالجة الرسالة الآن. أعد المحاولة بعد قليل أو افتح الوكيل الذكي داخل المنصة للمحادثة الصوتية الحية.')
+    cleanupSeen()
+    const processed: any[] = []
+    for (const msg of messages.slice(0, 3)) {
+      if (seen.has(msg.id)) {
+        processed.push({ id: msg.id, duplicate: true })
+        continue
+      }
+      seen.set(msg.id, Date.now())
+      await markMessageRead(msg.id)
+
+      const result = await platformPublicAgentComplete({
+        channel: 'WHATSAPP',
+        messages: [{ role: 'user', content: msg.text }],
+        uiContext: [
+          `المرسل عبر واتساب: ${msg.name || msg.from}.`,
+          `رقم الأكاديمية الرسمي المثبت في المنصة: ${ACADEMY_INFO.whatsappDisplay || ACADEMY_INFO.whatsapp}.`,
+          'أجب بإيجاز مناسب لواتساب. عند الحاجة للقبول أو الدفع أو مستندات، وجّه المستخدم إلى المنصة أو الإدارة.',
+        ].join('\n'),
+      })
+      await sendWhatsAppText(msg.from, result.reply)
+      processed.push({ id: msg.id, from: msg.from, agent: result.agent, engine: result.engine })
     }
-  }))
 
-  return json({ ok: true, handled: messages.length })
+    return json(200, { ok: true, processed })
+  } catch (e: any) {
+    console.error('WhatsApp webhook error:', String(e?.message || e).slice(0, 800))
+    // نرجع 200 حتى لا يعيد واتساب إرسال نفس الرسالة بلا نهاية؛ الخطأ يظهر في اللوجات.
+    return json(200, { ok: false, error: 'WHATSAPP_WEBHOOK_PROCESSING_FAILED' })
+  }
 }
