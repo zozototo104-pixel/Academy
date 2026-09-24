@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           base="${E2E_BASE_URL%/}"
           url="$base/api/admin/full-journey"
-          echo "Waiting for deployed full journey schema v3: $url"
+          echo "Waiting for deployed full journey schema v4: $url"
           for i in {1..90}; do
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" \
