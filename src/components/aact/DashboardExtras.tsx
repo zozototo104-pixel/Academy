@@ -463,7 +463,443 @@ export function PaymentsTab() {
                         onChange={(e) => setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: e.target.value }))}
                         inputMode="decimal"
                         readOnly={initialDue > 0}
-                        placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}
+                        placeholder={`مبلغ الدفعة — المتبقي ${plan.remainingTuition}'use client'
+
+import { useEffect, useState } from 'react'
+import { api, getToken } from '@/lib/store'
+import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import {
+  Banknote,
+  Loader2,
+  ReceiptText,
+  Wallet,
+  CheckCircle2,
+  Clock3,
+  Landmark,
+  CreditCard,
+  Printer,
+  Info,
+  FileText,
+  Award,
+  ScrollText,
+} from 'lucide-react'
+
+interface PaymentMethodStatus {
+  id: string
+  label: string
+  enabled: boolean
+  configured: boolean
+  kind: 'gateway' | 'manual' | 'placeholder'
+  reason?: string
+}
+
+interface PaymentConfig {
+  mode: 'SANDBOX' | 'LIVE'
+  sandboxAllowed: boolean
+  trueGatewayCount: number
+  warnings: string[]
+  errors: string[]
+  methods: PaymentMethodStatus[]
+  usdt?: { configured: boolean; network: string; instructions: string }
+}
+
+interface Payment {
+  id: string
+  invoiceNo: string
+  purpose: string
+  description: string
+  amount: number
+  currency: string
+  method?: string | null
+  status: string
+  receiptNo?: string | null
+  paidAt?: string | null
+  createdAt: string
+  reference?: string | null
+  admissionId?: string | null
+  provider?: string | null
+  cryptoNetwork?: string | null
+  cryptoWalletAddress?: string | null
+  cryptoTxHash?: string | null
+  cryptoVerificationStatus?: string | null
+  cryptoVerificationNote?: string | null
+}
+
+interface TuitionPlan {
+  admissionId: string
+  reference: string
+  program: string
+  totalTuition: number
+  paidTuition: number
+  remainingTuition: number
+  halfRequired: number
+  finalRequired: number
+  firstSemesterAllowed: boolean
+  secondSemesterAllowed: boolean
+  appealStatus: string | null
+  appealId: string | null
+  approvedInitialAmount: number | null
+  firstSemesterRequiredAmount?: number | null
+  finalRequiredAmount?: number | null
+}
+
+const PURPOSE_LABEL: Record<string, string> = {
+  APPLICATION_FEE: 'رسوم تقديم وحجز مقعد',
+  TUITION: 'الرسوم الدراسية الكاملة',
+  TUITION_INSTALLMENT: 'دفعة جزئية من الرسوم الدراسية',
+  ACCREDITATION_APP: 'رسوم تقديم اعتماد',
+  ACCREDITATION_FEE: 'رسوم تقديم اعتماد',
+  ACCREDITATION: 'رسوم اعتماد',
+  SERVICE_FEE: 'رسوم تنفيذ خدمة',
+  OTHER: 'رسوم أخرى',
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  PAYMOB: 'Paymob',
+  FAWRY: 'فوري',
+  STRIPE: 'Stripe',
+  PAYPAL: 'PayPal',
+  USDT: 'USDT / Tether',
+  BANK_TRANSFER: 'تحويل بنكي',
+  DIRECT_PAYMENT: 'دفع مباشر',
+  SANDBOX: 'محاكاة آمنة',
+}
+
+function Money({ value }: { value: number }) {
+  return <span dir="ltr">{Math.round((Number(value) || 0) * 100) / 100}$</span>
+}
+
+async function openAuthenticatedPdf(path: string, filename: string, onError: (message: string) => void) {
+  const popup = window.open('', '_blank')
+  if (popup) {
+    popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
+    try { popup.opener = null } catch {}
+  }
+  try {
+    const token = getToken()
+    const res = await fetch(path, {
+      cache: 'no-store',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.error || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    if (popup) {
+      popup.location.href = url
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch (e: any) {
+    try { popup?.close() } catch {}
+    onError(e.message || 'تعذر فتح ملف PDF')
+  }
+}
+
+export function PaymentsTab() {
+  const { toast } = useToast()
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [tuitionPlans, setTuitionPlans] = useState<TuitionPlan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [payTarget, setPayTarget] = useState<Payment | null>(null)
+  const [method, setMethod] = useState('DIRECT_PAYMENT')
+  const [paying, setPaying] = useState(false)
+  const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
+  const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
+  const [payMode, setPayMode] = useState<'SANDBOX' | 'LIVE'>('SANDBOX')
+  const [appealBusy, setAppealBusy] = useState(false)
+  const [appealPlanId, setAppealPlanId] = useState<string | null>(null)
+  const [appealAmount, setAppealAmount] = useState('')
+  const [appealReason, setAppealReason] = useState('')
+  const [appealSchedule, setAppealSchedule] = useState('')
+  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
+  const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
+  const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
+  const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
+
+  const load = () => {
+    api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
+      .then((d) => {
+        setPayments(Array.isArray(d.payments) ? d.payments : [])
+        setTuitionPlans(Array.isArray(d.tuitionPlans) ? d.tuitionPlans : [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    api<PaymentConfig>('/api/payments/config')
+      .then((d) => {
+        setPayConfig(d)
+        setPayMode(d.mode || 'SANDBOX')
+        const firstEnabled = d.methods?.find((m) => m.enabled)?.id
+        if (firstEnabled) setMethod(firstEnabled)
+      })
+      .catch(() => {})
+
+    const q = new URLSearchParams(window.location.search)
+    const invoice = q.get('invoice')
+    if (invoice) setInitialInvoiceNo(invoice)
+    const paid = q.get('paid')
+    if (paid) {
+      api<{ ok: boolean; status: string; receiptNo?: string; note?: string }>(`/api/payments/verify-session?invoiceNo=${encodeURIComponent(paid)}`)
+        .then((d) => {
+          if (d.status === 'PAID') toast({ title: 'تم تأكيد الدفع', description: `سُددت الفاتورة ${paid} — الإيصال ${d.receiptNo || ''}` })
+          else toast({ title: 'الدفع قيد التحقق', description: d.note || 'سيُعتمد تلقائياً عند تأكيد المزود.' })
+          load()
+        })
+        .catch(() => {})
+      window.history.replaceState({}, '', '/dashboard?tab=payments')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openPaymentDialog = (payment: Payment) => {
+    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    if (firstEnabled) setMethod(firstEnabled)
+    setPayTarget(payment)
+  }
+
+  useEffect(() => {
+    if (!initialInvoiceNo || autoOpenedInvoiceNo === initialInvoiceNo || loading) return
+    const target = payments.find((p) => p.invoiceNo === initialInvoiceNo)
+    if (!target) return
+    setAutoOpenedInvoiceNo(initialInvoiceNo)
+    if (target.status === 'UNPAID') {
+      const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+      if (firstEnabled) setMethod(firstEnabled)
+      setPayTarget(target)
+    } else {
+      toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
+    }
+  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast])
+
+  const submitInstallmentAppeal = async (plan: TuitionPlan) => {
+    const amount = Number(appealAmount || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغاً صحيحاً', description: 'حدد الدفعة التي تستطيع دفعها الآن.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      await api('/api/tuition-appeals', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, requestedInitialAmount: amount, reason: appealReason, proposedSchedule: appealSchedule }),
+      })
+      toast({ title: 'تم إرسال الالتماس', description: 'سيظهر القرار بعد مراجعة الإدارة.' })
+      setAppealPlanId(null)
+      setAppealAmount('')
+      setAppealReason('')
+      setAppealSchedule('')
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال الالتماس', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const approvedInitialRemaining = (plan: TuitionPlan) =>
+    plan.appealStatus === 'APPROVED' && plan.approvedInitialAmount !== null && plan.paidTuition < plan.approvedInitialAmount
+      ? Math.max(0, Math.round((plan.approvedInitialAmount - plan.paidTuition) * 100) / 100)
+      : 0
+
+  const createInstallmentInvoice = async (plan: TuitionPlan) => {
+    const initialDue = approvedInitialRemaining(plan)
+    const amount = initialDue > 0 ? initialDue : Number(partialAmount[plan.admissionId] || 0)
+    if (!amount || amount <= 0) {
+      toast({ title: 'أدخل مبلغ الدفعة', description: 'يمكنك دفع أي مبلغ متوفر لديك ضمن المتبقي بعد تفعيل التسجيل.', variant: 'destructive' })
+      return
+    }
+    setAppealBusy(true)
+    try {
+      const r = await api<{ payment: Payment }>('/api/payments/installment', {
+        method: 'POST',
+        body: JSON.stringify({ admissionId: plan.admissionId, amount }),
+      })
+      toast({ title: 'تم إنشاء فاتورة دفعة جزئية', description: `يمكنك الآن دفع ${amount}$ من الفواتير.` })
+      setPartialAmount((prev) => ({ ...prev, [plan.admissionId]: '' }))
+      load()
+      if (r.payment) setPayTarget(r.payment)
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء الدفعة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAppealBusy(false)
+    }
+  }
+
+  const openInvoicePdf = async (payment: Payment) => {
+    const popup = window.open('', '_blank')
+    if (popup) {
+      popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing invoice PDF...</p>')
+      try { popup.opener = null } catch {}
+    }
+    setPdfBusy(payment.id)
+    try {
+      const token = getToken()
+      const res = await fetch(`/api/pdf/invoices/${encodeURIComponent(payment.id)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      if (popup) {
+        popup.location.href = url
+      } else {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${payment.invoiceNo || 'aact-invoice'}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e: any) {
+      try { popup?.close() } catch {}
+      toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const submitUsdtProof = async (payment: Payment) => {
+    const txHash = (usdtHashes[payment.id] || payment.cryptoTxHash || '').trim()
+    if (!txHash) {
+      toast({ title: 'أدخل TX Hash', description: 'انسخ Hash عملية تحويل USDT من المحفظة وألصقه هنا.', variant: 'destructive' })
+      return
+    }
+    setVerifyingUsdt(payment.id)
+    try {
+      const res = await api<{ verification: { status: string; note: string }; payment: Payment }>('/api/payments/usdt/verify', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, invoiceNo: payment.invoiceNo, txHash }),
+      })
+      toast({
+        title: res.verification.status === 'VERIFIED' ? 'تم التحقق آلياً' : 'نتيجة التحقق من USDT',
+        description: res.verification.note,
+        variant: res.verification.status === 'FAILED' ? 'destructive' : undefined,
+      })
+      setUsdtHashes((prev) => ({ ...prev, [payment.id]: txHash }))
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر التحقق من USDT', description: e.message, variant: 'destructive' })
+    } finally {
+      setVerifyingUsdt(null)
+    }
+  }
+
+  const pay = async () => {
+    if (!payTarget) return
+    const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
+    if (selectedMethod && !selectedMethod.enabled) {
+      toast({ title: 'طريقة الدفع غير متاحة حالياً', description: selectedMethod.reason || 'اختر وسيلة أخرى أو راجع الإدارة.', variant: 'destructive' })
+      return
+    }
+    const selectedKind = selectedMethod?.kind
+    if (payConfig && payConfig.trueGatewayCount === 0 && payMode === 'LIVE' && selectedKind !== 'manual') {
+      toast({ title: 'الدفع الإلكتروني غير متاح حالياً', description: 'اختر وسيلة دفع يدوية مثل «دفع مباشر» أو USDT إذا كانت مفعلة.', variant: 'destructive' })
+      return
+    }
+    setPaying(true)
+    try {
+      const co = await api<{ mode: 'SANDBOX' | 'LIVE' | 'MANUAL'; redirectUrl: string | null; provider: string; message?: string }>('/api/payments/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
+      })
+      if (co?.provider === 'DIRECT_PAYMENT' || co?.provider === 'USDT') {
+        toast({ title: co.provider === 'USDT' ? 'تم اختيار الدفع عبر USDT' : 'تم اختيار الدفع المباشر', description: co.message || 'تواصل مع الإدارة لتأكيد السداد.' })
+        setPayTarget(null)
+        load()
+        return
+      }
+      if (co?.redirectUrl) {
+        window.location.href = co.redirectUrl
+        return
+      }
+      if (co?.provider !== 'SANDBOX') throw new Error('تعذر استلام رابط الدفع من البوابة. حاول لاحقاً أو راجع الإدارة.')
+      const d = await api<{ payment: Payment; receiptNo: string }>('/api/payments', {
+        method: 'POST',
+        body: JSON.stringify({ invoiceNo: payTarget.invoiceNo, method }),
+      })
+      setReceipt({ payment: { ...payTarget, status: 'PAID', receiptNo: d.receiptNo, method, paidAt: new Date().toISOString() } })
+      setPayTarget(null)
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ في الدفع', description: e.message, variant: 'destructive' })
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+
+  const approvedPlanIds = new Set(tuitionPlans.filter((p) => p.appealStatus === 'APPROVED').map((p) => p.admissionId))
+  const tuitionRemainingDue = tuitionPlans.filter((p) => p.appealStatus === 'APPROVED' && p.totalTuition > 0).reduce((s, p) => s + p.remainingTuition, 0)
+  const invoiceDueOutsideApprovedPlans = payments
+    .filter((p) => p.status === 'UNPAID')
+    .filter((p) => !(p.admissionId && approvedPlanIds.has(p.admissionId) && ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)))
+    .reduce((s, p) => s + p.amount, 0)
+  const totalDue = Math.round((invoiceDueOutsideApprovedPlans + tuitionRemainingDue) * 100) / 100
+  const totalPaid = payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)
+  const displayPayments = [...payments]
+    .filter((p) => !(p.status === 'UNPAID' && p.admissionId && approvedPlanIds.has(p.admissionId) && p.purpose === 'TUITION'))
+    .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime())
+  const plansWithBalance = tuitionPlans.filter((p) => p.totalTuition > 0 && p.remainingTuition > 0)
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-amber-100 p-2.5 text-amber-600"><Clock3 className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]"><Money value={totalDue} /></p><p className="text-[10px] font-bold text-slate-500">مستحق السداد</p></div></CardContent></Card>
+        <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-600"><Wallet className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]"><Money value={totalPaid} /></p><p className="text-[10px] font-bold text-slate-500">إجمالي المسدد</p></div></CardContent></Card>
+        <Card className="border-[#0f2b46]/10"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-[#f7edd0] p-2.5 text-[#a8841a]"><ReceiptText className="h-5 w-5" /></span><div><p className="text-lg font-black text-[#0f2b46]">{displayPayments.length}</p><p className="text-[10px] font-bold text-slate-500">عدد الفواتير</p></div></CardContent></Card>
+      </div>
+
+      {tuitionPlans.some((p) => p.totalTuition > 0) && (
+        <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-[#0f2b46]">
+          <p className="font-black text-[#a8841a]">قواعد فتح الاختبارات حسب السداد</p>
+          <p className="mt-1">يفتح امتحان الفصل الأول بعد سداد نصف الرسوم الدراسية على الأقل، ويفتح امتحان الفصل الثاني بعد استيفاء كامل الرسوم. بطاقة خطة الرسوم أدناه هي مصدر الحقيقة للمتبقي والمسدّد.</p>
+        </div>
+      )}
+
+      {plansWithBalance.map((plan) => {
+        const initialDue = approvedInitialRemaining(plan)
+        const pendingInstallmentInvoice = payments.find((p) => p.admissionId === plan.admissionId && p.status === 'UNPAID' && p.purpose === 'TUITION_INSTALLMENT')
+        return (
+        <Card key={plan.admissionId} className="border-blue-100 bg-blue-50/40">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-[#0f2b46]">خطة الرسوم الدراسية — {plan.program}</p>
+                <p className="mt-1 text-xs font-bold text-slate-600">المسدد <Money value={plan.paidTuition} /> من أصل <Money value={plan.totalTuition} /> — المتبقي <Money value={plan.remainingTuition} /></p>
+              </div>
+              <Badge className={plan.appealStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : plan.appealStatus === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
+                {plan.appealStatus === 'APPROVED' ? 'تقسيط معتمد' : plan.appealStatus === 'PENDING' ? 'التماس قيد الدراسة' : 'بدون تقسيط'}
+              </Badge>
+            </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الأول: يلزم <Money value={plan.halfRequired} /> {plan.firstSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
               <div className="rounded-xl bg-white p-3 text-xs font-bold text-slate-600">فتح امتحان الفصل الثاني: يلزم <Money value={plan.finalRequired} /> {plan.secondSemesterAllowed ? <span className="text-emerald-700">— مستوفى</span> : <span className="text-amber-700">— غير مستوفى</span>}</div>
