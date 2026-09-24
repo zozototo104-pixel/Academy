@@ -625,7 +625,8 @@ export function DashboardView() {
             </TabsList>
 
             <TabsContent value="programs" className="mt-6 space-y-6">
-          {/* Enrolled programs tabs */}
+          {/* Enrolled programs tabs — يظهر فقط عند عدم وجود برنامج أو عند تعدد البرامج */}
+          {enrollments.length !== 1 && (
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5">
               <h2 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
