@@ -1096,11 +1096,11 @@ export function AdminView() {
                             </div>
                           )}
 
-                          {!!a.payments?.length && (
+                          {!!visiblePayments.length && (
                             <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/40 p-2.5">
                               <p className="mb-1.5 text-[11px] font-black text-amber-700"><Banknote className="ml-1 inline h-3.5 w-3.5" /> فواتير هذا الطلب</p>
                               <div className="grid gap-1.5">
-                                {a.payments.map((p) => (
+                                {visiblePayments.map((p) => (
                                   <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[10px]">
                                     <div className="min-w-0">
                                       <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
