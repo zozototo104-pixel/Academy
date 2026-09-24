@@ -768,7 +768,8 @@ export async function POST() {
 
     const academic = await createStudentAndAdmission(admin, stamp, scaffold.program)
     steps.push({ name: 'إنشاء طالب وطلب التحاق وسداد رسوم التقديم', ok: academic.appFeePaid.ok && academic.afterFee?.status === 'UNDER_REVIEW', detail: academic.admission.reference, data: { admissionStatusAfterFee: academic.afterFee?.status, invoice: academic.appFee.invoiceNo } })
-    steps.push({ name: 'موافقة الإدارة وإنشاء خطة تقسيط وسداد الدفعة الأولى', ok: !!academic.enrollment && ['THESIS', 'SUPERVISOR_ASSIGNED'].includes(String(academic.finalAdmission?.status || '')), detail: academic.finalAdmission?.status || '', data: { appealId: academic.appeal.id, enrollmentId: academic.enrollment?.id, tuitionPlan: academic.tuitionPlan } })
+    const firstSemesterReady = !!academic.enrollment && !!academic.tuitionPlan?.firstSemesterAllowed && Number(academic.tuitionPlan?.paidTuition || 0) >= Number(academic.tuitionPlan?.halfRequired || 0)
+    steps.push({ name: 'موافقة الإدارة وإنشاء خطة تقسيط وسداد الدفعة الأولى', ok: firstSemesterReady, detail: academic.finalAdmission?.status || '', data: { appealId: academic.appeal.id, enrollmentId: academic.enrollment?.id, tuitionPlan: academic.tuitionPlan } })
 
     const academicJourney = await createAcademicAndFinancialJourney(admin, stamp, scaffold, academic)
     const sem2BeforeGate: any = academicJourney.tuitionGate.semester2BeforeFinalPayment
