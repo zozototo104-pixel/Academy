@@ -432,7 +432,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   if (provider === 'UNOROUTER') {
     const root = apiRootFromBase(s.unorouterBaseUrl, 'https://api.unorouter.com/v1')
     try {
-      const response = await fetch(`${root}/api/pricing/catalog`, { cache: 'no-store' })
+      const response = await fetchWithTimeout(provider, `${root}/api/pricing/catalog`, { cache: 'no-store' }, aiDiscoveryTimeoutMs())
       const data: any = await response.json().catch(() => ({}))
       models = rowsFromModelPayload(data)
         .filter((m) => m?.is_free === true)
