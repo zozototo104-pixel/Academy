@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
     const semesterReadiness = await Promise.all(
       semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
     )
+    const tuitionPlan = await getStudentTuitionPlan(user.id, programId)
     const finalExam = semesterExams[0] || null
 
     return NextResponse.json({
