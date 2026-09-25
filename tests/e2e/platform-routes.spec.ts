@@ -183,8 +183,8 @@ test.describe('Platform route smoke coverage', () => {
       results.push(await checkPage(page, path, true))
     }
 
-    await mkdir('test-results/platform-routes', { recursive: true }).catch(() => {})
-    const reportPath = 'test-results/platform-routes/routes.json'
+    await mkdir(ROUTE_REPORT_DIR, { recursive: true }).catch(() => {})
+    const reportPath = `${ROUTE_REPORT_DIR}/routes.json`
     await writeFile(reportPath, JSON.stringify({ checkedAt: new Date().toISOString(), total: results.length, results }, null, 2), 'utf8')
     await testInfo.attach('platform-route-smoke-json', { path: reportPath, contentType: 'application/json' })
 
