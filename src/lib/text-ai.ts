@@ -780,6 +780,7 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           const msg = String(e?.message || e).slice(0, 260)
           lastResult = { provider, model, ok: false, error: msg, at: new Date().toISOString() }
           errors.push(`${provider}/${model}/${keyHash(key)}: ${msg}`)
+          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
           if (isQuotaLike(e)) markCooldown(provider, key, msg)
           if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
         }
