@@ -56,6 +56,15 @@ async function listProgramUnits(programId: string) {
     order: u.order,
     semester: u.semester,
     status: u.status,
+    exam: u.exam
+      ? {
+          id: u.exam.id,
+          title: u.exam.title,
+          passScore: u.exam.passScore,
+          questionsCount: u.exam._count.questions,
+          attemptsCount: u.exam._count.attempts,
+        }
+      : null,
   }))
 }
 
