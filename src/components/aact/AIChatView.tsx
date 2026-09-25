@@ -379,10 +379,11 @@ export function AIChatView() {
           { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now },
           { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now },
         ])
-        setLiveCaption('')
+        // أبقِ آخر كلام للطالب ظاهراً حتى لا تومض لوحة الترجمة بين كل دور وآخر.
+        setLiveCaption(userText)
       },
       onInterrupted: () => {
-        setLiveCaption('')
+        // لا نمسح النص فور المقاطعة؛ يُستبدل عندما يبدأ الطالب جملة جديدة.
       },
       onError: (msg) => toast({ title: 'تنبيه', description: msg, variant: 'destructive' }),
     })
