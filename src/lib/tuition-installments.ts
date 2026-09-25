@@ -54,11 +54,13 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
     where: { id: admissionId },
     include: {
       payments: { select: { purpose: true, status: true, amount: true } },
+      programRef: { select: { price: true } },
     },
   })
   if (!app) return null
   const appeal = await findActiveAppeal(app.id)
-  const totalTuition = inferTotalTuition(app.payments)
+  const fallbackTuition = Number(app.programRef?.price || 0)
+  const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
   const paidTuition = tuitionPaidTotal(app.payments)
   const halfRequired = roundMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)))
   const finalRequired = roundMoney(Math.max(totalTuition, Number(appeal?.finalRequiredAmount ?? 0)))
