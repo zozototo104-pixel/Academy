@@ -758,6 +758,26 @@ export function AdminFinanceTab() {
         </CardContent></Card>
       </div>
 
+      {(manualPendingCount > 0 || manualAiLiveCreditCount > 0) && (
+        <Card className="border-amber-200 bg-amber-50/70">
+          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-sm font-black text-[#0f2b46]">طلبات دفع مباشر بانتظار تأكيد وصول المبلغ</h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">
+                يوجد {manualPendingCount} طلب دفع مباشر/USDT بمبلغ {manualPendingAmount}$، منها {manualAiLiveCreditCount} طلب لباقات دقائق صوت بمبلغ {manualAiLiveCreditAmount}$. مبالغ باقات الصوت خدمة إضافية ولا تُخصم من متبقي الرسوم الدراسية.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => { setPaymentStatusFilter('MANUAL_PENDING'); setPaymentPage(1) }}
+              className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              عرض طلبات الدفع المباشر
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* معدلات القبول */}
       {report && (
         <div className="grid gap-3 sm:grid-cols-2">
