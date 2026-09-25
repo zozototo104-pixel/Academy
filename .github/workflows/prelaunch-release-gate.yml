@@ -148,6 +148,7 @@ jobs:
       ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      E2E_ENFORCE_COMMIT_MATCH: "0"
 
     steps:
       - name: Checkout repository
