@@ -630,7 +630,7 @@ interface Report {
 export function AdminFinanceTab() {
   const { toast } = useToast()
   const [payments, setPayments] = useState<PaymentRow[]>([])
-  const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0 })
+  const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [paymentSearch, setPaymentSearch] = useState('')
