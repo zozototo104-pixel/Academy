@@ -417,6 +417,10 @@
 }
 
 /* ===== واجهة المحادثة الصوتية الحية — تعديل بصري فقط، بدون تغيير منطق الصوت ===== */
+.aact-live-voice-screen {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
 .aact-live-voice-screen::before,
 .aact-live-voice-screen::after {
   content: "";
