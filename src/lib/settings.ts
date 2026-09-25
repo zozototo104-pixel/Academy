@@ -80,8 +80,25 @@ export async function nextSerial(prefix: string): Promise<string> {
 }
 
 export async function nextInvoiceNo(): Promise<string> {
-  const c = await db.payment.count()
-  return `AACT-INV-${new Date().getFullYear()}-${pad(c + 1)}`
+  const year = new Date().getFullYear()
+  const prefix = `AACT-INV-${year}-`
+  const rows = await db.payment.findMany({
+    where: { invoiceNo: { startsWith: prefix } },
+    select: { invoiceNo: true },
+    orderBy: { invoiceNo: 'desc' },
+    take: 500,
+  })
+  let next = rows.reduce((max, row) => Math.max(max, invoiceSequence(row.invoiceNo, prefix)), 0) + 1
+
+  // لا نعتمد على عدد السجلات لأن تنظيف بيانات QA أو حذف فواتير قديمة يخلق فجوات.
+  // نفحص الوجود فعلياً حتى لا نصطدم بقيد invoiceNo الفريد في قاعدة البيانات.
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const candidate = `${prefix}${pad(next + attempt)}`
+    const exists = await db.payment.findUnique({ where: { invoiceNo: candidate }, select: { id: true } })
+    if (!exists) return candidate
+  }
+
+  throw new Error('INVOICE_SEQUENCE_EXHAUSTED')
 }
 
 export async function nextReceiptNo(): Promise<string> {
