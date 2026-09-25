@@ -1120,8 +1120,10 @@ export function DashboardView() {
               // بوابة التسلسل: امتحان الفصل الثاني يفتح بعد اجتياز الفصل الأول
               const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
               const readiness = exam.readiness
+              const tuitionGate = exam.tuitionGate
+              const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
               const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
-              const locked = prereqLocked || !readiness?.readyMarked
+              const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
               return (
                 <Card key={exam.id} className={`border-[#0f2b46]/15 bg-[#0f2b46] text-[#f5f0e1] ${locked ? 'opacity-80' : ''}`}>
                   <CardContent className="p-5 sm:p-6">
