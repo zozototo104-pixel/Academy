@@ -47,14 +47,31 @@ export async function GET(req: NextRequest) {
       getStudentTuitionPlan(user.id, unit.programId),
     ])
     const semesterExams = await Promise.all(
-      readyExams.map(async (e) => ({
-        id: e.id,
-        title: e.title,
-        semester: e.semester,
-        durationMin: e.durationMin,
-        passScore: e.passScore,
-        questionCount: await db.programQuestion.count({ where: { examId: e.id, status: 'PUBLISHED' } }),
-      }))
+      readyExams.map(async (e) => {
+        const requiredAmount = e.semester >= 2 ? tuitionPlan?.finalRequired ?? 0 : tuitionPlan?.halfRequired ?? 0
+        const allowed = !tuitionPlan || tuitionPlan.totalTuition <= 0 || (e.semester >= 2 ? tuitionPlan.secondSemesterAllowed : tuitionPlan.firstSemesterAllowed)
+        return {
+          id: e.id,
+          title: e.title,
+          semester: e.semester,
+          durationMin: e.durationMin,
+          passScore: e.passScore,
+          questionCount: await db.programQuestion.count({ where: { examId: e.id, status: 'PUBLISHED' } }),
+          tuitionGate: {
+            allowed,
+            code: allowed ? null : e.semester >= 2 ? 'TUITION_FULL_REQUIRED' : 'TUITION_HALF_REQUIRED',
+            totalTuition: tuitionPlan?.totalTuition ?? 0,
+            paidTuition: tuitionPlan?.paidTuition ?? 0,
+            requiredAmount,
+            remainingTuition: tuitionPlan?.remainingTuition ?? 0,
+            message: allowed
+              ? null
+              : e.semester >= 2
+              ? `لا يمكن فتح امتحان الفصل الثاني قبل سداد كامل الرسوم الدراسية. المسدد حالياً ${tuitionPlan?.paidTuition ?? 0}$ والمطلوب ${requiredAmount}$.`
+              : `لا يمكن فتح امتحان الفصل الأول قبل سداد نصف الرسوم الدراسية على الأقل. المسدد حالياً ${tuitionPlan?.paidTuition ?? 0}$ والمطلوب ${requiredAmount}$.`,
+          },
+        }
+      })
     )
     const finalExam = semesterExams.filter((e) => e.questionCount > 0)[0] || null
 
