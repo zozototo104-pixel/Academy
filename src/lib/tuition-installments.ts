@@ -29,10 +29,22 @@ export function tuitionPaidTotal(payments: Array<{ purpose: string; status: stri
 }
 
 export function inferTotalTuition(payments: Array<{ purpose: string; status: string; amount: number }>, fallback = 0): number {
+  const fallbackTuition = Number(fallback) || 0
   const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map((p) => Number(p.amount) || 0)
   const maxFull = Math.max(0, ...fullTuition)
-  const installments = payments.filter((p) => TUITION_PURPOSES.includes(p.purpose)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
-  return roundMoney(Math.max(Number(fallback) || 0, maxFull, installments))
+
+  // لا نجمع فاتورة الرسوم الكاملة مع فواتير التقسيط، لأن التقسيط يمثل
+  // دفعات على نفس الرسوم وليس رسوماً إضافية. إذا توفر سعر البرنامج أو
+  // فاتورة TUITION كاملة فهما مصدر إجمالي الرسوم. نستخدم مجموع التقسيط
+  // فقط كخطة احتياطية للبيانات القديمة التي لا تحتوي فاتورة TUITION/سعر برنامج.
+  if (fallbackTuition > 0 || maxFull > 0) {
+    return roundMoney(Math.max(fallbackTuition, maxFull))
+  }
+
+  const installmentsOnly = payments
+    .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  return roundMoney(installmentsOnly)
 }
 
 async function findActiveAppeal(admissionId: string) {
