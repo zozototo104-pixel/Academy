@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   route-smoke:
-    name: Crawl platform pages for crashes
+    name: فحص عدم انهيار صفحات المنصة
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
