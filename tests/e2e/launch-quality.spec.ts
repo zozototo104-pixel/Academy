@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
+const QUALITY_REPORT_DIR = 'test-results/launch-quality'
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Missing required environment variable: ${name}`)
