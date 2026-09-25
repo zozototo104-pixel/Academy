@@ -1174,7 +1174,7 @@ export function DashboardView() {
                           className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50"
                         >
                           <Hourglass className="ml-1 h-4 w-4" />
-                          {exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ امتحان الفصل'}
+                          {tuitionLocked ? 'مغلق لحين السداد' : exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ امتحان الفصل'}
                         </Button>
                       </div>
                     </div>
