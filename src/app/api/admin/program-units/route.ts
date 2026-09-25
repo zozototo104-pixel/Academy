@@ -36,6 +36,16 @@ async function listProgramUnits(programId: string) {
   const units = await db.unit.findMany({
     where: { programId },
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    include: {
+      exam: {
+        select: {
+          id: true,
+          title: true,
+          passScore: true,
+          _count: { select: { questions: true, attempts: true } },
+        },
+      },
+    },
   })
   return units.map((u) => ({
     id: u.id,
