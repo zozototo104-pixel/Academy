@@ -100,10 +100,30 @@ if [ "$deploy_status" != "200" ] || ! echo "$deploy_type" | grep -qi 'applicatio
   fail_check deploy-info "deployment info route must return 200 JSON. If this is 404, the tested URL has not deployed the current smoke-support routes yet."
 fi
 if [ -n "${deployed_commit:-}" ] && [ -n "${GITHUB_SHA:-}" ] && [ "$deployed_commit" != "local" ] && [ "$deployed_commit" != "$GITHUB_SHA" ]; then
-  if [ "${E2E_ENFORCE_COMMIT_MATCH:-1}" = "1" ]; then
-    fail_check deploy-info "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
-  else
-    echo "::warning title=deploy-info commit mismatch::E2E_BASE_URL is serving commit ${deployed_commit}, while this workflow is running from ${GITHUB_SHA}. Continuing because E2E_ENFORCE_COMMIT_MATCH=0."
+  if [ "${E2E_WAIT_FOR_DEPLOYMENT:-0}" = "1" ]; then
+    wait_seconds="${E2E_DEPLOY_WAIT_SECONDS:-420}"
+    interval_seconds="${E2E_DEPLOY_WAIT_INTERVAL_SECONDS:-15}"
+    deadline=$((SECONDS + wait_seconds))
+    echo "Production is serving ${deployed_commit}; waiting up to ${wait_seconds}s for ${GITHUB_SHA} before running E2E..."
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      sleep "$interval_seconds"
+      deploy_status=$(curl_json deploy-info GET "$base/api/deploy-info")
+      deploy_type=$(awk -F= '/^content_type=/{print $2}' "$out/deploy-info.meta")
+      deployed_commit=$(json_field "$out/deploy-info.body" version.commit)
+      deployed_env=$(json_field "$out/deploy-info.body" version.env)
+      echo "Deploy info retry: HTTP $deploy_status; content-type=$deploy_type; deployed_commit=${deployed_commit:-unknown}; env=${deployed_env:-unknown}"
+      if [ "$deploy_status" = "200" ] && echo "$deploy_type" | grep -qi 'application/json' && [ "${deployed_commit:-}" = "$GITHUB_SHA" ]; then
+        echo "Production deployment now matches workflow commit ${GITHUB_SHA}."
+        break
+      fi
+    done
+  fi
+  if [ -n "${deployed_commit:-}" ] && [ "$deployed_commit" != "local" ] && [ "$deployed_commit" != "$GITHUB_SHA" ]; then
+    if [ "${E2E_ENFORCE_COMMIT_MATCH:-1}" = "1" ]; then
+      fail_check deploy-info "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
+    else
+      echo "::warning title=deploy-info commit mismatch::E2E_BASE_URL is serving commit ${deployed_commit}, while this workflow is running from ${GITHUB_SHA}. Continuing because E2E_ENFORCE_COMMIT_MATCH=0."
+    fi
   fi
 fi
 
