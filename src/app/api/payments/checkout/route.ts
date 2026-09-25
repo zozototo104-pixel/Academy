@@ -4,6 +4,21 @@ import { getCurrentUser } from '@/lib/auth'
 import { createProviderCheckout, getGatewayConfig } from '@/lib/payments'
 import { notify } from '@/lib/notify'
 
+function paymentPurposeLabel(purpose?: string | null) {
+  const labels: Record<string, string> = {
+    APPLICATION_FEE: 'رسوم تقديم',
+    TUITION: 'رسوم دراسية',
+    TUITION_INSTALLMENT: 'دفعة رسوم دراسية',
+    ACCREDITATION_APP: 'رسوم تقديم اعتماد',
+    ACCREDITATION_FEE: 'رسوم اعتماد',
+    ACCREDITATION: 'اعتماد',
+    SERVICE_FEE: 'رسوم خدمة',
+    AI_LIVE_CREDIT: 'باقة دقائق صوت للمشرف الذكي',
+    OTHER: 'رسوم أخرى',
+  }
+  return labels[String(purpose || '')] || String(purpose || 'فاتورة')
+}
+
 // POST /api/payments/checkout — إنشاء جلسة دفع حقيقية لدى المزود
 // مع STRIPE_SECRET_KEY live أو مفاتيح PayPal live يُعاد رابط دفع حقيقي (redirectUrl)
 // الطرق غير المضبوطة تُرفض برسالة واضحة. SANDBOX لا يعمل إلا إذا كان مسموحاً في البيئة الحالية.
