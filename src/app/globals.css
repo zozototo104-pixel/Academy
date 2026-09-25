@@ -548,14 +548,16 @@
 
 .aact-live-caption-panel {
   display: grid;
+  grid-template-rows: minmax(4.1rem, 0.9fr) minmax(4.8rem, 1.1fr);
   gap: 0.65rem;
-  min-height: 8.5rem;
+  min-height: 9.7rem;
   max-height: 13rem;
   overflow: hidden;
   padding: 0.25rem;
 }
 .aact-live-caption-card {
   position: relative;
+  min-height: 0;
   border-radius: 1.15rem;
   border: 1px solid rgba(255, 255, 255, 0.13);
   background: rgba(3, 16, 31, 0.48);
@@ -563,7 +565,7 @@
   text-align: right;
   box-shadow: 0 18px 48px rgba(0,0,0,0.20);
   backdrop-filter: blur(14px);
-  animation: aactCaptionIn 0.22s ease-out both;
+  transition: border-color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
 }
 .aact-live-caption-card p {
   margin: 0;
