@@ -656,7 +656,7 @@ export function AdminFinanceTab() {
         .then(([p, r]) => {
           if (cancelled) return
           setPayments(Array.isArray(p.payments) ? p.payments : [])
-          setTotals(p.totals || { collected: 0, pending: 0, count: 0, paidCount: 0 })
+          setTotals(p.totals || { collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
           setPaymentTotal(Number(p.total || p.totals?.count || 0))
           setReport(r)
         })
