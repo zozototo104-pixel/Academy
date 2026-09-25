@@ -184,6 +184,42 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180) })
 }
 
+function aiProviderTimeoutMs(): number {
+  const configured = Number(env('AI_PROVIDER_TIMEOUT_MS'))
+  if (Number.isFinite(configured) && configured >= 3000) return Math.min(Math.floor(configured), 45000)
+  return 15000
+}
+
+function aiDiscoveryTimeoutMs(): number {
+  const configured = Number(env('AI_DISCOVERY_TIMEOUT_MS'))
+  if (Number.isFinite(configured) && configured >= 1500) return Math.min(Math.floor(configured), 15000)
+  return 5000
+}
+
+async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs()): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${timeoutMs}ms`)
+      err.status = 504
+      err.code = 'AI_PROVIDER_TIMEOUT'
+      throw err
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function isTimeoutLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 504 || /timeout|timed out|abort|deadline|etimedout|ai_provider_timeout/i.test(msg)
+}
+
 function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
