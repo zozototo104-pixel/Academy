@@ -1153,6 +1153,11 @@ export function DashboardView() {
                             {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: عدم استكمال الواجبات/التقييمات سيجعل أعلى نتيجة ممكنة الآن {readiness.maxExamScore}% فقط.</p> : null}
                           </div>
                         )}
+                        {tuitionLocked && tuitionGate?.message ? (
+                          <div className="mt-3 rounded-xl bg-amber-100/15 p-3 text-[11px] font-extrabold leading-5 text-amber-100">
+                            {tuitionGate.message}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col gap-2">
                         {!prereqLocked && !tuitionLocked && !readiness?.readyMarked ? (
