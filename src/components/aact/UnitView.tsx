@@ -24,8 +24,39 @@ interface UnitData {
   }
   program: { id: string; titleAr: string; slug: string }
   books?: { id: string; title: string; author?: string | null; year?: string | null; hasFile: boolean; link?: string | null; source: string }[]
-  finalExam?: { id: string; title: string; durationMin: number; passScore: number; questionCount: number } | null
-  semesterExams?: { id: string; title: string; semester: number; durationMin: number; passScore: number; questionCount: number }[]
+  finalExam?: {
+    id: string
+    title: string
+    durationMin: number
+    passScore: number
+    questionCount: number
+    tuitionGate?: {
+      allowed: boolean
+      code: string | null
+      totalTuition: number
+      paidTuition: number
+      requiredAmount: number
+      remainingTuition: number
+      message: string | null
+    }
+  } | null
+  semesterExams?: {
+    id: string
+    title: string
+    semester: number
+    durationMin: number
+    passScore: number
+    questionCount: number
+    tuitionGate?: {
+      allowed: boolean
+      code: string | null
+      totalTuition: number
+      paidTuition: number
+      requiredAmount: number
+      remainingTuition: number
+      message: string | null
+    }
+  }[]
 }
 
 export function UnitView() {
