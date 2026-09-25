@@ -85,8 +85,6 @@ export async function nextInvoiceNo(): Promise<string> {
   const rows = await db.payment.findMany({
     where: { invoiceNo: { startsWith: prefix } },
     select: { invoiceNo: true },
-    orderBy: { invoiceNo: 'desc' },
-    take: 500,
   })
   let next = rows.reduce((max, row) => Math.max(max, invoiceSequence(row.invoiceNo, prefix)), 0) + 1
 
