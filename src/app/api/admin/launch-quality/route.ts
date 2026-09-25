@@ -63,40 +63,108 @@ function elapsed(start: number) {
   return Math.round(performance.now() - start)
 }
 
-async function findDiagnosticStudent(studentId?: string) {
-  const where: any = studentId
-    ? { id: studentId, role: 'STUDENT' }
-    : {
-        role: 'STUDENT',
-        OR: [
-          { enrollments: { some: {} } },
-          { theses: { some: {} } },
-          { ownedAdmissions: { some: {} } },
-        ],
-      }
-
-  return db.user.findFirst({
-    where,
-    orderBy: { createdAt: 'desc' },
+const diagnosticStudentInclude = {
+  enrollments: {
+    where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
+    take: 3,
+    orderBy: { updatedAt: 'desc' as const },
     include: {
-      enrollments: {
-        take: 2,
-        orderBy: { createdAt: 'desc' },
+      program: {
         include: {
+          units: { take: 12, orderBy: { order: 'asc' as const }, select: { title: true } },
+          books: { take: 8, orderBy: { createdAt: 'asc' as const }, select: { title: true, author: true } },
+          studyGuides: { take: 4, where: { status: 'PUBLISHED' }, select: { title: true } },
+        },
+      },
+    },
+  },
+  theses: { take: 1, orderBy: { updatedAt: 'desc' as const }, select: { title: true, status: true, resultScore: true, aiScore: true, defenseDate: true } },
+  ownedAdmissions: { take: 1, orderBy: { createdAt: 'desc' as const }, select: { reference: true, program: true, status: true, thesisDeadline: true } },
+  academicMemory: true,
+}
+
+function diagnosticStudentScore(student: any): number {
+  const enrollmentScores = (student.enrollments || []).map((enr: any) => {
+    const p = enr.program
+    if (!p) return 0
+    return 60 + Math.min((p.units || []).length, 12) * 12 + Math.min((p.books || []).length, 8) * 18 + Math.min((p.studyGuides || []).length, 4) * 14
+  })
+  const enrollmentScore = enrollmentScores.length ? Math.max(...enrollmentScores) : 0
+  const thesisScore = student.theses?.[0] ? 45 : 0
+  const admissionScore = student.ownedAdmissions?.[0] ? 10 : 0
+  const memory = student.academicMemory
+  const memoryScore = memory
+    ? [memory.profileDigest, memory.lastConversationSummary, memory.lastFileAnalysis, memory.examSignals, memory.thesisSignals].filter(Boolean).length * 8
+    : 0
+  return enrollmentScore + thesisScore + admissionScore + memoryScore
+}
+
+function chooseBestDiagnosticStudent<T extends any>(students: T[]): T | null {
+  if (!students.length) return null
+  return students
+    .slice()
+    .sort((a: any, b: any) => diagnosticStudentScore(b) - diagnosticStudentScore(a) || new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
+}
+
+async function findDiagnosticStudent(studentId?: string) {
+  if (studentId) {
+    return db.user.findFirst({
+      where: { id: studentId, role: 'STUDENT' },
+      include: diagnosticStudentInclude,
+    })
+  }
+
+  const richStudents = await db.user.findMany({
+    where: {
+      role: 'STUDENT',
+      enrollments: {
+        some: {
+          status: { in: ['ACTIVE', 'COMPLETED'] },
           program: {
-            include: {
-              units: { take: 12, orderBy: { order: 'asc' }, select: { title: true } },
-              books: { take: 8, orderBy: { createdAt: 'asc' }, select: { title: true, author: true } },
-              studyGuides: { take: 4, where: { status: 'PUBLISHED' }, select: { title: true } },
+            is: {
+              OR: [
+                { units: { some: {} } },
+                { books: { some: {} } },
+                { studyGuides: { some: { status: 'PUBLISHED' } } },
+              ],
             },
           },
         },
       },
-      theses: { take: 1, orderBy: { updatedAt: 'desc' }, select: { title: true, status: true, resultScore: true, aiScore: true, defenseDate: true } },
-      ownedAdmissions: { take: 1, orderBy: { createdAt: 'desc' }, select: { reference: true, program: true, status: true, thesisDeadline: true } },
-      academicMemory: true,
     },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 50,
+    include: diagnosticStudentInclude,
   })
+  const rich = chooseBestDiagnosticStudent(richStudents)
+  if (rich) return rich
+
+  const enrolledStudents = await db.user.findMany({
+    where: {
+      role: 'STUDENT',
+      enrollments: { some: { status: { in: ['ACTIVE', 'COMPLETED'] } } },
+    },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 50,
+    include: diagnosticStudentInclude,
+  })
+  const enrolled = chooseBestDiagnosticStudent(enrolledStudents)
+  if (enrolled) return enrolled
+
+  const fallbackStudents = await db.user.findMany({
+    where: {
+      role: 'STUDENT',
+      OR: [
+        { theses: { some: {} } },
+        { ownedAdmissions: { some: {} } },
+        { academicMemory: { isNot: null } },
+      ],
+    },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 25,
+    include: diagnosticStudentInclude,
+  })
+  return chooseBestDiagnosticStudent(fallbackStudents)
 }
 
 function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
