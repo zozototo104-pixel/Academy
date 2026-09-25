@@ -189,7 +189,7 @@ jobs:
         run: bun run e2e:admin
 
       - name: Run full platform journey
-        if: ${{ inputs.run_full_journey }}
+        if: ${{ github.event_name == 'push' || inputs.run_full_journey }}
         run: bun run e2e:journey
 
       - name: Run full platform route crawler
