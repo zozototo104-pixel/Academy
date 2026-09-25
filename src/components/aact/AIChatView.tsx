@@ -355,6 +355,9 @@ export function AIChatView() {
 
   const openVoicePackageDialog = (message?: string | null) => {
     setVoicePackageDialog({ open: true, message: friendlyLiveMinutesMessage(message) })
+    api<{ ok: boolean; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package')
+      .then((offer) => setVoicePackageOffer({ minutes: offer.minutes, amount: offer.amount, currency: offer.currency }))
+      .catch(() => setVoicePackageOffer(null))
   }
 
   const startVoicePackagePurchase = async () => {
