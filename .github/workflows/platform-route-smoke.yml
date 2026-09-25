@@ -66,13 +66,12 @@ jobs:
       - name: Run platform route smoke crawler
         run: bun run e2e:routes
 
-      - name: Upload route smoke report
+      - name: Upload compact route smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: platform-route-smoke-report
+          name: platform-route-smoke-diagnostics
           path: |
-            playwright-report/
-            test-results/
+            test-results/platform-routes/
           if-no-files-found: ignore
           retention-days: 14
