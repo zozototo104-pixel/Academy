@@ -25,7 +25,21 @@ export function roundMoney(n: number): number {
 }
 
 export function tuitionPaidTotal(payments: Array<{ purpose: string; status: string; amount: number }>): number {
-  return roundMoney(payments.filter((p) => TUITION_PURPOSES.includes(p.purpose) && p.status === 'PAID').reduce((sum, p) => sum + (Number(p.amount) || 0), 0))
+  const paidFullTuition = Math.max(
+    0,
+    ...payments
+      .filter((p) => p.purpose === 'TUITION' && p.status === 'PAID')
+      .map((p) => Number(p.amount) || 0)
+  )
+  const paidInstallments = payments
+    .filter((p) => p.purpose === 'TUITION_INSTALLMENT' && p.status === 'PAID')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  const paidOtherTuition = payments
+    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose) && p.status === 'PAID')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+
+  // إذا وُجدت فاتورة رسوم كاملة مدفوعة فلا نضيف فوقها أقساطاً مدفوعة لنفس الرسوم.
+  return roundMoney(Math.max(paidFullTuition, paidInstallments + paidOtherTuition))
 }
 
 export function inferTotalTuition(payments: Array<{ purpose: string; status: string; amount: number }>, fallback = 0): number {
