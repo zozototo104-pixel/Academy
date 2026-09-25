@@ -442,7 +442,8 @@
   border-radius: 9999px;
   background: radial-gradient(circle, rgba(224,184,58,0.20), rgba(224,184,58,0.06) 48%, transparent 70%);
   filter: blur(10px);
-  animation: aactVoiceHalo 3.8s ease-in-out infinite;
+  opacity: 0.72;
+  animation: none;
   pointer-events: none;
 }
 .aact-voice-halo.h2 {
