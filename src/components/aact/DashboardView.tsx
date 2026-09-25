@@ -523,9 +523,15 @@ export function DashboardView() {
     const nextExam = (active.semesterExams || []).find((e: any) => !e.passed)
     if (nextExam) {
       const r = nextExam.readiness
+      const tuitionGate = nextExam.tuitionGate
+      const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
       return {
-        title: r?.readyMarked ? 'ابدأ الامتحان النهائي للفصل' : 'أكد جاهزيتك للامتحان النهائي',
-        text: r?.readyMarked ? `زر بدء امتحان ${nextExam.title} أصبح متاحًا.` : `راجع المتطلبات ثم اضغط «جاهز للامتحان» لتفعيل زر البدء.`,
+        title: tuitionLocked ? 'سداد الرسوم مطلوب قبل الامتحان' : r?.readyMarked ? 'ابدأ الامتحان النهائي للفصل' : 'أكد جاهزيتك للامتحان النهائي',
+        text: tuitionLocked
+          ? tuitionGate?.message || 'أكمل سداد الرسوم المطلوبة لفتح امتحان الفصل.'
+          : r?.readyMarked
+          ? `زر بدء امتحان ${nextExam.title} أصبح متاحًا.`
+          : `راجع المتطلبات ثم اضغط «جاهز للامتحان» لتفعيل زر البدء.`,
         tab: 'programs',
       }
     }
