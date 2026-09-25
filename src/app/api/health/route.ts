@@ -31,6 +31,7 @@ function serviceConfigurationStatus() {
     usdt: boolEnv(['USDT_WALLET_ADDRESS', 'NEXT_PUBLIC_USDT_WALLET_ADDRESS']),
     tronGrid: boolEnv(['TRONGRID_API_KEY', 'TRON_GRID_API_KEY']),
     vcSigning: boolEnv(['AACT_VC_SIGNING_SECRET']),
+    whatsappOfficial: boolEnv(['WHATSAPP_ACCESS_TOKEN']) && boolEnv(['WHATSAPP_PHONE_NUMBER_ID']) && boolEnv(['WHATSAPP_VERIFY_TOKEN']),
   }
 }
 
