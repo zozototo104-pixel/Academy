@@ -148,10 +148,27 @@ export async function GET(req: NextRequest) {
       booksCount,
       finalExam,
       pendingReviewExams: reviewCount,
-      semesterExams: semesterExams.map((exam) => ({
-        ...exam,
-        readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
-      })),
+      semesterExams: semesterExams.map((exam) => {
+        const requiredAmount = exam.semester >= 2 ? tuitionPlan?.finalRequired ?? 0 : tuitionPlan?.halfRequired ?? 0
+        const allowed = !tuitionPlan || tuitionPlan.totalTuition <= 0 || (exam.semester >= 2 ? tuitionPlan.secondSemesterAllowed : tuitionPlan.firstSemesterAllowed)
+        return {
+          ...exam,
+          readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
+          tuitionGate: {
+            allowed,
+            code: allowed ? null : exam.semester >= 2 ? 'TUITION_FULL_REQUIRED' : 'TUITION_HALF_REQUIRED',
+            totalTuition: tuitionPlan?.totalTuition ?? 0,
+            paidTuition: tuitionPlan?.paidTuition ?? 0,
+            requiredAmount,
+            remainingTuition: tuitionPlan?.remainingTuition ?? 0,
+            message: allowed
+              ? null
+              : exam.semester >= 2
+              ? `لا يمكن فتح امتحان الفصل الثاني قبل سداد كامل الرسوم الدراسية. المسدد حالياً ${tuitionPlan?.paidTuition ?? 0}$ والمطلوب ${requiredAmount}$.`
+              : `لا يمكن فتح امتحان الفصل الأول قبل سداد نصف الرسوم الدراسية على الأقل. المسدد حالياً ${tuitionPlan?.paidTuition ?? 0}$ والمطلوب ${requiredAmount}$.`,
+          },
+        }
+      }),
       units: program.units.map((u) => ({
         id: u.id,
         order: u.order,
