@@ -1,27 +1,35 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { nextInvoiceNo } from '@/lib/settings'
+import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 
-function envNum(name: string, fallback: number): number {
-  const n = Number(process.env[name])
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback
+async function getLiveVoicePackage() {
+  const minutesRaw = await getSettingNum('AI_LIVE_PACKAGE_MINUTES')
+  const amountRaw = await getSettingNum('AI_LIVE_PACKAGE_PRICE_USD')
+  const minutes = Number.isFinite(minutesRaw) && minutesRaw > 0 ? Math.floor(minutesRaw) : 60
+  const amount = Number.isFinite(amountRaw) && amountRaw > 0 ? Math.round(amountRaw * 100) / 100 : 10
+  return { minutes, amount, currency: 'USD' }
 }
 
-function envAmount(name: string, fallback: number): number {
-  const n = Number(process.env[name])
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : fallback
+// GET /api/ai/gemini-live/package — عرض باقة دقائق الصوت الحالية كما حددتها الإدارة
+export async function GET() {
+  try {
+    const offer = await getLiveVoicePackage()
+    return NextResponse.json({ ok: true, ...offer })
+  } catch (e) {
+    console.error('live package offer error:', e)
+    return NextResponse.json({ error: 'تعذر تحميل باقة الصوت' }, { status: 500 })
+  }
 }
 
-// POST /api/ai/gemini-live/package — إنشاء فاتورة باقة دقائق صوت إضافية
+// POST /api/ai/gemini-live/package — إنشاء فاتورة باقة دقائق صوت إضافية من داخل المنصة
 export async function POST() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
 
-    const minutes = envNum('AACT_LIVE_PACKAGE_MINUTES', 60)
-    const amount = envAmount('AACT_LIVE_PACKAGE_PRICE_USD', 10)
-    const description = `باقة دقائق صوت Gemini Live — ${minutes} دقيقة`
+    const { minutes, amount, currency } = await getLiveVoicePackage()
+    const description = `باقة دقائق صوت للمشرف الذكي — ${minutes} دقيقة`
 
     const existing = await db.payment.findFirst({
       where: {
@@ -52,7 +60,7 @@ export async function POST() {
         purpose: 'AI_LIVE_CREDIT',
         description,
         amount,
-        currency: 'USD',
+        currency,
         status: 'UNPAID',
         payerName: user.name,
         payerEmail: user.email,
