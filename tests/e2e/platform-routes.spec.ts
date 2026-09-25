@@ -44,8 +44,21 @@ async function loginAsAdmin(page: Page) {
   const email = requiredAnyEnv(['ADMIN_EMAIL', 'E2E_ADMIN_EMAIL'])
   const password = requiredAnyEnv(['ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD'])
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
-  const body = await response.json().catch(() => ({}))
-  expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body).slice(0, 1000)}`).toBeTruthy()
+  const rawBody = await response.text().catch(() => '')
+  let body: any = {}
+  try { body = rawBody ? JSON.parse(rawBody) : {} } catch { body = { raw: rawBody.slice(0, 2500) } }
+
+  if (!response.ok()) {
+    await mkdir(ROUTE_REPORT_DIR, { recursive: true }).catch(() => {})
+    await writeFile(`${ROUTE_REPORT_DIR}/admin-login-failure.json`, JSON.stringify({
+      status: response.status(),
+      headers: response.headers(),
+      body,
+      rawBody: rawBody.slice(0, 5000),
+    }, null, 2), 'utf8')
+  }
+
+  expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body).slice(0, 2000)}`).toBeTruthy()
   expect(body?.token, 'Login response must include token').toBeTruthy()
   expect(body?.user?.role, 'Route smoke account must be ADMIN').toBe('ADMIN')
 
