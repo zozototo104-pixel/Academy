@@ -845,10 +845,12 @@ export function AdminFinanceTab() {
             { value: 'ALL', label: 'كل الفواتير' },
             { value: 'UNPAID', label: 'غير مسددة' },
             { value: 'PAID', label: 'مسددة' },
+            { value: 'MANUAL_PENDING', label: 'دفع مباشر بانتظار التأكيد' },
             { value: 'APPLICATION_FEE', label: 'رسوم تقديم' },
             { value: 'TUITION', label: 'رسوم دراسية' },
             { value: 'TUITION_INSTALLMENT', label: 'دفعات تقسيط' },
             { value: 'SERVICE_FEE', label: 'رسوم خدمات' },
+            { value: 'AI_LIVE_CREDIT', label: 'باقات دقائق صوت' },
           ]}
           pageSize={paymentPageSize}
           onPageSizeChange={(v) => { setPaymentPageSize(v); setPaymentPage(1) }}
