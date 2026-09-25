@@ -635,7 +635,7 @@ function throwHttp(provider: string, status: number, data: any): never {
 
 async function callGemini(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout('Gemini', url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
