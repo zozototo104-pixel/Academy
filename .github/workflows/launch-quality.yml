@@ -139,6 +139,12 @@ jobs:
             exit 1
           fi
 
+      - name: Strict page smoke preflight
+        shell: bash
+        env:
+          E2E_PREFLIGHT_DIR: test-results/platform-routes/preflight
+        run: bash scripts/e2e-strict-preflight.sh
+
       - name: Run full platform page smoke crawler
         run: bun run e2e:routes
 
