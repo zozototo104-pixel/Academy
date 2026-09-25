@@ -260,6 +260,13 @@ interface CurriculumUnitReviewItem {
   order: number
   semester: number
   status: 'DRAFT' | 'APPROVED' | 'NEEDS_REVISION'
+  exam?: {
+    id: string
+    title: string
+    passScore: number
+    questionsCount: number
+    attemptsCount: number
+  } | null
 }
 
 interface ProgramReadinessSnapshot {
