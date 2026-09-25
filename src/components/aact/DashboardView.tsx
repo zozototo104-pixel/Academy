@@ -1155,7 +1155,7 @@ export function DashboardView() {
                         )}
                       </div>
                       <div className="flex shrink-0 flex-col gap-2">
-                        {!prereqLocked && !readiness?.readyMarked ? (
+                        {!prereqLocked && !tuitionLocked && !readiness?.readyMarked ? (
                           <Button
                             onClick={() => markReadyForSemesterExam(exam.semester)}
                             className="bg-emerald-600 font-extrabold text-white hover:bg-emerald-700"
