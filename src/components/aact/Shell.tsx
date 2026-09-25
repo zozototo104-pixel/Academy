@@ -21,7 +21,7 @@ export function FloatingActions() {
   ])
   const inChat = view === 'chat'
   const whatsappNumber = ACADEMY_INFO.whatsapp.replace(/\D/g, '')
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('السلام عليكم، أريد الاستفسار عن برامج الأكاديمية الأمريكية للاستشارات والتدريب.')}`
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
