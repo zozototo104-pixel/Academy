@@ -665,7 +665,7 @@ function extractOpenAiText(data: any): string {
 }
 
 async function callOpenAIResponses(s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
-  const response = await fetch(`${s.openaiBaseUrl}/responses`, {
+  const response = await fetchWithTimeout('OpenAI', `${s.openaiBaseUrl}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: toChatMessages(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
