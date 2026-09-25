@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { ratingForWebVital, safePath } from '@/lib/monitoring'
 
@@ -12,6 +11,39 @@ function num(value: unknown, max = 60_000) {
   const n = Number(value)
   if (!Number.isFinite(n)) return null
   return Math.max(0, Math.min(max, n))
+}
+
+async function persistWebVital(metric: {
+  name: string
+  value: number
+  rating: string
+  path: string
+  nav: string
+  id: string
+}) {
+  // Web Vitals are telemetry, not core product traffic. By default we avoid
+  // writing every browser metric to Postgres because high-volume test runs can
+  // create Prisma connection noise in serverless logs. Enable persistence only
+  // when explicitly needed.
+  if (process.env.WEB_VITALS_PERSIST !== '1') return false
+  if (metric.rating === 'good' && process.env.WEB_VITALS_PERSIST_GOOD !== '1') return false
+
+  try {
+    const { db } = await import('@/lib/db')
+    await db.auditLog.create({
+      data: {
+        actorName: 'Web Vitals',
+        action: 'WEB_VITAL',
+        entity: 'PerformanceMetric',
+        entityId: metric.id || undefined,
+        details: `name=${metric.name} | value=${metric.value} | rating=${metric.rating} | path=${metric.path} | nav=${metric.nav}`,
+      },
+    })
+    return true
+  } catch (error: any) {
+    console.warn('web vitals persistence skipped:', error?.message || String(error))
+    return false
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -31,19 +63,17 @@ export async function POST(req: NextRequest) {
     const nav = String(payload.navigationType || '').slice(0, 60)
     const id = String(payload.id || '').replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 80)
 
-    await db.auditLog.create({
-      data: {
-        actorName: 'Web Vitals',
-        action: 'WEB_VITAL',
-        entity: 'PerformanceMetric',
-        entityId: id || undefined,
-        details: `name=${name} | value=${value} | rating=${rating} | path=${path} | nav=${nav}`,
-      },
-    })
+    const persisted = await persistWebVital({ name, value, rating, path, nav, id })
 
-    return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
-  } catch (e) {
-    console.error('web vitals ingestion error:', e)
-    return NextResponse.json({ error: 'Failed to record metric' }, { status: 500 })
+    return NextResponse.json(
+      { ok: true, persisted },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
+  } catch (e: any) {
+    console.warn('web vitals ingestion skipped:', e?.message || String(e))
+    return NextResponse.json(
+      { ok: true, skipped: true },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
   }
 }
