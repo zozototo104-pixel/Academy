@@ -931,7 +931,7 @@ export function AdminFinanceTab() {
                         {p.status === 'UNPAID' ? (
                           <Button size="sm" variant="outline" onClick={() => confirm(p.id)}
                             className="border-emerald-200 font-bold text-emerald-600">
-                            <Banknote className="ml-1 h-3 w-3" /> تأكيد
+                            <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
                           </Button>
                         ) : '—'}
                       </td>
