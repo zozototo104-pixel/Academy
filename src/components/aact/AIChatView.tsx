@@ -420,7 +420,14 @@ export function AIChatView() {
       onInterrupted: () => {
         // لا نمسح النص فور المقاطعة؛ يُستبدل عندما يبدأ الطالب جملة جديدة.
       },
-      onError: (msg) => toast({ title: 'تنبيه', description: msg, variant: 'destructive' }),
+      onError: (msg) => {
+        const text = String(msg || '')
+        if (text.includes('Gemini Live') || text.includes('انتهت دقائق') || text.includes('دقائق صوت')) {
+          openVoicePackageDialog(text)
+          return
+        }
+        toast({ title: 'تنبيه', description: friendlyLiveMinutesMessage(text), variant: 'destructive' })
+      },
     })
     agentRef.current = agent
     agent.start().catch((e: any) => {
