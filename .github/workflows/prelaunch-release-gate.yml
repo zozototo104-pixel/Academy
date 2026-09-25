@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 8
 
     env:
-      BASE_URL: ${{ inputs.base_url }}
+      BASE_URL: ${{ inputs.base_url || 'https://academy-raqaba.vercel.app' }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
     steps:
