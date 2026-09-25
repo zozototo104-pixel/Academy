@@ -1140,6 +1140,7 @@ export function AdminSettingsTab() {
 
   const groups: { key: string; label: string }[] = [
     { key: 'FEES', label: 'جدول الرسوم (دولار أمريكي)' },
+    { key: 'AI', label: 'باقات المحادثة الصوتية للمشرف الذكي' },
     { key: 'RULES', label: 'المهل الزمنية والنسب وفق دليل الإجراءات وعقد التمثيل' },
   ]
 
