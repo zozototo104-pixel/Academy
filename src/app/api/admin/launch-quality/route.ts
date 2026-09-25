@@ -156,8 +156,8 @@ function questionForProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
 
 function launchQualityAiTimeoutMs() {
   const configured = Number(process.env.LAUNCH_QUALITY_AI_TIMEOUT_MS || '')
-  if (Number.isFinite(configured) && configured >= 3_000) return Math.min(configured, 45_000)
-  return 18_000
+  if (Number.isFinite(configured) && configured >= 10_000) return Math.min(Math.floor(configured), 75_000)
+  return 70_000
 }
 
 function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -170,38 +170,11 @@ function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Prom
   })
 }
 
-function diagnosticProbeReply(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>) {
-  const enrollment = student?.enrollments?.[0]
-  const program = enrollment?.program
-  const thesis = student?.theses?.[0]
-  const admission = student?.ownedAdmissions?.[0]
-  const books = program?.books?.map((b) => b.title).filter(Boolean) || []
-  const units = program?.units?.map((u) => u.title).filter(Boolean) || []
-
-  if (!student) return 'لا يوجد طالب مناسب للفحص التشخيصي حالياً.'
-  if (kind === 'PROFILE') {
-    return `ملف الطالب التشخيصي: الطالب ${student.name}. البرنامج الحالي: ${program?.titleAr || admission?.program || 'غير محدد'}. رقم الطلب/المرجع: ${admission?.reference || 'غير متاح'}. التركيز الآن يكون على استكمال المتطلبات الأكاديمية والمالية، متابعة الوحدات والكتب المقررة، ومراجعة حالة البحث أو المناقشة عند وجودها.`
-  }
-  if (kind === 'CURRICULUM') {
-    return `المنهج الحالي مرتبط ببرنامج ${program?.titleAr || admission?.program || 'غير محدد'}. الكتب المقررة: ${books.length ? books.join('، ') : 'لا توجد كتب مسجلة'}. الوحدات الأساسية: ${units.length ? units.join('، ') : 'لا توجد وحدات مسجلة'}. خطة القراءة: ابدأ بالكتاب الأول، ثم اربطه بالوحدة الأولى، ثم دوّن أسئلة تطبيقية قبل الانتقال للوحدة التالية.`
-  }
-  if (kind === 'THESIS') {
-    return thesis
-      ? `عنوان البحث الحالي: ${thesis.title}. حالة البحث: ${thesis.status}. المطلوب مراجعة المنهجية بوضوح، ربط النتائج المتوقعة بسؤال البحث، وتحديد نقاط الضعف قبل المناقشة. ركز على جودة الأدبيات، اتساق العينة أو الحالة، ودقة التوصيات.`
-      : `لا يظهر بحث مسجل مكتمل لهذا الطالب. لبدء بحث مناسب يجب صياغة مشكلة بحث واضحة، تحديد منهجية قابلة للتطبيق، ثم كتابة نتائج متوقعة مرتبطة ببرنامج ${program?.titleAr || admission?.program || 'الطالب'} مع خطة مصادر أولية.`
-  }
-  return `سؤال مناقشة مناسب حول ${thesis?.title || program?.titleAr || admission?.program || 'تخصص الطالب'}: ما القرار أو الاستنتاج الأهم الذي توصلت إليه، وما الدليل الذي يدعمه؟ أهمية هذا السؤال أنه يختبر الفهم، المنهجية، والقدرة على الدفاع عن النتائج أمام لجنة المناقشة.`
-}
-
 async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
   const started = performance.now()
   if (!student) return { kind, skipped: true, reason: 'لا يوجد طالب مناسب للفحص' }
   const question = questionForProbe(kind, student)
   const expected = expectedForProbe(kind, student)
-  let reply = ''
-  let agent: string = 'ADMIN_QUALITY'
-  let engine: string = 'DIAGNOSTIC_CONTEXT_FALLBACK'
-  let fallbackReason: string | null = null
 
   try {
     const result = await timeoutAfter(platformAgentComplete({
@@ -209,31 +182,41 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       mode: kind === 'DEFENSE' ? 'VOICE' : 'TEXT',
       uiContext: `Launch Quality Probe: افحص معرفة الوكيل بسياق الطالب. لا تخترع بيانات غير موجودة.\n\n${context.slice(0, 12000)}`,
       messages: [{ role: 'user', content: question }],
-    }), launchQualityAiTimeoutMs(), `LAUNCH_QUALITY_AI_TIMEOUT_${kind}`)
-    reply = result.reply
-    agent = result.agent
-    engine = result.engine
-  } catch (e: any) {
-    fallbackReason = String(e?.message || e).slice(0, 240)
-    reply = diagnosticProbeReply(kind, student)
-  }
+    }), launchQualityAiTimeoutMs(), `LAUNCH_QUALITY_AI_PROBE_TIMEOUT_${kind}`)
 
-  const hits = keywordHits(reply, expected)
-  const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
-  return {
-    kind,
-    question,
-    agent,
-    engine,
-    ms: elapsed(started),
-    fallbackReason,
-    replyChars: reply.length,
-    replySample: reply.slice(0, 900),
-    expected,
-    keywordScore: hits.score,
-    hits: hits.hits,
-    missed: hits.missed,
-    passed: hits.score >= minScore && reply.length >= 80,
+    const hits = keywordHits(result.reply, expected)
+    const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
+    return {
+      kind,
+      question,
+      agent: result.agent,
+      engine: result.engine,
+      ms: elapsed(started),
+      replyChars: result.reply.length,
+      replySample: result.reply.slice(0, 900),
+      expected,
+      keywordScore: hits.score,
+      hits: hits.hits,
+      missed: hits.missed,
+      passed: hits.score >= minScore && result.reply.length >= 80,
+    }
+  } catch (e: any) {
+    const error = String(e?.message || e).slice(0, 900)
+    return {
+      kind,
+      question,
+      agent: 'ERROR',
+      engine: 'AI_PROVIDER_ROUTER_ERROR',
+      ms: elapsed(started),
+      replyChars: 0,
+      replySample: '',
+      expected,
+      keywordScore: 0,
+      hits: [],
+      missed: expected,
+      passed: false,
+      error,
+    }
   }
 }
 
