@@ -483,8 +483,8 @@
   inset: 0;
   border-radius: 9999px;
   background: conic-gradient(from 90deg, rgba(255,255,255,0.18), transparent 18%, rgba(255,255,255,0.10) 38%, transparent 62%, rgba(255,255,255,0.16));
-  opacity: 0.58;
-  animation: aactVoiceOrbSheen 7s linear infinite;
+  opacity: 0.48;
+  animation: none;
 }
 /* حلقات موجية تتنفس حول الكرة أثناء الاستماع */
 .aact-orb-ring {
