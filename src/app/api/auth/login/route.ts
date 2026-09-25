@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { verifyPassword, createSession } from '@/lib/auth'
-import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
 
-const DEMO_THESIS_STUDENT_EMAIL = 'demo.thesis@student.aact.academy'
-const DEMO_THESIS_STUDENT_PASSWORD = 'Student@2026'
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const shouldAutoSeedOnLogin = process.env.AACT_AUTO_SEED_ON_LOGIN === '1' || process.env.NODE_ENV !== 'production'
-    if (shouldAutoSeedOnLogin) {
-      // في الإنتاج لا نشغل seed تلقائياً مع كل تسجيل دخول إلا إذا فُعّل صراحةً عبر AACT_AUTO_SEED_ON_LOGIN=1.
-      void import('@/lib/bootstrap')
-        .then(({ ensureCoreSeed }) => ensureCoreSeed())
-        .catch((err) => console.error('Background core seed error:', err))
-    }
-
     const { email, password } = await req.json()
     if (!email?.trim() || !password) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }, { status: 400 })
     }
 
     const normalizedEmail = email.trim().toLowerCase()
+    const [{ db }, { verifyPassword, createSession }, { checkRateLimit, clientIpFromHeaders, rateLimitHeaders }] = await Promise.all([
+      import('@/lib/db'),
+      import('@/lib/auth'),
+      import('@/lib/rate-limit'),
+    ])
+
     const ip = clientIpFromHeaders(req.headers)
     const ipLimit = checkRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
     const accountLimit = checkRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
@@ -31,17 +26,6 @@ export async function POST(req: NextRequest) {
         { error: 'محاولات تسجيل دخول كثيرة. انتظر قليلاً ثم حاول مرة أخرى.' },
         { status: 429, headers: rateLimitHeaders(limited) }
       )
-    }
-
-    const demoLoginEnabled = process.env.AACT_ENABLE_DEMO_LOGIN === '1' || process.env.NODE_ENV !== 'production'
-    if (demoLoginEnabled && normalizedEmail === DEMO_THESIS_STUDENT_EMAIL && password === DEMO_THESIS_STUDENT_PASSWORD) {
-      // يجهّز حساب الطالب التجريبي فقط في البيئات التجريبية أو عند تفعيله صراحةً.
-      const [{ ensureCoreSeed }, { ensureDemoThesisStudent }] = await Promise.all([
-        import('@/lib/bootstrap'),
-        import('@/lib/demo-thesis'),
-      ])
-      await ensureCoreSeed(true).catch((err) => console.error('Auto demo seed error:', err))
-      await ensureDemoThesisStudent({ resetDefense: true, actor: null }).catch((err) => console.error('Auto demo thesis setup error:', err))
     }
 
     const user = await db.user.findUnique({ where: { email: normalizedEmail } })
@@ -59,8 +43,15 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
       token,
     })
-  } catch (e) {
+  } catch (e: any) {
     console.error('Login error:', e)
-    return NextResponse.json({ error: 'حدث خطأ أثناء تسجيل الدخول' }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: 'حدث خطأ أثناء تسجيل الدخول',
+        code: 'LOGIN_ROUTE_ERROR',
+        detail: process.env.NODE_ENV === 'production' ? undefined : e?.message || String(e),
+      },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    )
   }
 }
