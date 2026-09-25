@@ -241,19 +241,19 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run launch quality suite
-        if: ${{ inputs.run_launch_quality }}
+        if: ${{ github.event_name == 'push' || inputs.run_launch_quality }}
         run: bun run e2e:quality
 
       - name: Run UX guardrails
-        if: ${{ inputs.run_ux_mobile_perf }}
+        if: ${{ github.event_name == 'push' || inputs.run_ux_mobile_perf }}
         run: bun run e2e:ux
 
       - name: Run mobile UX guardrails
-        if: ${{ inputs.run_ux_mobile_perf }}
+        if: ${{ github.event_name == 'push' || inputs.run_ux_mobile_perf }}
         run: bun run e2e:mobile
 
       - name: Run performance guardrails
-        if: ${{ inputs.run_ux_mobile_perf }}
+        if: ${{ github.event_name == 'push' || inputs.run_ux_mobile_perf }}
         run: bun run e2e:perf
 
       - name: Upload experience guardrail diagnostics
