@@ -1853,8 +1853,15 @@ export function AdminBooksTab() {
                               {unit.status === 'APPROVED' ? 'معتمدة' : unit.status === 'NEEDS_REVISION' ? 'تحتاج تعديل' : 'مسودة'}
                             </Badge>
                             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">الفصل {unit.semester || 1}</Badge>
+                            <Badge className={unit.exam?.id ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
+                              {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال` : 'لا يوجد اختبار وحدة'}
+                            </Badge>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => generateUnitExam(unit)} className="border-indigo-200 bg-white text-xs font-bold text-indigo-700">
+                              {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="ml-1 h-3.5 w-3.5" />}
+                              {unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
+                            </Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'APPROVED' })} className="border-emerald-200 bg-white text-xs font-bold text-emerald-700">اعتماد</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'NEEDS_REVISION' })} className="border-amber-200 bg-white text-xs font-bold text-amber-700">بحاجة تعديل</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { order: Math.max(1, unit.order - 1) })} className="bg-white text-xs font-bold">رفع الترتيب</Button>
