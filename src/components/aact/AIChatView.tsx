@@ -712,20 +712,16 @@ export function AIChatView() {
             )}
           </div>
 
-          {hasLiveCaptions && (
+          {showCaptions && (
             <div className="aact-live-caption-panel w-full max-w-2xl" aria-live="polite">
-              {liveUserCaption && (
-                <div className="aact-live-caption-card aact-live-caption-user">
-                  <span className="aact-live-caption-label">أنت</span>
-                  <p>{liveUserCaption}</p>
-                </div>
-              )}
-              {liveAiCaption && (
-                <div className="aact-live-caption-card aact-live-caption-ai">
-                  <span className="aact-live-caption-label">المشرف</span>
-                  <p>{liveAiCaption}</p>
-                </div>
-              )}
+              <div className={`aact-live-caption-card aact-live-caption-user ${liveUserCaption ? '' : 'aact-live-caption-empty'}`}>
+                <span className="aact-live-caption-label">أنت</span>
+                <p>{liveUserCaption || userCaptionPlaceholder}</p>
+              </div>
+              <div className={`aact-live-caption-card aact-live-caption-ai ${liveAiCaption ? '' : 'aact-live-caption-empty'}`}>
+                <span className="aact-live-caption-label">المشرف</span>
+                <p>{liveAiCaption || aiCaptionPlaceholder}</p>
+              </div>
             </div>
           )}
 
