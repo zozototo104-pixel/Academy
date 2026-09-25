@@ -15,8 +15,23 @@ export async function GET(req: NextRequest) {
     const status = cleanAdminQuery(sp.get('status'))
     const method = cleanAdminQuery(sp.get('method'))
 
+    const knownStatuses = new Set(['PAID', 'UNPAID'])
+    const knownPurposes = new Set(['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT', 'ACCREDITATION_APP', 'ACCREDITATION_FEE', 'ACCREDITATION', 'SERVICE_FEE', 'AI_LIVE_CREDIT', 'OTHER'])
+    const manualPendingWhere = {
+      status: 'UNPAID',
+      OR: [
+        { method: { in: ['DIRECT_PAYMENT', 'USDT'] } },
+        { provider: { in: ['DIRECT_PAYMENT', 'USDT'] } },
+      ],
+    }
+
     const andFilters: any[] = []
-    if (status && status !== 'ALL') andFilters.push({ status })
+    if (status && status !== 'ALL') {
+      if (status === 'MANUAL_PENDING') andFilters.push(manualPendingWhere)
+      else if (knownStatuses.has(status)) andFilters.push({ status })
+      else if (knownPurposes.has(status)) andFilters.push({ purpose: status })
+      else andFilters.push({ status })
+    }
     if (method && method !== 'ALL') andFilters.push({ OR: [{ method }, { provider: method }] })
     if (search) {
       andFilters.push({
