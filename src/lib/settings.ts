@@ -62,6 +62,12 @@ function pad(n: number, len = 4): string {
   return String(n).padStart(len, '0')
 }
 
+function invoiceSequence(invoiceNo: string, prefix: string): number {
+  if (!invoiceNo.startsWith(prefix)) return 0
+  const n = Number(invoiceNo.slice(prefix.length))
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
 export async function nextSerial(prefix: string): Promise<string> {
   const year = new Date().getFullYear()
   const base = `${prefix}-${year}-`
