@@ -60,7 +60,8 @@ jobs:
           set -euo pipefail
           base="${E2E_BASE_URL%/}"
           url="$base/api/admin/full-journey"
-          echo "Waiting for deployed full journey schema v4: $url"
+          expected_schema=5
+          echo "Waiting for deployed full journey schema v${expected_schema}: $url"
           for i in {1..90}; do
             if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
               code=$(curl -sS -o /tmp/full-journey-route-check.txt -w "%{http_code}" \
@@ -72,13 +73,13 @@ jobs:
             fi
             body=$(cat /tmp/full-journey-route-check.txt || true)
             echo "Attempt $i: HTTP $code"
-            if echo "$body" | grep -q '"journeySchemaVersion":4'; then
-              echo "Full journey route schema v4 is deployed."
+            if echo "$body" | grep -q "\"journeySchemaVersion\":${expected_schema}"; then
+              echo "Full journey route schema v${expected_schema} is deployed. HTTP 403 is acceptable here because the schema probe is intentionally unauthenticated while the admin route remains protected."
               exit 0
             fi
             sleep 10
           done
-          echo "Full journey schema v4 was not deployed after waiting. Last response:"
+          echo "Full journey schema v${expected_schema} was not deployed after waiting. Last response:"
           cat /tmp/full-journey-route-check.txt || true
           exit 1
 
