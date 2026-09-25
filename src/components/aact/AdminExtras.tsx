@@ -888,6 +888,14 @@ export function AdminFinanceTab() {
                       <td className="max-w-48 p-3">
                         <div className="truncate font-bold text-slate-600">{p.description}</div>
                         <div className="text-[10px] text-slate-400">{PURPOSE_L[p.purpose] || p.purpose}{p.admission ? ` — ${p.admission.reference}` : ''}</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {p.status === 'UNPAID' && ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) && (
+                            <Badge className="bg-amber-100 text-[9px] font-black text-amber-700 hover:bg-amber-100">بانتظار تأكيد وصول المبلغ</Badge>
+                          )}
+                          {p.purpose === 'AI_LIVE_CREDIT' && (
+                            <Badge className="bg-indigo-100 text-[9px] font-black text-indigo-700 hover:bg-indigo-100">خدمة إضافية — لا تخصم من الرسوم الدراسية</Badge>
+                          )}
+                        </div>
                         {(p.method === 'USDT' || p.provider === 'USDT') && (
                           <div className="mt-1 space-y-0.5 rounded-lg bg-slate-50 p-2 text-[10px] font-bold text-slate-500">
                             <div>USDT: {p.cryptoNetwork || '—'} · {p.cryptoVerificationStatus || 'WAITING_TX'}</div>
