@@ -157,6 +157,7 @@ export async function POST(req: NextRequest) {
         : await tx.exam.create({ data: { unitId: unit.id, title: `اختبار وحدة: ${unit.title}`, passScore: 60 } })
 
       if (replace) {
+        await tx.examDraft.deleteMany({ where: { examId: exam.id, examType: 'UNIT' } })
         await tx.question.deleteMany({ where: { examId: exam.id } })
       }
 
