@@ -3,6 +3,7 @@ import { nextReceiptNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailPaymentReceipt, emailFinalRegistration } from '@/lib/mailer'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
+import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
 
 // ===== تسوية فاتورة: تُستخدم من تأكيد الدفع داخل المنصة ومن Webhook المزودين =====
 // تُطبق آثار السداد الكاملة: الإيصال + تحويل حالة طلب الالتحاق + تفعيل التسجيل + الإشعارات والبريد
