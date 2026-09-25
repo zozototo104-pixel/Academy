@@ -525,18 +525,27 @@
   0% { transform: scale(0.9); opacity: 0.8; }
   100% { transform: scale(1.45); opacity: 0; }
 }
-/* حالة نطق/تفكير ثابتة بصرياً دون تكبير أو دوران حتى لا تظهر رعشة على الجوال */
+/* نبض أثناء نطق المرسل الذكي */
 .aact-orb-speaking {
   background: radial-gradient(circle at 35% 30%, #ffffff 0%, #dfe8f2 40%, #9fb3c8 100%);
   box-shadow:
-    0 0 60px rgba(255, 255, 255, 0.36),
-    0 0 120px rgba(159, 179, 200, 0.22),
+    0 0 60px rgba(255, 255, 255, 0.4),
+    0 0 120px rgba(159, 179, 200, 0.25),
     inset 0 -10px 30px rgba(15, 43, 70, 0.2);
-  animation: none;
+  animation: aactOrbSpeak 1.1s infinite ease-in-out;
 }
+@keyframes aactOrbSpeak {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+/* دوران تأملي أثناء التفكير */
 .aact-orb-thinking {
-  filter: brightness(0.88);
-  animation: none;
+  animation: aactOrbThink 1.4s infinite linear;
+}
+@keyframes aactOrbThink {
+  0% { filter: brightness(1); transform: scale(0.97); }
+  50% { filter: brightness(0.75); transform: scale(0.93); }
+  100% { filter: brightness(1); transform: scale(0.97); }
 }
 /* شريط موجي مصغر يظهر حالة المايك أسفل الكرة */
 .aact-mini-wave {
