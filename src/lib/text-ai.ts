@@ -692,7 +692,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
 }
 
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
