@@ -827,6 +827,41 @@ export function AIChatView() {
         )}
       </div>
     )}
+
+    <Dialog open={voicePackageDialog.open} onOpenChange={(open) => setVoicePackageDialog((prev) => ({ ...prev, open }))}>
+      <DialogContent dir="rtl" className="max-w-md rounded-3xl border-[#e0b83a]/40 bg-white text-right">
+        <DialogHeader className="text-right">
+          <DialogTitle className="flex items-center gap-2 text-xl font-black text-[#0f2b46]">
+            <Phone className="h-5 w-5 text-[#c9a227]" /> باقة دقائق صوت إضافية
+          </DialogTitle>
+          <DialogDescription className="pt-2 text-sm font-bold leading-7 text-slate-600">
+            {voicePackageDialog.message}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-2xl border border-[#e0b83a]/30 bg-[#fffaf0] p-4 text-sm font-bold leading-7 text-[#0f2b46]">
+          <p className="font-black">ماذا سيحدث عند الشراء؟</p>
+          <p className="mt-1 text-slate-600">سيتم إنشاء فاتورة باقة صوت في تبويب الدفعات. بعد سدادها تضاف الدقائق إلى رصيدك تلقائياً وتستطيع تشغيل المكالمة الصوتية مرة أخرى.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button
+            onClick={startVoicePackagePurchase}
+            disabled={voicePackageBusy}
+            className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
+          >
+            {voicePackageBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Sparkles className="ml-2 h-4 w-4" />}
+            شراء باقة صوت
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setVoicePackageDialog({ open: false, message: '' })}
+            className="border-[#0f2b46]/20 font-black text-[#0f2b46]"
+          >
+            المتابعة كتابةً الآن
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <div className="aact-fade-in mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-[#0f2b46]/10 pb-3">
