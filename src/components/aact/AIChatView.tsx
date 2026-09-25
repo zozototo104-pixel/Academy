@@ -643,8 +643,13 @@ export function AIChatView() {
       ? ['اعرض لي طلابي المعيّنين وحالة أبحاثهم', 'كيف أجهز ملاحظات مناقشة بحث؟', 'ما الأسئلة المناسبة لطالب قبل المناقشة؟', 'كيف أتابع طالباً متعثراً في البحث؟']
       : QUICK_QUESTIONS
   const liveUserCaption = liveCaption.trim()
-  const liveAiCaption = voiceState === 'AI_SPEAKING' ? lastReply.trim() : ''
-  const hasLiveCaptions = showCaptions && (liveUserCaption || liveAiCaption)
+  const liveAiCaption = lastReply.trim()
+  const userCaptionPlaceholder = listeningForUI ? 'أستمع إليك… سيظهر كلامك هنا بثبات' : 'كلامك سيظهر هنا عند بدء الحديث'
+  const aiCaptionPlaceholder = voiceState === 'AI_SPEAKING'
+    ? 'المشرف يجيب الآن…'
+    : voiceState === 'THINKING'
+      ? 'المشرف يعالج سؤالك…'
+      : 'رد المشرف سيظهر هنا دون أن يقفز النص'
 
   return (
     <>
