@@ -100,7 +100,11 @@ if [ "$deploy_status" != "200" ] || ! echo "$deploy_type" | grep -qi 'applicatio
   fail_check deploy-info "deployment info route must return 200 JSON. If this is 404, the tested URL has not deployed the current smoke-support routes yet."
 fi
 if [ -n "${deployed_commit:-}" ] && [ -n "${GITHUB_SHA:-}" ] && [ "$deployed_commit" != "local" ] && [ "$deployed_commit" != "$GITHUB_SHA" ]; then
-  fail_check deploy-info "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
+  if [ "${E2E_ENFORCE_COMMIT_MATCH:-1}" = "1" ]; then
+    fail_check deploy-info "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
+  else
+    echo "::warning title=deploy-info commit mismatch::E2E_BASE_URL is serving commit ${deployed_commit}, while this workflow is running from ${GITHUB_SHA}. Continuing because E2E_ENFORCE_COMMIT_MATCH=0."
+  fi
 fi
 
 health_status=$(curl_json health GET "$base/api/health")
