@@ -1,0 +1,265 @@
+name: Prelaunch Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Production URL to validate before public launch"
+        required: true
+        default: "https://academy-raqaba.vercel.app"
+      route_limit:
+        description: "Maximum number of UI routes to crawl"
+        required: false
+        default: "120"
+      run_full_journey:
+        description: "Run destructive-safe full student/admin/payment journey with cleanup"
+        type: boolean
+        required: false
+        default: true
+      run_launch_quality:
+        description: "Run launch quality suite: AI, curriculum, thesis, voice readiness"
+        type: boolean
+        required: false
+        default: true
+      run_ux_mobile_perf:
+        description: "Run UX, mobile, and performance guardrail suites"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prelaunch-release-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  production-smoke:
+    name: Production health and public pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    env:
+      BASE_URL: ${{ inputs.base_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Check health, login, programs, and home pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${BASE_URL%/}"
+          mkdir -p test-results/prelaunch/http
+
+          header_args=()
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+            header_args=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" -H "x-vercel-set-bypass-cookie: true")
+          fi
+
+          check_url() {
+            local path="$1"
+            local name="$2"
+            local out="test-results/prelaunch/http/${name}.txt"
+            local body="test-results/prelaunch/http/${name}.body"
+            local status
+            status=$(curl -sS -L --retry 2 --max-time 25 "${header_args[@]}" -o "$body" -w "%{http_code}" "$base$path" || true)
+            {
+              echo "url=$base$path"
+              echo "status=$status"
+              echo "body_start:"
+              head -c 2000 "$body" || true
+            } > "$out"
+            if [ "$status" -lt 200 ] || [ "$status" -ge 500 ]; then
+              echo "Prelaunch HTTP check failed for $path with status $status"
+              cat "$out"
+              exit 1
+            fi
+          }
+
+          check_url "/api/health" "api-health"
+          check_url "/" "home"
+          check_url "/login" "login"
+          check_url "/programs" "programs"
+
+      - name: Upload production smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prelaunch-production-smoke
+          path: test-results/prelaunch/http/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  static-build:
+    name: TypeScript and clean Next.js build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aact_ci?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/aact_ci?schema=public
+      NEXTAUTH_SECRET: ci-nextauth-secret-not-used-in-production
+      AUTH_SECRET: ci-auth-secret-not-used-in-production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Remove legacy conflicting book route before Next.js route collection
+        run: rm -rf 'src/app/api/books/[bookId]'
+
+      - name: Run TypeScript check
+        run: bun run typecheck
+
+      - name: Build Next.js application
+        run: bunx next build
+
+  critical-e2e:
+    name: Admin, routes, books, payments, certificates, and full journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs:
+      - production-smoke
+      - static-build
+
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      ROUTE_SMOKE_LIMIT: ${{ inputs.route_limit }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL || secrets.ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD || secrets.ADMIN_PASSWORD }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Verify required admin E2E secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in E2E_BASE_URL E2E_ADMIN_EMAIL E2E_ADMIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required value: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Strict E2E preflight
+        shell: bash
+        env:
+          E2E_PREFLIGHT_DIR: test-results/prelaunch/preflight
+        run: bash scripts/e2e-strict-preflight.sh
+
+      - name: Run admin launch smoke test
+        run: bun run e2e:admin
+
+      - name: Run full platform journey
+        if: ${{ inputs.run_full_journey }}
+        run: bun run e2e:journey
+
+      - name: Run full platform route crawler
+        run: bun run e2e:routes
+
+      - name: Upload critical E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prelaunch-critical-e2e
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  experience-guardrails:
+    name: Launch quality, UX, mobile, and performance guardrails
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs:
+      - critical-e2e
+    if: ${{ inputs.run_launch_quality || inputs.run_ux_mobile_perf }}
+
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL || secrets.ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD || secrets.ADMIN_PASSWORD }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD }}
+      E2E_RUN_VOICE_TOKEN: "0"
+      E2E_REQUIRE_VOICE_READY: "0"
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run launch quality suite
+        if: ${{ inputs.run_launch_quality }}
+        run: bun run e2e:quality
+
+      - name: Run UX guardrails
+        if: ${{ inputs.run_ux_mobile_perf }}
+        run: bun run e2e:ux
+
+      - name: Run mobile UX guardrails
+        if: ${{ inputs.run_ux_mobile_perf }}
+        run: bun run e2e:mobile
+
+      - name: Run performance guardrails
+        if: ${{ inputs.run_ux_mobile_perf }}
+        run: bun run e2e:perf
+
+      - name: Upload experience guardrail diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prelaunch-experience-guardrails
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14
