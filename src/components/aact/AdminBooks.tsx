@@ -910,13 +910,17 @@ export function AdminBooksTab() {
     if (!programId) return
     const hasExam = Boolean(unit.exam?.id)
     const attemptsCount = unit.exam?.attemptsCount || 0
+    if (attemptsCount > 0) {
+      toast({ title: 'لا يمكن إعادة التوليد', description: 'هذا الاختبار لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.', variant: 'destructive' })
+      return
+    }
     const confirmed = await askAdminConfirm({
       title: hasExam ? 'إعادة توليد اختبار الوحدة' : 'توليد اختبار الوحدة',
       description: hasExam
-        ? `سيتم استبدال أسئلة اختبار «${unit.title}» الحالية (${unit.exam?.questionsCount || 0} سؤال).${attemptsCount ? ' توجد محاولات طلابية سابقة؛ سيتم التوليد بتأكيد إداري.' : ''}`
+        ? `سيتم استبدال أسئلة اختبار «${unit.title}» الحالية (${unit.exam?.questionsCount || 0} سؤال).`
         : `سيتم إنشاء اختبار قصير لوحدة «${unit.title}» من أهداف ومحاور الوحدة.`,
       confirmLabel: hasExam ? 'إعادة التوليد' : 'توليد الاختبار',
-      danger: hasExam && attemptsCount > 0,
+      danger: hasExam,
     })
     if (!confirmed) return
     setUnitBusyId(unit.id)
