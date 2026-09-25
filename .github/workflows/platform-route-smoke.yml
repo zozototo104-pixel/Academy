@@ -1,4 +1,4 @@
-name: Platform Route Smoke
+name: Platform Route Smoke - فحص كل صفحات المنصة
 
 on:
   workflow_dispatch:
