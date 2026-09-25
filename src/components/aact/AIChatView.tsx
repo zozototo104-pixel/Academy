@@ -143,6 +143,7 @@ export function AIChatView() {
   const [showTimings, setShowTimings] = useState(false) // HUD زمن المراحل
   const [timings, setTimings] = useState<{ event: string; atMs: number }[]>([])
   const [voicePackageDialog, setVoicePackageDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' })
+  const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
   const [voicePackageBusy, setVoicePackageBusy] = useState(false)
   const agentRef = useRef<VoiceAgent | null>(null)
   const mutedRef = useRef(false)
