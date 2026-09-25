@@ -673,7 +673,7 @@ export function AIChatView() {
 
         {/* الكرة الصوتية + التسميات */}
         <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
-          <div className="relative flex items-center justify-center">
+          <div className="aact-voice-orb-stage relative flex items-center justify-center">
             <span className="aact-voice-halo" />
             <span className="aact-voice-halo h2" />
             {listeningForUI && !muted && (
