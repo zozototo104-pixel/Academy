@@ -1,6 +1,8 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 
+const ROUTE_REPORT_DIR = 'test-results/platform-routes'
+
 const ROUTE_LIMIT = Number(process.env.ROUTE_SMOKE_LIMIT || 80)
 const DISCOVERY_LIMIT = Number(process.env.ROUTE_SMOKE_DISCOVERY_LIMIT || 50)
 
