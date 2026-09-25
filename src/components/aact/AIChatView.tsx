@@ -343,6 +343,39 @@ export function AIChatView() {
     [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast]
   )
 
+  const friendlyLiveMinutesMessage = (message?: string | null) => {
+    const raw = String(message || '')
+    if (!raw.trim()) return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً فوراً، أو شراء باقة دقائق صوت إضافية لتفعيل المكالمة الصوتية من جديد.'
+    if (raw.includes('انتهت دقائق') || raw.includes('Gemini Live') || raw.includes('دقائق صوت')) {
+      return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. تستطيع متابعة الحديث كتابةً الآن، أو شراء باقة دقائق صوت إضافية لاستخدام المشرف بالصوت.'
+    }
+    return raw
+  }
+
+  const openVoicePackageDialog = (message?: string | null) => {
+    setVoicePackageDialog({ open: true, message: friendlyLiveMinutesMessage(message) })
+  }
+
+  const startVoicePackagePurchase = async () => {
+    setVoicePackageBusy(true)
+    try {
+      const res = await api<{ ok: boolean; invoiceNo: string; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setVoicePackageDialog({ open: false, message: '' })
+      toast({
+        title: 'تم إنشاء فاتورة باقة الصوت',
+        description: `فاتورة ${res.invoiceNo}: ${res.minutes} دقيقة صوت إضافية — انتقل إلى الدفعات لإتمام السداد.`,
+      })
+      navigate('dashboard', { tab: 'payments', invoice: res.invoiceNo })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء فاتورة الباقة', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setVoicePackageBusy(false)
+    }
+  }
+
   // ===== الوضع الصوتي الحي — عبر VoiceAgent (VAD + End-of-Turn ذكي + بث كامل + Barge-in) =====
   const toggleVoiceMode = () => {
     if (voiceMode) {
