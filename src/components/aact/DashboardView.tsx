@@ -162,6 +162,15 @@ interface ProgressData {
       missingUnitExams: { id: string; title: string }[]
       missingAssignments: { id: string; title: string; weight: number }[]
     } | null
+    tuitionGate?: {
+      allowed: boolean
+      code: string | null
+      totalTuition: number
+      paidTuition: number
+      requiredAmount: number
+      remainingTuition: number
+      message: string | null
+    }
   }[]
   units: UnitInfo[]
 }
