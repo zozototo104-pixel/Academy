@@ -719,9 +719,21 @@ export function AdminFinanceTab() {
   const filteredPayments = payments
   const pagedPayments = payments
   const currentPaymentPage = paymentPage
+  const manualPendingCount = Number(totals.manualPendingCount || 0)
+  const manualPendingAmount = Number(totals.manualPendingAmount || 0)
+  const manualAiLiveCreditCount = Number(totals.manualAiLiveCreditCount || 0)
+  const manualAiLiveCreditAmount = Number(totals.manualAiLiveCreditAmount || 0)
 
   const PURPOSE_L: Record<string, string> = {
-    APPLICATION_FEE: 'رسوم تقديم', TUITION: 'رسوم دراسية', ACCREDITATION_APP: 'تقديم اعتماد', ACCREDITATION_FEE: 'رسوم تقديم اعتماد', ACCREDITATION: 'اعتماد', SERVICE_FEE: 'رسوم خدمة', OTHER: 'أخرى',
+    APPLICATION_FEE: 'رسوم تقديم',
+    TUITION: 'رسوم دراسية',
+    TUITION_INSTALLMENT: 'دفعة رسوم دراسية',
+    ACCREDITATION_APP: 'تقديم اعتماد',
+    ACCREDITATION_FEE: 'رسوم تقديم اعتماد',
+    ACCREDITATION: 'اعتماد',
+    SERVICE_FEE: 'رسوم خدمة',
+    AI_LIVE_CREDIT: 'باقة دقائق صوت للمشرف الذكي',
+    OTHER: 'أخرى',
   }
 
   return (
