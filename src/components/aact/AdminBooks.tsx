@@ -927,7 +927,7 @@ export function AdminBooksTab() {
     try {
       await api('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: 6, replace: true, force: attemptsCount > 0 }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: 6, replace: true }),
       })
       await refreshCurriculumUnits(programId)
       await refreshProgramReadiness()
