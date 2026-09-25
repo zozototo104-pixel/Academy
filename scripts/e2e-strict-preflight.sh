@@ -90,18 +90,27 @@ fi
 echo "Strict E2E preflight base URL: $base"
 echo "Workflow commit: ${GITHUB_SHA:-unknown}"
 
+deploy_status=$(curl_json deploy-info GET "$base/api/deploy-info")
+deploy_type=$(awk -F= '/^content_type=/{print $2}' "$out/deploy-info.meta")
+deployed_commit=$(json_field "$out/deploy-info.body" version.commit)
+deployed_env=$(json_field "$out/deploy-info.body" version.env)
+echo "Deploy info: HTTP $deploy_status; content-type=$deploy_type; deployed_commit=${deployed_commit:-unknown}; env=${deployed_env:-unknown}"
+
+if [ "$deploy_status" != "200" ] || ! echo "$deploy_type" | grep -qi 'application/json'; then
+  fail_check deploy-info "deployment info route must return 200 JSON. If this is 404, the tested URL has not deployed the current smoke-support routes yet."
+fi
+if [ -n "${deployed_commit:-}" ] && [ -n "${GITHUB_SHA:-}" ] && [ "$deployed_commit" != "local" ] && [ "$deployed_commit" != "$GITHUB_SHA" ]; then
+  fail_check deploy-info "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
+fi
+
 health_status=$(curl_json health GET "$base/api/health")
 health_type=$(awk -F= '/^content_type=/{print $2}' "$out/health.meta")
 health_ok=$(json_field "$out/health.body" ok)
-deployed_commit=$(json_field "$out/health.body" version.commit)
 health_state=$(json_field "$out/health.body" status)
-echo "Health: HTTP $health_status; content-type=$health_type; ok=$health_ok; status=$health_state; deployed_commit=${deployed_commit:-unknown}"
+echo "Health: HTTP $health_status; content-type=$health_type; ok=$health_ok; status=$health_state"
 
 if ! echo "$health_type" | grep -qi 'application/json'; then
   fail_check health "health must return JSON. HTML 500 means the deployed app crashed before reporting readiness."
-fi
-if [ -n "${deployed_commit:-}" ] && [ -n "${GITHUB_SHA:-}" ] && [ "$deployed_commit" != "local" ] && [ "$deployed_commit" != "$GITHUB_SHA" ]; then
-  fail_check health "E2E_BASE_URL is serving commit ${deployed_commit}, but this workflow is testing commit ${GITHUB_SHA}. Wait for deployment or pass the matching preview URL."
 fi
 if [ "$health_status" != "200" ] || [ "$health_ok" != "true" ]; then
   fail_check health "deep health check is not ready. The JSON body contains the failing dependency."
@@ -122,12 +131,6 @@ if [ "$login_status" != "200" ] || ! echo "$login_type" | grep -qi 'application/
 fi
 
 if [ "${CHECK_LAUNCH_QUALITY:-0}" = "1" ]; then
-  quality_headers="$out/launch-quality.headers.json"
-  python - <<PY > "$quality_headers"
-import json, os
-print(json.dumps({"Authorization": "Bearer ${login_token}"}))
-PY
-  # curl_json supports only JSON bodies, so call curl directly for the authenticated GET.
   quality_body="$out/launch-quality.body"
   quality_header_file="$out/launch-quality.headers"
   quality_status=$(curl -sS -L -X GET -D "$quality_header_file" -o "$quality_body" -w '%{http_code}' \
