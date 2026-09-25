@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     }
     const where: any = andFilters.length ? { AND: andFilters } : {}
 
-    const [payments, total, paidCount, paidSum, unpaidSum] = await Promise.all([
+    const [payments, total, paidCount, paidSum, unpaidSum, manualPendingCount, manualPendingSum, manualAiPendingCount, manualAiPendingSum] = await Promise.all([
       db.payment.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -64,12 +64,20 @@ export async function GET(req: NextRequest) {
       db.payment.count({ where: { ...where, status: 'PAID' } }),
       db.payment.aggregate({ where: { ...where, status: 'PAID' }, _sum: { amount: true } }),
       db.payment.aggregate({ where: { ...where, status: 'UNPAID' }, _sum: { amount: true } }),
+      db.payment.count({ where: manualPendingWhere }),
+      db.payment.aggregate({ where: manualPendingWhere, _sum: { amount: true } }),
+      db.payment.count({ where: { AND: [manualPendingWhere, { purpose: 'AI_LIVE_CREDIT' }] } }),
+      db.payment.aggregate({ where: { AND: [manualPendingWhere, { purpose: 'AI_LIVE_CREDIT' }] }, _sum: { amount: true } }),
     ])
     const totals = {
       collected: paidSum._sum.amount || 0,
       pending: unpaidSum._sum.amount || 0,
       count: total,
       paidCount,
+      manualPendingCount,
+      manualPendingAmount: manualPendingSum._sum.amount || 0,
+      manualAiLiveCreditCount: manualAiPendingCount,
+      manualAiLiveCreditAmount: manualAiPendingSum._sum.amount || 0,
     }
     return NextResponse.json({ payments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
