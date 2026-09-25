@@ -1,0 +1,78 @@
+name: Platform Route Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Production or preview URL to crawl"
+        required: true
+        default: "https://academy-raqaba.vercel.app"
+      route_limit:
+        description: "Maximum number of UI routes to visit"
+        required: false
+        default: "80"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-route-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route-smoke:
+    name: Crawl platform pages for crashes
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url || secrets.BASE_URL }}
+      ROUTE_SMOKE_LIMIT: ${{ inputs.route_limit }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL || secrets.ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD || secrets.ADMIN_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Verify route smoke inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in E2E_BASE_URL E2E_ADMIN_EMAIL E2E_ADMIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required value: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Run platform route smoke crawler
+        run: bun run e2e:routes
+
+      - name: Upload route smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-route-smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
