@@ -199,6 +199,10 @@ export async function POST(req: NextRequest) {
     const { programId, unitId, action, semester } = await req.json()
     if (action === 'READY_FOR_EXAM') {
       if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
+      const tuitionGate = await enforceSemesterTuitionGate(user.id, programId, Number(semester))
+      if (!tuitionGate.ok) {
+        return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
+      }
       const readiness = await markSemesterReady(user.id, programId, Number(semester))
       const message = readiness.complete
         ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
