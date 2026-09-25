@@ -906,6 +906,35 @@ export function AdminBooksTab() {
     }
   }
 
+  const generateUnitExam = async (unit: CurriculumUnitReviewItem) => {
+    if (!programId) return
+    const hasExam = Boolean(unit.exam?.id)
+    const attemptsCount = unit.exam?.attemptsCount || 0
+    const confirmed = await askAdminConfirm({
+      title: hasExam ? 'إعادة توليد اختبار الوحدة' : 'توليد اختبار الوحدة',
+      description: hasExam
+        ? `سيتم استبدال أسئلة اختبار «${unit.title}» الحالية (${unit.exam?.questionsCount || 0} سؤال).${attemptsCount ? ' توجد محاولات طلابية سابقة؛ سيتم التوليد بتأكيد إداري.' : ''}`
+        : `سيتم إنشاء اختبار قصير لوحدة «${unit.title}» من أهداف ومحاور الوحدة.`,
+      confirmLabel: hasExam ? 'إعادة التوليد' : 'توليد الاختبار',
+      danger: hasExam && attemptsCount > 0,
+    })
+    if (!confirmed) return
+    setUnitBusyId(unit.id)
+    try {
+      await api('/api/admin/unit-exams/generate', {
+        method: 'POST',
+        body: JSON.stringify({ programId, unitId: unit.id, count: 6, replace: true, force: attemptsCount > 0 }),
+      })
+      await refreshCurriculumUnits(programId)
+      await refreshProgramReadiness()
+      toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: 'سيظهر الاختبار للطالب داخل صفحة الوحدة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد اختبار الوحدة', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
     const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`)
