@@ -173,6 +173,29 @@ export async function markInvoicePaid(
     }
   }
 
+  // آثار سداد باقة دقائق الصوت: إضافة الرصيد تلقائياً لحساب المستخدم
+  if (payment.purpose === 'AI_LIVE_CREDIT' && updated.userId) {
+    const minutesFromDescription = Number((payment.description.match(/(\d+)\s*دقيقة/) || [])[1] || 0)
+    const minutes = minutesFromDescription > 0 ? minutesFromDescription : Math.max(1, Math.floor(payment.amount * 6))
+    const existingCredit = await db.aiLiveCredit.findFirst({ where: { paymentId: updated.id } }).catch(() => null)
+    if (!existingCredit) {
+      await grantGeminiLiveCredit({
+        userId: updated.userId,
+        minutes,
+        source: 'PURCHASE',
+        paymentId: updated.id,
+        note: `فاتورة ${updated.invoiceNo} — ${payment.description}`,
+      })
+    }
+    await notify(
+      updated.userId,
+      'PAYMENT',
+      'تم تفعيل باقة دقائق الصوت',
+      `تمت إضافة ${minutes} دقيقة صوت إضافية إلى رصيدك بعد سداد فاتورة ${updated.invoiceNo}. يمكنك الآن تشغيل المحادثة الصوتية مع المشرف الذكي.`,
+      'chat'
+    ).catch(() => {})
+  }
+
   // آثار السداد على طلب اعتماد شركة/مؤسسة: إشعار صاحب الطلب + بريد الإيصال
   if (payment.agentId) {
     const agent = await db.agentApplication.findUnique({ where: { id: payment.agentId } })
