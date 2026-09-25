@@ -268,24 +268,34 @@ export function UnitView() {
       )}
 
       {/* 12.2: امتحانات الفصول الدراسية من الكتب المقررة */}
-      {(data.semesterExams || (data.finalExam ? [data.finalExam] : [])).map((exam: any) => (
-        <div key={exam.id} className="mt-4 flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/15 bg-[#0f2b46] p-5 text-[#f5f0e1] sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-black">
-              <BookMarked className="h-4 w-4 text-[#e0b83a]" /> {exam.title}
-            </h3>
-            <p className="mt-1 text-xs leading-relaxed text-[#e0b83a]/90">
-              {exam.questionCount} سؤالاً متنوعاً · المدة {exam.durationMin} دقيقة · حد النجاح {exam.passScore}% — مُولَّد ومُصحَّح بخبير الذكاء الاصطناعي
-            </p>
+      {(data.semesterExams || (data.finalExam ? [data.finalExam] : [])).map((exam: any) => {
+        const tuitionGate = exam.tuitionGate
+        const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
+        return (
+          <div key={exam.id} className="mt-4 flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/15 bg-[#0f2b46] p-5 text-[#f5f0e1] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black">
+                <BookMarked className="h-4 w-4 text-[#e0b83a]" /> {exam.title}
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-[#e0b83a]/90">
+                {exam.questionCount} سؤالاً متنوعاً · المدة {exam.durationMin} دقيقة · حد النجاح {exam.passScore}% — مُولَّد ومُصحَّح بخبير الذكاء الاصطناعي
+              </p>
+              {tuitionLocked && tuitionGate?.message ? (
+                <div className="mt-3 rounded-xl bg-amber-100/15 p-3 text-[11px] font-extrabold leading-5 text-amber-100">
+                  {tuitionGate.message}
+                </div>
+              ) : null}
+            </div>
+            <Button
+              onClick={() => (tuitionLocked ? null : openExam(exam.id, 'final'))}
+              disabled={tuitionLocked}
+              className={`shrink-0 font-extrabold ${tuitionLocked ? 'cursor-not-allowed bg-slate-300 text-slate-700 hover:bg-slate-300' : 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]'}`}
+            >
+              <Hourglass className="ml-1 h-4 w-4" /> {tuitionLocked ? 'مغلق لحين السداد' : 'ابدأ امتحان الفصل'}
+            </Button>
           </div>
-          <Button
-            onClick={() => openExam(exam.id, 'final')}
-            className="shrink-0 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]"
-          >
-            <Hourglass className="ml-1 h-4 w-4" /> ابدأ امتحان الفصل
-          </Button>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Actions */}
       <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[#c9a227]/40 bg-[#f7edd0]/30 p-5 sm:flex-row sm:items-center sm:justify-between">
