@@ -55,6 +55,9 @@ function friendlyClientError(e: unknown): string {
   if (/mediaDevices|getUserMedia|secure context|HTTPS/i.test(raw)) {
     return 'هذا المتصفح لا يسمح بالمايكروفون هنا. افتح الموقع عبر HTTPS ومن Safari/Chrome مباشرة.'
   }
+  if (/انتهت دقائق|دقائق صوت|LIVE_MINUTES|402/i.test(raw)) {
+    return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك استخدام المشرف النصي أو شراء باقة دقائق صوت إضافية.'
+  }
   if (/429|RESOURCE_EXHAUSTED|quota|rate limit/i.test(raw)) {
     return 'انتهت حصة Gemini Live مؤقتاً. فعّل Billing أو انتظر إعادة ضبط الحصة.'
   }
