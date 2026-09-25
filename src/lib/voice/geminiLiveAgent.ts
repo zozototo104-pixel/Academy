@@ -274,7 +274,9 @@ export class GeminiLiveAgent {
           await this.openRawSocket(session)
           return
         } catch (e) {
-          failures.push(`WS/${variant}/${model || 'saved'}: ${String((e as any)?.message || e).slice(0, 160)}`)
+          const msg = String((e as any)?.message || e)
+          if (/انتهت دقائق|دقائق صوت|LIVE_MINUTES|402/i.test(msg)) throw e
+          failures.push(`WS/${variant}/${model || 'saved'}: ${msg.slice(0, 160)}`)
           this.closeConnectionOnly()
         }
       }
