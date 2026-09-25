@@ -687,7 +687,6 @@ export function AIChatView() {
               onClick={() => agentRef.current?.interrupt()}
               aria-label="اضغط لمقاطعة الرد"
               className={`aact-voice-orb flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52 ${voiceState === 'AI_SPEAKING' ? 'aact-orb-speaking' : voiceState === 'THINKING' ? 'aact-orb-thinking' : ''}`}
-              style={{ transform: listeningForUI ? `scale(${1 + micLevel * 0.4})` : undefined }}
             >
               <span className="aact-voice-orb-inner" />
               {listeningForUI ? (
