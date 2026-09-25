@@ -25,8 +25,8 @@ interface Msg {
   id: string
   role: 'user' | 'assistant'
   content: string
-  mode?: string // TEXT | VOICE
-  kind?: string | null // THESIS_REVIEW
+  mode?: string
+  kind?: string | null
   agent?: string | null
   engine?: string | null
   time?: string
@@ -53,7 +53,6 @@ const FEEDBACK_REASONS = [
   { value: 'OTHER', label: 'سبب آخر' },
 ]
 
-// ===== Web Speech API typings =====
 interface SpeechRecognitionEventLike {
   resultIndex: number
   results: { length: number; [i: number]: { 0: { transcript: string }; isFinal: boolean } }
@@ -76,8 +75,6 @@ function getRecognition(): SpeechRecognitionLike | null {
   if (!SR) return null
   const rec: SpeechRecognitionLike = new SR()
   rec.lang = 'ar-SA'
-  // نخليه مستمر قدر الإمكان. Safari/Chrome قد يوقفه تلقائياً عند الصمت،
-  // لذلك نعيد تشغيله من onend إذا لم يكن الإيقاف بطلب المستخدم.
   rec.continuous = true
   rec.interimResults = true
   rec.maxAlternatives = 1
@@ -101,7 +98,6 @@ function buildSpeechText(text: string): string {
     .trim()
 }
 
-// ===== نتائج تحليل مسودة البحث =====
 interface ThesisReview {
   overallScore: number
   verdict: string
@@ -129,18 +125,14 @@ export function AIChatView() {
   const [feedbackDialog, setFeedbackDialog] = useState<{ open: boolean; message: Msg | null }>({ open: false, message: null })
   const [feedbackReason, setFeedbackReason] = useState('TOO_GENERAL')
   const [feedbackNote, setFeedbackNote] = useState('')
-
-  // ===== المحادثة الصوتية الحية — VoiceAgent حقيقي ثنائي الاتجاه =====
-  // المسار: مايك+AEC → VAD → STT حي → End-of-Turn ذكي → LLM streaming
-  //        → Semantic Chunker → Prosody → TTS streaming → مشغل متواصل + Barge-in
   const [voiceMode, setVoiceMode] = useState(false)
   const [voiceState, setVoiceState] = useState<AgentVoiceState>('IDLE')
   const [lastReply, setLastReply] = useState('')
   const [liveCaption, setLiveCaption] = useState('')
   const [muted, setMuted] = useState(false)
-  const [micLevel, setMicLevel] = useState(0) // 0..1 — من VAD الحقيقي
+  const [micLevel, setMicLevel] = useState(0)
   const [showCaptions, setShowCaptions] = useState(true)
-  const [showTimings, setShowTimings] = useState(false) // HUD زمن المراحل
+  const [showTimings, setShowTimings] = useState(false)
   const [timings, setTimings] = useState<{ event: string; atMs: number }[]>([])
   const [voicePackageDialog, setVoicePackageDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' })
   const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
@@ -149,7 +141,6 @@ export function AIChatView() {
   const mutedRef = useRef(false)
   mutedRef.current = muted
 
-  // ===== 12.1: تحليل مسودة بحث التخرج =====
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewTitle, setReviewTitle] = useState('')
   const [reviewText, setReviewText] = useState('')
@@ -166,38 +157,31 @@ export function AIChatView() {
   voiceModeRef.current = voiceMode
   const activeUnitRef = useRef<string | null>(null)
   activeUnitRef.current = activeUnitId ?? null
-  // مسجل بديل ASR خادمي (لمتصفحات بلا Web Speech API)
   const asrRecorderRef = useRef<MediaRecorder | null>(null)
   const speechDraftRef = useRef('')
   const micManualStopRef = useRef(false)
   const micRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load history
   useEffect(() => {
     if (!user) return
     setLoadingHistory(true)
     api<{ messages: any[] }>('/api/chat')
-      .then((d) =>
-        setMessages(
-          d.messages.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            mode: m.mode,
-            kind: m.kind,
-            time: new Date(m.createdAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-          }))
-        )
-      )
+      .then((d) => setMessages(d.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        mode: m.mode,
+        kind: m.kind,
+        time: new Date(m.createdAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
+      }))))
       .catch(() => {})
       .finally(() => setLoadingHistory(false))
   }, [user])
 
-  // Check STT support
   useEffect(() => {
     const w = window as any
     setSttSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
-    unlockAudioOnFirstGesture() // فتح قناة الصوت بأول لمسة — ضروري لنطق الردود على iOS
+    unlockAudioOnFirstGesture()
     return () => {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
@@ -207,22 +191,17 @@ export function AIChatView() {
     }
   }, [])
 
-  // Auto scroll
   useEffect(() => {
     if (!voiceMode) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, interim, sending, voiceMode])
 
-  // ===== نطق ردود الدردشة النصية عبر صوت Gemini/TTS الطبيعي فقط =====
   const fetchSpeechUrl = useCallback(async (text: string): Promise<string> => {
     const speechText = buildSpeechText(text)
     if (!speechText) throw new Error('النص المطلوب نطقه فارغ')
     const token = getToken()
     const res = await fetch('/api/ai/tts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ text: speechText, speed: 1.12 }),
     })
     if (!res.ok) {
@@ -240,7 +219,6 @@ export function AIChatView() {
     }
     try { window.speechSynthesis?.cancel() } catch {}
     speechUtteranceRef.current = null
-
     const audio = getSharedAudio()
     audioRef.current = audio
     setSpeakingId(msgId)
@@ -258,91 +236,53 @@ export function AIChatView() {
     setSpeakingId(null)
     if (!voiceModeRef.current) {
       const msg = String(e?.message || '').trim()
-      toast({
-        title: 'تنبيه',
-        description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى',
-        variant: 'destructive',
-      })
+      toast({ title: 'تنبيه', description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى', variant: 'destructive' })
     }
   }, [toast])
 
-  const speak = useCallback(
-    async (text: string, msgId: string) => {
-      try {
-        const url = await fetchSpeechUrl(text)
-        await playSpeechUrl(url, msgId)
-      } catch (e: any) {
-        showSpeechError(e)
-      }
-    },
-    [fetchSpeechUrl, playSpeechUrl, showSpeechError]
-  )
+  const speak = useCallback(async (text: string, msgId: string) => {
+    try {
+      const url = await fetchSpeechUrl(text)
+      await playSpeechUrl(url, msgId)
+    } catch (e: any) {
+      showSpeechError(e)
+    }
+  }, [fetchSpeechUrl, playSpeechUrl, showSpeechError])
 
-  // ===== إرسال الرسالة للخادم مع حفظ القناة (نص/صوت) =====
-  const send = useCallback(
-    async (textArg?: string, opts?: { voice?: boolean; fromVoiceLoop?: boolean }) => {
-      const text = (textArg ?? input).trim()
-      if (!text || (sending && !opts?.fromVoiceLoop)) return
-      setInput('')
-      setInterim('')
-      const voice = !!opts?.voice
-      if (voice) {
-        setLiveCaption(text)
+  const send = useCallback(async (textArg?: string, opts?: { voice?: boolean; fromVoiceLoop?: boolean }) => {
+    const text = (textArg ?? input).trim()
+    if (!text || (sending && !opts?.fromVoiceLoop)) return
+    setInput('')
+    setInterim('')
+    const voice = !!opts?.voice
+    if (voice) setLiveCaption(text)
+    const userMsg: Msg = { id: `tmp-${Date.now()}`, role: 'user', content: text, mode: voice ? 'VOICE' : 'TEXT', time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) }
+    setMessages((prev) => [...prev, userMsg])
+    setSending(true)
+    try {
+      const unitCtx = activeUnitRef.current ? `الطالب يقرأ الآن وحدة دراسية في منصة الأكاديمية (معرف الوحدة: ${activeUnitRef.current}) — إن كان سؤاله عن درسه الحالي فاربط إجابتك به.` : undefined
+      const d = await api<{ reply: string; messageId: string; agent?: string; engine?: string }>('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: text, mode: voice ? 'VOICE' : 'TEXT', context: unitCtx }),
+      })
+      const aiMsg: Msg = { id: d.messageId, role: 'assistant', content: d.reply, mode: voice ? 'VOICE' : 'TEXT', agent: d.agent || null, engine: d.engine || null, time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) }
+      let preparedVoiceUrl: string | null = null
+      if (voice && autoSpeakRef.current) {
+        try { preparedVoiceUrl = await fetchSpeechUrl(d.reply) } catch (e) { showSpeechError(e) }
       }
-      const userMsg: Msg = {
-        id: `tmp-${Date.now()}`,
-        role: 'user',
-        content: text,
-        mode: voice ? 'VOICE' : 'TEXT',
-        time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
+      setMessages((prev) => [...prev, aiMsg])
+      if (autoSpeakRef.current) {
+        if (preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
+        else if (!voice) speak(d.reply, d.messageId)
       }
-      setMessages((prev) => [...prev, userMsg])
-      setSending(true)
-      try {
-        // ربط سؤال الطالب بالوحدة الدراسية التي يقرؤها الآن (سياق حي للمشرف الذكي)
-        const unitCtx = activeUnitRef.current
-          ? `الطالب يقرأ الآن وحدة دراسية في منصة الأكاديمية (معرف الوحدة: ${activeUnitRef.current}) — إن كان سؤاله عن درسه الحالي فاربط إجابتك به.`
-          : undefined
-        const d = await api<{ reply: string; messageId: string; agent?: string; engine?: string }>('/api/chat', {
-          method: 'POST',
-          body: JSON.stringify({ message: text, mode: voice ? 'VOICE' : 'TEXT', context: unitCtx }),
-        })
-        const aiMsg: Msg = {
-          id: d.messageId,
-          role: 'assistant',
-          content: d.reply,
-          mode: voice ? 'VOICE' : 'TEXT',
-          agent: d.agent || null,
-          engine: d.engine || null,
-          time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-        }
-
-        // في زر المايك العادي فقط: نجهز الصوت الطبيعي قبل إظهار الرد،
-        // حتى لا يظهر الرد كتابياً ثم ينتظر الطالب فترة طويلة قبل النطق.
-        let preparedVoiceUrl: string | null = null
-        if (voice && autoSpeakRef.current) {
-          try {
-            preparedVoiceUrl = await fetchSpeechUrl(d.reply)
-          } catch (e) {
-            showSpeechError(e)
-          }
-        }
-
-        setMessages((prev) => [...prev, aiMsg])
-        if (autoSpeakRef.current) {
-          if (preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
-          else if (!voice) speak(d.reply, d.messageId)
-        }
-      } catch (e: any) {
-        toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
-        if (!voice) setInput(text)
-      } finally {
-        setSending(false)
-      }
-    },
-    [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast]
-  )
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
+      if (!voice) setInput(text)
+    } finally {
+      setSending(false)
+    }
+  }, [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast])
 
   const friendlyLiveMinutesMessage = (message?: string | null) => {
     const raw = String(message || '')
@@ -363,15 +303,9 @@ export function AIChatView() {
   const startVoicePackagePurchase = async () => {
     setVoicePackageBusy(true)
     try {
-      const res = await api<{ ok: boolean; invoiceNo: string; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package', {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
+      const res = await api<{ ok: boolean; invoiceNo: string; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package', { method: 'POST', body: JSON.stringify({}) })
       setVoicePackageDialog({ open: false, message: '' })
-      toast({
-        title: 'تم إنشاء فاتورة باقة الصوت',
-        description: `فاتورة ${res.invoiceNo}: ${res.minutes} دقيقة صوت إضافية — انتقل إلى الدفعات لإتمام السداد.`,
-      })
+      toast({ title: 'تم إنشاء فاتورة باقة الصوت', description: `فاتورة ${res.invoiceNo}: ${res.minutes} دقيقة صوت إضافية — انتقل إلى الدفعات لإتمام السداد.` })
       navigate('dashboard', { tab: 'payments', invoice: res.invoiceNo })
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء فاتورة الباقة', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
@@ -380,7 +314,6 @@ export function AIChatView() {
     }
   }
 
-  // ===== الوضع الصوتي الحي — عبر VoiceAgent (VAD + End-of-Turn ذكي + بث كامل + Barge-in) =====
   const toggleVoiceMode = () => {
     if (voiceMode) {
       setVoiceMode(false)
@@ -411,19 +344,11 @@ export function AIChatView() {
       onAiCaption: (t) => setLastReply(t),
       onTimings: (rows) => setTimings(rows),
       onTurnComplete: ({ userText, aiText, messageId }) => {
-        // إدراج الدور في سجل المحادثة الظاهر — يبقى متاحاً بعد إنهاء الوضع الصوتي
         const now = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
-        setMessages((prev) => [
-          ...prev,
-          { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now },
-          { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now },
-        ])
-        // أبقِ آخر كلام للطالب ظاهراً حتى لا تومض لوحة الترجمة بين كل دور وآخر.
+        setMessages((prev) => [...prev, { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now }, { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now }])
         setLiveCaption(userText)
       },
-      onInterrupted: () => {
-        // لا نمسح النص فور المقاطعة؛ يُستبدل عندما يبدأ الطالب جملة جديدة.
-      },
+      onInterrupted: () => {},
       onError: (msg) => {
         const text = String(msg || '')
         if (text.includes('Gemini Live') || text.includes('انتهت دقائق') || text.includes('دقائق صوت')) {
@@ -436,11 +361,8 @@ export function AIChatView() {
     agentRef.current = agent
     agent.start().catch((e: any) => {
       const msg = String(e?.message || '').trim() || 'تأكد من السماح بالمايكروفون ثم أعد المحاولة'
-      if (msg.includes('Gemini Live') || msg.includes('انتهت دقائق') || msg.includes('دقائق صوت')) {
-        openVoicePackageDialog(msg)
-      } else {
-        toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
-      }
+      if (msg.includes('Gemini Live') || msg.includes('انتهت دقائق') || msg.includes('دقائق صوت')) openVoicePackageDialog(msg)
+      else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
       agentRef.current = null
@@ -466,11 +388,8 @@ export function AIChatView() {
       if (!voiceModeRef.current) toggleVoiceMode()
     }, 280)
     return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
-  // Voice input (زر المايكروفون العادي — عبارة واحدة)
-  // مع بديل ASR خادمي للمتصفحات التي لا تدعم Web Speech API (تسجيل MediaRecorder → /api/ai/asr)
   const toggleMic = () => {
     if (listening) {
       micManualStopRef.current = true
@@ -518,7 +437,6 @@ export function AIChatView() {
         toast({ title: 'صلاحية المايكروفون مرفوضة', description: 'اسمح بالوصول للمايكروفون من إعدادات المتصفح', variant: 'destructive' })
         return
       }
-      // no-speech / aborted يحدث كثيراً في iPhone وChrome؛ لا نطفئ الزر بسببه.
       if (!micManualStopRef.current) {
         setListening(true)
         setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
@@ -534,19 +452,12 @@ export function AIChatView() {
         if (text) send(text, { voice: true })
         return
       }
-
-      // المتصفح قد ينهي التعرف تلقائياً بعد الصمت؛ نعيد تشغيله حتى يضغط المستخدم الإيقاف.
       setListening(true)
       setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
       if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
       micRestartTimerRef.current = setTimeout(() => {
         if (micManualStopRef.current || recognitionRef.current !== rec) return
-        try {
-          rec.start()
-        } catch {
-          setListening(false)
-          setInterim(speechDraftRef.current || '')
-        }
+        try { rec.start() } catch { setListening(false); setInterim(speechDraftRef.current || '') }
       }, 250)
     }
     try {
@@ -559,7 +470,6 @@ export function AIChatView() {
     }
   }
 
-  // ===== بديل التعرف الصوتي الخادمي (ASR) — لمتصفحات بلا Web Speech =====
   const startAsrFallback = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -578,10 +488,7 @@ export function AIChatView() {
             fr.onload = () => resolve(String(fr.result || '').split(',')[1] || '')
             fr.readAsDataURL(blob)
           })
-          const d = await api<{ text: string }>('/api/ai/asr', {
-            method: 'POST',
-            body: JSON.stringify({ audioBase64: b64 }),
-          })
+          const d = await api<{ text: string }>('/api/ai/asr', { method: 'POST', body: JSON.stringify({ audioBase64: b64 }) })
           setInterim('')
           if (d.text?.trim()) send(d.text.trim(), { voice: true })
           else toast({ title: 'لم يُفهم الصوت', description: 'حاول مرة أخرى بنطق أوضح', variant: 'destructive' })
@@ -604,20 +511,9 @@ export function AIChatView() {
     if (!message?.id || message.id.startsWith('tmp-')) return
     setFeedbackBusyId(message.id)
     try {
-      await api('/api/chat-feedback', {
-        method: 'POST',
-        body: JSON.stringify({
-          messageId: message.id,
-          rating,
-          reason: rating === 'NEEDS_REVIEW' ? reason : null,
-          note: rating === 'NEEDS_REVIEW' ? note : null,
-        }),
-      })
+      await api('/api/chat-feedback', { method: 'POST', body: JSON.stringify({ messageId: message.id, rating, reason: rating === 'NEEDS_REVIEW' ? reason : null, note: rating === 'NEEDS_REVIEW' ? note : null }) })
       setFeedbackByMessage((prev) => ({ ...prev, [message.id]: rating }))
-      toast({
-        title: rating === 'HELPFUL' ? 'شكرًا لتقييمك' : 'تم إرسال الرد للمراجعة',
-        description: rating === 'HELPFUL' ? 'تم تسجيل أن هذا الرد مفيد.' : 'سيظهر هذا الرد في لوحة الجودة للمتابعة.',
-      })
+      toast({ title: rating === 'HELPFUL' ? 'شكرًا لتقييمك' : 'تم إرسال الرد للمراجعة', description: rating === 'HELPFUL' ? 'تم تسجيل أن هذا الرد مفيد.' : 'سيظهر هذا الرد في لوحة الجودة للمتابعة.' })
     } catch (e: any) {
       toast({ title: 'تعذر حفظ التقييم', description: e.message, variant: 'destructive' })
     } finally {
@@ -637,7 +533,6 @@ export function AIChatView() {
     }
   }
 
-  // ===== 12.1: تحليل مسودة بحث التخرج =====
   const submitReview = async () => {
     if (reviewText.trim().length < 120) {
       toast({ title: 'تنبيه', description: 'الصق مسودة أطول (120 حرفاً على الأقل)', variant: 'destructive' })
@@ -646,10 +541,7 @@ export function AIChatView() {
     setReviewBusy(true)
     setReview(null)
     try {
-      const d = await api<{ review: ThesisReview }>('/api/supervisor/thesis-review', {
-        method: 'POST',
-        body: JSON.stringify({ title: reviewTitle, text: reviewText }),
-      })
+      const d = await api<{ review: ThesisReview }>('/api/supervisor/thesis-review', { method: 'POST', body: JSON.stringify({ title: reviewTitle, text: reviewText }) })
       setReview(d.review)
       toast({ title: 'اكتمل التحليل', description: `تقييم المسودة: ${d.review.overallScore}/100` })
     } catch (e: any) {
@@ -673,16 +565,8 @@ export function AIChatView() {
     INTERRUPTED: 'سمعتك — تفضل…',
   }
   const listeningForUI = voiceState === 'LISTENING' || voiceState === 'USER_SPEAKING' || voiceState === 'INTERRUPTED'
-  const chatTitle = user.role === 'ADMIN'
-    ? 'الوكيل الذكي للإدارة والجودة'
-    : user.role === 'SUPERVISOR'
-      ? 'الوكيل الذكي للمشرف البشري'
-      : 'الوكيل/المشرف الذكي — AACT AI'
-  const chatSubtitle = user.role === 'ADMIN'
-    ? 'مؤشرات وتشغيل وجودة أكاديمية'
-    : user.role === 'SUPERVISOR'
-      ? 'متابعة الطلاب والأبحاث المعيّنة لك'
-      : 'مرفوق بمشرفك البشري'
+  const chatTitle = user.role === 'ADMIN' ? 'الوكيل الذكي للإدارة والجودة' : user.role === 'SUPERVISOR' ? 'الوكيل الذكي للمشرف البشري' : 'الوكيل/المشرف الذكي — AACT AI'
+  const chatSubtitle = user.role === 'ADMIN' ? 'مؤشرات وتشغيل وجودة أكاديمية' : user.role === 'SUPERVISOR' ? 'متابعة الطلاب والأبحاث المعيّنة لك' : 'مرفوق بمشرفك البشري'
   const welcomeText = user.role === 'ADMIN'
     ? 'أنا وكيلك الذكي لإدارة المنصة: أساعدك في مؤشرات القبول، الطلاب، جودة البرامج، الامتحانات، الأبحاث، الشهادات، والجاهزية التشغيلية. اسألني عن أي تقرير أو إجراء داخل لوحة الإدارة.'
     : user.role === 'SUPERVISOR'
@@ -696,1403 +580,132 @@ export function AIChatView() {
   const liveUserCaption = liveCaption.trim()
   const liveAiCaption = lastReply.trim()
   const userCaptionPlaceholder = listeningForUI ? 'أستمع إليك… سيظهر كلامك هنا بثبات' : 'كلامك سيظهر هنا عند بدء الحديث'
-  const aiCaptionPlaceholder = voiceState === 'AI_SPEAKING'
-    ? 'المشرف يجيب الآن…'
-    : voiceState === 'THINKING'
-      ? 'المشرف يعالج سؤالك…'
-      : 'رد المشرف سيظهر هنا دون أن يقفز النص'
+  const aiCaptionPlaceholder = voiceState === 'AI_SPEAKING' ? 'المشرف يجيب الآن…' : voiceState === 'THINKING' ? 'المشرف يعالج سؤالك…' : 'رد المشرف سيظهر هنا دون أن يقفز النص'
 
   return (
     <>
-    {/* الشاشة الصوتية الغامرة خارج الحاوية المحوّلة حتى تملأ الشاشة فعلياً */}
-    {voiceMode && (
-      <div className="aact-live-voice-screen fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
-        {/* شريط علوي: شفافية إلزامية + الحالة + شعار الأكاديمية */}
-        <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <AcademyLogo size={34} light />
-            <div className="flex items-center gap-2 text-[11px] font-black text-[#e0b83a]">
-              <Radio className="h-3.5 w-3.5 animate-pulse" />
-            محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي
+      {voiceMode && (
+        <div className="aact-live-voice-screen fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <AcademyLogo size={34} light />
+              <div className="flex items-center gap-2 text-[11px] font-black text-[#e0b83a]"><Radio className="h-3.5 w-3.5 animate-pulse" /> محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي</div>
             </div>
+            <Badge className="gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
           </div>
-          <Badge className="gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15">
-            <ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً
-          </Badge>
-        </div>
-
-        {/* الكرة الصوتية + التسميات */}
-        <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
-          <div className="aact-voice-orb-stage relative flex items-center justify-center">
-            <span className="aact-voice-halo" />
-            <span className="aact-voice-halo h2" />
-            {listeningForUI && !muted && (
-              <>
-                <span className="aact-orb-ring" />
-                <span className="aact-orb-ring r2" />
-                <span className="aact-orb-ring r3" />
-              </>
-            )}
-            <button
-              onClick={() => agentRef.current?.interrupt()}
-              aria-label="اضغط لمقاطعة الرد"
-              className={`aact-voice-orb flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52 ${voiceState === 'AI_SPEAKING' ? 'aact-orb-speaking' : voiceState === 'THINKING' ? 'aact-orb-thinking' : ''}`}
-              style={{ transform: listeningForUI ? `scale(${1 + micLevel * 0.4}) translateZ(0)` : undefined }}
-            >
-              <span className="aact-voice-orb-inner" />
-              {listeningForUI ? (
-                <Mic className="relative h-14 w-14 text-[#0f2b46]" />
-              ) : voiceState === 'AI_SPEAKING' ? (
-                <Volume2 className="relative h-14 w-14 text-[#0f2b46]" />
-              ) : (
-                <Bot className="relative h-14 w-14 text-[#0f2b46]" />
-              )}
-            </button>
-          </div>
-
-          <div className="min-h-8">
-            <p className="text-center text-base font-black text-white">
-              {muted ? 'المايك مكتوم — اضغط زر المايك للاستئناف' : voiceStateLabel[voiceState]}
-            </p>
-            {!muted && listeningForUI && (
-              <div className="aact-mini-wave mx-auto mt-3">
-                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                  <span key={i} style={{ height: `${Math.max(4, micLevel * 22 * (1 + Math.sin(Date.now() / 120 + i) * 0.4))}px` }} />
-                ))}
+          <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
+            <div className="aact-voice-orb-stage relative flex items-center justify-center">
+              <span className="aact-voice-halo" />
+              <span className="aact-voice-halo h2" />
+              {listeningForUI && !muted && <><span className="aact-orb-ring" /><span className="aact-orb-ring r2" /><span className="aact-orb-ring r3" /></>}
+              <button onClick={() => agentRef.current?.interrupt()} aria-label="اضغط لمقاطعة الرد" className={`aact-voice-orb flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52 ${voiceState === 'AI_SPEAKING' ? 'aact-orb-speaking' : voiceState === 'THINKING' ? 'aact-orb-thinking' : ''}`} style={{ transform: listeningForUI ? `scale(${1 + micLevel * 0.4}) translateZ(0)` : undefined }}>
+                <span className="aact-voice-orb-inner" />
+                {listeningForUI ? <Mic className="relative h-14 w-14 text-[#0f2b46]" /> : voiceState === 'AI_SPEAKING' ? <Volume2 className="relative h-14 w-14 text-[#0f2b46]" /> : <Bot className="relative h-14 w-14 text-[#0f2b46]" />}
+              </button>
+            </div>
+            <div className="min-h-8"><p className="text-center text-base font-black text-white">{muted ? 'المايك مكتوم — اضغط زر المايك للاستئناف' : voiceStateLabel[voiceState]}</p></div>
+            {showCaptions && (
+              <div className="aact-live-caption-panel w-full max-w-2xl" aria-live="polite">
+                <div className={`aact-live-caption-card aact-live-caption-user ${liveUserCaption ? '' : 'aact-live-caption-empty'}`}><span className="aact-live-caption-label">أنت</span><p>{liveUserCaption || userCaptionPlaceholder}</p></div>
+                <div className={`aact-live-caption-card aact-live-caption-ai ${liveAiCaption ? '' : 'aact-live-caption-empty'}`}><span className="aact-live-caption-label">المشرف</span><p>{liveAiCaption || aiCaptionPlaceholder}</p></div>
               </div>
             )}
+            {showTimings && timings.length > 0 && <div dir="ltr" className="rounded-xl bg-black/40 px-4 py-3 font-mono text-[10px] leading-relaxed text-emerald-300">{timings.map((t) => <div key={t.event}>{t.event.padEnd(22, ' ')} +{t.atMs}ms</div>)}</div>}
           </div>
-
-          {showCaptions && (
-            <div className="aact-live-caption-panel w-full max-w-2xl" aria-live="polite">
-              <div className={`aact-live-caption-card aact-live-caption-user ${liveUserCaption ? '' : 'aact-live-caption-empty'}`}>
-                <span className="aact-live-caption-label">أنت</span>
-                <p>{liveUserCaption || userCaptionPlaceholder}</p>
-              </div>
-              <div className={`aact-live-caption-card aact-live-caption-ai ${liveAiCaption ? '' : 'aact-live-caption-empty'}`}>
-                <span className="aact-live-caption-label">المشرف</span>
-                <p>{liveAiCaption || aiCaptionPlaceholder}</p>
-              </div>
-            </div>
-          )}
-
-          {/* HUD زمن المراحل — يعرض أزمنة آخر دور فعلياً بلا إخفاء */}
-          {showTimings && timings.length > 0 && (
-            <div dir="ltr" className="rounded-xl bg-black/40 px-4 py-3 font-mono text-[10px] leading-relaxed text-emerald-300">
-              {timings.map((t) => (
-                <div key={t.event}>
-                  {t.event.padEnd(22, ' ')} +{t.atMs}ms
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* أدوات التحكم السفلية */}
-        <div className="flex items-center justify-center gap-4 px-6 pb-10 pt-4">
-          <button
-            onClick={toggleMute}
-            aria-label={muted ? 'إلغاء الكتم' : 'كتم المايك'}
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              muted ? 'border-white/20 bg-white/10 text-white/60' : 'border-white/30 bg-white/15 text-white hover:bg-white/25'
-            }`}
-          >
-            {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </button>
-          <button
-            onClick={toggleVoiceMode}
-            aria-label="إنهاء المحادثة الصوتية"
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-[#b22234] text-white shadow-2xl transition-all hover:bg-[#c9333f] active:scale-95"
-          >
-            <PhoneOff className="h-6 w-6" />
-          </button>
-          <button
-            onClick={() => setShowCaptions(!showCaptions)}
-            aria-label="إظهار/إخفاء التسميات"
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              showCaptions ? 'border-white/30 bg-white/15 text-white hover:bg-white/25' : 'border-white/20 bg-transparent text-white/50'
-            }`}
-          >
-            <Captions className="h-5 w-5" />
-          </button>
-          <button
-            onClick={() => setShowTimings(!showTimings)}
-            aria-label="إظهار/إخفاء أزمنة المراحل"
-            title="أزمنة المراحل (تشخيصي)"
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              showTimings ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-200' : 'border-white/20 bg-transparent text-white/50'
-            }`}
-          >
-            <Activity className="h-5 w-5" />
-          </button>
-        </div>
-        {!sttSupported && (
-          <p className="pb-6 text-center text-[11px] font-bold text-amber-300">متصفحك لا يدعم المحادثة الصوتية — استخدم Chrome/Edge</p>
-        )}
-      </div>
-    )}
-
-    <Dialog open={voicePackageDialog.open} onOpenChange={(open) => setVoicePackageDialog((prev) => ({ ...prev, open }))}>
-      <DialogContent dir="rtl" className="max-w-md rounded-3xl border-[#e0b83a]/40 bg-white text-right">
-        <DialogHeader className="text-right">
-          <DialogTitle className="flex items-center gap-2 text-xl font-black text-[#0f2b46]">
-            <Phone className="h-5 w-5 text-[#c9a227]" /> باقة دقائق صوت إضافية
-          </DialogTitle>
-          <DialogDescription className="pt-2 text-sm font-bold leading-7 text-slate-600">
-            {voicePackageDialog.message}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="rounded-2xl border border-[#e0b83a]/30 bg-[#fffaf0] p-4 text-sm font-bold leading-7 text-[#0f2b46]">
-          <p className="font-black">ماذا سيحدث عند الشراء؟</p>
-          <p className="mt-1 text-slate-600">سيتم إنشاء فاتورة باقة صوت في تبويب الدفعات. بعد سدادها تضاف الدقائق إلى رصيدك تلقائياً وتستطيع تشغيل المكالمة الصوتية مرة أخرى.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-              <p className="text-[11px] text-slate-500">الدقائق</p>
-              <p className="text-lg font-black text-[#0f2b46]">{voicePackageOffer ? `${voicePackageOffer.minutes}` : '—'}</p>
-            </div>
-            <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-              <p className="text-[11px] text-slate-500">السعر</p>
-              <p className="text-lg font-black text-[#0f2b46]">{voicePackageOffer ? `${voicePackageOffer.amount}'use client'
-
-import { useAppStore, api, getToken } from '@/lib/store'
-import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
-import { GeminiLiveAgent as VoiceAgent } from '@/lib/voice/geminiLiveAgent'
-import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
-import { AcademyLogo } from '@/components/aact/Shell'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast, useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Bot, Send, Mic, MicOff, Volume2, VolumeX, Loader2,
-  Trash2, Sparkles, MessageCircle, User2, Phone, PhoneOff,
-  ShieldCheck, FileSearch, Radio, Captions, Activity,
-  ThumbsUp, ThumbsDown, Flag,
-} from 'lucide-react'
-
-interface Msg {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  mode?: string // TEXT | VOICE
-  kind?: string | null // THESIS_REVIEW
-  agent?: string | null
-  engine?: string | null
-  time?: string
-}
-
-const AGENT_LABELS: Record<string, string> = {
-  ACADEMIC_SUPERVISOR: 'المشرف الأكاديمي',
-  ADMISSIONS: 'وكيل القبول',
-  EXAMS: 'وكيل الامتحانات',
-  THESIS_DEFENSE: 'وكيل البحث والمناقشة',
-  CERTIFICATES: 'وكيل الشهادات',
-  ADMIN_QUALITY: 'وكيل الجودة',
-  AGENCY_ACCREDITATION: 'وكيل الوكالة والاعتماد',
-  SUPPORT: 'وكيل الدعم',
-}
-
-const FEEDBACK_REASONS = [
-  { value: 'TOO_GENERAL', label: 'الرد عام جدًا' },
-  { value: 'NOT_RELATED', label: 'غير مرتبط بالمنهج أو سؤالي' },
-  { value: 'UNCLEAR', label: 'غير واضح' },
-  { value: 'WRONG', label: 'يحتوي خطأ' },
-  { value: 'DID_NOT_ANSWER', label: 'لم يجب عن السؤال' },
-  { value: 'WEAK_SOURCE', label: 'مصدره غير كافٍ' },
-  { value: 'OTHER', label: 'سبب آخر' },
-]
-
-// ===== Web Speech API typings =====
-interface SpeechRecognitionEventLike {
-  resultIndex: number
-  results: { length: number; [i: number]: { 0: { transcript: string }; isFinal: boolean } }
-}
-interface SpeechRecognitionLike {
-  lang: string
-  continuous: boolean
-  interimResults: boolean
-  maxAlternatives: number
-  onresult: ((e: SpeechRecognitionEventLike) => void) | null
-  onerror: ((e: any) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-  abort: () => void
-}
-function getRecognition(): SpeechRecognitionLike | null {
-  const w = window as any
-  const SR = w.SpeechRecognition || w.webkitSpeechRecognition
-  if (!SR) return null
-  const rec: SpeechRecognitionLike = new SR()
-  rec.lang = 'ar-SA'
-  // نخليه مستمر قدر الإمكان. Safari/Chrome قد يوقفه تلقائياً عند الصمت،
-  // لذلك نعيد تشغيله من onend إذا لم يكن الإيقاف بطلب المستخدم.
-  rec.continuous = true
-  rec.interimResults = true
-  rec.maxAlternatives = 1
-  return rec
-}
-
-const QUICK_QUESTIONS = [
-  'ما الذي أنجزته حتى الآن في برنامجي وما الخطوة التالية؟',
-  'اشرح لي أهم مفاهيم الكتب المقررة في تخصصي',
-  'اشرح لي تحليل SWOT بمثال عملي',
-  'كيف أستعد لامتحان الفصل الدراسي؟',
-  'متى تصدر شهادتي بعد المناقشة؟',
-  'كيف يُحسب العائد على الاستثمار ROI؟',
-]
-
-function buildSpeechText(text: string): string {
-  return String(text || '')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/[`*_#>\[\]()]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-// ===== نتائج تحليل مسودة البحث =====
-interface ThesisReview {
-  overallScore: number
-  verdict: string
-  strengths: string[]
-  weaknesses: string[]
-  methodology: string
-  sources: string
-  nextSteps: string[]
-}
-
-export function AIChatView() {
-  const { user, navigate, activeUnitId } = useAppStore()
-  const { toast } = useToast()
-  const [messages, setMessages] = useState<Msg[]>([])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [listening, setListening] = useState(false)
-  const [interim, setInterim] = useState('')
-  const [autoSpeak, setAutoSpeak] = useState(true)
-  const [speakingId, setSpeakingId] = useState<string | null>(null)
-  const [sttSupported, setSttSupported] = useState(true)
-  const [loadingHistory, setLoadingHistory] = useState(true)
-  const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, 'HELPFUL' | 'NEEDS_REVIEW'>>({})
-  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null)
-  const [feedbackDialog, setFeedbackDialog] = useState<{ open: boolean; message: Msg | null }>({ open: false, message: null })
-  const [feedbackReason, setFeedbackReason] = useState('TOO_GENERAL')
-  const [feedbackNote, setFeedbackNote] = useState('')
-
-  // ===== المحادثة الصوتية الحية — VoiceAgent حقيقي ثنائي الاتجاه =====
-  // المسار: مايك+AEC → VAD → STT حي → End-of-Turn ذكي → LLM streaming
-  //        → Semantic Chunker → Prosody → TTS streaming → مشغل متواصل + Barge-in
-  const [voiceMode, setVoiceMode] = useState(false)
-  const [voiceState, setVoiceState] = useState<AgentVoiceState>('IDLE')
-  const [lastReply, setLastReply] = useState('')
-  const [liveCaption, setLiveCaption] = useState('')
-  const [muted, setMuted] = useState(false)
-  const [micLevel, setMicLevel] = useState(0) // 0..1 — من VAD الحقيقي
-  const [showCaptions, setShowCaptions] = useState(true)
-  const [showTimings, setShowTimings] = useState(false) // HUD زمن المراحل
-  const [timings, setTimings] = useState<{ event: string; atMs: number }[]>([])
-  const [voicePackageDialog, setVoicePackageDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' })
-  const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
-  const [voicePackageBusy, setVoicePackageBusy] = useState(false)
-  const agentRef = useRef<VoiceAgent | null>(null)
-  const mutedRef = useRef(false)
-  mutedRef.current = muted
-
-  // ===== 12.1: تحليل مسودة بحث التخرج =====
-  const [reviewOpen, setReviewOpen] = useState(false)
-  const [reviewTitle, setReviewTitle] = useState('')
-  const [reviewText, setReviewText] = useState('')
-  const [reviewBusy, setReviewBusy] = useState(false)
-  const [review, setReview] = useState<ThesisReview | null>(null)
-
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const autoSpeakRef = useRef(autoSpeak)
-  autoSpeakRef.current = autoSpeak
-  const voiceModeRef = useRef(voiceMode)
-  voiceModeRef.current = voiceMode
-  const activeUnitRef = useRef<string | null>(null)
-  activeUnitRef.current = activeUnitId ?? null
-  // مسجل بديل ASR خادمي (لمتصفحات بلا Web Speech API)
-  const asrRecorderRef = useRef<MediaRecorder | null>(null)
-  const speechDraftRef = useRef('')
-  const micManualStopRef = useRef(false)
-  const micRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Load history
-  useEffect(() => {
-    if (!user) return
-    setLoadingHistory(true)
-    api<{ messages: any[] }>('/api/chat')
-      .then((d) =>
-        setMessages(
-          d.messages.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            mode: m.mode,
-            kind: m.kind,
-            time: new Date(m.createdAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-          }))
-        )
-      )
-      .catch(() => {})
-      .finally(() => setLoadingHistory(false))
-  }, [user])
-
-  // Check STT support
-  useEffect(() => {
-    const w = window as any
-    setSttSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
-    unlockAudioOnFirstGesture() // فتح قناة الصوت بأول لمسة — ضروري لنطق الردود على iOS
-    return () => {
-      recognitionRef.current?.abort()
-      audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
-      speechUtteranceRef.current = null
-      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
-    }
-  }, [])
-
-  // Auto scroll
-  useEffect(() => {
-    if (!voiceMode) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, interim, sending, voiceMode])
-
-  // ===== نطق ردود الدردشة النصية عبر صوت Gemini/TTS الطبيعي فقط =====
-  const fetchSpeechUrl = useCallback(async (text: string): Promise<string> => {
-    const speechText = buildSpeechText(text)
-    if (!speechText) throw new Error('النص المطلوب نطقه فارغ')
-    const token = getToken()
-    const res = await fetch('/api/ai/tts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ text: speechText, speed: 1.12 }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err?.error || 'تعذر توليد الصوت')
-    }
-    const blob = await res.blob()
-    return URL.createObjectURL(blob)
-  }, [])
-
-  const playSpeechUrl = useCallback(async (url: string, msgId: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
-    try { window.speechSynthesis?.cancel() } catch {}
-    speechUtteranceRef.current = null
-
-    const audio = getSharedAudio()
-    audioRef.current = audio
-    setSpeakingId(msgId)
-    const cleanup = () => {
-      URL.revokeObjectURL(url)
-      setSpeakingId(null)
-    }
-    audio.onended = cleanup
-    audio.onerror = cleanup
-    const ok = await playOnSharedAudio(url)
-    if (!ok) throw new Error('autoplay blocked')
-  }, [])
-
-  const showSpeechError = useCallback((e: any) => {
-    setSpeakingId(null)
-    if (!voiceModeRef.current) {
-      const msg = String(e?.message || '').trim()
-      toast({
-        title: 'تنبيه',
-        description: msg && msg !== 'autoplay blocked' ? msg : 'تعذر تشغيل الصوت — اضغط زر السماعة على الرد للمحاولة مرة أخرى',
-        variant: 'destructive',
-      })
-    }
-  }, [toast])
-
-  const speak = useCallback(
-    async (text: string, msgId: string) => {
-      try {
-        const url = await fetchSpeechUrl(text)
-        await playSpeechUrl(url, msgId)
-      } catch (e: any) {
-        showSpeechError(e)
-      }
-    },
-    [fetchSpeechUrl, playSpeechUrl, showSpeechError]
-  )
-
-  // ===== إرسال الرسالة للخادم مع حفظ القناة (نص/صوت) =====
-  const send = useCallback(
-    async (textArg?: string, opts?: { voice?: boolean; fromVoiceLoop?: boolean }) => {
-      const text = (textArg ?? input).trim()
-      if (!text || (sending && !opts?.fromVoiceLoop)) return
-      setInput('')
-      setInterim('')
-      const voice = !!opts?.voice
-      if (voice) {
-        setLiveCaption(text)
-      }
-      const userMsg: Msg = {
-        id: `tmp-${Date.now()}`,
-        role: 'user',
-        content: text,
-        mode: voice ? 'VOICE' : 'TEXT',
-        time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      }
-      setMessages((prev) => [...prev, userMsg])
-      setSending(true)
-      try {
-        // ربط سؤال الطالب بالوحدة الدراسية التي يقرؤها الآن (سياق حي للمشرف الذكي)
-        const unitCtx = activeUnitRef.current
-          ? `الطالب يقرأ الآن وحدة دراسية في منصة الأكاديمية (معرف الوحدة: ${activeUnitRef.current}) — إن كان سؤاله عن درسه الحالي فاربط إجابتك به.`
-          : undefined
-        const d = await api<{ reply: string; messageId: string; agent?: string; engine?: string }>('/api/chat', {
-          method: 'POST',
-          body: JSON.stringify({ message: text, mode: voice ? 'VOICE' : 'TEXT', context: unitCtx }),
-        })
-        const aiMsg: Msg = {
-          id: d.messageId,
-          role: 'assistant',
-          content: d.reply,
-          mode: voice ? 'VOICE' : 'TEXT',
-          agent: d.agent || null,
-          engine: d.engine || null,
-          time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-        }
-
-        // في زر المايك العادي فقط: نجهز الصوت الطبيعي قبل إظهار الرد،
-        // حتى لا يظهر الرد كتابياً ثم ينتظر الطالب فترة طويلة قبل النطق.
-        let preparedVoiceUrl: string | null = null
-        if (voice && autoSpeakRef.current) {
-          try {
-            preparedVoiceUrl = await fetchSpeechUrl(d.reply)
-          } catch (e) {
-            showSpeechError(e)
-          }
-        }
-
-        setMessages((prev) => [...prev, aiMsg])
-        if (autoSpeakRef.current) {
-          if (preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
-          else if (!voice) speak(d.reply, d.messageId)
-        }
-      } catch (e: any) {
-        toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
-        if (!voice) setInput(text)
-      } finally {
-        setSending(false)
-      }
-    },
-    [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast]
-  )
-
-  const friendlyLiveMinutesMessage = (message?: string | null) => {
-    const raw = String(message || '')
-    if (!raw.trim()) return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً فوراً، أو شراء باقة دقائق صوت إضافية لتفعيل المكالمة الصوتية من جديد.'
-    if (raw.includes('انتهت دقائق') || raw.includes('Gemini Live') || raw.includes('دقائق صوت')) {
-      return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. تستطيع متابعة الحديث كتابةً الآن، أو شراء باقة دقائق صوت إضافية لاستخدام المشرف بالصوت.'
-    }
-    return raw
-  }
-
-  const openVoicePackageDialog = (message?: string | null) => {
-    setVoicePackageDialog({ open: true, message: friendlyLiveMinutesMessage(message) })
-    api<{ ok: boolean; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package')
-      .then((offer) => setVoicePackageOffer({ minutes: offer.minutes, amount: offer.amount, currency: offer.currency }))
-      .catch(() => setVoicePackageOffer(null))
-  }
-
-  const startVoicePackagePurchase = async () => {
-    setVoicePackageBusy(true)
-    try {
-      const res = await api<{ ok: boolean; invoiceNo: string; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package', {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
-      setVoicePackageDialog({ open: false, message: '' })
-      toast({
-        title: 'تم إنشاء فاتورة باقة الصوت',
-        description: `فاتورة ${res.invoiceNo}: ${res.minutes} دقيقة صوت إضافية — انتقل إلى الدفعات لإتمام السداد.`,
-      })
-      navigate('dashboard', { tab: 'payments', invoice: res.invoiceNo })
-    } catch (e: any) {
-      toast({ title: 'تعذر إنشاء فاتورة الباقة', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
-    } finally {
-      setVoicePackageBusy(false)
-    }
-  }
-
-  // ===== الوضع الصوتي الحي — عبر VoiceAgent (VAD + End-of-Turn ذكي + بث كامل + Barge-in) =====
-  const toggleVoiceMode = () => {
-    if (voiceMode) {
-      setVoiceMode(false)
-      voiceModeRef.current = false
-      agentRef.current?.stop()
-      agentRef.current = null
-      setSpeakingId(null)
-      setListening(false)
-      setInterim('')
-      setLiveCaption('')
-      setMicLevel(0)
-      setVoiceState('IDLE')
-      setMuted(false)
-      return
-    }
-    audioRef.current?.pause()
-    try { window.speechSynthesis?.cancel() } catch {}
-    speechUtteranceRef.current = null
-    setSpeakingId(null)
-    setVoiceMode(true)
-    voiceModeRef.current = true
-    setVoiceState('LISTENING')
-    setMicLevel(0.18)
-    const agent = new VoiceAgent({
-      onState: (s) => setVoiceState(s),
-      onLevel: (lvl) => setMicLevel((prev) => prev * 0.5 + lvl * 0.5),
-      onUserCaption: (t) => setLiveCaption(t),
-      onAiCaption: (t) => setLastReply(t),
-      onTimings: (rows) => setTimings(rows),
-      onTurnComplete: ({ userText, aiText, messageId }) => {
-        // إدراج الدور في سجل المحادثة الظاهر — يبقى متاحاً بعد إنهاء الوضع الصوتي
-        const now = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
-        setMessages((prev) => [
-          ...prev,
-          { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now },
-          { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now },
-        ])
-        // أبقِ آخر كلام للطالب ظاهراً حتى لا تومض لوحة الترجمة بين كل دور وآخر.
-        setLiveCaption(userText)
-      },
-      onInterrupted: () => {
-        // لا نمسح النص فور المقاطعة؛ يُستبدل عندما يبدأ الطالب جملة جديدة.
-      },
-      onError: (msg) => {
-        const text = String(msg || '')
-        if (text.includes('Gemini Live') || text.includes('انتهت دقائق') || text.includes('دقائق صوت')) {
-          openVoicePackageDialog(text)
-          return
-        }
-        toast({ title: 'تنبيه', description: friendlyLiveMinutesMessage(text), variant: 'destructive' })
-      },
-    })
-    agentRef.current = agent
-    agent.start().catch((e: any) => {
-      const msg = String(e?.message || '').trim() || 'تأكد من السماح بالمايكروفون ثم أعد المحاولة'
-      if (msg.includes('Gemini Live') || msg.includes('انتهت دقائق') || msg.includes('دقائق صوت')) {
-        openVoicePackageDialog(msg)
-      } else {
-        toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
-      }
-      setVoiceMode(false)
-      voiceModeRef.current = false
-      agentRef.current = null
-    })
-  }
-
-  const toggleMute = () => {
-    const next = !muted
-    setMuted(next)
-    agentRef.current?.setMuted(next)
-    if (next) setLiveCaption('')
-  }
-
-  useEffect(() => {
-    if (!user) return
-    let shouldOpen = false
-    try {
-      shouldOpen = sessionStorage.getItem('aact_open_voice_agent') === '1'
-      if (shouldOpen) sessionStorage.removeItem('aact_open_voice_agent')
-    } catch {}
-    if (!shouldOpen) return
-    const t = setTimeout(() => {
-      if (!voiceModeRef.current) toggleVoiceMode()
-    }, 280)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
-
-  // Voice input (زر المايكروفون العادي — عبارة واحدة)
-  // مع بديل ASR خادمي للمتصفحات التي لا تدعم Web Speech API (تسجيل MediaRecorder → /api/ai/asr)
-  const toggleMic = () => {
-    if (listening) {
-      micManualStopRef.current = true
-      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
-      recognitionRef.current?.stop()
-      asrRecorderRef.current?.stop()
-      setListening(false)
-      return
-    }
-    if (speakingId) {
-      audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
-      speechUtteranceRef.current = null
-      setSpeakingId(null)
-    }
-    const rec = getRecognition()
-    if (!rec) {
-      startAsrFallback()
-      return
-    }
-    micManualStopRef.current = false
-    speechDraftRef.current = ''
-    recognitionRef.current = rec
-    rec.onresult = (e) => {
-      let finalText = ''
-      let interimText = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]
-        if (r.isFinal) finalText += ` ${r[0].transcript}`
-        else interimText += ` ${r[0].transcript}`
-      }
-      if (finalText.trim()) {
-        speechDraftRef.current = `${speechDraftRef.current} ${finalText}`.replace(/\s+/g, ' ').trim()
-        setInput(speechDraftRef.current)
-      }
-      setInterim((interimText || speechDraftRef.current || 'يستمع… اضغط المايك مرة أخرى للإرسال').trim())
-    }
-    rec.onerror = (ev: any) => {
-      const err = String(ev?.error || '')
-      if (err === 'not-allowed' || err === 'service-not-allowed') {
-        micManualStopRef.current = true
-        setListening(false)
-        setInterim('')
-        speechDraftRef.current = ''
-        toast({ title: 'صلاحية المايكروفون مرفوضة', description: 'اسمح بالوصول للمايكروفون من إعدادات المتصفح', variant: 'destructive' })
-        return
-      }
-      // no-speech / aborted يحدث كثيراً في iPhone وChrome؛ لا نطفئ الزر بسببه.
-      if (!micManualStopRef.current) {
-        setListening(true)
-        setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
-      }
-    }
-    rec.onend = () => {
-      if (micManualStopRef.current) {
-        const text = speechDraftRef.current.trim()
-        speechDraftRef.current = ''
-        recognitionRef.current = null
-        setListening(false)
-        setInterim('')
-        if (text) send(text, { voice: true })
-        return
-      }
-
-      // المتصفح قد ينهي التعرف تلقائياً بعد الصمت؛ نعيد تشغيله حتى يضغط المستخدم الإيقاف.
-      setListening(true)
-      setInterim((speechDraftRef.current || 'ما زلت أستمع… اضغط المايك مرة أخرى للإرسال').trim())
-      if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
-      micRestartTimerRef.current = setTimeout(() => {
-        if (micManualStopRef.current || recognitionRef.current !== rec) return
-        try {
-          rec.start()
-        } catch {
-          setListening(false)
-          setInterim(speechDraftRef.current || '')
-        }
-      }, 250)
-    }
-    try {
-      rec.start()
-      setListening(true)
-      setInterim('يستمع… اضغط المايك مرة أخرى للإرسال')
-    } catch {
-      setListening(false)
-      setInterim('')
-    }
-  }
-
-  // ===== بديل التعرف الصوتي الخادمي (ASR) — لمتصفحات بلا Web Speech =====
-  const startAsrFallback = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const rec = new MediaRecorder(stream)
-      asrRecorderRef.current = rec
-      const chunks: BlobPart[] = []
-      rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        setInterim('يجري تحويل صوتك إلى نص…')
-        try {
-          const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' })
-          if (blob.size < 3000) throw new Error('التسجيل قصير جداً — اضغط المايك وتحدث ثم اضغط مرة أخرى للإرسال')
-          const b64 = await new Promise<string>((resolve) => {
-            const fr = new FileReader()
-            fr.onload = () => resolve(String(fr.result || '').split(',')[1] || '')
-            fr.readAsDataURL(blob)
-          })
-          const d = await api<{ text: string }>('/api/ai/asr', {
-            method: 'POST',
-            body: JSON.stringify({ audioBase64: b64 }),
-          })
-          setInterim('')
-          if (d.text?.trim()) send(d.text.trim(), { voice: true })
-          else toast({ title: 'لم يُفهم الصوت', description: 'حاول مرة أخرى بنطق أوضح', variant: 'destructive' })
-        } catch (e: any) {
-          setInterim('')
-          toast({ title: 'تعذر التعرف على الصوت', description: e.message || 'حاول مجدداً', variant: 'destructive' })
-        } finally {
-          asrRecorderRef.current = null
-        }
-      }
-      rec.start()
-      setListening(true)
-      setInterim('يستمع… اضغط أيقونة المايك مجدداً عند انتهاء سؤالك')
-    } catch {
-      toast({ title: 'المايكروفون غير متاح', description: 'اسمح بالوصول للمايكروفون أو اكتب سؤالك', variant: 'destructive' })
-    }
-  }
-
-  const submitMessageFeedback = async (message: Msg, rating: 'HELPFUL' | 'NEEDS_REVIEW', reason?: string | null, note?: string | null) => {
-    if (!message?.id || message.id.startsWith('tmp-')) return
-    setFeedbackBusyId(message.id)
-    try {
-      await api('/api/chat-feedback', {
-        method: 'POST',
-        body: JSON.stringify({
-          messageId: message.id,
-          rating,
-          reason: rating === 'NEEDS_REVIEW' ? reason : null,
-          note: rating === 'NEEDS_REVIEW' ? note : null,
-        }),
-      })
-      setFeedbackByMessage((prev) => ({ ...prev, [message.id]: rating }))
-      toast({
-        title: rating === 'HELPFUL' ? 'شكرًا لتقييمك' : 'تم إرسال الرد للمراجعة',
-        description: rating === 'HELPFUL' ? 'تم تسجيل أن هذا الرد مفيد.' : 'سيظهر هذا الرد في لوحة الجودة للمتابعة.',
-      })
-    } catch (e: any) {
-      toast({ title: 'تعذر حفظ التقييم', description: e.message, variant: 'destructive' })
-    } finally {
-      setFeedbackBusyId(null)
-    }
-  }
-
-  const clearChat = async () => {
-    if (!confirm('هل تريد مسح المحادثة بالكامل؟')) return
-    try {
-      await api('/api/chat', { method: 'DELETE' })
-      setMessages([])
-      setFeedbackByMessage({})
-      toast({ title: 'تم المسح', description: 'محادثتك مع المشرف الذكي فارغة الآن' })
-    } catch (e: any) {
-      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-    }
-  }
-
-  // ===== 12.1: تحليل مسودة بحث التخرج =====
-  const submitReview = async () => {
-    if (reviewText.trim().length < 120) {
-      toast({ title: 'تنبيه', description: 'الصق مسودة أطول (120 حرفاً على الأقل)', variant: 'destructive' })
-      return
-    }
-    setReviewBusy(true)
-    setReview(null)
-    try {
-      const d = await api<{ review: ThesisReview }>('/api/supervisor/thesis-review', {
-        method: 'POST',
-        body: JSON.stringify({ title: reviewTitle, text: reviewText }),
-      })
-      setReview(d.review)
-      toast({ title: 'اكتمل التحليل', description: `تقييم المسودة: ${d.review.overallScore}/100` })
-    } catch (e: any) {
-      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-    } finally {
-      setReviewBusy(false)
-    }
-  }
-
-  if (!user) {
-    navigate('auth')
-    return null
-  }
-
-  const voiceStateLabel: Record<AgentVoiceState, string> = {
-    IDLE: 'أفتح خط المشرف…',
-    LISTENING: 'الخط مفتوح — تحدث الآن',
-    USER_SPEAKING: 'أسمعك بوضوح…',
-    THINKING: 'أعالج سؤالك…',
-    AI_SPEAKING: 'أتحدث — قاطعني متى شئت',
-    INTERRUPTED: 'سمعتك — تفضل…',
-  }
-  const listeningForUI = voiceState === 'LISTENING' || voiceState === 'USER_SPEAKING' || voiceState === 'INTERRUPTED'
-  const chatTitle = user.role === 'ADMIN'
-    ? 'الوكيل الذكي للإدارة والجودة'
-    : user.role === 'SUPERVISOR'
-      ? 'الوكيل الذكي للمشرف البشري'
-      : 'الوكيل/المشرف الذكي — AACT AI'
-  const chatSubtitle = user.role === 'ADMIN'
-    ? 'مؤشرات وتشغيل وجودة أكاديمية'
-    : user.role === 'SUPERVISOR'
-      ? 'متابعة الطلاب والأبحاث المعيّنة لك'
-      : 'مرفوق بمشرفك البشري'
-  const welcomeText = user.role === 'ADMIN'
-    ? 'أنا وكيلك الذكي لإدارة المنصة: أساعدك في مؤشرات القبول، الطلاب، جودة البرامج، الامتحانات، الأبحاث، الشهادات، والجاهزية التشغيلية. اسألني عن أي تقرير أو إجراء داخل لوحة الإدارة.'
-    : user.role === 'SUPERVISOR'
-      ? 'أنا وكيلك الذكي كمشرف بشري: أساعدك في متابعة الطلاب المعيّنين لك، قراءة حالة أبحاثهم، وتجهيز ملاحظات أكاديمية قبل المناقشة.'
-      : 'أنا مشرفك الذكي داخل الوكيل العام للمنصة؛ أرافقك بالتوازي مع مشرفك الأكاديمي البشري، وأعرف تخصصك وبرنامجك وكتبك المقررة ودرجاتك ومواعيدك عند توفرها.'
-  const quickQuestions = user.role === 'ADMIN'
-    ? ['أعطني ملخصاً سريعاً عن حالة القبول والطلاب', 'ما أهم مخاطر جودة البرامج حالياً؟', 'كيف أجهز المنصة لإطلاق إنتاجي؟', 'ما الإجراءات المناسبة للطلاب المتعثرين؟']
-    : user.role === 'SUPERVISOR'
-      ? ['اعرض لي طلابي المعيّنين وحالة أبحاثهم', 'كيف أجهز ملاحظات مناقشة بحث؟', 'ما الأسئلة المناسبة لطالب قبل المناقشة؟', 'كيف أتابع طالباً متعثراً في البحث؟']
-      : QUICK_QUESTIONS
-  const liveUserCaption = liveCaption.trim()
-  const liveAiCaption = lastReply.trim()
-  const userCaptionPlaceholder = listeningForUI ? 'أستمع إليك… سيظهر كلامك هنا بثبات' : 'كلامك سيظهر هنا عند بدء الحديث'
-  const aiCaptionPlaceholder = voiceState === 'AI_SPEAKING'
-    ? 'المشرف يجيب الآن…'
-    : voiceState === 'THINKING'
-      ? 'المشرف يعالج سؤالك…'
-      : 'رد المشرف سيظهر هنا دون أن يقفز النص'
-
-  return (
-    <>
-    {/* الشاشة الصوتية الغامرة خارج الحاوية المحوّلة حتى تملأ الشاشة فعلياً */}
-    {voiceMode && (
-      <div className="aact-live-voice-screen fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
-        {/* شريط علوي: شفافية إلزامية + الحالة + شعار الأكاديمية */}
-        <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <AcademyLogo size={34} light />
-            <div className="flex items-center gap-2 text-[11px] font-black text-[#e0b83a]">
-              <Radio className="h-3.5 w-3.5 animate-pulse" />
-            محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي
-            </div>
+          <div className="flex items-center justify-center gap-4 px-6 pb-10 pt-4">
+            <button onClick={toggleMute} aria-label={muted ? 'إلغاء الكتم' : 'كتم المايك'} className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${muted ? 'border-white/20 bg-white/10 text-white/60' : 'border-white/30 bg-white/15 text-white hover:bg-white/25'}`}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
+            <button onClick={toggleVoiceMode} aria-label="إنهاء المحادثة الصوتية" className="flex h-16 w-16 items-center justify-center rounded-full bg-[#b22234] text-white shadow-2xl transition-all hover:bg-[#c9333f] active:scale-95"><PhoneOff className="h-6 w-6" /></button>
+            <button onClick={() => setShowCaptions(!showCaptions)} aria-label="إظهار/إخفاء التسميات" className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${showCaptions ? 'border-white/30 bg-white/15 text-white hover:bg-white/25' : 'border-white/20 bg-transparent text-white/50'}`}><Captions className="h-5 w-5" /></button>
+            <button onClick={() => setShowTimings(!showTimings)} aria-label="إظهار/إخفاء أزمنة المراحل" title="أزمنة المراحل (تشخيصي)" className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${showTimings ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-200' : 'border-white/20 bg-transparent text-white/50'}`}><Activity className="h-5 w-5" /></button>
           </div>
-          <Badge className="gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15">
-            <ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً
-          </Badge>
+          {!sttSupported && <p className="pb-6 text-center text-[11px] font-bold text-amber-300">متصفحك لا يدعم المحادثة الصوتية — استخدم Chrome/Edge</p>}
         </div>
+      )}
 
-        {/* الكرة الصوتية + التسميات */}
-        <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
-          <div className="aact-voice-orb-stage relative flex items-center justify-center">
-            <span className="aact-voice-halo" />
-            <span className="aact-voice-halo h2" />
-            {listeningForUI && !muted && (
-              <>
-                <span className="aact-orb-ring" />
-                <span className="aact-orb-ring r2" />
-                <span className="aact-orb-ring r3" />
-              </>
-            )}
-            <button
-              onClick={() => agentRef.current?.interrupt()}
-              aria-label="اضغط لمقاطعة الرد"
-              className={`aact-voice-orb flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52 ${voiceState === 'AI_SPEAKING' ? 'aact-orb-speaking' : voiceState === 'THINKING' ? 'aact-orb-thinking' : ''}`}
-              style={{ transform: listeningForUI ? `scale(${1 + micLevel * 0.4}) translateZ(0)` : undefined }}
-            >
-              <span className="aact-voice-orb-inner" />
-              {listeningForUI ? (
-                <Mic className="relative h-14 w-14 text-[#0f2b46]" />
-              ) : voiceState === 'AI_SPEAKING' ? (
-                <Volume2 className="relative h-14 w-14 text-[#0f2b46]" />
-              ) : (
-                <Bot className="relative h-14 w-14 text-[#0f2b46]" />
-              )}
-            </button>
+      <Dialog open={voicePackageDialog.open} onOpenChange={(open) => setVoicePackageDialog((prev) => ({ ...prev, open }))}>
+        <DialogContent dir="rtl" className="max-w-md rounded-3xl border-[#e0b83a]/40 bg-white text-right">
+          <DialogHeader className="text-right">
+            <DialogTitle className="flex items-center gap-2 text-xl font-black text-[#0f2b46]"><Phone className="h-5 w-5 text-[#c9a227]" /> باقة دقائق صوت إضافية</DialogTitle>
+            <DialogDescription className="pt-2 text-sm font-bold leading-7 text-slate-600">{voicePackageDialog.message}</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-2xl border border-[#e0b83a]/30 bg-[#fffaf0] p-4 text-sm font-bold leading-7 text-[#0f2b46]">
+            <p className="font-black">ماذا سيحدث عند الشراء؟</p>
+            <p className="mt-1 text-slate-600">سيتم إنشاء فاتورة باقة صوت في تبويب الدفعات. بعد سدادها تضاف الدقائق إلى رصيدك تلقائياً وتستطيع تشغيل المكالمة الصوتية مرة أخرى.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white p-3 text-center shadow-sm"><p className="text-[11px] text-slate-500">الدقائق</p><p className="text-lg font-black text-[#0f2b46]">{voicePackageOffer ? voicePackageOffer.minutes : '—'}</p></div>
+              <div className="rounded-xl bg-white p-3 text-center shadow-sm"><p className="text-[11px] text-slate-500">السعر</p><p className="text-lg font-black text-[#0f2b46]">{voicePackageOffer ? `${voicePackageOffer.amount}$` : '—'}</p></div>
+            </div>
+            <p className="mt-2 text-[11px] font-bold text-slate-500">يتم تحديد عدد الدقائق والسعر من لوحة الإدارة داخل المنصة.</p>
           </div>
-
-          <div className="min-h-8">
-            <p className="text-center text-base font-black text-white">
-              {muted ? 'المايك مكتوم — اضغط زر المايك للاستئناف' : voiceStateLabel[voiceState]}
-            </p>
-            {!muted && listeningForUI && (
-              <div className="aact-mini-wave mx-auto mt-3">
-                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                  <span key={i} style={{ height: `${Math.max(4, micLevel * 22 * (1 + Math.sin(Date.now() / 120 + i) * 0.4))}px` }} />
-                ))}
-              </div>
-            )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={startVoicePackagePurchase} disabled={voicePackageBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{voicePackageBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Sparkles className="ml-2 h-4 w-4" />}شراء باقة صوت</Button>
+            <Button variant="outline" onClick={() => setVoicePackageDialog({ open: false, message: '' })} className="border-[#0f2b46]/20 font-black text-[#0f2b46]">المتابعة كتابةً الآن</Button>
           </div>
+        </DialogContent>
+      </Dialog>
 
-          {showCaptions && (
-            <div className="aact-live-caption-panel w-full max-w-2xl" aria-live="polite">
-              <div className={`aact-live-caption-card aact-live-caption-user ${liveUserCaption ? '' : 'aact-live-caption-empty'}`}>
-                <span className="aact-live-caption-label">أنت</span>
-                <p>{liveUserCaption || userCaptionPlaceholder}</p>
-              </div>
-              <div className={`aact-live-caption-card aact-live-caption-ai ${liveAiCaption ? '' : 'aact-live-caption-empty'}`}>
-                <span className="aact-live-caption-label">المشرف</span>
-                <p>{liveAiCaption || aiCaptionPlaceholder}</p>
-              </div>
-            </div>
-          )}
-
-          {/* HUD زمن المراحل — يعرض أزمنة آخر دور فعلياً بلا إخفاء */}
-          {showTimings && timings.length > 0 && (
-            <div dir="ltr" className="rounded-xl bg-black/40 px-4 py-3 font-mono text-[10px] leading-relaxed text-emerald-300">
-              {timings.map((t) => (
-                <div key={t.event}>
-                  {t.event.padEnd(22, ' ')} +{t.atMs}ms
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* أدوات التحكم السفلية */}
-        <div className="flex items-center justify-center gap-4 px-6 pb-10 pt-4">
-          <button
-            onClick={toggleMute}
-            aria-label={muted ? 'إلغاء الكتم' : 'كتم المايك'}
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              muted ? 'border-white/20 bg-white/10 text-white/60' : 'border-white/30 bg-white/15 text-white hover:bg-white/25'
-            }`}
-          >
-            {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </button>
-          <button
-            onClick={toggleVoiceMode}
-            aria-label="إنهاء المحادثة الصوتية"
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-[#b22234] text-white shadow-2xl transition-all hover:bg-[#c9333f] active:scale-95"
-          >
-            <PhoneOff className="h-6 w-6" />
-          </button>
-          <button
-            onClick={() => setShowCaptions(!showCaptions)}
-            aria-label="إظهار/إخفاء التسميات"
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              showCaptions ? 'border-white/30 bg-white/15 text-white hover:bg-white/25' : 'border-white/20 bg-transparent text-white/50'
-            }`}
-          >
-            <Captions className="h-5 w-5" />
-          </button>
-          <button
-            onClick={() => setShowTimings(!showTimings)}
-            aria-label="إظهار/إخفاء أزمنة المراحل"
-            title="أزمنة المراحل (تشخيصي)"
-            className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${
-              showTimings ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-200' : 'border-white/20 bg-transparent text-white/50'
-            }`}
-          >
-            <Activity className="h-5 w-5" />
-          </button>
-        </div>
-        {!sttSupported && (
-          <p className="pb-6 text-center text-[11px] font-bold text-amber-300">متصفحك لا يدعم المحادثة الصوتية — استخدم Chrome/Edge</p>
-        )}
-      </div>
-    )}
-
-    <Dialog open={voicePackageDialog.open} onOpenChange={(open) => setVoicePackageDialog((prev) => ({ ...prev, open }))}>
-      <DialogContent dir="rtl" className="max-w-md rounded-3xl border-[#e0b83a]/40 bg-white text-right">
-        <DialogHeader className="text-right">
-          <DialogTitle className="flex items-center gap-2 text-xl font-black text-[#0f2b46]">
-            <Phone className="h-5 w-5 text-[#c9a227]" /> باقة دقائق صوت إضافية
-          </DialogTitle>
-          <DialogDescription className="pt-2 text-sm font-bold leading-7 text-slate-600">
-            {voicePackageDialog.message}
-          </DialogDescription>
-        </DialogHeader>
- : '—'}</p>
-            </div>
+      <div className="aact-fade-in mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-[#0f2b46]/10 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="relative"><div className="rounded-full bg-[#0f2b46] p-2.5 text-[#e0b83a]"><Bot className="h-6 w-6" /></div><span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" /></div>
+            <div><h1 className="text-base font-black text-[#0f2b46] sm:text-lg">{chatTitle}</h1><div className="flex items-center gap-1.5"><Badge className="gap-1 bg-emerald-100 text-[9px] font-black text-emerald-700 hover:bg-emerald-100"><ShieldCheck className="h-2.5 w-2.5" /> وكيل ذكاء اصطناعي</Badge><span className="text-[10px] font-bold text-slate-400">{chatSubtitle}</span></div></div>
           </div>
-          <p className="mt-2 text-[11px] font-bold text-slate-500">يتم تحديد عدد الدقائق والسعر من لوحة الإدارة داخل المنصة.</p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            onClick={startVoicePackagePurchase}
-            disabled={voicePackageBusy}
-            className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
-          >
-            {voicePackageBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Sparkles className="ml-2 h-4 w-4" />}
-            شراء باقة صوت
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setVoicePackageDialog({ open: false, message: '' })}
-            className="border-[#0f2b46]/20 font-black text-[#0f2b46]"
-          >
-            المتابعة كتابةً الآن
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-
-    <div className="aact-fade-in mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-[#0f2b46]/10 pb-3">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="rounded-full bg-[#0f2b46] p-2.5 text-[#e0b83a]">
-              <Bot className="h-6 w-6" />
-            </div>
-            <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
-          </div>
-          <div>
-            <h1 className="text-base font-black text-[#0f2b46] sm:text-lg">{chatTitle}</h1>
-            <div className="flex items-center gap-1.5">
-              {/* الشفافية الإلزامية: تعريف الطالب بأنه يتحدث مع مشرف ذكاء اصطناعي */}
-              <Badge className="gap-1 bg-emerald-100 text-[9px] font-black text-emerald-700 hover:bg-emerald-100">
-                <ShieldCheck className="h-2.5 w-2.5" /> وكيل ذكاء اصطناعي
-              </Badge>
-              <span className="text-[10px] font-bold text-slate-400">{chatSubtitle}</span>
-            </div>
+          <div className="flex items-center gap-2">
+            {user.role === 'STUDENT' && <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)} className="border-[#c9a227] font-bold text-[#a8841a]" title="تحليل مسودة بحث التخرج"><FileSearch className="h-4 w-4" /><span className="hidden text-[11px] font-bold sm:inline">تحليل مسودة بحثي</span></Button>}
+            <Button size="sm" variant="outline" onClick={() => setAutoSpeak(!autoSpeak)} className={`border-[#c9a227] ${autoSpeak ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#a8841a]'}`} title={autoSpeak ? 'الردود الصوتية مفعلة' : 'الردود الصوتية معطلة'}>{autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</Button>
+            <Button size="sm" variant="outline" onClick={clearChat} className="border-red-200 text-red-500 hover:bg-red-50" title="مسح المحادثة"><Trash2 className="h-4 w-4" /></Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {user.role === 'STUDENT' && (
-            <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)} className="border-[#c9a227] font-bold text-[#a8841a]" title="تحليل مسودة بحث التخرج">
-              <FileSearch className="h-4 w-4" />
-              <span className="hidden text-[11px] font-bold sm:inline">تحليل مسودة بحثي</span>
-            </Button>
-          )}
-          <Button
-            size="sm" variant="outline"
-            onClick={() => setAutoSpeak(!autoSpeak)}
-            className={`border-[#c9a227] ${autoSpeak ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#a8841a]'}`}
-            title={autoSpeak ? 'الردود الصوتية مفعلة' : 'الردود الصوتية معطلة'}
-          >
-            {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-          </Button>
-          <Button size="sm" variant="outline" onClick={clearChat} className="border-red-200 text-red-500 hover:bg-red-50" title="مسح المحادثة">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className={`aact-scroll flex-1 space-y-4 overflow-y-auto py-4 ${voiceMode ? 'hidden' : ''}`}>
-        {loadingHistory ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="mx-auto max-w-lg py-6 text-center">
-            <div className="mx-auto mb-4 w-fit rounded-2xl bg-[#0f2b46] p-4 text-[#e0b83a]">
-              <MessageCircle className="h-9 w-9" />
+        <div ref={scrollRef} className={`aact-scroll flex-1 space-y-4 overflow-y-auto py-4 ${voiceMode ? 'hidden' : ''}`}>
+          {loadingHistory ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div> : messages.length === 0 ? (
+            <div className="mx-auto max-w-lg py-6 text-center">
+              <div className="mx-auto mb-4 w-fit rounded-2xl bg-[#0f2b46] p-4 text-[#e0b83a]"><MessageCircle className="h-9 w-9" /></div>
+              <h2 className="text-lg font-black text-[#0f2b46]">أهلاً {user.name}!</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{welcomeText} ابدأ <strong>محادثة صوتية حية</strong> من الزر العلوي أو اسألني كتابةً.</p>
+              <div className="mt-5 grid gap-2 sm:grid-cols-2">{quickQuestions.map((qq) => <button key={qq} onClick={() => send(qq)} className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-right text-xs font-bold text-[#0f2b46] shadow-sm transition-all hover:border-[#c9a227] hover:shadow"><Sparkles className="ml-1.5 inline h-3.5 w-3.5 text-[#c9a227]" />{qq}</button>)}</div>
             </div>
-            <h2 className="text-lg font-black text-[#0f2b46]">أهلاً {user.name}!</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              {welcomeText}
-              {' '}ابدأ <strong>محادثة صوتية حية</strong> من الزر العلوي أو اسألني كتابةً.
-            </p>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              {quickQuestions.map((qq) => (
-                <button
-                  key={qq}
-                  onClick={() => send(qq)}
-                  className="rounded-xl border border-[#0f2b46]/10 bg-white p-3 text-right text-xs font-bold text-[#0f2b46] shadow-sm transition-all hover:border-[#c9a227] hover:shadow"
-                >
-                  <Sparkles className="ml-1.5 inline h-3.5 w-3.5 text-[#c9a227]" />
-                  {qq}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          messages.map((m) => (
+          ) : messages.map((m) => (
             <div key={m.id} className={`flex items-end gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                  m.role === 'user' ? 'bg-[#c9a227] text-[#0f2b46]' : 'bg-[#0f2b46] text-[#e0b83a]'
-                }`}
-              >
-                {m.role === 'user' ? <User2 className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-              </div>
-              <div
-                className={`group max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-loose shadow-sm sm:max-w-[75%] ${
-                  m.role === 'user'
-                    ? 'rounded-br-sm bg-[#0f2b46] text-white'
-                    : 'rounded-bl-sm bg-[#f7edd0] text-[#0f2b46]'
-                }`}
-              >
-                <div className="mb-1.5 flex flex-wrap gap-1">
-                  {m.kind === 'THESIS_REVIEW' && (
-                    <Badge className="gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]">
-                      <FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث
-                    </Badge>
-                  )}
-                  {m.role === 'assistant' && m.agent && (
-                    <Badge className="gap-1 bg-white/60 text-[9px] font-black text-[#0f2b46] hover:bg-white/60">
-                      <Bot className="h-2.5 w-2.5" /> {AGENT_LABELS[m.agent] || 'الوكيل الذكي'}
-                    </Badge>
-                  )}
-                </div>
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${m.role === 'user' ? 'bg-[#c9a227] text-[#0f2b46]' : 'bg-[#0f2b46] text-[#e0b83a]'}`}>{m.role === 'user' ? <User2 className="h-4 w-4" /> : <Bot className="h-4 w-4" />}</div>
+              <div className={`group max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-loose shadow-sm sm:max-w-[75%] ${m.role === 'user' ? 'rounded-br-sm bg-[#0f2b46] text-white' : 'rounded-bl-sm bg-[#f7edd0] text-[#0f2b46]'}`}>
+                <div className="mb-1.5 flex flex-wrap gap-1">{m.kind === 'THESIS_REVIEW' && <Badge className="gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]"><FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث</Badge>}{m.role === 'assistant' && m.agent && <Badge className="gap-1 bg-white/60 text-[9px] font-black text-[#0f2b46] hover:bg-white/60"><Bot className="h-2.5 w-2.5" /> {AGENT_LABELS[m.agent] || 'الوكيل الذكي'}</Badge>}</div>
                 <div className="whitespace-pre-wrap">{m.content}</div>
                 <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${m.role === 'user' ? 'text-white/50' : 'text-[#a8841a]/70'}`}>
-                  <span className="flex items-center gap-1.5">
-                    {m.time}
-                    {m.mode === 'VOICE' && <span className="flex items-center gap-0.5 font-bold"><Mic className="h-2.5 w-2.5" /> صوتي</span>}
-                  </span>
-                  {m.role === 'assistant' && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => submitMessageFeedback(m, 'HELPFUL')}
-                        disabled={feedbackBusyId === m.id}
-                        className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`}
-                        title="هذا الرد مفيد"
-                      >
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setFeedbackReason('TOO_GENERAL')
-                          setFeedbackNote('')
-                          setFeedbackDialog({ open: true, message: m })
-                        }}
-                        disabled={feedbackBusyId === m.id}
-                        className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`}
-                        title="هذا الرد يحتاج مراجعة"
-                      >
-                        <ThumbsDown className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (speakingId === m.id) {
-                            audioRef.current?.pause()
-                            try { window.speechSynthesis?.cancel() } catch {}
-                            speechUtteranceRef.current = null
-                            setSpeakingId(null)
-                          } else {
-                            speak(m.content, m.id)
-                          }
-                        }}
-                        className="opacity-60 transition-opacity hover:opacity-100"
-                        title="استمع للرد"
-                      >
-                        {speakingId === m.id ? (
-                          <span className="flex items-center gap-1 font-bold">
-                            <span className="aact-speak-wave">
-                              <span /><span /><span /><span />
-                            </span>
-                            يتحدث
-                          </span>
-                        ) : (
-                          <Volume2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  )}
+                  <span className="flex items-center gap-1.5">{m.time}{m.mode === 'VOICE' && <span className="flex items-center gap-0.5 font-bold"><Mic className="h-2.5 w-2.5" /> صوتي</span>}</span>
+                  {m.role === 'assistant' && <div className="flex items-center gap-1"><button onClick={() => submitMessageFeedback(m, 'HELPFUL')} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد مفيد"><ThumbsUp className="h-3.5 w-3.5" /></button><button onClick={() => { setFeedbackReason('TOO_GENERAL'); setFeedbackNote(''); setFeedbackDialog({ open: true, message: m }) }} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد يحتاج مراجعة"><ThumbsDown className="h-3.5 w-3.5" /></button><button onClick={() => { if (speakingId === m.id) { audioRef.current?.pause(); try { window.speechSynthesis?.cancel() } catch {}; speechUtteranceRef.current = null; setSpeakingId(null) } else speak(m.content, m.id) }} className="opacity-60 transition-opacity hover:opacity-100" title="استمع للرد">{speakingId === m.id ? <span className="flex items-center gap-1 font-bold"><span className="aact-speak-wave"><span /><span /><span /><span /></span>يتحدث</span> : <Volume2 className="h-3.5 w-3.5" />}</button></div>}
                 </div>
               </div>
             </div>
-          ))
-        )}
-
-        {sending && (
-          <div className="flex items-end gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0f2b46] text-[#e0b83a]">
-              <Bot className="h-4 w-4" />
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-[#f7edd0] px-4 py-3.5">
-              <span className="flex gap-1">
-                <span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" />
-                <span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" />
-                <span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" />
-              </span>
-              <span className="text-[11px] font-bold text-[#a8841a]">المشرف الذكي يفكر...</span>
-            </div>
-          </div>
-        )}
-
-        {interim && (
-          <div className="flex items-end gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#c9a227] text-[#0f2b46]">
-              <Mic className="h-4 w-4" />
-            </div>
-            <div className="max-w-[75%] rounded-2xl rounded-br-sm border-2 border-dashed border-[#c9a227] bg-white/70 px-4 py-2.5 text-sm italic text-slate-500">
-              {interim}...
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="border-t border-[#0f2b46]/10 bg-[#f5f0e1]/95 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
-        <div className="grid grid-cols-[2.9rem_2.9rem_minmax(0,1fr)_2.9rem] items-end gap-2 sm:grid-cols-[3rem_3rem_minmax(0,1fr)_3rem]">
-          <Button
-            onClick={toggleVoiceMode}
-            size="icon"
-            className={`h-11 w-11 shrink-0 rounded-full sm:h-12 sm:w-12 ${
-              voiceMode ? 'aact-pulse-mic bg-[#b22234] text-white hover:bg-[#b22234]' : 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]'
-            }`}
-            title={voiceMode ? 'إنهاء المحادثة الصوتية الحية' : 'محادثة صوتية حية — استماع مستمر ومقاطعة'}
-          >
-            {voiceMode ? <PhoneOff className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
-          </Button>
-          <Button
-            onClick={toggleMic}
-            size="icon"
-            variant="outline"
-            className={`h-11 w-11 shrink-0 rounded-full border-[#0f2b46]/20 sm:h-12 sm:w-12 ${listening ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#0f2b46]'}`}
-            title="سؤال صوتي واحد"
-          >
-            {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </Button>
-          <div className="flex-1 rounded-2xl border border-[#0f2b46]/15 bg-white px-4 py-1 shadow-sm focus-within:border-[#c9a227]">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  send()
-                }
-              }}
-              placeholder={listening ? 'أتحدث... تفضل بالكلام' : 'اكتب سؤالك للمشرف الذكي...'}
-              rows={1}
-              className="max-h-28 w-full resize-none bg-transparent py-2.5 text-sm leading-relaxed outline-none"
-            />
-          </div>
-          <Button
-            onClick={() => send()}
-            disabled={sending || !input.trim()}
-            size="icon"
-            className="h-11 w-11 shrink-0 rounded-full bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a] sm:h-12 sm:w-12"
-            title="إرسال"
-          >
-            {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rotate-180" />}
-          </Button>
+          ))}
+          {sending && <div className="flex items-end gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0f2b46] text-[#e0b83a]"><Bot className="h-4 w-4" /></div><div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-[#f7edd0] px-4 py-3.5"><span className="flex gap-1"><span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" /><span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" /><span className="aact-typing-dot h-2 w-2 rounded-full bg-[#a8841a]" /></span><span className="text-[11px] font-bold text-[#a8841a]">المشرف الذكي يفكر...</span></div></div>}
+          {interim && <div className="flex items-end gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#c9a227] text-[#0f2b46]"><Mic className="h-4 w-4" /></div><div className="max-w-[75%] rounded-2xl rounded-br-sm border-2 border-dashed border-[#c9a227] bg-white/70 px-4 py-2.5 text-sm italic text-slate-500">{interim}...</div></div>}
         </div>
-        <p className="mt-2 text-center text-[10px] leading-relaxed text-slate-400">
-          {sttSupported
-            ? 'زر الهاتف: محادثة صوتية حية بمقاطعة فورية — زر المايك: سؤال صوتي واحد — وتظهر كل محادثاتك (نصاً وصوتاً) في ملفك لدى المشرف البشري والإدارة'
-            : 'متصفحك لا يدعم الإدخال الصوتي — استخدم Chrome للحديث الصوتي، أو اكتب سؤالك'}
-        </p>
-      </div>
 
-      {/* ===== نافذة تقييم رد المشرف الذكي ===== */}
-      <Dialog open={feedbackDialog.open} onOpenChange={(open) => setFeedbackDialog({ open, message: open ? feedbackDialog.message : null })}>
-        <DialogContent className="max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
-              <Flag className="h-5 w-5 text-red-600" /> إرسال الرد للمراجعة
-            </DialogTitle>
-            <DialogDescription>
-              اختر السبب ليساعد مركز الجودة على مراجعة رد المشرف الذكي وتحسين التجربة الأكاديمية.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-              {feedbackDialog.message?.content.slice(0, 260)}{(feedbackDialog.message?.content.length || 0) > 260 ? '...' : ''}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-black">سبب المراجعة</Label>
-              <select
-                value={feedbackReason}
-                onChange={(e) => setFeedbackReason(e.target.value)}
-                className="h-10 w-full rounded-xl border border-[#0f2b46]/15 bg-white px-3 text-sm font-bold outline-none focus:border-[#c9a227]"
-              >
-                {FEEDBACK_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-black">ملاحظة اختيارية</Label>
-              <Textarea
-                value={feedbackNote}
-                onChange={(e) => setFeedbackNote(e.target.value)}
-                placeholder="مثال: الرد لم يعتمد على الكتاب، أو أجاب خارج السؤال..."
-                className="min-h-24 text-sm leading-relaxed"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setFeedbackDialog({ open: false, message: null })}>إلغاء</Button>
-              <Button
-                className="flex-1 bg-red-700 font-extrabold text-white hover:bg-red-800"
-                disabled={!feedbackDialog.message || feedbackBusyId === feedbackDialog.message.id}
-                onClick={async () => {
-                  if (!feedbackDialog.message) return
-                  await submitMessageFeedback(feedbackDialog.message, 'NEEDS_REVIEW', feedbackReason, feedbackNote)
-                  setFeedbackDialog({ open: false, message: null })
-                }}
-              >
-                {feedbackBusyId === feedbackDialog.message?.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Flag className="ml-2 h-4 w-4" />}
-                إرسال للمراجعة
-              </Button>
-            </div>
+        <div className="border-t border-[#0f2b46]/10 bg-[#f5f0e1]/95 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="grid grid-cols-[2.9rem_2.9rem_minmax(0,1fr)_2.9rem] items-end gap-2 sm:grid-cols-[3rem_3rem_minmax(0,1fr)_3rem]">
+            <Button onClick={toggleVoiceMode} size="icon" className={`h-11 w-11 shrink-0 rounded-full sm:h-12 sm:w-12 ${voiceMode ? 'aact-pulse-mic bg-[#b22234] text-white hover:bg-[#b22234]' : 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]'}`} title={voiceMode ? 'إنهاء المحادثة الصوتية الحية' : 'محادثة صوتية حية — استماع مستمر ومقاطعة'}>{voiceMode ? <PhoneOff className="h-5 w-5" /> : <Phone className="h-5 w-5" />}</Button>
+            <Button onClick={toggleMic} size="icon" variant="outline" className={`h-11 w-11 shrink-0 rounded-full border-[#0f2b46]/20 sm:h-12 sm:w-12 ${listening ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#0f2b46]'}`} title="سؤال صوتي واحد">{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</Button>
+            <div className="flex-1 rounded-2xl border border-[#0f2b46]/15 bg-white px-4 py-1 shadow-sm focus-within:border-[#c9a227]"><textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={listening ? 'أتحدث... تفضل بالكلام' : 'اكتب سؤالك للمشرف الذكي...'} rows={1} className="max-h-28 w-full resize-none bg-transparent py-2.5 text-sm leading-relaxed outline-none" /></div>
+            <Button onClick={() => send()} disabled={sending || !input.trim()} size="icon" className="h-11 w-11 shrink-0 rounded-full bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a] sm:h-12 sm:w-12" title="إرسال">{sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rotate-180" />}</Button>
           </div>
-        </DialogContent>
-      </Dialog>
+          <p className="mt-2 text-center text-[10px] leading-relaxed text-slate-400">{sttSupported ? 'زر الهاتف: محادثة صوتية حية بمقاطعة فورية — زر المايك: سؤال صوتي واحد — وتظهر كل محادثاتك (نصاً وصوتاً) في ملفك لدى المشرف البشري والإدارة' : 'متصفحك لا يدعم الإدخال الصوتي — استخدم Chrome للحديث الصوتي، أو اكتب سؤالك'}</p>
+        </div>
 
-      {/* ===== نافذة تحليل مسودة بحث التخرج ===== */}
-      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
-              <FileSearch className="h-5 w-5 text-[#a8841a]" /> تحليل مسودة بحث التخرج
-            </DialogTitle>
-            <DialogDescription>
-              المشرف الذكي يراجع مسودتك علمياً: الإشكالية والمنهجية والأدبيات والنتائج والتوثيق — ويحفظ التحليل في ملفك
-            </DialogDescription>
-          </DialogHeader>
+        <Dialog open={feedbackDialog.open} onOpenChange={(open) => setFeedbackDialog({ open, message: open ? feedbackDialog.message : null })}>
+          <DialogContent className="max-w-md" dir="rtl">
+            <DialogHeader><DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><Flag className="h-5 w-5 text-red-600" /> إرسال الرد للمراجعة</DialogTitle><DialogDescription>اختر السبب ليساعد مركز الجودة على مراجعة رد المشرف الذكي وتحسين التجربة الأكاديمية.</DialogDescription></DialogHeader>
+            <div className="space-y-3"><div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">{feedbackDialog.message?.content.slice(0, 260)}{(feedbackDialog.message?.content.length || 0) > 260 ? '...' : ''}</div><div className="space-y-1.5"><Label className="text-xs font-black">سبب المراجعة</Label><select value={feedbackReason} onChange={(e) => setFeedbackReason(e.target.value)} className="h-10 w-full rounded-xl border border-[#0f2b46]/15 bg-white px-3 text-sm font-bold outline-none focus:border-[#c9a227]">{FEEDBACK_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div><div className="space-y-1.5"><Label className="text-xs font-black">ملاحظة اختيارية</Label><Textarea value={feedbackNote} onChange={(e) => setFeedbackNote(e.target.value)} placeholder="مثال: الرد لم يعتمد على الكتاب، أو أجاب خارج السؤال..." className="min-h-24 text-sm leading-relaxed" /></div><div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setFeedbackDialog({ open: false, message: null })}>إلغاء</Button><Button className="flex-1 bg-red-700 font-extrabold text-white hover:bg-red-800" disabled={!feedbackDialog.message || feedbackBusyId === feedbackDialog.message.id} onClick={async () => { if (!feedbackDialog.message) return; await submitMessageFeedback(feedbackDialog.message, 'NEEDS_REVIEW', feedbackReason, feedbackNote); setFeedbackDialog({ open: false, message: null }) }}>{feedbackBusyId === feedbackDialog.message?.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Flag className="ml-2 h-4 w-4" />}إرسال للمراجعة</Button></div></div>
+          </DialogContent>
+        </Dialog>
 
-          {!review ? (
-            <div className="space-y-3.5">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-black">عنوان البحث</Label>
-                <Input value={reviewTitle} onChange={(e) => setReviewTitle(e.target.value)} placeholder="مثال: أثر التحول الرقمي على أداء الموظفين" className="h-10 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-black">نص المسودة (الصق فصول بحثك — كلما زادت التفاصيل كان التحليل أدق)</Label>
-                <Textarea
-                  value={reviewText}
-                  onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="الصق هنا مقدمة البحث والإشكالية والمنهجية والنتائج والتوصيات..."
-                  className="min-h-44 text-sm leading-relaxed"
-                />
-                <p className="text-left text-[10px] font-bold text-slate-400">{reviewText.length} حرفاً {reviewText.length < 120 && '— الحد الأدنى 120'}</p>
-              </div>
-              <Button onClick={submitReview} disabled={reviewBusy || reviewText.trim().length < 120} className="w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
-                {reviewBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <FileSearch className="ml-2 h-4 w-4" />}
-                {reviewBusy ? 'المشرف الذكي يقرأ مسودتك ويحللها...' : 'اطلب التحليل العلمي'}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className={`rounded-xl p-4 text-center ${review.overallScore >= 70 ? 'bg-emerald-50' : review.overallScore >= 50 ? 'bg-amber-50' : 'bg-red-50'}`}>
-                <p className="text-3xl font-black text-[#0f2b46]">{review.overallScore}<span className="text-lg">/100</span></p>
-                <p className="mt-1 text-xs font-bold text-slate-600">{review.verdict}</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl bg-emerald-50 p-3.5">
-                  <h4 className="mb-1.5 text-[11px] font-black text-emerald-700">نقاط القوة</h4>
-                  <ul className="space-y-1 text-[11px] leading-relaxed text-emerald-800">
-                    {review.strengths.map((s, i) => <li key={i}>• {s}</li>)}
-                  </ul>
-                </div>
-                <div className="rounded-xl bg-amber-50 p-3.5">
-                  <h4 className="mb-1.5 text-[11px] font-black text-amber-700">ملاحظات جوهرية</h4>
-                  <ul className="space-y-1 text-[11px] leading-relaxed text-amber-800">
-                    {review.weaknesses.map((s, i) => <li key={i}>• {s}</li>)}
-                  </ul>
-                </div>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3.5 text-[11px] leading-relaxed text-slate-700">
-                <p><strong className="text-[#0f2b46]">المنهجية: </strong>{review.methodology}</p>
-                <p className="mt-2"><strong className="text-[#0f2b46]">الأدبيات والتوثيق: </strong>{review.sources}</p>
-              </div>
-              <div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/50 p-3.5">
-                <h4 className="mb-1.5 text-[11px] font-black text-[#a8841a]">خطوات عملية قبل المناقشة</h4>
-                <ol className="list-inside list-decimal space-y-1 text-[11px] leading-relaxed text-[#5c4d1a]">
-                  {review.nextSteps.map((s, i) => <li key={i}>{s}</li>)}
-                </ol>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setReview(null)} className="flex-1 border-[#c9a227] font-bold text-[#a8841a]">
-                  تحليل مسودة أخرى
-                </Button>
-                <Button onClick={() => { setReviewOpen(false); navigate('chat') }} className="flex-1 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
-                  ناقش التحليل مع المشرف
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+        <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" dir="rtl">
+            <DialogHeader><DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><FileSearch className="h-5 w-5 text-[#a8841a]" /> تحليل مسودة بحث التخرج</DialogTitle><DialogDescription>المشرف الذكي يراجع مسودتك علمياً: الإشكالية والمنهجية والأدبيات والنتائج والتوثيق — ويحفظ التحليل في ملفك</DialogDescription></DialogHeader>
+            {!review ? <div className="space-y-3.5"><div className="space-y-1.5"><Label className="text-xs font-black">عنوان البحث</Label><Input value={reviewTitle} onChange={(e) => setReviewTitle(e.target.value)} placeholder="مثال: أثر التحول الرقمي على أداء الموظفين" className="h-10 text-sm" /></div><div className="space-y-1.5"><Label className="text-xs font-black">نص المسودة (الصق فصول بحثك — كلما زادت التفاصيل كان التحليل أدق)</Label><Textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="الصق هنا مقدمة البحث والإشكالية والمنهجية والنتائج والتوصيات..." className="min-h-44 text-sm leading-relaxed" /><p className="text-left text-[10px] font-bold text-slate-400">{reviewText.length} حرفاً {reviewText.length < 120 && '— الحد الأدنى 120'}</p></div><Button onClick={submitReview} disabled={reviewBusy || reviewText.trim().length < 120} className="w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">{reviewBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <FileSearch className="ml-2 h-4 w-4" />}{reviewBusy ? 'المشرف الذكي يقرأ مسودتك ويحللها...' : 'اطلب التحليل العلمي'}</Button></div> : <div className="space-y-4"><div className={`rounded-xl p-4 text-center ${review.overallScore >= 70 ? 'bg-emerald-50' : review.overallScore >= 50 ? 'bg-amber-50' : 'bg-red-50'}`}><p className="text-3xl font-black text-[#0f2b46]">{review.overallScore}<span className="text-lg">/100</span></p><p className="mt-1 text-xs font-bold text-slate-600">{review.verdict}</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-emerald-50 p-3.5"><h4 className="mb-1.5 text-[11px] font-black text-emerald-700">نقاط القوة</h4><ul className="space-y-1 text-[11px] leading-relaxed text-emerald-800">{review.strengths.map((s, i) => <li key={i}>• {s}</li>)}</ul></div><div className="rounded-xl bg-amber-50 p-3.5"><h4 className="mb-1.5 text-[11px] font-black text-amber-700">ملاحظات جوهرية</h4><ul className="space-y-1 text-[11px] leading-relaxed text-amber-800">{review.weaknesses.map((s, i) => <li key={i}>• {s}</li>)}</ul></div></div><div className="rounded-xl bg-slate-50 p-3.5 text-[11px] leading-relaxed text-slate-700"><p><strong className="text-[#0f2b46]">المنهجية: </strong>{review.methodology}</p><p className="mt-2"><strong className="text-[#0f2b46]">الأدبيات والتوثيق: </strong>{review.sources}</p></div><div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/50 p-3.5"><h4 className="mb-1.5 text-[11px] font-black text-[#a8841a]">خطوات عملية قبل المناقشة</h4><ol className="list-inside list-decimal space-y-1 text-[11px] leading-relaxed text-[#5c4d1a]">{review.nextSteps.map((s, i) => <li key={i}>{s}</li>)}</ol></div><div className="flex gap-2"><Button variant="outline" onClick={() => setReview(null)} className="flex-1 border-[#c9a227] font-bold text-[#a8841a]">تحليل مسودة أخرى</Button><Button onClick={() => { setReviewOpen(false); navigate('chat') }} className="flex-1 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">ناقش التحليل مع المشرف</Button></div></div>}
+          </DialogContent>
+        </Dialog>
+      </div>
     </>
   )
 }
