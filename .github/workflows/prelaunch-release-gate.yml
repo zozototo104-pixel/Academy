@@ -141,8 +141,8 @@ jobs:
 
     env:
       CI: true
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      ROUTE_SMOKE_LIMIT: ${{ inputs.route_limit }}
+      E2E_BASE_URL: ${{ inputs.base_url || 'https://academy-raqaba.vercel.app' }}
+      ROUTE_SMOKE_LIMIT: ${{ inputs.route_limit || '120' }}
       E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL || secrets.ADMIN_EMAIL }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || secrets.AACT_ADMIN_PASSWORD || secrets.ADMIN_PASSWORD }}
       ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL || secrets.AACT_ADMIN_EMAIL }}
