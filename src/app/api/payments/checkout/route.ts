@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'USDT غير متاح حالياً لأن عنوان المحفظة غير مضبوط.' }, { status: 400 })
       }
       const manualProvider = String(method) === 'USDT' ? 'USDT' : 'DIRECT_PAYMENT'
+      const purposeLabel = paymentPurposeLabel(payment.purpose)
       await db.payment.update({
         where: { id: payment.id },
         data: {
