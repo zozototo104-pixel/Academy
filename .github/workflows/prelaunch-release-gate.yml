@@ -212,7 +212,7 @@ jobs:
     timeout-minutes: 45
     needs:
       - critical-e2e
-    if: ${{ inputs.run_launch_quality || inputs.run_ux_mobile_perf }}
+    if: ${{ github.event_name == 'push' || inputs.run_launch_quality || inputs.run_ux_mobile_perf }}
 
     env:
       CI: true
