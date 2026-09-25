@@ -488,16 +488,8 @@
 }
 /* حلقات موجية تتنفس حول الكرة أثناء الاستماع */
 .aact-orb-ring {
-  position: absolute;
-  inset: -18%;
-  border-radius: 9999px;
-  border: 2px solid rgba(224, 184, 58, 0.48);
-  box-shadow: 0 0 24px rgba(224,184,58,0.16);
-  animation: aactOrbRing 2.1s infinite ease-out;
-  pointer-events: none;
+  display: none;
 }
-.aact-orb-ring.r2 { animation-delay: 0.65s; }
-.aact-orb-ring.r3 { animation-delay: 1.3s; }
 @keyframes aactVoiceHalo {
   0%, 100% { transform: scale(0.95); opacity: 0.56; }
   50% { transform: scale(1.06); opacity: 0.92; }
