@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { getStudentTuitionPlan } from '@/lib/tuition-installments'
 
 // GET /api/unit?id=xxx — محتوى الوحدة التدريبية للمسجلين فقط
 export async function GET(req: NextRequest) {
