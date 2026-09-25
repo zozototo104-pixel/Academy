@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     // الكتب المقررة للبرنامج + امتحانات الفصول المبنية عليها (منشورة فقط)
-    const [books, readyExams] = await Promise.all([
+    const [books, readyExams, tuitionPlan] = await Promise.all([
       db.book.findMany({
         where: { programId: unit.programId },
         orderBy: { createdAt: 'asc' },
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }],
         select: { id: true, title: true, semester: true, durationMin: true, passScore: true },
       }),
+      getStudentTuitionPlan(user.id, unit.programId),
     ])
     const semesterExams = await Promise.all(
       readyExams.map(async (e) => ({
