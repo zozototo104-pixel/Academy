@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
     })
 
     if (!unit) return NextResponse.json({ ok: false, error: 'الوحدة غير موجودة ضمن البرنامج المحدد' }, { status: 404 })
-    if (unit.exam?._count.attempts && replace && !body?.force) {
-      return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية إلا بتأكيد force=true' }, { status: 409 })
+    if (unit.exam?._count.attempts && replace) {
+      return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.' }, { status: 409 })
     }
 
     const generated = buildQuestions(unit, count)
