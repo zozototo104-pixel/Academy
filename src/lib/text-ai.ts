@@ -404,10 +404,10 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
 async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
   if (!baseUrl) return []
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
+    const response = await fetchWithTimeout(provider, `${baseUrl.replace(/\/$/, '')}/models`, {
       cache: 'no-store',
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
-    })
+    }, aiDiscoveryTimeoutMs())
     const data = await response.json().catch(() => ({}))
     return rowsFromModelPayload(data)
       .filter((m) => m?.online !== false)
