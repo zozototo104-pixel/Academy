@@ -439,6 +439,16 @@
   background-size: 38px 38px;
   mask-image: radial-gradient(circle at 50% 45%, black 0%, transparent 72%);
 }
+.aact-voice-orb-stage {
+  width: 21rem;
+  height: 21rem;
+  min-height: 21rem;
+  flex: 0 0 auto;
+  contain: layout paint style;
+  isolation: isolate;
+  transform: translateZ(0);
+  overflow: visible;
+}
 .aact-voice-halo {
   position: absolute;
   width: 18rem;
@@ -446,8 +456,7 @@
   border-radius: 9999px;
   background: radial-gradient(circle, rgba(224,184,58,0.20), rgba(224,184,58,0.06) 48%, transparent 70%);
   filter: blur(10px);
-  opacity: 0.72;
-  animation: none;
+  animation: aactVoiceHalo 3.8s ease-in-out infinite;
   pointer-events: none;
 }
 .aact-voice-halo.h2 {
