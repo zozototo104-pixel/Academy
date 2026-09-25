@@ -31,9 +31,8 @@ export function tuitionPaidTotal(payments: Array<{ purpose: string; status: stri
 export function inferTotalTuition(payments: Array<{ purpose: string; status: string; amount: number }>, fallback = 0): number {
   const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map((p) => Number(p.amount) || 0)
   const maxFull = Math.max(0, ...fullTuition)
-  if (maxFull > 0) return roundMoney(maxFull)
   const installments = payments.filter((p) => TUITION_PURPOSES.includes(p.purpose)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
-  return roundMoney(Math.max(fallback, installments))
+  return roundMoney(Math.max(Number(fallback) || 0, maxFull, installments))
 }
 
 async function findActiveAppeal(admissionId: string) {
