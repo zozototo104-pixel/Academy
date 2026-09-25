@@ -120,7 +120,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
 
 export async function enforceSemesterTuitionGate(userId: string, programId: string, semester: number) {
   const plan = await getStudentTuitionPlan(userId, programId)
-  if (!plan || plan.appealStatus !== 'APPROVED') return { ok: true as const, plan: null }
+  if (!plan) return { ok: true as const, plan: null }
   if (semester === 1 && !plan.firstSemesterAllowed) {
     return {
       ok: false as const,
