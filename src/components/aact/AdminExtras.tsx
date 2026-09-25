@@ -880,7 +880,7 @@ export function AdminFinanceTab() {
                 </thead>
                 <tbody>
                   {pagedPayments.map((p) => (
-                    <tr key={p.id} className="border-t border-slate-100">
+                    <tr key={p.id} className={`border-t border-slate-100 ${p.status === 'UNPAID' && ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) ? 'bg-amber-50/60' : ''}`}>
                       <td className="p-3">
                         <div className="font-mono text-[10px] font-bold text-[#0f2b46]" dir="ltr">{p.invoiceNo}</div>
                         <div className="text-[10px] text-slate-400">{p.payerName || p.admission?.fullName || '—'}</div>
