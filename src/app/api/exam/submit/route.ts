@@ -6,10 +6,50 @@ import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
 interface SubmitAnswer {
   questionId: string
   answerText?: string
-  selectedOption?: number
+  selectedOption?: number | string | null
 }
 
-// POST /api/exam/submit — تسليم الاختبار والتصحيح الآلي بالذكاء الاصطناعي
+type PreparedAnswer = {
+  questionId: string
+  selectedOption?: number | null
+  answerText?: string | null
+  isCorrect: boolean | null
+  points: number
+  maxPoints: number
+  aiFeedback: string
+}
+
+function parseQuestionOptions(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.map((item) => String(item)) : []
+  } catch {
+    return []
+  }
+}
+
+function parseOptionIndex(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 0 ? n : null
+}
+
+function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed: boolean, weakPoints: string[]) {
+  return {
+    summary: passed
+      ? `تم تصحيح اختبار ${programTitle} وفق مفتاح الإجابة المعتمد، وحققت نتيجة ${Math.round(percentage)}%.`
+      : `تم تصحيح اختبار ${programTitle} وفق مفتاح الإجابة المعتمد، وحققت نتيجة ${Math.round(percentage)}%. راجع الأسئلة التي ظهرت في الملاحظات قبل إعادة المحاولة.`,
+    strengths: passed
+      ? ['إجابات صحيحة في الأسئلة المطابقة لمفتاح التصحيح', 'إكمال الاختبار وفق الآلية المعتمدة']
+      : ['إكمال محاولة الاختبار', 'ظهور نقاط مراجعة واضحة من نتيجة التصحيح'],
+    improvements: weakPoints.length
+      ? weakPoints.slice(0, 3).map((point) => point.replace(/\.\.\.$/, ''))
+      : ['مراجعة محتوى الوحدة وتثبيت المفاهيم الأساسية'],
+  }
+}
+
+// POST /api/exam/submit — تسليم الاختبار والتصحيح الآلي وفق مفتاح الإجابة، وبالذكاء للأسئلة المقالية فقط
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
@@ -40,13 +80,9 @@ export async function POST(req: NextRequest) {
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
 
-    // إنشاء محاولة
-    const attempt = await db.examAttempt.create({
-      data: { userId: user.id, examId, status: 'SUBMITTED' },
-    })
-
     let totalScore = 0
     let maxTotal = 0
+    const answersToPersist: PreparedAnswer[] = []
     const gradedResults: {
       questionId: string
       order: number
@@ -65,27 +101,35 @@ export async function POST(req: NextRequest) {
       maxTotal += q.points
       const submit = answerMap.get(q.id)
 
-      if (q.type === 'MCQ') {
-        const selected = submit?.selectedOption
-        const isCorrect = selected !== undefined && String(selected) === q.correctAnswer
+      if (q.type === 'MCQ' || q.type === 'TF') {
+        const options = parseQuestionOptions(q.options)
+        const selected = parseOptionIndex(submit?.selectedOption)
+        const correctIndex = parseOptionIndex(q.correctAnswer)
+
+        if (correctIndex === null || !options[correctIndex]) {
+          return NextResponse.json(
+            { error: `مفتاح التصحيح غير مكتمل للسؤال رقم ${q.order}. يرجى مراجعة الاختبار من لوحة الإدارة قبل استقبال محاولات الطلاب.`, code: 'ANSWER_KEY_MISSING' },
+            { status: 422 }
+          )
+        }
+
+        const isCorrect = selected !== null && selected === correctIndex
         const pts = isCorrect ? q.points : 0
         totalScore += pts
-        const options = q.options ? JSON.parse(q.options) : []
         const feedback = isCorrect
-          ? 'إجابة صحيحة! أحسنت.'
-          : `إجابة غير صحيحة. الإجابة الصحيحة: «${options[Number(q.correctAnswer)]}». راجع هذا المفهوم في محتوى الوحدة.`
-        if (!isCorrect) weakPoints.push(`سؤال الاختيار: ${q.text.slice(0, 60)}...`)
-        await db.answer.create({
-          data: {
-            attemptId: attempt.id,
-            questionId: q.id,
-            selectedOption: selected ?? null,
-            answerText: submit?.answerText || null,
-            isCorrect,
-            points: pts,
-            maxPoints: q.points,
-            aiFeedback: feedback,
-          },
+          ? 'إجابة صحيحة وفق مفتاح التصحيح المعتمد.'
+          : `إجابة غير صحيحة. الإجابة الصحيحة المعتمدة: «${options[correctIndex]}». راجع هذا المفهوم في محتوى الوحدة.`
+
+        if (!isCorrect) weakPoints.push(`سؤال ${q.order}: ${q.text.slice(0, 90)}...`)
+
+        answersToPersist.push({
+          questionId: q.id,
+          selectedOption: selected,
+          answerText: submit?.answerText || null,
+          isCorrect,
+          points: pts,
+          maxPoints: q.points,
+          aiFeedback: feedback,
         })
         gradedResults.push({
           questionId: q.id,
@@ -96,37 +140,50 @@ export async function POST(req: NextRequest) {
           points: pts,
           maxPoints: q.points,
           aiFeedback: feedback,
-          studentAnswer: selected !== undefined ? options[selected] || '' : '(لم يجب)',
-          correctAnswerText: options[Number(q.correctAnswer)],
+          studentAnswer: selected !== null ? options[selected] || '(اختيار غير صالح)' : '(لم يجب)',
+          correctAnswerText: options[correctIndex],
         })
       } else {
-        // ESSAY — تصحيح بالذكاء الاصطناعي
         const essayText = submit?.answerText || ''
-        const graded = await gradeEssayAnswer(q.text, q.modelAnswer || '', essayText, q.points)
-        totalScore += graded.points
-        if (graded.points < q.points * 0.6) {
-          weakPoints.push(`سؤال مقالي: ${q.text.slice(0, 60)}...`)
+        if (!q.modelAnswer) {
+          return NextResponse.json(
+            { error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${q.order}. لا يمكن تصحيح سؤال مقالي بلا مرجع معتمد.`, code: 'MODEL_ANSWER_MISSING' },
+            { status: 422 }
+          )
         }
-        await db.answer.create({
-          data: {
-            attemptId: attempt.id,
-            questionId: q.id,
-            answerText: essayText,
-            isCorrect: graded.points >= q.points * 0.6 ? true : graded.points > 0 ? null : false,
-            points: graded.points,
-            maxPoints: q.points,
-            aiFeedback: graded.feedback,
-          },
+
+        let graded: { points: number; feedback: string }
+        try {
+          graded = await gradeEssayAnswer(q.text, q.modelAnswer, essayText, q.points)
+        } catch (e: any) {
+          console.error('Essay grading failed:', String(e?.message || e).slice(0, 300))
+          return NextResponse.json(
+            { error: 'تعذر التصحيح الذكي للسؤال المقالي الآن. لم يتم اعتماد المحاولة، حاول مرة أخرى بعد قليل.', code: 'AI_GRADING_UNAVAILABLE' },
+            { status: 503 }
+          )
+        }
+
+        const pts = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
+        totalScore += pts
+        if (pts < q.points * 0.6) weakPoints.push(`سؤال مقالي ${q.order}: ${q.text.slice(0, 90)}...`)
+
+        answersToPersist.push({
+          questionId: q.id,
+          answerText: essayText,
+          isCorrect: pts >= q.points * 0.6 ? true : pts > 0 ? null : false,
+          points: pts,
+          maxPoints: q.points,
+          aiFeedback: graded.feedback || 'تم تصحيح الإجابة وفق الإجابة النموذجية.',
         })
         gradedResults.push({
           questionId: q.id,
           order: q.order,
           type: q.type,
           text: q.text,
-          isCorrect: graded.points >= q.points * 0.6,
-          points: graded.points,
+          isCorrect: pts >= q.points * 0.6,
+          points: pts,
           maxPoints: q.points,
-          aiFeedback: graded.feedback,
+          aiFeedback: graded.feedback || 'تم تصحيح الإجابة وفق الإجابة النموذجية.',
           studentAnswer: essayText || '(لم يجب)',
         })
       }
@@ -135,24 +192,48 @@ export async function POST(req: NextRequest) {
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const passed = percentage >= exam.passScore
 
-    // تقييم عام بالذكاء الاصطناعي
-    const overall = await generateOverallFeedback(
-      exam.unit.program.titleAr,
-      percentage,
-      passed,
-      weakPoints
-    )
+    let overall: { summary: string; strengths: string[]; improvements: string[] }
+    try {
+      overall = await generateOverallFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
+    } catch (e: any) {
+      console.error('Overall feedback failed; using answer-key feedback:', String(e?.message || e).slice(0, 300))
+      overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
+    }
     const feedbackJson = JSON.stringify(overall)
 
-    await db.examAttempt.update({
-      where: { id: attempt.id },
-      data: {
-        score: Math.round(percentage * 10) / 10,
-        passed,
-        status: 'GRADED',
-        aiGraded: true,
-        feedback: feedbackJson,
-      },
+    const attempt = await db.$transaction(async (tx) => {
+      const created = await tx.examAttempt.create({
+        data: { userId: user.id, examId, status: 'SUBMITTED' },
+      })
+
+      for (const prepared of answersToPersist) {
+        await tx.answer.create({
+          data: {
+            attemptId: created.id,
+            questionId: prepared.questionId,
+            selectedOption: prepared.selectedOption ?? null,
+            answerText: prepared.answerText ?? null,
+            isCorrect: prepared.isCorrect,
+            points: prepared.points,
+            maxPoints: prepared.maxPoints,
+            aiFeedback: prepared.aiFeedback,
+          },
+        })
+      }
+
+      await tx.examAttempt.update({
+        where: { id: created.id },
+        data: {
+          score: Math.round(percentage * 10) / 10,
+          passed,
+          status: 'GRADED',
+          aiGraded: true,
+          feedback: feedbackJson,
+        },
+      })
+
+      await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
+      return created
     })
 
     // إذا نجح في كل اختبارات البرنامج وحدد الوحدات → إصدار رقم شهادة
@@ -194,8 +275,6 @@ export async function POST(req: NextRequest) {
         certificateNo = enrollment.certificateNo
       }
     }
-
-    await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } }).catch(() => {})
 
     return NextResponse.json({
       ok: true,
