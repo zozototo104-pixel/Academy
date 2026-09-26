@@ -408,6 +408,37 @@ function degreeFromEvidence(f?: AdmissionFileEvidence | null): keyof typeof EDU_
   return 'NONE'
 }
 
+function cleanExtractedGrade(value: string): string {
+  return String(value || '')
+    .replace(/[\n\r\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s:：\-–—]+|[\s.;،,]+$/g, '')
+    .slice(0, 90)
+}
+
+function extractCredentialFinalGrade(f?: AdmissionFileEvidence | null): string | null {
+  if (!f || isVisionUnavailable(f) || nonAdmissionAttachmentReason(f) || hasContradictingVisualEvidence(f, 'DEGREE')) return null
+  const actual = detectAdmissionDocumentKind(f)
+  if (!['DEGREE_CERTIFICATE', 'TRANSCRIPT'].includes(actual.kind)) return null
+  const text = safeVisibleContent(f).replace(/\s+/g, ' ').trim()
+  if (!text) return null
+
+  const labelledPatterns: Array<{ label: string; re: RegExp }> = [
+    { label: 'المعدل التراكمي', re: /(?:المعدل\s*(?:العام|التراكمي|النهائي)?|gpa|grade\s*point\s*average)\s*[:：\-–—]?\s*([0-9]{1,3}(?:[\.,][0-9]{1,2})?\s*(?:%|\/\s*(?:4|5|100))?)/i },
+    { label: 'النسبة/المجموع', re: /(?:النسبة|المجموع|average|percentage|overall\s*score|final\s*score)\s*[:：\-–—]?\s*([0-9]{1,3}(?:[\.,][0-9]{1,2})?\s*%?)/i },
+    { label: 'التقدير العام', re: /(?:التقدير\s*(?:العام|النهائي)?|grade|rating|classification)\s*[:：\-–—]?\s*(امتياز|ممتاز|جيد\s*جداً|جيد\s*جدا|جيد|مقبول|excellent|very\s+good|good|pass|passed|fair|satisfactory)/i },
+  ]
+  for (const pattern of labelledPatterns) {
+    const match = text.match(pattern.re)
+    const value = cleanExtractedGrade(match?.[1] || '')
+    if (value) return `${pattern.label}: ${value}`
+  }
+
+  const percentageNearGrade = text.match(/(?:final|overall|degree|graduation|معدل|تقدير|النتيجة|النتيجه)[^0-9%]{0,40}([0-9]{2,3}(?:[\.,][0-9]{1,2})?\s*%)/i)
+  if (percentageNearGrade?.[1]) return `النتيجة النهائية: ${cleanExtractedGrade(percentageNearGrade[1])}`
+  return null
+}
+
 function nonAdmissionAttachmentReason(f?: AdmissionFileEvidence | null): string | null {
   if (!f || isVisionUnavailable(f)) return null
   const visible = [
