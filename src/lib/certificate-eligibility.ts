@@ -171,6 +171,15 @@ export async function evaluateCertificateRecordEligibility(cert: {
     programId = programId || enrollment?.programId || null
   }
 
+  if ((!userId || !programId) && cert.serial) {
+    const enrollment = await db.enrollment.findFirst({
+      where: { certificateNo: cert.serial, ...(userId ? { userId } : {}) },
+      select: { userId: true, programId: true },
+    })
+    userId = userId || enrollment?.userId || null
+    programId = programId || enrollment?.programId || null
+  }
+
   if (!programId && cert.program) {
     const program = await db.program.findFirst({
       where: { titleAr: cert.program },
