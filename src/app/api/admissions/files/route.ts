@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const app = await db.admissionApplication.findFirst({
       where: applicationId ? { id: applicationId } : { reference },
-      select: { id: true, reference: true, email: true, userId: true, status: true },
+      select: { id: true, reference: true, email: true, userId: true, status: true, notes: true },
     })
     if (!app) return NextResponse.json({ error: 'لم يتم العثور على طلب الالتحاق' }, { status: 404 })
 
