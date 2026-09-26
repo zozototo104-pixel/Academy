@@ -196,7 +196,7 @@ async function getFromS3CompatibleStorage(key: string, mimeType: string): Promis
   }
 }
 
-async function putToLocalStorage(input: StoreFileInput, key: string, mimeType: string): Promise<StoredFileResult> {
+async function putToLocalStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult> {
   if (process.env.NODE_ENV === 'production' && process.env.AACT_ALLOW_LOCAL_UPLOADS !== 'true') {
     throw new Error('FILE_STORAGE_NOT_CONFIGURED')
   }
