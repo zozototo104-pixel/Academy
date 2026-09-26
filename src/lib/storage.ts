@@ -237,6 +237,12 @@ export function storageErrorMessage(error: unknown): string {
   return 'تعذر حفظ الملف خارج قاعدة البيانات. حاول مرة أخرى أو راجع إعدادات التخزين.'
 }
 
+export function getPublicStorageUrlForKey(key: string): string | null {
+  const cfg = getS3Config()
+  if (!cfg?.publicBaseUrl) return null
+  return `${cfg.publicBaseUrl}/${encodeS3Key(cleanStorageKey(key))}`
+}
+
 export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFileResult> {
   if (!Buffer.isBuffer(input.buffer) || input.buffer.byteLength === 0) throw new Error('EMPTY_FILE')
 
@@ -244,6 +250,18 @@ export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFile
   const digest = sha256Hex(input.buffer).slice(0, 16)
   const namespace = cleanSegment(input.namespace, 'uploads')
   const key = `${namespace}/${isoDateFolder()}/${randomUUID()}-${digest}-${cleanFileName(input.fileName)}`
+
+  const s3 = await putToS3CompatibleStorage(input, key, mimeType)
+  if (s3) return s3
+
+  return putToLocalStorage(input, key, mimeType)
+}
+
+export async function storeFileBufferAtKey(input: StoreFileAtKeyInput): Promise<StoredFileResult> {
+  if (!Buffer.isBuffer(input.buffer) || input.buffer.byteLength === 0) throw new Error('EMPTY_FILE')
+
+  const mimeType = String(input.mimeType || 'application/octet-stream').slice(0, 160)
+  const key = cleanStorageKey(input.key)
 
   const s3 = await putToS3CompatibleStorage(input, key, mimeType)
   if (s3) return s3
