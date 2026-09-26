@@ -324,6 +324,78 @@ export function ApplyView() {
     navigate('dashboard', { tab: 'payments', invoice: invoiceNo || undefined })
   }
 
+  const admissionDocLabel = (type: string) => {
+    return ([...REQUIRED_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_DOCS, ...flowDocs].find((d) => d.type === type)?.label || type)
+  }
+
+  const pickReplacementFile = (applicationId: string, type: string, f: File | null) => {
+    const key = `${applicationId}:${type}`
+    if (!f) {
+      setReplacementFiles((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      return
+    }
+    if (f.size > MAX_FILE_MB * 1024 * 1024) {
+      toast({ title: 'الملف كبير جداً', description: `الحد الأقصى ${MAX_FILE_MB} ميجابايت للملف الواحد`, variant: 'destructive' })
+      return
+    }
+    if (f.type && !ALLOWED_FILE_MIME.includes(f.type) && !ALLOWED_FILE_RE.test(f.name)) {
+      toast({ title: 'صيغة غير مدعومة', description: 'المسموح: صور / PDF / Word / Excel / TXT / CSV', variant: 'destructive' })
+      return
+    }
+    setReplacementFiles((prev) => ({ ...prev, [key]: f }))
+  }
+
+  const submitReplacementDocuments = async (app: any) => {
+    const request = app.documentReplacementRequest
+    const docTypes = Array.isArray(request?.docTypes) ? request.docTypes : []
+    if (!app.id || !app.reference || !app.replacementUploadToken || docTypes.length === 0) {
+      toast({ title: 'لا يمكن رفع المرفقات الآن', description: 'رابط استبدال المرفقات غير متاح أو انتهت صلاحيته. أعد فتح صفحة التتبع أو تواصل مع الإدارة.', variant: 'destructive' })
+      return
+    }
+    const missing = docTypes.filter((type: string) => !replacementFiles[`${app.id}:${type}`])
+    if (missing.length > 0) {
+      toast({ title: 'المرفقات المعدّلة غير مكتملة', description: `ارفع: ${missing.map(admissionDocLabel).join('، ')}`, variant: 'destructive' })
+      return
+    }
+    setReplacementLoading(app.id)
+    try {
+      for (let i = 0; i < docTypes.length; i++) {
+        const docType = docTypes[i]
+        const file = replacementFiles[`${app.id}:${docType}`]
+        const fd = new FormData()
+        fd.append('applicationId', app.id)
+        fd.append('reference', app.reference)
+        fd.append('uploadToken', app.replacementUploadToken)
+        fd.append('docType', docType)
+        fd.append('file', file)
+        toast({ title: 'جاري رفع المرفقات المعدّلة', description: `رفع ${i + 1} من ${docTypes.length}: ${admissionDocLabel(docType)}` })
+        await api('/api/admissions/files', { method: 'POST', body: fd })
+      }
+      const finalized = await api<{ message: string }>('/api/admissions/finalize', {
+        method: 'POST',
+        body: JSON.stringify({ applicationId: app.id, reference: app.reference, uploadToken: app.replacementUploadToken }),
+      })
+      const refreshed = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}`)
+      setTracked(refreshed.application)
+      setMyAdmission((prev) => (prev?.id === app.id ? refreshed.application : prev))
+      setMyApplications((prev) => prev.map((item) => (item.id === app.id ? refreshed.application : item)))
+      setReplacementFiles((prev) => {
+        const next = { ...prev }
+        docTypes.forEach((type: string) => delete next[`${app.id}:${type}`])
+        return next
+      })
+      toast({ title: 'تم إرسال المرفقات المعدّلة', description: finalized.message || 'عادت المرفقات إلى الإدارة للمراجعة.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إرسال المرفقات المعدّلة', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setReplacementLoading(null)
+    }
+  }
+
   const pickFile = (type: string, f: File | null) => {
     setMissingDocs([])
     if (!f) {
