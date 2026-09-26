@@ -1553,7 +1553,7 @@ export function AdminView() {
                                   لم يُحوَّل الملف للإدارة بعد — بانتظار سداد المتقدم رسوم التقديم (30$) من صفحة طلب الالتحاق أو التتبع
                                 </div>
                               )}
-                              {(a.files?.length || 0) > 0 && ['PENDING', 'UNDER_REVIEW', 'AWAITING_FEE', 'DOCUMENTS_NEED_REPLACEMENT'].includes(a.status) && (
+                              {(a.files?.length || 0) > 0 && !['CERTIFIED', 'REJECTED'].includes(a.status) && (
                                 <Button size="sm" variant="outline" onClick={() => setReplacementFormOpen(a, !docReplacementForms[a.id]?.open)} className="border-red-200 font-bold text-red-600 hover:bg-red-50">
                                   <FileWarning className="ml-1 h-3.5 w-3.5" /> طلب استبدال مرفقات
                                 </Button>
