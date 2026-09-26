@@ -76,9 +76,26 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    if (isDocumentReplacement && replacementRequest) {
+      const requestedAt = new Date(replacementRequest.requestedAt).getTime()
+      const staleOrMissing = replacementRequest.docTypes.filter((type) => {
+        const doc = (app.files || []).find((f) => f.docType === type)
+        return !doc || new Date(doc.createdAt).getTime() + 1000 < requestedAt
+      })
+      if (staleOrMissing.length > 0) {
+        return NextResponse.json({
+          error: 'لم يتم رفع كل المرفقات التي طلبت الإدارة استبدالها بعد.',
+          missing: staleOrMissing,
+        }, { status: 400 })
+      }
+    }
+
     const owner = app.user || (app.email ? await db.user.findUnique({ where: { email: app.email.trim().toLowerCase() } }) : null)
     const selectedTitle = app.programRef?.titleAr || app.program
-    const nextStatus = isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE'
+    const replacementPreviousStatus = replacementRequest?.previousStatus && !['DOCUMENTS_NEED_REPLACEMENT', 'CERTIFIED', 'REJECTED'].includes(replacementRequest.previousStatus)
+      ? replacementRequest.previousStatus
+      : 'UNDER_REVIEW'
+    const nextStatus = isDocumentReplacement ? replacementPreviousStatus : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
 
     const existingFee = app.payments.find((p) => p.purpose === 'APPLICATION_FEE') || null
