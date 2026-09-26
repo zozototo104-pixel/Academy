@@ -540,19 +540,23 @@ export function ApplyView() {
     const tuitionPaid = Number(tuitionPlan?.paidTuition || 0)
     const tuitionRemaining = Number(tuitionPlan?.remainingTuition || 0)
     const canCreateRemainingInvoice = tuitionSummaryActive && !installmentPayable && tuitionRemaining > 0 && app.id
-    const headline = app.status === 'AWAITING_TUITION'
-      ? 'تمت الموافقة المبدئية على طلبك'
-      : app.status === 'UNDER_REVIEW'
-        ? (isStudyApp ? 'طلبك قيد دراسة الإدارة' : 'طلب الخدمة قيد مراجعة الإدارة')
-        : app.status === 'AWAITING_FEE'
-          ? 'تم استلام طلبك — بانتظار رسوم التقديم'
-          : isStudyFinalActive && isStudyApp
-            ? 'تم تفعيل قيدك الدراسي'
-            : isServiceApproved
-              ? 'تم اعتماد طلب الخدمة'
-              : app.status === 'REJECTED'
-                ? 'تمت مراجعة طلبك'
-                : (isStudyApp ? 'حالة طلب الالتحاق' : 'حالة طلب الخدمة')
+    const headline = app.status === 'DOCUMENTS_NEED_REPLACEMENT'
+      ? 'مطلوب استبدال مستندات قبل متابعة الطلب'
+      : app.status === 'AWAITING_TUITION'
+        ? 'تمت الموافقة المبدئية على طلبك'
+        : app.status === 'UNDER_REVIEW'
+          ? (isStudyApp ? 'طلبك قيد دراسة الإدارة' : 'طلب الخدمة قيد مراجعة الإدارة')
+          : app.status === 'AWAITING_FEE'
+            ? 'تم استلام طلبك — بانتظار رسوم التقديم'
+            : isStudyFinalActive && isStudyApp
+              ? 'تم تفعيل قيدك الدراسي'
+              : isServiceApproved
+                ? 'تم اعتماد طلب الخدمة'
+                : app.status === 'REJECTED'
+                  ? 'تمت مراجعة طلبك'
+                  : (isStudyApp ? 'حالة طلب الالتحاق' : 'حالة طلب الخدمة')
+    const replacementRequest = app.status === 'DOCUMENTS_NEED_REPLACEMENT' ? app.documentReplacementRequest : null
+    const replacementDocTypes = Array.isArray(replacementRequest?.docTypes) ? replacementRequest.docTypes : []
 
     return (
       <Card className="mx-auto mt-6 max-w-3xl border-[#c9a227]/40 bg-white shadow-xl">
