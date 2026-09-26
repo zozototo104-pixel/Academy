@@ -329,10 +329,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, application: updated })
     }
 
-    const updated = await db.admissionApplication.update({ where: { id }, data })
+    let updated: any
 
-    // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED
-    // شرط رسمي: تسديد رسوم الطلب. في التقسيط لا نعلّق الشهادة على فاتورة TUITION الأصلية إذا غطاها مجموع دفعات TUITION_INSTALLMENT.
+    // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED.
+    // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
       const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
@@ -345,56 +345,49 @@ export async function PATCH(req: NextRequest) {
           { status: 400 }
         )
       }
-      const existingCert = await db.certificate.findFirst({ where: { admissionId: id } })
-      if (!existingCert) {
-        const lastThesis = await db.thesisSubmission.findFirst({
-          where: { admissionId: id, resultScore: { not: null } },
-          orderBy: { updatedAt: 'desc' },
-          select: { resultScore: true },
-        })
-        const finalGrade = app.programId && app.userId
-          ? await calculateFinalGrade({ userId: app.userId, programId: app.programId, admissionId: id })
-          : { score: null, missing: [] }
-        const programCategory = app.programId
-          ? (await db.program.findUnique({ where: { id: app.programId }, select: { category: true } }))?.category
-          : null
-        if (['MASTERS', 'DOCTORATE'].includes(programCategory || '') && finalGrade.score === null) {
-          return NextResponse.json(
-            { error: `لا يمكن إصدار شهادة هذا المسار قبل اكتمال عناصر الدرجة النهائية: ${(finalGrade as any).missing?.join('، ') || 'عناصر غير مكتملة'}` },
-            { status: 400 }
-          )
-        }
-        const certificateScore = finalGrade.score ?? (typeof lastThesis?.resultScore === 'number' ? lastThesis.resultScore : null)
-        const cert = await db.certificate.create({
-          data: {
-            serial: await nextCertSerial(),
-            qrToken: randomBytes(16).toString('hex'),
-            type: 'PROGRAM_COMPLETION',
-            holderName: app.fullName,
-            program: app.program,
-            grade: certificateScore !== null ? `${certificateScore}%` : null,
-            country: app.country,
-            userId: app.userId,
-            admissionId: id,
-          },
-        })
-        if (app.programId && app.userId) {
-          await db.enrollment.updateMany({
-            where: { userId: app.userId, programId: app.programId },
-            data: { certificateNo: cert.serial, status: 'COMPLETED', ...(certificateScore !== null ? { finalScore: certificateScore } : {}) },
-          })
-        }
-        if (app.userId) {
-          await notify(
-            app.userId,
-            'CERTIFICATE',
-            'تم إصدار شهادتك المعتمدة',
-            `أُصدرت شهادتك لبرنامج «${app.program}» برقم ${cert.serial} — متاحة في بوابة الطالب للطباعة والتحقق.`,
-            'dashboard'
-          )
-          await emailCertificateIssued(app.email, app.fullName, app.program, cert.serial).catch(() => {})
-        }
+
+      const eligibility = await evaluateProgramCertificateEligibility({ userId: app.userId, programId: app.programId, admissionId: id })
+      if (!eligibility.ok) {
+        return NextResponse.json(
+          { error: eligibility.error || 'لا يمكن إصدار الشهادة قبل اكتمال شروط النجاح الأكاديمي.', eligibility },
+          { status: 400 }
+        )
       }
+
+      const existingCert = await db.certificate.findFirst({ where: { admissionId: id } })
+      const cert = existingCert || await db.certificate.create({
+        data: {
+          serial: await nextCertSerial(),
+          qrToken: randomBytes(16).toString('hex'),
+          type: 'PROGRAM_COMPLETION',
+          holderName: app.fullName,
+          program: app.program,
+          grade: eligibility.gradeLabel,
+          country: app.country,
+          userId: app.userId,
+          admissionId: id,
+        },
+      })
+      if (!existingCert && app.programId && app.userId) {
+        await db.enrollment.updateMany({
+          where: { userId: app.userId, programId: app.programId },
+          data: { certificateNo: cert.serial, status: 'COMPLETED', ...(eligibility.score !== null ? { finalScore: eligibility.score } : {}) },
+        })
+      }
+      if (!existingCert && app.userId) {
+        await notify(
+          app.userId,
+          'CERTIFICATE',
+          'تم إصدار شهادتك المعتمدة',
+          `أُصدرت شهادتك لبرنامج «${app.program}» برقم ${cert.serial} — متاحة في بوابة الطالب للطباعة والتحقق.`,
+          'dashboard'
+        )
+        await emailCertificateIssued(app.email, app.fullName, app.program, cert.serial).catch(() => {})
+      }
+
+      updated = await db.admissionApplication.update({ where: { id }, data })
+    } else {
+      updated = await db.admissionApplication.update({ where: { id }, data })
     }
 
     if (status === 'REJECTED') {
