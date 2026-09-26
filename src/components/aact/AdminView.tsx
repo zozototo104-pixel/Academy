@@ -1839,17 +1839,32 @@ export function AdminView() {
                             {new Date(s.createdAt).toLocaleDateString('ar')}
                           </td>
                           <td className="p-3">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                openStudentPreview(s.id)
-                              }}
-                              className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a] hover:bg-[#fff7df]"
-                            >
-                              <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openStudentPreview(s.id)
+                                }}
+                                className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a] hover:bg-[#fff7df]"
+                              >
+                                <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                              </Button>
+                              {s.latestAdmission && !['CERTIFIED', 'REJECTED'].includes(s.latestAdmission.status) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openStudentAdmission(s, true)
+                                  }}
+                                  className="border-red-200 text-[10px] font-black text-red-600 hover:bg-red-50"
+                                >
+                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> استبدال مرفقات
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
