@@ -154,6 +154,7 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   UPLOADING_DOCUMENTS: { text: 'جاري رفع المستندات', cls: 'bg-blue-100 text-blue-700' },
   AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
   UNDER_REVIEW: { text: 'قيد دراسة الإدارة', cls: 'bg-blue-100 text-blue-700' },
+  DOCUMENTS_NEED_REPLACEMENT: { text: 'مطلوب استبدال مستندات', cls: 'bg-red-100 text-red-700' },
   AWAITING_TUITION: { text: 'مقبول — بانتظار سداد الرسوم الدراسية', cls: 'bg-[#c9a227]/20 text-[#a8841a]' },
   SUPERVISOR_ASSIGNED: { text: 'تم تعيين مشرف', cls: 'bg-purple-100 text-purple-700' },
   THESIS: { text: 'التسجيل النهائي — قيد إعداد بحث التخرج', cls: 'bg-emerald-100 text-emerald-700' },
