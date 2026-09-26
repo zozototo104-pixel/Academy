@@ -56,8 +56,15 @@ export async function POST(req: NextRequest) {
     }
 
     const adminUploader = Boolean(me && ['ADMIN', 'STAFF'].includes(me.role))
-    if (!adminUploader && app.status !== 'UPLOADING_DOCUMENTS') {
+    const replacementRequest = extractAdmissionDocumentReplacement(app.notes)
+    const replacementAllowed = app.status === 'DOCUMENTS_NEED_REPLACEMENT' && !!replacementRequest
+    if (!adminUploader && app.status !== 'UPLOADING_DOCUMENTS' && !replacementAllowed) {
       return NextResponse.json({ error: 'لا يمكن تعديل مستندات هذا الطلب بعد إكمال التقديم. تواصل مع الإدارة إذا طُلب منك استبدال مرفق.' }, { status: 400 })
+    }
+
+    const docType = normalizeDocType(docTypeRaw || file.name)
+    if (!adminUploader && replacementAllowed && replacementRequest.docTypes.length > 0 && !replacementRequest.docTypes.includes(docType)) {
+      return NextResponse.json({ error: 'هذا المرفق ليس ضمن المستندات التي طلبت الإدارة استبدالها.' }, { status: 400 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
