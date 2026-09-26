@@ -177,6 +177,7 @@ interface AdmissionDocumentAnalysis {
   relatedToProgram: 'YES' | 'NO' | 'UNVERIFIED'
   coverage: number
   coverageReason: string
+  finalGradeExtracted?: string | null
   recommendation: string
   reasons: string[]
 }
