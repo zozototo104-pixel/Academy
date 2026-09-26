@@ -75,7 +75,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `صيغة ملف «${file.name}» غير مدعومة — المسموح: صور أو PDF أو Word أو Excel أو TXT/CSV` }, { status: 400 })
     }
 
-    const docType = normalizeDocType(docTypeRaw || file.name)
     const buf = Buffer.from(await file.arrayBuffer())
     let stored
     try {
