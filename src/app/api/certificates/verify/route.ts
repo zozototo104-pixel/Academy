@@ -16,7 +16,7 @@ function gradeLabel(score?: number | null): string | null {
   if (score >= 90) return 'امتياز'
   if (score >= 80) return 'جيد جداً'
   if (score >= 70) return 'جيد'
-  if (score >= 60) return 'مقبول'
+  if (score >= 51) return 'ناجح'
   return 'غير مجتاز'
 }
 
