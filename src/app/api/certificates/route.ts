@@ -22,7 +22,7 @@ export async function GET() {
       },
       orderBy: { issuedAt: 'desc' },
     })
-    const visibleCertificates = []
+    const visibleCertificates: any[] = []
     for (const cert of certificates) {
       const eligibility = await evaluateCertificateRecordEligibility(cert)
       if (eligibility.ok) visibleCertificates.push({ ...cert, eligibility })
