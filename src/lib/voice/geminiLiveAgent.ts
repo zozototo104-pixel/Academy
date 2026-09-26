@@ -530,6 +530,7 @@ export class GeminiLiveAgent {
 
   stop() {
     this.running = false
+    this.lastUserSpeechAt = 0
     this.closeConnectionOnly()
     this.player.stop()
     try { this.processor?.disconnect() } catch {}
