@@ -178,6 +178,7 @@ export class GeminiLiveAgent {
   private userText = ''
   private aiText = ''
   private model = ''
+  private lastUserSpeechAt = 0
 
   constructor(callbacks: AgentCallbacks = {}) {
     this.cb = callbacks
