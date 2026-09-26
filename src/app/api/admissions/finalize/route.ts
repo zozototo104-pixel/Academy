@@ -49,8 +49,13 @@ export async function POST(req: NextRequest) {
     if (!sessionAllowed && !tokenAllowed) {
       return NextResponse.json({ error: 'رابط إكمال التقديم غير صالح أو انتهت صلاحيته. أعد فتح نموذج التقديم وأرسل الطلب من جديد.' }, { status: 403 })
     }
-    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'].includes(app.status)) {
+    const isDocumentReplacement = app.status === 'DOCUMENTS_NEED_REPLACEMENT'
+    const replacementRequest = isDocumentReplacement ? extractAdmissionDocumentReplacement(app.notes) : null
+    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(app.status)) {
       return NextResponse.json({ error: 'لا يمكن إكمال هذا الطلب لأنه انتقل إلى مرحلة لاحقة' }, { status: 400 })
+    }
+    if (isDocumentReplacement && !replacementRequest) {
+      return NextResponse.json({ error: 'طلب استبدال المرفقات غير مكتمل من جهة الإدارة. تواصل مع الإدارة لتجديد الطلب.' }, { status: 400 })
     }
 
     const serviceFlow = getServiceFlow(app.programRef?.slug)
