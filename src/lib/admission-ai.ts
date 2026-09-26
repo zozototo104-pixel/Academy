@@ -1162,6 +1162,10 @@ export async function analyzeAdmission(
     files,
   })
   const documentAnalyses = buildDocumentAnalyses({ fullName: app.fullName, program: app.program }, files)
+  const extractedGradeNotes = documentAnalyses
+    .filter((d) => d.finalGradeExtracted)
+    .map((d) => `${d.fileName}: ${d.finalGradeExtracted}`)
+    .slice(0, 4)
 
   const cat = app.programRef?.category || 'DIPLOMA'
   const level = CATEGORY_AR[cat] || cat
