@@ -791,16 +791,19 @@ export function AdminView() {
   }
 
   const setReplacementFormOpen = (app: AdmissionApp, open: boolean) => {
-    setDocReplacementForms((prev) => ({
-      ...prev,
-      [app.id]: open
-        ? {
-            open: true,
-            note: prev[app.id]?.note || app.documentReplacementRequest?.note || '',
-            docTypes: prev[app.id]?.docTypes?.length ? prev[app.id].docTypes : (app.documentReplacementRequest?.docTypes || []),
-          }
-        : { ...(prev[app.id] || { note: '', docTypes: [] }), open: false },
-    }))
+    setDocReplacementForms((prev) => {
+      const current = prev[app.id]
+      return {
+        ...prev,
+        [app.id]: open
+          ? {
+              open: true,
+              note: current?.note || app.documentReplacementRequest?.note || '',
+              docTypes: current?.docTypes?.length ? current.docTypes : (app.documentReplacementRequest?.docTypes || []),
+            }
+          : { ...(current || { note: '', docTypes: [] }), open: false },
+      }
+    })
   }
 
   const toggleReplacementDocType = (appId: string, docType: string) => {
