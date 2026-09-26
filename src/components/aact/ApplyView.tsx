@@ -207,6 +207,8 @@ export function ApplyView() {
   const [acknowledged, setAcknowledged] = useState(false)
   const [files, setFiles] = useState<Record<string, File>>({})
   const [missingDocs, setMissingDocs] = useState<string[]>([])
+  const [replacementFiles, setReplacementFiles] = useState<Record<string, File>>({})
+  const [replacementLoading, setReplacementLoading] = useState<string | null>(null)
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
