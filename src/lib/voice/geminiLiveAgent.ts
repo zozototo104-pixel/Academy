@@ -200,6 +200,7 @@ export class GeminiLiveAgent {
     this.startedAt = performance.now()
     this.userText = ''
     this.aiText = ''
+    this.lastUserSpeechAt = 0
     // واجهة فقط: نبقى في حالة تجهيز حتى تكتمل جلسة Gemini Live فعلياً.
     // لا نعرض «تحدث الآن» قبل فتح الاتصال حتى لا يظن الطالب أن المشرف لا يستجيب في أول تشغيل.
     this.state('IDLE')
