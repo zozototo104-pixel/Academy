@@ -405,6 +405,7 @@ export async function GET(req: NextRequest) {
         halfRequired: roundMoney(totalTuition / 2),
         finalRequired: totalTuition,
       } : null
+      const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
       return {
       id: app.id,
       reference: app.reference,
