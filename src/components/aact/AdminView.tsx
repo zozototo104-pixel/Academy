@@ -1389,6 +1389,11 @@ export function AdminView() {
                                           </div>
                                           <p className="mt-1 font-black text-[#0f2b46]">{d.fileName}</p>
                                           <p className="mt-0.5 text-slate-500">المرفوع كـ {d.declaredLabel} — المكتشف: {d.detectedLabel}</p>
+                                          {d.finalGradeExtracted && (
+                                            <p className="mt-1 rounded-lg bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#0f2b46]">
+                                              المعدل/التقدير النهائي المقروء من الشهادة: <span className="text-[#a8841a]">{d.finalGradeExtracted}</span>
+                                            </p>
+                                          )}
                                           <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] font-bold text-slate-500">
                                             <span className="rounded bg-slate-50 p-1">واضح: {d.clearEnough ? 'نعم' : 'لا'}</span>
                                             <span className="rounded bg-slate-50 p-1">يخص الطالب: {TRI_STATE_AR[d.belongsToStudent] || d.belongsToStudent}</span>
