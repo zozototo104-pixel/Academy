@@ -491,6 +491,7 @@ export class GeminiLiveAgent {
       }
       this.userText = ''
       this.aiText = ''
+      this.lastUserSpeechAt = 0
       this.state('LISTENING')
     }
     return false
