@@ -21,13 +21,14 @@ import {
 // → AWAITING_TUITION (مقبول — بانتظار سداد الرسوم الدراسية كاملة للدخول للبرنامج)
 // → THESIS (التسجيل النهائي — قيد إعداد بحث التخرج) → SCHEDULED → RESULT_APPROVED → CERTIFIED | REJECTED
 const STATUSES = [
-  'AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION', 'SUPERVISOR_ASSIGNED',
+  'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT', 'AWAITING_TUITION', 'SUPERVISOR_ASSIGNED',
   'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED', 'REJECTED', 'PENDING',
 ]
 
 export const STATUS_LABEL: Record<string, string> = {
   AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
   UNDER_REVIEW: 'قيد دراسة الإدارة',
+  DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
   THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
