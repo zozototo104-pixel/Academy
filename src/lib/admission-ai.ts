@@ -653,9 +653,11 @@ function buildDocumentAnalyses(app: { fullName: string; program: string }, files
     const clearEnough = expected.ok && readable
     const belongsToStudent = sharedNameStatus(app.fullName, f)
     const relatedToProgram = programRelevanceStatus(app.program, f.docType, f, detected.kind)
+    const finalGradeExtracted = extractCredentialFinalGrade(f)
     const reasons = [
       detected.reason,
       expected.reason,
+      finalGradeExtracted ? `المعدل/التقدير النهائي المقروء من الشهادة: ${finalGradeExtracted}` : null,
       f.ocrRead?.qualityNote || f.textNote,
       belongsToStudent === 'NO' ? 'الاسم المقروء لا يطابق اسم المتقدم بما يكفي' : null,
       relatedToProgram === 'NO' ? 'المرفق لا يرتبط بمتطلبات القبول أو البرنامج' : null,
