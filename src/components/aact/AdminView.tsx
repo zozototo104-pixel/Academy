@@ -410,6 +410,8 @@ export function AdminView() {
   const [aiReviews, setAiReviews] = useState<Record<string, AdmissionAIReview | null>>({})
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState<Record<string, boolean>>({})
+  const [docReplacementForms, setDocReplacementForms] = useState<Record<string, { open: boolean; note: string; docTypes: string[] }>>({})
+  const [docReplacementLoading, setDocReplacementLoading] = useState<string | null>(null)
   const [deliverableForms, setDeliverableForms] = useState<Record<string, DeliverableFormState>>({})
   const [deliverableFiles, setDeliverableFiles] = useState<Record<string, File | null>>({})
   const [deliverableLoading, setDeliverableLoading] = useState<string | null>(null)
