@@ -1107,10 +1107,11 @@ function summarizeEvidence(files: AdmissionFileEvidence[]): string {
     const actual = detectAdmissionDocumentKind(f)
     const match = expectedDocMatches(f.docType, f)
     const text = safeVisibleContent(f).replace(/\s+/g, ' ').slice(0, 1000)
+    const extractedFinalGrade = extractCredentialFinalGrade(f) || '-'
     const note = isVisionUnavailable(f)
       ? (f.ocrRead?.qualityNote || 'لم تكتمل قراءة الصورة آلياً الآن')
       : f.textNote
-    return `ملف ${i + 1}: التصنيف المختار عند الرفع=${label}; النوع الحقيقي المكتشف=${DETECTED_KIND_AR[actual.kind]}; الاسم=${f.fileName}; النوع=${f.mimeType}; الحجم=${Math.ceil(f.size / 1024)}ك.ب; القارئ=${f.textReader}; نتيجة المطابقة=${match.ok ? 'مطابق' : match.problem ? 'مشكلة' : 'غير متحقق'}; السبب=${match.reason}; ملاحظة القراءة=${note}; مقتطف=${text || '-'}`
+    return `ملف ${i + 1}: التصنيف المختار عند الرفع=${label}; النوع الحقيقي المكتشف=${DETECTED_KIND_AR[actual.kind]}; الاسم=${f.fileName}; النوع=${f.mimeType}; الحجم=${Math.ceil(f.size / 1024)}ك.ب; القارئ=${f.textReader}; نتيجة المطابقة=${match.ok ? 'مطابق' : match.problem ? 'مشكلة' : 'غير متحقق'}; المعدل/التقدير النهائي المقروء=${extractedFinalGrade}; السبب=${match.reason}; ملاحظة القراءة=${note}; مقتطف=${text || '-'}`
   }).join('\n')
 }
 
