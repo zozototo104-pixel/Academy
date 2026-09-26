@@ -79,6 +79,7 @@ export interface AdmissionDocumentAnalysis {
   relatedToProgram: 'YES' | 'NO' | 'UNVERIFIED'
   coverage: number
   coverageReason: string
+  finalGradeExtracted?: string | null
   recommendation: 'ACCEPT_AS_EVIDENCE' | 'REQUEST_CLEARER_COPY' | 'REQUEST_REPLACEMENT' | 'IGNORE_AS_NON_ADMISSION'
   reasons: string[]
 }
