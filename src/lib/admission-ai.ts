@@ -1286,11 +1286,13 @@ ${evidence}
     review = {
       verdict: rules.verdict,
       fitScore: rules.deterministicScore,
-      summaryForAdmin:
+      summaryForAdmin: [
+        extractedGradeNotes.length ? `المعدل/التقدير النهائي المقروء من الشهادة: ${extractedGradeNotes.join(' | ')}.` : null,
         `فحص آلي صارم بالقواعد: ${rules.requiredFound}/${rules.requiredTotal} متطلباً مستوفى. ` +
-        (rules.hardProblems > 0 ? `توجد ${rules.hardProblems} مشكلة جوهرية.` : 'لم تُرصد مشاكل جوهرية بالقواعد.') +
-        (rules.unverifiableRequired > 0 ? ` يوجد ${rules.unverifiableRequired} مرفق مطلوب غير قابل للتحقق.` : '') +
-        ' (تعذر تحليل النموذج اللغوي — هذه نتيجة القواعد والقراءة الآلية فقط)',
+          (rules.hardProblems > 0 ? `توجد ${rules.hardProblems} مشكلة جوهرية.` : 'لم تُرصد مشاكل جوهرية بالقواعد.') +
+          (rules.unverifiableRequired > 0 ? ` يوجد ${rules.unverifiableRequired} مرفق مطلوب غير قابل للتحقق.` : '') +
+          ' (تعذر تحليل النموذج اللغوي — هذه نتيجة القواعد والقراءة الآلية فقط)',
+      ].filter(Boolean).join(' '),
       checklist: rules.checklist,
       documentAnalyses,
       findings: rules.findings,
