@@ -74,6 +74,18 @@ function encodeS3Key(key: string): string {
   return key.split('/').map(encodeS3PathPart).join('/')
 }
 
+function cleanStorageKey(value: string): string {
+  const key = String(value || '')
+    .trim()
+    .replace(/\\+/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+  if (!key || key.split('/').some((part) => !part || part === '.' || part === '..')) {
+    throw new Error('INVALID_STORAGE_KEY')
+  }
+  return key
+}
+
 function getS3Config() {
   const endpoint = process.env.AACT_S3_ENDPOINT?.trim()
   const bucket = process.env.AACT_S3_BUCKET?.trim()
