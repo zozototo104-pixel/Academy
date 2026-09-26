@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { evaluateCertificateRecordEligibility } from '@/lib/certificate-eligibility'
 
 // GET /api/certificates — شهادات المستخدم الحالي
 export async function GET() {
