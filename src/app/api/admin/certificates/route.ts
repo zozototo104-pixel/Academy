@@ -5,6 +5,7 @@ import { nextCertSerial } from '@/lib/settings'
 import { audit, notify } from '@/lib/notify'
 import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
+import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { randomBytes } from 'crypto'
 
 // GET /api/admin/certificates — كل الشهادات الصادرة
