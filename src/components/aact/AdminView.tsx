@@ -242,6 +242,7 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_BADGE: Record<string, string> = {
   AWAITING_FEE: 'bg-amber-100 text-amber-700',
   UNDER_REVIEW: 'bg-blue-100 text-blue-700',
+  DOCUMENTS_NEED_REPLACEMENT: 'bg-red-100 text-red-700',
   AWAITING_TUITION: 'bg-[#c9a227]/20 text-[#a8841a]',
   SUPERVISOR_ASSIGNED: 'bg-purple-100 text-purple-700',
   THESIS: 'bg-[#f7edd0] text-[#a8841a]',
