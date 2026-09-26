@@ -181,8 +181,15 @@ export async function evaluateCertificateRecordEligibility(cert: {
   }
 
   if (!programId && cert.program) {
+    const title = cert.program.trim()
     const program = await db.program.findFirst({
-      where: { titleAr: cert.program },
+      where: {
+        OR: [
+          { titleAr: title },
+          { titleAr: { contains: title, mode: 'insensitive' } },
+          { titleEn: { contains: title, mode: 'insensitive' } },
+        ],
+      },
       select: { id: true },
     })
     programId = program?.id || null
