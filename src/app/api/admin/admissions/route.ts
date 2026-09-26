@@ -193,6 +193,44 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
+    if (status === 'DOCUMENTS_NEED_REPLACEMENT') {
+      if (['CERTIFIED', 'REJECTED'].includes(app.status)) {
+        return NextResponse.json({ error: 'لا يمكن طلب استبدال مرفقات لطلب مغلق أو شهادة صادرة.' }, { status: 400 })
+      }
+      const replacement = body.documentReplacement || {}
+      const note = String(replacement.note || '').replace(/\s+/g, ' ').trim()
+      const docTypes = Array.isArray(replacement.docTypes) ? replacement.docTypes : []
+      if (note.length < 10) {
+        return NextResponse.json({ error: 'اكتب سبباً واضحاً لاستبدال المرفقات حتى يعرف الطالب المطلوب.' }, { status: 400 })
+      }
+      if (docTypes.length === 0) {
+        return NextResponse.json({ error: 'حدد مرفقاً واحداً على الأقل مطلوب استبداله.' }, { status: 400 })
+      }
+      const existingReplacement = extractAdmissionDocumentReplacement(app.notes)
+      const updated = await db.admissionApplication.update({
+        where: { id },
+        data: {
+          status: 'DOCUMENTS_NEED_REPLACEMENT',
+          notes: appendAdmissionDocumentReplacement(app.notes, {
+            note,
+            docTypes,
+            previousStatus: existingReplacement?.previousStatus || app.status || 'UNDER_REVIEW',
+            requestedById: user.id,
+            requestedByName: user.name,
+          }),
+        },
+      })
+      await notify(
+        app.userId || null,
+        'ADMISSION',
+        'مطلوب استبدال مرفقات الطلب',
+        `راجعت الإدارة طلبك (${app.reference}) وتحتاج إلى استبدال بعض المرفقات قبل متابعة الدراسة: ${note}`,
+        'apply'
+      )
+      await audit(user, 'REQUEST_ADMISSION_DOCUMENT_REPLACEMENT', 'AdmissionApplication', id, `طلب استبدال مرفقات ${app.fullName} (${app.reference}): ${docTypes.join(', ')}`)
+      return NextResponse.json({ ok: true, application: { ...updated, documentReplacementRequest: extractAdmissionDocumentReplacement(updated.notes), notes: stripAdmissionDocumentReplacement(updated.notes) } })
+    }
+
     // تعيين نوع الإشراف الأكاديمي: مشرف ذكي فقط أو مشرف بشري + ذكي
     if (supervisorId !== undefined) {
       if (!supervisorId || supervisorId === 'AI_ONLY') {
