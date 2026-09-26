@@ -790,6 +790,68 @@ export function AdminView() {
     }
   }
 
+  const setReplacementFormOpen = (app: AdmissionApp, open: boolean) => {
+    setDocReplacementForms((prev) => ({
+      ...prev,
+      [app.id]: open
+        ? {
+            open: true,
+            note: prev[app.id]?.note || app.documentReplacementRequest?.note || '',
+            docTypes: prev[app.id]?.docTypes?.length ? prev[app.id].docTypes : (app.documentReplacementRequest?.docTypes || []),
+          }
+        : { ...(prev[app.id] || { note: '', docTypes: [] }), open: false },
+    }))
+  }
+
+  const toggleReplacementDocType = (appId: string, docType: string) => {
+    setDocReplacementForms((prev) => {
+      const form = prev[appId] || { open: true, note: '', docTypes: [] }
+      const exists = form.docTypes.includes(docType)
+      return {
+        ...prev,
+        [appId]: {
+          ...form,
+          open: true,
+          docTypes: exists ? form.docTypes.filter((d) => d !== docType) : [...form.docTypes, docType],
+        },
+      }
+    })
+  }
+
+  const setReplacementNote = (appId: string, note: string) => {
+    setDocReplacementForms((prev) => ({
+      ...prev,
+      [appId]: { ...(prev[appId] || { open: true, docTypes: [] }), open: true, note },
+    }))
+  }
+
+  const requestDocumentReplacement = async (app: AdmissionApp) => {
+    const form = docReplacementForms[app.id] || { note: '', docTypes: [] }
+    const note = form.note.replace(/\s+/g, ' ').trim()
+    if (form.docTypes.length === 0) {
+      toast({ title: 'حدد المرفقات المطلوبة', description: 'اختر مستنداً واحداً على الأقل ليظهر للطالب طلب استبداله.', variant: 'destructive' })
+      return
+    }
+    if (note.length < 10) {
+      toast({ title: 'اكتب سبباً واضحاً', description: 'سبب الاستبدال يظهر للطالب، ويجب أن يوضح المطلوب بدقة.', variant: 'destructive' })
+      return
+    }
+    setDocReplacementLoading(app.id)
+    try {
+      await api('/api/admin/admissions', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: app.id, status: 'DOCUMENTS_NEED_REPLACEMENT', documentReplacement: { note, docTypes: form.docTypes } }),
+      })
+      toast({ title: 'تم طلب استبدال المرفقات', description: 'تم إشعار الطالب وفتح إعادة الرفع للمستندات المحددة فقط.' })
+      setDocReplacementForms((prev) => ({ ...prev, [app.id]: { ...form, note, open: false } }))
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر طلب الاستبدال', description: e.message, variant: 'destructive' })
+    } finally {
+      setDocReplacementLoading(null)
+    }
+  }
+
   const assignSupervisor = async (id: string, supervisorId: string) => {
     try {
       const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', {
