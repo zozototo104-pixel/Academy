@@ -52,50 +52,77 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/certificates — إصدار شهادة يدوياً (لطلبات التحاق أو أي صاحب اسم)
+// POST /api/admin/certificates — إصدار شهادة برنامج بعد التحقق من الاستحقاق الأكاديمي والمالي
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { admissionId, holderName, program, grade, country, userId } = await req.json()
-    if (!holderName?.trim() || !program?.trim()) {
+    const { admissionId, holderName, program, country, userId } = await req.json()
+
+    const app = admissionId
+      ? await db.admissionApplication.findUnique({ where: { id: admissionId } })
+      : null
+    if (admissionId && !app) {
+      return NextResponse.json({ error: 'طلب الالتحاق المرتبط بالشهادة غير موجود' }, { status: 404 })
+    }
+
+    const resolvedHolderName = (app?.fullName || holderName || '').trim()
+    const resolvedProgramTitle = (app?.program || program || '').trim()
+    const resolvedUserId = app?.userId || userId || null
+    const resolvedProgram = app?.programId
+      ? { id: app.programId }
+      : resolvedProgramTitle
+        ? await db.program.findFirst({ where: { titleAr: resolvedProgramTitle }, select: { id: true } })
+        : null
+
+    if (!resolvedHolderName || !resolvedProgramTitle) {
       return NextResponse.json({ error: 'اسم صاحب الشهادة والبرنامج مطلوبان' }, { status: 400 })
     }
+    if (!resolvedUserId || !resolvedProgram?.id) {
+      return NextResponse.json({ error: 'لا يمكن إصدار شهادة برنامج يدوياً دون ربطها بطالب وبرنامج دراسي للتحقق من النجاح الأكاديمي.' }, { status: 400 })
+    }
+
+    const eligibility = await evaluateProgramCertificateEligibility({
+      userId: resolvedUserId,
+      programId: resolvedProgram.id,
+      admissionId: app?.id || null,
+    })
+    if (!eligibility.ok) {
+      return NextResponse.json(
+        { error: eligibility.error || 'لا يمكن إصدار الشهادة قبل اكتمال شروط النجاح الأكاديمي.', eligibility },
+        { status: 400 }
+      )
+    }
+
     const serial = await nextCertSerial()
     const cert = await db.certificate.create({
       data: {
         serial,
         qrToken: randomBytes(16).toString('hex'),
         type: 'PROGRAM_COMPLETION',
-        holderName: holderName.trim(),
-        program: program.trim(),
-        grade: grade?.trim() || null,
-        country: country?.trim() || null,
-        userId: userId || null,
-        admissionId: admissionId || null,
+        holderName: resolvedHolderName,
+        program: resolvedProgramTitle,
+        grade: eligibility.gradeLabel,
+        country: (app?.country || country || '').trim() || null,
+        userId: resolvedUserId,
+        admissionId: app?.id || null,
       },
     })
-    const linkedUserId = cert.userId
-    if (!admissionId && linkedUserId) {
-      const user = await db.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } })
-      if (user?.email) {
-        await notify(linkedUserId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
-        await emailCertificateIssued(user.email, user.name || cert.holderName, cert.program, serial)
-      }
+
+    if (app?.id) {
+      await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'CERTIFIED' } })
     }
-    if (admissionId) {
-      const app = await db.admissionApplication.findUnique({ where: { id: admissionId } })
-      if (app) {
-        await db.admissionApplication.update({ where: { id: admissionId }, data: { status: 'CERTIFIED' } })
-        if (app.userId) {
-          await notify(app.userId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
-        }
-        if (app.email) {
-          await emailCertificateIssued(app.email, app.fullName || cert.holderName, cert.program, serial)
-        }
-      }
-    }
+    await db.enrollment.updateMany({
+      where: { userId: resolvedUserId, programId: resolvedProgram.id },
+      data: { certificateNo: cert.serial, status: 'COMPLETED', ...(eligibility.score !== null ? { finalScore: eligibility.score } : {}) },
+    })
+
+    const linkedUser = await db.user.findUnique({ where: { id: resolvedUserId }, select: { email: true, name: true } })
+    await notify(resolvedUserId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
+    const email = app?.email || linkedUser?.email
+    if (email) await emailCertificateIssued(email, linkedUser?.name || cert.holderName, cert.program, serial)
+
     await audit(admin, 'ISSUE_CERTIFICATE', 'Certificate', cert.id, `${serial} — ${cert.holderName} (${cert.program})`)
-    return NextResponse.json({ ok: true, certificate: cert })
+    return NextResponse.json({ ok: true, certificate: cert, eligibility })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
