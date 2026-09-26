@@ -113,13 +113,16 @@ export async function POST(req: NextRequest) {
       },
     }))
 
+    const updateData: any = {
+      status: nextStatus,
+      documents: JSON.stringify((app.files || []).map((f) => f.docType)),
+      userId: owner?.id || app.userId || null,
+    }
+    if (isDocumentReplacement) updateData.notes = stripAdmissionDocumentReplacement(app.notes)
+
     await db.admissionApplication.update({
       where: { id: app.id },
-      data: {
-        status: nextStatus,
-        documents: JSON.stringify((app.files || []).map((f) => f.docType)),
-        userId: owner?.id || app.userId || null,
-      },
+      data: updateData,
     })
 
     if (owner?.id) {
