@@ -424,6 +424,8 @@ export async function GET(req: NextRequest) {
       email: app.email,
       phone: app.phone,
       documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
+      documentReplacementRequest,
+      replacementUploadToken: app.status === 'DOCUMENTS_NEED_REPLACEMENT' && documentReplacementRequest ? createAdmissionUploadToken(app) : null,
       payments: app.payments || [],
       tuitionPlan,
       theses: app.theses || [],
