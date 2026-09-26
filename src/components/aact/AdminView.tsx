@@ -119,6 +119,7 @@ interface ServiceWorkflowView {
 interface AdmissionApp {
   id: string; reference: string; fullName: string; email: string; phone: string
   country: string; education: string; program: string; documents: string; notes?: string | null
+  documentReplacementRequest?: { note: string; docTypes: string[]; previousStatus: string; requestedAt: string; requestedByName?: string | null } | null
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
   deliverables?: { id: string; type: string; status: string; title: string; description?: string | null; fileName?: string | null; mimeType?: string | null; size?: number | null; externalUrl?: string | null; certificateId?: string | null; verificationUrl?: string | null; meetingAt?: string | null; expiresAt?: string | null; visibleToStudent?: boolean; createdAt: string }[]
   serviceWorkflow?: ServiceWorkflowView | null
