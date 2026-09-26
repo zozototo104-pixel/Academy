@@ -14,6 +14,7 @@ export async function GET() {
     })
     const certificates = await db.certificate.findMany({
       where: {
+        valid: true,
         OR: [
           { userId: user.id },
           { admissionId: { in: ownAdmissions.map((a) => a.id) } },
@@ -21,7 +22,12 @@ export async function GET() {
       },
       orderBy: { issuedAt: 'desc' },
     })
-    return NextResponse.json({ certificates })
+    const visibleCertificates = []
+    for (const cert of certificates) {
+      const eligibility = await evaluateCertificateRecordEligibility(cert)
+      if (eligibility.ok) visibleCertificates.push({ ...cert, eligibility })
+    }
+    return NextResponse.json({ certificates: visibleCertificates })
   } catch (e) {
     console.error('certificates GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل الشهادات' }, { status: 500 })
