@@ -97,7 +97,7 @@ export async function evaluateProgramCertificateEligibility(input: {
 
   if (requiresThesis) {
     const thesis = await db.thesisSubmission.findFirst({
-      where: input.admissionId ? { admissionId: input.admissionId } : { userId },
+      where: admissionId ? { admissionId } : { userId: resolvedUserId },
       orderBy: { updatedAt: 'desc' },
       select: { status: true, resultScore: true, passed: true },
     })
