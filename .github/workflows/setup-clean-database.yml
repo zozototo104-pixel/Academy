@@ -3,17 +3,31 @@ name: Setup Clean Database
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: 'Choose the database operation. Run cleanup-dry-run before cleanup-execute.'
+        required: true
+        default: 'cleanup-dry-run'
+        type: choice
+        options:
+          - cleanup-dry-run
+          - cleanup-execute
+          - factory-dry-run
+          - factory-execute
+          - setup-clean-database
       confirm:
-        description: 'Type SETUP to confirm running db:push, core seed, and admin creation against the configured database secrets.'
+        description: 'For setup type SETUP. For cleanup-execute type KEEP_ADMINS_CLEAN_DATABASE. For factory-execute type DELETE_CONTENT_TOO.'
         required: true
         default: 'NO'
 
+concurrency:
+  group: setup-clean-database
+  cancel-in-progress: false
+
 jobs:
-  setup:
-    name: Prepare clean production database
+  database:
+    name: Run selected database operation
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    if: github.event.inputs.confirm == 'SETUP'
+    timeout-minutes: 30
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
@@ -29,6 +43,8 @@ jobs:
       AACT_ADMIN_EMAIL: ${{ secrets.AACT_ADMIN_EMAIL }}
       AACT_ADMIN_PASSWORD: ${{ secrets.AACT_ADMIN_PASSWORD }}
       AACT_ADMIN_NAME: ${{ secrets.AACT_ADMIN_NAME }}
+      SELECTED_OPERATION: ${{ github.event.inputs.operation }}
+      OPERATION_CONFIRMATION: ${{ github.event.inputs.confirm }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,30 +57,85 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Verify required secrets
+      - name: Verify required database secrets
         shell: bash
         run: |
+          set -euo pipefail
           missing=0
-          for key in DATABASE_URL DIRECT_URL NEXTAUTH_SECRET AACT_ADMIN_EMAIL AACT_ADMIN_PASSWORD AACT_ADMIN_NAME; do
+          for key in DATABASE_URL; do
             if [ -z "${!key}" ]; then
               echo "Missing required secret: $key"
               missing=1
             fi
           done
+
+          if [ "$SELECTED_OPERATION" = "setup-clean-database" ]; then
+            for key in DIRECT_URL NEXTAUTH_SECRET AACT_ADMIN_EMAIL AACT_ADMIN_PASSWORD AACT_ADMIN_NAME; do
+              if [ -z "${!key}" ]; then
+                echo "Missing required setup secret: $key"
+                missing=1
+              fi
+            done
+          fi
+
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
 
-      - name: Push Prisma schema to clean database
-        run: bun run db:push
+      - name: Run selected database operation
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Seed core catalog and platform settings only
-        run: bun run db:seed:core
+          echo "Selected operation: $SELECTED_OPERATION"
 
-      - name: Create or update production admin account
-        run: bun run admin:create
+          case "$SELECTED_OPERATION" in
+            cleanup-dry-run)
+              echo "Running guarded cleanup dry-run. No data will be deleted."
+              bun run data:cleanup:dry-run
+              ;;
+
+            cleanup-execute)
+              if [ "$OPERATION_CONFIRMATION" != "KEEP_ADMINS_CLEAN_DATABASE" ]; then
+                echo "Refusing cleanup. Type KEEP_ADMINS_CLEAN_DATABASE in the confirm field."
+                exit 1
+              fi
+              echo "Running guarded cleanup. Admin users will be preserved."
+              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE bun run data:cleanup
+              ;;
+
+            factory-dry-run)
+              echo "Running factory cleanup dry-run. No data will be deleted."
+              bun run data:cleanup:factory:dry-run
+              ;;
+
+            factory-execute)
+              if [ "$OPERATION_CONFIRMATION" != "DELETE_CONTENT_TOO" ]; then
+                echo "Refusing factory cleanup. Type DELETE_CONTENT_TOO in the confirm field."
+                exit 1
+              fi
+              echo "Running factory cleanup. Admin users will be preserved, but academic content will be deleted."
+              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE AACT_CONFIRM_FACTORY_RESET=DELETE_CONTENT_TOO bun run data:cleanup:factory
+              ;;
+
+            setup-clean-database)
+              if [ "$OPERATION_CONFIRMATION" != "SETUP" ]; then
+                echo "Refusing setup. Type SETUP in the confirm field."
+                exit 1
+              fi
+              echo "Preparing clean database schema and core catalog/settings, then creating/updating admin."
+              bun run db:push
+              bun run db:seed:core
+              bun run admin:create
+              ;;
+
+            *)
+              echo "Unknown operation: $SELECTED_OPERATION"
+              exit 1
+              ;;
+          esac
 
       - name: Summary
         run: |
-          echo "Clean database setup completed."
-          echo "Tables are ready, core catalog/settings are seeded, and admin account is created/updated."
+          echo "Database operation completed: $SELECTED_OPERATION"
+          echo "Check the operation log above for dry-run counters or deletion results."
