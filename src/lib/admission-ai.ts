@@ -698,6 +698,7 @@ function buildDocumentAnalyses(app: { fullName: string; program: string }, files
       relatedToProgram,
       coverage,
       coverageReason: reasons.join(' — ').slice(0, 900),
+      finalGradeExtracted,
       recommendation,
       reasons,
     }
