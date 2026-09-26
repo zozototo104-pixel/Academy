@@ -151,7 +151,7 @@ function signS3Request(args: {
   }
 }
 
-async function putToS3CompatibleStorage(input: StoreFileInput, key: string, mimeType: string): Promise<StoredFileResult | null> {
+async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult | null> {
   const signed = signS3Request({
     method: 'PUT',
     key,
