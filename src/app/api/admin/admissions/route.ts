@@ -117,8 +117,12 @@ export async function GET(req: NextRequest) {
       const paidTuition = tuitionPaidTotal(app.payments)
       const firstSemesterRequiredAmount = roundMoney(Math.max(totalTuition / 2, Number(tuitionAppeal?.firstSemesterRequiredAmount ?? 0)))
       const finalRequiredAmount = roundMoney(Math.max(totalTuition, Number(tuitionAppeal?.finalRequiredAmount ?? 0)))
+      const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
+      const cleanNotes = stripAdmissionDocumentReplacement(app.notes)
       return {
         ...app,
+        notes: cleanNotes,
+        documentReplacementRequest,
         programSlug: program?.slug || null,
         requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
