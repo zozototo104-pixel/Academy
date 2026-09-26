@@ -19,6 +19,13 @@ export interface StoreFileInput {
   namespace: string
 }
 
+export interface StoreFileAtKeyInput {
+  buffer: Buffer
+  fileName: string
+  mimeType?: string | null
+  key: string
+}
+
 interface ReadStoredFileInput {
   provider?: string | null
   key?: string | null
