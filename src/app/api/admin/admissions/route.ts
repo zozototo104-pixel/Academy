@@ -10,6 +10,11 @@ import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import {
+  appendAdmissionDocumentReplacement,
+  extractAdmissionDocumentReplacement,
+  stripAdmissionDocumentReplacement,
+} from '@/lib/admission-document-replacement'
 
 // آلة الحالات الرسمية وفق دليل الإجراءات (الترتيب الصحيح):
 // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$ عند التقديم) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
