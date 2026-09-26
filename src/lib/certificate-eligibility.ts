@@ -47,12 +47,11 @@ export async function evaluateProgramCertificateEligibility(input: {
 }): Promise<ProgramCertificateEligibility> {
   const userId = input.userId || null
   const programId = input.programId || null
-  const identityMissing = [
-    !userId ? 'حساب الطالب' : null,
-    !programId ? 'البرنامج الدراسي' : null,
-  ].filter(Boolean) as string[]
-
-  if (identityMissing.length) {
+  if (!userId || !programId) {
+    const identityMissing = [
+      !userId ? 'حساب الطالب' : null,
+      !programId ? 'البرنامج الدراسي' : null,
+    ].filter(Boolean) as string[]
     return {
       ok: false,
       score: null,
@@ -63,7 +62,10 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
   }
 
-  const finalGrade = await calculateFinalGrade({ userId, programId, admissionId: input.admissionId || null })
+  const resolvedUserId = userId
+  const resolvedProgramId = programId
+  const admissionId = input.admissionId || null
+  const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId })
   if (finalGrade.score === null) {
     return {
       ok: false,
