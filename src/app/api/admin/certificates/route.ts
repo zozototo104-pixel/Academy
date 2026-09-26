@@ -71,7 +71,10 @@ export async function POST(req: NextRequest) {
     const resolvedProgram = app?.programId
       ? { id: app.programId }
       : resolvedProgramTitle
-        ? await db.program.findFirst({ where: { titleAr: resolvedProgramTitle }, select: { id: true } })
+        ? await db.program.findFirst({
+            where: { OR: [{ titleAr: resolvedProgramTitle }, { titleAr: { contains: resolvedProgramTitle, mode: 'insensitive' } }, { titleEn: { contains: resolvedProgramTitle, mode: 'insensitive' } }] },
+            select: { id: true },
+          })
         : null
 
     if (!resolvedHolderName || !resolvedProgramTitle) {
