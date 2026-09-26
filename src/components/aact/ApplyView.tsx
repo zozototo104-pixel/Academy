@@ -582,6 +582,45 @@ export function ApplyView() {
             </div>
           </div>
 
+          {replacementRequest && (
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-2">
+                <FileWarning className="mt-1 h-5 w-5 shrink-0 text-red-600" />
+                <div>
+                  <h3 className="text-sm font-black text-red-700">الإدارة طلبت استبدال مرفقات محددة</h3>
+                  <p className="mt-1 text-xs font-bold leading-6 text-red-700">{replacementRequest.note || 'يرجى رفع المرفقات المطلوبة مرة أخرى بصيغة واضحة وصحيحة.'}</p>
+                  <p className="mt-1 text-[11px] font-bold text-red-500">لن يتابع الطلب للمراجعة إلا بعد رفع كل المرفقات المحددة أدناه وإرسالها.</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {replacementDocTypes.map((type: string) => {
+                  const key = `${app.id}:${type}`
+                  const selected = replacementFiles[key]
+                  return (
+                    <div key={key} className="rounded-xl border border-red-100 bg-white p-3">
+                      <Label className="text-xs font-black text-[#0f2b46]">{admissionDocLabel(type)}</Label>
+                      <Input
+                        type="file"
+                        className="mt-2 h-10 text-xs"
+                        accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.docx,.xlsx,.xls,.txt,.csv"
+                        onChange={(e) => pickReplacementFile(app.id, type, e.currentTarget.files?.[0] || null)}
+                      />
+                      {selected && <p className="mt-1 text-[11px] font-bold text-emerald-700">تم الاختيار: {selected.name} — {fmtSize(selected.size)}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+              <Button
+                onClick={() => submitReplacementDocuments(app)}
+                disabled={replacementLoading === app.id || replacementDocTypes.length === 0}
+                className="mt-4 w-full bg-red-600 font-extrabold text-white hover:bg-red-700 sm:w-auto"
+              >
+                {replacementLoading === app.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <UploadCloud className="ml-2 h-4 w-4" />}
+                إرسال المرفقات المعدّلة للإدارة
+              </Button>
+            </div>
+          )}
+
           {!isStudyApp && app.serviceWorkflow && (
             <div className="mt-5 rounded-2xl border border-purple-100 bg-purple-50/70 p-4">
               <div className="mb-3">
