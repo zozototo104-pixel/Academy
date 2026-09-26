@@ -228,6 +228,7 @@ interface SupervisorOption { id: string; name: string; role: string }
 const STATUS_LABEL: Record<string, string> = {
   AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
   UNDER_REVIEW: 'قيد دراسة الإدارة',
+  DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
   THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
