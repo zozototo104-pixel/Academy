@@ -1265,7 +1265,10 @@ ${evidence}
     review = {
       verdict: finalVerdict,
       fitScore: finalScore,
-      summaryForAdmin: String(parsed.summaryForAdmin || '').slice(0, 1200) || `فحص قواعدي صارم: التغطية ${rules.deterministicScore}%.`,
+      summaryForAdmin: [
+        extractedGradeNotes.length ? `المعدل/التقدير النهائي المقروء من الشهادة: ${extractedGradeNotes.join(' | ')}.` : null,
+        String(parsed.summaryForAdmin || '').slice(0, 1200) || `فحص قواعدي صارم: التغطية ${rules.deterministicScore}%.`,
+      ].filter(Boolean).join(' '),
       checklist: rules.checklist,
       documentAnalyses,
       findings: [...rules.findings, ...aiFindings].slice(0, 14),
