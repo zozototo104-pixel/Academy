@@ -234,8 +234,10 @@ export async function GET(req: NextRequest) {
         })
       : null
     const academicRecord = byToken ? await buildCertificateAcademicRecord(cert) : null
+    const eligibility = await evaluateCertificateRecordEligibility(cert)
+    const effectiveValid = cert.valid && eligibility.ok
     return NextResponse.json({
-      valid: cert.valid,
+      valid: effectiveValid,
       verificationMode: byToken ? 'QR_TOKEN' : 'SERIAL',
       certificate: {
         serial: cert.serial,
@@ -243,18 +245,19 @@ export async function GET(req: NextRequest) {
         type: cert.type,
         holderName: cert.holderName,
         program: cert.program,
-        grade: cert.grade,
+        grade: eligibility.gradeLabel || cert.grade,
         country: cert.country,
         issuedAt: cert.issuedAt,
-        valid: cert.valid,
+        valid: effectiveValid,
         academicProfile,
         academicRecord,
+        eligibility,
         verificationUrl: certificateVerificationUrl(cert),
         credentialUrl: certificateCredentialUrl(cert),
       },
-      message: cert.valid
+      message: effectiveValid
         ? 'شهادة صحيحة ومسجلة رسمياً في سجلات الأكاديمية الأمريكية للاستشارات والتدريب'
-        : 'الشهادة موجودة لكنها موقوفة — يرجى التواصل مع الإدارة',
+        : eligibility.error || 'الشهادة موجودة لكنها موقوفة أو لم تعد مستوفية لشروط الإصدار الأكاديمية — يرجى التواصل مع الإدارة',
     })
   } catch (e) {
     console.error('certificates verify error:', e)
