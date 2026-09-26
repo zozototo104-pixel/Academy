@@ -926,8 +926,9 @@ export function AdminView() {
     }
   }
 
-  const openStudentAdmission = (student: StudentRow) => {
-    const linked = student.latestAdmission || admissions.find((a) => a.email.toLowerCase() === student.email.toLowerCase()) || null
+  const openStudentAdmission = (student: StudentRow, openReplacement = false) => {
+    const fullLinked = admissions.find((a) => a.id === student.latestAdmission?.id) || admissions.find((a) => a.email.toLowerCase() === student.email.toLowerCase()) || null
+    const linked = fullLinked || student.latestAdmission || null
     if (!linked) {
       toast({
         title: 'لا يوجد طلب التحاق مرتبط',
@@ -936,6 +937,14 @@ export function AdminView() {
       return
     }
     setHighlightAdmissionId(linked.id)
+    if (openReplacement && fullLinked && (fullLinked.files?.length || 0) > 0 && !['CERTIFIED', 'REJECTED'].includes(fullLinked.status)) {
+      setReplacementFormOpen(fullLinked, true)
+    } else if (openReplacement) {
+      toast({
+        title: 'فتح بطاقة الطلب',
+        description: 'إذا كان للطلب مرفقات وحالته غير مغلقة سيظهر زر طلب استبدال المرفقات داخل بطاقة طلب الالتحاق.',
+      })
+    }
     setActiveTab('admissions')
   }
 
