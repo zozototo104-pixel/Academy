@@ -412,7 +412,17 @@ export class GeminiLiveAgent {
     let peak = 0
     for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
     this.cb.onLevel?.(Math.min(1, peak * 6))
-    this.state(peak > 0.018 ? 'USER_SPEAKING' : 'LISTENING')
+
+    const isUserSpeaking = peak > 0.018
+    if (isUserSpeaking) {
+      this.lastUserSpeechAt = performance.now()
+      this.state('USER_SPEAKING')
+    } else if (this.lastUserSpeechAt && performance.now() - this.lastUserSpeechAt > 900) {
+      // واجهة فقط: بعد أول كلام للطالب، اعرض أن المشرف يعالج السؤال بدل أن تبدو الجلسة صامتة.
+      this.state('THINKING')
+    } else {
+      this.state('LISTENING')
+    }
 
     const data = b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000))
     try {
