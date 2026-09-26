@@ -54,11 +54,13 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
+const ACADEMY_LEGACY_ASSET_ORIGIN = 'https://amarican-academy.vercel.app'
 const ACADEMY_IMAGES = {
-  // صور الخريجين الرسمية من موقع الأكاديمية — بدون الرسومات المؤقتة.
-  heroGroup: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout2.jpg&w=1080',
-  heroSolo: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout1.jpg&w=640',
-  heroBg: 'https://www.aactacademy.com/_next/image?q=75&url=%2Fabout2.jpg&w=1920',
+  // صور الخريجين الرسمية من الموقع القديم بعد نقل الدومين الرسمي للمنصة الجديدة.
+  // نستخدم ملفات الصور المباشرة بدلاً من Next Image optimizer حتى لا ترتبط الصور بدومين www.aactacademy.com بعد نقله.
+  heroGroup: `${ACADEMY_LEGACY_ASSET_ORIGIN}/about2.jpg`,
+  heroSolo: `${ACADEMY_LEGACY_ASSET_ORIGIN}/about1.jpg`,
+  heroBg: `${ACADEMY_LEGACY_ASSET_ORIGIN}/about2.jpg`,
 }
 
 // أبرز البرامج والخدمات المميزة — الشريط المتحرك
