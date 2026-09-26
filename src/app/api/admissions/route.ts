@@ -429,9 +429,11 @@ export async function GET(req: NextRequest) {
       payments: app.payments || [],
       tuitionPlan,
       theses: app.theses || [],
-      nextAction: !isStudyProgram && serviceWorkflow
-        ? serviceWorkflow.clientNextAction
-        : app.status === 'AWAITING_FEE'
+      nextAction: app.status === 'DOCUMENTS_NEED_REPLACEMENT'
+        ? 'راجعت الإدارة مرفقاتك وتحتاج إلى استبدال بعض المستندات. ارفع المرفقات المطلوبة من نفس صفحة التتبع ثم أعد إرسالها للمراجعة.'
+        : !isStudyProgram && serviceWorkflow
+          ? serviceWorkflow.clientNextAction
+          : app.status === 'AWAITING_FEE'
             ? (isStudyProgram ? 'سداد رسوم التقديم وحجز المقعد حتى ينتقل الملف للإدارة.' : 'سداد رسوم فتح الطلب حتى ينتقل ملف الخدمة للإدارة.')
             : app.status === 'UNDER_REVIEW'
               ? 'ملفك قيد دراسة الإدارة. ستصلك رسالة عند صدور قرار القبول أو تعليمات المتابعة.'
