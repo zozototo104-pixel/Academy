@@ -8,8 +8,8 @@ import { emailAdmissionDecision, emailCertificateIssued } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
-import { calculateFinalGrade } from '@/lib/final-grade'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
+import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 
 // آلة الحالات الرسمية وفق دليل الإجراءات (الترتيب الصحيح):
 // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$ عند التقديم) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
