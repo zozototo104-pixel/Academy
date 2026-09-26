@@ -90,7 +90,7 @@ export async function evaluateProgramCertificateEligibility(input: {
   }
 
   const program = await db.program.findUnique({
-    where: { id: programId },
+    where: { id: resolvedProgramId },
     select: { category: true },
   })
   const requiresThesis = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
