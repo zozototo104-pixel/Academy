@@ -131,6 +131,23 @@ function listItems(list?: any[]): string[] {
   return Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : []
 }
 
+function documentLabel(doc: string, flow?: ServiceFlow | null): string {
+  const serviceDoc = flow ? getServiceDocumentOptions(flow).find((item) => item.value === doc || item.type === doc) : null
+  return DOCUMENT_LABEL[doc] || serviceDoc?.label || doc
+}
+
+function documentLabels(docs?: any[], flow?: ServiceFlow | null): string[] {
+  return listItems(docs).map((doc) => documentLabel(doc, flow))
+}
+
+function serviceVisibleRequirements(flow?: ServiceFlow | null, profile?: any, rules?: any): string[] {
+  const customizedProfileItems = listItems(profile?.graduationRequirements)
+  if (customizedProfileItems.length) return customizedProfileItems
+  const selectedDocLabels = documentLabels(rules?.requiredDocuments, flow)
+  if (selectedDocLabels.length) return selectedDocLabels
+  return flow?.requiredDocuments || []
+}
+
 function EmptyBox({ text }: { text: string }) {
   return (
     <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.05] p-6 text-center text-xs font-bold leading-6 text-white/60">
