@@ -226,7 +226,7 @@ export function AdminRulesTab() {
     try {
       const d = await api<{ rules: Rules; custom: boolean }>('/api/admin/program-rules', {
         method: 'PUT',
-        body: JSON.stringify({ programId: selectedId, rules: reset ? { reset: true } : draft }),
+        body: JSON.stringify({ programId: selectedId, rules: reset ? { reset: true } : normalizeRulesForSave(draft) }),
       })
       setDraft({ ...d.rules })
       setCustom(d.custom)
