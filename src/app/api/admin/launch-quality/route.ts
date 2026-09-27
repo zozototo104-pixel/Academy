@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { performance } from 'perf_hooks'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { hashPassword } from '@/lib/password'
 import { buildSupervisorContext } from '@/lib/supervisor-ai'
 import { platformAgentComplete } from '@/lib/platform-agent'
 import {
