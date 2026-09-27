@@ -430,7 +430,8 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
               }
             })()
           : ''
-        return `${i + 1}. ${u.title}${u.summary ? `: ${u.summary.slice(0, 140)}` : ''}${obj}`
+        const examInfo = u.exam ? ` — اختبار وحدة: ${u.exam.title}، حد النجاح ${u.exam.passScore}%، عدد الأسئلة ${u.exam.questions.length}` : ''
+        return `${i + 1}. ${u.title} — فصل ${u.semester} — ${u.status}${u.summary ? `: ${u.summary.slice(0, 140)}` : ''}${obj}${examInfo}`
       })
 
       parts.push(
