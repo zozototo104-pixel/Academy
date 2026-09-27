@@ -390,7 +390,9 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       parts.push(
         `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
           const attempt = a.attempts?.[0]
-          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة${attempt ? ` — آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.feedback ? compactText(attempt.feedback, 180) : attempt.status}` : ' — لم يسلّم بعد'}`
+          const visibleQuestions = (a.questions || []).slice(0, 6).map((q: any, i: number) => `${i + 1}. ${compactText(q.text, 180)}${q.sourceBookTitle ? ` — من «${q.sourceBookTitle}»` : ''}`).join(' | ')
+          const reviewedAnswers = attempt?.answers?.length ? attempt.answers.slice(0, 8).map((ans: any, i: number) => formatAnswerReview(ans, i)).join('\n') : ''
+          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة — حد النجاح ${a.passScore}%${a.description ? `\n  الوصف: ${compactText(a.description, 260)}` : ''}${attempt ? `\n  آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.passed ? 'ناجح' : attempt.passed === false ? 'غير ناجح' : attempt.status}${attempt.feedback ? ` — ${compactText(attempt.feedback, 220)}` : ''}${reviewedAnswers ? `\n  مراجعة إجابات الطالب بعد التسليم:\n${reviewedAnswers}` : ''}` : `\n  لم يسلّم بعد؛ محاور الأسئلة دون كشف مفتاح الإجابة: ${visibleQuestions || 'غير محفوظة'}`}`
         }).join('\n')}`
       )
     }
