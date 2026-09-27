@@ -200,6 +200,17 @@ export function AuthView() {
 
               <TabsContent value="register">
                 <form onSubmit={doRegister} className="mt-6 space-y-4">
+                  <div className="hidden" aria-hidden="true">
+                    <Label htmlFor="reg-website">الموقع الإلكتروني</Label>
+                    <Input
+                      id="reg-website"
+                      name="website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={regData.website}
+                      onChange={(e) => setRegData({ ...regData, website: e.target.value })}
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-name" className="font-black text-[#1d2947]"><UserRound className="ml-1 inline h-4 w-4 text-[#bf1646]" /> الاسم الكامل *</Label>
                     <Input id="reg-name" required placeholder="مثال: أحمد محمد" className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-bold focus-visible:ring-[#bf1646]"
