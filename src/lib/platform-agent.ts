@@ -48,9 +48,38 @@ function compactText(value?: string | null, max = 220): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+function queryTokens(query?: string | null): string[] {
+  const stop = new Set([
+    'هذا', 'هذه', 'هدا', 'هاي', 'في', 'من', 'عن', 'على', 'الى', 'الي', 'إلى', 'شو', 'ما', 'هو', 'هي', 'له', 'لها', 'اليه', 'إليه', 'اللي', 'بدي', 'اسالك', 'اسألك',
+    'برنامج', 'برنامح', 'تخصص', 'التخصص', 'كتب', 'الكتب', 'كتاب', 'مخصصه', 'مخصصة', 'مقرره', 'مقررة', 'منهاج', 'منهج', 'مواد', 'المواد', 'المسجله', 'المسجلة',
+  ])
+  return Array.from(new Set(
+    normalizeArabic(query || '')
+      .split(' ')
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 3 && !stop.has(t))
+  )).slice(0, 18)
+}
+
+function scoreCatalogProgram(program: any, query?: string | null): number {
+  const tokens = queryTokens(query)
+  if (!tokens.length) return 0
+  const haystack = normalizeArabic([
+    program.titleAr,
+    program.titleEn,
+    program.category,
+    program.description,
+    ...(program.books || []).flatMap((book: any) => [book.title, book.titleEn, book.author, book.description]),
+    ...(program.units || []).flatMap((unit: any) => [unit.title, unit.summary]),
+    ...(program.assignments || []).map((assignment: any) => assignment.title),
+    ...(program.programExams || []).map((exam: any) => exam.title),
+  ].filter(Boolean).join(' '))
+  return tokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0)
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
-  if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص'])) return 'ADMIN_QUALITY'
+  if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'بكالوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
   if (role === 'SUPERVISOR' && includesAny(n, ['طلابي', 'طلاب', 'طالب', 'بحث', 'ابحاث', 'مناقشة', 'منهجيه', 'متابعة', 'متعثر'])) return 'THESIS_DEFENSE'
   if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
   if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
@@ -75,7 +104,25 @@ function staticProgramsDigest(max = 40): string {
   }).join('\n')
 }
 
-async function buildAdminSnapshot(): Promise<string> {
+function formatAdminProgramLine(p: any, i: number): string {
+  const books = p.books?.length
+    ? p.books.map((b: any) => `«${b.title}»${b.titleEn ? ` (${b.titleEn})` : ''}${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — ف${b.semester}` : ''}${b.description ? ` — ${compactText(b.description, 140)}` : ''}`).join('\n      ')
+    : 'لا توجد كتب مسجلة في قاعدة البيانات لهذا البرنامج'
+  const units = p.units?.length ? p.units.slice(0, 8).map((u: any) => `${u.title} — ف${u.semester}/${u.status}${u.summary ? ` — ${compactText(u.summary, 100)}` : ''}`).join(' | ') : ''
+  const assignments = p.assignments?.length ? p.assignments.map((a: any) => `${a.title} — ف${a.semester} — ${a.type}`).join(' | ') : ''
+  const programExams = p.programExams?.length ? p.programExams.map((e: any) => `${e.title} — ف${e.semester}/${e.status} — حد النجاح ${e.passScore}%`).join(' | ') : ''
+  return [
+    `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.active ? 'نشط' : 'غير نشط'} — ${p.category}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price} دولار` : ''} — جاهزية ${p.academicReadinessStatus} — تسجيل ${p.registrationStatus}`,
+    `   الوصف: ${compactText(p.description, 260) || 'غير متاح'}`,
+    `   عدادات: كتب ${p._count.books}، وحدات ${p._count.units}، بنك معرفة ${p._count.knowledgeItems}، أسئلة ${p._count.questionBankItems}، واجبات ${p._count.assignments}، امتحانات ${p._count.programExams}، ملتحقون ${p._count.enrollments}`,
+    `   الكتب المسجلة حرفياً:\n      ${books}`,
+    units ? `   الوحدات: ${units}` : null,
+    assignments ? `   الواجبات: ${assignments}` : null,
+    programExams ? `   الامتحانات: ${programExams}` : null,
+  ].filter(Boolean).join('\n')
+}
+
+async function buildAdminSnapshot(query?: string | null): Promise<string> {
   try {
     const [users, admissions, programs, payments, theses, exams, programCatalog] = await Promise.all([
       db.user.groupBy({ by: ['role'], _count: { _all: true } }).catch(() => []),
@@ -86,7 +133,7 @@ async function buildAdminSnapshot(): Promise<string> {
       db.programExam.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => []),
       db.program.findMany({
         orderBy: [{ active: 'desc' }, { order: 'asc' }, { titleAr: 'asc' }],
-        take: 90,
+        take: 120,
         select: {
           titleAr: true,
           titleEn: true,
@@ -97,30 +144,23 @@ async function buildAdminSnapshot(): Promise<string> {
           description: true,
           academicReadinessStatus: true,
           registrationStatus: true,
-          books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 12, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
-          units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 10, select: { title: true, semester: true, status: true, summary: true } },
-          assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, type: true, semester: true, points: true } },
-          programExams: { orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, semester: true, status: true, passScore: true, booksUsed: true } },
+          books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 20, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
+          units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 12, select: { title: true, semester: true, status: true, summary: true } },
+          assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 8, select: { title: true, type: true, semester: true, points: true } },
+          programExams: { orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 8, select: { title: true, semester: true, status: true, passScore: true, booksUsed: true } },
           _count: { select: { books: true, units: true, knowledgeItems: true, questionBankItems: true, assignments: true, programExams: true, enrollments: true } },
         },
       }).catch(() => []),
     ])
 
-    const programLines = (programCatalog as any[]).map((p, i) => {
-      const books = p.books?.length ? p.books.map((b: any) => `«${b.title}»${b.author ? `/${b.author}` : ''}${b.semester ? ` ف${b.semester}` : ''}`).join('، ') : 'لا توجد كتب مسجلة'
-      const units = p.units?.slice(0, 6).map((u: any) => `${u.title} ف${u.semester}/${u.status}`).join('، ')
-      const assignments = p.assignments?.length ? p.assignments.map((a: any) => `${a.title} ف${a.semester}`).join('، ') : ''
-      const programExams = p.programExams?.length ? p.programExams.map((e: any) => `${e.title} ف${e.semester}/${e.status}`).join('، ') : ''
-      return [
-        `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.active ? 'نشط' : 'غير نشط'} — ${p.category}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price} دولار` : ''} — جاهزية ${p.academicReadinessStatus} — تسجيل ${p.registrationStatus}`,
-        `   الوصف: ${compactText(p.description, 220) || 'غير متاح'}`,
-        `   عدادات: كتب ${p._count.books}، وحدات ${p._count.units}، بنك معرفة ${p._count.knowledgeItems}، أسئلة ${p._count.questionBankItems}، واجبات ${p._count.assignments}، امتحانات ${p._count.programExams}، ملتحقون ${p._count.enrollments}`,
-        `   الكتب: ${books}`,
-        units ? `   الوحدات: ${units}` : null,
-        assignments ? `   الواجبات: ${assignments}` : null,
-        programExams ? `   الامتحانات: ${programExams}` : null,
-      ].filter(Boolean).join('\n')
-    })
+    const scored = (programCatalog as any[])
+      .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
+      .sort((a, b) => (b.score - a.score) || Number(b.program.active) - Number(a.program.active) || a.program.titleAr.localeCompare(b.program.titleAr, 'ar'))
+    const focused = scored.filter((item) => item.score > 0).slice(0, 8)
+    const general = scored.slice(0, 45).map((item) => item.program)
+
+    const focusedLines = focused.map((item, index) => `مطابقة ${index + 1} — درجة المطابقة ${item.score}\n${formatAdminProgramLine(item.program, index)}`)
+    const generalLines = general.map((p, i) => formatAdminProgramLine(p, i))
 
     return [
       `مؤشرات إدارية مختصرة: البرامج النشطة ${programs}.`,
@@ -129,8 +169,11 @@ async function buildAdminSnapshot(): Promise<string> {
       `المدفوعات: ${payments.map((x: any) => `${x.status}: ${x._count._all} / ${x._sum.amount || 0} دولار`).join(' | ') || 'غير متاح'}.`,
       `الأبحاث: ${theses.map((x: any) => `${x.status}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
       `الامتحانات: ${exams.map((x: any) => `${x.status}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
-      programLines.length ? `فهرس إداري موسع من قاعدة بيانات المنصة — استخدمه للإجابة عن البرامج والكتب والوحدات ولا تقل "لا توجد كتب" إذا ظهرت هنا:\n${programLines.join('\n')}` : '',
-    ].filter(Boolean).join('\n')
+      focusedLines.length
+        ? `برامج مطابقة مباشرة لسؤال الإدارة الحالي: "${compactText(query, 180)}". عند السؤال عن الكتب/المنهاج ابدأ بهذه المطابقات واذكر الكتب حرفياً:\n${focusedLines.join('\n\n')}`
+        : `لم أجد مطابقة قوية مباشرة لسؤال الإدارة الحالي: "${compactText(query, 180)}". استخدم الفهرس العام أدناه ولا تخترع كتباً.`,
+      generalLines.length ? `فهرس إداري عام من قاعدة بيانات المنصة — إذا ظهرت كتب هنا فهي المصدر الرسمي:\n${generalLines.join('\n\n')}` : '',
+    ].filter(Boolean).join('\n\n')
   } catch (error: any) {
     console.error('admin platform snapshot error:', String(error?.message || error).slice(0, 400))
     return ''
@@ -159,7 +202,7 @@ async function buildSupervisorSnapshot(userId: string): Promise<string> {
   }
 }
 
-async function buildUserSnapshot(userId: string, agent: PlatformAgentKind): Promise<string> {
+async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query?: string | null): Promise<string> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, email: true, role: true, phone: true, country: true, createdAt: true },
@@ -169,7 +212,7 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind): Prom
   const base = `المستخدم الحالي: ${user.name} — الدور ${user.role} — البريد ${user.email}${user.country ? ` — الدولة ${user.country}` : ''}.`
   const blocks = [base]
 
-  if (user.role === 'ADMIN') blocks.push(await buildAdminSnapshot())
+  if (user.role === 'ADMIN') blocks.push(await buildAdminSnapshot(query))
   if (user.role === 'SUPERVISOR') blocks.push(await buildSupervisorSnapshot(user.id))
 
   if (user.role === 'STUDENT' || agent === 'ACADEMIC_SUPERVISOR' || agent === 'ADMISSIONS' || agent === 'EXAMS' || agent === 'THESIS_DEFENSE') {
@@ -177,7 +220,7 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind): Prom
     if (supervisorContext) blocks.push(supervisorContext)
   }
 
-  return blocks.filter(Boolean).join('\n\n').slice(0, 24000)
+  return blocks.filter(Boolean).join('\n\n').slice(0, 32000)
 }
 
 function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
@@ -217,6 +260,8 @@ ${staticProgramsDigest()}
 - كن مباشراً ومهنياً؛ لا تطل إلا إذا طلب المستخدم التفصيل.
 - لا تعرض أكواد داخلية أو أسماء حقول برمجية للمستخدم.
 - عند عدم اليقين قل ذلك ووجّه المستخدم للوحة/القسم الصحيح.
+- إذا كان المستخدم إدارة وسأل عن كتب/منهاج/وحدات برنامج معين، استخدم أولاً قسم "برامج مطابقة مباشرة لسؤال الإدارة الحالي" في السياق، واذكر أسماء الكتب المسجلة حرفياً. لا تجب بإجابة عامة عن "المعادلة والخبرة" إذا كانت أسماء الكتب موجودة.
+- إذا لم تجد كتباً في البرنامج المطابق، قل: "لا توجد كتب مسجلة لهذا البرنامج في قاعدة البيانات" ولا تعمم على بقية البرامج.
 - إذا سأل الطالب عن الكتب أو المراجع أو ما يجب قراءته، فابدأ أولاً بأسماء الكتب المقررة الموجودة في سياق الطالب حرفياً. لا تكتفِ بإجابة عامة عن خطة القراءة إذا كانت أسماء الكتب متاحة.
 - إذا ناقش الطالب واجباً أو امتحاناً سلّمه بالفعل، استخدم مراجعة إجاباته المحفوظة ومعيار التصحيح والإجابة الصحيحة/النموذجية لشرح الخطأ ولماذا كانت الإجابة الصحيحة أفضل.
 - لا تكشف مفاتيح إجابات الامتحانات الجاهزة التي لم يسلّمها الطالب بعد؛ استخدمها فقط بعد التسليم أو في تلخيص داخلي للمراجعة، ويمكنك بدلاً من ذلك تدريبه بأسئلة مشابهة من الكتب وبنك المعرفة.
@@ -297,7 +342,7 @@ export async function platformAgentComplete(opts: {
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   const agent = routeAgent(last, user?.role)
   const persona = personaForAgent(agent)
-  const dataContext = await buildUserSnapshot(opts.userId, agent)
+  const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(dataContext, opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
 
