@@ -222,7 +222,9 @@ export function ProgramDetailsView() {
   const flow = getServiceFlow(program?.slug)
   const isService = flow ? !flow.isStudyProgram : program?.category === 'SERVICE'
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
-  const academicProfile = program && !isService ? buildAcademicProgramProfile(program) : null
+  const academicProfile = program && !isService ? buildAcademicProgramProfile({ ...program, academicProfile: program.academicProfile || program.admissionRules?.academicProfile }) : null
+  const admissionRules = program?.admissionRules || null
+  const requiredDocuments = listItems(admissionRules?.requiredDocuments)
   const displayTitle = flow?.title || program?.titleAr || ''
   const displayDescription = flow?.summary || program?.description || ''
   const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
