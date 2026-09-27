@@ -63,6 +63,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
     }
 
+    const emailLimit = checkRateLimit(`auth:register:email:${emailNorm}`, 2, 60 * 60 * 1000)
+    if (!emailLimit.ok) {
+      return NextResponse.json(
+        { error: 'تم إرسال طلبات كثيرة لهذا البريد. انتظر قليلاً ثم حاول مرة أخرى.' },
+        { status: 429, headers: rateLimitHeaders(emailLimit) }
+      )
+    }
+
     const existing = await db.user.findUnique({ where: { email: emailNorm } })
     if (existing) {
       return NextResponse.json(
