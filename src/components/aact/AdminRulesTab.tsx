@@ -496,7 +496,10 @@ export function AdminRulesTab() {
                     </div>
                     <div className="lg:col-span-2">
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><FileText className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'ضوابط الجودة الأكاديمية' : 'ضوابط جودة الخدمة والتسليم'} — كل سطر ضابط</label>
-                      <Textarea rows={4} className="text-xs" value={listToText(draft.academicProfile?.qualityControls)} onChange={(e) => updateAcademicList('qualityControls', e.target.value)} />
+                      <Textarea rows={4} className="scroll-mt-32 text-xs leading-6" value={listToText(draft.academicProfile?.qualityControls)} onChange={(e) => updateAcademicList('qualityControls', e.target.value)} />
+                      <Button type="button" size="sm" variant="outline" onClick={() => appendAcademicListItem('qualityControls')} className="mt-2 h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة بند جديد
+                      </Button>
                     </div>
                   </div>
 
