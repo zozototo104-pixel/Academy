@@ -14,6 +14,16 @@ function publicCacheHeaders() {
   return { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800' }
 }
 
+function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
+  const slug = String(p.slug || '')
+  const titleAr = String(p.titleAr || '')
+  const titleEn = String(p.titleEn || '')
+  return slug.startsWith('qa-full-journey-')
+    || slug === 'launch-quality-diagnostic-program'
+    || titleAr.startsWith('برنامج جودة رحلة كاملة QA')
+    || titleEn.startsWith('QA Full Journey Program')
+}
+
 export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
