@@ -240,8 +240,11 @@ export function ProgramDetailsView() {
   const isService = flow ? !flow.isStudyProgram : program?.category === 'SERVICE'
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
   const academicProfile = program && !isService ? buildAcademicProgramProfile({ ...program, academicProfile: program.academicProfile || program.admissionRules?.academicProfile }) : null
+  const serviceProfile = isService ? (program?.academicProfile || program?.admissionRules?.academicProfile || null) : null
   const admissionRules = program?.admissionRules || null
   const requiredDocuments = listItems(admissionRules?.requiredDocuments)
+  const requiredDocumentLabels = documentLabels(requiredDocuments, flow)
+  const serviceRequirementItems = serviceVisibleRequirements(flow, serviceProfile, admissionRules)
   const displayTitle = flow?.title || program?.titleAr || ''
   const displayDescription = flow?.summary || program?.description || ''
   const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
