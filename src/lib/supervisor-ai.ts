@@ -257,7 +257,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       }),
     ])
 
-    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments] = await Promise.all([
+    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments, recentProgramAttempts, recentUnitAttempts] = await Promise.all([
       db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
       db.chatMessage.findMany({
         where: { userId },
