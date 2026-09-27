@@ -685,10 +685,10 @@ export function ProgramDetailsView() {
 
                   <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><FileText className="h-5 w-5 text-[#d2ad5a]" /> الوثائق المطلوبة</h3>
-                    {requiredDocuments.length ? (
+                    {requiredDocumentLabels.length ? (
                       <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
-                        {requiredDocuments.map((doc, i) => (
-                          <li key={doc + i} className="flex gap-2"><FileCheck2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{DOCUMENT_LABEL[doc] || doc}</span></li>
+                        {requiredDocumentLabels.map((doc, i) => (
+                          <li key={doc + i} className="flex gap-2"><FileCheck2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{doc}</span></li>
                         ))}
                       </ul>
                     ) : <p className="text-xs font-bold leading-7 text-white/62">تحدد الإدارة الوثائق المطلوبة حسب نوع الطلب.</p>}
