@@ -94,7 +94,37 @@ function listToText(list?: string[]) {
 }
 
 function textToList(text: string) {
-  return text.split('\n').map((x) => x.trim()).filter(Boolean)
+  // مهم للموبايل: لا ننظف الأسطر أثناء الكتابة حتى لا يقفز مؤشر الكتابة لآخر النص،
+  // وحتى يستطيع المستخدم ضغط Enter لإضافة بند جديد فارغ ثم تعبئته.
+  return text.replace(/\r/g, '').split('\n')
+}
+
+function cleanTextList(list?: string[]) {
+  return (list || []).map((x) => String(x || '').trim()).filter(Boolean)
+}
+
+function normalizeAcademicProfile(profile?: AcademicProfileDraft | null): AcademicProfileDraft | null | undefined {
+  if (!profile) return profile
+  return {
+    ...profile,
+    learningOutcomes: cleanTextList(profile.learningOutcomes),
+    skills: cleanTextList(profile.skills),
+    graduationRequirements: cleanTextList(profile.graduationRequirements),
+    assessmentComponents: cleanTextList(profile.assessmentComponents),
+    qualityControls: cleanTextList(profile.qualityControls),
+    studyPlan: (profile.studyPlan || [])
+      .map((s) => ({ title: String(s.title || '').trim(), description: String(s.description || '').trim(), deliverable: String(s.deliverable || '').trim() }))
+      .filter((s) => s.title || s.description || s.deliverable),
+  }
+}
+
+function normalizeRulesForSave(rules: Rules): Rules {
+  return {
+    ...rules,
+    customRules: rules.customRules?.trim() || undefined,
+    displayNote: rules.displayNote?.trim() || undefined,
+    academicProfile: normalizeAcademicProfile(rules.academicProfile),
+  }
 }
 
 function stageAt(profile: AcademicProfileDraft | null | undefined, index: number): AcademicPlanStage {
