@@ -33,6 +33,44 @@ export function FloatingActions() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const beginDrag = (e: any) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    dragRef.current = {
+      dragging: true,
+      moved: false,
+      suppressClick: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: rect?.left ?? 12,
+      startTop: rect?.top ?? Math.max(80, window.innerHeight - 120),
+      width: rect?.width ?? 56,
+      height: rect?.height ?? 56,
+    }
+    e.currentTarget?.setPointerCapture?.(e.pointerId)
+  }
+
+  const moveDrag = (e: any) => {
+    const drag = dragRef.current
+    if (!drag.dragging) return
+    const dx = e.clientX - drag.startX
+    const dy = e.clientY - drag.startY
+    if (Math.abs(dx) + Math.abs(dy) > 6) drag.moved = true
+    const maxLeft = Math.max(8, window.innerWidth - drag.width - 8)
+    const maxTop = Math.max(72, window.innerHeight - drag.height - 8)
+    setFloatPos({
+      left: Math.min(Math.max(8, drag.startLeft + dx), maxLeft),
+      top: Math.min(Math.max(72, drag.startTop + dy), maxTop),
+    })
+  }
+
+  const endDrag = (e: any) => {
+    const moved = dragRef.current.moved
+    dragRef.current.dragging = false
+    dragRef.current.suppressClick = moved
+    e.currentTarget?.releasePointerCapture?.(e.pointerId)
+    if (moved) window.setTimeout(() => { dragRef.current.suppressClick = false }, 160)
+  }
+
   const visitorId = () => {
     try {
       const key = 'aact_public_whatsapp_visitor'
