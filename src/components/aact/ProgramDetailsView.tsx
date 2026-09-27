@@ -82,7 +82,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
-const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v3'
+const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v4'
 
 function readCachedPrograms(): Program[] {
   if (typeof window === 'undefined') return []
