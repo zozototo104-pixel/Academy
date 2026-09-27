@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, createSession } from '@/lib/auth'
 import { emailWelcome } from '@/lib/mailer'
+import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+
+function sameSiteRequest(req: NextRequest) {
+  const host = req.headers.get('host') || ''
+  const origin = req.headers.get('origin') || ''
+  const referer = req.headers.get('referer') || ''
+  const allowed = (value: string) => {
+    if (!value) return true
+    try {
+      return new URL(value).host === host
+    } catch {
+      return false
+    }
+  }
+  return allowed(origin) && allowed(referer)
+}
+
+function normalizeOptionalText(value: unknown, max = 120) {
+  return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
 
 export async function POST(req: NextRequest) {
   try {
