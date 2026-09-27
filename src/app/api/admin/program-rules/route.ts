@@ -30,8 +30,9 @@ export async function GET() {
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
     select: { id: true, slug: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
   })
+  const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
   return NextResponse.json({
-    programs: programs.map((p) => {
+    programs: visiblePrograms.map((p) => {
       const flow = getServiceFlow(p.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
       return {
