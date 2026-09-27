@@ -489,6 +489,202 @@ export function buildServiceAdmissionDefaults(flow?: ServiceFlow | null) {
   }
 }
 
+type StudyProgramInput = {
+  slug?: string | null
+  titleAr: string
+  titleEn?: string | null
+  description?: string | null
+  category: string
+  hours?: number | null
+  _count?: { units?: number | null } | null
+}
+
+function officialGraduateProfile(program: StudyProgramInput) {
+  const base = buildAcademicProgramProfile({
+    titleAr: program.titleAr,
+    titleEn: program.titleEn,
+    description: program.description,
+    category: program.category,
+    hours: program.hours,
+    unitsCount: program._count?.units || undefined,
+  })
+  const isDoctorate = program.category === 'DOCTORATE'
+  const isMasters = program.category === 'MASTERS'
+  const mappedHours = isDoctorate ? '240 ساعة مهنية معادلة' : '180 ساعة مهنية معادلة'
+  return {
+    ...base,
+    degreeLabel: isDoctorate ? 'دكتوراه مهنية تدريبية' : 'ماجستير مهني تدريبي',
+    academicTitle: program.titleAr,
+    creditHoursLabel: mappedHours,
+    durationLabel: isDoctorate ? 'مسار دكتوراه مهني متقدم ينتهي بأطروحة ومناقشة' : 'مسار ماجستير مهني مرن ينتهي ببحث ومناقشة',
+    levelDescription: `برنامج دراسات عليا مهني معتمد دولياً ضمن مسارات الأكاديمية الأمريكية. يعتمد المناهج المهنية التطبيقية، الدراسة الإلكترونية المرنة، الإشراف المباشر، المكتبة الرقمية، والتقييم بالأبحاث والمشاريع التطبيقية بدلاً من الامتحانات الورقية الجامدة. ${base.levelDescription}`,
+    learningOutcomes: [
+      'تطبيق مناهج مهنية حديثة مرتبطة بمتطلبات سوق العمل والقيادة التنفيذية.',
+      'تطوير مهارات الإدارة والقيادة والتفكير الاستراتيجي وصناعة القرار.',
+      'إنجاز مشروع أو بحث مهني يعالج تحدياً واقعياً في مجال التخصص.',
+      'استخدام المكتبة الرقمية والكتب العلمية داخل بوابة الطالب لبناء المعرفة التطبيقية.',
+      ...base.learningOutcomes,
+    ].slice(0, 12),
+    skills: Array.from(new Set([
+      'القيادة التنفيذية',
+      'التفكير الاستراتيجي',
+      'تحليل الحالات العملية',
+      'صياغة المقترحات المهنية',
+      'كتابة البحث التطبيقي',
+      ...base.skills,
+    ])).slice(0, 12),
+    graduationRequirements: [
+      'استكمال ملف القبول والوثائق المطلوبة قبل الاعتماد النهائي.',
+      'الالتزام بالمراجع والكتب الرقمية المقررة داخل بوابة الطالب.',
+      'إنجاز المشاريع أو الأبحاث التطبيقية المطلوبة في البرنامج.',
+      'اجتياز التقييمات المرتبطة بالمراجع والخطة الدراسية وفق حد النجاح المعتمد.',
+      'تسليم البحث أو الأطروحة المهنية واجتياز المناقشة النهائية عند انطباقها.',
+      'اعتماد السجل الأكاديمي قبل إصدار الشهادة ورقم التحقق.',
+    ],
+    assessmentComponents: [
+      'تقييمات مبنية على المشاريع والأبحاث التطبيقية وليس على امتحانات ورقية جامدة فقط.',
+      'متابعة المشرف الأكاديمي والمستشار الذكي لتقدم الطالب في الكتب والواجبات.',
+      'اختبارات أو أسئلة تقيس الفهم والتحليل والتطبيق وفق المراجع المعتمدة.',
+      'بحث تخرج أو أطروحة مهنية ومناقشة فيديو أمام لجنة عند انطباق الدرجة.',
+      'سجل أكاديمي وكشف درجات وساعات مفصل بعد الاعتماد.',
+    ],
+    thesisRequirement: isDoctorate
+      ? 'يشترط إعداد أطروحة مهنية تطبيقية ومناقشتها أمام لجنة، مع ربطها بخبرة الطالب وسياق التخصص.'
+      : 'يشترط إعداد بحث تخرج مهني أو مشروع تطبيقي ومناقشته أو اعتماده وفق سياسة البرنامج.',
+    qualityControls: [
+      'مطابقة الخطة للمسار الرسمي المنشور في موقع الأكاديمية: تعليم مهني مرن، إشراف مباشر، مكتبة رقمية، وتحقق إلكتروني.',
+      'ربط الأسئلة والمشاريع بمحتوى الكتب والمراجع الرقمية لا بالمعرفة العامة فقط.',
+      'حفظ السجل الأكاديمي وكشف الدرجات والساعات التفصيلي داخل المنصة.',
+      'إتاحة رقم تحقق إلكتروني للشهادة بعد الاعتماد النهائي.',
+      'إمكانية طلب التصديقات الرسمية الإضافية حسب الطلب والإجراءات المتاحة.',
+    ],
+  }
+}
+
+function officialDiplomaProfile(program: StudyProgramInput) {
+  const base = buildAcademicProgramProfile({
+    titleAr: program.titleAr,
+    titleEn: program.titleEn,
+    description: program.description,
+    category: program.category,
+    hours: program.hours,
+    unitsCount: program._count?.units || undefined,
+  })
+  const flow = SERVICE_FLOWS['training-courses-diplomas']
+  return {
+    ...base,
+    degreeLabel: 'دبلوم تدريبي مهني دولي',
+    academicTitle: program.titleAr,
+    levelDescription: `${flow.summary} يعتمد التدريب العملي والتطبيقي، اختباراً تقييمياً شاملاً، وتوثيقاً مهنياً يشمل الشهادة وبيان الدرجات والساعات عند الاعتماد. ${base.levelDescription}`,
+    creditHoursLabel: program.hours ? `${program.hours} ساعة تدريبية` : '80–120 ساعة تدريبية حسب المسار',
+    durationLabel: 'دورة أو دبلوم تدريبي مرن مع تقييم شامل في نهاية المسار',
+    learningOutcomes: [
+      'اكتساب مهارات عملية وتطبيقية في مجال الدبلوم المختار.',
+      'تطبيق منهجيات علمية حديثة مرتبطة بسوق العمل.',
+      'الاستعداد لاجتياز اختبار أو تقييم شامل في نهاية البرنامج.',
+      'تعزيز السيرة المهنية بوثائق تدريبية دولية قابلة للتحقق.',
+      ...base.learningOutcomes,
+    ].slice(0, 12),
+    skills: Array.from(new Set([
+      'التطبيق العملي',
+      'حل المشكلات المهنية',
+      'إدارة الوقت',
+      'التواصل المهني',
+      'الثقة بالنفس',
+      ...base.skills,
+    ])).slice(0, 12),
+    graduationRequirements: [
+      'تعبئة بيانات التسجيل الأساسية واعتماد الهوية عند إصدار الوثائق.',
+      'دراسة المحتوى أو حضور الأنشطة أو التعلم الذاتي حسب المسار.',
+      'استكمال الأنشطة التطبيقية المطلوبة إن وجدت.',
+      'اجتياز الاختبار أو التقييم الشامل في نهاية البرنامج.',
+      'اعتماد الإدارة للسجل قبل إصدار الشهادة والوثائق.',
+    ],
+    assessmentComponents: [
+      'اختبار تقييمي شامل في نهاية الدورة أو الدبلوم.',
+      'أنشطة تدريبية وتطبيقات عملية مرتبطة بمجال البرنامج.',
+      'متابعة مباشرة أو إرشاد مهني عند توفره في المسار.',
+      'إصدار شهادة دبلوم تدريبي مهني وبيان درجات وساعات تفصيلي عند الاعتماد.',
+    ],
+    thesisRequirement: 'لا يشترط بحث تخرج أكاديمي؛ يعتمد المسار على المحتوى التدريبي والأنشطة أو الاختبار النهائي حسب البرنامج.',
+    qualityControls: [
+      'مطابقة الدبلوم لمسار الدورات والدبلومات الدولية المعتمدة المنشور في موقع الأكاديمية.',
+      'ربط المحتوى بالمهارات العملية والتطبيقية لا بالنظريات المختصرة فقط.',
+      'توثيق ساعات التدريب والدرجات داخل السجل الأكاديمي.',
+      'إتاحة شهادة مهنية وبيان درجات وساعات بعد الاعتماد.',
+    ],
+  }
+}
+
+export function buildOfficialStudyAdmissionDefaults(program: StudyProgramInput) {
+  const category = String(program.category || '').toUpperCase()
+  const isDoctorate = category === 'DOCTORATE'
+  const isMasters = category === 'MASTERS'
+  const isDiploma = category === 'DIPLOMA'
+  const profile = (isMasters || isDoctorate) ? officialGraduateProfile(program) : isDiploma ? officialDiplomaProfile(program) : buildAcademicProgramProfile({
+    titleAr: program.titleAr,
+    titleEn: program.titleEn,
+    description: program.description,
+    category: program.category,
+    hours: program.hours,
+    unitsCount: program._count?.units || undefined,
+  })
+
+  if (isDoctorate) {
+    return {
+      minEducation: 'BACHELOR' as const,
+      requireMasterForDoctorate: true,
+      allowExperienceEquivalency: true,
+      minYearsExperience: 8,
+      minAge: 24,
+      requiredDocuments: ['DEGREE', 'TRANSCRIPT', 'ID', 'PHOTO', 'CV', 'EXPERIENCE'],
+      customRules: 'وفق بيانات الأكاديمية الرسمية: مسار الدكتوراه المهنية مخصص للقادة والمهنيين، يعتمد دراسة إلكترونية مرنة، إشرافاً مباشراً، أطروحة/بحثاً مهنياً ومناقشة، ويمكن دراسة معادلة الخبرات عند وجود بكالوريوس وخبرة عملية موثقة. لا يعتمد القرار النهائي إلا بعد مراجعة الإدارة للوثائق والملف.',
+      displayNote: 'يرجى إرفاق المؤهل السابق وكشف الدرجات والهوية والصورة والسيرة الذاتية وإثبات الخبرة؛ قد تطلب الإدارة وثائق إضافية قبل اعتماد القبول.',
+      academicProfile: profile,
+    }
+  }
+
+  if (isMasters) {
+    return {
+      minEducation: 'BACHELOR' as const,
+      requireMasterForDoctorate: false,
+      allowExperienceEquivalency: true,
+      minYearsExperience: 3,
+      minAge: 20,
+      requiredDocuments: ['DEGREE', 'TRANSCRIPT', 'ID', 'PHOTO', 'CV', 'EXPERIENCE'],
+      customRules: 'وفق بيانات الأكاديمية الرسمية: مسار الماجستير المهني يعتمد مناهج تطبيقية، دراسة إلكترونية مرنة، كتباً رقمية داخل البوابة، إشرافاً مباشراً، وتقييماً بالمشاريع أو البحث المهني. تقبل الإدارة دراسة الخبرات العملية الداعمة عند الحاجة ولا يعتمد القبول إلا بعد مراجعة الملف.',
+      displayNote: 'يرجى إرفاق المؤهل السابق وكشف الدرجات والهوية والصورة والسيرة الذاتية وأي خبرات داعمة للتخصص المطلوب.',
+      academicProfile: profile,
+    }
+  }
+
+  if (isDiploma) {
+    return {
+      minEducation: 'HIGH_SCHOOL' as const,
+      requireMasterForDoctorate: false,
+      allowExperienceEquivalency: false,
+      minYearsExperience: undefined,
+      minAge: 16,
+      requiredDocuments: ['ID', 'PHOTO'],
+      customRules: 'وفق بيانات الأكاديمية الرسمية: الدبلومات والدورات التدريبية تعتمد محتوى تدريبي تطبيقي، اختباراً أو تقييماً شاملاً، وإصدار شهادة دبلوم تدريبي مهني وبيان درجات وساعات. لا يشترط مؤهل جامعي إلا إذا كان المسار متقدماً أو طلبت الإدارة ذلك.',
+      displayNote: 'يكفي رفع الهوية والصورة لإصدار الوثائق، وقد تطلب الإدارة شهادات أو خبرات سابقة إذا كان المسار متقدماً.',
+      academicProfile: profile,
+    }
+  }
+
+  return {
+    minEducation: 'HIGH_SCHOOL' as const,
+    requireMasterForDoctorate: false,
+    allowExperienceEquivalency: false,
+    minYearsExperience: undefined,
+    minAge: 16,
+    requiredDocuments: ['ID', 'PHOTO', 'CV'],
+    customRules: 'يُراجع الطلب وفق الملف الرسمي المنشور للأكاديمية ومتطلبات البرنامج المحدد، مع إبقاء القرار النهائي للإدارة بعد فحص الوثائق.',
+    displayNote: 'يرجى إرفاق الوثائق الداعمة للتخصص المطلوب، وستراجع الإدارة الملف قبل الاعتماد.',
+    academicProfile: profile,
+  }
+}
+
 export function isOfficialServiceSlug(slug?: string | null): boolean {
   return Boolean(slug && SERVICE_FLOWS[slug])
 }
