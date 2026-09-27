@@ -518,14 +518,30 @@ export function AdminRulesTab() {
                   </div>
 
                   <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
-                    <p className="text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الخطة الدراسية المعتمدة' : 'مراحل تنفيذ الخدمة المعتمدة'}</p>
-                    {[0, 1, 2].map((i) => {
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الخطة الدراسية المعتمدة' : 'مراحل تنفيذ الخدمة المعتمدة'}</p>
+                      <Button type="button" size="sm" variant="outline" onClick={appendStudyStage} className="h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة مرحلة جديدة
+                      </Button>
+                    </div>
+                    {Array.from({ length: Math.max(3, draft.academicProfile?.studyPlan?.length || 0) }).map((_, i) => {
                       const stage = stageAt(draft.academicProfile, i)
+                      const canRemove = (draft.academicProfile?.studyPlan?.length || 0) > 3
                       return (
-                        <div key={i} className="grid gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-3">
-                          <Input className="text-xs" placeholder={`عنوان المرحلة ${i + 1}`} value={stage.title} onChange={(e) => updateStudyStage(i, { title: e.target.value })} />
-                          <Input className="text-xs" placeholder="وصف المرحلة" value={stage.description} onChange={(e) => updateStudyStage(i, { description: e.target.value })} />
-                          <Input className="text-xs" placeholder="المخرج المطلوب" value={stage.deliverable} onChange={(e) => updateStudyStage(i, { deliverable: e.target.value })} />
+                        <div key={i} className="rounded-lg bg-slate-50 p-2">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-black text-[#0f2b46]">مرحلة {i + 1}</p>
+                            {canRemove && (
+                              <button type="button" onClick={() => removeStudyStage(i)} className="text-[11px] font-bold text-red-600">
+                                حذف المرحلة
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            <Input className="text-xs" placeholder={`عنوان المرحلة ${i + 1}`} value={stage.title} onChange={(e) => updateStudyStage(i, { title: e.target.value })} />
+                            <Input className="text-xs" placeholder="وصف المرحلة" value={stage.description} onChange={(e) => updateStudyStage(i, { description: e.target.value })} />
+                            <Input className="text-xs" placeholder="المخرج المطلوب" value={stage.deliverable} onChange={(e) => updateStudyStage(i, { deliverable: e.target.value })} />
+                          </div>
                         </div>
                       )
                     })}
