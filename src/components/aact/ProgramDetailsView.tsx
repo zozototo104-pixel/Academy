@@ -501,6 +501,47 @@ export function ProgramDetailsView() {
                     </div>
                   </div>
                 )}
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {(academicProfile.graduationRequirements?.length || 0) > 0 && (
+                    <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                      <h3 className="mb-3 flex items-center gap-2 font-black text-white"><FileCheck2 className="h-5 w-5 text-[#d2ad5a]" /> متطلبات التخرج</h3>
+                      <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                        {academicProfile.graduationRequirements.map((item: string, i: number) => (
+                          <li key={String(i)} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(academicProfile.assessmentComponents?.length || 0) > 0 && (
+                    <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                      <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ClipboardList className="h-5 w-5 text-[#d2ad5a]" /> نظام التقييم</h3>
+                      <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                        {academicProfile.assessmentComponents.map((item: string, i: number) => (
+                          <li key={String(i)} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {academicProfile.thesisRequirement && (
+                  <div className="mt-4 rounded-[1.5rem] border border-[#b08a38]/25 bg-[#b08a38]/10 p-4">
+                    <h3 className="mb-2 flex items-center gap-2 font-black text-white"><Presentation className="h-5 w-5 text-[#d2ad5a]" /> البحث/الأطروحة أو المشروع النهائي</h3>
+                    <p className="text-xs font-bold leading-7 text-white/62">{academicProfile.thesisRequirement}</p>
+                  </div>
+                )}
+
+                {(academicProfile.qualityControls?.length || 0) > 0 && (
+                  <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ShieldCheck className="h-5 w-5 text-[#d2ad5a]" /> ضوابط الجودة والاعتماد</h3>
+                    <ul className="grid gap-2 text-xs font-bold leading-7 text-white/62 md:grid-cols-2">
+                      {academicProfile.qualityControls.map((item: string, i: number) => (
+                        <li key={String(i)} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </DetailSection>
             </TabsContent>
           )}
