@@ -191,6 +191,20 @@ export function AdminRulesTab() {
     patchAcademic({ studyPlan: rows })
   }
 
+  const appendStudyStage = () => {
+    const rows = [...(draft.academicProfile?.studyPlan || [])]
+    while (rows.length < 3) rows.push({ title: '', description: '', deliverable: '' })
+    rows.push({ title: '', description: '', deliverable: '' })
+    patchAcademic({ studyPlan: rows })
+  }
+
+  const removeStudyStage = (index: number) => {
+    const rows = [...(draft.academicProfile?.studyPlan || [])]
+    if (rows.length <= 3) return
+    rows.splice(index, 1)
+    patchAcademic({ studyPlan: rows })
+  }
+
   const clearAcademicProfile = () => {
     const next = { ...draft }
     delete next.academicProfile
