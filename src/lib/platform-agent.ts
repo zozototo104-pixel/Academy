@@ -77,22 +77,210 @@ function staticProgramsDigest(max = 40): string {
 
 async function buildAdminSnapshot(): Promise<string> {
   try {
-    const [users, admissions, programs, payments, theses, exams] = await Promise.all([
+    const [users, admissions, programs, payments, theses, exams, programCatalog] = await Promise.all([
       db.user.groupBy({ by: ['role'], _count: { _all: true } }).catch(() => []),
       db.admissionApplication.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => []),
       db.program.count({ where: { active: true } }).catch(() => 0),
       db.payment.groupBy({ by: ['status'], _count: { _all: true }, _sum: { amount: true } }).catch(() => []),
       db.thesisSubmission.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => []),
       db.programExam.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => []),
+      db.program.findMany({
+        orderBy: [{ active: 'desc' }, { order: 'asc' }, { titleAr: 'asc' }],
+        take: 90,
+        select: {
+          titleAr: true,
+          titleEn: true,
+          category: true,
+          active: true,
+          hours: true,
+          price: true,
+          description: true,
+          academicReadinessStatus: true,
+          registrationStatus: true,
+          books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 12, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
+          units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 10, select: { title: true, semester: true, status: true, summary: true } },
+          assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, type: true, semester: true, points: true } },
+          programExams: { orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, semester: true, status: true, passScore: true, booksUsed: true } },
+          _count: { select: { books: true, units: true, knowledgeItems: true, questionBankItems: true, assignments: true, programExams: true, enrollments: true } },
+        },
+      }).catch(() => []),
     ])
+
+    const programLines = (programCatalog as any[]).map((p, i) => {
+      const books = p.books?.length ? p.books.map((b: any) => `«${b.title}»${b.author ? `/${b.author}` : ''}${b.semester ? ` ف${b.semester}` : ''}`).join('، ') : 'لا توجد كتب مسجلة'
+      const units = p.units?.slice(0, 6).map((u: any) => `${u.title} ف${u.semester}/${u.status}`).join('، ')
+      const assignments = p.assignments?.length ? p.assignments.map((a: any) => `${a.title} ف${a.semester}`).join('، ') : ''
+      const programExams = p.programExams?.length ? p.programExams.map((e: any) => `${e.title} ف${e.semester}/${e.status}`).join('، ') : ''
+      return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.active ? 'نشط' : 'غير نشط'} — ${p.category}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price}import { db } from '@/lib/db'
+import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
+import { chatComplete, type SupervisorPersona } from '@/lib/ai'
+import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
+import { ensureGeminiKey, geminiComplete, geminiDiscussionThinkingLevel, type GeminiThinkingLevel } from '@/lib/gemini'
+
+export type PlatformAgentKind =
+  | 'ACADEMIC_SUPERVISOR'
+  | 'ADMISSIONS'
+  | 'EXAMS'
+  | 'THESIS_DEFENSE'
+  | 'CERTIFICATES'
+  | 'ADMIN_QUALITY'
+  | 'AGENCY_ACCREDITATION'
+  | 'SUPPORT'
+
+const AGENT_AR: Record<PlatformAgentKind, string> = {
+  ACADEMIC_SUPERVISOR: 'المشرف الذكي الأكاديمي',
+  ADMISSIONS: 'وكيل القبول والتسجيل',
+  EXAMS: 'وكيل الامتحانات والقياس',
+  THESIS_DEFENSE: 'وكيل البحث والمناقشة',
+  CERTIFICATES: 'وكيل الشهادات والتحقق',
+  ADMIN_QUALITY: 'وكيل الإدارة والجودة الأكاديمية',
+  AGENCY_ACCREDITATION: 'وكيل الوكالة والاعتماد',
+  SUPPORT: 'وكيل الدعم العام',
+}
+
+function normalizeArabic(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[ـًٌٍَُِّْ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function includesAny(n: string, words: string[]) {
+  return words.some((w) => n.includes(normalizeArabic(w)))
+}
+
+function compactText(value?: string | null, max = 220): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function routeAgent(message: string, role?: string | null): PlatformAgentKind {
+  const n = normalizeArabic(message)
+  if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات'])) return 'ADMIN_QUALITY'
+  if (role === 'SUPERVISOR' && includesAny(n, ['طلابي', 'طلاب', 'طالب', 'بحث', 'ابحاث', 'مناقشة', 'منهجيه', 'متابعة', 'متعثر'])) return 'THESIS_DEFENSE'
+  if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
+  if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
+  if (includesAny(n, ['بحث', 'رسالة', 'اطروحة', 'مشروع تخرج', 'مناقشة', 'لجنة', 'منهجية', 'نتائج'])) return 'THESIS_DEFENSE'
+  if (includesAny(n, ['شهادة', 'شهادتي', 'تحقق', 'qr', 'سجل اكاديمي', 'رقم شهادة'])) return 'CERTIFICATES'
+  if (includesAny(n, ['وكالة', 'وكيل', 'اعتماد', 'جهة اعتماد', 'مدرب معتمد', 'مستشار معتمد'])) return 'AGENCY_ACCREDITATION'
+  if (includesAny(n, ['كتاب', 'كتب', 'منهج', 'دراسة', 'اشرح', 'مفهوم', 'واجب', 'محاضرة', 'تخصصي', 'برنامجي'])) return 'ACADEMIC_SUPERVISOR'
+  return role === 'STUDENT' ? 'ACADEMIC_SUPERVISOR' : 'SUPPORT'
+}
+
+function personaForAgent(agent: PlatformAgentKind): SupervisorPersona {
+  if (agent === 'EXAMS') return 'EXAM'
+  if (agent === 'THESIS_DEFENSE') return 'DEFENSE'
+  return 'CHAT'
+}
+
+function staticProgramsDigest(max = 40): string {
+  return allSeedPrograms.slice(0, max).map((p, i) => {
+    const fee = p.price ? ` — رسوم تقريبية ${p.price}$` : ''
+    const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+    return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${fee}`
+  }).join('\n')
+}
+
+async function buildAdminSnapshot(): Promise<string> {
+  try {
+ : ''} — جاهزية ${p.academicReadinessStatus} — تسجيل ${p.registrationStatus}\n   الوصف: ${compactText(p.description, 220) || 'غير متاح'}\n   عدادات: كتب ${p._count.books}، وحدات ${p._count.units}، بنك معرفة ${p._count.knowledgeItems}، أسئلة ${p._count.questionBankItems}، واجبات ${p._count.assignments}، امتحانات ${p._count.programExams}، ملتحقون ${p._count.enrollments}\n   الكتب: ${books}${units ? `\n   الوحدات: ${units}` : ''}${assignments ? `\n   الواجبات: ${assignments}` : ''}${programExams ? `\n   الامتحانات: ${programExams}` : ''}`
+    })
+
     return [
       `مؤشرات إدارية مختصرة: البرامج النشطة ${programs}.`,
       `المستخدمون حسب الدور: ${users.map((x: any) => `${x.role}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
       `طلبات القبول: ${admissions.map((x: any) => `${x.status}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
-      `المدفوعات: ${payments.map((x: any) => `${x.status}: ${x._count._all} / ${x._sum.amount || 0}$`).join(' | ') || 'غير متاح'}.`,
+      `المدفوعات: ${payments.map((x: any) => `${x.status}: ${x._count._all} / ${x._sum.amount || 0}import { db } from '@/lib/db'
+import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
+import { chatComplete, type SupervisorPersona } from '@/lib/ai'
+import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
+import { ensureGeminiKey, geminiComplete, geminiDiscussionThinkingLevel, type GeminiThinkingLevel } from '@/lib/gemini'
+
+export type PlatformAgentKind =
+  | 'ACADEMIC_SUPERVISOR'
+  | 'ADMISSIONS'
+  | 'EXAMS'
+  | 'THESIS_DEFENSE'
+  | 'CERTIFICATES'
+  | 'ADMIN_QUALITY'
+  | 'AGENCY_ACCREDITATION'
+  | 'SUPPORT'
+
+const AGENT_AR: Record<PlatformAgentKind, string> = {
+  ACADEMIC_SUPERVISOR: 'المشرف الذكي الأكاديمي',
+  ADMISSIONS: 'وكيل القبول والتسجيل',
+  EXAMS: 'وكيل الامتحانات والقياس',
+  THESIS_DEFENSE: 'وكيل البحث والمناقشة',
+  CERTIFICATES: 'وكيل الشهادات والتحقق',
+  ADMIN_QUALITY: 'وكيل الإدارة والجودة الأكاديمية',
+  AGENCY_ACCREDITATION: 'وكيل الوكالة والاعتماد',
+  SUPPORT: 'وكيل الدعم العام',
+}
+
+function normalizeArabic(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[ـًٌٍَُِّْ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function includesAny(n: string, words: string[]) {
+  return words.some((w) => n.includes(normalizeArabic(w)))
+}
+
+function compactText(value?: string | null, max = 220): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function routeAgent(message: string, role?: string | null): PlatformAgentKind {
+  const n = normalizeArabic(message)
+  if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات'])) return 'ADMIN_QUALITY'
+  if (role === 'SUPERVISOR' && includesAny(n, ['طلابي', 'طلاب', 'طالب', 'بحث', 'ابحاث', 'مناقشة', 'منهجيه', 'متابعة', 'متعثر'])) return 'THESIS_DEFENSE'
+  if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
+  if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
+  if (includesAny(n, ['بحث', 'رسالة', 'اطروحة', 'مشروع تخرج', 'مناقشة', 'لجنة', 'منهجية', 'نتائج'])) return 'THESIS_DEFENSE'
+  if (includesAny(n, ['شهادة', 'شهادتي', 'تحقق', 'qr', 'سجل اكاديمي', 'رقم شهادة'])) return 'CERTIFICATES'
+  if (includesAny(n, ['وكالة', 'وكيل', 'اعتماد', 'جهة اعتماد', 'مدرب معتمد', 'مستشار معتمد'])) return 'AGENCY_ACCREDITATION'
+  if (includesAny(n, ['كتاب', 'كتب', 'منهج', 'دراسة', 'اشرح', 'مفهوم', 'واجب', 'محاضرة', 'تخصصي', 'برنامجي'])) return 'ACADEMIC_SUPERVISOR'
+  return role === 'STUDENT' ? 'ACADEMIC_SUPERVISOR' : 'SUPPORT'
+}
+
+function personaForAgent(agent: PlatformAgentKind): SupervisorPersona {
+  if (agent === 'EXAMS') return 'EXAM'
+  if (agent === 'THESIS_DEFENSE') return 'DEFENSE'
+  return 'CHAT'
+}
+
+function staticProgramsDigest(max = 40): string {
+  return allSeedPrograms.slice(0, max).map((p, i) => {
+    const fee = p.price ? ` — رسوم تقريبية ${p.price}$` : ''
+    const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+    return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${fee}`
+  }).join('\n')
+}
+
+async function buildAdminSnapshot(): Promise<string> {
+  try {
+).join(' | ') || 'غير متاح'}.`,
       `الأبحاث: ${theses.map((x: any) => `${x.status}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
       `الامتحانات: ${exams.map((x: any) => `${x.status}: ${x._count._all}`).join(' | ') || 'غير متاح'}.`,
-    ].join('\n')
+      programLines.length ? `فهرس إداري موسع من قاعدة بيانات المنصة — استخدمه للإجابة عن البرامج والكتب والوحدات ولا تقل "لا توجد كتب" إذا ظهرت هنا:\n${programLines.join('\n')}` : '',
+    ].filter(Boolean).join('\n')
   } catch {
     return ''
   }
