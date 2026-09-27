@@ -449,6 +449,12 @@ async function findDiagnosticStudent(studentId?: string) {
     })
   }
 
+  const stableStudent = await ensureLaunchQualityDiagnosticStudent().catch((error) => {
+    console.error('launch-quality diagnostic fixture error:', String(error?.message || error).slice(0, 500))
+    return null
+  })
+  if (stableStudent) return stableStudent
+
   const richStudents = await db.user.findMany({
     where: {
       role: 'STUDENT',
