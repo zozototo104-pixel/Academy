@@ -487,13 +487,7 @@ export function ProgramDetailsView() {
                 </DetailSection>
                 {!!serviceOptionItems.length && (
                   <DetailSection title="خيارات الخدمة أو المسارات المتاحة" icon={Layers}>
-                    <div className="grid gap-3">
-                      {serviceOptionItems.map((option, i) => (
-                        <div key={String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-xs font-bold leading-7 text-white/62">
-                          {option}
-                        </div>
-                      ))}
-                    </div>
+                    <NumberedDisplayList items={serviceOptionItems} />
                   </DetailSection>
                 )}
                 <DetailSection title="المسار الرسمي المطابق" icon={Globe} accent>
