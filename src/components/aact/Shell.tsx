@@ -780,15 +780,8 @@ export function Footer() {
         <div>
           <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">ثقة الأكاديمية</h4>
           <p className="text-xs leading-relaxed text-[#f5f0e1]/70">
-            الشهادات تُصدر خلال 30 يوماً من استلام كشوف الدرجات والرسوم المقررة. الوكلاء الدوليون
-            يحصلون على 25% من إيرادات منطقة التمثيل و100$ عن كل بحث تخرج يشاركون في لجنة مناقشته.
+            الشهادات تُصدر خلال 30 يوماً من استلام كشوف الدرجات والرسوم المقررة، وهي شهادات معتمدة دولياً.
           </p>
-          <div className="mt-4 rounded-xl border border-[#c9a227]/20 bg-white/5 p-3 text-xs leading-relaxed text-[#f5f0e1]/75">
-            <p className="font-extrabold text-[#c9a227]">تعريف بالمبرمج</p>
-            <p className="mt-1">{ACADEMY_INFO.developer.title}: {ACADEMY_INFO.developer.name} "{ACADEMY_INFO.developer.kunya}"</p>
-            <p dir="ltr" className="text-right">جوال: {ACADEMY_INFO.developer.phoneDisplay}</p>
-            <p dir="ltr" className="text-right">Email: {ACADEMY_INFO.developer.email}</p>
-          </div>
         </div>
       </div>
       <div className="border-t border-white/10 py-4 text-center text-[11px] text-[#f5f0e1]/60">
