@@ -772,7 +772,6 @@ export function Footer() {
             <li>{ACADEMY_INFO.locationAr}</li>
             <li dir="ltr" className="text-right">الهاتف الرسمي: {ACADEMY_INFO.officialPhone}</li>
             <li dir="ltr" className="text-right">البريد الرسمي: {ACADEMY_INFO.officialEmail}</li>
-            <li dir="ltr" className="text-right">تواصل سريع: {ACADEMY_INFO.whatsappDisplay}</li>
             <li>مسؤول التواصل: {ACADEMY_INFO.whatsappContactName}</li>
             <li>بناء القيادات، صقل المهارات</li>
             <li>Building Leaders, Refining Skills</li>
