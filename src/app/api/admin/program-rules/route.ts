@@ -7,6 +7,16 @@ import { resolveRules, type AdmissionRules } from '@/lib/admission-ai'
 import { normalizeAcademicProfileOverride } from '@/lib/program-tracks'
 import { buildOfficialStudyAdmissionDefaults, buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
 
+function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
+  const slug = String(p.slug || '')
+  const titleAr = String(p.titleAr || '')
+  const titleEn = String(p.titleEn || '')
+  return slug.startsWith('qa-full-journey-')
+    || slug === 'launch-quality-diagnostic-program'
+    || titleAr.startsWith('برنامج جودة رحلة كاملة QA')
+    || titleEn.startsWith('QA Full Journey Program')
+}
+
 // GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها (المخصصة + المفعّلة فعلياً)
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
