@@ -468,11 +468,17 @@ export function AdminRulesTab() {
                   <div className="mt-4 grid gap-3 lg:grid-cols-2">
                     <div>
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><Target className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'مخرجات التعلم' : 'ميزات/نطاق الخدمة'} — كل سطر بند</label>
-                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.learningOutcomes)} onChange={(e) => updateAcademicList('learningOutcomes', e.target.value)} />
+                      <Textarea rows={5} className="scroll-mt-32 text-xs leading-6" value={listToText(draft.academicProfile?.learningOutcomes)} onChange={(e) => updateAcademicList('learningOutcomes', e.target.value)} />
+                      <Button type="button" size="sm" variant="outline" onClick={() => appendAcademicListItem('learningOutcomes')} className="mt-2 h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة بند جديد
+                      </Button>
                     </div>
                     <div>
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><Sparkles className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'المهارات المكتسبة' : 'مخرجات التسليم'} — كل سطر بند</label>
-                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.skills)} onChange={(e) => updateAcademicList('skills', e.target.value)} />
+                      <Textarea rows={5} className="scroll-mt-32 text-xs leading-6" value={listToText(draft.academicProfile?.skills)} onChange={(e) => updateAcademicList('skills', e.target.value)} />
+                      <Button type="button" size="sm" variant="outline" onClick={() => appendAcademicListItem('skills')} className="mt-2 h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة بند جديد
+                      </Button>
                     </div>
                     <div>
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ClipboardCheck className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'متطلبات التخرج' : 'بيانات/مرفقات الخدمة'} — كل سطر متطلب</label>
