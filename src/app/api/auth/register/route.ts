@@ -81,11 +81,11 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.create({
       data: {
-        name: name.trim(),
+        name: normalizeOptionalText(name, 120),
         email: emailNorm,
         password: hashPassword(password),
-        phone: phone?.trim() || null,
-        country: country?.trim() || null,
+        phone: normalizeOptionalText(phone, 40) || null,
+        country: normalizeOptionalText(country, 80) || null,
         role: 'STUDENT',
       },
     })
