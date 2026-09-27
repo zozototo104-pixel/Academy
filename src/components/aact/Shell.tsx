@@ -13,6 +13,9 @@ export function FloatingActions() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [floatPos, setFloatPos] = useState<{ left: number; top: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef({ dragging: false, moved: false, suppressClick: false, startX: 0, startY: 0, startLeft: 0, startTop: 0, width: 56, height: 56 })
   const [messages, setMessages] = useState<{ role: 'assistant' | 'user'; content: string }[]>([
     {
       role: 'assistant',
