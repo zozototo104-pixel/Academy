@@ -1148,7 +1148,7 @@ export async function analyzeAdmission(
   const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
   const programRules = app.programRef?.admissionRules
     ? resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef.admissionRules, isStudyProgram)
-    : (buildServiceAdmissionDefaults(flow) || resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, isStudyProgram))
+    : (buildServiceAdmissionDefaults(flow) || (isStudyProgram && app.programRef ? buildOfficialStudyAdmissionDefaults(app.programRef) : resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, isStudyProgram)))
   const files = await buildFileEvidence(app.files)
   const rules = runRules({
     fullName: app.fullName,
