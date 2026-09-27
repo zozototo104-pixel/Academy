@@ -179,10 +179,17 @@ export function FloatingActions() {
       </button>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onPointerDown={beginDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onClick={() => {
+          if (dragRef.current.suppressClick) return
+          setOpen((v) => !v)
+        }}
         aria-label="افتح وكيل واتساب الذكي للأكاديمية"
-        title="وكيل واتساب الذكي — يجيب على استفسارات الأكاديمية والبرامج"
-        className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
+        title="اسحب زر واتساب لأي مكان أو اضغط لفتح وكيل واتساب الذكي"
+        className="group relative flex h-14 w-14 touch-none select-none items-center justify-center rounded-full bg-[#25d366] text-white shadow-xl transition-transform duration-300 hover:scale-110"
       >
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full" aria-hidden="true">
           <span className="absolute inset-2 animate-ping rounded-full bg-[#25d366]/40" />
