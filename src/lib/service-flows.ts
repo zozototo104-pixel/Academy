@@ -1,3 +1,5 @@
+import { buildAcademicProgramProfile } from '@/lib/program-tracks'
+
 export type ServiceFlowKind =
   | 'DEGREE_STUDY'
   | 'COURSE_DIPLOMA'
