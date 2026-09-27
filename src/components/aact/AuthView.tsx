@@ -61,6 +61,7 @@ export function AuthView() {
     try {
       const d = await api<{ user: any; token?: string }>('/api/auth/register', {
         method: 'POST',
+        headers: { 'X-AACT-Register-Form': 'web' },
         body: JSON.stringify(regData),
       })
       if (d.token) saveToken(d.token)
