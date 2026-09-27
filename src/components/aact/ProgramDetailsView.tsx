@@ -111,6 +111,26 @@ function moneyLabel(value?: number | null, isService = false) {
   return isService ? 'حسب الخدمة' : 'حسب البرنامج'
 }
 
+const EDUCATION_LABEL: Record<string, string> = {
+  NONE: 'بلا شرط مؤهل محدد',
+  HIGH_SCHOOL: 'الثانوية العامة',
+  BACHELOR: 'البكالوريوس',
+  MASTER: 'الماجستير',
+}
+
+const DOCUMENT_LABEL: Record<string, string> = {
+  DEGREE: 'الشهادة العلمية',
+  TRANSCRIPT: 'كشف الدرجات',
+  ID: 'الهوية أو جواز السفر',
+  PHOTO: 'الصورة الشخصية',
+  CV: 'السيرة الذاتية',
+  EXPERIENCE: 'إثبات الخبرات العملية',
+}
+
+function listItems(list?: any[]): string[] {
+  return Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : []
+}
+
 function EmptyBox({ text }: { text: string }) {
   return (
     <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.05] p-6 text-center text-xs font-bold leading-6 text-white/60">
