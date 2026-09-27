@@ -479,9 +479,11 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
 
       const readyExams = p.programExams.filter((e) => e.status === 'READY')
       if (readyExams.length > 0) {
-        parts.push(
-          `الامتحانات: ${readyExams.map((e) => `${e.title} (فصل ${e.semester === 2 ? 'ثانٍ' : 'أول'} — حد النجاح ${e.passScore}%)`).join(' | ')}`
-        )
+        const examLines = readyExams.map((e, i) => {
+          const sampleTopics = e.questions.slice(0, 8).map((q: any) => `${q.order}. ${compactText(q.text, 110)}${q.sourceBookTitle ? ` — من «${q.sourceBookTitle}»` : ''}`).join(' | ')
+          return `${i + 1}. ${e.title} — فصل ${e.semester === 2 ? 'ثانٍ' : 'أول'} — حد النجاح ${e.passScore}% — المدة ${e.durationMin} دقيقة — النقاط ${e.totalPoints}${e.booksUsed ? ` — بني على: ${compactText(e.booksUsed, 180)}` : ''}${sampleTopics ? `\n   محاور/نماذج أسئلة منشورة دون كشف مفتاح الإجابة قبل التسليم: ${sampleTopics}` : ''}`
+        })
+        parts.push(`الامتحانات الشاملة الجاهزة في خطة الطالب:\n${examLines.join('\n')}`)
       }
     }
 
