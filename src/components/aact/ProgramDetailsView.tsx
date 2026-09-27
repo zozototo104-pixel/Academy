@@ -205,6 +205,24 @@ function DetailSection({ title, icon: Icon, children, accent = false }: { title:
   )
 }
 
+function NumberedDisplayList({ items, columns = 'md:grid-cols-1' }: { items: string[]; columns?: string }) {
+  return (
+    <ol dir="rtl" className={`grid gap-4 ${columns}`}>
+      {items.map((item, i) => (
+        <li
+          key={`${item}-${i}`}
+          className="relative min-h-[5.7rem] rounded-[1.45rem] border border-white/10 bg-[#0b1428]/70 py-5 pl-5 pr-20 text-right text-sm font-black leading-8 text-white/64 shadow-inner shadow-black/10"
+        >
+          <span className="absolute right-4 top-1/2 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full bg-[#bf1646] text-lg font-black text-white shadow-lg shadow-[#bf1646]/25">
+            {i + 1}
+          </span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export function ProgramDetailsView() {
   const { programDetailsId, user, navigate, openApply, openProgram } = useAppStore()
   const [programs, setPrograms] = useState<Program[]>(() => readCachedPrograms())
