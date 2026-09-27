@@ -482,11 +482,17 @@ export function AdminRulesTab() {
                     </div>
                     <div>
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ClipboardCheck className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'متطلبات التخرج' : 'بيانات/مرفقات الخدمة'} — كل سطر متطلب</label>
-                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.graduationRequirements)} onChange={(e) => updateAcademicList('graduationRequirements', e.target.value)} />
+                      <Textarea rows={5} className="scroll-mt-32 text-xs leading-6" value={listToText(draft.academicProfile?.graduationRequirements)} onChange={(e) => updateAcademicList('graduationRequirements', e.target.value)} />
+                      <Button type="button" size="sm" variant="outline" onClick={() => appendAcademicListItem('graduationRequirements')} className="mt-2 h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة بند جديد
+                      </Button>
                     </div>
                     <div>
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><ListChecks className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'نظام التقييم' : 'الخيارات/الرسوم أو مراحل المراجعة'} — كل سطر بند</label>
-                      <Textarea rows={5} className="text-xs" value={listToText(draft.academicProfile?.assessmentComponents)} onChange={(e) => updateAcademicList('assessmentComponents', e.target.value)} />
+                      <Textarea rows={5} className="scroll-mt-32 text-xs leading-6" value={listToText(draft.academicProfile?.assessmentComponents)} onChange={(e) => updateAcademicList('assessmentComponents', e.target.value)} />
+                      <Button type="button" size="sm" variant="outline" onClick={() => appendAcademicListItem('assessmentComponents')} className="mt-2 h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة بند جديد
+                      </Button>
                     </div>
                     <div className="lg:col-span-2">
                       <label className="mb-1 flex items-center gap-1 text-[11px] font-black text-[#0f2b46]"><FileText className="h-3.5 w-3.5 text-[#a8841a]" /> {isStudyProgram ? 'ضوابط الجودة الأكاديمية' : 'ضوابط جودة الخدمة والتسليم'} — كل سطر ضابط</label>
