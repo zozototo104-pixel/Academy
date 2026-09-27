@@ -648,6 +648,41 @@ export function ProgramDetailsView() {
                   <p className="mt-1 font-black text-white">{program.enrolled && !isService ? 'أنت مسجل في البرنامج' : isService ? 'متاح لطلب الخدمة' : 'متاح لتقديم طلب التحاق'}</p>
                 </div>
               </div>
+
+              {admissionRules && (
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ShieldCheck className="h-5 w-5 text-[#d2ad5a]" /> شروط القبول الظاهرة</h3>
+                    <div className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                      {admissionRules.minEducation && <p>الحد الأدنى للمؤهل: <span className="text-[#d2ad5a]">{EDUCATION_LABEL[admissionRules.minEducation] || admissionRules.minEducation}</span></p>}
+                      {admissionRules.minAge != null && <p>العمر الأدنى: <span className="text-[#d2ad5a]">{admissionRules.minAge} سنة</span></p>}
+                      {admissionRules.minYearsExperience != null && <p>الخبرة المطلوبة: <span className="text-[#d2ad5a]">{admissionRules.minYearsExperience} سنوات على الأقل</span></p>}
+                      {admissionRules.requireMasterForDoctorate && <p>يشترط وجود ماجستير لمسار الدكتوراه أو ما يعادله حسب قرار الإدارة.</p>}
+                      {admissionRules.allowExperienceEquivalency && <p>تقبل دراسة معادلة الخبرات العملية عند توفر وثائق داعمة.</p>}
+                      {admissionRules.customRules && <p>{admissionRules.customRules}</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 font-black text-white"><FileText className="h-5 w-5 text-[#d2ad5a]" /> الوثائق المطلوبة</h3>
+                    {requiredDocuments.length ? (
+                      <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
+                        {requiredDocuments.map((doc, i) => (
+                          <li key={doc + i} className="flex gap-2"><FileCheck2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{DOCUMENT_LABEL[doc] || doc}</span></li>
+                        ))}
+                      </ul>
+                    ) : <p className="text-xs font-bold leading-7 text-white/62">تحدد الإدارة الوثائق المطلوبة حسب نوع الطلب.</p>}
+                  </div>
+                </div>
+              )}
+
+              {admissionRules?.displayNote && (
+                <div className="mt-4 rounded-[1.5rem] border border-[#b08a38]/25 bg-[#b08a38]/10 p-4 text-xs font-bold leading-7 text-white/68">
+                  <p className="mb-1 font-black text-[#d2ad5a]">ملاحظة للمتقدم</p>
+                  <p>{admissionRules.displayNote}</p>
+                </div>
+              )}
+
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <Button onClick={startAdmission} className="flex-1 rounded-[1.35rem] bg-[#a98a52] py-6 text-base font-black text-white shadow-xl shadow-black/20 hover:bg-[#b7975d]">
                   {program.enrolled && !isService ? 'الدخول إلى البرنامج' : displayPrimaryAction}
