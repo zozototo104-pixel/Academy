@@ -289,7 +289,26 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         where: { studentId: userId },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 1 } },
+        include: {
+          questions: {
+            orderBy: { order: 'asc' },
+            take: 12,
+            select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, cognitiveSkill: true, difficulty: true, correctRationale: true, points: true },
+          },
+          attempts: {
+            where: { studentId: userId },
+            orderBy: { submittedAt: 'desc' },
+            take: 1,
+            include: {
+              answers: {
+                include: {
+                  question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, correctRationale: true, points: true } },
+                },
+                take: 10,
+              },
+            },
+          },
+        },
       }).catch(() => []),
       db.programExamAttempt.findMany({
         where: { userId },
