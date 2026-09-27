@@ -469,6 +469,14 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         parts.push(`أدلة الدراسة المنشورة للطالب (استند إليها في توجيه القراءة والمناقشة):\n${guides.join('\n')}`)
       }
 
+      if (p.assignments.length > 0) {
+        const assignmentLines = p.assignments.slice(0, 10).map((a, i) => {
+          const rubric = formatRubric(a.rubric, 320)
+          return `${i + 1}. ${a.title} — ${a.type} — فصل ${a.semester} — ${a.points} نقطة${a.weight ? ` — وزن ${a.weight}%` : ''}${a.dueDays ? ` — مهلة ${a.dueDays} يوم` : ''}\n   المطلوب: ${compactText(a.description, 260)}${rubric ? `\n   معيار التصحيح: ${rubric}` : ''}`
+        })
+        parts.push(`الواجبات/التكليفات المنشورة في خطة الطالب لهذا البرنامج:\n${assignmentLines.join('\n')}`)
+      }
+
       const readyExams = p.programExams.filter((e) => e.status === 'READY')
       if (readyExams.length > 0) {
         parts.push(
