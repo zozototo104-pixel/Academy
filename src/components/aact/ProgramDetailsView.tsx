@@ -148,6 +148,29 @@ function serviceVisibleRequirements(flow?: ServiceFlow | null, profile?: any, ru
   return flow?.requiredDocuments || []
 }
 
+function serviceStepsFromProfile(profile?: any): string[] {
+  const stages = Array.isArray(profile?.studyPlan) ? profile.studyPlan : []
+  return stages
+    .map((stage: any) => {
+      const title = String(stage?.title || '').trim()
+      const description = String(stage?.description || '').trim()
+      const deliverable = String(stage?.deliverable || '').trim()
+      return [title, description, deliverable ? `المخرج: ${deliverable}` : ''].filter(Boolean).join(' — ')
+    })
+    .filter(Boolean)
+}
+
+function serviceVisibleOutputs(flow?: ServiceFlow | null, profile?: any): string[] {
+  const customized = listItems(profile?.skills)
+  return customized.length ? customized : (flow?.outputs || [])
+}
+
+function serviceVisibleOptions(flow?: ServiceFlow | null, profile?: any): string[] {
+  const customized = listItems(profile?.assessmentComponents)
+  if (customized.length) return customized
+  return flow?.options?.map((option) => [option.title, option.price, option.description].filter(Boolean).join(' — ')).filter(Boolean) || []
+}
+
 function EmptyBox({ text }: { text: string }) {
   return (
     <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.05] p-6 text-center text-xs font-bold leading-6 text-white/60">
