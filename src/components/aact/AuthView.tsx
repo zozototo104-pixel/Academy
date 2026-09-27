@@ -19,7 +19,7 @@ export function AuthView() {
   const [loading, setLoading] = useState<'login' | 'register' | 'google' | null>(null)
 
   const [loginData, setLoginData] = useState({ email: '', password: '' })
-  const [regData, setRegData] = useState({ name: '', email: '', password: '', phone: '', country: '' })
+  const [regData, setRegData] = useState({ name: '', email: '', password: '', phone: '', country: '', website: '' })
 
   useEffect(() => {
     const error = new URLSearchParams(window.location.search).get('oauth_error')
