@@ -174,15 +174,20 @@ export function AdminRulesTab() {
       }
       return
     }
-    const profile = buildAcademicProgramProfile({
+    const officialDefaults = buildOfficialStudyAdmissionDefaults({
+      slug: selected.slug,
       titleAr: selected.titleAr,
       titleEn: selected.titleEn,
       description: selected.description,
       category: selected.category,
       hours: selected.hours,
-      unitsCount: selected._count?.units,
+      _count: selected._count,
     })
-    setDraft({ ...draft, academicProfile: profile })
+    setDraft({
+      ...draft,
+      ...officialDefaults,
+      academicProfile: officialDefaults.academicProfile,
+    })
   }
 
   const save = async (reset = false) => {
