@@ -462,7 +462,7 @@ export function ProgramDetailsView() {
                 </DetailSection>
                 <DetailSection title="المخرجات التي يحصل عليها المتقدم" icon={Award}>
                   <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
-                    {flow.outputs.map((item, i) => (
+                    {serviceOutputItems.map((item, i) => (
                       <li key={String(i)} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#d2ad5a]" /><span>{item}</span></li>
                     ))}
                   </ul>
