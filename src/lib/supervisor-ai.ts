@@ -443,8 +443,8 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       if (p.books.length > 0) {
         const bookNames = p.books.map((b, i) => `${i + 1}. «${b.title}»${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — الفصل ${b.semester === 1 ? 'الأول' : b.semester === 2 ? 'الثاني' : b.semester}` : ' — عام'}`)
         const bookBlocks = p.books.slice(0, 8).map((b) => {
-          const excerpt = (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 500)
-          return `- «${b.title}»${b.author ? ` (${b.author})` : ''}${b.semester ? ` — فصل ${b.semester === 1 ? 'أول' : 'ثانٍ'}` : ' — عام'}${b.description ? ` — ${b.description.slice(0, 140)}` : ''}${excerpt ? `\n  مقتطف قصير من محتواه: «${excerpt}…»` : ''}`
+          const excerpt = (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 700)
+          return `- «${b.title}»${b.author ? ` (${b.author})` : ''}${b.semester ? ` — فصل ${b.semester === 1 ? 'أول' : 'ثانٍ'}` : ' — عام'}${b.description ? ` — ${b.description.slice(0, 180)}` : ''}${b.levelPolicy ? `\n  سياسة المستوى: ${compactText(b.levelPolicy, 150)}` : ''}${b.readingDepth ? `\n  عمق القراءة المطلوب: ${compactText(b.readingDepth, 150)}` : ''}${b.assessmentOrientation ? `\n  اتجاه التقييم: ${compactText(b.assessmentOrientation, 150)}` : ''}${excerpt ? `\n  مقتطف قصير من محتواه: «${excerpt}…»` : ''}`
         })
         parts.push(`قائمة أسماء الكتب المقررة الحالية لهذا الطالب في تخصص «${p.titleAr}» — عند سؤال الطالب عن الكتب أو المراجع اذكر هذه الأسماء صراحة قبل أي شرح:\n${bookNames.join('\n')}\n\nتفاصيل مختصرة عن الكتب المقررة المعتمدة لهذا التخصص (يُمتحَن بها الطالب):\n${bookBlocks.join('\n')}`)
       }
