@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
     if (!sameSiteRequest(req)) {
       return NextResponse.json({ error: 'تعذر قبول طلب التسجيل من هذا المصدر.' }, { status: 403 })
     }
+    if (req.headers.get('x-aact-register-form') !== 'web') {
+      return NextResponse.json({ error: 'تعذر قبول طلب التسجيل من هذا النموذج.' }, { status: 403 })
+    }
 
     const ip = clientIpFromHeaders(req.headers)
     const ipLimit = checkRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
