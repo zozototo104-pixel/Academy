@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
         })
 
     const programs = rows
-      .filter((p) => !isGenericAllSpecializationsProgram(p))
+      .filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p))
       .sort((a, b) => {
         const ca = PROGRAM_CATEGORY_ORDER.indexOf(a.category)
         const cb = PROGRAM_CATEGORY_ORDER.indexOf(b.category)
