@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
         publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
         return NextResponse.json({ count }, { headers: publicCacheHeaders() })
       }
-      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true } })
-      const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p)).length
+      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true } })
+      const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p)).length
       publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
       return NextResponse.json({ count }, { headers: publicCacheHeaders() })
     }
