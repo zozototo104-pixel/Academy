@@ -44,6 +44,10 @@ function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
 }
 
+function compactText(value?: string | null, max = 220): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات'])) return 'ADMIN_QUALITY'
