@@ -58,6 +58,58 @@ function compactText(value?: string | null, max = 240): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+function formatRubric(value?: string | null, max = 420): string | null {
+  if (!value) return null
+  const items = parseArray(value).slice(0, 6)
+  if (items.length) return items.map((x, i) => `${i + 1}) ${compactText(x, 140)}`).join('؛ ')
+  const text = compactText(value, max)
+  return text || null
+}
+
+function optionText(optionsJson: string | null | undefined, index?: number | null): string | null {
+  if (index == null || Number.isNaN(Number(index))) return null
+  const options = parseArray(optionsJson)
+  return options[Number(index)] ? `${Number(index) + 1}) ${compactText(options[Number(index)], 160)}` : String(index)
+}
+
+function expectedAnswerForQuestion(question: any): string | null {
+  const q = question || {}
+  const options = parseArray(q.options)
+  const rawCorrect = q.correctAnswer != null ? String(q.correctAnswer).trim() : ''
+  const correctIndex = rawCorrect !== '' ? Number(rawCorrect) : Number.NaN
+  const correct = rawCorrect
+    ? Number.isFinite(correctIndex) && options[correctIndex]
+      ? `${correctIndex + 1}) ${compactText(options[correctIndex], 220)}`
+      : compactText(rawCorrect, 220)
+    : ''
+  const model = compactText(q.modelAnswer, 360)
+  const rationale = compactText(q.correctRationale, 300)
+  const evidence = compactText(q.sourceEvidence, 340)
+  return [
+    correct ? `الإجابة الصحيحة: ${correct}` : null,
+    model ? `الإجابة النموذجية/معيار القبول: ${model}` : null,
+    rationale ? `سبب الصحة: ${rationale}` : null,
+    evidence ? `الدليل الأكاديمي: ${evidence}` : null,
+  ].filter(Boolean).join(' — ') || null
+}
+
+function studentAnswerForRecord(answer: any): string {
+  const selected = optionText(answer?.question?.options, answer?.selectedOption)
+  const text = compactText(answer?.answerText, 360)
+  return selected || text || 'لم يقدّم إجابة نصية محفوظة'
+}
+
+function formatAnswerReview(answer: any, index: number): string {
+  const q = answer?.question || {}
+  const question = compactText(q.text, 420)
+  const verdict = answer?.isCorrect === true ? 'صحيحة' : answer?.isCorrect === false ? 'خاطئة/ناقصة' : 'بحاجة مراجعة'
+  const points = answer?.points != null || answer?.maxPoints != null ? ` — الدرجة ${answer?.points ?? '؟'}/${answer?.maxPoints ?? q.points ?? '؟'}` : ''
+  const expected = expectedAnswerForQuestion(q)
+  const feedback = compactText(answer?.aiFeedback, 360)
+  const source = compactText([q.sourceBookTitle, q.sourceChapter, q.sourceLocator].filter(Boolean).join(' / '), 180)
+  return `${index + 1}. ${question}${q.type ? ` — نوع السؤال ${q.type}` : ''}${source ? ` — المصدر: ${source}` : ''}\n   إجابة الطالب: ${studentAnswerForRecord(answer)} — الحكم: ${verdict}${points}${expected ? `\n   ${expected}` : ''}${feedback ? `\n   ملاحظة التصحيح: ${feedback}` : ''}`
+}
+
 function cleanMemoryItem(value: unknown, max = 220): string | null {
   const text = compactText(String(value || ''), max)
   return text.length >= 3 ? text : null
