@@ -268,8 +268,16 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       db.assignmentSubmission.findMany({
         where: { userId },
         orderBy: { submittedAt: 'desc' },
-        take: 5,
-        include: { assignment: { select: { title: true, type: true, semester: true, program: { select: { titleAr: true } } } } },
+        take: 6,
+        select: {
+          answerText: true,
+          status: true,
+          score: true,
+          feedback: true,
+          fileName: true,
+          submittedAt: true,
+          assignment: { select: { title: true, description: true, type: true, semester: true, points: true, rubric: true, program: { select: { titleAr: true } } } },
+        },
       }).catch(() => []),
       db.supervisorChannelMessage.findMany({
         where: { studentId: userId },
