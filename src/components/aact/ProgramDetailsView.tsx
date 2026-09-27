@@ -34,6 +34,7 @@ interface Program {
   assignments?: { id?: string; title?: string; semester?: number | null; points?: number | null; status?: string | null }[]
   studyGuides?: { id?: string; title?: string; semester?: number | null; overview?: string | null }[]
   exams?: { id?: string; title?: string; semester?: number | null; status?: string | null; questionCount?: number | null }[]
+  admissionRules?: any
   academicProfile?: any
   enrolled: boolean
 }
