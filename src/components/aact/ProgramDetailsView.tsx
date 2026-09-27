@@ -467,16 +467,12 @@ export function ProgramDetailsView() {
                     ))}
                   </ul>
                 </DetailSection>
-                {!!flow.options?.length && (
+                {!!serviceOptionItems.length && (
                   <DetailSection title="خيارات الخدمة أو المسارات المتاحة" icon={Layers}>
                     <div className="grid gap-3">
-                      {flow.options.map((option, i) => (
-                        <div key={String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-black text-white">{option.title}</p>
-                            {option.price && <span className="rounded-full bg-[#b08a38]/20 px-3 py-1 text-xs font-black text-[#d2ad5a]">{option.price}</span>}
-                          </div>
-                          {option.description && <p className="mt-2 text-xs font-bold leading-6 text-white/58">{option.description}</p>}
+                      {serviceOptionItems.map((option, i) => (
+                        <div key={String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-xs font-bold leading-7 text-white/62">
+                          {option}
                         </div>
                       ))}
                     </div>
