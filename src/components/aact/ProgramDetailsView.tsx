@@ -679,14 +679,7 @@ export function ProgramDetailsView() {
 
           <TabsContent value="admission" className="mt-0 space-y-5">
             <DetailSection title={isService ? 'مسار طلب الخدمة' : 'مسار الالتحاق'} icon={ShieldCheck} accent>
-              <ol className="grid gap-3 text-xs font-bold leading-relaxed text-white/62 md:grid-cols-5">
-                {requestSteps.map((step, i) => (
-                  <li key={step} className="rounded-2xl border border-white/10 bg-[#0b1428]/55 p-3">
-                    <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#bf1646] text-xs font-black text-white">{i + 1}</span>
-                    <p>{step}</p>
-                  </li>
-                ))}
-              </ol>
+              <NumberedDisplayList items={requestSteps} columns="lg:grid-cols-1" />
             </DetailSection>
 
             <DetailSection title="معلومات الطلب" icon={ClipboardList}>
