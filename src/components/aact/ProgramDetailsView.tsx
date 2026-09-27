@@ -268,6 +268,9 @@ export function ProgramDetailsView() {
   const requiredDocuments = listItems(admissionRules?.requiredDocuments)
   const requiredDocumentLabels = documentLabels(requiredDocuments, flow)
   const serviceRequirementItems = serviceVisibleRequirements(flow, serviceProfile, admissionRules)
+  const serviceStepItems = serviceStepsFromProfile(serviceProfile)
+  const serviceOutputItems = serviceVisibleOutputs(flow, serviceProfile)
+  const serviceOptionItems = serviceVisibleOptions(flow, serviceProfile)
   const displayTitle = flow?.title || program?.titleAr || ''
   const displayDescription = flow?.summary || program?.description || ''
   const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
