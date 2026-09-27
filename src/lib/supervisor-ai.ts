@@ -171,10 +171,30 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         include: {
           program: {
             include: {
-              units: { orderBy: { order: 'asc' }, select: { title: true, summary: true, objectives: true } },
+              units: {
+                orderBy: { order: 'asc' },
+                select: {
+                  title: true,
+                  summary: true,
+                  objectives: true,
+                  semester: true,
+                  status: true,
+                  exam: {
+                    select: {
+                      title: true,
+                      passScore: true,
+                      questions: {
+                        orderBy: { order: 'asc' },
+                        take: 12,
+                        select: { id: true, order: true, type: true, text: true, options: true, correctAnswer: true, modelAnswer: true, points: true },
+                      },
+                    },
+                  },
+                },
+              },
               books: {
                 orderBy: { createdAt: 'asc' },
-                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true },
+                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true, levelPolicy: true, readingDepth: true, assessmentOrientation: true },
               },
               studyGuides: {
                 where: { status: 'PUBLISHED' },
