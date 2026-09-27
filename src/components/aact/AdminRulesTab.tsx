@@ -177,6 +177,13 @@ export function AdminRulesTab() {
     patchAcademic({ [key]: textToList(value) } as AcademicProfileDraft)
   }
 
+  const appendAcademicListItem = (key: keyof Pick<AcademicProfileDraft, 'learningOutcomes' | 'skills' | 'graduationRequirements' | 'assessmentComponents' | 'qualityControls'>) => {
+    const current = [...((draft.academicProfile?.[key] as string[] | undefined) || [])]
+    if (current.length && current[current.length - 1] === '') current.push('')
+    else current.push('')
+    patchAcademic({ [key]: current } as AcademicProfileDraft)
+  }
+
   const updateStudyStage = (index: number, patch: Partial<AcademicPlanStage>) => {
     const rows = [...(draft.academicProfile?.studyPlan || [])]
     while (rows.length <= index) rows.push({ title: '', description: '', deliverable: '' })
