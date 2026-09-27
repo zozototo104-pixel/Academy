@@ -28,7 +28,7 @@ export async function GET() {
         ...p,
         rules: p.admissionRules
           ? resolveRules(p.category, p.admissionRules, isStudyProgram)
-          : (buildServiceAdmissionDefaults(flow) || resolveRules(p.category, p.admissionRules, isStudyProgram)),
+          : (buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(p) : resolveRules(p.category, p.admissionRules, isStudyProgram))),
         custom: !!p.admissionRules,
       }
     }),
