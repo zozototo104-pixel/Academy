@@ -244,7 +244,7 @@ export function AdminRulesTab() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4 pb-[45vh] md:pb-6">
       <Card className="border-[#0f2b46]/10">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
