@@ -107,6 +107,340 @@ function chooseBestDiagnosticStudent<T extends any>(students: T[]): T | null {
     .sort((a: any, b: any) => diagnosticStudentScore(b) - diagnosticStudentScore(a) || new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
 }
 
+const LAUNCH_QUALITY_EMAIL = 'launch.quality.student@aact.test'
+const LAUNCH_QUALITY_PROGRAM_SLUG = 'launch-quality-diagnostic-program'
+const LAUNCH_QUALITY_REFERENCE = 'AACT-LAUNCH-QUALITY'
+
+async function ensureLaunchQualityDiagnosticStudent() {
+  const password = hashPassword(`launch-quality-${process.env.NEXTAUTH_SECRET || 'local'}`)
+  const program = await db.program.upsert({
+    where: { slug: LAUNCH_QUALITY_PROGRAM_SLUG },
+    update: {
+      titleAr: 'برنامج فحص جاهزية الإطلاق في الحوكمة وإدارة المخاطر',
+      titleEn: 'Launch Quality Diagnostic Program',
+      description: 'برنامج داخلي ثابت لفحص قدرة المشرف الذكي على قراءة ملف الطالب والمنهج والكتب والبحث قبل الإطلاق. لا يظهر كتخصص مفتوح للتسجيل العام.',
+      category: 'DIPLOMA',
+      hours: 60,
+      price: 0,
+      active: false,
+      registrationStatus: 'CLOSED',
+      academicReadinessStatus: 'APPROVED',
+      academicApproved: true,
+      semestersCount: 2,
+    },
+    create: {
+      slug: LAUNCH_QUALITY_PROGRAM_SLUG,
+      titleAr: 'برنامج فحص جاهزية الإطلاق في الحوكمة وإدارة المخاطر',
+      titleEn: 'Launch Quality Diagnostic Program',
+      description: 'برنامج داخلي ثابت لفحص قدرة المشرف الذكي على قراءة ملف الطالب والمنهج والكتب والبحث قبل الإطلاق. لا يظهر كتخصص مفتوح للتسجيل العام.',
+      category: 'DIPLOMA',
+      hours: 60,
+      price: 0,
+      icon: 'shield-check',
+      features: JSON.stringify(['حوكمة المخاطر', 'اختبار سياق المشرف الذكي', 'تحقق من البحث والمناقشة']),
+      order: 9999,
+      active: false,
+      registrationStatus: 'CLOSED',
+      academicReadinessStatus: 'APPROVED',
+      academicApproved: true,
+      semestersCount: 2,
+    },
+  })
+
+  const [book, unit1, unit2] = await Promise.all([
+    db.book.findFirst({ where: { programId: program.id, title: 'دليل الحوكمة وإدارة المخاطر المؤسسية' } }).then((existing) => existing || db.book.create({
+      data: {
+        programId: program.id,
+        title: 'دليل الحوكمة وإدارة المخاطر المؤسسية',
+        titleEn: 'Governance and Enterprise Risk Management Guide',
+        author: 'AACT Academic Quality Office',
+        year: '2026',
+        semester: 1,
+        description: 'كتاب مقرر يشرح مبادئ الحوكمة، سجل المخاطر، الضوابط الداخلية، ومؤشرات قياس فعالية الرقابة.',
+        textContent: 'يركز الكتاب على ربط الحوكمة بإدارة المخاطر المؤسسية عبر تحديد السياق، بناء سجل مخاطر، تقييم الاحتمالية والأثر، تصميم الضوابط، ثم متابعة مؤشرات الأداء والمخاطر الرئيسية. يجب على الطالب فهم الفرق بين الخطر المتأصل والخطر المتبقي، وكيفية صياغة خطة معالجة واقعية.',
+        levelPolicy: 'مناسب لفحص جاهزية المشرف الذكي على مستوى دبلوم مهني تطبيقي.',
+        readingDepth: 'يركز الطالب على المفاهيم الأساسية، أمثلة سجل المخاطر، ومبررات اختيار الضوابط.',
+        assessmentOrientation: 'الأسئلة تقيس الفهم والتطبيق والتحليل في حالة حوكمة عملية.',
+        linkReadStatus: 'TEXT_EXTRACTED',
+        linkReadNote: 'محتوى تشخيصي داخلي محفوظ نصياً للفحص.',
+        source: 'ADMIN',
+      },
+    })),
+    db.unit.findFirst({ where: { programId: program.id, title: 'مدخل إلى الحوكمة وإدارة المخاطر' } }).then((existing) => existing || db.unit.create({
+      data: {
+        programId: program.id,
+        order: 1,
+        semester: 1,
+        status: 'APPROVED',
+        title: 'مدخل إلى الحوكمة وإدارة المخاطر',
+        summary: 'تعرّف الوحدة الطالب بمبادئ الحوكمة، أدوار المسؤولية، وخريطة المخاطر المؤسسية.',
+        content: JSON.stringify([{ heading: 'الحوكمة والمخاطر', body: 'الحوكمة تحدد المسؤوليات، وإدارة المخاطر تحول عدم اليقين إلى قرارات قابلة للقياس.' }]),
+        objectives: JSON.stringify(['يميز بين الحوكمة والإدارة التشغيلية', 'يبني وصفاً أولياً لسجل المخاطر', 'يفسر أثر الضوابط على الخطر المتبقي']),
+      },
+    })),
+    db.unit.findFirst({ where: { programId: program.id, title: 'تحليل الضوابط ومؤشرات المخاطر' } }).then((existing) => existing || db.unit.create({
+      data: {
+        programId: program.id,
+        order: 2,
+        semester: 1,
+        status: 'APPROVED',
+        title: 'تحليل الضوابط ومؤشرات المخاطر',
+        summary: 'تركز الوحدة على تصميم الضوابط، مؤشرات الإنذار المبكر، وربطها بالتوصيات العملية.',
+        content: JSON.stringify([{ heading: 'الضوابط والمؤشرات', body: 'الضابط الجيد يملك مالكاً واضحاً ومؤشر قياس وحداً للتصعيد عند الانحراف.' }]),
+        objectives: JSON.stringify(['يصمم مؤشرات مخاطر رئيسية', 'يربط الضوابط بالتوصيات', 'يقيم فعالية خطة المعالجة']),
+      },
+    })),
+  ])
+
+  await db.bookKnowledgeItem.findFirst({ where: { programId: program.id, title: 'الخطر المتأصل والخطر المتبقي' } }).then((existing) => existing || db.bookKnowledgeItem.create({
+    data: {
+      programId: program.id,
+      bookId: book.id,
+      semester: 1,
+      category: 'CONCEPT',
+      title: 'الخطر المتأصل والخطر المتبقي',
+      summary: 'الخطر المتأصل هو مستوى الخطر قبل الضوابط، أما الخطر المتبقي فهو ما يبقى بعد تطبيق الضوابط وخطط المعالجة.',
+      excerpt: 'ينبغي عدم الخلط بين تقييم الخطر قبل الضوابط وبعدها عند بناء سجل المخاطر.',
+      keywords: JSON.stringify(['الحوكمة', 'الخطر المتأصل', 'الخطر المتبقي', 'الضوابط']),
+      importance: 92,
+      sourceNote: 'مستخلص من دليل الحوكمة وإدارة المخاطر المؤسسية.',
+    },
+  }))
+
+  await (db.programStudyGuide as any).upsert({
+    where: { programId_semester: { programId: program.id, semester: 1 } },
+    update: {
+      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
+      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
+      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
+      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
+      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
+      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
+      status: 'PUBLISHED',
+    },
+    create: {
+      programId: program.id,
+      semester: 1,
+      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
+      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
+      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
+      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
+      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
+      activities: JSON.stringify(['ارسم سجل مخاطر مختصر', 'اكتب توصية رقابية قابلة للتنفيذ']),
+      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
+      status: 'PUBLISHED',
+      generatedBy: 'ADMIN',
+    },
+  })
+
+  const unitExam = await (db.exam as any).upsert({
+    where: { unitId: unit1.id },
+    update: { title: 'اختبار وحدة الحوكمة والمخاطر', passScore: 60 },
+    create: { unitId: unit1.id, title: 'اختبار وحدة الحوكمة والمخاطر', passScore: 60 },
+  })
+  const unitQuestion = await db.question.findFirst({ where: { examId: unitExam.id, order: 1 } }).then((existing) => existing || db.question.create({
+    data: {
+      examId: unitExam.id,
+      order: 1,
+      type: 'MCQ',
+      text: 'ما الفرق الصحيح بين الخطر المتأصل والخطر المتبقي؟',
+      options: JSON.stringify(['الخطر المتأصل بعد الضوابط والمتبقي قبلها', 'الخطر المتأصل قبل الضوابط والمتبقي بعد تطبيق الضوابط', 'لا فرق بينهما', 'الخطر المتبقي لا يقاس']),
+      correctAnswer: '1',
+      modelAnswer: 'الخطر المتأصل يسبق الضوابط، والخطر المتبقي هو مستوى الخطر بعد تطبيق الضوابط وخطط المعالجة.',
+      points: 10,
+    },
+  }))
+
+  const assignment = await db.programAssignment.findFirst({ where: { programId: program.id, title: 'تحليل حالة سجل مخاطر' } }).then((existing) => existing || db.programAssignment.create({
+    data: {
+      programId: program.id,
+      title: 'تحليل حالة سجل مخاطر',
+      description: 'حلل حالة مؤسسة لديها تأخر في متابعة الضوابط، وحدد ثلاثة مخاطر وضابطاً ومؤشر قياس لكل خطر.',
+      semester: 1,
+      type: 'CASE_STUDY',
+      points: 20,
+      weight: 10,
+      dueDays: 14,
+      rubric: JSON.stringify(['وضوح وصف الخطر', 'دقة الربط بين الضابط والخطر', 'قابلية مؤشر القياس للتطبيق']),
+      status: 'PUBLISHED',
+    },
+  }))
+
+  const programExam = await db.programExam.findFirst({ where: { programId: program.id, title: 'امتحان شامل في الحوكمة وإدارة المخاطر' } }).then((existing) => existing || db.programExam.create({
+    data: {
+      programId: program.id,
+      title: 'امتحان شامل في الحوكمة وإدارة المخاطر',
+      status: 'READY',
+      semester: 1,
+      durationMin: 120,
+      passScore: 60,
+      totalPoints: 20,
+      booksUsed: 'دليل الحوكمة وإدارة المخاطر المؤسسية',
+      generatedBy: 'ADMIN',
+    },
+  }))
+  const programQuestion = await db.programQuestion.findFirst({ where: { examId: programExam.id, order: 1 } }).then((existing) => existing || db.programQuestion.create({
+    data: {
+      examId: programExam.id,
+      order: 1,
+      type: 'MCQ',
+      text: 'أي عبارة تشرح دور مؤشرات المخاطر الرئيسية في الحوكمة؟',
+      options: JSON.stringify(['هي بديل عن الضوابط', 'تساعد على الإنذار المبكر وقياس فعالية الضوابط', 'تستخدم فقط بعد وقوع الخطر', 'لا علاقة لها بمتابعة المخاطر']),
+      correctAnswer: '1',
+      modelAnswer: 'مؤشرات المخاطر الرئيسية تستخدم للإنذار المبكر وقياس اتجاه الخطر وفعالية الضوابط قبل تفاقم المشكلة.',
+      sourceEvidence: 'الكتاب يربط بين الضوابط، المالك المسؤول، وحد التصعيد عند الانحراف.',
+      sourceBookTitle: 'دليل الحوكمة وإدارة المخاطر المؤسسية',
+      sourceChapter: 'الضوابط والمؤشرات',
+      sourceLocator: 'قسم مؤشرات المخاطر',
+      cognitiveSkill: 'APPLY',
+      difficulty: 'MEDIUM',
+      correctRationale: 'لأن المؤشر لا يستبدل الضابط، بل يقيس فعاليته ويوفر إنذاراً مبكراً.',
+      points: 20,
+      status: 'PUBLISHED',
+    },
+  }))
+
+  const user = await db.user.upsert({
+    where: { email: LAUNCH_QUALITY_EMAIL },
+    update: { name: 'طالب فحص جاهزية الإطلاق', role: 'STUDENT', status: 'ACTIVE', country: 'QA', phone: '+0000000000' },
+    create: { email: LAUNCH_QUALITY_EMAIL, password, name: 'طالب فحص جاهزية الإطلاق', role: 'STUDENT', status: 'ACTIVE', country: 'QA', phone: '+0000000000' },
+  })
+
+  await (db.enrollment as any).upsert({
+    where: { userId_programId: { userId: user.id, programId: program.id } },
+    update: { status: 'ACTIVE', completedUnits: JSON.stringify([unit1.id]), examReadiness: JSON.stringify([1]), finalScore: 88 },
+    create: { userId: user.id, programId: program.id, status: 'ACTIVE', completedUnits: JSON.stringify([unit1.id]), examReadiness: JSON.stringify([1]), finalScore: 88 },
+  })
+
+  const admission = await db.admissionApplication.upsert({
+    where: { reference: LAUNCH_QUALITY_REFERENCE },
+    update: {
+      fullName: user.name,
+      email: user.email,
+      phone: user.phone || '+0000000000',
+      country: user.country || 'QA',
+      education: 'BACHELOR',
+      program: program.titleAr,
+      programId: program.id,
+      status: 'THESIS',
+      userId: user.id,
+      acknowledged: true,
+      acknowledgedAt: new Date(),
+      thesisDeadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120),
+      documents: JSON.stringify(['هوية تشخيصية داخلية', 'شهادة قبول تجريبية']),
+    },
+    create: {
+      reference: LAUNCH_QUALITY_REFERENCE,
+      fullName: user.name,
+      email: user.email,
+      phone: user.phone || '+0000000000',
+      country: user.country || 'QA',
+      education: 'BACHELOR',
+      program: program.titleAr,
+      programId: program.id,
+      status: 'THESIS',
+      userId: user.id,
+      documents: JSON.stringify(['هوية تشخيصية داخلية', 'شهادة قبول تجريبية']),
+      notes: 'طلب داخلي ثابت لفحص جودة الوكيل الذكي قبل الإطلاق.',
+      acknowledged: true,
+      acknowledgedAt: new Date(),
+      thesisDeadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 120),
+    },
+  })
+
+  await db.assignmentSubmission.upsert({
+    where: { assignmentId_userId: { assignmentId: assignment.id, userId: user.id } },
+    update: {
+      answerText: 'حددت ثلاثة مخاطر: ضعف متابعة الضوابط، غياب مؤشر إنذار مبكر، وعدم وضوح مالك الخطر. أوصي بتعيين مالك لكل ضابط وبناء مؤشر تصعيد شهري.',
+      status: 'GRADED',
+      score: 17,
+      feedback: 'إجابة جيدة، لكنها تحتاج توضيحاً أكبر للفرق بين مؤشر الأداء ومؤشر الخطر.',
+      gradedBy: 'AI',
+      gradedAt: new Date(),
+    },
+    create: {
+      assignmentId: assignment.id,
+      userId: user.id,
+      answerText: 'حددت ثلاثة مخاطر: ضعف متابعة الضوابط، غياب مؤشر إنذار مبكر، وعدم وضوح مالك الخطر. أوصي بتعيين مالك لكل ضابط وبناء مؤشر تصعيد شهري.',
+      status: 'GRADED',
+      score: 17,
+      feedback: 'إجابة جيدة، لكنها تحتاج توضيحاً أكبر للفرق بين مؤشر الأداء ومؤشر الخطر.',
+      gradedBy: 'AI',
+      gradedAt: new Date(),
+    },
+  })
+
+  const existingUnitAttempt = await db.examAttempt.findFirst({ where: { userId: user.id, examId: unitExam.id } })
+  if (!existingUnitAttempt) {
+    const attempt = await db.examAttempt.create({ data: { userId: user.id, examId: unitExam.id, score: 100, passed: true, status: 'GRADED', feedback: 'فهم جيد للتمييز بين الخطر المتأصل والمتبقي.', aiGraded: true } })
+    await db.answer.create({ data: { attemptId: attempt.id, questionId: unitQuestion.id, selectedOption: 1, isCorrect: true, points: 10, maxPoints: 10, aiFeedback: 'إجابة صحيحة لأن الضوابط تقلل الخطر المتبقي ولا تغيّر تعريف الخطر المتأصل.' } })
+  }
+
+  const existingProgramAttempt = await db.programExamAttempt.findFirst({ where: { userId: user.id, examId: programExam.id } })
+  if (!existingProgramAttempt) {
+    const attempt = await db.programExamAttempt.create({ data: { userId: user.id, examId: programExam.id, score: 85, finalScore: 85, passed: true, status: 'GRADED', feedback: 'الطالب يفهم وظيفة مؤشرات المخاطر، ويحتاج مزيداً من أمثلة التصعيد العملي.', durationUsedMin: 42, submittedAt: new Date() } })
+    await db.programAnswer.create({ data: { attemptId: attempt.id, questionId: programQuestion.id, selectedOption: 1, isCorrect: true, points: 20, maxPoints: 20, aiFeedback: 'صحيح؛ المؤشر يقيس اتجاه الخطر وفعالية الضوابط ولا يستبدلها.' } })
+  }
+
+  await db.thesisSubmission.findFirst({ where: { userId: user.id, title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية' } }).then((existing) => existing || db.thesisSubmission.create({
+    data: {
+      userId: user.id,
+      admissionId: admission.id,
+      title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية',
+      abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
+      fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي.',
+      status: 'RESULT_APPROVED',
+      defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+      committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
+      aiScore: 88,
+      aiRecommendation: 'يوصى بالنجاح مع تحسين ربط المؤشرات بخطة التصعيد.',
+      defenseStatus: 'COMPLETED',
+      defenseCompletedAt: new Date(),
+      defenseMinutes: 'ناقشت اللجنة الفرق بين مؤشرات الأداء ومؤشرات المخاطر، وطلبت أمثلة تطبيقية على حدود التصعيد.',
+      resultScore: 87,
+      passed: true,
+      reviewedAt: new Date(),
+    },
+  }))
+
+  await db.studentAcademicMemory.upsert({
+    where: { userId: user.id },
+    update: {
+      profileDigest: 'طالب تشخيصي في برنامج الحوكمة وإدارة المخاطر، يركز على فهم الكتب المقررة والواجبات والبحث قبل الإطلاق.',
+      strengths: JSON.stringify(['يفهم مفهوم الضوابط', 'يربط المؤشرات بالتوصيات']),
+      weaknesses: JSON.stringify(['يحتاج أمثلة أكثر على حدود التصعيد', 'يميل للخلط بين KPI وKRI']),
+      conceptsToReview: JSON.stringify(['الخطر المتأصل والمتبقي', 'مؤشرات المخاطر الرئيسية', 'تصعيد الضوابط']),
+      recommendedNextActions: JSON.stringify(['مراجعة الكتاب المقرر', 'حل حالة سجل مخاطر إضافية', 'تحضير إجابة مناقشة حول KRI']),
+      lastConversationSummary: 'سأل الطالب عن الكتب والوحدات وخطة التركيز، وأوصاه المشرف بمراجعة دليل الحوكمة وإدارة المخاطر المؤسسية.',
+      examSignals: JSON.stringify(['نجح في اختبار الوحدة', 'أجاب صحيحاً على دور مؤشرات المخاطر']),
+      thesisSignals: JSON.stringify(['بحثه عن أثر مؤشرات المخاطر على الحوكمة', 'نتيجة البحث معتمدة']),
+      lastFileAnalysis: 'الملف البحثي يتضمن ملخصاً ومنهجية تطبيقية ومقترحات تحسين للضوابط.',
+      lastInteractionAt: new Date(),
+      lastExamAt: new Date(),
+      lastDefenseAt: new Date(),
+      interactionsCount: 4,
+    },
+    create: {
+      userId: user.id,
+      profileDigest: 'طالب تشخيصي في برنامج الحوكمة وإدارة المخاطر، يركز على فهم الكتب المقررة والواجبات والبحث قبل الإطلاق.',
+      strengths: JSON.stringify(['يفهم مفهوم الضوابط', 'يربط المؤشرات بالتوصيات']),
+      weaknesses: JSON.stringify(['يحتاج أمثلة أكثر على حدود التصعيد', 'يميل للخلط بين KPI وKRI']),
+      conceptsToReview: JSON.stringify(['الخطر المتأصل والمتبقي', 'مؤشرات المخاطر الرئيسية', 'تصعيد الضوابط']),
+      recommendedNextActions: JSON.stringify(['مراجعة الكتاب المقرر', 'حل حالة سجل مخاطر إضافية', 'تحضير إجابة مناقشة حول KRI']),
+      lastConversationSummary: 'سأل الطالب عن الكتب والوحدات وخطة التركيز، وأوصاه المشرف بمراجعة دليل الحوكمة وإدارة المخاطر المؤسسية.',
+      examSignals: JSON.stringify(['نجح في اختبار الوحدة', 'أجاب صحيحاً على دور مؤشرات المخاطر']),
+      thesisSignals: JSON.stringify(['بحثه عن أثر مؤشرات المخاطر على الحوكمة', 'نتيجة البحث معتمدة']),
+      lastFileAnalysis: 'الملف البحثي يتضمن ملخصاً ومنهجية تطبيقية ومقترحات تحسين للضوابط.',
+      lastInteractionAt: new Date(),
+      lastExamAt: new Date(),
+      lastDefenseAt: new Date(),
+      interactionsCount: 4,
+    },
+  })
+
+  return db.user.findFirst({ where: { id: user.id, role: 'STUDENT' }, include: diagnosticStudentInclude })
+}
+
 async function findDiagnosticStudent(studentId?: string) {
   if (studentId) {
     return db.user.findFirst({
