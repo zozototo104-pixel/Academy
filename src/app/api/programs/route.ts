@@ -162,9 +162,11 @@ export async function GET(req: NextRequest) {
       : payload
 
     return NextResponse.json(responsePayload, {
-      headers: publicOnly
-        ? publicCacheHeaders()
-        : { 'Cache-Control': 'private, no-store' },
+      headers: detailId
+        ? { 'Cache-Control': 'private, no-store' }
+        : publicOnly
+          ? publicCacheHeaders()
+          : { 'Cache-Control': 'private, no-store' },
     })
   } catch (e) {
     console.error('Programs error:', e)
