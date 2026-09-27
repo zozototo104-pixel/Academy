@@ -291,6 +291,34 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
         take: 5,
         include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 1 } },
       }).catch(() => []),
+      db.programExamAttempt.findMany({
+        where: { userId },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 4,
+        include: {
+          exam: { select: { title: true, semester: true, passScore: true, program: { select: { titleAr: true } } } },
+          answers: {
+            include: {
+              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, sourceChapter: true, sourceLocator: true, correctRationale: true, points: true } },
+            },
+            take: 10,
+          },
+        },
+      }).catch(() => []),
+      db.examAttempt.findMany({
+        where: { userId },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 4,
+        include: {
+          exam: { select: { title: true, passScore: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } },
+          answers: {
+            include: {
+              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, points: true } },
+            },
+            take: 10,
+          },
+        },
+      }).catch(() => []),
     ])
 
     const parts: string[] = []
