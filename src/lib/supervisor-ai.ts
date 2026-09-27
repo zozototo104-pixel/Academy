@@ -348,9 +348,11 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
 
     if (latestAssignments.length > 0) {
       parts.push(
-        `آخر الواجبات/المشاريع التطبيقية:\n${latestAssignments.map((a) => {
-          const status = a.score != null ? ` — الدرجة ${a.score}` : ` — الحالة ${a.status}`
-          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester})${status}${a.feedback ? ` — ملاحظة: ${compactText(a.feedback, 160)}` : ''}`
+        `آخر الواجبات/المشاريع التطبيقية المسلّمة مع معيار التصحيح وإجابة الطالب:\n${latestAssignments.map((a) => {
+          const status = a.score != null ? `الدرجة ${a.score}/${a.assignment.points}` : `الحالة ${a.status}`
+          const rubric = formatRubric(a.assignment.rubric, 360)
+          const answer = compactText(a.answerText, 420)
+          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester}، ${a.assignment.type}) — ${status}${a.assignment.description ? `\n  المطلوب: ${compactText(a.assignment.description, 260)}` : ''}${rubric ? `\n  معيار التصحيح: ${rubric}` : ''}${answer ? `\n  إجابة الطالب: ${answer}` : a.fileName ? `\n  مرفق الطالب: ${a.fileName}` : ''}${a.feedback ? `\n  ملاحظة التصحيح: ${compactText(a.feedback, 260)}` : ''}`
         }).join('\n')}`
       )
     }
