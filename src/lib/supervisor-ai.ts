@@ -487,23 +487,25 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       }
     }
 
-    const attempts = await db.programExamAttempt.findMany({
-      where: { userId },
-      include: { exam: { select: { title: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    })
+    if (recentProgramAttempts.length > 0) {
+      const attemptBlocks = recentProgramAttempts.map((a: any, i: number) => {
+        const score = a.finalScore != null ? `${a.finalScore}% نهائية` : a.score != null ? `${a.score}%` : 'قيد التصحيح'
+        const answers = (a.answers || []).slice(0, 8).map((ans: any, idx: number) => formatAnswerReview(ans, idx)).join('\n')
+        return `${i + 1}. ${a.exam.title} (${a.exam.program?.titleAr || 'برنامج غير محدد'}، فصل ${a.exam.semester}) — ${score} — ${a.passed ? 'ناجح' : a.passed === false ? 'غير ناجح' : a.status}${a.appealStatus === 'PENDING' ? ' — اعتراض قيد المراجعة' : ''}${a.feedback ? `\n   تقييم عام: ${compactText(a.feedback, 520)}` : ''}${answers ? `\n   مراجعة إجابات الطالب مقارنة بالإجابة الصحيحة/النموذجية بعد التسليم:\n${answers}` : ''}`
+      })
+      parts.push(`محاولات الامتحانات الشاملة المسلّمة حديثاً — يجوز للمشرف شرح الأخطاء هنا لأنها بعد التسليم:\n${attemptBlocks.join('\n')}`)
+    }
 
-    if (attempts.length > 0) {
-      parts.push(
-        `آخر محاولاته في الامتحانات الشاملة: ${attempts
-          .map((a) => `${a.exam.title}: ${a.score != null ? `${a.score}%` : 'قيد التصحيح'}${a.appealStatus === 'PENDING' ? ' (اعتراض قيد المراجعة)' : ''}`)
-          .join(' | ')}`
-      )
+    if (recentUnitAttempts.length > 0) {
+      const attemptBlocks = recentUnitAttempts.map((a: any, i: number) => {
+        const answers = (a.answers || []).slice(0, 8).map((ans: any, idx: number) => formatAnswerReview(ans, idx)).join('\n')
+        return `${i + 1}. ${a.exam.title} — وحدة ${a.exam.unit?.title || 'غير محددة'} (${a.exam.unit?.program?.titleAr || 'برنامج غير محدد'}) — ${a.score != null ? `${a.score}%` : 'قيد التصحيح'} — ${a.passed ? 'ناجح' : a.passed === false ? 'غير ناجح' : a.status}${a.feedback ? `\n   تقييم عام: ${compactText(a.feedback, 520)}` : ''}${answers ? `\n   مراجعة إجابات الطالب مقارنة بالإجابة الصحيحة/النموذجية بعد التسليم:\n${answers}` : ''}`
+      })
+      parts.push(`محاولات اختبارات الوحدات المسلّمة حديثاً — استخدمها لتفسير خطأ الطالب وتصحيح المفاهيم:\n${attemptBlocks.join('\n')}`)
     }
 
     let ctx = parts.join('\n\n')
-    if (ctx.length > 16000) ctx = ctx.slice(0, 16000) + '…'
+    if (ctx.length > 24000) ctx = ctx.slice(0, 24000) + '…'
     return ctx
   } catch (e) {
     console.error('supervisor-ai context error:', e)
