@@ -25,7 +25,25 @@ function normalizeOptionalText(value: unknown, max = 120) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, password, phone, country } = await req.json()
+    if (!sameSiteRequest(req)) {
+      return NextResponse.json({ error: 'تعذر قبول طلب التسجيل من هذا المصدر.' }, { status: 403 })
+    }
+
+    const ip = clientIpFromHeaders(req.headers)
+    const ipLimit = checkRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        { error: 'محاولات إنشاء حسابات كثيرة من نفس المصدر. انتظر قليلاً ثم حاول مرة أخرى.' },
+        { status: 429, headers: rateLimitHeaders(ipLimit) }
+      )
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const { name, email, password, phone, country } = body
+    const honeypot = normalizeOptionalText(body.website || body.company || body.homepage, 160)
+    if (honeypot) {
+      return NextResponse.json({ error: 'تعذر معالجة طلب التسجيل.' }, { status: 400 })
+    }
 
     if (!name?.trim() || !email?.trim() || !password) {
       return NextResponse.json(
