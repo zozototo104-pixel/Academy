@@ -50,7 +50,7 @@ function compactText(value?: string | null, max = 220): string {
 
 function platformAiTimeoutMs(fallback = 22_000) {
   const env = Number(process.env.PLATFORM_AGENT_PROVIDER_TIMEOUT_MS || process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
-  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 58_000)
   return fallback
 }
 
