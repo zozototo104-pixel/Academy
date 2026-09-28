@@ -1739,7 +1739,7 @@ export function AdminAuditTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
-                    <span className="text-xs font-bold text-slate-600">{l.details || l.entity}</span>
+                    <AuditDetailsDisplay log={l} />
                   </div>
                   <p className="mt-0.5 text-[10px] text-slate-400">
                     بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
