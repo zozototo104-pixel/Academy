@@ -333,12 +333,12 @@ export async function platformPublicAgentComplete(opts: {
   const geminiReady = await ensureGeminiKey().catch(() => false)
   if (geminiReady) {
     try {
-      const reply = await geminiComplete({
+      const reply = await withPlatformTimeout(geminiComplete({
         system,
         history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
         temperature: 0.35,
         maxOutputTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
-      })
+      }), timeoutMs, 'Gemini public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
     } catch (e: any) {
       console.error('Gemini public platform agent failed:', String(e?.message || e).slice(0, 400))
