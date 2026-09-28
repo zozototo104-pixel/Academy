@@ -15,7 +15,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const processedMessageIds = new Map<string, number>()
+const recentGreetingKeys = new Map<string, number>()
 const PROCESSED_TTL_MS = 30 * 60 * 1000
+const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 
 function cleanupProcessedIds() {
   const now = Date.now()
