@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { ACADEMY_INFO } from '@/lib/academyData'
 import { absoluteUrl } from '@/lib/seo'
