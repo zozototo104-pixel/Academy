@@ -121,6 +121,76 @@ function staticProgramsDigest(max = 40): string {
   }).join('\n')
 }
 
+async function buildPublicPlatformSnapshot(query?: string | null): Promise<string> {
+  try {
+    const programs = await db.program.findMany({
+      where: { active: true },
+      orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+      take: 120,
+      select: {
+        titleAr: true,
+        titleEn: true,
+        category: true,
+        hours: true,
+        price: true,
+        description: true,
+        registrationStatus: true,
+        academicReadinessStatus: true,
+        books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 8, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
+        units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 8, select: { title: true, semester: true, summary: true, status: true } },
+        _count: { select: { books: true, units: true, assignments: true, programExams: true, enrollments: true } },
+      },
+    }).catch(() => [])
+
+    const source = programs.length
+      ? programs
+      : allSeedPrograms.slice(0, 80).map((p: any) => ({
+        titleAr: p.titleAr,
+        titleEn: p.titleEn,
+        category: p.category,
+        hours: p.hours,
+        price: p.price,
+        description: p.description,
+        registrationStatus: 'OPEN',
+        academicReadinessStatus: 'SEED',
+        books: [],
+        units: [],
+        _count: { books: 0, units: 0, assignments: 0, programExams: 0, enrollments: 0 },
+      }))
+
+    const scored = (source as any[])
+      .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
+      .sort((a, b) => (b.score - a.score) || String(a.program.category || '').localeCompare(String(b.program.category || ''), 'ar') || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
+
+    const focused = scored.filter((item) => item.score > 0).slice(0, 12)
+    const general = scored.slice(0, 50)
+
+    function publicProgramLine(item: { program: any; score?: number }, index: number) {
+      const p = item.program
+      const books = p.books?.length ? ` كتب مقررة/مراجع: ${p.books.slice(0, 4).map((b: any) => `«${b.title || b.titleEn}»${b.author ? ` — ${b.author}` : ''}`).join('، ')}.` : ''
+      const units = p.units?.length ? ` وحدات/محاور: ${p.units.slice(0, 4).map((u: any) => u.title).join('، ')}.` : ''
+      const fee = p.price ? ` الرسوم التقريبية: ${p.price}$.` : ''
+      const hours = p.hours ? ` الساعات: ${p.hours}.` : ''
+      const status = p.registrationStatus ? ` حالة التسجيل: ${p.registrationStatus}.` : ''
+      const counts = p._count ? ` محتوى المنصة: ${p._count.books || 0} كتب، ${p._count.units || 0} وحدات، ${p._count.assignments || 0} واجبات، ${p._count.programExams || 0} امتحانات.` : ''
+      return `${index + 1}. ${p.titleAr || p.titleEn}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category || 'برنامج أكاديمي/مهني'}.${hours}${fee}${status}\n   الوصف: ${compactText(p.description, 240) || 'غير متاح'}${books}${units}${counts}`
+    }
+
+    const focusedLines = focused.map((item, i) => publicProgramLine(item, i)).join('\n')
+    const generalLines = general.map((item, i) => publicProgramLine(item, i)).join('\n')
+
+    return [
+      'سياق عام من قاعدة بيانات المنصة للزائر. هذا السياق هو المصدر العملي عند أي سؤال عام عن البرامج أو التسجيل أو الكتب أو الرسوم. لا تكتفِ بسؤال توضيحي إذا كان يمكن إعطاء إجابة مفيدة من هذا الفهرس.',
+      focusedLines ? `مطابقات مباشرة لسؤال الزائر الحالي "${compactText(query, 160)}":\n${focusedLines}` : '',
+      `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || staticProgramsDigest(50)}`,
+      `قواعد القبول العامة: ${ADMISSION_GUIDE.conditions.join(' / ')}. الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}. رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.`,
+    ].filter(Boolean).join('\n\n').slice(0, 36000)
+  } catch (error: any) {
+    console.error('public platform snapshot error:', String(error?.message || error).slice(0, 400))
+    return `فهرس البرامج الثابت:\n${staticProgramsDigest(50)}`
+  }
+}
+
 function formatAdminProgramLine(p: any, i: number): string {
   const books = p.books?.length
     ? p.books.map((b: any) => `«${b.title}»${b.titleEn ? ` (${b.titleEn})` : ''}${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — ف${b.semester}` : ''}${b.description ? ` — ${compactText(b.description, 140)}` : ''}`).join('\n      ')
