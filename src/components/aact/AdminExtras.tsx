@@ -1578,6 +1578,16 @@ function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
   const from = String(firstMessage.from || '').trim()
   const errors = Array.isArray(details.errors) ? details.errors.filter(Boolean) : []
   const isStatusOnly = log.action === 'WHATSAPP_WEBHOOK_RECEIVED' && received === 0
+  const isImmediateGreeting = log.action === 'WHATSAPP_IMMEDIATE_GREETING_SENT'
+
+  if (isImmediateGreeting) {
+    return (
+      <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        تم إرسال الترحيب الفوري مرة واحدة لهذه المحادثة
+      </div>
+    )
+  }
 
   if (isStatusOnly) {
     return (
