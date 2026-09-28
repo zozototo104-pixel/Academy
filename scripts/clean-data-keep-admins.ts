@@ -175,12 +175,22 @@ async function buildQaOnlySteps(): Promise<Step[]> {
   steps.push(await countDelete('QA supervisor assessment questions', () => prisma.supervisorAssessmentQuestion.count({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') }), () => prisma.supervisorAssessmentQuestion.deleteMany({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') })))
   steps.push(await countDelete('QA supervisor assessments', () => prisma.supervisorAssessment.count({ where: assessmentWhere }), () => prisma.supervisorAssessment.deleteMany({ where: assessmentWhere })))
 
+  const qaSupervisorChannelMessageWhere = orWhere([
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+    qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+    qaUserIds.length ? { senderId: { in: qaUserIds } } : undefined,
+  ])
+  const qaDefenseParticipantWhere = orWhere([
+    qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : undefined,
+    qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
+  ])
+
   steps.push(await countDelete('QA supervisor voice signals', () => prisma.supervisorVoiceSignal.count({ where: qaVoiceCallIds.length ? { callId: { in: qaVoiceCallIds } } : noneWhere('callId') }), () => prisma.supervisorVoiceSignal.deleteMany({ where: qaVoiceCallIds.length ? { callId: { in: qaVoiceCallIds } } : noneWhere('callId') })))
   steps.push(await countDelete('QA supervisor voice calls', () => prisma.supervisorVoiceCall.count({ where: qaVoiceCallIds.length ? { id: { in: qaVoiceCallIds } } : noneWhere() }), () => prisma.supervisorVoiceCall.deleteMany({ where: qaVoiceCallIds.length ? { id: { in: qaVoiceCallIds } } : noneWhere() })))
-  steps.push(await countDelete('QA supervisor channel messages', () => prisma.supervisorChannelMessage.count({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined, qaUserIds.length ? { senderId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorChannelMessage.deleteMany({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined, qaUserIds.length ? { senderId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA supervisor channel messages', () => prisma.supervisorChannelMessage.count({ where: qaSupervisorChannelMessageWhere }), () => prisma.supervisorChannelMessage.deleteMany({ where: qaSupervisorChannelMessageWhere })))
 
   steps.push(await countDelete('QA defense signals', () => prisma.defenseSignal.count({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') }), () => prisma.defenseSignal.deleteMany({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') })))
-  steps.push(await countDelete('QA defense participants', () => prisma.defenseParticipant.count({ where: { OR: [qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.defenseParticipant.deleteMany({ where: { OR: [qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA defense participants', () => prisma.defenseParticipant.count({ where: qaDefenseParticipantWhere }), () => prisma.defenseParticipant.deleteMany({ where: qaDefenseParticipantWhere })))
   steps.push(await countDelete('QA defense messages', () => prisma.defenseMessage.count({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') }), () => prisma.defenseMessage.deleteMany({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') })))
 
   steps.push(await countDelete('QA program answers', () => prisma.programAnswer.count({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } }), () => prisma.programAnswer.deleteMany({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } })))
