@@ -95,18 +95,32 @@ jobs:
           echo "Selected operation: $SELECTED_OPERATION"
 
           case "$SELECTED_OPERATION" in
+            qa-cleanup-dry-run)
+              echo "Running QA-only cleanup dry-run. No real user data will be deleted."
+              bun run data:cleanup:qa:dry-run
+              ;;
+
+            qa-cleanup-execute)
+              if [ "$OPERATION_CONFIRMATION" != "DELETE_QA_ONLY" ]; then
+                echo "Refusing QA cleanup. Type DELETE_QA_ONLY in the confirm field."
+                exit 1
+              fi
+              echo "Running QA-only cleanup. Only workflow/test fixtures will be removed."
+              AACT_CONFIRM_QA_ONLY_CLEANUP=DELETE_QA_ONLY bun run data:cleanup:qa
+              ;;
+
             cleanup-dry-run)
-              echo "Running guarded cleanup dry-run. No data will be deleted."
+              echo "Running full launch cleanup dry-run. No data will be deleted, but execute mode deletes every non-admin user."
               bun run data:cleanup:dry-run
               ;;
 
             cleanup-execute)
-              if [ "$OPERATION_CONFIRMATION" != "KEEP_ADMINS_CLEAN_DATABASE" ]; then
-                echo "Refusing cleanup. Type KEEP_ADMINS_CLEAN_DATABASE in the confirm field."
+              if [ "$OPERATION_CONFIRMATION" != "DELETE_ALL_NON_ADMINS_AND_REAL_DATA" ]; then
+                echo "Refusing full cleanup. This deletes real non-admin users. Type DELETE_ALL_NON_ADMINS_AND_REAL_DATA in the confirm field."
                 exit 1
               fi
-              echo "Running guarded cleanup. Admin users will be preserved."
-              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE bun run data:cleanup
+              echo "Running full launch cleanup. Admin users will be preserved; all non-admin users and operational data will be deleted."
+              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE AACT_CONFIRM_FULL_RESET=DELETE_ALL_NON_ADMINS_AND_REAL_DATA bun run data:cleanup
               ;;
 
             factory-dry-run)
@@ -119,8 +133,8 @@ jobs:
                 echo "Refusing factory cleanup. Type DELETE_CONTENT_TOO in the confirm field."
                 exit 1
               fi
-              echo "Running factory cleanup. Admin users will be preserved, but academic content will be deleted."
-              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE AACT_CONFIRM_FACTORY_RESET=DELETE_CONTENT_TOO bun run data:cleanup:factory
+              echo "Running factory cleanup. Admin users will be preserved, but real users and academic content will be deleted."
+              AACT_CONFIRM_DATA_CLEANUP=KEEP_ADMINS_CLEAN_DATABASE AACT_CONFIRM_FULL_RESET=DELETE_ALL_NON_ADMINS_AND_REAL_DATA AACT_CONFIRM_FACTORY_RESET=DELETE_CONTENT_TOO bun run data:cleanup:factory
               ;;
 
             setup-clean-database)
