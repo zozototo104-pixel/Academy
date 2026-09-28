@@ -72,6 +72,156 @@ function noneWhere(field = 'id') {
   return { [field]: '__none__' } as any
 }
 
+function idIn(ids: string[], field = 'id') {
+  return ids.length ? ({ [field]: { in: ids } } as any) : noneWhere(field)
+}
+
+async function buildQaOnlySteps(): Promise<Step[]> {
+  const steps: Step[] = []
+  const qaUsers = await prisma.user.findMany({ where: qaUserWhere() as any, select: { id: true, email: true } })
+  const qaUserIds = qaUsers.map((user) => user.id)
+  const qaPrograms = await prisma.program.findMany({ where: qaProgramWhere(), select: { id: true, slug: true } })
+  const qaProgramIds = qaPrograms.map((program) => program.id)
+
+  const qaProgramIdWhere = idIn(qaProgramIds, 'programId')
+  const qaUserIdWhere = idIn(qaUserIds, 'userId')
+
+  const admissionOr = [
+    qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
+    { email: { endsWith: '@aact.test' } },
+    qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined,
+    { reference: 'AACT-LAUNCH-QUALITY' },
+    { notes: { contains: 'QA_FULL_JOURNEY' } },
+    { program: { contains: 'QA خدمة مهنية' } },
+  ].filter(Boolean) as any[]
+  const qaAdmissionWhere = admissionOr.length ? { OR: admissionOr } : noneWhere()
+  const qaAdmissions = await prisma.admissionApplication.findMany({ where: qaAdmissionWhere, select: { id: true } })
+  const qaAdmissionIds = qaAdmissions.map((admission) => admission.id)
+
+  const enrollmentOr = [
+    qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
+    qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined,
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+  ].filter(Boolean) as any[]
+  const qaEnrollmentWhere = enrollmentOr.length ? { OR: enrollmentOr } : noneWhere()
+  const qaEnrollments = await prisma.enrollment.findMany({ where: qaEnrollmentWhere, select: { id: true } })
+  const qaEnrollmentIds = qaEnrollments.map((enrollment) => enrollment.id)
+
+  const paymentOr = [
+    qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+    qaEnrollmentIds.length ? { enrollmentId: { in: qaEnrollmentIds } } : undefined,
+    { payerEmail: { endsWith: '@aact.test' } },
+    { description: { contains: 'QA' } },
+  ].filter(Boolean) as any[]
+  const qaPaymentWhere = paymentOr.length ? { OR: paymentOr } : noneWhere()
+  const qaPayments = await prisma.payment.findMany({ where: qaPaymentWhere, select: { id: true } })
+  const qaPaymentIds = qaPayments.map((payment) => payment.id)
+
+  const thesisOr = [
+    qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+    { title: { contains: 'QA' } },
+  ].filter(Boolean) as any[]
+  const qaThesisWhere = thesisOr.length ? { OR: thesisOr } : noneWhere()
+  const qaTheses = await prisma.thesisSubmission.findMany({ where: qaThesisWhere, select: { id: true } })
+  const qaThesisIds = qaTheses.map((thesis) => thesis.id)
+
+  const qaSupervisorAssessmentWhere = [
+    qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+    qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined,
+    { title: { contains: 'QA' } },
+  ].filter(Boolean) as any[]
+  const assessmentWhere = qaSupervisorAssessmentWhere.length ? { OR: qaSupervisorAssessmentWhere } : noneWhere()
+  const qaAssessments = await prisma.supervisorAssessment.findMany({ where: assessmentWhere, select: { id: true } })
+  const qaAssessmentIds = qaAssessments.map((assessment) => assessment.id)
+  const qaAssessmentAttempts = await prisma.supervisorAssessmentAttempt.findMany({
+    where: {
+      OR: [
+        qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined,
+        qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true },
+  })
+  const qaAssessmentAttemptIds = qaAssessmentAttempts.map((attempt) => attempt.id)
+  const qaVoiceCalls = await prisma.supervisorVoiceCall.findMany({
+    where: {
+      OR: [
+        qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+        qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+        qaUserIds.length ? { initiatorId: { in: qaUserIds } } : undefined,
+      ].filter(Boolean) as any[],
+    },
+    select: { id: true },
+  })
+  const qaVoiceCallIds = qaVoiceCalls.map((call) => call.id)
+
+  steps.push(await countDelete('QA supervisor assessment answers', () => prisma.supervisorAssessmentAnswer.count({ where: { OR: [qaAssessmentAttemptIds.length ? { attemptId: { in: qaAssessmentAttemptIds } } : undefined, qaAssessmentIds.length ? { question: { assessmentId: { in: qaAssessmentIds } } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorAssessmentAnswer.deleteMany({ where: { OR: [qaAssessmentAttemptIds.length ? { attemptId: { in: qaAssessmentAttemptIds } } : undefined, qaAssessmentIds.length ? { question: { assessmentId: { in: qaAssessmentIds } } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA supervisor assessment attempts', () => prisma.supervisorAssessmentAttempt.count({ where: { OR: [qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorAssessmentAttempt.deleteMany({ where: { OR: [qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA supervisor assessment questions', () => prisma.supervisorAssessmentQuestion.count({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') }), () => prisma.supervisorAssessmentQuestion.deleteMany({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') })))
+  steps.push(await countDelete('QA supervisor assessments', () => prisma.supervisorAssessment.count({ where: assessmentWhere }), () => prisma.supervisorAssessment.deleteMany({ where: assessmentWhere })))
+
+  steps.push(await countDelete('QA supervisor voice signals', () => prisma.supervisorVoiceSignal.count({ where: qaVoiceCallIds.length ? { callId: { in: qaVoiceCallIds } } : noneWhere('callId') }), () => prisma.supervisorVoiceSignal.deleteMany({ where: qaVoiceCallIds.length ? { callId: { in: qaVoiceCallIds } } : noneWhere('callId') })))
+  steps.push(await countDelete('QA supervisor voice calls', () => prisma.supervisorVoiceCall.count({ where: qaVoiceCallIds.length ? { id: { in: qaVoiceCallIds } } : noneWhere() }), () => prisma.supervisorVoiceCall.deleteMany({ where: qaVoiceCallIds.length ? { id: { in: qaVoiceCallIds } } : noneWhere() })))
+  steps.push(await countDelete('QA supervisor channel messages', () => prisma.supervisorChannelMessage.count({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined, qaUserIds.length ? { senderId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorChannelMessage.deleteMany({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined, qaUserIds.length ? { senderId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+
+  steps.push(await countDelete('QA defense signals', () => prisma.defenseSignal.count({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') }), () => prisma.defenseSignal.deleteMany({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') })))
+  steps.push(await countDelete('QA defense participants', () => prisma.defenseParticipant.count({ where: { OR: [qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.defenseParticipant.deleteMany({ where: { OR: [qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA defense messages', () => prisma.defenseMessage.count({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') }), () => prisma.defenseMessage.deleteMany({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') })))
+
+  steps.push(await countDelete('QA program answers', () => prisma.programAnswer.count({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } }), () => prisma.programAnswer.deleteMany({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA program exam attempts', () => prisma.programExamAttempt.count({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.programExamAttempt.deleteMany({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA assignment submissions', () => prisma.assignmentSubmission.count({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { assignment: { programId: { in: qaProgramIds } } } : undefined].filter(Boolean) as any[] } }), () => prisma.assignmentSubmission.deleteMany({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { assignment: { programId: { in: qaProgramIds } } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA unit exam answers', () => prisma.answer.count({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { unit: { programId: { in: qaProgramIds } } } } } : undefined].filter(Boolean) as any[] } }), () => prisma.answer.deleteMany({ where: { OR: [qaUserIds.length ? { attempt: { userId: { in: qaUserIds } } } : undefined, qaProgramIds.length ? { question: { exam: { unit: { programId: { in: qaProgramIds } } } } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA unit exam attempts', () => prisma.examAttempt.count({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { exam: { unit: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } }), () => prisma.examAttempt.deleteMany({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { exam: { unit: { programId: { in: qaProgramIds } } } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA exam drafts', () => prisma.examDraft.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.examDraft.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+
+  steps.push(await countDelete('QA thesis review notes', () => prisma.thesisReviewNote.count({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') }), () => prisma.thesisReviewNote.deleteMany({ where: qaThesisIds.length ? { thesisId: { in: qaThesisIds } } : noneWhere('thesisId') })))
+  steps.push(await countDelete('QA thesis submissions', () => prisma.thesisSubmission.count({ where: qaThesisWhere }), () => prisma.thesisSubmission.deleteMany({ where: qaThesisWhere })))
+  steps.push(await countDelete('QA thesis topic requests', () => prisma.thesisTopicRequest.count({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.thesisTopicRequest.deleteMany({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined].filter(Boolean) as any[] } })))
+
+  steps.push(await countDelete('QA service deliverables', () => prisma.serviceDeliverable.count({ where: qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : noneWhere('admissionId') }), () => prisma.serviceDeliverable.deleteMany({ where: qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : noneWhere('admissionId') })))
+  steps.push(await countDelete('QA admission documents', () => prisma.admissionDocument.count({ where: qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : noneWhere('admissionId') }), () => prisma.admissionDocument.deleteMany({ where: qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : noneWhere('admissionId') })))
+  steps.push(await countDelete('QA tuition installment appeals', () => prisma.tuitionInstallmentAppeal.count({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined, qaEnrollmentIds.length ? { enrollmentId: { in: qaEnrollmentIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.tuitionInstallmentAppeal.deleteMany({ where: { OR: [qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined, qaEnrollmentIds.length ? { enrollmentId: { in: qaEnrollmentIds } } : undefined].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA certificates', () => prisma.certificate.count({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaEnrollmentIds.length ? { enrollmentId: { in: qaEnrollmentIds } } : undefined, { program: { contains: 'QA' } }, { holderName: { contains: 'QA' } }].filter(Boolean) as any[] } }), () => prisma.certificate.deleteMany({ where: { OR: [qaUserIds.length ? { userId: { in: qaUserIds } } : undefined, qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined, qaEnrollmentIds.length ? { enrollmentId: { in: qaEnrollmentIds } } : undefined, { program: { contains: 'QA' } }, { holderName: { contains: 'QA' } }].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA payments', () => prisma.payment.count({ where: qaPaymentWhere }), () => prisma.payment.deleteMany({ where: qaPaymentWhere })))
+  steps.push(await countDelete('QA admissions', () => prisma.admissionApplication.count({ where: qaAdmissionWhere }), () => prisma.admissionApplication.deleteMany({ where: qaAdmissionWhere })))
+  steps.push(await countDelete('QA enrollments', () => prisma.enrollment.count({ where: qaEnrollmentWhere }), () => prisma.enrollment.deleteMany({ where: qaEnrollmentWhere })))
+
+  steps.push(await countDelete('QA chat feedback', () => prisma.chatFeedback.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.chatFeedback.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA chat messages', () => prisma.chatMessage.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.chatMessage.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA student academic memory', () => prisma.studentAcademicMemory.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.studentAcademicMemory.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA notifications', () => prisma.notification.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.notification.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA user micro-credentials', () => prisma.userMicroCredential.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.userMicroCredential.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA AI live usage', () => prisma.aiLiveUsage.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.aiLiveUsage.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+  steps.push(await countDelete('QA AI live credits', () => prisma.aiLiveCredit.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.aiLiveCredit.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+
+  steps.push(await countDelete('QA contact messages', () => prisma.contactMessage.count({ where: { OR: [{ email: { endsWith: '@aact.test' } }, { subject: { contains: 'QA_FULL_JOURNEY_CONTACT' } }] } }), () => prisma.contactMessage.deleteMany({ where: { OR: [{ email: { endsWith: '@aact.test' } }, { subject: { contains: 'QA_FULL_JOURNEY_CONTACT' } }] } })))
+  steps.push(await countDelete('QA email logs', () => prisma.emailLog.count({ where: { OR: [{ to: { endsWith: '@aact.test' } }, { subject: { contains: 'QA' } }, { event: { contains: 'QA' } }] } }), () => prisma.emailLog.deleteMany({ where: { OR: [{ to: { endsWith: '@aact.test' } }, { subject: { contains: 'QA' } }, { event: { contains: 'QA' } }] } })))
+  steps.push(await countDelete('QA audit logs', () => prisma.auditLog.count({ where: { OR: [qaUserIds.length ? { actorId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { entityId: { in: qaProgramIds } } : undefined, qaAdmissionIds.length ? { entityId: { in: qaAdmissionIds } } : undefined, qaPaymentIds.length ? { entityId: { in: qaPaymentIds } } : undefined, { action: { contains: 'QA' } }, { details: { contains: 'QA' } }].filter(Boolean) as any[] } }), () => prisma.auditLog.deleteMany({ where: { OR: [qaUserIds.length ? { actorId: { in: qaUserIds } } : undefined, qaProgramIds.length ? { entityId: { in: qaProgramIds } } : undefined, qaAdmissionIds.length ? { entityId: { in: qaAdmissionIds } } : undefined, qaPaymentIds.length ? { entityId: { in: qaPaymentIds } } : undefined, { action: { contains: 'QA' } }, { details: { contains: 'QA' } }].filter(Boolean) as any[] } })))
+  steps.push(await countDelete('QA sessions', () => prisma.session.count({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') }), () => prisma.session.deleteMany({ where: qaUserIds.length ? { userId: { in: qaUserIds } } : noneWhere('userId') })))
+
+  steps.push(await countDelete('QA program questions', () => prisma.programQuestion.count({ where: { exam: qaProgramIdWhere } }), () => prisma.programQuestion.deleteMany({ where: { exam: qaProgramIdWhere } })))
+  steps.push(await countDelete('QA program exams', () => prisma.programExam.count({ where: qaProgramIdWhere }), () => prisma.programExam.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA program assignments', () => prisma.programAssignment.count({ where: qaProgramIdWhere }), () => prisma.programAssignment.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA study guides', () => prisma.programStudyGuide.count({ where: qaProgramIdWhere }), () => prisma.programStudyGuide.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA question bank items', () => prisma.questionBankItem.count({ where: qaProgramIdWhere }), () => prisma.questionBankItem.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA knowledge items', () => prisma.bookKnowledgeItem.count({ where: qaProgramIdWhere }), () => prisma.bookKnowledgeItem.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA book upload chunks', () => prisma.bookUploadChunk.count({ where: { book: qaProgramIdWhere } }), () => prisma.bookUploadChunk.deleteMany({ where: { book: qaProgramIdWhere } })))
+  steps.push(await countDelete('QA books', () => prisma.book.count({ where: qaProgramIdWhere }), () => prisma.book.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA unit questions', () => prisma.question.count({ where: { exam: { unit: qaProgramIdWhere } } }), () => prisma.question.deleteMany({ where: { exam: { unit: qaProgramIdWhere } } })))
+  steps.push(await countDelete('QA unit exams', () => prisma.exam.count({ where: { unit: qaProgramIdWhere } }), () => prisma.exam.deleteMany({ where: { unit: qaProgramIdWhere } })))
+  steps.push(await countDelete('QA units', () => prisma.unit.count({ where: qaProgramIdWhere }), () => prisma.unit.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA thesis topics', () => prisma.thesisTopic.count({ where: qaProgramIdWhere }), () => prisma.thesisTopic.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA micro-credentials', () => prisma.microCredential.count({ where: qaProgramIdWhere }), () => prisma.microCredential.deleteMany({ where: qaProgramIdWhere })))
+  steps.push(await countDelete('QA programs', () => prisma.program.count({ where: qaProgramWhere() }), () => prisma.program.deleteMany({ where: qaProgramWhere() })))
+  steps.push(await countDelete('QA users only', () => prisma.user.count({ where: qaUserWhere() as any }), () => prisma.user.deleteMany({ where: qaUserWhere() as any })))
+
+  return steps
+}
+
 async function buildLaunchSteps(): Promise<Step[]> {
   const nonAdminUserWhere = { role: { not: 'ADMIN' } }
   const qaPrograms = await prisma.program.findMany({ where: qaProgramWhere(), select: { id: true } })
