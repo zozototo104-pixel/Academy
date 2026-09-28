@@ -11,7 +11,9 @@ type Step = {
   execute: () => Promise<CountResult>
 }
 
+const QA_ONLY_CONFIRMATION = 'DELETE_QA_ONLY'
 const DATA_CLEANUP_CONFIRMATION = 'KEEP_ADMINS_CLEAN_DATABASE'
+const FULL_RESET_CONFIRMATION = 'DELETE_ALL_NON_ADMINS_AND_REAL_DATA'
 const FACTORY_CONFIRMATION = 'DELETE_CONTENT_TOO'
 
 function getArgValue(name: string) {
