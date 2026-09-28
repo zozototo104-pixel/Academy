@@ -85,6 +85,8 @@ async function buildQaOnlySteps(): Promise<Step[]> {
   const qaPrograms = await prisma.program.findMany({ where: qaProgramWhere(), select: { id: true, slug: true } })
   const qaProgramIds = qaPrograms.map((program) => program.id)
 
+  if (!qaUserIds.length && !qaProgramIds.length) return steps
+
   const qaProgramIdWhere = idIn(qaProgramIds, 'programId')
   const qaUserIdWhere = idIn(qaUserIds, 'userId')
 
