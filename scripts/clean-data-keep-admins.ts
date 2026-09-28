@@ -346,8 +346,8 @@ async function main() {
     throw new Error(`Refusing destructive cleanup. Set AACT_CONFIRM_DATA_CLEANUP=${DATA_CLEANUP_CONFIRMATION} and run again.`)
   }
 
-  if (execute && profile === 'launch' && process.env.AACT_CONFIRM_FULL_RESET !== FULL_RESET_CONFIRMATION) {
-    throw new Error(`Launch cleanup deletes every non-admin user and real operational data. Set AACT_CONFIRM_FULL_RESET=${FULL_RESET_CONFIRMATION} to allow it.`)
+  if (execute && profile !== 'qa-only' && process.env.AACT_CONFIRM_FULL_RESET !== FULL_RESET_CONFIRMATION) {
+    throw new Error(`This cleanup deletes every non-admin user and real operational data. Set AACT_CONFIRM_FULL_RESET=${FULL_RESET_CONFIRMATION} to allow it.`)
   }
 
   if (execute && profile === 'factory' && process.env.AACT_CONFIRM_FACTORY_RESET !== FACTORY_CONFIRMATION) {
