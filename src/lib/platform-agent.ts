@@ -48,6 +48,22 @@ function compactText(value?: string | null, max = 220): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+function platformAiTimeoutMs(fallback = 22_000) {
+  const env = Number(process.env.PLATFORM_AGENT_PROVIDER_TIMEOUT_MS || process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  return fallback
+}
+
+function withPlatformTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
 function queryTokens(query?: string | null): string[] {
   const stop = new Set([
     'هذا', 'هذه', 'هدا', 'هاي', 'في', 'من', 'عن', 'على', 'الى', 'الي', 'إلى', 'شو', 'ما', 'هو', 'هي', 'له', 'لها', 'اليه', 'إليه', 'اللي', 'بدي', 'اسالك', 'اسألك',
