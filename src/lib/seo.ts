@@ -22,6 +22,9 @@ export const PUBLIC_SEO_ROUTES = [
   { path: '/directory', title: 'دليل الاعتمادات', description: 'دليل الاعتمادات والعضويات والجهات المعتمدة لدى AACT.', priority: 0.7 },
   { path: '/about', title: 'من نحن', description: 'تعرف على الأكاديمية الأمريكية للاستشارات والتدريب ورسالتها وبرامجها.', priority: 0.7 },
   { path: '/contact', title: 'تواصل معنا', description: 'تواصل مع فريق AACT للاستفسارات وطلبات الدعم.', priority: 0.65 },
+  { path: '/privacy', title: 'سياسة الخصوصية', description: 'سياسة خصوصية منصة AACT واستخدام بيانات الموقع والواتساب والوكيل الذكي.', priority: 0.45 },
+  { path: '/terms', title: 'شروط الاستخدام', description: 'شروط استخدام منصة AACT وخدمات القبول والواتساب والوكيل الذكي.', priority: 0.45 },
+  { path: '/data-deletion', title: 'تعليمات حذف البيانات', description: 'تعليمات طلب حذف بيانات المستخدم من منصة AACT وخدمات واتساب وMeta.', priority: 0.45 },
 ]
 
 export const PRIVATE_ROUTE_PREFIXES = ['/admin', '/dashboard', '/supervisor', '/login', '/auth', '/unit', '/exam', '/chat']
