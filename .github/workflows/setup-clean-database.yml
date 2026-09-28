@@ -4,18 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Choose the database operation. Run cleanup-dry-run before cleanup-execute.'
+        description: 'Choose the database operation. Prefer QA cleanup after workflow tests; full cleanup deletes real users.'
         required: true
-        default: 'cleanup-dry-run'
+        default: 'qa-cleanup-dry-run'
         type: choice
         options:
+          - qa-cleanup-dry-run
+          - qa-cleanup-execute
           - cleanup-dry-run
           - cleanup-execute
           - factory-dry-run
           - factory-execute
           - setup-clean-database
       confirm:
-        description: 'For setup type SETUP. For cleanup-execute type KEEP_ADMINS_CLEAN_DATABASE. For factory-execute type DELETE_CONTENT_TOO.'
+        description: 'QA execute: DELETE_QA_ONLY. Setup: SETUP. Full cleanup: DELETE_ALL_NON_ADMINS_AND_REAL_DATA. Factory: DELETE_CONTENT_TOO.'
         required: true
         default: 'NO'
 
