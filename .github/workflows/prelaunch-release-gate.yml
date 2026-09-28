@@ -270,3 +270,48 @@ jobs:
             playwright-report/**
           if-no-files-found: warn
           retention-days: 14
+
+  cleanup-qa-fixtures:
+    name: Cleanup QA workflow fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs:
+      - critical-e2e
+      - experience-guardrails
+    if: ${{ always() }}
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Verify database cleanup secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "Missing required secret: DATABASE_URL"
+            exit 1
+          fi
+
+      - name: Dry-run QA cleanup report
+        run: bun run data:cleanup:qa:dry-run
+
+      - name: Execute QA-only cleanup
+        env:
+          AACT_CONFIRM_QA_ONLY_CLEANUP: DELETE_QA_ONLY
+        run: bun run data:cleanup:qa
