@@ -47,11 +47,29 @@ function qaProgramWhere() {
   return {
     OR: [
       { slug: { startsWith: 'qa-full-journey-' } },
+      { slug: 'launch-quality-diagnostic-program' },
       { titleAr: { contains: 'رحلة كاملة QA' } },
       { titleAr: { contains: 'جودة رحلة كاملة QA' } },
       { titleEn: { contains: 'QA Full Journey' } },
+      { titleEn: { contains: 'Launch Quality Diagnostic Program' } },
     ],
   }
+}
+
+function qaUserWhere() {
+  return {
+    role: { not: 'ADMIN' },
+    OR: [
+      { email: { endsWith: '@aact.test' } },
+      { email: 'launch.quality.student@aact.test' },
+      { name: { contains: 'رحلة كاملة QA' } },
+      { name: { contains: 'Launch Quality' } },
+    ],
+  }
+}
+
+function noneWhere(field = 'id') {
+  return { [field]: '__none__' } as any
 }
 
 async function buildLaunchSteps(): Promise<Step[]> {
