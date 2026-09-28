@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
+  buildOfficialWhatsAppImmediateGreeting,
   createOfficialWhatsAppAgentReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
   sendOfficialWhatsAppText,
+  sendOfficialWhatsAppTypingIndicator,
   verifyWhatsAppSignature,
 } from '@/lib/whatsapp-cloud'
 
