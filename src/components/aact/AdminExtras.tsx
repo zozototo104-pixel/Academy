@@ -1540,6 +1540,7 @@ const ACTION_L: Record<string, string> = {
   GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
   IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
   WHATSAPP_WEBHOOK_RECEIVED: 'واتساب — حدث وارد',
+  WHATSAPP_IMMEDIATE_GREETING_SENT: 'واتساب — ترحيب فوري',
   WHATSAPP_WEBHOOK_REJECTED: 'واتساب — حدث مرفوض',
   WHATSAPP_WEBHOOK_VERIFIED: 'واتساب — تحقق ناجح',
   WHATSAPP_WEBHOOK_VERIFY_FAILED: 'واتساب — فشل التحقق',
