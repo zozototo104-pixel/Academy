@@ -13,6 +13,7 @@ import {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const processedMessageIds = new Map<string, number>()
 const recentGreetingKeys = new Map<string, number>()
