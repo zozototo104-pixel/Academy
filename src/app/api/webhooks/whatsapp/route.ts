@@ -28,6 +28,28 @@ function alreadyProcessed(id: string) {
   return false
 }
 
+function maskPhone(value?: string | null) {
+  const raw = String(value || '').replace(/\D/g, '')
+  if (!raw) return ''
+  return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
+}
+
+async function auditWhatsAppWebhook(action: string, details: Record<string, any>, entityId?: string | null) {
+  try {
+    await db.auditLog.create({
+      data: {
+        actorName: 'WhatsApp Webhook',
+        action,
+        entity: 'WhatsAppWebhook',
+        entityId: entityId || null,
+        details: JSON.stringify(details).slice(0, 3500),
+      },
+    })
+  } catch (error) {
+    console.warn('WhatsApp webhook audit failed:', String(error).slice(0, 300))
+  }
+}
+
 // Meta webhook verification for WhatsApp Business Platform.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
