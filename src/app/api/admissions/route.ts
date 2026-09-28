@@ -76,6 +76,26 @@ function jsonError(message: string, status = 400) {
   })
 }
 
+function validEmail(value?: string | null) {
+  const email = String(value || '').trim().toLowerCase()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
+}
+
+async function adminAdmissionEmailRecipients() {
+  const adminUsers = await db.user.findMany({
+    where: { role: 'ADMIN' },
+    select: { email: true },
+    take: 20,
+  }).catch(() => [])
+  const candidates = [
+    ...adminUsers.map((u) => u.email),
+    process.env.ADMIN_EMAIL,
+    process.env.E2E_ADMIN_EMAIL,
+    ACADEMY_INFO.email,
+  ]
+  return Array.from(new Set(candidates.map(validEmail).filter(Boolean)))
+}
+
 async function readAdmissionPayload(req: NextRequest) {
   const ct = req.headers.get('content-type') || ''
   let fields: Record<string, string> = {}
