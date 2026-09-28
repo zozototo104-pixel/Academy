@@ -110,7 +110,6 @@ async function buildQaOnlySteps(): Promise<Step[]> {
   const enrollmentOr = [
     qaUserIds.length ? { userId: { in: qaUserIds } } : undefined,
     qaProgramIds.length ? { programId: { in: qaProgramIds } } : undefined,
-    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
   ].filter(Boolean) as any[]
   const qaEnrollmentWhere = enrollmentOr.length ? { OR: enrollmentOr } : noneWhere()
   const qaEnrollments = await prisma.enrollment.findMany({ where: qaEnrollmentWhere, select: { id: true } })
