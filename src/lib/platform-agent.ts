@@ -147,6 +147,24 @@ function staticProgramsDigest(max = 40): string {
   }).join('\n')
 }
 
+function publicQueryIntentNote(query?: string | null): string {
+  const n = normalizeArabic(query || '')
+  const notes: string[] = []
+  if (includesAny(n, ['دكتوراه', 'دكتوراة', 'دكتورا', 'الدكتوراه', 'الدكتوراة', 'دكتور'])) {
+    notes.push('نية السؤال: المستخدم يقصد الدكتوراه المهنية حتى لو كتبها دكتوراة/دكتورا/دكتور. ابحث في برامج الدكتوراه المهنية، ولا تعرض نطاقاً عاماً إذا وجدت رسوماً محددة في البيانات.')
+  }
+  if (includesAny(n, ['ماجستير', 'مجستير', 'ماستر', 'الماجستير', 'المجستير'])) {
+    notes.push('نية السؤال: المستخدم يقصد الماجستير المهني حتى لو كتب مجستير/ماستر. ابحث في برامج الماجستير المهنية.')
+  }
+  if (includesAny(n, ['بكالوريوس', 'بكلوريوس', 'باكالوريوس'])) {
+    notes.push('نية السؤال: المستخدم يقصد البكالوريوس حتى لو أخطأ في الكتابة.')
+  }
+  if (includesAny(n, ['رسوم', 'سعر', 'اسعار', 'تكلفه', 'كلفه', 'كم'])) {
+    notes.push('المطلوب غالباً رسوم/تكلفة: اذكر الرسوم الرقمية الموجودة لكل برنامج مطابق. إذا لم يحدد المستخدم اسم البرنامج، قل إن الرسوم تختلف حسب البرنامج ثم اعرض البرامج المطابقة ورسوم كل منها من البيانات.')
+  }
+  return notes.join('\n')
+}
+
 async function buildPublicPlatformSnapshot(query?: string | null): Promise<string> {
   try {
     const programs = await db.program.findMany({
