@@ -33,6 +33,52 @@ function alreadyProcessed(id: string) {
   return false
 }
 
+function cleanupGreetingKeys() {
+  const now = Date.now()
+  for (const [key, ts] of recentGreetingKeys.entries()) {
+    if (now - ts > IMMEDIATE_GREETING_WINDOW_MS) recentGreetingKeys.delete(key)
+  }
+}
+
+function conversationKey(from: string) {
+  return `wa:${createHash('sha256').update(String(from || '')).digest('hex').slice(0, 32)}`
+}
+
+async function shouldSendImmediateGreeting(from: string) {
+  cleanupGreetingKeys()
+  const key = conversationKey(from)
+  const now = Date.now()
+  const recent = recentGreetingKeys.get(key)
+  if (recent && now - recent < IMMEDIATE_GREETING_WINDOW_MS) return { ok: false, key }
+
+  const since = new Date(now - IMMEDIATE_GREETING_WINDOW_MS)
+  const previous = await db.auditLog.findFirst({
+    where: {
+      action: 'WHATSAPP_IMMEDIATE_GREETING_SENT',
+      entity: 'WhatsAppConversation',
+      entityId: key,
+      createdAt: { gte: since },
+    },
+    select: { id: true },
+  }).catch(() => null)
+
+  if (previous) {
+    recentGreetingKeys.set(key, now)
+    return { ok: false, key }
+  }
+
+  recentGreetingKeys.set(key, now)
+  return { ok: true, key }
+}
+
+async function markImmediateGreetingSent(key: string, from: string, messageId: string) {
+  await auditWhatsAppWebhook('WHATSAPP_IMMEDIATE_GREETING_SENT', {
+    from: maskPhone(from),
+    messageId,
+    windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
+  }, key)
+}
+
 function maskPhone(value?: string | null) {
   const raw = String(value || '').replace(/\D/g, '')
   if (!raw) return ''
