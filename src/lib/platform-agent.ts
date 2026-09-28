@@ -223,8 +223,11 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
     const focusedLines = focused.map((item, i) => publicProgramLine(item, i)).join('\n')
     const generalLines = general.map((item, i) => publicProgramLine(item, i)).join('\n')
 
+    const intentNote = publicQueryIntentNote(query)
+
     return [
-      'سياق عام من قاعدة بيانات المنصة للزائر. هذا السياق هو المصدر العملي عند أي سؤال عام عن البرامج أو التسجيل أو الكتب أو الرسوم. لا تكتفِ بسؤال توضيحي إذا كان يمكن إعطاء إجابة مفيدة من هذا الفهرس.',
+      'سياق عام من قاعدة بيانات المنصة للزائر. هذا السياق هو المصدر العملي عند أي سؤال عام عن البرامج أو التسجيل أو الكتب أو الرسوم. لا تكتفِ بسؤال توضيحي إذا كان يمكن إعطاء إجابة مفيدة من هذا الفهرس. إذا كان السؤال عن رسوم درجة عامة مثل الدكتوراه المهنية أو الماجستير المهني فاعرض البرامج المطابقة ورسومها المحددة من البيانات بدلاً من إعطاء نطاق عام.',
+      intentNote ? `تحليل السؤال الحالي:\n${intentNote}` : '',
       focusedLines ? `مطابقات مباشرة لسؤال الزائر الحالي "${compactText(query, 160)}":\n${focusedLines}` : '',
       `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || staticProgramsDigest(50)}`,
       `قواعد القبول العامة: ${ADMISSION_GUIDE.conditions.join(' / ')}. الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}. رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.`,
