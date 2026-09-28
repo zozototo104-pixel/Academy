@@ -87,21 +87,38 @@ export async function POST(req: NextRequest) {
   try {
     payload = rawBody ? JSON.parse(rawBody) : {}
   } catch {
+    await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_REJECTED', { reason: 'invalid_json', bodyBytes: rawBody.length })
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
   // Always acknowledge non-message webhooks such as status updates.
   const messages = extractWhatsAppInboundMessages(payload)
   if (!messages.length) {
+    await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_RECEIVED', {
+      received: 0,
+      sent: 0,
+      configured: officialWhatsAppConfigured(),
+      note: 'no inbound messages; likely status update or verification event',
+      object: payload?.object || null,
+      entries: Array.isArray(payload?.entry) ? payload.entry.length : 0,
+    })
     return NextResponse.json({ ok: true, received: 0, sent: 0, configured: officialWhatsAppConfigured() })
   }
 
   if (!officialWhatsAppConfigured()) {
     console.warn('Official WhatsApp webhook received messages, but Cloud API env vars are missing')
+    await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_RECEIVED', {
+      received: messages.length,
+      sent: 0,
+      configured: false,
+      reason: 'missing_cloud_api_environment',
+      messages: messages.map((message) => ({ id: message.id, from: maskPhone(message.from), text: message.text.slice(0, 180) })),
+    }, messages[0]?.id)
     return NextResponse.json({ ok: true, received: messages.length, sent: 0, configured: false })
   }
 
   let sent = 0
+  let skippedDuplicates = 0
   const errors: string[] = []
 
   for (const message of messages) {
