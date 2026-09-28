@@ -316,14 +316,14 @@ export async function platformPublicAgentComplete(opts: {
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
-      const reply = await localChatComplete({
+      const reply = await withPlatformTimeout(localChatComplete({
         messages: [
           { role: 'system', content: system },
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
         maxTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
-      })
+      }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
       console.error('Local public platform agent failed:', String(e?.message || e).slice(0, 400))
