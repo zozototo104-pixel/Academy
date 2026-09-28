@@ -55,7 +55,6 @@ async function shouldSendImmediateGreeting(from: string) {
   const previous = await db.auditLog.findFirst({
     where: {
       action: 'WHATSAPP_IMMEDIATE_GREETING_SENT',
-      entity: 'WhatsAppConversation',
       entityId: key,
       createdAt: { gte: since },
     },
