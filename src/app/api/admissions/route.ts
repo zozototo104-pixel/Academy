@@ -349,6 +349,27 @@ export async function POST(req: NextRequest) {
     } else {
       emailAdmissionSubmitted(email.trim(), fullName.trim(), reference, selectedTitle, appFee).catch(() => {})
     }
+
+    // تنبيه الإدارة بطلب التسجيل الجديد. فشل البريد لا يعطل حفظ الطلب ولا رد الطالب.
+    adminAdmissionEmailRecipients()
+      .then((recipients) => {
+        const input = {
+          reference,
+          fullName: fullName.trim(),
+          applicantEmail: email.trim(),
+          phone: normalizePhone(phone),
+          country: country.trim(),
+          program: selectedTitle,
+          requestType: isServiceRequest ? 'طلب خدمة مهنية' : 'طلب التحاق ببرنامج دراسي',
+          status: STATUS_LABEL[app.status] || app.status,
+          documentsCount: uniqueFiles.length,
+          invoiceNo: feeInvoice?.invoiceNo || null,
+          amount: feeInvoice?.amount ?? null,
+        }
+        return Promise.all(recipients.map((to) => emailAdminNewAdmissionRequest(to, input).catch(() => {})))
+      })
+      .catch(() => {})
+
     await audit(
       owner ? { id: owner.id, name: owner.name } : { name: fullName.trim() },
       isServiceRequest ? 'SUBMIT_SERVICE_REQUEST' : 'SUBMIT_ADMISSION',
