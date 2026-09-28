@@ -565,8 +565,8 @@ function questionForProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
 
 function launchQualityAiTimeoutMs() {
   const configured = Number(process.env.LAUNCH_QUALITY_AI_TIMEOUT_MS || '')
-  if (Number.isFinite(configured) && configured >= 10_000) return Math.min(Math.floor(configured), 75_000)
-  return 70_000
+  if (Number.isFinite(configured) && configured >= 10_000) return Math.min(Math.floor(configured), 48_000)
+  return 48_000
 }
 
 function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
