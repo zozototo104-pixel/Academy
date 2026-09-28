@@ -28,9 +28,10 @@ function hasArg(name: string) {
 
 function resolveProfile(): CleanupProfile {
   const raw = (getArgValue('--profile') || 'launch').toLowerCase()
+  if (raw === 'qa-only' || raw === 'qa') return 'qa-only'
   if (raw === 'factory') return 'factory'
   if (raw === 'launch') return 'launch'
-  throw new Error(`Unknown cleanup profile "${raw}". Use --profile launch or --profile factory.`)
+  throw new Error(`Unknown cleanup profile "${raw}". Use --profile qa-only, --profile launch, or --profile factory.`)
 }
 
 async function countDelete(label: string, count: () => Promise<number>, execute: () => Promise<CountResult>): Promise<Step> {
