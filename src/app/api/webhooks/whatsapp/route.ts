@@ -122,6 +122,8 @@ export async function POST(req: NextRequest) {
   }
 
   let sent = 0
+  let immediateGreetings = 0
+  let typingIndicators = 0
   let skippedDuplicates = 0
   const errors: string[] = []
 
@@ -131,6 +133,27 @@ export async function POST(req: NextRequest) {
       continue
     }
     try {
+      try {
+        await sendOfficialWhatsAppText(message.from, buildOfficialWhatsAppImmediateGreeting(message), {
+          phoneNumberId: message.phoneNumberId,
+          replyToMessageId: message.id,
+        })
+        immediateGreetings += 1
+      } catch (greetingError: any) {
+        const msg = `greeting: ${String(greetingError?.message || greetingError || 'failed').slice(0, 220)}`
+        console.warn('official WhatsApp immediate greeting failed:', msg)
+        errors.push(msg)
+      }
+
+      try {
+        await sendOfficialWhatsAppTypingIndicator(message)
+        typingIndicators += 1
+      } catch (typingError: any) {
+        const msg = `typing: ${String(typingError?.message || typingError || 'failed').slice(0, 220)}`
+        console.warn('official WhatsApp typing indicator failed:', msg)
+        errors.push(msg)
+      }
+
       const reply = await createOfficialWhatsAppAgentReply(message)
       await sendOfficialWhatsAppText(message.from, reply, {
         phoneNumberId: message.phoneNumberId,
@@ -147,6 +170,8 @@ export async function POST(req: NextRequest) {
   await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_RECEIVED', {
     received: messages.length,
     sent,
+    immediateGreetings,
+    typingIndicators,
     skippedDuplicates,
     configured: true,
     errors: errors.slice(0, 3),
