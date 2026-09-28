@@ -35,7 +35,8 @@ export function officialWhatsAppConfigured() {
 
 export function getWhatsAppCloudConfig(fallbackPhoneNumberId?: string): WhatsAppConfig | null {
   const accessToken = trim(process.env.WHATSAPP_ACCESS_TOKEN)
-  const phoneNumberId = trim(process.env.WHATSAPP_PHONE_NUMBER_ID) || trim(fallbackPhoneNumberId)
+  const inboundPhoneNumberId = trim(fallbackPhoneNumberId)
+  const phoneNumberId = inboundPhoneNumberId || trim(process.env.WHATSAPP_PHONE_NUMBER_ID)
   if (!accessToken || !phoneNumberId) return null
   return {
     accessToken,
