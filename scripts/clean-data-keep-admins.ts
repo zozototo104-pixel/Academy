@@ -78,6 +78,11 @@ function idIn(ids: string[], field = 'id') {
   return ids.length ? ({ [field]: { in: ids } } as any) : noneWhere(field)
 }
 
+function orWhere(clauses: any[], fallbackField = 'id') {
+  const clean = clauses.filter(Boolean)
+  return clean.length ? ({ OR: clean } as any) : noneWhere(fallbackField)
+}
+
 async function buildQaOnlySteps(): Promise<Step[]> {
   const steps: Step[] = []
   const qaUsers = await prisma.user.findMany({ where: qaUserWhere() as any, select: { id: true, email: true } })
