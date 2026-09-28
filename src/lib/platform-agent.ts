@@ -311,6 +311,7 @@ export async function platformPublicAgentComplete(opts: {
   const persona = personaForAgent(agent)
   const context = mergeContext(buildPublicVisitorContext(opts.channel), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
+  const timeoutMs = platformAiTimeoutMs(opts.channel === 'WHATSAPP' ? 18_000 : 22_000)
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
