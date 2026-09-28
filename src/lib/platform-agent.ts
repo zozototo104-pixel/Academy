@@ -382,7 +382,8 @@ export async function platformPublicAgentComplete(opts: {
   const agent = routeAgent(last, null)
   const persona = personaForAgent(agent)
   const platformSnapshot = await buildPublicPlatformSnapshot(last)
-  const context = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot, opts.uiContext)
+  const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
+  const context = mergeContext(baseContext, opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 52_000 : 22_000)
