@@ -220,6 +220,11 @@ export async function POST(req: NextRequest) {
       skippedDuplicates += 1
       continue
     }
+    const claimed = await claimInboundWhatsAppMessage(message)
+    if (!claimed) {
+      skippedDuplicates += 1
+      continue
+    }
     try {
       const greetingDecision = await shouldSendImmediateGreeting(message.from)
       if (greetingDecision.ok) {
