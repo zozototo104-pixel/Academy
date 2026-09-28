@@ -313,7 +313,29 @@ export async function platformPublicAgentComplete(opts: {
   const persona = personaForAgent(agent)
   const context = mergeContext(buildPublicVisitorContext(opts.channel), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
-  const timeoutMs = platformAiTimeoutMs(opts.channel === 'WHATSAPP' ? 18_000 : 22_000)
+  const isWhatsApp = opts.channel === 'WHATSAPP'
+  const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 52_000 : 22_000)
+
+  const runGemini = async () => {
+    const geminiReady = await ensureGeminiKey().catch(() => false)
+    if (!geminiReady) return null
+    const reply = await withPlatformTimeout(geminiComplete({
+      system,
+      history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+      temperature: 0.35,
+      maxOutputTokens: isWhatsApp ? 900 : 1100,
+    }), timeoutMs, 'Gemini public platform agent timed out')
+    return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' as const }
+  }
+
+  if (isWhatsApp) {
+    try {
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
+    } catch (e: any) {
+      console.error('Gemini public WhatsApp agent failed:', String(e?.message || e).slice(0, 400))
+    }
+  }
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
@@ -324,7 +346,7 @@ export async function platformPublicAgentComplete(opts: {
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
-        maxTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
+        maxTokens: isWhatsApp ? 900 : 1100,
       }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
@@ -332,16 +354,10 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  const geminiReady = await ensureGeminiKey().catch(() => false)
-  if (geminiReady) {
+  if (!isWhatsApp) {
     try {
-      const reply = await withPlatformTimeout(geminiComplete({
-        system,
-        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
-        temperature: 0.35,
-        maxOutputTokens: opts.channel === 'WHATSAPP' ? 650 : 1100,
-      }), timeoutMs, 'Gemini public platform agent timed out')
-      return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
     } catch (e: any) {
       console.error('Gemini public platform agent failed:', String(e?.message || e).slice(0, 400))
     }
