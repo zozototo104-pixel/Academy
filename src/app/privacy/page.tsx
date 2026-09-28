@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const updatedAt = '28 سبتمبر 2026'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-6 shadow-2xl shadow-black/10 backdrop-blur">
       <h2 className="text-xl font-black text-white">{title}</h2>
