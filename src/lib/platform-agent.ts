@@ -388,13 +388,13 @@ export async function platformAgentComplete(opts: {
         : agent === 'EXAMS' || agent === 'ADMIN_QUALITY'
           ? 'medium'
           : undefined
-      const reply = await geminiComplete({
+      const reply = await withPlatformTimeout(geminiComplete({
         system,
         history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
         temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 900 : 1700,
-      })
+      }), timeoutMs, 'Gemini platform agent timed out')
       return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
     } catch (e: any) {
       console.error('Gemini platform agent failed:', String(e?.message || e).slice(0, 400))
