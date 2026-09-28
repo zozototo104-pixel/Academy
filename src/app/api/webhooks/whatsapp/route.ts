@@ -85,6 +85,15 @@ function maskPhone(value?: string | null) {
   return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
 }
 
+function keepTypingIndicatorAlive(message: any, onSent: () => void, onError: (message: string) => void) {
+  const timer = setInterval(() => {
+    sendOfficialWhatsAppTypingIndicator(message)
+      .then(() => onSent())
+      .catch((error) => onError(`typing-refresh: ${String(error?.message || error || 'failed').slice(0, 220)}`))
+  }, 15_000)
+  return () => clearInterval(timer)
+}
+
 async function auditWhatsAppWebhook(action: string, details: Record<string, any>, entityId?: string | null) {
   try {
     await db.auditLog.create({
