@@ -309,17 +309,19 @@ function shouldAnswerLocally(last: string): boolean {
 export async function chatComplete(
   messages: { role: string; content: string }[],
   context?: string,
-  persona: SupervisorPersona = 'CHAT'
+  persona: SupervisorPersona = 'CHAT',
+  options: ChatCompleteOptions = {}
 ): Promise<string> {
   const systemPrompt = buildSupervisorSystemPrompt(context, persona)
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const timeoutMs = aiTimeoutMs(options.timeoutMs, 22_000)
 
   // أسئلة المنصة العامة نجيب عليها فورياً من بيانات الأكاديمية حتى لا ينتظر الطالب Gemini طويلاً.
   if (shouldAnswerLocally(lastUserText)) {
     return localSupervisorFallback(messages)
   }
 
-  const geminiReady = await ensureGeminiKey().catch(() => false)
+  const geminiReady = !options.skipGemini && await ensureGeminiKey().catch(() => false)
 
   if (geminiReady) {
     try {
@@ -327,12 +329,12 @@ export async function chatComplete(
         role: m.role === 'user' ? 'user' as const : 'model' as const,
         text: m.content,
       }))
-      return await geminiComplete({
+      return await withAiTimeout(geminiComplete({
         system: systemPrompt,
         history,
         temperature: 0.45,
         maxOutputTokens: 900,
-      })
+      }), timeoutMs, 'Gemini chatComplete timed out')
     } catch (e: any) {
       const msg = String(e?.message || e || '')
       console.error('Gemini chatComplete failed:', msg.slice(0, 300))
@@ -346,7 +348,7 @@ export async function chatComplete(
 
   try {
     const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
+    const completion = await withAiTimeout(zai.chat.completions.create({
       messages: ([
         { role: 'assistant', content: systemPrompt },
         ...messages.map((m) => ({
