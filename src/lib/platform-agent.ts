@@ -361,6 +361,7 @@ export async function platformAgentComplete(opts: {
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(dataContext, opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
+  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 18_000 : 22_000)
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
