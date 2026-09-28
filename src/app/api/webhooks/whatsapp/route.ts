@@ -122,7 +122,10 @@ export async function POST(req: NextRequest) {
   const errors: string[] = []
 
   for (const message of messages) {
-    if (alreadyProcessed(message.id)) continue
+    if (alreadyProcessed(message.id)) {
+      skippedDuplicates += 1
+      continue
+    }
     try {
       const reply = await createOfficialWhatsAppAgentReply(message)
       await sendOfficialWhatsAppText(message.from, reply, {
