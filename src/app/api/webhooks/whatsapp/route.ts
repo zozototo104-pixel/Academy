@@ -59,12 +59,14 @@ export async function GET(req: NextRequest) {
   const expected = process.env.WHATSAPP_VERIFY_TOKEN || ''
 
   if (mode === 'subscribe' && expected && token === expected) {
+    await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_VERIFIED', { mode, hasExpectedToken: Boolean(expected), challengeLength: challenge.length })
     return new NextResponse(challenge, {
       status: 200,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
   }
 
+  await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_VERIFY_FAILED', { mode, hasExpectedToken: Boolean(expected), hasProvidedToken: Boolean(token) })
   return NextResponse.json({ ok: false, error: 'Invalid WhatsApp webhook verification token' }, { status: 403 })
 }
 
