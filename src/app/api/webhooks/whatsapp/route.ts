@@ -182,16 +182,20 @@ export async function POST(req: NextRequest) {
       continue
     }
     try {
-      try {
-        await sendOfficialWhatsAppText(message.from, buildOfficialWhatsAppImmediateGreeting(message), {
-          phoneNumberId: message.phoneNumberId,
-          replyToMessageId: message.id,
-        })
-        immediateGreetings += 1
-      } catch (greetingError: any) {
-        const msg = `greeting: ${String(greetingError?.message || greetingError || 'failed').slice(0, 220)}`
-        console.warn('official WhatsApp immediate greeting failed:', msg)
-        errors.push(msg)
+      const greetingDecision = await shouldSendImmediateGreeting(message.from)
+      if (greetingDecision.ok) {
+        try {
+          await sendOfficialWhatsAppText(message.from, buildOfficialWhatsAppImmediateGreeting(message), {
+            phoneNumberId: message.phoneNumberId,
+            replyToMessageId: message.id,
+          })
+          await markImmediateGreetingSent(greetingDecision.key, message.from, message.id)
+          immediateGreetings += 1
+        } catch (greetingError: any) {
+          const msg = `greeting: ${String(greetingError?.message || greetingError || 'failed').slice(0, 220)}`
+          console.warn('official WhatsApp immediate greeting failed:', msg)
+          errors.push(msg)
+        }
       }
 
       try {
