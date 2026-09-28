@@ -154,14 +154,13 @@ async function buildQaOnlySteps(): Promise<Step[]> {
     select: { id: true },
   })
   const qaAssessmentAttemptIds = qaAssessmentAttempts.map((attempt) => attempt.id)
+  const qaVoiceCallWhere = orWhere([
+    qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
+    qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+    qaUserIds.length ? { initiatorId: { in: qaUserIds } } : undefined,
+  ])
   const qaVoiceCalls = await prisma.supervisorVoiceCall.findMany({
-    where: {
-      OR: [
-        qaAdmissionIds.length ? { admissionId: { in: qaAdmissionIds } } : undefined,
-        qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
-        qaUserIds.length ? { initiatorId: { in: qaUserIds } } : undefined,
-      ].filter(Boolean) as any[],
-    },
+    where: qaVoiceCallWhere,
     select: { id: true },
   })
   const qaVoiceCallIds = qaVoiceCalls.map((call) => call.id)
