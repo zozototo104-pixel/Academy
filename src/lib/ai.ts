@@ -9,6 +9,28 @@ const SMART_SUPERVISOR_MEMORY = 98
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
+interface ChatCompleteOptions {
+  skipGemini?: boolean
+  timeoutMs?: number
+}
+
+function aiTimeoutMs(configured: number | undefined, fallback: number) {
+  if (Number.isFinite(configured || NaN) && (configured || 0) >= 3_000) return Math.min(Math.floor(configured || fallback), 45_000)
+  const env = Number(process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  return fallback
+}
+
+function withAiTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
 const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
   CHAT: 'مدرّس ومرشد أكاديمي',
   EXAM: 'خبير قياس وتقويم جامعي',
