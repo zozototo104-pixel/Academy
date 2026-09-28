@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-type CleanupProfile = 'launch' | 'factory'
+type CleanupProfile = 'qa-only' | 'launch' | 'factory'
 type CountResult = { count: number }
 type Step = {
   key: string
