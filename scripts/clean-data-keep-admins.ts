@@ -338,15 +338,23 @@ async function main() {
     throw new Error('Refusing cleanup because no ADMIN user exists. Create or verify an admin first.')
   }
 
-  if (execute && process.env.AACT_CONFIRM_DATA_CLEANUP !== DATA_CLEANUP_CONFIRMATION) {
+  if (execute && profile === 'qa-only' && process.env.AACT_CONFIRM_QA_ONLY_CLEANUP !== QA_ONLY_CONFIRMATION) {
+    throw new Error(`Refusing QA-only cleanup. Set AACT_CONFIRM_QA_ONLY_CLEANUP=${QA_ONLY_CONFIRMATION} and run again.`)
+  }
+
+  if (execute && profile !== 'qa-only' && process.env.AACT_CONFIRM_DATA_CLEANUP !== DATA_CLEANUP_CONFIRMATION) {
     throw new Error(`Refusing destructive cleanup. Set AACT_CONFIRM_DATA_CLEANUP=${DATA_CLEANUP_CONFIRMATION} and run again.`)
+  }
+
+  if (execute && profile === 'launch' && process.env.AACT_CONFIRM_FULL_RESET !== FULL_RESET_CONFIRMATION) {
+    throw new Error(`Launch cleanup deletes every non-admin user and real operational data. Set AACT_CONFIRM_FULL_RESET=${FULL_RESET_CONFIRMATION} to allow it.`)
   }
 
   if (execute && profile === 'factory' && process.env.AACT_CONFIRM_FACTORY_RESET !== FACTORY_CONFIRMATION) {
     throw new Error(`Factory cleanup also deletes academic content. Set AACT_CONFIRM_FACTORY_RESET=${FACTORY_CONFIRMATION} to allow it.`)
   }
 
-  const steps = profile === 'factory' ? await buildFactorySteps() : await buildLaunchSteps()
+  const steps = profile === 'qa-only' ? await buildQaOnlySteps() : profile === 'factory' ? await buildFactorySteps() : await buildLaunchSteps()
 
   console.log(`AACT data cleanup profile: ${profile}`)
   console.log(`Mode: ${execute ? 'EXECUTE' : 'DRY RUN'}`)
