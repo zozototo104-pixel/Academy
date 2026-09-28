@@ -165,8 +165,13 @@ async function buildQaOnlySteps(): Promise<Step[]> {
   })
   const qaVoiceCallIds = qaVoiceCalls.map((call) => call.id)
 
-  steps.push(await countDelete('QA supervisor assessment answers', () => prisma.supervisorAssessmentAnswer.count({ where: { OR: [qaAssessmentAttemptIds.length ? { attemptId: { in: qaAssessmentAttemptIds } } : undefined, qaAssessmentIds.length ? { question: { assessmentId: { in: qaAssessmentIds } } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorAssessmentAnswer.deleteMany({ where: { OR: [qaAssessmentAttemptIds.length ? { attemptId: { in: qaAssessmentAttemptIds } } : undefined, qaAssessmentIds.length ? { question: { assessmentId: { in: qaAssessmentIds } } } : undefined].filter(Boolean) as any[] } })))
-  steps.push(await countDelete('QA supervisor assessment attempts', () => prisma.supervisorAssessmentAttempt.count({ where: { OR: [qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } }), () => prisma.supervisorAssessmentAttempt.deleteMany({ where: { OR: [qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined, qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined].filter(Boolean) as any[] } })))
+  const qaSupervisorAssessmentAnswerWhere = orWhere([
+    qaAssessmentAttemptIds.length ? { attemptId: { in: qaAssessmentAttemptIds } } : undefined,
+    qaAssessmentIds.length ? { question: { assessmentId: { in: qaAssessmentIds } } } : undefined,
+  ])
+
+  steps.push(await countDelete('QA supervisor assessment answers', () => prisma.supervisorAssessmentAnswer.count({ where: qaSupervisorAssessmentAnswerWhere }), () => prisma.supervisorAssessmentAnswer.deleteMany({ where: qaSupervisorAssessmentAnswerWhere })))
+  steps.push(await countDelete('QA supervisor assessment attempts', () => prisma.supervisorAssessmentAttempt.count({ where: qaAssessmentAttemptWhere }), () => prisma.supervisorAssessmentAttempt.deleteMany({ where: qaAssessmentAttemptWhere })))
   steps.push(await countDelete('QA supervisor assessment questions', () => prisma.supervisorAssessmentQuestion.count({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') }), () => prisma.supervisorAssessmentQuestion.deleteMany({ where: qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : noneWhere('assessmentId') })))
   steps.push(await countDelete('QA supervisor assessments', () => prisma.supervisorAssessment.count({ where: assessmentWhere }), () => prisma.supervisorAssessment.deleteMany({ where: assessmentWhere })))
 
