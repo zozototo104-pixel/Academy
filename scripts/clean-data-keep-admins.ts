@@ -145,13 +145,12 @@ async function buildQaOnlySteps(): Promise<Step[]> {
   const assessmentWhere = qaSupervisorAssessmentWhere.length ? { OR: qaSupervisorAssessmentWhere } : noneWhere()
   const qaAssessments = await prisma.supervisorAssessment.findMany({ where: assessmentWhere, select: { id: true } })
   const qaAssessmentIds = qaAssessments.map((assessment) => assessment.id)
+  const qaAssessmentAttemptWhere = orWhere([
+    qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined,
+    qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
+  ])
   const qaAssessmentAttempts = await prisma.supervisorAssessmentAttempt.findMany({
-    where: {
-      OR: [
-        qaAssessmentIds.length ? { assessmentId: { in: qaAssessmentIds } } : undefined,
-        qaUserIds.length ? { studentId: { in: qaUserIds } } : undefined,
-      ].filter(Boolean) as any[],
-    },
+    where: qaAssessmentAttemptWhere,
     select: { id: true },
   })
   const qaAssessmentAttemptIds = qaAssessmentAttempts.map((attempt) => attempt.id)
