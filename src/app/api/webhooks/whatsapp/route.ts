@@ -110,6 +110,36 @@ async function auditWhatsAppWebhook(action: string, details: Record<string, any>
   }
 }
 
+async function claimInboundWhatsAppMessage(message: any) {
+  const id = String(message?.id || '').trim()
+  if (!id) return true
+
+  const previous = await db.auditLog.findFirst({
+    where: {
+      action: 'WHATSAPP_INBOUND_MESSAGE_CLAIMED',
+      entity: 'WhatsAppInboundMessage',
+      entityId: id,
+    },
+    select: { id: true },
+  }).catch(() => null)
+
+  if (previous) return false
+
+  await db.auditLog.create({
+    data: {
+      actorName: 'WhatsApp Webhook',
+      action: 'WHATSAPP_INBOUND_MESSAGE_CLAIMED',
+      entity: 'WhatsAppInboundMessage',
+      entityId: id,
+      details: JSON.stringify({ from: maskPhone(message?.from), text: String(message?.text || '').slice(0, 180), phoneNumberId: message?.phoneNumberId || null }).slice(0, 1200),
+    },
+  }).catch((error) => {
+    console.warn('WhatsApp inbound claim audit failed:', String(error).slice(0, 300))
+  })
+
+  return true
+}
+
 // Meta webhook verification for WhatsApp Business Platform.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
