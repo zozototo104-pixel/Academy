@@ -216,7 +216,20 @@ export async function POST(req: NextRequest) {
         errors.push(msg)
       }
 
-      const reply = await createOfficialWhatsAppAgentReply(message)
+      const stopTypingRefresh = keepTypingIndicatorAlive(
+        message,
+        () => { typingIndicators += 1 },
+        (typingMessage) => {
+          console.warn('official WhatsApp typing refresh failed:', typingMessage)
+          errors.push(typingMessage)
+        }
+      )
+      let reply = ''
+      try {
+        reply = await createOfficialWhatsAppAgentReply(message)
+      } finally {
+        stopTypingRefresh()
+      }
       await sendOfficialWhatsAppText(message.from, reply, {
         phoneNumberId: message.phoneNumberId,
         replyToMessageId: message.id,
