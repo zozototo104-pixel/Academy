@@ -64,17 +64,43 @@ function withPlatformTimeout<T>(promise: Promise<T>, ms: number, label: string):
   })
 }
 
+function expandArabicProgramQuery(query?: string | null): string {
+  const n = normalizeArabic(query || '')
+  const aliases: string[] = [n]
+
+  if (includesAny(n, ['دكتوراه', 'دكتوراة', 'دكتورا', 'الدكتوراه', 'الدكتوراة', 'دكتوراء', 'دكتور'])) {
+    aliases.push('الدكتوراه المهنيه دكتوراه مهنيه professional doctorate doctorate phd')
+  }
+  if (includesAny(n, ['ماجستير', 'مجستير', 'ماستر', 'الماجستير', 'المجستير'])) {
+    aliases.push('الماجستير المهني ماجستير مهني master masters')
+  }
+  if (includesAny(n, ['بكالوريوس', 'بكلوريوس', 'باكالوريوس', 'البكالوريوس'])) {
+    aliases.push('البكالوريوس bachelor bachelors')
+  }
+  if (includesAny(n, ['دبلوم', 'دبلومات', 'دبلومه', 'دبلم'])) {
+    aliases.push('الدبلومات المهنيه دبلوم مهني diploma')
+  }
+  if (includesAny(n, ['رسوم', 'سعر', 'اسعار', 'تكلفه', 'كلفه', 'كم'])) {
+    aliases.push('رسوم سعر تكلفه price fee tuition')
+  }
+  if (includesAny(n, ['اعتماد', 'معتمد', 'شهاده', 'شهادة'])) {
+    aliases.push('اعتماد شهادة معتمدة certificate accreditation')
+  }
+
+  return aliases.join(' ')
+}
+
 function queryTokens(query?: string | null): string[] {
   const stop = new Set([
     'هذا', 'هذه', 'هدا', 'هاي', 'في', 'من', 'عن', 'على', 'الى', 'الي', 'إلى', 'شو', 'ما', 'هو', 'هي', 'له', 'لها', 'اليه', 'إليه', 'اللي', 'بدي', 'اسالك', 'اسألك',
     'برنامج', 'برنامح', 'تخصص', 'التخصص', 'كتب', 'الكتب', 'كتاب', 'مخصصه', 'مخصصة', 'مقرره', 'مقررة', 'منهاج', 'منهج', 'مواد', 'المواد', 'المسجله', 'المسجلة',
-  ])
+  ].map(normalizeArabic))
   return Array.from(new Set(
-    normalizeArabic(query || '')
+    expandArabicProgramQuery(query)
       .split(' ')
       .map((t) => t.trim())
       .filter((t) => t.length >= 3 && !stop.has(t))
-  )).slice(0, 18)
+  )).slice(0, 28)
 }
 
 function scoreCatalogProgram(program: any, query?: string | null): number {
