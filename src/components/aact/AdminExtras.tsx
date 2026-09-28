@@ -1539,6 +1539,115 @@ const ACTION_L: Record<string, string> = {
   REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
   GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
   IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
+  WHATSAPP_WEBHOOK_RECEIVED: 'واتساب — حدث وارد',
+  WHATSAPP_WEBHOOK_REJECTED: 'واتساب — حدث مرفوض',
+  WHATSAPP_WEBHOOK_VERIFIED: 'واتساب — تحقق ناجح',
+  WHATSAPP_WEBHOOK_VERIFY_FAILED: 'واتساب — فشل التحقق',
+}
+
+function parseAuditDetails(details?: string | null): any | null {
+  if (!details) return null
+  try {
+    return JSON.parse(details)
+  } catch {
+    return null
+  }
+}
+
+function humanWhatsAppError(error: string): string {
+  const text = String(error || '')
+  if (text.includes('#131030')) return 'الرقم كان خارج قائمة الأرقام المسموحة في وضع الاختبار.'
+  if (text.includes('#131005')) return 'تم رفض الإرسال من Meta بسبب صلاحيات رمز الوصول أو حساب واتساب.'
+  if (text.includes('missing_cloud_api_environment')) return 'إعدادات واتساب في Vercel غير مكتملة.'
+  if (text.includes('invalid_signature')) return 'توقيع الطلب غير صالح.'
+  if (text.includes('invalid_json')) return 'بيانات الطلب من واتساب غير صالحة.'
+  return text.replace(/[{}\[\]"]/g, '').slice(0, 180) || 'حدث خطأ أثناء معالجة واتساب.'
+}
+
+function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
+  const details = parseAuditDetails(log.details)
+  if (!details || !String(log.action || '').startsWith('WHATSAPP_')) return null
+
+  const received = Number(details.received || 0)
+  const sent = Number(details.sent || 0)
+  const configured = details.configured !== false
+  const messages = Array.isArray(details.messages) ? details.messages : []
+  const firstMessage = messages[0] || {}
+  const text = String(firstMessage.text || '').trim()
+  const from = String(firstMessage.from || '').trim()
+  const errors = Array.isArray(details.errors) ? details.errors.filter(Boolean) : []
+  const isStatusOnly = log.action === 'WHATSAPP_WEBHOOK_RECEIVED' && received === 0
+
+  if (isStatusOnly) {
+    return (
+      <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-bold text-slate-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        تحديث حالة من واتساب — لا توجد رسالة جديدة
+      </div>
+    )
+  }
+
+  const title = log.action === 'WHATSAPP_WEBHOOK_REJECTED'
+    ? 'تم رفض حدث واتساب'
+    : log.action === 'WHATSAPP_WEBHOOK_VERIFY_FAILED'
+      ? 'فشل تحقق واتساب'
+      : log.action === 'WHATSAPP_WEBHOOK_VERIFIED'
+        ? 'تم تحقق واتساب بنجاح'
+        : received > 0
+          ? 'رسالة واتساب واردة'
+          : 'حدث واتساب'
+
+  const status = sent > 0
+    ? 'تم رد الوكيل بنجاح'
+    : errors.length
+      ? 'وصلت الرسالة ولم يتم إرسال الرد'
+      : configured
+        ? 'تم الاستلام'
+        : 'تحتاج إعدادات واتساب'
+
+  return (
+    <div className="mt-2 rounded-2xl border border-[#25d366]/15 bg-[#f3fff8] p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${sent > 0 ? 'bg-[#25d366]' : errors.length ? 'bg-amber-500' : 'bg-[#0f2b46]'}`}>وات</span>
+          <div>
+            <p className="text-xs font-black text-[#0f2b46]">{title}</p>
+            <p className="text-[10px] font-bold text-slate-500">{status}</p>
+          </div>
+        </div>
+        <Badge className={sent > 0 ? 'bg-emerald-600 text-white' : errors.length ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}>
+          {sent > 0 ? 'تم الرد' : errors.length ? 'بحاجة متابعة' : 'مستلم'}
+        </Badge>
+      </div>
+
+      {received > 0 && (
+        <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-600 sm:grid-cols-2">
+          {from && <p><span className="text-slate-400">من:</span> {from}</p>}
+          <p><span className="text-slate-400">الرسائل:</span> {received}</p>
+          <p><span className="text-slate-400">ردود الوكيل:</span> {sent}</p>
+          {firstMessage.phoneNumberId && <p><span className="text-slate-400">رقم واتساب:</span> جاهز</p>}
+        </div>
+      )}
+
+      {text && (
+        <div className="mt-3 rounded-xl border border-white bg-white px-3 py-2 text-sm font-black leading-7 text-[#0f2b46]">
+          {text}
+        </div>
+      )}
+
+      {errors.length > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
+          {humanWhatsAppError(String(errors[0]))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuditDetailsDisplay({ log }: { log: AuditRow }) {
+  const whatsApp = WhatsAppAuditDisplay({ log })
+  if (whatsApp) return whatsApp
+  return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
 export function AdminAuditTab() {
