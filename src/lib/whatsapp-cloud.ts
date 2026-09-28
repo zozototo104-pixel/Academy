@@ -118,6 +118,41 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
   return result.reply || 'أهلاً بك، كيف يمكنني مساعدتك في برامج الأكاديمية؟'
 }
 
+export function buildOfficialWhatsAppImmediateGreeting(message: WhatsAppInboundMessage) {
+  const name = compactText(message.name, 60)
+  const displayName = name || 'ضيفنا الكريم'
+  return `أهلاً وسهلاً بك ${displayName} في الأكاديمية الأمريكية للاستشارات والتدريب.\nأنا هنا لمساعدتك في أي شيء يخص المنصة التعليمية AACT، وسأجهز لك الرد المناسب الآن.`
+}
+
+export async function sendOfficialWhatsAppTypingIndicator(message: WhatsAppInboundMessage) {
+  const config = getWhatsAppCloudConfig(message.phoneNumberId)
+  if (!config) {
+    throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
+  }
+
+  const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: message.id,
+      typing_indicator: { type: 'text' },
+    }),
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const errorMessage = data?.error?.message || data?.error?.code || `WhatsApp typing indicator failed with status ${response.status}`
+    throw new Error(String(errorMessage).slice(0, 500))
+  }
+
+  return data
+}
+
 export async function sendOfficialWhatsAppText(to: string, text: string, options?: { phoneNumberId?: string; replyToMessageId?: string }) {
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
