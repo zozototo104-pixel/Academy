@@ -357,7 +357,7 @@ export async function chatComplete(
         })),
       ] as any),
       thinking: { type: 'disabled' },
-    })
+    }), timeoutMs, 'ZAI chatComplete timed out')
     const content = completion.choices[0]?.message?.content
     if (!content || !content.trim()) throw new Error('EMPTY_AI_RESPONSE')
     return content.trim()
