@@ -449,7 +449,7 @@ export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
-}): Promise<{ reply: string; agent: PlatformAgentKind; engine: 'LOCAL_OPEN_SOURCE' | 'GEMINI_OR_FALLBACK' }> {
+}): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const agent = routeAgent(last, null)
   const persona = personaForAgent(agent)
