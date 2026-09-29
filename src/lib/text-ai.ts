@@ -473,13 +473,25 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<
   return [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
 }
 
+const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
+  'GEMINI',
+  'UNOROUTER',
+  'OPENROUTER',
+  'OPENAI',
+  'ANTHROPIC',
+  'ZAI',
+  'GROQ',
+  'RELAYROUTER',
+  'DEEPINFRA',
+  'TOGETHER',
+  'OPENAI_COMPAT',
+]
+
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'RELAYROUTER', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'RELAYROUTER', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
-  const primary: ConcreteProvider[] = selected
-    ? [selected, ...quality.filter((p) => p !== selected)]
-    : ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'OPENAI_COMPAT']
+  const quality: ConcreteProvider[] = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'ANTHROPIC', 'OPENAI', 'RELAYROUTER', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
+  const cost: ConcreteProvider[] = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'GROQ', 'ZAI', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'OPENAI', 'ANTHROPIC']
+  const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
   if (s.policy === 'quality_first') return quality
   if (s.policy === 'cost_saver') return cost
   if (s.policy === 'fallback_only' && selected) return [selected]
@@ -489,9 +501,10 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 
 function providerOrder(s: Settings): ConcreteProvider[] {
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'OPENAI_COMPAT'])
+  const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER'])
   return baseOrder(s).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
-    if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider) return false
+    if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
     return true
   })
 }
