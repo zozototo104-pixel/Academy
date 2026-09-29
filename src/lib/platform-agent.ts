@@ -546,7 +546,7 @@ export async function platformAgentComplete(opts: {
       thinkingLevel,
       maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
     }), timeoutMs, 'Gemini platform agent timed out')
-    return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' as const }
+    return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
   }
 
   if (shouldPreferGemini) {
