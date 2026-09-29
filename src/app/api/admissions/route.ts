@@ -274,11 +274,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // كود تتبع حالة الطلب AACT-2026-XXXX (15 محاولة لتفادي التصادم)
+    // كود تتبع قوي؛ الأكواد القديمة ذات 4 أرقام تبقى صالحة للتتبع، لكن الطلبات الجديدة لم تعد قابلة للتخمين عملياً.
     let reference = ''
-    for (let i = 0; i < 15; i++) {
-      const num = Math.floor(1000 + Math.random() * 9000)
-      reference = `AACT-2026-${num}`
+    for (let i = 0; i < 5; i++) {
+      reference = strongAdmissionReference()
       const exists = await db.admissionApplication.findUnique({ where: { reference } })
       if (!exists) break
     }
