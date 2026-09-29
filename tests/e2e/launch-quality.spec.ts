@@ -152,8 +152,10 @@ test.describe('AACT launch quality suite', () => {
     }))
     const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 0
     const hasUsefulContext = !!voicePayload.summary?.hasUsefulContext
+    const providerDiagnostics = [...probePayloads].reverse().find((p) => p?.providerDiagnostics)?.providerDiagnostics || voicePayload.providerDiagnostics || readiness.providerDiagnostics
     const ai = {
       ...voicePayload,
+      providerDiagnostics,
       probes,
       status: score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail',
       summary: {
