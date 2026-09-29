@@ -107,6 +107,12 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const cfg = await getGatewayConfig()
+    const selectedMethod = paymentMethodStatus(String(method), cfg)
+    if (!selectedMethod?.enabled) {
+      return NextResponse.json({ error: selectedMethod?.reason || 'طريقة الدفع غير متاحة حالياً.' }, { status: 400 })
+    }
+
     const origin = req.headers.get('origin') || new URL(req.url).origin
     const result = await createProviderCheckout({
       method: String(method),
