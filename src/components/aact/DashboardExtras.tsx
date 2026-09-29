@@ -95,6 +95,10 @@ interface TuitionPlan {
   approvedInitialAmount: number | null
   firstSemesterRequiredAmount?: number | null
   finalRequiredAmount?: number | null
+  admissionStatus?: string
+  applicationFeePaid?: boolean
+  canRequestInstallmentAppeal?: boolean
+  installmentAppealBlockedReason?: string | null
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
