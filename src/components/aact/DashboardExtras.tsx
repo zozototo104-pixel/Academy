@@ -543,7 +543,7 @@ export function PaymentsTab() {
           <DialogHeader>
             <DialogTitle className='flex items-center justify-between gap-2 font-black text-[#0f2b46]'>
               <span className='flex items-center gap-2'><Banknote className='h-5 w-5 text-[#c9a227]' /> إتمام الدفع</span>
-              <Badge className={payMode === 'LIVE' ? 'bg-emerald-100 text-emerald-700' : payConfig?.sandboxAllowed ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}>{payMode === 'LIVE' ? 'دفع حقيقي' : payConfig?.sandboxAllowed ? 'تجريبي' : 'غير مفعل'}</Badge>
+              <Badge className={['DIRECT_PAYMENT', 'USDT'].includes(method) || payMode === 'LIVE' ? 'bg-emerald-100 text-emerald-700' : payConfig?.sandboxAllowed ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}>{['DIRECT_PAYMENT', 'USDT'].includes(method) ? 'دفع يدوي فعال' : payMode === 'LIVE' ? 'دفع حقيقي' : payConfig?.sandboxAllowed ? 'تجريبي' : 'غير مفعل'}</Badge>
             </DialogTitle>
             <DialogDescription>{payTarget?.description} — المبلغ <strong className='text-[#a8841a]'>{payTarget?.amount}$</strong></DialogDescription>
           </DialogHeader>
