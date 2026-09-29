@@ -489,8 +489,17 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
   }
 
-  const idSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|date of birth|place of birth|الجنسية|الجنسيه/.test(n)
-  if (idSignal) {
+  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /\bcv\b|resume|curriculum vitae|education|work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|profile|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المؤهلات العلميه|المؤهلات العلمية|المهارات/.test(n)
+  const strongIdSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|id card|passport no|document number/.test(n)
+  const weakIdSignal = /date of birth|place of birth|الجنسية|الجنسيه|nationality|gender/.test(n)
+
+  // السيرة الذاتية تحتوي عادةً على تاريخ ميلاد وجنسية وجنس، لذلك لا يجوز أن تسبقها قاعدة الهوية الضعيفة.
+  // نعطي الأولوية لبنية CV الواضحة ما لم يظهر دليل هوية/جواز رسمي قوي.
+  if (cvSignal && !strongIdSignal) {
+    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
+  }
+
+  if (strongIdSignal || weakIdSignal) {
     return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر داخل الملف المقروء' }
   }
 
@@ -505,7 +514,6 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي صادرة من جهة تعليمية' }
   }
 
-  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /education|work experience|professional experience|employment|skills|profile|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المؤهلات العلميه|المؤهلات العلمية|المهارات/.test(n)
   if (cvSignal) {
     return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
   }
