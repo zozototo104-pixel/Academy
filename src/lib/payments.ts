@@ -136,10 +136,10 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     {
       id: 'STRIPE',
       label: 'Stripe — Visa / MasterCard / بطاقة دولية',
-      enabled: stripeReady,
+      enabled: false,
       configured: !!cfg.stripeSecret,
       kind: 'gateway',
-      reason: stripeReady ? undefined : stripeKind === 'test' ? 'Stripe مضبوط بمفتاح تجريبي sk_test. استخدم sk_live لتفعيل الدفع الحقيقي.' : 'Stripe غير متاح حالياً لأن مفتاح الدفع الحقيقي غير مضبوط.',
+      reason: preparingReason,
     },
     {
       id: 'PAYPAL',
