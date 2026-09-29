@@ -9,6 +9,7 @@ import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    await requireStudentAiSupervisorAccess(user)
     const { title, text } = await req.json()
     const draft = String(text || '').trim()
     if (draft.length < 120) {
