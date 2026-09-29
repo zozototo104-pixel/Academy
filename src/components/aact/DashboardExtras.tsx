@@ -515,7 +515,7 @@ export function PaymentsTab() {
                       {p.cryptoWalletAddress && <p className='mt-1 break-all font-mono text-[10px] text-slate-500' dir='ltr'>{p.cryptoWalletAddress}</p>}
                       {p.cryptoVerificationNote && <p className='mt-1 text-[11px] font-bold leading-5 text-slate-600'>{p.cryptoVerificationNote}</p>}
                       <div className='mt-2 flex flex-col gap-2 sm:flex-row'>
-                        <Input dir='ltr' value={usdtHashes[p.id] ?? p.cryptoTxHash ?? ''} onChange={(e) => setUsdtHashes((prev) => ({ ...prev, [p.id]: e.target.value }))} placeholder='TX Hash' className='font-mono text-xs' />
+                        <Input dir='ltr' value={usdtHashes[p.id] ?? p.cryptoTxHash ?? ''} onChange={(e) => setUsdtHashes((prev) => ({ ...prev, [p.id]: e.target.value }))} placeholder='رقم عملية Binance Pay أو TX Hash' className='font-mono text-xs' />
                         <Button size='sm' disabled={verifyingUsdt === p.id} onClick={() => submitUsdtProof(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
                           {verifyingUsdt === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
                           تحقق من التحويل
