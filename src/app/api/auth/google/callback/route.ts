@@ -34,11 +34,13 @@ function verifySignedState(state: string | null) {
 }
 
 function appBaseUrl(req: NextRequest) {
-  const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
-  if (configured) return configured.replace(/\/$/, '')
+  // Google OAuth يجب أن يعود إلى نفس الدومين الذي بدأ منه الطالب.
+  // لذلك نفضّل Host الفعلي للطلب على NEXTAUTH_URL/APP_URL حتى لا يعيد متغير قديم المستخدم إلى دومين Vercel سابق.
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const proto = req.headers.get('x-forwarded-proto') || 'https'
-  return `${proto}://${host}`.replace(/\/$/, '')
+  if (host) return `${proto}://${host}`.replace(/\/$/, '')
+  const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+  return configured.replace(/\/$/, '')
 }
 
 function authRedirect(req: NextRequest, params: Record<string, string>) {
