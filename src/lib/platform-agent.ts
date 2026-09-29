@@ -28,6 +28,16 @@ const AGENT_AR: Record<PlatformAgentKind, string> = {
   SUPPORT: 'وكيل الدعم العام',
 }
 
+const HUMAN_SUPPORT_REPLY = [
+  'أهلًا وسهلًا بك 🌟',
+  'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام التالية:',
+  '',
+  '📞 +972594403737',
+  '📞 +970 598 400 510',
+  '',
+  'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
+].join('\n')
+
 function normalizeArabic(text: string): string {
   return String(text || '')
     .toLowerCase()
