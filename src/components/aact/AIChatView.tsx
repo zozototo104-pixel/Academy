@@ -120,6 +120,7 @@ export function AIChatView() {
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const [sttSupported, setSttSupported] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [accessLockedMessage, setAccessLockedMessage] = useState<string | null>(null)
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, 'HELPFUL' | 'NEEDS_REVIEW'>>({})
   const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null)
   const [feedbackDialog, setFeedbackDialog] = useState<{ open: boolean; message: Msg | null }>({ open: false, message: null })
