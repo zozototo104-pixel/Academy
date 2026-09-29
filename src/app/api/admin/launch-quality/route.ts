@@ -588,8 +588,8 @@ function expectedForProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
   const units = program?.units?.slice(0, 2).map((u) => u.title) || []
   if (kind === 'PROFILE') return [student.name, program?.titleAr, admission?.reference].filter(Boolean) as string[]
   if (kind === 'CURRICULUM') return [program?.titleAr, ...books, ...units].filter(Boolean) as string[]
-  if (kind === 'THESIS') return [thesis?.title, thesis?.status, 'منهجية', 'نتائج'].filter(Boolean) as string[]
-  if (kind === 'DEFENSE') return [thesis?.title || program?.titleAr || 'مناقشة', 'سؤال'].filter(Boolean) as string[]
+  if (kind === 'THESIS') return [thesis?.title, 'منهجية', 'نتائج'].filter(Boolean) as string[]
+  if (kind === 'DEFENSE') return [thesis?.title || program?.titleAr || 'مناقشة', 'مؤشرات المخاطر الرئيسية', 'الحوكمة المؤسسية'].filter(Boolean) as string[]
   return []
 }
 
