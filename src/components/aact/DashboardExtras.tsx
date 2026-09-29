@@ -166,6 +166,7 @@ export function PaymentsTab() {
   const [loading, setLoading] = useState(true)
   const [payTarget, setPayTarget] = useState<Payment | null>(null)
   const [method, setMethod] = useState('DIRECT_PAYMENT')
+  const [usdtInstructionMode, setUsdtInstructionMode] = useState<'QR' | 'USER'>('QR')
   const [paying, setPaying] = useState(false)
   const [receipt, setReceipt] = useState<{ payment: Payment } | null>(null)
   const [payConfig, setPayConfig] = useState<PaymentConfig | null>(null)
