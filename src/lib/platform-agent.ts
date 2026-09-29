@@ -469,7 +469,7 @@ export async function platformPublicAgentComplete(opts: {
       temperature: 0.35,
       maxOutputTokens: isWhatsApp ? 900 : 1100,
     }), timeoutMs, 'Gemini public platform agent timed out')
-    return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' as const }
+    return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
   }
 
   if (isWhatsApp) {
