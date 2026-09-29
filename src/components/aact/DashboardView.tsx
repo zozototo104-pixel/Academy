@@ -1474,10 +1474,10 @@ export function DashboardView() {
               {lastChats.length === 0 ? (
                 <div className="rounded-xl bg-[#f7edd0]/50 p-4 text-center">
                   <p className="text-xs leading-relaxed text-slate-600">
-                    لم تبدأ محادثتك مع المشرف الذكي بعد. اسأله أي سؤال عن دوراتك — صوتاً أو كتابة!
+                    {aiSupervisorAllowed ? 'لم تبدأ محادثتك مع المشرف الذكي بعد. اسأله أي سؤال عن دوراتك — صوتاً أو كتابة!' : aiSupervisorBlockedReason}
                   </p>
-                  <Button size="sm" className="mt-3 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]" onClick={() => navigate('chat')}>
-                    ابدأ المحادثة
+                  <Button size="sm" className={aiSupervisorAllowed ? 'mt-3 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]' : 'mt-3 border-slate-200 bg-slate-100 font-extrabold text-slate-500 hover:bg-slate-100'} onClick={openAiSupervisor}>
+                    {aiSupervisorAllowed ? 'ابدأ المحادثة' : 'غير مفعل بعد'}
                   </Button>
                 </div>
               ) : (
