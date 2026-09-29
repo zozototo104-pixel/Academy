@@ -1071,9 +1071,14 @@ export function ApplyView() {
                     </div>
                     {tracked.supervisorName && <p className="mt-2 text-xs font-bold text-purple-600">المشرف الأكاديمي: {tracked.supervisorName}</p>}
                     {tracked.nextAction && <p className="mt-3 rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-[#5c4d1a]">الخطوة التالية: {tracked.nextAction}</p>}
+                    {tracked.publicTracking && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+                        هذه نتيجة تتبع عامة ومحجوبة لحماية بيانات صاحب الطلب. أدخل البريد المسجل أو آخر 4 أرقام من الهاتف ثم اضغط بحث لعرض التفاصيل، أو سجّل الدخول بحساب الطالب.
+                      </div>
+                    )}
                   </div>
 
-                  {tracked.payments?.length > 0 && (
+                  {!tracked.publicTracking && tracked.payments?.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">فواتير الطلب</h3>
                       {sortInvoicesNewest(tracked.payments).map((inv: TrackedInvoice) => (
