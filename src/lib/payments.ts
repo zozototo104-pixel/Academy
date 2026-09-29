@@ -200,7 +200,22 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
 }
 
 export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
-  const keys = ['PAYMENT_MODE', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_SECRET', 'PAYPAL_API_BASE', 'USDT_WALLET_ADDRESS', 'USDT_NETWORK', 'USDT_PAYMENT_INSTRUCTIONS']
+  const keys = [
+    'PAYMENT_MODE',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'PAYPAL_CLIENT_ID',
+    'PAYPAL_SECRET',
+    'PAYPAL_API_BASE',
+    'USDT_WALLET_ADDRESS',
+    'USDT_NETWORK',
+    'USDT_PAYMENT_INSTRUCTIONS',
+    'USDT_BINANCE_PAY_USER_ID',
+    'USDT_BINANCE_PAY_QR_IMAGE_URL',
+    'BINANCE_DOWNLOAD_URL',
+    'BINANCE_PAY_WEB_URL',
+    'BINANCE_PAY_GUIDE_URL',
+  ]
   const rows = await db.setting.findMany({ where: { key: { in: keys } } })
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
