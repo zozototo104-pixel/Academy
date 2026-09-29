@@ -81,6 +81,20 @@ function validEmail(value?: string | null) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
 }
 
+function digitsOnly(value?: string | null) {
+  return String(value || '').replace(/\D/g, '')
+}
+
+function trackingVerifierMatches(app: { email?: string | null; phone?: string | null }, verifier?: string | null) {
+  const value = String(verifier || '').trim().toLowerCase()
+  if (!value) return false
+  const email = validEmail(value)
+  if (email && email === String(app.email || '').trim().toLowerCase()) return true
+  const digits = digitsOnly(value)
+  const phoneDigits = digitsOnly(app.phone)
+  return digits.length >= 4 && !!phoneDigits && phoneDigits.endsWith(digits)
+}
+
 async function adminAdmissionEmailRecipients() {
   const adminUsers = await db.user.findMany({
     where: { role: 'ADMIN' },
