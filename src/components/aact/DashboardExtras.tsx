@@ -319,7 +319,7 @@ export function PaymentsTab() {
   const submitUsdtProof = async (payment: Payment) => {
     const txHash = (usdtHashes[payment.id] || payment.cryptoTxHash || '').trim()
     if (!txHash) {
-      toast({ title: 'أدخل TX Hash', description: 'انسخ Hash عملية تحويل USDT من المحفظة وألصقه هنا.', variant: 'destructive' })
+      toast({ title: 'أدخل رقم العملية', description: 'أدخل TX Hash للتحويل الشبكي أو رقم/إثبات عملية Binance Pay.', variant: 'destructive' })
       return
     }
     setVerifyingUsdt(payment.id)
