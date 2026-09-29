@@ -788,14 +788,23 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     for (const model of await modelFallbacks(s, provider)) {
       for (const key of candidateKeys(provider, s)) {
         if (isCooling(provider, key)) continue
+        const started = Date.now()
+        const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         try {
           const text = await callProvider(provider, s, key, model, opts)
-          lastResult = { provider, model, ok: true, at: new Date().toISOString() }
+          const at = new Date().toISOString()
+          const ms = Date.now() - started
+          lastResult = { provider, model, ok: true, at }
+          recordAttempt({ provider, model, keyIndex, ok: true, ms, at })
           return text
         } catch (e: any) {
+          const at = new Date().toISOString()
+          const ms = Date.now() - started
           const msg = String(e?.message || e).slice(0, 240)
-          lastResult = { provider, model, ok: false, error: msg, at: new Date().toISOString() }
-          errors.push(`${provider}/${model}/${keyHash(key)}: ${msg}`)
+          const status = statusFromError(e)
+          lastResult = { provider, model, ok: false, error: msg, at }
+          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
+          errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
           if (isQuotaLike(e)) markCooldown(provider, key, msg)
           if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
