@@ -794,6 +794,7 @@ export async function POST(req: NextRequest) {
       probeKinds,
       version: appVersion(),
       studentContext: contextCoverage,
+      providerDiagnostics,
       voiceReadiness: { supervisor: voiceSupervisor, discussion: voiceDiscussion },
       probes,
       summary: {
