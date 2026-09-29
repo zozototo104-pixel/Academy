@@ -36,12 +36,12 @@ export async function POST(req: NextRequest) {
       include: { programRef: { select: { id: true } } },
     })
     if (!app) return NextResponse.json({ error: 'الطلب غير مرتبط بحسابك' }, { status: 403 })
-    if (!['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'].includes(app.status)) {
-      return NextResponse.json({ error: 'يمكن تقديم التماس التقسيط بعد موافقة الإدارة وظهور فاتورة الرسوم الدراسية' }, { status: 400 })
-    }
 
     const plan = await getAdmissionTuitionPlan(app.id)
     if (!plan || plan.totalTuition <= 0) return NextResponse.json({ error: 'لا توجد فاتورة رسوم دراسية قابلة للتقسيط لهذا الطلب' }, { status: 400 })
+    if (!plan.canRequestInstallmentAppeal) {
+      return NextResponse.json({ error: plan.installmentAppealBlockedReason || 'لا يمكن تقديم طلب التقسيط حالياً' }, { status: 400 })
+    }
     if (requestedInitialAmount >= plan.remainingTuition) return NextResponse.json({ error: 'المبلغ المقترح يساوي أو يتجاوز المتبقي؛ يمكنك سداد الفاتورة مباشرة' }, { status: 400 })
 
     const existing = await db.tuitionInstallmentAppeal.findFirst({
