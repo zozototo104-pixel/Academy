@@ -570,8 +570,8 @@ export function DashboardView() {
           <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">{hasStudyIdentity ? 'بوابة الطالب' : 'بوابة العميل'}</h1>
           <p className="mt-1 text-sm text-slate-500">أهلاً {user.name} — {hasStudyIdentity ? (hasProgramDashboard ? 'رحلتك التدريبية في مكان واحد' : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
         </div>
-        <Button onClick={() => navigate('chat')} className="bg-[#0f2b46] font-extrabold text-[#e0b83a] hover:bg-[#12365c]">
-          <Bot className="ml-2 h-4 w-4" /> اسأل المشرف الذكي
+        <Button onClick={openAiSupervisor} variant={aiSupervisorAllowed ? 'default' : 'outline'} className={aiSupervisorAllowed ? 'bg-[#0f2b46] font-extrabold text-[#e0b83a] hover:bg-[#12365c]' : 'border-slate-200 bg-slate-100 font-extrabold text-slate-500 hover:bg-slate-100'}>
+          <Bot className="ml-2 h-4 w-4" /> {aiSupervisorAllowed ? 'اسأل المشرف الذكي' : 'المشرف الذكي غير مفعل'}
         </Button>
       </div>
 
