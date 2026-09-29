@@ -25,18 +25,26 @@ export async function markInvoicePaid(
   if (payment.status === 'PAID') return { ok: true, payment, receiptNo: payment.receiptNo || '' }
 
   const receiptNo = await nextReceiptNo()
-  const updated = await db.payment.update({
-    where: { id: payment.id },
+  const paidAt = new Date()
+  const settled = await db.payment.updateMany({
+    where: { id: payment.id, status: { not: 'PAID' } },
     data: {
       status: 'PAID',
       method: String(method),
       receiptNo,
-      paidAt: new Date(),
+      paidAt,
       paidViaWebhook: !!opts?.viaWebhook,
       // لا نربط الفاتورة بمستخدم الإدارة الذي أكد الدفع. سيتم ربطها بصاحب الطلب أدناه عند توفر حساب مطابق.
       userId: payment.userId || null,
     },
   })
+  if (settled.count === 0) {
+    const alreadyPaid = await db.payment.findUnique({ where: { id: payment.id } })
+    if (alreadyPaid?.status === 'PAID') return { ok: true, payment: alreadyPaid, receiptNo: alreadyPaid.receiptNo || '' }
+    return { ok: false, error: 'تعذر تأكيد السداد لأن حالة الفاتورة تغيرت أثناء المعالجة' }
+  }
+  const updated = await db.payment.findUnique({ where: { id: payment.id } })
+  if (!updated) return { ok: false, error: 'تعذر قراءة الفاتورة بعد تأكيد السداد' }
   const actor = opts?.actor || { name: payment.payerName || 'دافع' }
 
   // آثار السداد على طلب الالتحاق (وفق ترتيب دليل الإجراءات الرسمي)
