@@ -627,6 +627,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     keyCounts: counts,
     cooldowns: cooldownList(),
     lastResult,
+    recentAttempts,
     message: order.length ? `AI Router جاهز. المزود التالي: ${order[0]} — السياسة: ${s.policy}` : 'لا يوجد مزود نصوص مضبوط حالياً أو أن البوابات العامة غير مسموحة.',
   }
 }
