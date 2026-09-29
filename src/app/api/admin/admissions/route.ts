@@ -236,7 +236,7 @@ export async function PATCH(req: NextRequest) {
       if (!supervisorId || supervisorId === 'AI_ONLY') {
         const updated = await db.admissionApplication.update({
           where: { id },
-          data: { supervisorId: null, supervisorAt: null, supervisionMode: 'AI', status: app.status },
+          data: { supervisorId: null, supervisorAt: new Date(), supervisionMode: 'AI', status: app.status },
         })
         await notify(app.userId || null, 'ADMISSION', 'تم ضبط إشرافك الأكاديمي', `تم ضبط طلبك (${app.reference}) على إشراف المشرف الذكي الأكاديمي.`, 'dashboard')
         await audit(user, 'ASSIGN_SUPERVISOR', 'AdmissionApplication', id, `ضبط ${app.fullName} (${app.reference}) على مشرف ذكي فقط`)
