@@ -1494,8 +1494,8 @@ export function DashboardView() {
                       <span className="line-clamp-3">{m.content}</span>
                     </div>
                   ))}
-                  <Button size="sm" variant="outline" className="w-full border-[#0f2b46]/20 text-[#0f2b46]" onClick={() => navigate('chat')}>
-                    متابعة المحادثة
+                  <Button size="sm" variant="outline" className="w-full border-[#0f2b46]/20 text-[#0f2b46]" onClick={openAiSupervisor}>
+                    {aiSupervisorAllowed ? 'متابعة المحادثة' : 'المشرف الذكي غير مفعل'}
                   </Button>
                 </div>
               )}
