@@ -138,10 +138,17 @@ function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'بكالوريوس', 'بكلوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
   if (role === 'SUPERVISOR' && includesAny(n, ['طلابي', 'طلاب', 'طالب', 'بحث', 'ابحاث', 'مناقشة', 'منهجيه', 'متابعة', 'متعثر'])) return 'THESIS_DEFENSE'
+
+  // نية البحث/المناقشة أعلى من القبول؛ كلمة «تخصصي» لا يجب أن تسحب سؤال المناقشة إلى القبول.
+  if (hasThesisDefenseIntent(n)) return 'THESIS_DEFENSE'
+
+  if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
+
+  // الطالب عندما يسأل عن ملفه/برنامجه/كتبه فهو يحتاج المشرف الأكاديمي لا وكيل القبول العام.
+  if (role === 'STUDENT' && hasStudentAcademicIntent(n)) return 'ACADEMIC_SUPERVISOR'
+
   if (includesAny(n, ['برامج', 'برنامج', 'تخصص', 'دبلوم', 'دبلومات', 'دبلم', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'دكتورا', 'بكالوريوس', 'بكلوريوس'])) return 'ADMISSIONS'
   if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
-  if (includesAny(n, ['امتحان', 'اختبار', 'سؤال', 'اسئلة', 'تصحيح', 'درجة', 'اعتراض', 'قياس', 'تقويم'])) return 'EXAMS'
-  if (includesAny(n, ['بحث', 'رسالة', 'اطروحة', 'مشروع تخرج', 'مناقشة', 'لجنة', 'منهجية', 'نتائج'])) return 'THESIS_DEFENSE'
   if (includesAny(n, ['شهادة', 'شهادتي', 'تحقق', 'qr', 'سجل اكاديمي', 'رقم شهادة'])) return 'CERTIFICATES'
   if (includesAny(n, ['وكالة', 'وكيل', 'اعتماد', 'جهة اعتماد', 'مدرب معتمد', 'مستشار معتمد'])) return 'AGENCY_ACCREDITATION'
   if (includesAny(n, ['كتاب', 'كتب', 'منهج', 'منهاج', 'دراسة', 'اشرح', 'مفهوم', 'واجب', 'محاضرة', 'تخصصي', 'برنامجي'])) return 'ACADEMIC_SUPERVISOR'
