@@ -81,6 +81,30 @@ function withPlatformTimeout<T>(promise: Promise<T>, ms: number, label: string):
   })
 }
 
+function providerStatusFromError(e: any): number | undefined {
+  const status = Number(e?.status || e?.code || 0)
+  return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function logPlatformProviderAttempt(args: {
+  ok: boolean
+  provider: string
+  model: string
+  agent: PlatformAgentKind
+  ms: number
+  status?: number
+  error?: string
+}) {
+  console.info('[platform-agent-provider]', args.ok ? 'ok' : 'failed', {
+    provider: args.provider,
+    model: args.model,
+    agent: args.agent,
+    ms: args.ms,
+    status: args.status,
+    error: args.error ? args.error.slice(0, 220) : undefined,
+  })
+}
+
 function expandArabicProgramQuery(query?: string | null): string {
   const n = normalizeArabic(query || '')
   const aliases: string[] = [n]
