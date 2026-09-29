@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete } from '@/lib/platform-agent'
+import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
 // GET /api/chat — سجل المحادثة (نصي وصوتي مع النسخ المفرّغ)
