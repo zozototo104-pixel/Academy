@@ -265,7 +265,8 @@ async function settings() {
     provider,
     policy,
     allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
-    geminiKeys: parseKeys(rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS, env('GEMINI_API_KEY'), env('GEMINI_API_KEYS')),
+    // أولوية Gemini المطلوبة للفحص والإنتاج: مفتاح Vercel أولاً، ثم مفاتيح Gemini الإضافية/الخارجية كبدائل.
+    geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
     geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
     openaiKeys: parseKeys(rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS, env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
