@@ -501,6 +501,31 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const serializePublic = (app: any) => {
+      const flow = getServiceFlow(app.programRef?.slug)
+      const isStudyProgram = flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
+      const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
+      return {
+        reference: app.reference,
+        program: app.program,
+        programSlug: app.programRef?.slug || null,
+        requestKind,
+        requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
+        isStudyProgram,
+        status: app.status,
+        statusLabel: STATUS_LABEL[app.status] || app.status,
+        createdAt: app.createdAt,
+        publicTracking: true,
+        verificationRequired: true,
+        fullName: 'بيانات صاحب الطلب محجوبة',
+        payments: [],
+        documents: [],
+        tuitionPlan: null,
+        theses: [],
+        nextAction: 'لأمان بياناتك، يعرض التتبع العام حالة مختصرة فقط. أدخل البريد المسجل أو آخر 4 أرقام من الهاتف، أو سجّل دخولك بحساب الطالب، لعرض الفواتير والمرفقات والتفاصيل.',
+      }
+    }
+
     if (mine) {
       const user = await getCurrentUser()
       if (!user) return NextResponse.json({ applications: [], application: null })
