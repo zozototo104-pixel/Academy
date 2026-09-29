@@ -44,6 +44,21 @@ function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
 }
 
+function hasTokenAny(n: string, words: string[]) {
+  const tokens = new Set(n.split(/\s+/).filter(Boolean))
+  return words.some((w) => tokens.has(normalizeArabic(w)))
+}
+
+function hasThesisDefenseIntent(n: string) {
+  return hasTokenAny(n, ['بحث', 'بحثي', 'ابحاث', 'رسالتي', 'رسالة', 'اطروحة', 'اطروحتي', 'مناقشة', 'المناقشة', 'لجنة', 'منهجية', 'المنهجية', 'نتائج', 'النتائج', 'توصيات', 'دفاع'])
+    || includesAny(n, ['بحث تخرج', 'مشروع تخرج', 'لجنة مناقشة', 'عضو لجنة', 'عنوان بحثي', 'قبل المناقشة'])
+}
+
+function hasStudentAcademicIntent(n: string) {
+  return hasTokenAny(n, ['ملفي', 'اكاديمي', 'الاكاديمي', 'برنامجي', 'كتبي', 'كتابي', 'وحداتي', 'وحدات', 'منهجي', 'منهاجي', 'مقرراتي', 'دراستي', 'قراءتي', 'اقرا', 'اراجع'])
+    || includesAny(n, ['ملفي الاكاديمي', 'نقاط الضعف', 'خطة قراءة', 'خطة دراسة', 'ما الكتب', 'ما الوحدات'])
+}
+
 function compactText(value?: string | null, max = 220): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
