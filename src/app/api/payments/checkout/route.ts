@@ -67,10 +67,12 @@ export async function POST(req: NextRequest) {
           userId: payment.userId || user?.id || null,
           ...(manualProvider === 'USDT'
             ? {
-                cryptoNetwork: cfg.usdtNetwork || 'TRC20',
-                cryptoWalletAddress: cfg.usdtWalletAddress,
+                cryptoNetwork: cfg.usdtWalletAddress ? (cfg.usdtNetwork || 'TRC20') : 'BINANCE_PAY',
+                cryptoWalletAddress: cfg.usdtWalletAddress || cfg.usdtBinancePayUserId || 'BINANCE_PAY_QR',
                 cryptoVerificationStatus: 'WAITING_TX',
-                cryptoVerificationNote: 'بانتظار إدخال TX Hash من الطالب/العميل ثم التحقق الآلي.',
+                cryptoVerificationNote: cfg.usdtWalletAddress
+                  ? 'بانتظار إدخال TX Hash من الطالب/العميل ثم التحقق الآلي إن كانت الشبكة مدعومة.'
+                  : 'بانتظار إدخال رقم عملية Binance Pay أو إرفاق إثبات الدفع؛ ستراجعه الإدارة يدوياً.',
               }
             : {}),
         },
