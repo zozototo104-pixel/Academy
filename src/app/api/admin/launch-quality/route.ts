@@ -16,6 +16,7 @@ import {
   type GeminiLivePurpose,
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
+import { textAiDiagnostics } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
