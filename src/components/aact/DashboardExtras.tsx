@@ -519,7 +519,7 @@ export function PaymentsTab() {
                   </div>
                   <p className='mt-1 text-[11px] text-slate-500'>{PURPOSE_LABEL[p.purpose] || p.purpose}{p.reference ? ` — طلب ${p.reference}` : ''}{p.method ? ` — عبر ${METHOD_LABEL[p.method] || p.method}` : ''}{p.receiptNo ? ` — إيصال ${p.receiptNo}` : ''}</p>
                   {p.status === 'UNPAID' && p.method === 'USDT' && (
-                    <div className='mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3'>
+                    <div className='mt-3 w-full max-w-full overflow-hidden rounded-xl border border-blue-100 bg-blue-50 p-3'>
                       <div className='flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-blue-900'>
                         <span>تحقق USDT: {p.cryptoVerificationStatus === 'VERIFIED' ? 'تم التحقق آلياً — بانتظار تأكيد الإدارة' : p.cryptoVerificationStatus === 'UNSUPPORTED' ? 'الإثبات يحتاج مراجعة يدوية من الإدارة' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق — راجع Hash أو المبلغ/المحفظة' : 'بانتظار رقم العملية أو Hash التحويل'}</span>
                         {p.cryptoNetwork && <span className='rounded-full bg-white px-2 py-0.5'>{p.cryptoNetwork}</span>}
