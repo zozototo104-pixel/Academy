@@ -322,8 +322,9 @@ export async function chatComplete(
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
   const timeoutMs = aiTimeoutMs(options.timeoutMs, 22_000)
 
-  // أسئلة المنصة العامة نجيب عليها فورياً من بيانات الأكاديمية حتى لا ينتظر الطالب Gemini طويلاً.
-  if (shouldAnswerLocally(lastUserText)) {
+  // أسئلة المنصة العامة نجيب عليها فورياً من بيانات الأكاديمية للزائر فقط.
+  // عندما تكون إجابة أكاديمية ملزمة مطلوبة، لا نستخدم الرد المحلي لأنه يخفي فشل المزوّدين.
+  if (!options.requireModelResponse && shouldAnswerLocally(lastUserText)) {
     return localSupervisorFallback(messages)
   }
 
