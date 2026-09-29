@@ -635,19 +635,28 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
 
     const hits = keywordHits(result.reply, expected)
     const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
+    const expectedAgent = expectedAgentForProbe(kind)
+    const agentMatches = expectedAgent ? result.agent === expectedAgent : true
+    const genericFallback = isGenericFallbackReply(result.reply)
+    const grounded = hasGroundingForProbe(kind, result.reply, student)
+    const passed = !genericFallback && agentMatches && grounded && hits.score >= minScore && result.reply.length >= 80
     return {
       kind,
       question,
       agent: result.agent,
+      expectedAgent,
+      agentMatches,
       engine: result.engine,
       ms: elapsed(started),
       replyChars: result.reply.length,
       replySample: result.reply.slice(0, 900),
       expected,
-      keywordScore: hits.score,
-      hits: hits.hits,
-      missed: hits.missed,
-      passed: hits.score >= minScore && result.reply.length >= 80,
+      keywordScore: genericFallback ? 0 : hits.score,
+      hits: genericFallback ? [] : hits.hits,
+      missed: genericFallback ? expected : hits.missed,
+      genericFallback,
+      grounded,
+      passed,
     }
   } catch (e: any) {
     const error = String(e?.message || e).slice(0, 900)
