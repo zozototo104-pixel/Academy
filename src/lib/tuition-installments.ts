@@ -174,7 +174,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     program: app.program,
     totalTuition,
     paidTuition,
-    remainingTuition: roundMoney(Math.max(0, totalTuition - paidTuition)),
+    remainingTuition,
     halfRequired,
     finalRequired,
     firstSemesterAllowed: totalTuition <= 0 || paidTuition >= halfRequired,
@@ -184,6 +184,10 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     approvedInitialAmount: appeal?.approvedInitialAmount ?? null,
     firstSemesterRequiredAmount: appeal?.firstSemesterRequiredAmount ?? null,
     finalRequiredAmount: appeal?.finalRequiredAmount ?? null,
+    admissionStatus: app.status,
+    applicationFeePaid: feePaid,
+    canRequestInstallmentAppeal: eligibility.ok,
+    installmentAppealBlockedReason: eligibility.reason,
   }
 }
 
