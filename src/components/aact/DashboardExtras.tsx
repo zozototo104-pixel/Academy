@@ -567,9 +567,41 @@ export function PaymentsTab() {
             </div>
             <div className='rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500'><Info className='mb-1 h-3.5 w-3.5 text-[#c9a227]' /> الدفع اليدوي لا يخصم تلقائياً؛ في USDT أدخل Hash التحويل بعد الدفع ليتم التحقق آلياً إن كانت الشبكة مدعومة، ثم تؤكد الإدارة السداد.</div>
             {method === 'USDT' && payConfig?.usdt && (
-              <div className='rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-relaxed text-blue-900'>
-                <p>الشبكة الحالية: <span dir='ltr'>{payConfig.usdt.network || 'TRC20'}</span></p>
-                {payConfig.usdt.instructions && <p className='mt-1 text-blue-800'>{payConfig.usdt.instructions}</p>}
+              <div className='space-y-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-relaxed text-blue-950'>
+                <div>
+                  <p className='text-sm font-black text-blue-950'>تعليمات الدفع عبر USDT / Binance Pay</p>
+                  <p className='mt-1 text-blue-900'>ادفع مبلغ الفاتورة نفسه بالدولار USDT، ثم بعد إتمام العملية أدخل رقم العملية أو TX Hash في بطاقة الفاتورة ليتم تأكيدها من الإدارة.</p>
+                  <div className='mt-2 flex flex-wrap gap-2'>
+                    {payConfig.usdt.binanceDownloadUrl && <a href={payConfig.usdt.binanceDownloadUrl} target='_blank' rel='noreferrer' className='rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-700 underline'>تحميل تطبيق Binance</a>}
+                    {payConfig.usdt.binancePayWebUrl && <a href={payConfig.usdt.binancePayWebUrl} target='_blank' rel='noreferrer' className='rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-700 underline'>الدفع من موقع Binance</a>}
+                    {payConfig.usdt.binancePayGuideUrl && <a href={payConfig.usdt.binancePayGuideUrl} target='_blank' rel='noreferrer' className='rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-700 underline'>شرح Binance Pay</a>}
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  <Button type='button' variant={usdtInstructionMode === 'QR' ? 'default' : 'outline'} onClick={() => setUsdtInstructionMode('QR')} className={usdtInstructionMode === 'QR' ? 'bg-blue-700 text-white hover:bg-blue-800' : 'border-blue-200 text-blue-700'}>الدفع باستخدام QR</Button>
+                  <Button type='button' variant={usdtInstructionMode === 'USER' ? 'default' : 'outline'} onClick={() => setUsdtInstructionMode('USER')} className={usdtInstructionMode === 'USER' ? 'bg-blue-700 text-white hover:bg-blue-800' : 'border-blue-200 text-blue-700'}>الدفع باستخدام اليوزر</Button>
+                </div>
+                {usdtInstructionMode === 'QR' ? (
+                  <div className='rounded-2xl border border-blue-100 bg-white p-3 text-center'>
+                    {payConfig.usdt.binancePayQrImageUrl ? (
+                      <img src={payConfig.usdt.binancePayQrImageUrl} alt='Binance Pay QR' className='mx-auto max-h-80 rounded-xl object-contain' />
+                    ) : (
+                      <p className='text-blue-700'>لم يتم ضبط صورة QR بعد. استخدم خيار اليوزر أو راجع الإدارة.</p>
+                    )}
+                    <p className='mt-2 text-[10px] text-slate-500'>افتح تطبيق Binance ثم Pay/Scan وامسح الرمز.</p>
+                  </div>
+                ) : (
+                  <div className='rounded-2xl border border-blue-100 bg-white p-3'>
+                    <p className='text-[10px] text-slate-500'>أرسل USDT من Binance Pay إلى هذا المستخدم:</p>
+                    <div className='mt-2 flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-3'>
+                      <span className='font-mono text-base font-black text-[#0f2b46]' dir='ltr'>{payConfig.usdt.binancePayUserId || 'غير مضبوط'}</span>
+                      {payConfig.usdt.binancePayUserId && <Button type='button' size='sm' variant='outline' onClick={() => copyText(payConfig.usdt?.binancePayUserId || '', 'Binance Pay User ID')} className='border-blue-200 text-blue-700'>نسخ</Button>}
+                    </div>
+                    <p className='mt-2 text-[10px] text-slate-500'>يمكن الدفع من التطبيق أو من موقع Binance عبر Pay/Send ثم إدخال Binance ID إذا كان الخيار متاحاً لحسابك وبلدك.</p>
+                  </div>
+                )}
+                {payConfig.usdt.walletAddress && <p>عنوان المحفظة البديل: <span className='break-all font-mono' dir='ltr'>{payConfig.usdt.walletAddress}</span></p>}
+                {payConfig.usdt.instructions && <p className='text-blue-800'>{payConfig.usdt.instructions}</p>}
               </div>
             )}
             <Button onClick={pay} disabled={paying} className='w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]'>
