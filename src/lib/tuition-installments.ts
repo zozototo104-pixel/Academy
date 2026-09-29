@@ -111,8 +111,16 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const fallbackTuition = Number(app.programRef?.price || 0)
   const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
   const paidTuition = tuitionPaidTotal(app.payments)
+  const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
   const halfRequired = roundMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)))
   const finalRequired = roundMoney(Math.max(totalTuition, Number(appeal?.finalRequiredAmount ?? 0)))
+  const feePaid = applicationFeePaid(app.payments)
+  const eligibility = installmentAppealEligibility({
+    admissionStatus: app.status,
+    applicationFeePaid: feePaid,
+    remainingTuition,
+    appealStatus: appeal?.status || null,
+  })
   return {
     admissionId: app.id,
     reference: app.reference,
