@@ -98,6 +98,9 @@ export async function PATCH(req: NextRequest) {
     const payment = await db.payment.findUnique({ where: { id } })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
+    if (!payment.method) {
+      return NextResponse.json({ error: 'لا يمكن تأكيد الفاتورة قبل أن يختار الطالب طريقة الدفع من بوابة الطالب.' }, { status: 400 })
+    }
     if (payment.method === 'USDT') {
       const hasTx = !!payment.cryptoTxHash
       const canManualReview = hasTx && payment.cryptoVerificationStatus === 'UNSUPPORTED'
