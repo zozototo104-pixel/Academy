@@ -764,6 +764,7 @@ export async function POST(req: NextRequest) {
     if (runAi && student) {
       for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
     }
+    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
 
     const passedProbes = probes.filter((p: any) => p.passed).length
     const skippedProbes = probes.filter((p: any) => p.skipped).length
