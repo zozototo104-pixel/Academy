@@ -144,10 +144,10 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     {
       id: 'PAYPAL',
       label: 'PayPal — حسابات وبطاقات عبر PayPal',
-      enabled: paypalReady,
+      enabled: false,
       configured: !!(cfg.paypalClientId && cfg.paypalSecret),
       kind: 'gateway',
-      reason: paypalReady ? undefined : paypalKind === 'sandbox' && cfg.paypalClientId && cfg.paypalSecret ? 'PayPal مضبوط على sandbox. استخدم رابط api-m.paypal.com لتفعيل الدفع الحقيقي.' : 'PayPal غير متاح حالياً لأن Client ID و Secret غير مضبوطين للدفع الحقيقي.',
+      reason: preparingReason,
     },
     {
       id: 'USDT',
