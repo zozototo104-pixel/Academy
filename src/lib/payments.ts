@@ -224,10 +224,15 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   const paypalSecret = map.PAYPAL_SECRET || env('PAYPAL_SECRET') || ''
   const paypalApiBase = (map.PAYPAL_API_BASE || env('PAYPAL_API_BASE') || 'https://api-m.sandbox.paypal.com').replace(/\/$/, '')
   const usdtWalletAddress = map.USDT_WALLET_ADDRESS || env('USDT_WALLET_ADDRESS') || ''
-  const usdtNetwork = map.USDT_NETWORK || env('USDT_NETWORK') || 'TRC20'
+  const usdtBinancePayUserId = map.USDT_BINANCE_PAY_USER_ID || env('USDT_BINANCE_PAY_USER_ID') || 'User-92959'
+  const usdtBinancePayQrImageUrl = map.USDT_BINANCE_PAY_QR_IMAGE_URL || env('USDT_BINANCE_PAY_QR_IMAGE_URL') || '/binance-pay-qr.svg'
+  const usdtNetwork = map.USDT_NETWORK || env('USDT_NETWORK') || (usdtWalletAddress ? 'TRC20' : 'BINANCE_PAY')
   const usdtInstructions = map.USDT_PAYMENT_INSTRUCTIONS || env('USDT_PAYMENT_INSTRUCTIONS') || ''
+  const binanceDownloadUrl = map.BINANCE_DOWNLOAD_URL || env('BINANCE_DOWNLOAD_URL') || 'https://www.binance.com/en/download'
+  const binancePayWebUrl = map.BINANCE_PAY_WEB_URL || env('BINANCE_PAY_WEB_URL') || 'https://www.binance.com/en/my/wallet/account/payment/send'
+  const binancePayGuideUrl = map.BINANCE_PAY_GUIDE_URL || env('BINANCE_PAY_GUIDE_URL') || 'https://www.binance.com/en/support/faq/detail/b3fa3ae045b9429084203c3a4ff1362f'
   const modeSetting = map.PAYMENT_MODE || env('PAYMENT_MODE') || 'SANDBOX'
-  const hasUsdtManual = !!usdtWalletAddress
+  const hasUsdtManual = !!(usdtWalletAddress || usdtBinancePayUserId || usdtBinancePayQrImageUrl)
   const hasRealProviders = !!(stripeSecret || (paypalClientId && paypalSecret) || hasUsdtManual)
   const mode: 'SANDBOX' | 'LIVE' = modeSetting === 'LIVE' && hasRealProviders ? 'LIVE' : 'SANDBOX'
   return {
