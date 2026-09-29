@@ -518,7 +518,7 @@ export function PaymentsTab() {
                         <Input dir='ltr' value={usdtHashes[p.id] ?? p.cryptoTxHash ?? ''} onChange={(e) => setUsdtHashes((prev) => ({ ...prev, [p.id]: e.target.value }))} placeholder='رقم عملية Binance Pay أو TX Hash' className='font-mono text-xs' />
                         <Button size='sm' disabled={verifyingUsdt === p.id} onClick={() => submitUsdtProof(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
                           {verifyingUsdt === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
-                          تحقق من التحويل
+                          إرسال الإثبات
                         </Button>
                       </div>
                     </div>
