@@ -566,19 +566,27 @@ export async function platformAgentComplete(opts: {
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
     if (!geminiReady) return null
+    const model = await geminiActiveTextModel().catch(() => 'unknown')
+    const started = Date.now()
     const thinkingLevel: GeminiThinkingLevel | undefined = agent === 'THESIS_DEFENSE'
       ? await geminiDiscussionThinkingLevel().catch(() => 'high' as GeminiThinkingLevel)
       : agent === 'EXAMS' || agent === 'ADMIN_QUALITY'
         ? 'medium'
         : undefined
-    const reply = await withPlatformTimeout(geminiComplete({
-      system,
-      history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
-      temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
-      thinkingLevel,
-      maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
-    }), timeoutMs, 'Gemini platform agent timed out')
-    return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
+    try {
+      const reply = await withPlatformTimeout(geminiComplete({
+        system,
+        history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+        temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
+        thinkingLevel,
+        maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
+      }), timeoutMs, 'Gemini platform agent timed out')
+      logPlatformProviderAttempt({ ok: true, provider: 'GEMINI_DIRECT', model, agent, ms: Date.now() - started })
+      return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
+    } catch (e: any) {
+      logPlatformProviderAttempt({ ok: false, provider: 'GEMINI_DIRECT', model, agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
+      throw e
+    }
   }
 
   if (shouldPreferGemini) {
