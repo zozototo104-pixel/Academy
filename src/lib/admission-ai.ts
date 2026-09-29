@@ -489,7 +489,7 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
   }
 
-  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /\bcv\b|resume|curriculum vitae|education|work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|profile|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المؤهلات العلميه|المؤهلات العلمية|المهارات/.test(n)
+  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /\bcv\b|resume|curriculum vitae|work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المهارات/.test(n)
   const strongIdSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|id card|passport no|document number/.test(n)
   const weakIdSignal = /date of birth|place of birth|الجنسية|الجنسيه|nationality|gender/.test(n)
 
