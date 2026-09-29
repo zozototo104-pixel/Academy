@@ -1048,7 +1048,7 @@ export function ApplyView() {
               <h2 className="mb-1 flex items-center gap-2 text-lg font-black text-[#0f2b46]"><Search className="h-5 w-5 text-[#c9a227]" /> تتبع حالة طلب الالتحاق أو الخدمة</h2>
               <p className="mb-6 text-xs text-slate-500">أدخل كود التتبع لعرض الحالة المختصرة. لعرض الفواتير والمرفقات والتفاصيل الخاصة، أضف البريد المسجل أو آخر 4 أرقام من الهاتف.</p>
               <form onSubmit={track} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-                <Input dir="ltr" className="text-left font-mono" placeholder="AACT-2026-XXXX" value={trackRef} onChange={(e) => setTrackRef(e.target.value)} required />
+                <Input dir="ltr" className="text-left font-mono" placeholder="AACT-2026-..." value={trackRef} onChange={(e) => setTrackRef(e.target.value)} required />
                 <Input dir="ltr" className="text-left" placeholder="البريد أو آخر 4 أرقام من الهاتف — اختياري" value={trackVerify} onChange={(e) => setTrackVerify(e.target.value)} />
                 <Button type="submit" disabled={tracking} className="bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
                   {tracking ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Search className="ml-1 h-4 w-4" />} بحث
