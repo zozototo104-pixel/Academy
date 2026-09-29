@@ -44,7 +44,17 @@ interface PaymentConfig {
   warnings: string[]
   errors: string[]
   methods: PaymentMethodStatus[]
-  usdt?: { configured: boolean; network: string; instructions: string }
+  usdt?: {
+    configured: boolean
+    network: string
+    instructions: string
+    walletAddress?: string
+    binancePayUserId?: string
+    binancePayQrImageUrl?: string
+    binanceDownloadUrl?: string
+    binancePayWebUrl?: string
+    binancePayGuideUrl?: string
+  }
 }
 
 interface Payment {
