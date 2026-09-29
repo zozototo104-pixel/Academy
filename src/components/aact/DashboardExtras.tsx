@@ -606,7 +606,7 @@ export function PaymentsTab() {
             )}
             <Button onClick={pay} disabled={paying} className='w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]'>
               {paying ? <Loader2 className='ml-2 h-4 w-4 animate-spin' /> : <Landmark className='ml-2 h-4 w-4' />}
-              {method === 'DIRECT_PAYMENT' ? 'اختيار الدفع المباشر وإبلاغ الإدارة' : method === 'USDT' ? 'اختيار USDT وإظهار تعليمات التحويل' : `ادفع ${payTarget?.amount}$ الآن`}
+              {method === 'DIRECT_PAYMENT' ? 'اختيار الدفع المباشر وإبلاغ الإدارة' : method === 'USDT' ? 'تسجيل اختيار USDT وإبلاغ الإدارة' : `ادفع ${payTarget?.amount}$ الآن`}
             </Button>
           </div>
         </DialogContent>
