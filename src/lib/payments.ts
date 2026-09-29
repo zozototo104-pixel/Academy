@@ -151,11 +151,13 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     },
     {
       id: 'USDT',
-      label: `USDT / Tether${cfg.usdtNetwork ? ` — ${cfg.usdtNetwork}` : ''}`,
+      label: cfg.usdtBinancePayUserId || cfg.usdtBinancePayQrImageUrl
+        ? 'USDT عبر Binance Pay — يدوي'
+        : `USDT / Tether${cfg.usdtNetwork ? ` — ${cfg.usdtNetwork}` : ''}`,
       enabled: usdtReady,
       configured: usdtReady,
       kind: 'manual',
-      reason: usdtReady ? undefined : 'لم يتم ضبط عنوان محفظة USDT بعد. أضف USDT_WALLET_ADDRESS من إعدادات الدفع أو Vercel.',
+      reason: usdtReady ? undefined : 'لم يتم ضبط وجهة USDT بعد. أضف Binance Pay User ID/QR أو عنوان محفظة USDT من إعدادات الدفع أو Vercel.',
     },
     {
       id: 'BANK_TRANSFER',
