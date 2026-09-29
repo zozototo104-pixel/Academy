@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const user = await requireUser()
-    const [rawAdmissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis, deliverables] = await Promise.all([
+    const [rawAdmissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis, deliverables, aiSupervisorAccess] = await Promise.all([
       db.admissionApplication.findMany({
         where: { OR: [{ userId: user.id }, { email: user.email }] },
         orderBy: { createdAt: 'desc' },
