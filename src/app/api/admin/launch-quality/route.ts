@@ -723,6 +723,7 @@ export async function GET() {
     const student = await findDiagnosticStudent()
     const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
     const textModel = await geminiActiveTextModel().catch(() => '')
+    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
     const voice = await liveReadiness(false, 'SUPERVISOR')
     const discussion = await liveReadiness(false, 'DISCUSSION')
     return NextResponse.json({
@@ -731,6 +732,7 @@ export async function GET() {
       version: appVersion(),
       configured: serviceConfigurationStatus(),
       textModel,
+      providerDiagnostics,
       voiceReadiness: { supervisor: voice, discussion },
       studentContext: buildContextCoverage(student, context),
     }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
