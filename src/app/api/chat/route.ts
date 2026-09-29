@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
     }
     console.error('Chat error:', e)
     const message = String(e?.message || '')
+    if (message.includes('AI_SUPERVISOR_LOCKED')) {
+      return NextResponse.json({ error: e?.reason || 'المشرف الذكي غير مفعل لهذا الطالب بعد.' }, { status: e?.status || 403 })
+    }
     if (message.includes('EMPTY_AI_RESPONSE') || message.includes('AI_PROVIDER_UNAVAILABLE')) {
       return NextResponse.json({ error: 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.' }, { status: 502 })
     }
