@@ -480,7 +480,11 @@ export function PaymentsTab() {
                 <div className='mt-3 rounded-xl border border-amber-100 bg-white p-3 text-xs font-bold text-amber-800'>التماس التقسيط قيد دراسة الإدارة. ستظهر لك إمكانية الدفع الجزئي بعد القبول.</div>
               ) : (
                 <div className='mt-3 rounded-xl border border-blue-100 bg-white p-3'>
-                  {appealPlanId === plan.admissionId ? (
+                  {!plan.canRequestInstallmentAppeal ? (
+                    <div className='rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800'>
+                      {plan.installmentAppealBlockedReason || 'يتاح طلب تقسيط الرسوم بعد سداد رسوم التقديم وحجز المقعد وموافقة الإدارة على الطلب.'}
+                    </div>
+                  ) : appealPlanId === plan.admissionId ? (
                     <div className='grid gap-2'>
                       <Input value={appealAmount} onChange={(e) => setAppealAmount(e.target.value)} inputMode='decimal' placeholder='المبلغ الذي تستطيع دفعه الآن' />
                       <Textarea value={appealReason} onChange={(e) => setAppealReason(e.target.value)} placeholder='سبب الالتماس أو ظرف الدفع' />
