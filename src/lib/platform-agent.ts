@@ -15,7 +15,7 @@ export type PlatformAgentKind =
   | 'AGENCY_ACCREDITATION'
   | 'SUPPORT'
 
-export type PlatformAgentEngine = 'LOCAL_OPEN_SOURCE' | 'GEMINI' | 'MODEL_ROUTER_OR_FALLBACK'
+export type PlatformAgentEngine = 'LOCAL_RULE' | 'LOCAL_OPEN_SOURCE' | 'GEMINI' | 'MODEL_ROUTER_OR_FALLBACK'
 
 const AGENT_AR: Record<PlatformAgentKind, string> = {
   ACADEMIC_SUPERVISOR: 'المشرف الذكي الأكاديمي',
