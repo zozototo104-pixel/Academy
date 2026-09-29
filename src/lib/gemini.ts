@@ -169,8 +169,8 @@ export function hasGemini(): boolean {
 }
 
 export function geminiKeySource(): 'env' | 'db' | 'none' {
-  if (dbKeyCache) return 'db'
   if (process.env.GEMINI_API_KEY?.trim()) return 'env'
+  if (dbKeyCache) return 'db'
   return 'none'
 }
 
