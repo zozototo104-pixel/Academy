@@ -60,6 +60,46 @@ function keywordHits(reply: string, expected: string[]) {
   }
 }
 
+function isGenericFallbackReply(reply: string) {
+  const n = normalizeArabic(reply)
+  return [
+    'وضح لي هل سوالك عن برنامج',
+    'ساعطيك جوابا مباشرا',
+    'هل سوالك عن برنامج معين الرسوم الشهاده الاعتماد او خطوات التسجيل',
+  ].some((phrase) => n.includes(normalizeArabic(phrase)))
+}
+
+function expectedAgentForProbe(kind: ProbeKind) {
+  if (kind === 'PROFILE' || kind === 'CURRICULUM') return 'ACADEMIC_SUPERVISOR'
+  if (kind === 'THESIS' || kind === 'DEFENSE') return 'THESIS_DEFENSE'
+  return null
+}
+
+function hasGroundingForProbe(kind: ProbeKind, reply: string, student: Awaited<ReturnType<typeof findDiagnosticStudent>>) {
+  if (!student) return false
+  const n = normalizeArabic(reply)
+  const enrollment = student.enrollments[0]
+  const program = enrollment?.program
+  const thesis = student.theses[0]
+  const admission = student.ownedAdmissions[0]
+  const programTitle = program?.titleAr ? normalizeArabic(program.titleAr) : ''
+  const firstBook = program?.books?.[0]?.title ? normalizeArabic(program.books[0].title) : ''
+  const firstUnit = program?.units?.[0]?.title ? normalizeArabic(program.units[0].title) : ''
+  const thesisTitle = thesis?.title ? normalizeArabic(thesis.title) : ''
+  const reference = admission?.reference ? normalizeArabic(admission.reference) : ''
+
+  if (kind === 'PROFILE') return [normalizeArabic(student.name || ''), programTitle, reference].filter(Boolean).some((x) => n.includes(x))
+  if (kind === 'CURRICULUM') return [programTitle, firstBook, firstUnit].filter(Boolean).some((x) => n.includes(x))
+  if (kind === 'THESIS') return !!thesisTitle && (n.includes(thesisTitle) || (n.includes('منهجيه') && n.includes('نتائج')))
+  if (kind === 'DEFENSE') return !!thesisTitle && (
+    n.includes(thesisTitle)
+    || n.includes('موشرات المخاطر')
+    || n.includes('الحوكمه الموسسيه')
+    || n.includes('الحوكمه المؤسسيه')
+  )
+  return false
+}
+
 function elapsed(start: number) {
   return Math.round(performance.now() - start)
 }
