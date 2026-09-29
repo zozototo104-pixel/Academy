@@ -28,6 +28,26 @@ export function roundMoney(n: number): number {
   return Math.max(0, Math.round((Number(n) || 0) * 100) / 100)
 }
 
+const INSTALLMENT_APPEAL_ALLOWED_STATUSES = new Set(['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'])
+
+function applicationFeePaid(payments: Array<{ purpose: string; status: string; amount: number }>): boolean {
+  return payments.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
+}
+
+function installmentAppealEligibility(args: {
+  admissionStatus: string
+  applicationFeePaid: boolean
+  remainingTuition: number
+  appealStatus: string | null
+}) {
+  if (!args.applicationFeePaid) return { ok: false, reason: 'يتاح طلب تقسيط الرسوم بعد سداد رسوم التقديم وحجز المقعد أولاً.' }
+  if (!INSTALLMENT_APPEAL_ALLOWED_STATUSES.has(args.admissionStatus)) return { ok: false, reason: 'يتاح طلب تقسيط الرسوم بعد موافقة الإدارة على الطلب وظهور فاتورة الرسوم الدراسية.' }
+  if (args.remainingTuition <= 0) return { ok: false, reason: 'لا يوجد متبقٍ من الرسوم الدراسية لطلب تقسيطه.' }
+  if (args.appealStatus === 'PENDING') return { ok: false, reason: 'يوجد طلب تقسيط قيد الدراسة بالفعل.' }
+  if (args.appealStatus === 'APPROVED') return { ok: false, reason: 'يوجد طلب تقسيط معتمد بالفعل.' }
+  return { ok: true, reason: null }
+}
+
 export function tuitionPaidTotal(payments: Array<{ purpose: string; status: string; amount: number }>): number {
   const paidFullTuition = Math.max(
     0,
