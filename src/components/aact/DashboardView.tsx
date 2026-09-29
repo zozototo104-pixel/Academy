@@ -552,6 +552,17 @@ export function DashboardView() {
     return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
   }) || []
 
+  const aiSupervisorAccess = studentSummary?.aiSupervisorAccess
+  const aiSupervisorAllowed = !!aiSupervisorAccess?.allowed
+  const aiSupervisorBlockedReason = aiSupervisorAccess?.reason || 'يتاح المشرف الذكي بعد سداد رسوم التقديم وتفعيل الإشراف من الإدارة.'
+  const openAiSupervisor = () => {
+    if (!aiSupervisorAllowed) {
+      toast({ title: 'المشرف الذكي غير مفعل بعد', description: aiSupervisorBlockedReason, variant: 'destructive' })
+      return
+    }
+    navigate('chat')
+  }
+
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
