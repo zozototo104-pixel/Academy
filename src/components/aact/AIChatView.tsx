@@ -560,6 +560,21 @@ export function AIChatView() {
     return null
   }
 
+  if (accessLockedMessage) {
+    return (
+      <div className="aact-fade-in mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-10" dir="rtl">
+        <Card className="w-full rounded-3xl border-amber-200 bg-[#fffaf0] text-center shadow-sm">
+          <CardContent className="p-7">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"><Bot className="h-7 w-7" /></div>
+            <h1 className="text-xl font-black text-[#0f2b46]">المشرف الذكي غير مفعل بعد</h1>
+            <p className="mt-3 text-sm font-bold leading-7 text-slate-600">{accessLockedMessage}</p>
+            <Button onClick={() => navigate('dashboard', { tab: 'payments' })} className="mt-5 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">العودة إلى بوابة الطالب</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const voiceStateLabel: Record<AgentVoiceState, string> = {
     IDLE: 'أفتح خط المشرف…',
     LISTENING: 'الخط مفتوح — تحدث الآن',
