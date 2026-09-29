@@ -13,6 +13,11 @@ export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 interface ChatCompleteOptions {
   skipGemini?: boolean
   timeoutMs?: number
+  /**
+   * في مسارات الطالب الأكاديمية وفحوص الجودة يجب أن تأتي الإجابة من نموذج فعلي.
+   * الرد المحلي العام يبقى مسموحاً للزائر، لكنه لا يصلح كبديل عن المشرف/المناقش.
+   */
+  requireModelResponse?: boolean
 }
 
 function aiTimeoutMs(configured: number | undefined, fallback: number) {
