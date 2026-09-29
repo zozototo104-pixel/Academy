@@ -82,8 +82,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
     console.error('Chat error:', e)
-    if (String(e?.message).includes('EMPTY_AI_RESPONSE')) {
-      return NextResponse.json({ error: 'المشرف الذكي لم يتمكن من الرد — أعد المحاولة' }, { status: 502 })
+    const message = String(e?.message || '')
+    if (message.includes('EMPTY_AI_RESPONSE') || message.includes('AI_PROVIDER_UNAVAILABLE')) {
+      return NextResponse.json({ error: 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.' }, { status: 502 })
     }
     return NextResponse.json({ error: 'خطأ في المحادثة — أعد المحاولة' }, { status: 500 })
   }
