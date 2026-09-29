@@ -268,6 +268,7 @@ interface StudentDashboardSummary {
   studyAdmissions?: any[]
   serviceAdmissions?: any[]
   serviceDeliverables?: any[]
+  aiSupervisorAccess?: { allowed: boolean; reason: string | null; admissionId: string | null }
   payments: any[]
   enrollments: any[]
   notifications: { id: string; type: string; title: string; body: string; link?: string | null; read: boolean; createdAt: string }[]
