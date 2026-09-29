@@ -32,6 +32,15 @@ export async function GET() {
       methods: diagnostics.methods,
     })
   } catch {
-    return NextResponse.json({ mode: 'SANDBOX', sandboxAllowed: sandboxPaymentsAllowed(), providers: { STRIPE: false, PAYPAL: false }, trueGatewayCount: 0, warnings: [], errors: [], methods: [] })
+    return NextResponse.json({
+      mode: 'SANDBOX',
+      sandboxAllowed: sandboxPaymentsAllowed(),
+      providers: { STRIPE: false, PAYPAL: false, USDT: false },
+      usdt: { configured: false, network: 'BINANCE_PAY', instructions: '', walletAddress: '', binancePayUserId: '', binancePayQrImageUrl: '', binanceDownloadUrl: 'https://www.binance.com/en/download', binancePayWebUrl: '', binancePayGuideUrl: '' },
+      trueGatewayCount: 0,
+      warnings: [],
+      errors: ['تعذر تحميل إعدادات الدفع مؤقتاً.'],
+      methods: [],
+    })
   }
 }
