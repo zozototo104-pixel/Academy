@@ -18,6 +18,10 @@ export interface TuitionPlanSummary {
   approvedInitialAmount: number | null
   firstSemesterRequiredAmount: number | null
   finalRequiredAmount: number | null
+  admissionStatus: string
+  applicationFeePaid: boolean
+  canRequestInstallmentAppeal: boolean
+  installmentAppealBlockedReason: string | null
 }
 
 export function roundMoney(n: number): number {
