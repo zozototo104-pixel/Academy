@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { createProviderCheckout, getGatewayConfig } from '@/lib/payments'
+import { createProviderCheckout, getGatewayConfig, paymentMethodStatus } from '@/lib/payments'
 import { notify } from '@/lib/notify'
 
 function paymentPurposeLabel(purpose?: string | null) {
