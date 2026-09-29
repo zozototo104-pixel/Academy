@@ -128,10 +128,10 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     {
       id: 'FAWRY',
       label: 'فوري Fawry — مراكز الدفع',
-      enabled: sandboxReady,
+      enabled: false,
       configured: false,
       kind: 'placeholder',
-      reason: sandboxReady ? undefined : 'فوري غير مربوط كبوابة حقيقية حالياً. طريقة الدفع غير متاحة الآن؛ يرجى مراجعة الإدارة.',
+      reason: preparingReason,
     },
     {
       id: 'STRIPE',
