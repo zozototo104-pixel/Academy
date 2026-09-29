@@ -510,8 +510,8 @@ export function PaymentsTab() {
         <div className='space-y-3'>
           {displayPayments.map((p) => (
             <Card key={p.id} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
-              <CardContent className='flex flex-wrap items-center justify-between gap-3 p-4'>
-                <div className='min-w-0 flex-1'>
+              <CardContent className='grid gap-3 p-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between'>
+                <div className='min-w-0 w-full sm:flex-1'>
                   <div className='flex flex-wrap items-center gap-2'>
                     <span className='rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]' dir='ltr'>{p.invoiceNo}</span>
                     <h4 className='text-sm font-black text-[#0f2b46]'>{p.description}</h4>
