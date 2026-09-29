@@ -567,7 +567,10 @@ export async function GET(req: NextRequest) {
     if (!app) {
       return NextResponse.json({ error: 'لا يوجد طلب بهذا الكود المرجعي' }, { status: 404 })
     }
-    return NextResponse.json({ application: serialize(app) })
+    const user = await getCurrentUser().catch(() => null)
+    const ownsApplication = !!user && (user.role === 'ADMIN' || user.role === 'SUPERVISOR' || app.userId === user.id || String(app.email || '').toLowerCase() === String(user.email || '').toLowerCase())
+    const verified = ownsApplication || trackingVerifierMatches(app, verifier)
+    return NextResponse.json({ application: verified ? serialize(app) : serializePublic(app), verified, verificationRequired: !verified })
   } catch (e: any) {
     console.error('admissions GET error:', e)
     return NextResponse.json({ error: 'حدث خطأ أثناء البحث عن الطلب' }, { status: 500 })
