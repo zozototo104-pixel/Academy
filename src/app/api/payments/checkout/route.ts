@@ -99,6 +99,10 @@ export async function POST(req: NextRequest) {
         redirectUrl: null,
         walletAddress: manualProvider === 'USDT' ? cfg.usdtWalletAddress : null,
         network: manualProvider === 'USDT' ? cfg.usdtNetwork : null,
+        binancePayUserId: manualProvider === 'USDT' ? cfg.usdtBinancePayUserId : null,
+        binancePayQrImageUrl: manualProvider === 'USDT' ? cfg.usdtBinancePayQrImageUrl : null,
+        binanceDownloadUrl: manualProvider === 'USDT' ? cfg.binanceDownloadUrl : null,
+        binancePayWebUrl: manualProvider === 'USDT' ? cfg.binancePayWebUrl : null,
         message: manualProvider === 'USDT' ? usdtMessage : 'تم تسجيل طلب الدفع المباشر. تواصل مع الإدارة لتسليم المبلغ، وستؤكد الإدارة السداد من لوحة الإدارة.',
       })
     }
