@@ -348,6 +348,20 @@ export async function chatComplete(
   }
 
   try {
+    return await withAiTimeout(textAiComplete({
+      system: systemPrompt,
+      history: messages.map((m) => ({
+        role: m.role === 'user' ? 'user' as const : 'model' as const,
+        text: m.content,
+      })),
+      temperature: 0.45,
+      maxOutputTokens: 900,
+    }), timeoutMs, 'Text AI router chatComplete timed out')
+  } catch (e: any) {
+    console.error('Text AI router chatComplete failed:', String(e?.message || e).slice(0, 500))
+  }
+
+  try {
     const zai = await getZAI()
     const completion = await withAiTimeout(zai.chat.completions.create({
       messages: ([
