@@ -388,6 +388,9 @@ export async function chatComplete(
     return content.trim()
   } catch (e: any) {
     console.error('ZAI chatComplete failed:', String(e?.message || e).slice(0, 300))
+    if (options.requireModelResponse) {
+      throw new Error('AI_PROVIDER_UNAVAILABLE: all configured model providers failed before local fallback')
+    }
     return localSupervisorFallback(messages)
   }
 }
