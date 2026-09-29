@@ -245,6 +245,11 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
     usdtWalletAddress,
     usdtNetwork,
     usdtInstructions,
+    usdtBinancePayUserId,
+    usdtBinancePayQrImageUrl,
+    binanceDownloadUrl,
+    binancePayWebUrl,
+    binancePayGuideUrl,
   }
 }
 
