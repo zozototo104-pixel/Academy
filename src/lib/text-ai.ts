@@ -30,6 +30,17 @@ export interface TextAiCallOpts {
   json?: boolean
 }
 
+export interface TextAiAttemptDiagnostics {
+  provider: string
+  model: string
+  keyIndex: number
+  ok: boolean
+  ms: number
+  status?: number
+  error?: string
+  at: string
+}
+
 export interface TextAiDiagnostics {
   selectedProvider: TextAiProvider
   activeProvider: Exclude<TextAiProvider, 'AUTO'> | null
