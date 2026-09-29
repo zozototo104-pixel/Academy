@@ -520,7 +520,7 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
 
   const explicitFaceSignal = /صوره شخصيه|صورة شخصية|وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n)
   const negativePhoto = /تصميم|رمزي|ديني|شعار|ليست صوره شخصيه|ليست صورة شخصية|not a personal photo/.test(n)
-  if (explicitFaceSignal && !negativePhoto && !idSignal && !degreeSignal && !transcriptSignal && !cvSignal) {
+  if (explicitFaceSignal && !negativePhoto && !(strongIdSignal || weakIdSignal) && !degreeSignal && !transcriptSignal && !cvSignal) {
     return { kind: 'PHOTO', reason: 'تم التعرف على صورة وجه شخصية فعلية بدون مؤشرات مستند رسمي آخر' }
   }
 
