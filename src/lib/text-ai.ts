@@ -487,11 +487,15 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'OPENAI_COMPAT',
 ]
 
+function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvider[]): ConcreteProvider[] {
+  return selected ? [selected, ...order.filter((provider) => provider !== selected)] : order
+}
+
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'ANTHROPIC', 'OPENAI', 'RELAYROUTER', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
-  const cost: ConcreteProvider[] = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'GROQ', 'ZAI', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'OPENAI', 'ANTHROPIC']
-  const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
+  const primary: ConcreteProvider[] = selectedFirst(selected, ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER)
   if (s.policy === 'quality_first') return quality
   if (s.policy === 'cost_saver') return cost
   if (s.policy === 'fallback_only' && selected) return [selected]
