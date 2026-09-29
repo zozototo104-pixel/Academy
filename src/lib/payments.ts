@@ -52,6 +52,11 @@ export interface PaymentGatewayConfig {
   usdtWalletAddress: string
   usdtNetwork: string
   usdtInstructions: string
+  usdtBinancePayUserId: string
+  usdtBinancePayQrImageUrl: string
+  binanceDownloadUrl: string
+  binancePayWebUrl: string
+  binancePayGuideUrl: string
 }
 
 function env(name: string): string {
