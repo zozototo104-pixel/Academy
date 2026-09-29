@@ -345,10 +345,14 @@ export async function chatComplete(
     } catch (e: any) {
       const msg = String(e?.message || e || '')
       console.error('Gemini chatComplete failed:', msg.slice(0, 300))
-      if (isQuotaError(e)) return localSupervisorFallback(messages)
-      if (isAuthError(e)) return 'مفتاح Gemini غير صالح أو لا يملك الصلاحية المطلوبة. يرجى مراجعة إعدادات Gemini في لوحة الإدارة.'
+      if (isAuthError(e)) {
+        console.error('Gemini auth failed; continuing to text AI router before any user-facing fallback.')
+      }
+      if (isQuotaError(e)) {
+        console.error('Gemini quota/rate limit; continuing to text AI router before any local fallback.')
+      }
       if (!isModelUnavailableError(e) && !isInvalidArgumentError(e)) {
-        // نكمل إلى Z-AI كاحتياط قبل الرجوع للرد المحلي.
+        // نكمل إلى راوتر المزوّدين ثم Z-AI كاحتياطات قبل أي رد محلي.
       }
     }
   }
