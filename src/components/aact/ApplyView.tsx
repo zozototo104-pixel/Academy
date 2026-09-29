@@ -185,6 +185,7 @@ export function ApplyView() {
   const [done, setDone] = useState<{ reference: string; invoice: { invoiceNo: string; amount: number; description: string } | null } | null>(null)
 
   const [trackRef, setTrackRef] = useState('')
+  const [trackVerify, setTrackVerify] = useState('')
   const [tracking, setTracking] = useState(false)
   const [tracked, setTracked] = useState<any | null>(null)
   const [trackError, setTrackError] = useState('')
