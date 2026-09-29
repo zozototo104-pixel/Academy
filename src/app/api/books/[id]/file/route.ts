@@ -17,6 +17,16 @@ export async function GET(
       return NextResponse.json({ error: 'لا يوجد ملف مرفوع لهذا الكتاب' }, { status: 404 })
     }
 
+    if (user.role !== 'ADMIN') {
+      const enrollment = await db.enrollment.findUnique({
+        where: { userId_programId: { userId: user.id, programId: book.programId } },
+        select: { status: true },
+      })
+      if (!enrollment || enrollment.status === 'PENDING_PAYMENT') {
+        return NextResponse.json({ error: 'صلاحيات غير كافية لفتح هذا الكتاب' }, { status: 403 })
+      }
+    }
+
     const buf = Buffer.from(book.data, 'base64')
     return new NextResponse(new Uint8Array(buf), {
       headers: {
