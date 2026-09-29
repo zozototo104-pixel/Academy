@@ -582,6 +582,10 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  const reply = await chatComplete(opts.messages, context, persona, { skipGemini: true, timeoutMs })
+  const reply = await chatComplete(opts.messages, context, persona, {
+    skipGemini: true,
+    timeoutMs,
+    requireModelResponse: shouldPreferGemini,
+  })
   return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
 }
