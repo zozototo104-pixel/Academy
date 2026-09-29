@@ -21,6 +21,9 @@ export async function GET() {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
+    if (String(e?.message || '').includes('AI_SUPERVISOR_LOCKED')) {
+      return NextResponse.json({ error: e?.reason || 'المشرف الذكي غير مفعل لهذا الطالب بعد.' }, { status: e?.status || 403 })
+    }
     return NextResponse.json({ error: 'خطأ في تحميل المحادثة' }, { status: 500 })
   }
 }
