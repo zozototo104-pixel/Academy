@@ -507,7 +507,8 @@ export function ApplyView() {
     setTrackError('')
     setTracked(null)
     try {
-      const d = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(trackRef.trim())}`)
+      const verifyParam = trackVerify.trim() ? `&verify=${encodeURIComponent(trackVerify.trim())}` : ''
+      const d = await api<{ application: any; verified?: boolean; verificationRequired?: boolean }>(`/api/admissions?ref=${encodeURIComponent(trackRef.trim())}${verifyParam}`)
       setTracked(d.application)
     } catch (e: any) {
       setTrackError(e.message || 'لم يتم العثور على الطلب')
