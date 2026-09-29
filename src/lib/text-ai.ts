@@ -664,6 +664,25 @@ function throwHttp(provider: string, status: number, data: any): never {
   throw err
 }
 
+function statusFromError(e: any): number | undefined {
+  const status = Number(e?.status || e?.code || 0)
+  return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function recordAttempt(attempt: TextAiAttemptDiagnostics) {
+  recentAttempts = [...recentAttempts, attempt].slice(-50)
+  const label = attempt.ok ? 'ok' : 'failed'
+  const error = attempt.error ? attempt.error.slice(0, 220) : undefined
+  console.info('[text-ai-router]', label, {
+    provider: attempt.provider,
+    model: attempt.model,
+    keyIndex: attempt.keyIndex,
+    ms: attempt.ms,
+    status: attempt.status,
+    error,
+  })
+}
+
 async function callGemini(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
   const response = await fetchWithTimeout('Gemini', url, {
