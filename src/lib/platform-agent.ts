@@ -516,7 +516,7 @@ export async function platformAgentComplete(opts: {
   messages: { role: string; content: string }[]
   uiContext?: string
   mode?: 'TEXT' | 'VOICE' | string
-}): Promise<{ reply: string; agent: PlatformAgentKind; engine: 'LOCAL_OPEN_SOURCE' | 'GEMINI_OR_FALLBACK' }> {
+}): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   const agent = routeAgent(last, user?.role)
