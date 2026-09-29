@@ -61,6 +61,7 @@ export async function GET() {
         take: 20,
         select: { id: true, admissionId: true, type: true, title: true, createdAt: true },
       }),
+      getStudentAiSupervisorAccess(user.id).catch(() => ({ allowed: false, reason: 'تعذر التحقق من تفعيل المشرف الذكي حالياً.', admissionId: null })),
     ])
 
     const admissions = rawAdmissions.map((a) => {
