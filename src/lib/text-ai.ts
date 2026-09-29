@@ -71,6 +71,7 @@ export interface TextAiDiagnostics {
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
   lastResult: { provider: string; model: string; ok: boolean; error?: string; at: string } | null
+  recentAttempts: TextAiAttemptDiagnostics[]
   message: string
 }
 
