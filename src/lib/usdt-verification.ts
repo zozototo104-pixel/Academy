@@ -68,6 +68,13 @@ export async function verifyUsdtTransaction(params: {
   const walletAddress = params.walletAddress.trim()
   const expectedAmount = Number(params.expectedAmount || 0)
 
+  if (['binance_pay', 'binancepay'].includes(network)) {
+    return {
+      status: 'UNSUPPORTED',
+      note: 'تم استلام رقم/إثبات عملية Binance Pay. هذه الطريقة تحتاج مراجعة يدوية من الإدارة لأن التحويل داخلي داخل Binance وليس TX Hash على شبكة TRON.',
+      txHash: params.txHash.trim(),
+    }
+  }
   if (!validTxHash(txHash)) {
     return { status: 'FAILED', note: 'صيغة TX Hash غير صحيحة. يجب أن يكون 64 حرفاً hexadecimal.', txHash }
   }
