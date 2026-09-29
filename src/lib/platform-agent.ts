@@ -56,6 +56,36 @@ function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
 }
 
+function wantsHumanSupport(message: string) {
+  const n = normalizeArabic(message)
+  return includesAny(n, [
+    'موظف حقيقي',
+    'موظف بشري',
+    'شخص حقيقي',
+    'انسان حقيقي',
+    'تواصل بشري',
+    'دعم بشري',
+    'اكلم موظف',
+    'احكي مع موظف',
+    'اريد موظف',
+    'بدي موظف',
+    'اريد الادمن',
+    'بدي الادمن',
+    'كلم الاداره',
+    'اكلم الاداره',
+    'رقم الاداره',
+    'رقم واتساب',
+    'رقم التواصل',
+    'اتواصل مع الاداره',
+    'التواصل مع الاداره',
+    'واتساب الاداره',
+    'تحويل لموظف',
+    'حولني لموظف',
+    'مراسله موظف',
+    'مراسلة موظف',
+  ])
+}
+
 function hasTokenAny(n: string, words: string[]) {
   const tokens = new Set(n.split(/\s+/).filter(Boolean))
   return words.some((w) => tokens.has(normalizeArabic(w)))
