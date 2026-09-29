@@ -120,10 +120,10 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     {
       id: 'PAYMOB',
       label: 'Paymob — بطاقة / محافظ مصر',
-      enabled: sandboxReady,
+      enabled: false,
       configured: false,
       kind: 'placeholder',
-      reason: sandboxReady ? undefined : 'Paymob غير مربوط كبوابة حقيقية حالياً. طريقة الدفع غير متاحة الآن؛ يرجى اختيار وسيلة مفعلة أو مراجعة الإدارة.',
+      reason: preparingReason,
     },
     {
       id: 'FAWRY',
