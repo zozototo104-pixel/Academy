@@ -28,8 +28,8 @@ export async function getStudentAiSupervisorAccess(userId: string): Promise<{ al
   const app = await db.admissionApplication.findFirst({
     where: {
       userId,
-      requestKind: { not: 'SERVICE' },
       status: { notIn: ['REJECTED'] },
+      OR: [{ programRef: { is: null } }, { programRef: { is: { category: { not: 'SERVICE' } } } }],
     },
     orderBy: { createdAt: 'desc' },
     select: {
