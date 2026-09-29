@@ -105,7 +105,6 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
   const paypalReady = cfg.mode === 'LIVE' && !!(cfg.paypalClientId && cfg.paypalSecret) && paypalKind === 'live'
   const usdtReady = !!(cfg.usdtWalletAddress || cfg.usdtBinancePayUserId || cfg.usdtBinancePayQrImageUrl)
   const preparingReason = 'جاري التجهيز — هذه الطريقة مغلقة مؤقتاً ولن تُستخدم حتى تعتمدها الإدارة.'
-  const sandboxReady = cfg.mode === 'SANDBOX' && sandboxAllowed
   const warnings: string[] = []
   const errors: string[] = []
 
