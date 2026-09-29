@@ -32,6 +32,10 @@ export interface PaymentDiagnostics {
   paypalBaseKind: 'live' | 'sandbox' | 'custom' | 'missing'
   usdtConfigured?: boolean
   usdtNetwork?: string
+  usdtBinancePayUserId?: string
+  usdtBinancePayQrImageUrl?: string
+  binanceDownloadUrl?: string
+  binancePayUrl?: string
   trueGatewayCount: number
   warnings: string[]
   errors: string[]
