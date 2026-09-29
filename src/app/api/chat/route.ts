@@ -10,6 +10,7 @@ import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 export async function GET() {
   try {
     const user = await requireUser()
+    await requireStudentAiSupervisorAccess(user)
     const messages = await db.chatMessage.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'asc' },
