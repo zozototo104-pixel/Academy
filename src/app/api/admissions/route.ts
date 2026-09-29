@@ -86,6 +86,11 @@ function digitsOnly(value?: string | null) {
   return String(value || '').replace(/\D/g, '')
 }
 
+function strongAdmissionReference() {
+  // 128-bit random suffix. نحافظ على بادئة AACT-2026 حتى تبقى الأكواد مفهومة للطالب والإدارة.
+  return `AACT-2026-${randomBytes(16).toString('hex').toUpperCase()}`
+}
+
 function trackingVerifierMatches(app: { email?: string | null; phone?: string | null }, verifier?: string | null) {
   const value = String(verifier || '').trim().toLowerCase()
   if (!value) return false
