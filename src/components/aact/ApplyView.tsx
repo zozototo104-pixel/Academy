@@ -381,7 +381,8 @@ export function ApplyView() {
         method: 'POST',
         body: JSON.stringify({ applicationId: app.id, reference: app.reference, uploadToken: app.replacementUploadToken }),
       })
-      const refreshed = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}`)
+      const verifyParam = trackVerify.trim() ? `&verify=${encodeURIComponent(trackVerify.trim())}` : ''
+      const refreshed = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}${verifyParam}`)
       setTracked(refreshed.application)
       setMyAdmission((prev) => (prev?.id === app.id ? refreshed.application : prev))
       setMyApplications((prev) => prev.map((item) => (item.id === app.id ? refreshed.application : item)))
