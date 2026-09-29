@@ -418,6 +418,7 @@ export async function GET(req: NextRequest) {
   try {
     const ref = req.nextUrl.searchParams.get('ref')?.trim()
     const mine = req.nextUrl.searchParams.get('mine') === '1'
+    const verifier = req.nextUrl.searchParams.get('verify') || req.nextUrl.searchParams.get('email') || req.nextUrl.searchParams.get('phone')
     const include: any = {
       supervisor: { select: { name: true } },
       programRef: { select: { slug: true, category: true, titleAr: true } },
