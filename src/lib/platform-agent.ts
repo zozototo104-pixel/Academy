@@ -499,7 +499,39 @@ export async function platformAgentComplete(opts: {
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(dataContext, opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
-  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 18_000 : 22_000)
+  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
+  const shouldPreferGemini = user?.role === 'STUDENT'
+    || agent === 'ACADEMIC_SUPERVISOR'
+    || agent === 'EXAMS'
+    || agent === 'THESIS_DEFENSE'
+    || String(opts.uiContext || '').includes('Launch Quality Probe')
+
+  const runGemini = async () => {
+    const geminiReady = await ensureGeminiKey().catch(() => false)
+    if (!geminiReady) return null
+    const thinkingLevel: GeminiThinkingLevel | undefined = agent === 'THESIS_DEFENSE'
+      ? await geminiDiscussionThinkingLevel().catch(() => 'high' as GeminiThinkingLevel)
+      : agent === 'EXAMS' || agent === 'ADMIN_QUALITY'
+        ? 'medium'
+        : undefined
+    const reply = await withPlatformTimeout(geminiComplete({
+      system,
+      history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+      temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
+      thinkingLevel,
+      maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
+    }), timeoutMs, 'Gemini platform agent timed out')
+    return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' as const }
+  }
+
+  if (shouldPreferGemini) {
+    try {
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
+    } catch (e: any) {
+      console.error('Gemini preferred platform agent failed:', String(e?.message || e).slice(0, 400))
+    }
+  }
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
@@ -510,7 +542,7 @@ export async function platformAgentComplete(opts: {
           ...opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: agent === 'ADMIN_QUALITY' ? 0.2 : 0.35,
-        maxTokens: opts.mode === 'VOICE' ? 900 : 1700,
+        maxTokens: opts.mode === 'VOICE' ? 1100 : 1800,
       }), timeoutMs, 'Local platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
@@ -518,22 +550,10 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  const geminiReady = await ensureGeminiKey().catch(() => false)
-  if (geminiReady) {
+  if (!shouldPreferGemini) {
     try {
-      const thinkingLevel: GeminiThinkingLevel | undefined = agent === 'THESIS_DEFENSE'
-        ? await geminiDiscussionThinkingLevel().catch(() => 'high' as GeminiThinkingLevel)
-        : agent === 'EXAMS' || agent === 'ADMIN_QUALITY'
-          ? 'medium'
-          : undefined
-      const reply = await withPlatformTimeout(geminiComplete({
-        system,
-        history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
-        temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
-        thinkingLevel,
-        maxOutputTokens: opts.mode === 'VOICE' ? 900 : 1700,
-      }), timeoutMs, 'Gemini platform agent timed out')
-      return { reply: annotateReply(agent, reply, 'GEMINI_OR_FALLBACK'), agent, engine: 'GEMINI_OR_FALLBACK' }
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
     } catch (e: any) {
       console.error('Gemini platform agent failed:', String(e?.message || e).slice(0, 400))
     }
