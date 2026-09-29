@@ -123,6 +123,7 @@ export async function GET() {
       assignmentSubmissions,
       thesis,
       serviceDeliverables: deliverables,
+      aiSupervisorAccess,
       summary: {
         latestAdmission,
         latestStudy,
