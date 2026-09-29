@@ -762,14 +762,26 @@ export async function POST(req: NextRequest) {
       for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
     }
 
-    const passedProbes = probes.filter((p: any) => p.passed || p.skipped).length
-    const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 100
+    const passedProbes = probes.filter((p: any) => p.passed).length
+    const skippedProbes = probes.filter((p: any) => p.skipped).length
+    const failedProbes = probes.filter((p: any) => !p.passed && !p.skipped).map((p: any) => ({
+      kind: p.kind,
+      agent: p.agent,
+      expectedAgent: p.expectedAgent,
+      genericFallback: !!p.genericFallback,
+      grounded: !!p.grounded,
+      keywordScore: p.keywordScore ?? 0,
+      error: p.error,
+      missed: p.missed,
+    }))
+    const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 0
     const hasUsefulContext = !!contextCoverage && contextCoverage.contextChars > 500 && (
       contextCoverage.contextIncludes.programTitle || contextCoverage.contextIncludes.firstBook || contextCoverage.contextIncludes.thesisTitle
     )
+    const aiStatus = !runAi ? 'skipped' : score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail'
 
     return NextResponse.json({
-      status: score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail',
+      status: aiStatus,
       timestamp: new Date().toISOString(),
       durationMs: elapsed(started),
       runAi,
