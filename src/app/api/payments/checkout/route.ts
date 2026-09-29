@@ -51,8 +51,9 @@ export async function POST(req: NextRequest) {
     // الطرق اليدوية ليست بوابات إلكترونية ولا Sandbox: تسجل طلب دفع وينتظر تأكيد الإدارة.
     if (['DIRECT_PAYMENT', 'USDT'].includes(String(method))) {
       const cfg = await getGatewayConfig()
-      if (String(method) === 'USDT' && !cfg.usdtWalletAddress) {
-        return NextResponse.json({ error: 'USDT غير متاح حالياً لأن عنوان المحفظة غير مضبوط.' }, { status: 400 })
+      const usdtDestinationReady = !!(cfg.usdtWalletAddress || cfg.usdtBinancePayUserId || cfg.usdtBinancePayQrImageUrl)
+      if (String(method) === 'USDT' && !usdtDestinationReady) {
+        return NextResponse.json({ error: 'USDT غير متاح حالياً لأن وجهة Binance Pay أو عنوان المحفظة غير مضبوط.' }, { status: 400 })
       }
       const manualProvider = String(method) === 'USDT' ? 'USDT' : 'DIRECT_PAYMENT'
       const purposeLabel = paymentPurposeLabel(payment.purpose)
