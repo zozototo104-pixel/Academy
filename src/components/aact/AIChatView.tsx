@@ -167,15 +167,18 @@ export function AIChatView() {
     if (!user) return
     setLoadingHistory(true)
     api<{ messages: any[] }>('/api/chat')
-      .then((d) => setMessages(d.messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        mode: m.mode,
-        kind: m.kind,
-        time: new Date(m.createdAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      }))))
-      .catch(() => {})
+      .then((d) => {
+        setAccessLockedMessage(null)
+        setMessages(d.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          mode: m.mode,
+          kind: m.kind,
+          time: new Date(m.createdAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
+        })))
+      })
+      .catch((e: any) => setAccessLockedMessage(e?.message || 'المشرف الذكي غير مفعل لهذا الطالب بعد.'))
       .finally(() => setLoadingHistory(false))
   }, [user])
 
