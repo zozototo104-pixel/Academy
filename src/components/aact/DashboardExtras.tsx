@@ -553,7 +553,14 @@ export function PaymentsTab() {
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className='w-full'><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(payConfig?.methods?.length ? payConfig.methods : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => <SelectItem key={m.id} value={m.id}>{m.label}{m.enabled ? '' : ' — غير مفعلة'}</SelectItem>)}
+                  {(payConfig?.methods?.length ? payConfig.methods : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => (
+                    <SelectItem key={m.id} value={m.id} disabled={!m.enabled}>
+                      <span className='flex w-full items-center justify-between gap-2'>
+                        <span>{m.label}</span>
+                        {!m.enabled && <span className='rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-700'>جاري التجهيز</span>}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {payConfig?.methods?.find((m) => m.id === method && !m.enabled)?.reason && <p className='rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700'>{payConfig.methods.find((m) => m.id === method)?.reason}</p>}
