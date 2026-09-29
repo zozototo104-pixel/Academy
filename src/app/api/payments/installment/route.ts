@@ -30,6 +30,9 @@ export async function POST(req: NextRequest) {
 
     const plan = await getAdmissionTuitionPlan(app.id)
     if (!plan) return NextResponse.json({ error: 'تعذر قراءة خطة الرسوم' }, { status: 400 })
+    if (!plan.applicationFeePaid) {
+      return NextResponse.json({ error: 'لا يمكن إنشاء دفعة رسوم دراسية قبل سداد رسوم التقديم وحجز المقعد.' }, { status: 400 })
+    }
     if (plan.appealStatus !== 'APPROVED') {
       return NextResponse.json({ error: 'الدفع الجزئي متاح فقط بعد موافقة الإدارة على التماس التقسيط' }, { status: 400 })
     }
