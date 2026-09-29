@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
+    if (String(e?.message || '').includes('AI_SUPERVISOR_LOCKED')) {
+      return NextResponse.json({ error: e?.reason || 'المشرف الذكي غير مفعل لهذا الطالب بعد.' }, { status: e?.status || 403 })
+    }
     console.error('thesis-review error:', e)
     return NextResponse.json({ error: 'خطأ في تحليل المسودة — أعد المحاولة' }, { status: 500 })
   }
