@@ -307,6 +307,15 @@ export function PaymentsTab() {
     setPdfBusy(null)
   }
 
+  const copyText = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast({ title: 'تم النسخ', description: `${label} جاهز للصق.` })
+    } catch {
+      toast({ title: 'تعذر النسخ', description: value, variant: 'destructive' })
+    }
+  }
+
   const submitUsdtProof = async (payment: Payment) => {
     const txHash = (usdtHashes[payment.id] || payment.cryptoTxHash || '').trim()
     if (!txHash) {
