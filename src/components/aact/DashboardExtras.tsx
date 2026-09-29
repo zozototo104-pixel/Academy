@@ -251,6 +251,10 @@ export function PaymentsTab() {
       : 0
 
   const submitInstallmentAppeal = async (plan: TuitionPlan) => {
+    if (!plan.canRequestInstallmentAppeal) {
+      toast({ title: 'طلب التقسيط غير متاح الآن', description: plan.installmentAppealBlockedReason || 'يتاح بعد استيفاء شروط القبول والسداد.', variant: 'destructive' })
+      return
+    }
     const amount = Number(appealAmount || 0)
     if (!amount || amount <= 0) {
       toast({ title: 'أدخل مبلغاً صحيحاً', description: 'حدد الدفعة التي تستطيع دفعها الآن.', variant: 'destructive' })
