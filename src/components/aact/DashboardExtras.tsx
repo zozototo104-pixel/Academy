@@ -536,13 +536,21 @@ export function PaymentsTab() {
                     </div>
                   )}
                 </div>
-                <div className='flex flex-wrap items-center gap-2'>
+                <div className='flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end'>
                   <span className='text-lg font-black text-[#0f2b46]'><Money value={p.amount} /></span>
                   <Button type='button' size='sm' variant='outline' disabled={pdfBusy === p.id} onClick={() => openInvoicePdf(p)} className='border-[#c9a227]/40 font-bold text-[#a8841a]'>
                     {pdfBusy === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : <FileText className='ml-1 h-3.5 w-3.5' />}
                     PDF
                   </Button>
-                  {p.status === 'UNPAID' ? <Button size='sm' onClick={() => openPaymentDialog(p)} className='bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]'><CreditCard className='ml-1 h-3.5 w-3.5' /> ادفع الآن</Button> : <Button size='sm' variant='outline' onClick={() => setReceipt({ payment: p })} className='border-emerald-200 font-bold text-emerald-700'><ReceiptText className='ml-1 h-3.5 w-3.5' /> الإيصال</Button>}
+                  {p.status === 'PAID' ? (
+                    <Button size='sm' variant='outline' onClick={() => setReceipt({ payment: p })} className='border-emerald-200 font-bold text-emerald-700'><ReceiptText className='ml-1 h-3.5 w-3.5' /> الإيصال</Button>
+                  ) : p.method === 'DIRECT_PAYMENT' ? (
+                    <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار تأكيد الإدارة</Badge>
+                  ) : p.method === 'USDT' ? (
+                    <Badge className='bg-blue-100 text-blue-700 hover:bg-blue-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار إثبات USDT</Badge>
+                  ) : (
+                    <Button size='sm' onClick={() => openPaymentDialog(p)} className='bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]'><CreditCard className='ml-1 h-3.5 w-3.5' /> ادفع الآن</Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
