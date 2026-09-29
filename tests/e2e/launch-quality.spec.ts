@@ -138,18 +138,35 @@ test.describe('AACT launch quality suite', () => {
     }
 
     const probes = probePayloads.flatMap((p) => Array.isArray(p.probes) ? p.probes : [])
-    const passedProbes = probes.filter((p: any) => p.passed || p.skipped).length
+    const passedProbes = probes.filter((p: any) => p.passed).length
+    const skippedProbes = probes.filter((p: any) => p.skipped).length
+    const failedProbes = probes.filter((p: any) => !p.passed && !p.skipped).map((p: any) => ({
+      kind: p.kind,
+      agent: p.agent,
+      expectedAgent: p.expectedAgent,
+      genericFallback: !!p.genericFallback,
+      grounded: !!p.grounded,
+      keywordScore: p.keywordScore ?? 0,
+      error: p.error,
+      missed: p.missed,
+    }))
     const score = probes.length ? Math.round((passedProbes / probes.length) * 100) : 0
+    const hasUsefulContext = !!voicePayload.summary?.hasUsefulContext
     const ai = {
       ...voicePayload,
       probes,
-      status: score >= 75 && voicePayload.summary?.hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail',
+      status: score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail',
       summary: {
         ...(voicePayload.summary || {}),
         score,
         passedProbes,
+        skippedProbes,
+        failedProbes,
         totalProbes: probes.length,
-        hasUsefulContext: !!voicePayload.summary?.hasUsefulContext,
+        hasUsefulContext,
+        recommendation: failedProbes.length
+          ? `فشلت فحوص: ${failedProbes.map((p: any) => p.kind).join(', ')}. راجع التوجيه، الردود العامة، وأسباب فشل المزوّدين.`
+          : 'المشرف الذكي يسترجع سياق الطالب والمنهج والبحث بدرجة مناسبة.',
       },
     }
 
