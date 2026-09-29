@@ -160,10 +160,10 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
     {
       id: 'BANK_TRANSFER',
       label: 'تحويل بنكي — مراجعة الإدارة',
-      enabled: sandboxReady,
+      enabled: false,
       configured: false,
       kind: 'manual',
-      reason: sandboxReady ? undefined : 'التحويل البنكي يحتاج تعليمات ومراجعة يدوية من الإدارة. هذه الطريقة غير مفعلة للدفع الذاتي حالياً.',
+      reason: preparingReason,
     },
     {
       id: 'DIRECT_PAYMENT',
