@@ -82,7 +82,6 @@ export function VerifyView() {
       setSerial(s)
       verify(s)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
