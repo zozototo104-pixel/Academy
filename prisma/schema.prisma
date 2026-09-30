@@ -466,6 +466,51 @@ model HumanHandoffRequest {
   @@index([contactMessageId])
 }
 
+model WhatsAppConversation {
+  id               String   @id @default(cuid())
+  waIdHash         String   @unique
+  phoneMasked      String
+  displayName      String?
+  phoneNumberId    String?
+  status           String   @default("BOT_ACTIVE") // BOT_ACTIVE | HUMAN_REQUESTED | HUMAN_ACTIVE | CLOSED
+  handoffRequestId String?
+  assignedToId     String?
+  assignedToName   String?
+  assignedAt       DateTime?
+  humanClosedAt    DateTime?
+  lastInboundAt    DateTime?
+  lastOutboundAt   DateTime?
+  lastMessageAt    DateTime @default(now())
+  lastMessageText  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  messages         WhatsAppConversationMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([lastMessageAt])
+  @@index([phoneNumberId])
+}
+
+model WhatsAppConversationMessage {
+  id                String   @id @default(cuid())
+  conversationId    String
+  conversation      WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  whatsappMessageId String?
+  direction         String   // INBOUND | OUTBOUND
+  sender            String   // CUSTOMER | BOT | HUMAN | SYSTEM
+  text              String
+  rawType           String?
+  status            String?
+  meta              Json?
+  sentById          String?
+  sentByName        String?
+  createdAt         DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([whatsappMessageId])
+  @@index([direction, createdAt])
+}
+
 model ThesisSubmission {
   id          String   @id @default(cuid())
   userId      String
