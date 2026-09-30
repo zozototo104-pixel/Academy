@@ -61,8 +61,9 @@ export function AdminWhatsAppInboxTab() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('ALL')
+  const [status, setStatus] = useState('HUMAN_REQUESTED')
   const [reply, setReply] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   const activeConversation = selected || conversations.find((c) => c.id === selectedId) || null
 
