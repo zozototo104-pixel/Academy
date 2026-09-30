@@ -281,7 +281,6 @@ function NotificationBell() {
     load()
     const t = setInterval(load, 30000)
     return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   if (!user) return null
