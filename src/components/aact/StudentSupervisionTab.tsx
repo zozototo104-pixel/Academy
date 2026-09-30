@@ -94,7 +94,7 @@ export function StudentSupervisionTab() {
     }
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [])
 
   const send = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
     if (!active) return
