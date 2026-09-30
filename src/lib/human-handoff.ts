@@ -155,6 +155,16 @@ export async function createHumanHandoffRequest(args: {
     `موضوع المستخدم: ${subject}`,
   ].filter(Boolean).join('\n')
 
+  await db.contactMessage.create({
+    data: {
+      name: displayName.slice(0, 120),
+      email: (args.user.email || 'human-handoff@aactacademy.local').slice(0, 180),
+      phone: args.user.phone || null,
+      subject: 'طلب تواصل بشري من الوكيل الذكي',
+      message: body.slice(0, 3000),
+    },
+  }).catch(() => {})
+
   if (admins.length) {
     await db.notification.createMany({
       data: admins.map((admin) => ({
@@ -164,6 +174,22 @@ export async function createHumanHandoffRequest(args: {
         body: body.slice(0, 1800),
         link,
       })),
+    }).catch(() => {})
+  }
+
+  const adminEmails = Array.from(new Set(admins.map((admin) => admin.email).filter(Boolean)))
+  if (adminEmails.length) {
+    const mailSubject = 'طلب تواصل بشري من الوكيل الذكي'
+    const html = makeBasicEmailHtml(mailSubject, body, absoluteLink)
+    const result = await sendMail({ to: adminEmails, subject: mailSubject, html, text: body }).catch((e: any) => ({ ok: false, error: e?.message || 'mail failed' }))
+    await db.emailLog.create({
+      data: {
+        to: adminEmails.join(','),
+        subject: mailSubject,
+        event: 'HUMAN_HANDOFF_REQUEST',
+        status: result?.ok ? (result?.skipped ? 'SKIPPED' : 'SENT') : 'FAILED',
+        error: result?.ok ? null : (result?.error || 'mail failed'),
+      },
     }).catch(() => {})
   }
 
