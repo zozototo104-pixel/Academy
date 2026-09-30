@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'release' || action === 'close') {
-      const nextStatus = action === 'close' ? 'CLOSED' : 'BOT_ACTIVE'
+      const nextStatus: 'CLOSED' | 'BOT_ACTIVE' = action === 'close' ? 'CLOSED' : 'BOT_ACTIVE'
       const updated = await setWhatsAppConversationStatus({ conversationId: id, status: nextStatus, adminId: admin.id, adminName: admin.name })
       if (conversation.handoffRequestId) {
         await db.humanHandoffRequest.updateMany({
