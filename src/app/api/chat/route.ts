@@ -70,14 +70,34 @@ export async function POST(req: NextRequest) {
       take: 21,
     })
     const ordered = history.reverse().slice(0, -1) // استبعاد الرسالة الحالية (مضافة سابقاً)
+    const orderedMessages = ordered.map((m) => ({ role: m.role, content: m.content }))
+    const userText = message.trim()
+    const handoffPromptActive = hadRecentHumanSupportPrompt(orderedMessages)
 
-    const agentResult = await platformAgentComplete({
-      userId: user.id,
-      messages: [...ordered.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message.trim() }],
-      uiContext: context,
-      mode: chatMode,
-    })
-    const reply = agentResult.reply
+    let reply = ''
+    let agentResult: { agent: any; engine: any } = { agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+
+    if (handoffPromptActive && looksLikeHumanHandoffDetails(userText)) {
+      await createHumanHandoffRequest({
+        user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+        message: userText,
+        source: 'CHAT',
+        sourceRef: user.id,
+      })
+      reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
+    } else if (wantsHumanSupport(userText)) {
+      reply = HUMAN_SUPPORT_REPLY
+    } else {
+      const result = await platformAgentComplete({
+        userId: user.id,
+        messages: [...orderedMessages, { role: 'user', content: userText }],
+        uiContext: context,
+        mode: chatMode,
+      })
+      const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
+      agentResult = result
+      reply = (handoffPromptActive || hasSubmittedHandoff) ? withHumanHandoffActiveNote(result.reply) : result.reply
+    }
 
     // حفظ رد الوكيل/المشرف
     const saved = await db.chatMessage.create({
