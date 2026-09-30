@@ -199,7 +199,7 @@ export function AdminWhatsAppInboxTab() {
             </div>
           </div>
 
-          <div className="flex min-h-[600px] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-[#efe7dc]">
+          <div className={`${activeConversation ? 'flex' : 'hidden lg:flex'} h-[calc(100svh-220px)] min-h-[560px] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-[#efe7dc] lg:h-full lg:min-h-0`}>
             {activeConversation ? (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 bg-[#075e54] p-4 text-white">
