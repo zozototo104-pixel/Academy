@@ -468,6 +468,7 @@ model HumanHandoffRequest {
 
 model WhatsAppConversation {
   id               String   @id @default(cuid())
+  waId             String
   waIdHash         String   @unique
   phoneMasked      String
   displayName      String?
