@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
   createHumanHandoffRequest,
+  hasOpenHumanHandoffRequest,
   HUMAN_HANDOFF_CONFIRMATION_REPLY,
   HUMAN_SUPPORT_REPLY,
   looksLikeHumanHandoffDetails,
