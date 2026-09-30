@@ -298,7 +298,6 @@ export async function POST(req: NextRequest) {
         const text = String(message.text || '').trim()
 
         if (promptActive && !handoffOpen && looksLikeHumanHandoffDetails(text)) {
-          const digits = String(message.from || '').replace(/\D/g, '')
           await createHumanHandoffRequest({
             user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
             message: text,
