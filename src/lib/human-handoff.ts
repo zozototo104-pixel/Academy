@@ -270,7 +270,7 @@ export async function createHumanHandoffRequest(args: {
     select: { id: true },
   }).catch(() => null)
 
-  await db.humanHandoffRequest.create({
+  const handoffRequest = await db.humanHandoffRequest.create({
     data: {
       requesterId: args.user.id || null,
       source: args.source,
@@ -283,7 +283,8 @@ export async function createHumanHandoffRequest(args: {
       status: 'NEW',
       contactMessageId: contactMessage?.id || null,
     },
-  }).catch(() => {})
+    select: { id: true },
+  }).catch(() => null)
 
   if (admins.length) {
     await db.notification.createMany({
