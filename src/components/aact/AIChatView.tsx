@@ -139,8 +139,7 @@ export function AIChatView() {
   const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
   const [voicePackageBusy, setVoicePackageBusy] = useState(false)
   const agentRef = useRef<VoiceAgent | null>(null)
-  const mutedRef = useRef(false)
-  mutedRef.current = muted
+  const mutedRef = useRef(muted)
 
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewTitle, setReviewTitle] = useState('')
