@@ -286,7 +286,7 @@ export function AdminRulesTab() {
               {programs.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => select(p)}
+                  onClick={() => selectProgram(p)}
                   className={`block w-full rounded-lg px-3 py-2.5 text-right transition-colors ${
                     p.id === selectedId ? 'bg-[#0f2b46] text-white' : 'hover:bg-[#f7edd0]'
                   }`}
