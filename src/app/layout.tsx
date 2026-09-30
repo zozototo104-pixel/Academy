@@ -70,6 +70,20 @@ export const viewport: Viewport = {
   themeColor: "#1d2947",
 };
 
+const cairo = Cairo({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-cairo",
+});
+
+const tajawal = Tajawal({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "700", "800"],
+  display: "swap",
+  variable: "--font-tajawal",
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
