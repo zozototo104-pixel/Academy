@@ -307,7 +307,7 @@ function NotificationBell() {
       return
     }
     if (/^https?:\/\//.test(link) || link.startsWith('/') || link.startsWith('?')) {
-      window.location.href = link
+      window.location.assign(link)
     }
   }
 
