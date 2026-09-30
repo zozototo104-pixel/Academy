@@ -43,6 +43,7 @@ model User {
   ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
   aiLiveUsages  AiLiveUsage[]
   aiLiveCredits AiLiveCredit[]
+  humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
 }
 
 model Session {
