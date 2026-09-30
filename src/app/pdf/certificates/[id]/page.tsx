@@ -91,7 +91,6 @@ export default async function CertificatePdfPage({ params, searchParams }: PageP
               <p className="text-[10px] text-slate-400">Chairman of the Board</p>
             </div>
             <div className="flex flex-col items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qr} alt="رمز تحقق الشهادة" className="h-28 w-28 rounded-2xl border border-slate-200 bg-white p-2" />
               <p className="font-mono text-[11px] font-black text-[#0f2b46]" dir="ltr">{certificate.serial}</p>
             </div>
