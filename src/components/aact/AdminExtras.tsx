@@ -1590,10 +1590,28 @@ function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
   }
 
   if (isStatusOnly) {
+    const statusUpdates = Array.isArray(details.statusUpdates) ? details.statusUpdates : []
+    const webhookErrors = Array.isArray(details.webhookErrors) ? details.webhookErrors : []
+    const firstStatus = statusUpdates[0] || {}
     return (
-      <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-bold text-slate-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-        تحديث حالة من واتساب — لا توجد رسالة جديدة
+      <div className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-[11px] font-bold text-slate-500">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+          <span className="text-[#0f2b46]">تحديث حالة من واتساب — لا توجد رسالة جديدة</span>
+        </div>
+        {statusUpdates.length > 0 && (
+          <div className="mt-2 grid gap-1 text-[10px] sm:grid-cols-2">
+            <p><span className="text-slate-400">نوع الحالة:</span> {String(firstStatus.status || 'غير محدد')}</p>
+            {firstStatus.recipient && <p><span className="text-slate-400">المستلم:</span> {firstStatus.recipient}</p>}
+            {firstStatus.phoneNumberId && <p><span className="text-slate-400">رقم واتساب:</span> جاهز</p>}
+            {firstStatus.conversationId && <p dir="ltr"><span className="text-slate-400">conversation:</span> {String(firstStatus.conversationId).slice(0, 18)}…</p>}
+          </div>
+        )}
+        {webhookErrors.length > 0 && (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800">
+            {String(webhookErrors[0]?.title || webhookErrors[0]?.message || 'يوجد خطأ من Meta في هذا الحدث')}
+          </div>
+        )}
       </div>
     )
   }
