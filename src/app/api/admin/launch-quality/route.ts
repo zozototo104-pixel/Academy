@@ -141,7 +141,7 @@ function diagnosticStudentScore(student: any): number {
   return enrollmentScore + thesisScore + admissionScore + memoryScore
 }
 
-function chooseBestDiagnosticStudent<T extends any>(students: T[]): T | null {
+function chooseBestDiagnosticStudent<T>(students: T[]): T | null {
   if (!students.length) return null
   return students
     .slice()
