@@ -159,6 +159,11 @@ export function AIChatView() {
   const micManualStopRef = useRef(false)
   const micRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => { mutedRef.current = muted }, [muted])
+  useEffect(() => { autoSpeakRef.current = autoSpeak }, [autoSpeak])
+  useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
+  useEffect(() => { activeUnitRef.current = activeUnitId ?? null }, [activeUnitId])
+
   useEffect(() => {
     if (!user) return
     setLoadingHistory(true)
