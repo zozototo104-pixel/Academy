@@ -222,7 +222,6 @@ export function PaymentsTab() {
         .catch(() => {})
       window.history.replaceState({}, '', '/dashboard?tab=payments')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const openPaymentDialog = (payment: Payment) => {
