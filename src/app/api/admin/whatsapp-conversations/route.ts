@@ -25,11 +25,11 @@ export async function GET(req: NextRequest) {
       const conversation = await db.whatsAppConversation.findUnique({
         where: { id },
         include: {
-          messages: { orderBy: { createdAt: 'asc' }, take: 200 },
+          messages: { orderBy: { createdAt: 'desc' }, take: 120 },
         },
       })
       if (!conversation) return NextResponse.json({ ok: false, error: 'المحادثة غير موجودة' }, { status: 404 })
-      return NextResponse.json({ conversation })
+      return NextResponse.json({ conversation: { ...conversation, messages: [...conversation.messages].reverse() } })
     }
 
     const status = normalizeStatus(url.searchParams.get('status'))
