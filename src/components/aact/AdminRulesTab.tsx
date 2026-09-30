@@ -139,11 +139,11 @@ export function AdminRulesTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  function selectProgram(p: ProgramRules) {
+  const selectProgram = useCallback((p: ProgramRules) => {
     setSelectedId(p.id)
     setDraft({ ...p.rules })
     setCustom(p.custom)
-  }
+  }, [])
 
   useEffect(() => {
     api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
