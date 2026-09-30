@@ -56,7 +56,7 @@ export async function upsertWhatsAppConversationFromInbound(message: WhatsAppInb
       lastInboundAt: now,
       lastMessageAt: now,
       lastMessageText: text || null,
-      ...(text && { humanClosedAt: null }),
+      humanClosedAt: text ? null : undefined,
     },
   })
 }
