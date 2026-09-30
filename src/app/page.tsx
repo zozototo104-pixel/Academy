@@ -79,7 +79,6 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, duratio
       }
     }, 16)
     return () => window.clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationMs])
 
   return (
