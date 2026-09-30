@@ -38,36 +38,94 @@ function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
 }
 
+function hasHandoffAction(n: string) {
+  return includesAny(n, [
+    'اريد',
+    'بدي',
+    'ابي',
+    'ابغي',
+    'ابغى',
+    'احتاج',
+    'محتاج',
+    'ممكن',
+    'لو سمحت',
+    'حولني',
+    'حوّلني',
+    'وجهني',
+    'وجّهني',
+    'وصلني',
+    'اكلم',
+    'احكي',
+    'اتواصل',
+    'كلم',
+    'راسل',
+    'مراسله',
+    'مراسلة',
+    'رقم',
+    'واتساب',
+  ])
+}
+
+function hasHumanSupportTarget(n: string) {
+  return includesAny(n, [
+    'موظف حقيقي',
+    'موظف بشري',
+    'الموظف',
+    'موظف',
+    'شخص حقيقي',
+    'انسان حقيقي',
+    'الدعم البشري',
+    'دعم بشري',
+    'الدعم الانساني',
+    'دعم انساني',
+    'الاداره',
+    'اداره',
+    'الادمن',
+    'ادمن',
+    'فريق الدعم',
+    'الدعم',
+  ])
+}
+
+function looksLikeEmployeeLearningContext(n: string) {
+  const learningContext = includesAny(n, [
+    'حقوق الموظف',
+    'واجبات الموظف',
+    'مهام الموظف',
+    'تدريب الموظف',
+    'تدريب الموظفين',
+    'اداره الموظفين',
+    'ادارة الموظفين',
+    'موارد بشريه',
+    'موارد بشرية',
+    'دوره للموظفين',
+    'دورة للموظفين',
+    'حقيبه تدريبيه للموظفين',
+    'حقيبة تدريبية للموظفين',
+  ])
+  const explicitHandoff = includesAny(n, ['حولني', 'وجهني', 'اكلم', 'احكي', 'اتواصل', 'رقم', 'واتساب', 'الدعم البشري', 'دعم بشري'])
+  return learningContext && !explicitHandoff
+}
+
 export function wantsHumanSupport(message: string) {
   const n = normalizeArabic(message)
-  return includesAny(n, [
+  if (!n) return false
+  if (looksLikeEmployeeLearningContext(n)) return false
+
+  const explicitHumanPhrase = includesAny(n, [
     'موظف حقيقي',
     'موظف بشري',
     'شخص حقيقي',
     'انسان حقيقي',
-    'تواصل بشري',
+    'الدعم البشري',
     'دعم بشري',
-    'اكلم موظف',
-    'احكي مع موظف',
-    'احكي لموظف',
-    'اريد موظف',
-    'بدي موظف',
-    'ابي موظف',
-    'اريد الادمن',
-    'بدي الادمن',
-    'كلم الاداره',
-    'اكلم الاداره',
-    'رقم الاداره',
-    'رقم واتساب',
-    'رقم التواصل',
-    'اتواصل مع الاداره',
-    'التواصل مع الاداره',
-    'واتساب الاداره',
-    'تحويل لموظف',
-    'حولني لموظف',
-    'مراسله موظف',
-    'مراسلة موظف',
+    'الدعم الانساني',
+    'دعم انساني',
+    'تواصل بشري',
   ])
+  if (explicitHumanPhrase && hasHandoffAction(n)) return true
+
+  return hasHandoffAction(n) && hasHumanSupportTarget(n)
 }
 
 function looksLikeQuestion(message: string) {
