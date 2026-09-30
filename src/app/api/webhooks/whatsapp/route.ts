@@ -356,12 +356,13 @@ export async function POST(req: NextRequest) {
         const text = String(message.text || '').trim()
 
         if (promptActive && !handoffOpen && looksLikeHumanHandoffDetails(text)) {
-          await createHumanHandoffRequest({
+          const handoff = await createHumanHandoffRequest({
             user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
             message: text,
             source: 'WHATSAPP',
             sourceRef: handoffKey,
           })
+          await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
           reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
         } else if (wantsHumanSupport(text)) {
           reply = HUMAN_SUPPORT_REPLY
