@@ -87,6 +87,24 @@ async function markImmediateGreetingSent(key: string, from: string, messageId: s
   }, key)
 }
 
+async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  const found = await db.auditLog.findFirst({
+    where: { action, entityId: key, createdAt: { gte: since } },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => null)
+  return !!found
+}
+
+async function markWhatsAppHumanSupportPrompt(key: string, from: string, messageId: string) {
+  await auditWhatsAppWebhook('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', {
+    from: maskPhone(from),
+    messageId,
+    nextExpected: 'name_and_subject',
+  }, key)
+}
+
 function maskPhone(value?: string | null) {
   const raw = String(value || '').replace(/\D/g, '')
   if (!raw) return ''
