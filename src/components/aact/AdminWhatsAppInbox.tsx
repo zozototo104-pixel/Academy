@@ -84,21 +84,23 @@ export function AdminWhatsAppInboxTab() {
         return isDesktop && list[0] ? list[0].id : null
       })
     } catch (e: any) {
-      toast({ title: 'تعذر تحميل محادثات واتساب', description: e?.message, variant: 'destructive' })
+      if (!options?.silent) toast({ title: 'تعذر تحميل محادثات واتساب', description: e?.message, variant: 'destructive' })
     } finally {
-      setLoading(false)
+      if (!options?.silent) setLoading(false)
+      setLastSyncAt(new Date())
     }
   }
 
-  async function loadDetail(id: string) {
-    setDetailLoading(true)
+  async function loadDetail(id: string, options?: { silent?: boolean }) {
+    if (!options?.silent) setDetailLoading(true)
     try {
       const data = await api<{ conversation: WaConversation }>(`/api/admin/whatsapp-conversations?id=${encodeURIComponent(id)}`)
       setSelected(data.conversation)
     } catch (e: any) {
-      toast({ title: 'تعذر فتح المحادثة', description: e?.message, variant: 'destructive' })
+      if (!options?.silent) toast({ title: 'تعذر فتح المحادثة', description: e?.message, variant: 'destructive' })
     } finally {
-      setDetailLoading(false)
+      if (!options?.silent) setDetailLoading(false)
+      setLastSyncAt(new Date())
     }
   }
 
