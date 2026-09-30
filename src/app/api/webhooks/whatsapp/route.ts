@@ -287,6 +287,21 @@ export async function POST(req: NextRequest) {
       skippedDuplicates += 1
       continue
     }
+    const storedInbound = await recordWhatsAppInboundMessage(message).catch((error) => {
+      const msg = `store-inbound: ${String(error?.message || error || 'failed').slice(0, 220)}`
+      console.warn('official WhatsApp inbound store failed:', msg)
+      errors.push(msg)
+      return null
+    })
+    if (await isWhatsAppConversationHumanActive(message.from).catch(() => false)) {
+      await auditWhatsAppWebhook('WHATSAPP_HUMAN_CONVERSATION_HELD', {
+        from: maskPhone(message.from),
+        text: message.text.slice(0, 180),
+        conversationId: storedInbound?.conversation?.id || null,
+        note: 'conversation claimed by admin; bot reply suppressed',
+      }, storedInbound?.conversation?.id || message.id)
+      continue
+    }
     try {
       const greetingDecision = await shouldSendImmediateGreeting(message.from)
       if (greetingDecision.ok) {
