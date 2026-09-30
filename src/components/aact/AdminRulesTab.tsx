@@ -139,22 +139,21 @@ export function AdminRulesTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
-      .then((d) => {
-        setPrograms(d.programs)
-        if (d.programs.length) select(d.programs[0])
-      })
-      .catch(() => toast({ title: 'تعذر تحميل البرامج', variant: 'destructive' }))
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const select = (p: ProgramRules) => {
+  function selectProgram(p: ProgramRules) {
     setSelectedId(p.id)
     setDraft({ ...p.rules })
     setCustom(p.custom)
   }
+
+  useEffect(() => {
+    api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
+      .then((d) => {
+        setPrograms(d.programs)
+        if (d.programs.length) selectProgram(d.programs[0])
+      })
+      .catch(() => toast({ title: 'تعذر تحميل البرامج', variant: 'destructive' }))
+      .finally(() => setLoading(false))
+  }, [])
 
   const selected = programs.find((p) => p.id === selectedId)
   const selectedFlow = getServiceFlow(selected?.slug)
