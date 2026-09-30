@@ -62,7 +62,13 @@ export async function upsertWhatsAppConversationFromInbound(message: WhatsAppInb
 }
 
 export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessage) {
-  const conversation = await upsertWhatsAppConversationFromInbound(message)
+  let conversation = await upsertWhatsAppConversationFromInbound(message)
+  if (conversation.status === 'CLOSED') {
+    conversation = await db.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: { status: 'BOT_ACTIVE', humanClosedAt: null },
+    })
+  }
   const text = message.text || `رسالة غير نصية (${message.rawType || 'unknown'})`
   const stored = await db.whatsAppConversationMessage.create({
     data: {
