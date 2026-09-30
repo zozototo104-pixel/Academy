@@ -615,6 +615,7 @@ export async function platformPublicAgentComplete(opts: {
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   if (wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = routeAgent(last, null)
   const persona = personaForAgent(agent)
   const platformSnapshot = await buildPublicPlatformSnapshot(last)
