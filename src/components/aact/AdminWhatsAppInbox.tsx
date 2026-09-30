@@ -63,12 +63,13 @@ export function AdminWhatsAppInboxTab() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('HUMAN_REQUESTED')
   const [reply, setReply] = useState('')
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   const activeConversation = selected || conversations.find((c) => c.id === selectedId) || null
 
-  async function loadList() {
-    setLoading(true)
+  async function loadList(options?: { silent?: boolean }) {
+    if (!options?.silent) setLoading(true)
     const params = new URLSearchParams()
     if (status !== 'ALL') params.set('status', status)
     if (search.trim()) params.set('search', search.trim())
