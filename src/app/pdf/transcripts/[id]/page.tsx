@@ -173,7 +173,7 @@ export default async function TranscriptPdfPage({ params, searchParams }: PagePr
         <PdfTable
           headers={['الفاتورة', 'الوصف', 'المبلغ', 'الحالة']}
           rows={enrollment.payments.map((p) => [
-            <span>{p.invoiceNo}{p.receiptNo ? <><br /><span className="text-xs text-emerald-700">{p.receiptNo}</span></> : null}</span>,
+            <span key={`payment-${p.invoiceNo}`}>{p.invoiceNo}{p.receiptNo ? <><br /><span className="text-xs text-emerald-700">{p.receiptNo}</span></> : null}</span>,
             p.description,
             formatPdfMoney(p.amount, p.currency),
             p.status === 'PAID' ? `مسددة — ${formatPdfDate(p.paidAt)}` : 'غير مسددة',
