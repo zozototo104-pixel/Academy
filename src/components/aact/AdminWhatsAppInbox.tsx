@@ -128,12 +128,22 @@ export function AdminWhatsAppInboxTab() {
     }
   }
 
-  useEffect(() => { loadList() }, [status])
+  useEffect(() => {
+    const timer = window.setTimeout(loadList, 0)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
   useEffect(() => {
     const timer = window.setTimeout(loadList, 350)
     return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
-  useEffect(() => { if (selectedId) loadDetail(selectedId) }, [selectedId])
+  useEffect(() => {
+    if (!selectedId) return
+    const timer = window.setTimeout(() => loadDetail(selectedId), 0)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
 
   const messages = useMemo(() => activeConversation?.messages || [], [activeConversation])
 
