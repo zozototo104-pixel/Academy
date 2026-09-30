@@ -306,10 +306,18 @@ export async function POST(req: NextRequest) {
       const greetingDecision = await shouldSendImmediateGreeting(message.from)
       if (greetingDecision.ok) {
         try {
-          await sendOfficialWhatsAppText(message.from, buildOfficialWhatsAppImmediateGreeting(message), {
+          const greetingText = buildOfficialWhatsAppImmediateGreeting(message)
+          const greetingSend = await sendOfficialWhatsAppText(message.from, greetingText, {
             phoneNumberId: message.phoneNumberId,
             replyToMessageId: message.id,
           })
+          await recordWhatsAppOutboundMessage({
+            waId: message.from,
+            phoneNumberId: message.phoneNumberId,
+            text: greetingText,
+            sender: 'BOT',
+            whatsappMessageId: greetingSend?.messages?.[0]?.id || null,
+          }).catch(() => {})
           await markImmediateGreetingSent(greetingDecision.key, message.from, message.id)
           immediateGreetings += 1
         } catch (greetingError: any) {
