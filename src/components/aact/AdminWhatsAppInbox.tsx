@@ -155,6 +155,16 @@ export function AdminWhatsAppInboxTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.hidden) return
+      loadList({ silent: true })
+      if (selectedId) loadDetail(selectedId, { silent: true })
+    }, 5000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, status, search])
+
   const messages = useMemo(() => activeConversation?.messages || [], [activeConversation])
 
   useEffect(() => {
