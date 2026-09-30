@@ -152,11 +152,8 @@ export function AIChatView() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const autoSpeakRef = useRef(autoSpeak)
-  autoSpeakRef.current = autoSpeak
   const voiceModeRef = useRef(voiceMode)
-  voiceModeRef.current = voiceMode
-  const activeUnitRef = useRef<string | null>(null)
-  activeUnitRef.current = activeUnitId ?? null
+  const activeUnitRef = useRef<string | null>(activeUnitId ?? null)
   const asrRecorderRef = useRef<MediaRecorder | null>(null)
   const speechDraftRef = useRef('')
   const micManualStopRef = useRef(false)
