@@ -183,7 +183,7 @@ export function AdminWhatsAppInboxTab() {
                 <SelectItem value="CLOSED">مغلقة</SelectItem>
               </SelectContent>
             </Select>
-            <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {loading ? (
                 <div className="flex h-28 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
               ) : conversations.length ? conversations.map((c) => (
