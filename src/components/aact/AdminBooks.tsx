@@ -1262,7 +1262,7 @@ export function AdminBooksTab() {
     }
   }
 
-  const useAssignmentSuggestionInForm = (s: AssignmentSuggestion) => {
+  const applyAssignmentSuggestionToForm = (s: AssignmentSuggestion) => {
     setAssignmentForm({
       id: '',
       title: s.title,
