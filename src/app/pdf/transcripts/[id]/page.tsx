@@ -123,7 +123,7 @@ export default async function TranscriptPdfPage({ params, searchParams }: PagePr
           rows={enrollment.program.units.map((u) => [
             u.semester === 2 ? 'الفصل الثاني' : u.semester === 3 ? 'بحث/مشروع' : 'الفصل الأول',
             u.order,
-            <span><b>{u.title}</b>{u.summary ? <><br /><span className="text-xs text-slate-500">{u.summary}</span></> : null}</span>,
+            <span key={`unit-${u.id}`}><b>{u.title}</b>{u.summary ? <><br /><span className="text-xs text-slate-500">{u.summary}</span></> : null}</span>,
             completed.has(u.id) ? 'مكتملة' : statusArabic(u.status),
           ])}
         />
