@@ -74,8 +74,14 @@ export function AdminWhatsAppInboxTab() {
     if (search.trim()) params.set('search', search.trim())
     try {
       const data = await api<{ conversations: WaConversation[] }>(`/api/admin/whatsapp-conversations?${params.toString()}`)
-      setConversations(data.conversations || [])
-      if (!selectedId && data.conversations?.[0]) setSelectedId(data.conversations[0].id)
+      const list = data.conversations || []
+      setConversations(list)
+      setSelected((prev) => prev && list.some((c) => c.id === prev.id) ? prev : null)
+      setSelectedId((current) => {
+        if (current && list.some((c) => c.id === current)) return current
+        const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+        return isDesktop && list[0] ? list[0].id : null
+      })
     } catch (e: any) {
       toast({ title: 'تعذر تحميل محادثات واتساب', description: e?.message, variant: 'destructive' })
     } finally {
