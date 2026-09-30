@@ -170,8 +170,8 @@ export function AdminWhatsAppInboxTab() {
           <Button variant="outline" onClick={loadList} className="rounded-2xl font-black">تحديث</Button>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[330px_1fr]">
-          <div className="space-y-3 rounded-3xl border border-slate-100 bg-white p-3">
+        <div className="grid gap-4 lg:h-[720px] lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div className={`${activeConversation ? 'hidden lg:flex' : 'flex'} min-h-[560px] flex-col space-y-3 rounded-3xl border border-slate-100 bg-white p-3 lg:h-full lg:min-h-0`}>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالرقم أو الاسم أو آخر رسالة..." className="rounded-2xl text-sm font-bold" />
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="rounded-2xl font-bold"><SelectValue /></SelectTrigger>
