@@ -239,15 +239,18 @@ export async function POST(req: NextRequest) {
   // Always acknowledge non-message webhooks such as status updates.
   const messages = extractWhatsAppInboundMessages(payload)
   if (!messages.length) {
+    const nonMessage = summarizeNonMessageWhatsAppPayload(payload)
     await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_RECEIVED', {
       received: 0,
       sent: 0,
       configured: officialWhatsAppConfigured(),
-      note: 'no inbound messages; likely status update or verification event',
+      note: nonMessage.statusUpdates.length ? 'status update only; no inbound message text in payload' : 'no inbound messages; likely verification or unsupported webhook event',
       object: payload?.object || null,
       entries: Array.isArray(payload?.entry) ? payload.entry.length : 0,
+      statusUpdates: nonMessage.statusUpdates,
+      webhookErrors: nonMessage.webhookErrors,
     })
-    return NextResponse.json({ ok: true, received: 0, sent: 0, configured: officialWhatsAppConfigured() })
+    return NextResponse.json({ ok: true, received: 0, sent: 0, statusUpdates: nonMessage.statusUpdates.length, configured: officialWhatsAppConfigured() })
   }
 
   if (!officialWhatsAppConfigured()) {
