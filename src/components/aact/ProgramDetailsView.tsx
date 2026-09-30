@@ -231,17 +231,29 @@ export function ProgramDetailsView() {
 
   useEffect(() => {
     let alive = true
+    const timers: number[] = []
+    const deferState = (fn: () => void) => {
+      const timer = window.setTimeout(() => {
+        if (alive) fn()
+      }, 0)
+      timers.push(timer)
+    }
     const cached = readCachedPrograms()
     const cachedMatch = cached.some((p) => p.id === programDetailsId || p.slug === programDetailsId)
 
     if (cached.length) {
-      setPrograms(cached)
-      if (cachedMatch) setLoading(false)
+      deferState(() => {
+        setPrograms(cached)
+        if (cachedMatch) setLoading(false)
+      })
     }
 
     if (!programDetailsId) {
-      setLoading(false)
-      return () => { alive = false }
+      deferState(() => setLoading(false))
+      return () => {
+        alive = false
+        timers.forEach((timer) => window.clearTimeout(timer))
+      }
     }
 
     const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}${user ? '' : '&public=1'}`
