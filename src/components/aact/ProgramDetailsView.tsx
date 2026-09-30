@@ -269,7 +269,6 @@ export function ProgramDetailsView() {
       })
 
     return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programDetailsId])
 
   useEffect(() => {
