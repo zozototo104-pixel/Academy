@@ -166,11 +166,11 @@ export async function createHumanHandoffRequest(args: {
 
   await db.auditLog.create({
     data: {
-      actorId: args.user.id,
+      actorId: args.user.id || null,
       actorName: displayName,
       action: 'HUMAN_HANDOFF_REQUEST_SUBMITTED',
       entity: 'HumanHandoff',
-      entityId: args.sourceRef || args.user.id,
+      entityId: args.sourceRef || args.user.id || null,
       details: JSON.stringify({ source: args.source, contact, subject }).slice(0, 3000),
     },
   }).catch(() => {})
