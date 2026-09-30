@@ -140,10 +140,12 @@ export async function createHumanHandoffRequest(args: {
   const subject = String(args.message || '').trim().slice(0, 1500)
   if (!subject) return { ok: false, created: false }
 
-  const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } }).catch(() => [])
+  const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, email: true } }).catch(() => [])
   const displayName = args.user.name || (args.source === 'WHATSAPP' ? 'زائر واتساب' : 'مستخدم غير محدد الاسم')
   const contact = [args.user.email, args.user.phone].filter(Boolean).join(' / ') || 'لا توجد بيانات تواصل مسجلة'
-  const link = args.source === 'CHAT' && args.user.id ? `/admin?userId=${encodeURIComponent(args.user.id)}` : undefined
+  const link = args.source === 'CHAT' && args.user.id ? `/admin?userId=${encodeURIComponent(args.user.id)}` : '/admin?tab=messages'
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || process.env.NEXTAUTH_URL || '').replace(/\/$/, '')
+  const absoluteLink = appUrl ? `${appUrl}${link}` : link
   const body = [
     `طلب المستخدم ${displayName} التواصل مع موظف بشري.`,
     `المصدر: ${args.source === 'CHAT' ? 'محادثة الوكيل داخل المنصة' : 'واتساب الرسمي'}.`,
