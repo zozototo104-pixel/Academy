@@ -374,10 +374,17 @@ export async function POST(req: NextRequest) {
       } finally {
         stopTypingRefresh()
       }
-      await sendOfficialWhatsAppText(message.from, reply, {
+      const sendResult = await sendOfficialWhatsAppText(message.from, reply, {
         phoneNumberId: message.phoneNumberId,
         replyToMessageId: message.id,
       })
+      await recordWhatsAppOutboundMessage({
+        waId: message.from,
+        phoneNumberId: message.phoneNumberId,
+        text: reply,
+        sender: 'BOT',
+        whatsappMessageId: sendResult?.messages?.[0]?.id || null,
+      }).catch(() => {})
       sent += 1
     } catch (error: any) {
       const msg = String(error?.message || error || 'unknown WhatsApp webhook error').slice(0, 500)
