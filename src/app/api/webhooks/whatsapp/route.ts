@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
           await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
         } else {
           const agentReply = await createOfficialWhatsAppAgentReply(message)
-          reply = (promptActive || handoffSubmitted) ? withHumanHandoffActiveNote(agentReply) : agentReply
+          reply = handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
         }
       } finally {
         stopTypingRefresh()
