@@ -2120,6 +2120,11 @@ export function AdminView() {
         <TabsContent value="messages">
           <AdminMessagesTab />
         </TabsContent>
+
+        {/* محادثات واتساب البشرية */}
+        <TabsContent value="whatsapp-inbox">
+          <AdminWhatsAppInboxTab />
+        </TabsContent>
       </Tabs>
 
       <Dialog open={!!revokeDialog} onOpenChange={(open) => { if (!open) setRevokeDialog(null) }}>
