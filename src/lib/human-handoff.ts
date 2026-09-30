@@ -325,5 +325,5 @@ export async function createHumanHandoffRequest(args: {
     },
   }).catch(() => {})
 
-  return { ok: true, created: true }
+  return { ok: true, created: true, id: handoffRequest?.id || null }
 }
