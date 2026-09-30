@@ -51,7 +51,19 @@ export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const { id, handled } = await req.json()
-    await db.contactMessage.update({ where: { id }, data: { handled: !!handled } })
+    const message = await db.contactMessage.update({ where: { id }, data: { handled: !!handled } })
+    await db.humanHandoffRequest.updateMany({
+      where: { contactMessageId: id },
+      data: handled
+        ? { status: 'CONTACTED', assignedToId: admin.id, assignedAt: new Date(), contactedAt: new Date() }
+        : { status: 'NEW', assignedToId: null, assignedAt: null, contactedAt: null, closedAt: null },
+    }).catch(() => {})
+    if (!handled && message.subject === 'طلب تواصل بشري من الوكيل الذكي') {
+      await db.humanHandoffRequest.updateMany({
+        where: { contactMessageId: null, subject: message.subject, message: { contains: message.message.slice(-200) } },
+        data: { status: 'NEW', assignedToId: null, assignedAt: null, contactedAt: null, closedAt: null },
+      }).catch(() => {})
+    }
     await audit(admin, 'RESOLVE_MESSAGE', 'ContactMessage', id, handled ? 'معالجة' : 'إعادة فتح')
     return NextResponse.json({ ok: true })
   } catch (e: any) {
