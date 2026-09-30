@@ -203,9 +203,19 @@ export function AdminWhatsAppInboxTab() {
             {activeConversation ? (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 bg-[#075e54] p-4 text-white">
-                  <div>
-                    <p className="text-base font-black">{activeConversation.displayName || activeConversation.phoneMasked}</p>
-                    <p className="text-[11px] font-bold text-emerald-100">{statusLabel[activeConversation.status]} {activeConversation.assignedToName ? `— ${activeConversation.assignedToName}` : ''}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setSelectedId(null); setSelected(null) }}
+                      className="rounded-2xl px-2 text-white hover:bg-white/10 lg:hidden"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black">{activeConversation.displayName || activeConversation.phoneMasked}</p>
+                      <p className="truncate text-[11px] font-bold text-emerald-100">{statusLabel[activeConversation.status]} {activeConversation.assignedToName ? `— ${activeConversation.assignedToName}` : ''}</p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {activeConversation.status !== 'HUMAN_ACTIVE' && <Button size="sm" onClick={() => act('claim')} className="rounded-2xl bg-white text-[#075e54] hover:bg-emerald-50"><UserCheck className="ml-1 h-4 w-4" /> استلام</Button>}
