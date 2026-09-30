@@ -112,6 +112,32 @@ function maskPhone(value?: string | null) {
   return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
 }
 
+function summarizeNonMessageWhatsAppPayload(payload: any) {
+  const statusUpdates: any[] = []
+  const webhookErrors: any[] = []
+  for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      const value = change?.value || {}
+      const phoneNumberId = value?.metadata?.phone_number_id || null
+      for (const status of Array.isArray(value?.statuses) ? value.statuses : []) {
+        statusUpdates.push({
+          id: String(status?.id || '').slice(0, 80),
+          status: String(status?.status || 'unknown'),
+          recipient: maskPhone(status?.recipient_id),
+          timestamp: status?.timestamp || null,
+          phoneNumberId,
+          conversationId: String(status?.conversation?.id || '').slice(0, 80) || null,
+          errors: Array.isArray(status?.errors) ? status.errors.map((e: any) => ({ code: e?.code || null, title: e?.title || null, message: e?.message || null })).slice(0, 3) : [],
+        })
+      }
+      for (const error of Array.isArray(value?.errors) ? value.errors : []) {
+        webhookErrors.push({ code: error?.code || null, title: error?.title || null, message: error?.message || null })
+      }
+    }
+  }
+  return { statusUpdates: statusUpdates.slice(0, 5), webhookErrors: webhookErrors.slice(0, 5) }
+}
+
 function keepTypingIndicatorAlive(message: any, onSent: () => void, onError: (message: string) => void) {
   const timer = setInterval(() => {
     sendOfficialWhatsAppTypingIndicator(message)
