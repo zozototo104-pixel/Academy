@@ -48,9 +48,8 @@ jobs:
       - name: Run quality checks
         run: bun run quality
 
-      - name: Run lint report
+      - name: Run lint
         run: bun run lint
-        continue-on-error: true
 
       - name: Build Next.js application
         run: bun run build
