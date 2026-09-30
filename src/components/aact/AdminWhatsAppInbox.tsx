@@ -154,6 +154,11 @@ export function AdminWhatsAppInboxTab() {
 
   const messages = useMemo(() => activeConversation?.messages || [], [activeConversation])
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => messagesEndRef.current?.scrollIntoView({ block: 'end' }), 80)
+    return () => window.clearTimeout(timer)
+  }, [messages.length, selectedId, detailLoading])
+
   return (
     <Card className="border-emerald-100 bg-gradient-to-br from-white to-emerald-50/40 shadow-sm">
       <CardContent className="space-y-4 p-4 sm:p-5">
