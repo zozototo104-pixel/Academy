@@ -127,7 +127,7 @@ export function AdminAgentPreview() {
     return new URLSearchParams(window.location.search).get('agentId') || ''
   }, [agentPreviewId])
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!id) {
       setLoading(false)
       setError('لم يتم تحديد طلب الوكالة/الاعتماد')
@@ -139,9 +139,12 @@ export function AdminAgentPreview() {
       .then(setData)
       .catch((e: any) => setError(e?.message || 'تعذر تحميل معاينة الوكالة/الاعتماد'))
       .finally(() => setLoading(false))
-  }
+  }, [id])
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   if (loading) {
     return (
