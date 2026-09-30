@@ -236,6 +236,7 @@ export function AdminWhatsAppInboxTab() {
                       </div>
                     )
                   })}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 <div className="border-t border-black/5 bg-[#f0f2f5] p-3">
