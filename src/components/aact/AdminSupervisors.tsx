@@ -40,7 +40,7 @@ export function AdminSupervisorsTab() {
     }
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [])
 
   const createSupervisor = async () => {
     setSaving(true)
