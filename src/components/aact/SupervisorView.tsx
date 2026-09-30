@@ -182,8 +182,8 @@ export function SupervisorView() {
     }
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [])
+  useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id])
 
   const sendMessage = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
     if (!selected) return
