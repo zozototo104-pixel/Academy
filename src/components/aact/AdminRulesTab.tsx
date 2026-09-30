@@ -153,7 +153,7 @@ export function AdminRulesTab() {
       })
       .catch(() => toast({ title: 'تعذر تحميل البرامج', variant: 'destructive' }))
       .finally(() => setLoading(false))
-  }, [])
+  }, [selectProgram])
 
   const selected = programs.find((p) => p.id === selectedId)
   const selectedFlow = getServiceFlow(selected?.slug)
