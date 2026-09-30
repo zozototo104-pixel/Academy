@@ -259,13 +259,29 @@ export async function createHumanHandoffRequest(args: {
     `موضوع المستخدم: ${subject}`,
   ].filter(Boolean).join('\n')
 
-  await db.contactMessage.create({
+  const contactMessage = await db.contactMessage.create({
     data: {
       name: displayName.slice(0, 120),
       email: (args.user.email || 'human-handoff@aactacademy.local').slice(0, 180),
       phone: args.user.phone || null,
       subject: 'طلب تواصل بشري من الوكيل الذكي',
       message: body.slice(0, 3000),
+    },
+    select: { id: true },
+  }).catch(() => null)
+
+  await db.humanHandoffRequest.create({
+    data: {
+      requesterId: args.user.id || null,
+      source: args.source,
+      sourceRef: args.sourceRef || args.user.id || null,
+      name: displayName.slice(0, 120),
+      email: args.user.email || null,
+      phone: args.user.phone || null,
+      subject: 'طلب تواصل بشري من الوكيل الذكي',
+      message: subject,
+      status: 'NEW',
+      contactMessageId: contactMessage?.id || null,
     },
   }).catch(() => {})
 
