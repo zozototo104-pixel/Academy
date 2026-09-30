@@ -1673,8 +1673,8 @@ export function AdminAuditTab() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true)
       const params = new URLSearchParams({ page: String(auditPage), pageSize: String(auditPageSize) })
       if (filters.search.trim()) params.set('search', filters.search.trim())
       if (filters.action !== 'ALL') params.set('action', filters.action)
