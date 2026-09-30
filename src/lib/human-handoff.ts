@@ -164,19 +164,65 @@ export function withHumanHandoffActiveNote(reply: string) {
   return `${reply.trim()}${HUMAN_HANDOFF_ACTIVE_NOTE}`
 }
 
-export async function hasRecentHumanHandoffRequest(userId: string, days = 7) {
+export async function hasOpenHumanHandoffRequest(args: {
+  userId?: string | null
+  sourceRef?: string | null
+  email?: string | null
+  phone?: string | null
+  days?: number
+}) {
+  const days = args.days ?? 7
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-  const found = await db.auditLog.findFirst({
+  const refs = Array.from(new Set([args.sourceRef, args.userId].filter((v): v is string => Boolean(v))))
+  const or: any[] = []
+  if (args.userId) or.push({ requesterId: args.userId })
+  for (const ref of refs) or.push({ sourceRef: ref })
+  if (args.email) or.push({ email: args.email })
+  if (args.phone) or.push({ phone: args.phone })
+  if (!or.length) return false
+
+  const open = await db.humanHandoffRequest.findFirst({
     where: {
-      actorId: userId,
-      action: 'HUMAN_HANDOFF_REQUEST_SUBMITTED',
-      entity: 'HumanHandoff',
+      status: { in: ['NEW', 'IN_PROGRESS'] },
       createdAt: { gte: since },
+      OR: or,
     },
     select: { id: true },
     orderBy: { createdAt: 'desc' },
   }).catch(() => null)
-  return !!found
+  if (open) return true
+
+  // احتياط مؤقت إذا لم يكن جدول HumanHandoffRequest موجوداً في قاعدة الإنتاج بعد.
+  const fallbackOr: any[] = []
+  for (const ref of refs) fallbackOr.push({ message: { contains: `مرجع المحادثة: ${ref}` } })
+  if (args.email) fallbackOr.push({ email: args.email })
+  if (args.phone) fallbackOr.push({ phone: args.phone })
+  if (!fallbackOr.length) return false
+  const fallback = await db.contactMessage.findFirst({
+    where: {
+      subject: 'طلب تواصل بشري من الوكيل الذكي',
+      handled: false,
+      createdAt: { gte: since },
+      OR: fallbackOr,
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => null)
+  return !!fallback
+}
+
+export async function hasRecentHumanHandoffRequest(userId: string, days = 7) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { email: true, phone: true },
+  }).catch(() => null)
+  return hasOpenHumanHandoffRequest({
+    userId,
+    sourceRef: userId,
+    email: user?.email || null,
+    phone: user?.phone || null,
+    days,
+  })
 }
 
 export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; content: string }>) {
