@@ -223,7 +223,7 @@
 }
 
 .font-cairo {
-  font-family: "Cairo", "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+  font-family: var(--font-cairo), var(--font-tajawal), "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
 .aact-hero {
