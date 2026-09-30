@@ -224,7 +224,7 @@ export function AdminWhatsAppInboxTab() {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                   {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#075e54]" /></div> : messages.map((m) => {
                     const outbound = m.direction === 'OUTBOUND'
                     return (
