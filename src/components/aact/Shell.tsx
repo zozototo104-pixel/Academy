@@ -234,7 +234,6 @@ export function AcademyLogo({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       key={sources[srcIndex]}
       src={sources[srcIndex]}
