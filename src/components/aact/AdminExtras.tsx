@@ -1793,8 +1793,8 @@ export function AdminMessagesTab() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true)
       const params = new URLSearchParams({ page: String(msgPage), pageSize: String(msgPageSize), status: msgStatusFilter })
       if (msgSearch.trim()) params.set('search', msgSearch.trim())
       api<{ messages: Msg[]; total: number }>(`/api/admin/contact?${params.toString()}`)
