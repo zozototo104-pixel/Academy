@@ -440,6 +440,32 @@ model ContactMessage {
   createdAt DateTime @default(now())
 }
 
+model HumanHandoffRequest {
+  id          String   @id @default(cuid())
+  requesterId String?
+  requester   User?    @relation("HumanHandoffRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  source      String   // CHAT | WHATSAPP
+  sourceRef   String?
+  name        String
+  email       String?
+  phone       String?
+  subject     String
+  message     String
+  status      String   @default("NEW") // NEW | IN_PROGRESS | CONTACTED | CLOSED
+  contactMessageId String?
+  assignedToId String?
+  assignedAt  DateTime?
+  contactedAt DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([source, sourceRef])
+  @@index([requesterId, createdAt])
+  @@index([contactMessageId])
+}
+
 model ThesisSubmission {
   id          String   @id @default(cuid())
   userId      String
