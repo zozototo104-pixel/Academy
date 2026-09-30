@@ -177,11 +177,11 @@ export async function createHumanHandoffRequest(args: {
     }).catch(() => {})
   }
 
-  const adminEmails = Array.from(new Set(admins.map((admin) => admin.email).filter(Boolean)))
+  const adminEmails = Array.from(new Set(admins.map((admin) => admin.email).filter((email): email is string => Boolean(email))))
   if (adminEmails.length) {
     const mailSubject = 'طلب تواصل بشري من الوكيل الذكي'
     const html = makeBasicEmailHtml(mailSubject, body, absoluteLink)
-    const result = await sendMail({ to: adminEmails, subject: mailSubject, html, text: body }).catch((e: any) => ({ ok: false, error: e?.message || 'mail failed' }))
+    const result: any = await sendMail({ to: adminEmails, subject: mailSubject, html, text: body }).catch((e: any) => ({ ok: false, error: e?.message || 'mail failed' }))
     await db.emailLog.create({
       data: {
         to: adminEmails.join(','),
