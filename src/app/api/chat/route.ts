@@ -3,6 +3,16 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete } from '@/lib/platform-agent'
+import {
+  createHumanHandoffRequest,
+  hadRecentHumanSupportPrompt,
+  hasRecentHumanHandoffRequest,
+  HUMAN_HANDOFF_CONFIRMATION_REPLY,
+  HUMAN_SUPPORT_REPLY,
+  looksLikeHumanHandoffDetails,
+  wantsHumanSupport,
+  withHumanHandoffActiveNote,
+} from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 
