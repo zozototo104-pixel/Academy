@@ -104,7 +104,7 @@ export default async function ResultPdfPage({ params, searchParams }: PageProps)
           headers={['#', 'السؤال', 'الدرجة', 'ملاحظات']}
           rows={sortedAnswers.map((a) => [
             a.question.order,
-            <span><b>{a.question.text}</b><br /><span className="text-xs text-slate-500">{a.question.sourceBookTitle || a.question.cognitiveSkill || a.question.difficulty || '—'}</span></span>,
+            <span key={`answer-${a.id}`}><b>{a.question.text}</b><br /><span className="text-xs text-slate-500">{a.question.sourceBookTitle || a.question.cognitiveSkill || a.question.difficulty || '—'}</span></span>,
             `${a.points ?? '—'} / ${a.maxPoints ?? a.question.points}`,
             a.aiFeedback || (a.isCorrect == null ? 'قيد التصحيح' : a.isCorrect ? 'إجابة صحيحة' : 'إجابة غير مكتملة/غير صحيحة'),
           ])}
