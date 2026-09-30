@@ -287,7 +287,27 @@ export async function POST(req: NextRequest) {
       )
       let reply = ''
       try {
-        reply = await createOfficialWhatsAppAgentReply(message)
+        const handoffKey = conversationKey(message.from)
+        const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
+        const handoffSubmitted = await hasRecentWhatsAppAudit('HUMAN_HANDOFF_REQUEST_SUBMITTED', handoffKey)
+        const text = String(message.text || '').trim()
+
+        if (promptActive && !handoffSubmitted && looksLikeHumanHandoffDetails(text)) {
+          const digits = String(message.from || '').replace(/\D/g, '')
+          await createHumanHandoffRequest({
+            user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
+            message: text,
+            source: 'WHATSAPP',
+            sourceRef: handoffKey,
+          })
+          reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
+        } else if (wantsHumanSupport(text)) {
+          reply = HUMAN_SUPPORT_REPLY
+          await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
+        } else {
+          const agentReply = await createOfficialWhatsAppAgentReply(message)
+          reply = (promptActive || handoffSubmitted) ? withHumanHandoffActiveNote(agentReply) : agentReply
+        }
       } finally {
         stopTypingRefresh()
       }
