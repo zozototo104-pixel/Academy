@@ -180,7 +180,19 @@ export function AdminWhatsAppInboxTab() {
             <p className="flex items-center gap-2 text-lg font-black text-[#0f2b46]"><MessageCircle className="h-5 w-5 text-emerald-600" /> صندوق محادثات واتساب</p>
             <p className="text-xs font-bold text-slate-500">تظهر طلبات الموظف افتراضيًا، ويمكنك تبديل الفلتر لكل المحادثات. الوكيل يظل يرد تلقائيًا إلى أن يضغط الموظف على استلام المحادثة.</p>
           </div>
-          <Button variant="outline" onClick={loadList} className="rounded-2xl font-black">تحديث</Button>
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                loadList()
+                if (selectedId) loadDetail(selectedId)
+              }}
+              className="rounded-2xl font-black"
+            >تحديث الآن</Button>
+            <span className="text-[10px] font-bold text-slate-400">
+              تحديث تلقائي كل 5 ثوانٍ{lastSyncAt ? ` · آخر مزامنة ${lastSyncAt.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </span>
+          </div>
         </div>
 
         <div className="grid gap-4 lg:h-[720px] lg:grid-cols-[340px_minmax(0,1fr)]">
