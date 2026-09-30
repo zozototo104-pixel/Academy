@@ -128,7 +128,6 @@ model Program {
   microCredentials MicroCredential[]
   thesisTopics ThesisTopic[]
   thesisTopicRequests ThesisTopicRequest[]
-  humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
 }
 
 model Unit {
