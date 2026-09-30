@@ -71,7 +71,7 @@ export function wantsHumanSupport(message: string) {
 
 function looksLikeQuestion(message: string) {
   const n = normalizeArabic(message)
-  return /\?/.test(message) || includesAny(n, [
+  return /[؟?]/.test(message) || includesAny(n, [
     'كم',
     'متي',
     'متى',
