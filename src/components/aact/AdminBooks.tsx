@@ -2146,7 +2146,7 @@ export function AdminBooksTab() {
                               <Plus className="ml-1 h-3 w-3" /> إضافة مباشرة
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => useAssignmentSuggestionInForm(s)} className="h-8 px-3 text-[10px] font-black">
+                          <Button size="sm" variant="outline" onClick={() => applyAssignmentSuggestionToForm(s)} className="h-8 px-3 text-[10px] font-black">
                             فتح للتعديل قبل الإضافة
                           </Button>
                         </div>
