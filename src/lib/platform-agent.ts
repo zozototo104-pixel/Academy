@@ -87,6 +87,103 @@ function wantsHumanSupport(message: string) {
   ])
 }
 
+function wantsPaymentMethodsInfo(message: string) {
+  const n = normalizeArabic(message)
+  if (!n) return false
+  const explicitPaymentMethod = includesAny(n, [
+    'طرق الدفع',
+    'طريقة الدفع',
+    'اليه الدفع',
+    'الية الدفع',
+    'كيف ادفع',
+    'كيف اسدد',
+    'ادفع كيف',
+    'اسدد كيف',
+    'الدفع عبر',
+    'الدفع ب',
+    'ادفع بال',
+    'سداد الفاتوره',
+    'سداد فاتوره',
+    'ادفع الفاتوره',
+    'دفع الفاتوره',
+    'خيارات الدفع',
+    'وسائل الدفع',
+    'بوابه الدفع',
+    'بوابة الدفع',
+    'يو اس دي تي',
+    'usdt',
+    'tether',
+    'تيثر',
+    'بايننس',
+    'binance',
+    'paypal',
+    'بايبال',
+    'stripe',
+    'سترايب',
+    'بطاقه',
+    'بطاقة',
+    'visa',
+    'mastercard',
+  ])
+  // سؤال الرسوم وحده مثل "كم رسوم البرنامج" ليس سؤالاً عن وسيلة الدفع.
+  const feesOnly = includesAny(n, ['كم الرسوم', 'رسوم البرنامج', 'سعر البرنامج', 'تكلفه البرنامج', 'تكلفة البرنامج']) && !explicitPaymentMethod
+  return explicitPaymentMethod && !feesOnly
+}
+
+function paymentMethodReplyLine(method: { id: string; label: string; enabled: boolean; kind: string; reason?: string }, cfg: Awaited<ReturnType<typeof getGatewayConfig>>) {
+  const base = `- ${method.label}`
+  if (method.id === 'USDT' && method.enabled) {
+    const parts = [base]
+    if (cfg.usdtNetwork) parts.push(`الشبكة/الآلية: ${cfg.usdtNetwork}`)
+    if (cfg.usdtBinancePayUserId) parts.push(`معرف Binance Pay: ${cfg.usdtBinancePayUserId}`)
+    if (cfg.usdtBinancePayQrImageUrl) parts.push('يتوفر خيار QR داخل شاشة الدفع في المنصة عند اختيار USDT.')
+    return parts.join(' — ')
+  }
+  if (method.id === 'DIRECT_PAYMENT' && method.enabled) {
+    return `${base} — يتم إنشاء/متابعة الفاتورة داخل بوابة الطالب، ثم تؤكد الإدارة السداد يدوياً بعد استلام الإشعار.`
+  }
+  return base
+}
+
+async function buildDynamicPaymentMethodsReply() {
+  const cfg = await getGatewayConfig()
+  const diag = paymentDiagnostics(cfg)
+  const active = diag.methods.filter((m) => m.enabled)
+  const inactive = diag.methods.filter((m) => !m.enabled)
+  const lines: string[] = [
+    'حسب إعدادات الدفع الحالية الظاهرة في المنصة، طرق الدفع المتاحة الآن هي:',
+    '',
+  ]
+  if (active.length) {
+    lines.push(...active.map((m) => paymentMethodReplyLine(m, cfg)))
+  } else {
+    lines.push('- لا توجد وسيلة دفع مفعّلة حالياً في المنصة. يرجى التواصل مع الإدارة قبل إرسال أي مبلغ.')
+  }
+
+  lines.push('', 'طريقة الاستخدام: افتح الفاتورة من بوابة الطالب، اختر وسيلة الدفع المتاحة، ثم اتبع التعليمات الظاهرة في نفس شاشة الفاتورة. إذا كانت الوسيلة يدوية مثل الدفع المباشر أو USDT، أرسل إثبات السداد أو رقم العملية من شاشة الفاتورة حتى تراجعه الإدارة.')
+
+  const preparing = inactive.filter((m) => m.reason && /جاري التجهيز|مغلقة|لم يتم ضبط/.test(m.reason)).map((m) => m.label)
+  if (preparing.length) {
+    lines.push('', `طرق ظاهرة لكنها غير مفعّلة حالياً/قيد التجهيز: ${preparing.join('، ')}. لا تعتمد عليها قبل أن تظهر كخيار مفعّل في الفاتورة.`)
+  }
+  if (diag.warnings.length) lines.push('', `تنبيهات إعداد الدفع: ${diag.warnings.join(' ')}`)
+  if (diag.errors.length) lines.push('', `ملاحظات مهمة: ${diag.errors.join(' ')}`)
+  lines.push('', 'للمساعدة أو التأكد من السداد يمكنك التواصل مع الإدارة عبر:', '📞 +972594403737', '📞 +970 598 400 510')
+  return lines.join('\n')
+}
+
+async function buildPaymentMethodsContext() {
+  const cfg = await getGatewayConfig()
+  const diag = paymentDiagnostics(cfg)
+  const active = diag.methods.filter((m) => m.enabled).map((m) => paymentMethodReplyLine(m, cfg)).join('\n') || 'لا توجد طرق مفعلة حالياً.'
+  const inactive = diag.methods.filter((m) => !m.enabled).map((m) => `- ${m.label}: ${m.reason || 'غير مفعلة'}`).join('\n')
+  return [
+    'حالة الدفع الحالية من إعدادات المنصة. هذه هي مصدر الحقيقة عند أي سؤال عن طريقة الدفع، ولا تذكر وسائل غير ظاهرة هنا كوسائل معتمدة.',
+    `طرق الدفع المفعلة:\n${active}`,
+    inactive ? `طرق غير مفعلة أو قيد التجهيز:\n${inactive}` : '',
+  ].filter(Boolean).join('\n')
+}
+
 function hasTokenAny(n: string, words: string[]) {
   const tokens = new Set(n.split(/\s+/).filter(Boolean))
   return words.some((w) => tokens.has(normalizeArabic(w)))
