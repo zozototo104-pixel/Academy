@@ -786,7 +786,6 @@ export function AdminAppealsSection() {
               </DialogTitle>
             </DialogHeader>
             {active?.proctoring.snapshot && (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={active.proctoring.snapshot} alt="لقطة كاميرا الطالب" className="w-full rounded-xl border" />
             )}
           </DialogContent>
