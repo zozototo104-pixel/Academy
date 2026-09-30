@@ -280,7 +280,10 @@ export function ProgramDetailsView() {
         if (alive) setLoading(false)
       })
 
-    return () => { alive = false }
+    return () => {
+      alive = false
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
   }, [programDetailsId])
 
   useEffect(() => {
