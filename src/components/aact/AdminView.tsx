@@ -55,6 +55,7 @@ const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.Admin
 const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
 const AdminQualityTab = dynamic(() => loadAdminQualityModule().then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
 const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
+const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
