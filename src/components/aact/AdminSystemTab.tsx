@@ -296,7 +296,6 @@ export function AdminSystemTab() {
       })
       .catch(() => null)
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, activeTextProviderForModels])
 
   const set = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }))
