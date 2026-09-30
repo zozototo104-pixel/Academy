@@ -290,10 +290,14 @@ export async function POST(req: NextRequest) {
       try {
         const handoffKey = conversationKey(message.from)
         const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
-        const handoffSubmitted = await hasRecentWhatsAppAudit('HUMAN_HANDOFF_REQUEST_SUBMITTED', handoffKey)
+        const digits = String(message.from || '').replace(/\D/g, '')
+        const handoffOpen = await hasOpenHumanHandoffRequest({
+          sourceRef: handoffKey,
+          phone: digits ? `+${digits}` : null,
+        })
         const text = String(message.text || '').trim()
 
-        if (promptActive && !handoffSubmitted && looksLikeHumanHandoffDetails(text)) {
+        if (promptActive && !handoffOpen && looksLikeHumanHandoffDetails(text)) {
           const digits = String(message.from || '').replace(/\D/g, '')
           await createHumanHandoffRequest({
             user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
