@@ -19,6 +19,12 @@ import {
   sendOfficialWhatsAppTypingIndicator,
   verifyWhatsAppSignature,
 } from '@/lib/whatsapp-cloud'
+import {
+  isWhatsAppConversationHumanActive,
+  markWhatsAppConversationRequested,
+  recordWhatsAppInboundMessage,
+  recordWhatsAppOutboundMessage,
+} from '@/lib/whatsapp-conversations'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
