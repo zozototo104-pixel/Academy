@@ -276,7 +276,6 @@ export function AdminSystemTab() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const activeTextProviderForModels = form.AI_TEXT_PROVIDER || data?.textAi?.selectedProvider || 'GEMINI'
