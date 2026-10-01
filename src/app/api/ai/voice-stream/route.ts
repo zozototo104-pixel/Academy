@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   // سياق RAG: ملف الطالب + منهجه + تقدمه (نفس مصدر الدردشة النصية)
-  const ragContext = await buildSupervisorContext(user.id)
+  const ragContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query: message })
   const systemPrompt = buildVoiceSystemPrompt(mergeContext(ragContext))
 
   // حفظ رسالة الطالب فوراً — قاعدة البيانات مصدر الحقيقة لذاكرة الجلسة
