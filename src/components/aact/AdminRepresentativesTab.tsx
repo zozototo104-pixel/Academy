@@ -345,8 +345,51 @@ export default function AdminRepresentativesTab() {
   )
 }
 
-function AssetUploader({ label, icon, onUpload, uploading }: { label: string; icon: ReactNode; onUpload: (file: File) => void; uploading: boolean }) {
-  return <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]"><input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file); e.currentTarget.value = '' }} />{icon}{label}<span className="text-[10px] font-bold text-slate-400"><Upload className="inline h-3 w-3" /> رفع ملف</span></label>
+function CountryCombobox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [search, setSearch] = useState(value || '')
+  const matches = REPRESENTATIVE_COUNTRIES.filter((country) => country.includes(search.trim()) || search.trim().includes(country)).slice(0, 8)
+  useEffect(() => setSearch(value || ''), [value])
+  return (
+    <div className="relative">
+      <Label>الدولة</Label>
+      <Input value={search} onChange={(e) => { setSearch(e.target.value); onChange(e.target.value) }} placeholder="اختر أو اكتب الدولة" className="mt-2 rounded-2xl" />
+      {search && matches.length > 0 && !matches.includes(search) && (
+        <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1 shadow-xl">
+          {matches.map((country) => (
+            <button key={country} type="button" onClick={() => { setSearch(country); onChange(country) }} className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-[#0f2b46] hover:bg-amber-50">
+              {country}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-[10px] font-bold text-slate-400">يمكن الاختيار من القائمة أو كتابة دولة جديدة.</p>
+    </div>
+  )
+}
+
+function AssetUploader({ label, hint, icon, accept, onUpload, uploading }: { label: string; hint?: string; icon: ReactNode; accept?: string; onUpload: (file: File) => void; uploading: boolean }) {
+  return (
+    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]">
+      <input type="file" accept={accept} className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file); e.currentTarget.value = '' }} />
+      {icon}
+      <span>{label}</span>
+      {hint && <span className="text-[10px] font-bold leading-5 text-slate-400">{hint}</span>}
+      <span className="text-[10px] font-bold text-slate-400"><Upload className="inline h-3 w-3" /> رفع ملف</span>
+    </label>
+  )
+}
+
+function PresetFileUploader({ preset, onUpload, uploading }: { preset: { kind: string; title: string; label: string; hint: string }; onUpload: (file: File, extras: Record<string, string>) => void; uploading: boolean }) {
+  return (
+    <label className="flex cursor-pointer flex-col justify-between gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-right hover:border-[#c9a227] hover:bg-amber-50/40">
+      <input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file, { kind: preset.kind, title: preset.title, description: preset.hint }); e.currentTarget.value = '' }} />
+      <div>
+        <div className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><FileText className="h-4 w-4 text-[#c9a227]" /> {preset.label}</div>
+        <p className="mt-2 text-[11px] font-bold leading-5 text-slate-500">{preset.hint}</p>
+      </div>
+      <span className="inline-flex w-fit rounded-full bg-[#0f2b46] px-3 py-1 text-[10px] font-black text-white">رفع بكل الصيغ</span>
+    </label>
+  )
 }
 
 function GeneralFileUploader({ onUpload, uploading }: { onUpload: (file: File, extras: Record<string, string>) => void; uploading: boolean }) {
