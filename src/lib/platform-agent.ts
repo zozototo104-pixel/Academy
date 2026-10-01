@@ -864,7 +864,7 @@ export async function platformPublicAgentComplete(opts: {
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const publicScope = opts.channel === 'WHATSAPP' ? 'WHATSAPP_VISITOR' : 'PUBLIC_VISITOR'
+  const publicScope = resolveAiKnowledgeScope({ channel: opts.channel, role: 'PUBLIC' })
   const directBooksResult = await buildScopedDirectProgramBooksResult(last, publicScope).catch(() => null)
   if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
     await auditAiKnowledgeDiagnostics({
