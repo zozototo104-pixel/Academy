@@ -710,6 +710,7 @@ export function Header() {
               { label: 'الرئيسية', target: 'home' as const },
               { label: 'البرامج والخدمات', target: 'programs' as const },
               { label: 'الشهادات والتحقق', target: 'verify' as const },
+              { label: 'ممثلو الدول', target: 'representatives' as any },
               { label: 'من نحن', target: 'about' as const },
               { label: 'طلب الالتحاق وتتبعه', target: 'apply' as const },
             ].map((n) => (
