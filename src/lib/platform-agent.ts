@@ -762,8 +762,8 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
     blocks.push(await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => ''))
   }
 
-  if (user.role === 'STUDENT' || agent === 'ACADEMIC_SUPERVISOR' || agent === 'ADMISSIONS' || agent === 'EXAMS' || agent === 'THESIS_DEFENSE') {
-    const supervisorContext = await buildSupervisorContext(user.id).catch(() => '')
+  if (user.role === 'STUDENT') {
+    const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
     if (supervisorContext) blocks.push(supervisorContext)
   }
 
