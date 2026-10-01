@@ -141,6 +141,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     data: { actorName: updated.fullName, action: submit ? 'REPRESENTATIVE_ONBOARDING_SUBMITTED' : 'REPRESENTATIVE_ONBOARDING_UPDATED', entity: 'AcademyRepresentative', entityId: updated.id, details: `${updated.fullName} — ${updated.country}` },
   }).catch(() => {})
 
+  if (submit && rep.onboardingStatus !== 'SUBMITTED_REVIEW') {
+    const admins = await db.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { email: true } }).catch(() => [])
+    await Promise.all(admins.map((admin) => emailAdminRepresentativeProfileSubmitted(admin.email, {
+      name: updated.fullName,
+      country: updated.country,
+      region: updated.region,
+      email: updated.email,
+    }).catch(() => false)))
+  }
+
   return NextResponse.json({ representative: { ...serializeRepresentative(updated, originFrom(req), false), rawBio: updated.rawBio, onboardingStatus: updated.onboardingStatus, aiRewriteStatus: updated.aiRewriteStatus, aiRewriteNote: updated.aiRewriteNote } })
 }
 
