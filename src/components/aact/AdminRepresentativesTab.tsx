@@ -290,6 +290,7 @@ export default function AdminRepresentativesTab() {
                   <div>
                     <p className="text-sm font-black text-[#0f2b46]">رابط التحقق الآمن</p>
                     {selected.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
+                    {selected.qrToken && <a href={`/representatives/qr/${selected.qrToken}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG للمسح والطباعة</a>}
                     <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق يحتاج آخر 4 أرقام من الجوال أو الإيميل المسجل.</p>
                   </div>
                 </div>
