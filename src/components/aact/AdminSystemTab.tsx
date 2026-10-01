@@ -271,6 +271,10 @@ export function AdminSystemTab() {
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
   const [backupBusy, setBackupBusy] = useState(false)
   const [lastBackup, setLastBackup] = useState<BackupRunResult | null>(null)
+  const [restoreKey, setRestoreKey] = useState('')
+  const [restoreConfirm, setRestoreConfirm] = useState('')
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [restorePreview, setRestorePreview] = useState<BackupInspectResult | null>(null)
 
   const load = () => {
     setLoading(true)
