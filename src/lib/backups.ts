@@ -124,6 +124,7 @@ export function backupConfigurationStatus() {
   return {
     secretConfigured: !!backupSecret(),
     storageConfigured,
+    encryptionConfigured: backupEncryptionSecret().length >= 32,
     localFallbackAllowed: process.env.AACT_ALLOW_LOCAL_UPLOADS === 'true',
     includeSessions: process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true',
     tableCount: activeBackupTables().length,
