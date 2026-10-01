@@ -365,9 +365,23 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
         const program = enr.program || {}
         const books = formatBooksForProgram(program)
         const units = Array.isArray(program.units) && program.units.length
-          ? `\nالوحدات: ${program.units.slice(0, 12).map((u: any) => `${u.title}${u.semester ? ` / فصل ${u.semester}` : ''}`).join('، ')}`
+          ? `\nالوحدات: ${program.units.slice(0, 14).map((u: any) => `${u.title}${u.semester ? ` / فصل ${u.semester}` : ''}${u.summary ? ` — ${compactText(u.summary, 120)}` : ''}${u.objectives ? ` — أهداف: ${compactText(u.objectives, 120)}` : ''}`).join('، ')}`
           : ''
-        return `${index + 1}. الطالب مسجل في «${program.titleAr || 'برنامج غير محدد'}» (${program.category || 'تصنيف غير محدد'}) — الحالة ${enr.status || 'غير محددة'}\nالكتب المقررة لهذا التسجيل:\n${books}${units}`
+        const guides = formatStudyGuides(program)
+        const knowledge = formatProgramKnowledge(program)
+        const examSignals = formatExamReadingSignals(program)
+        const assignments = Array.isArray(program.assignments) && program.assignments.length
+          ? `\nواجبات/تدريبات منشورة تساعد على توجيه القراءة: ${program.assignments.slice(0, 8).map((a: any) => `${a.title} (${a.type}) — فصل ${a.semester}: ${compactText(a.description, 130)}`).join(' | ')}`
+          : ''
+        return [
+          `${index + 1}. الطالب مسجل في «${program.titleAr || 'برنامج غير محدد'}» (${program.category || 'تصنيف غير محدد'}) — الحالة ${enr.status || 'غير محددة'}`,
+          `الكتب المقررة لهذا التسجيل:\n${books}`,
+          units,
+          guides ? `أدلة الدراسة المنشورة:\n${guides}` : '',
+          knowledge ? `قاعدة المعرفة المرتبطة بالبرنامج والكتب:\n${knowledge}` : '',
+          examSignals ? `مؤشرات القراءة للامتحانات دون مفاتيح إجابات:\n${examSignals}` : '',
+          assignments,
+        ].filter(Boolean).join('\n')
       }).join('\n\n')
       parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
     }
