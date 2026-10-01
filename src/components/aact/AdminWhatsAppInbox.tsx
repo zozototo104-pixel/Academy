@@ -77,9 +77,14 @@ export function AdminWhatsAppInboxTab() {
       const data = await api<{ conversations: WaConversation[] }>(`/api/admin/whatsapp-conversations?${params.toString()}`)
       const list = data.conversations || []
       setConversations(list)
-      setSelected((prev) => prev && list.some((c) => c.id === prev.id) ? prev : null)
+      setSelected((prev) => {
+        if (!prev) return prev
+        const refreshed = list.find((c) => c.id === prev.id)
+        if (refreshed) return { ...prev, ...refreshed, messages: prev.messages }
+        return options?.preserveSelected ? prev : null
+      })
       setSelectedId((current) => {
-        if (current && list.some((c) => c.id === current)) return current
+        if (current && (options?.preserveSelected || list.some((c) => c.id === current))) return current
         const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
         return isDesktop && list[0] ? list[0].id : null
       })
