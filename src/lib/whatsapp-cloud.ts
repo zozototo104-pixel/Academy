@@ -101,19 +101,45 @@ export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMes
   return inbound
 }
 
+async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
+  const waIdHash = hashWhatsAppId(message.from)
+  const conversation = await db.whatsAppConversation.findUnique({
+    where: { waIdHash },
+    select: {
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { direction: true, sender: true, text: true, whatsappMessageId: true },
+      },
+    },
+  }).catch(() => null)
+  const history = (conversation?.messages || [])
+    .reverse()
+    .filter((m) => String(m.text || '').trim())
+    .map((m) => ({
+      role: m.direction === 'INBOUND' ? 'user' : 'assistant',
+      content: String(m.text || '').slice(0, 1200),
+    }))
+  const currentText = message.text.slice(0, 1200)
+  const hasCurrent = history.some((m) => m.role === 'user' && m.content === currentText)
+  if (!hasCurrent) history.push({ role: 'user', content: currentText })
+  return history.slice(-12)
+}
+
 export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
   if (!message.text) {
     return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
   }
 
+  const messages = await recentWhatsAppAgentMessages(message)
   const result = await platformPublicAgentComplete({
-    messages: [{ role: 'user', content: message.text.slice(0, 1200) }],
+    messages,
     channel: 'WHATSAPP',
     uiContext: [
       'المستخدم يتواصل عبر واتساب الرسمي للأكاديمية، وليس عبر نافذة الموقع.',
       `اسم جهة الاتصال إن وجد: ${message.name || 'غير متاح'}.`,
       `رقم واتساب الرسمي للإدارة: ${ACADEMY_INFO.whatsappDisplay}.`,
-      'أجب بإيجاز ووضوح، وادعُ المستخدم لإرسال اسمه وبرنامجه المطلوب إذا كان يريد متابعة التسجيل.',
+      'لا تكرر الترحيب بالاسم في كل رد؛ يكفي في بداية المحادثة أو بعد انقطاع واضح. إذا كانت الرسالة مجاملة قصيرة فأجب باختصار. إذا كان السؤال عن الأكاديمية أو البرامج أو الرسوم أو التسجيل فأعطِ تفصيلاً مفيداً حسب السؤال.',
     ].join(' '),
   })
 
