@@ -243,7 +243,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
               units: {
                 orderBy: [{ semester: 'asc' }, { order: 'asc' }],
                 take: 20,
-                select: { title: true, semester: true, summary: true, status: true },
+                select: { title: true, semester: true, summary: true, status: true, objectives: true, content: true },
               },
               assignments: {
                 where: { status: 'PUBLISHED' },
