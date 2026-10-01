@@ -393,10 +393,10 @@ model AcademyRepresentative {
   aiRewriteNote      String?
   featured           Boolean  @default(false)
   sortOrder          Int      @default(0)
-  sourceAgentApplicationId String? @unique
+  sourceAgentApplicationId String?
   sourceUserId       String?
   onboardingStatus   String   @default("ADMIN_CREATED") // ADMIN_CREATED | WAITING_PROFILE | SUBMITTED_REVIEW | APPROVED
-  onboardingToken    String?  @unique
+  onboardingToken    String?
   onboardingSubmittedAt DateTime?
   createdById        String?
   updatedById        String?
