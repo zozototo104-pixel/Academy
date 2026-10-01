@@ -135,7 +135,7 @@ export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT')
  * يبني سياق المشرف الذكي من قاعدة بيانات المنصة.
  * يشمل ملف المستخدم، ذاكرته الأكاديمية، آخر المحادثات، وفهرس البرامج النشطة مع الكتب المسجلة حرفياً.
  */
-export async function buildSupervisorContext(userId: string): Promise<string> {
+export async function buildSupervisorContext(userId: string, options?: { scope?: AiKnowledgeScope; query?: string | null }): Promise<string> {
   try {
     const userStore = (db as any).user
     const enrollmentStore = (db as any).enrollment
