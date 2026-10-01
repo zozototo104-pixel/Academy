@@ -1,5 +1,5 @@
-import { createCipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto'
-import { gzipSync } from 'zlib'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto'
+import { gunzipSync, gzipSync } from 'zlib'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { audit } from '@/lib/notify'
