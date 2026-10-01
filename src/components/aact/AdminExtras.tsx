@@ -1718,6 +1718,9 @@ function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
         {'returnedReply' in data && <p><span className="text-slate-400">رد مباشر:</span> {data.returnedReply ? 'نعم' : 'لا'}</p>}
         {'contextLength' in data && <p><span className="text-slate-400">طول السياق:</span> {data.contextLength}</p>}
         {'systemInstructionLength' in data && <p><span className="text-slate-400">تعليمات الصوت:</span> {data.systemInstructionLength}</p>}
+        {data.purpose && <p><span className="text-slate-400">نوع الجلسة:</span> {String(data.purpose).replace('SUPERVISOR', 'مشرف صوتي').replace('DISCUSSION', 'مناقشة')}</p>}
+        {data.model && <p><span className="text-slate-400">النموذج:</span> {data.model}</p>}
+        {data.voice && <p><span className="text-slate-400">الصوت:</span> {data.voice}</p>}
       </div>
       {data.query && (
         <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-6 text-slate-700">
