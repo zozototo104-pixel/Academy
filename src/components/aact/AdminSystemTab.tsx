@@ -1003,8 +1003,67 @@ export function AdminSystemTab() {
             {lastBackup && (
               <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800">
                 آخر نسخة الآن: {lastBackup.fileName} · {(lastBackup.storage.size / 1024 / 1024).toFixed(2)} MB · SHA256: <span className="font-mono" dir="ltr">{lastBackup.checksum.sha256.slice(0, 16)}…</span>
+                <div className="mt-2 break-all rounded-lg bg-white/70 p-2 font-mono text-[10px] text-emerald-900" dir="ltr">{lastBackup.storage.key}</div>
               </div>
             )}
+            <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h5 className="text-xs font-black text-amber-900">فحص أو استيراد نسخة احتياطية مشفرة</h5>
+                  <p className="mt-1 text-[11px] font-bold leading-relaxed text-amber-800">
+                    هذا خاص بالنسخة الكاملة المشفرة من قاعدة البيانات، وليس نسخة كتالوج البرامج في تبويب الجودة. الفحص لا يكتب شيئاً، والاستيراد لا يحذف البيانات الحالية ويستخدم skipDuplicates.
+                  </p>
+                </div>
+                <Badge className={backupStatus?.configured.encryptionConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
+                  {backupStatus?.configured.encryptionConfigured ? 'التشفير مضبوط' : 'مفتاح التشفير غير مضبوط'}
+                </Badge>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_160px_180px]">
+                <div>
+                  <Label className="text-[11px] font-black text-amber-900">storage.key</Label>
+                  <Input value={restoreKey} onChange={(e) => setRestoreKey(e.target.value)} placeholder="backups/db/2026-.../aact-db-backup....jsonl.gz.enc" className="mt-1 rounded-xl bg-white font-mono text-xs" dir="ltr" />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-black text-amber-900">تأكيد الاستيراد</Label>
+                  <Input value={restoreConfirm} onChange={(e) => setRestoreConfirm(e.target.value)} placeholder="RESTORE" className="mt-1 rounded-xl bg-white font-mono text-xs" dir="ltr" />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button type="button" onClick={inspectBackup} disabled={restoreBusy || !restoreKey.trim()} variant="outline" className="flex-1 border-amber-300 bg-white font-black text-amber-800">
+                    {restoreBusy ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Info className="ml-1 h-4 w-4" />}
+                    فحص
+                  </Button>
+                  <Button type="button" onClick={restoreBackup} disabled={restoreBusy || restoreConfirm.trim() !== 'RESTORE'} className="flex-1 bg-red-700 font-black text-white hover:bg-red-800">
+                    استيراد
+                  </Button>
+                </div>
+              </div>
+              {restorePreview && (
+                <div className="mt-3 rounded-xl border border-amber-100 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>وضع العملية: <b>{restorePreview.mode === 'restore' ? 'استيراد' : 'فحص فقط'}</b></span>
+                    <span>{restorePreview.tables?.length || restorePreview.results?.length || 0} جدول</span>
+                  </div>
+                  {!!restorePreview.tables?.length && (
+                    <div className="mt-2 grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+                      {restorePreview.tables.slice(0, 24).map((table) => (
+                        <div key={table.name} className="rounded-lg bg-slate-50 px-2 py-1">
+                          <span className="font-mono text-[10px]" dir="ltr">{table.name}</span> · {table.rows ?? 0}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!!restorePreview.results?.length && (
+                    <div className="mt-2 grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+                      {restorePreview.results.slice(0, 24).map((table) => (
+                        <div key={table.table} className={table.error ? 'rounded-lg bg-red-50 px-2 py-1 text-red-700' : 'rounded-lg bg-emerald-50 px-2 py-1 text-emerald-700'}>
+                          <span className="font-mono text-[10px]" dir="ltr">{table.table}</span> · {table.processed}/{table.rows}{table.error ? ' · خطأ' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {!!backupStatus?.recent?.length && (
               <div className="mt-3 overflow-hidden rounded-xl border border-slate-100">
                 {backupStatus.recent.slice(0, 5).map((b) => (
