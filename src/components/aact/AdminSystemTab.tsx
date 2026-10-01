@@ -90,6 +90,7 @@ interface BackupInspectResult {
   storage?: { provider: string; key: string; size: number; mimeType: string }
   meta?: Record<string, unknown> | null
   tables?: Array<{ name: string; rows?: number; expected?: number; mismatch?: boolean }>
+  tableCount?: number
   results?: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }>
   errors?: Array<{ table: string; error?: string }>
 }
