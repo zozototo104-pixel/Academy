@@ -254,6 +254,11 @@ jobs:
       - name: Install Chromium for Playwright
         run: bunx playwright install --with-deps chromium
 
+      - name: Validate experience guardrail base URL allowlist
+        env:
+          E2E_ALLOWED_BASE_URLS: ${{ vars.E2E_ALLOWED_BASE_URLS }}
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
       - name: Run launch quality suite
         if: ${{ github.event_name == 'push' || inputs.run_launch_quality }}
         run: bun run e2e:quality
