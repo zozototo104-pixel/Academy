@@ -267,7 +267,10 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
       parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
     }
 
-    if (Array.isArray(activePrograms) && activePrograms.length) {
+    const centralProgramCatalog = await buildScopedProgramCatalogSnapshot({ scope: 'STUDENT_SUPERVISOR', query: 'كتب الماجستير البرامج النشطة' }).catch(() => '')
+    if (centralProgramCatalog) {
+      parts.push(centralProgramCatalog)
+    } else if (Array.isArray(activePrograms) && activePrograms.length) {
       parts.push(
         `فهرس البرامج النشطة الرسمي من قاعدة بيانات المنصة. عند السؤال عن كتب الماجستير أو أي برنامج، استخرج الأسماء من هذه القائمة ولا تعطِ جواباً عاماً:\n${formatProgramCatalog(activePrograms)}`
       )
