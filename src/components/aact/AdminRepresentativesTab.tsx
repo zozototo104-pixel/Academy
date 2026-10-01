@@ -239,6 +239,13 @@ export default function AdminRepresentativesTab() {
             <CardTitle className="text-xl font-black text-[#0f2b46]">{form.id ? 'تعديل ممثل الأكاديمية' : 'إضافة ممثل جديد'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
+            {selected?.onboardingStatus && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+                حالة استكمال ملف الممثل: <span className="font-black">{selected.onboardingStatus}</span>
+                {selected.onboardingSubmittedAt ? ` — أُرسل للمراجعة: ${new Date(selected.onboardingSubmittedAt).toLocaleString('ar')}` : ''}
+                {selected.sourceAgentApplicationId ? ' — مرتبط بطلب وكالة/اعتماد.' : ''}
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-3">
               <div><Label>الاسم الكامل</Label><Input value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الدولة</Label><Input value={form.country} onChange={(e) => update('country', e.target.value)} className="mt-2 rounded-2xl" /></div>
