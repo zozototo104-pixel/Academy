@@ -618,7 +618,7 @@ export function AIChatView() {
             </div>
             <Badge className="gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
           </div>
-          <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 py-4 sm:gap-8">
             <div className="aact-voice-orb-stage relative flex items-center justify-center">
               <span className="aact-voice-halo" />
               <span className="aact-voice-halo h2" />
