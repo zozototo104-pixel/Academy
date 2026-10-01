@@ -1,15 +1,4 @@
 import { db } from '@/lib/db'
-import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
-
-const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
-  CONCEPT: 'مفهوم',
-  THEORY: 'نظرية أو إطار',
-  METHOD: 'منهجية',
-  CASE: 'حالة تطبيقية',
-  DEFINITION: 'تعريف',
-  QUESTION_SEED: 'محور سؤال',
-  SUMMARY: 'ملخص محوري',
-}
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
@@ -19,6 +8,106 @@ const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
   CHAT: 'مدرّس ومرشد أكاديمي',
   EXAM: 'خبير قياس وتقويم جامعي',
   DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+function compactText(value?: string | null, max = 240): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function parseArray(value?: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
+  const merged: string[] = []
+  for (const item of [...parseArray(existing), ...additions]) {
+    const clean = compactText(String(item || ''), 220)
+    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
+  }
+  return JSON.stringify(merged.slice(-max))
+}
+
+function formatJsonList(title: string, value?: string | null, max = 8): string | null {
+  const items = parseArray(value).slice(-max)
+  return items.length ? `${title}: ${items.join(' | ')}` : null
+}
+
+function dateToIso(value?: Date | string | null): string | null {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function normalizeArabic(value?: string | null): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function looksLikeMastersProgram(program: any): boolean {
+  const text = normalizeArabic([program?.titleAr, program?.titleEn, program?.category, program?.description].filter(Boolean).join(' '))
+  const raw = [program?.titleAr, program?.titleEn, program?.category, program?.description].filter(Boolean).join(' ').toLowerCase()
+  return text.includes('ماجستير') || text.includes('مجستير') || text.includes('ماستر') || /master|masters|maestr|mestrado|maestrado/.test(raw)
+}
+
+function formatBooksForProgram(program: any): string {
+  const books = Array.isArray(program?.books) ? program.books : []
+  if (!books.length) return 'لا توجد كتب مسجلة لهذا البرنامج في قاعدة البيانات.'
+  return books.map((book: any, index: number) => {
+    const title = book?.title || book?.titleEn || 'كتاب بلا عنوان'
+    const titleEn = book?.titleEn && book.titleEn !== title ? ` (${book.titleEn})` : ''
+    const author = book?.author ? ` — ${book.author}` : ''
+    const semester = book?.semester ? ` — فصل ${book.semester}` : ''
+    const description = book?.description ? ` — ${compactText(book.description, 120)}` : ''
+    return `${index + 1}. «${title}»${titleEn}${author}${semester}${description}`
+  }).join('\n')
+}
+
+function formatProgramCatalog(programs: any[]): string {
+  if (!programs.length) return ''
+  const sorted = [...programs].sort((a, b) => {
+    const aMasters = looksLikeMastersProgram(a) ? 1 : 0
+    const bMasters = looksLikeMastersProgram(b) ? 1 : 0
+    const aBooks = Array.isArray(a?.books) && a.books.length ? 1 : 0
+    const bBooks = Array.isArray(b?.books) && b.books.length ? 1 : 0
+    return (bMasters - aMasters) || (bBooks - aBooks) || String(a?.titleAr || '').localeCompare(String(b?.titleAr || ''), 'ar')
+  })
+
+  return sorted.slice(0, 80).map((program: any, index: number) => {
+    const hours = program?.hours ? ` — ${program.hours} ساعة` : ''
+    const price = program?.price ? ` — الرسوم ${program.price}$` : ''
+    const status = program?.active === false ? ' — غير نشط' : ''
+    const units = Array.isArray(program?.units) && program.units.length
+      ? `\nالوحدات/المواد: ${program.units.slice(0, 10).map((u: any) => `${u.title}${u.semester ? ` / فصل ${u.semester}` : ''}`).join('، ')}`
+      : ''
+    return `${index + 1}. ${program?.titleAr || 'برنامج بلا عنوان'}${program?.titleEn ? ` (${program.titleEn})` : ''} — ${program?.category || 'تصنيف غير محدد'}${hours}${price}${status}\nالكتب/المراجع المسجلة حرفياً:\n${formatBooksForProgram(program)}${units}`
+  }).join('\n\n')
+}
+
+function formatAcademicMemory(memory: any): string {
+  const rows = [
+    memory?.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
+    formatJsonList('نقاط القوة المتكررة', memory?.strengths),
+    formatJsonList('نقاط الضعف/الفجوات', memory?.weaknesses),
+    formatJsonList('مفاهيم يجب مراجعتها', memory?.conceptsToReview),
+    formatJsonList('خطوات التعلم المقترحة', memory?.recommendedNextActions),
+    memory?.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
+    formatJsonList('إشارات الاختبارات', memory?.examSignals, 6),
+    formatJsonList('إشارات البحث/المناقشة', memory?.thesisSignals, 6),
+    memory?.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
+  ].filter(Boolean)
+  return rows.join('\n')
 }
 
 export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
@@ -36,901 +125,161 @@ export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT')
   }
   return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
 - درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
-- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
-- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
-}
-
-function labelKnowledgeCategory(category: string) {
-  return KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || 'محور معرفي'
-}
-
-function parseArray(value?: string | null): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
-
-function compactText(value?: string | null, max = 240): string {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function formatRubric(value?: string | null, max = 420): string | null {
-  if (!value) return null
-  const items = parseArray(value).slice(0, 6)
-  if (items.length) return items.map((x, i) => `${i + 1}) ${compactText(x, 140)}`).join('؛ ')
-  const text = compactText(value, max)
-  return text || null
-}
-
-function optionText(optionsJson: string | null | undefined, index?: number | null): string | null {
-  if (index == null || Number.isNaN(Number(index))) return null
-  const options = parseArray(optionsJson)
-  return options[Number(index)] ? `${Number(index) + 1}) ${compactText(options[Number(index)], 160)}` : String(index)
-}
-
-function expectedAnswerForQuestion(question: any): string | null {
-  const q = question || {}
-  const options = parseArray(q.options)
-  const rawCorrect = q.correctAnswer != null ? String(q.correctAnswer).trim() : ''
-  const correctIndex = rawCorrect !== '' ? Number(rawCorrect) : Number.NaN
-  const correct = rawCorrect
-    ? Number.isFinite(correctIndex) && options[correctIndex]
-      ? `${correctIndex + 1}) ${compactText(options[correctIndex], 220)}`
-      : compactText(rawCorrect, 220)
-    : ''
-  const model = compactText(q.modelAnswer, 360)
-  const rationale = compactText(q.correctRationale, 300)
-  const evidence = compactText(q.sourceEvidence, 340)
-  return [
-    correct ? `الإجابة الصحيحة: ${correct}` : null,
-    model ? `الإجابة النموذجية/معيار القبول: ${model}` : null,
-    rationale ? `سبب الصحة: ${rationale}` : null,
-    evidence ? `الدليل الأكاديمي: ${evidence}` : null,
-  ].filter(Boolean).join(' — ') || null
-}
-
-function studentAnswerForRecord(answer: any): string {
-  const selected = optionText(answer?.question?.options, answer?.selectedOption)
-  const text = compactText(answer?.answerText, 360)
-  return selected || text || 'لم يقدّم إجابة نصية محفوظة'
-}
-
-function formatAnswerReview(answer: any, index: number): string {
-  const q = answer?.question || {}
-  const question = compactText(q.text, 420)
-  const verdict = answer?.isCorrect === true ? 'صحيحة' : answer?.isCorrect === false ? 'خاطئة/ناقصة' : 'بحاجة مراجعة'
-  const points = answer?.points != null || answer?.maxPoints != null ? ` — الدرجة ${answer?.points ?? '؟'}/${answer?.maxPoints ?? q.points ?? '؟'}` : ''
-  const expected = expectedAnswerForQuestion(q)
-  const feedback = compactText(answer?.aiFeedback, 360)
-  const source = compactText([q.sourceBookTitle, q.sourceChapter, q.sourceLocator].filter(Boolean).join(' / '), 180)
-  return `${index + 1}. ${question}${q.type ? ` — نوع السؤال ${q.type}` : ''}${source ? ` — المصدر: ${source}` : ''}\n   إجابة الطالب: ${studentAnswerForRecord(answer)} — الحكم: ${verdict}${points}${expected ? `\n   ${expected}` : ''}${feedback ? `\n   ملاحظة التصحيح: ${feedback}` : ''}`
-}
-
-function cleanMemoryItem(value: unknown, max = 220): string | null {
-  const text = compactText(String(value || ''), max)
-  return text.length >= 3 ? text : null
-}
-
-function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
-  const merged: string[] = []
-  for (const item of [...parseArray(existing), ...additions]) {
-    const clean = cleanMemoryItem(item)
-    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
-  }
-  return JSON.stringify(merged.slice(-max))
-}
-
-function formatJsonList(title: string, value?: string | null, max = 8): string | null {
-  const items = parseArray(value).slice(-max)
-  return items.length ? `${title}: ${items.join(' | ')}` : null
-}
-
-function formatAcademicMemory(memory: any): string {
-  const rows = [
-    memory.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
-    formatJsonList('نقاط القوة المتكررة', memory.strengths),
-    formatJsonList('نقاط الضعف/الفجوات', memory.weaknesses),
-    formatJsonList('مفاهيم يجب مراجعتها', memory.conceptsToReview),
-    formatJsonList('خطوات التعلم المقترحة', memory.recommendedNextActions),
-    memory.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
-    formatJsonList('إشارات الاختبارات', memory.examSignals, 6),
-    formatJsonList('إشارات البحث/المناقشة', memory.thesisSignals, 6),
-    memory.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
-  ].filter(Boolean)
-  return rows.join('\n')
-}
-
-function parseCompletedUnits(value?: string | null): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
-  } catch {
-    return []
-  }
+- إذا سأل المستخدم عن كتب أو مراجع أو مواد برنامج، اقرأ من فهرس البرامج والكتب في السياق واذكر الكتب المسجلة حرفياً.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.`
 }
 
 /**
- * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
- * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
- * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
+ * يبني سياق المشرف الذكي من قاعدة بيانات المنصة.
+ * يشمل ملف المستخدم، ذاكرته الأكاديمية، آخر المحادثات، وفهرس البرامج النشطة مع الكتب المسجلة حرفياً.
  */
 export async function buildSupervisorContext(userId: string): Promise<string> {
   try {
-    const [studentProfile, enrollments, thesis, admission, activePrograms] = await Promise.all([
-      db.user.findUnique({
+    const userStore = (db as any).user
+    const enrollmentStore = (db as any).enrollment
+    const programStore = (db as any).program
+    const memoryStore = (db as any).studentAcademicMemory
+    const chatStore = (db as any).chatMessage
+    const admissionStore = (db as any).admissionApplication
+    const thesisStore = (db as any).thesisSubmission
+
+    const [profile, memory, recentMessages, admission, thesis, enrollments, activePrograms] = await Promise.all([
+      userStore?.findUnique({
         where: { id: userId },
         select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
-      }),
-      db.enrollment.findMany({
+      }).catch(() => null),
+      memoryStore?.findUnique({ where: { userId } }).catch(() => null),
+      chatStore?.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: { role: true, content: true, mode: true, createdAt: true },
+      }).catch(() => []) || [],
+      admissionStore?.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: { reference: true, program: true, status: true, thesisDeadline: true },
+      }).catch(() => null),
+      thesisStore?.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: { title: true, status: true, defenseDate: true, resultScore: true, aiScore: true },
+      }).catch(() => null),
+      enrollmentStore?.findMany({
         where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
         include: {
           program: {
             include: {
-              units: {
-                orderBy: { order: 'asc' },
-                select: {
-                  title: true,
-                  summary: true,
-                  objectives: true,
-                  semester: true,
-                  status: true,
-                  exam: {
-                    select: {
-                      title: true,
-                      passScore: true,
-                      questions: {
-                        orderBy: { order: 'asc' },
-                        take: 12,
-                        select: { id: true, order: true, type: true, text: true, options: true, correctAnswer: true, modelAnswer: true, points: true },
-                      },
-                    },
-                  },
-                },
-              },
               books: {
-                orderBy: { createdAt: 'asc' },
-                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true, levelPolicy: true, readingDepth: true, assessmentOrientation: true },
+                orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+                select: { title: true, titleEn: true, author: true, semester: true, description: true, textContent: true },
               },
-              studyGuides: {
-                where: { status: 'PUBLISHED' },
-                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
-                select: { title: true, overview: true, objectives: true, keyTerms: true, discussionQuestions: true, semester: true },
+              units: {
+                orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+                take: 20,
+                select: { title: true, semester: true, summary: true, status: true },
               },
               assignments: {
                 where: { status: 'PUBLISHED' },
                 orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
                 take: 12,
-                select: { id: true, title: true, description: true, type: true, semester: true, points: true, weight: true, dueDays: true, rubric: true },
+                select: { title: true, description: true, type: true, semester: true, points: true },
               },
               programExams: {
                 orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
                 take: 8,
-                select: {
-                  id: true,
-                  title: true,
-                  semester: true,
-                  status: true,
-                  passScore: true,
-                  totalPoints: true,
-                  durationMin: true,
-                  booksUsed: true,
-                  questions: {
-                    where: { status: 'PUBLISHED' },
-                    orderBy: { order: 'asc' },
-                    take: 24,
-                    select: { id: true, order: true, type: true, text: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, sourceChapter: true, sourceLocator: true, cognitiveSkill: true, difficulty: true, correctRationale: true, points: true },
-                  },
-                },
+                select: { title: true, semester: true, status: true, passScore: true, booksUsed: true },
               },
             },
           },
         },
-      }),
-      db.thesisSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
-      db.admissionApplication.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: { reference: true, program: true, status: true, thesisDeadline: true },
-      }),
-      db.program.findMany({
+      }).catch(() => []) || [],
+      programStore?.findMany({
         where: { active: true },
         orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
-        take: 100,
+        take: 140,
         select: {
           titleAr: true,
           titleEn: true,
           category: true,
+          active: true,
           hours: true,
           price: true,
           description: true,
           books: {
             orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+            take: 20,
+            select: { title: true, titleEn: true, author: true, semester: true, description: true },
+          },
+          units: {
+            orderBy: [{ semester: 'asc' }, { order: 'asc' }],
             take: 12,
-            select: { title: true, titleEn: true, author: true, description: true, textContent: true, semester: true },
+            select: { title: true, semester: true, status: true, summary: true },
           },
         },
-      }),
-    ])
-
-    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments, recentProgramAttempts, recentUnitAttempts] = await Promise.all([
-      db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
-      db.chatMessage.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 12,
-        select: { role: true, content: true, mode: true, kind: true, createdAt: true },
-      }).catch(() => []),
-      db.assignmentSubmission.findMany({
-        where: { userId },
-        orderBy: { submittedAt: 'desc' },
-        take: 6,
-        select: {
-          answerText: true,
-          status: true,
-          score: true,
-          feedback: true,
-          fileName: true,
-          submittedAt: true,
-          assignment: { select: { title: true, description: true, type: true, semester: true, points: true, rubric: true, program: { select: { titleAr: true } } } },
-        },
-      }).catch(() => []),
-      db.supervisorChannelMessage.findMany({
-        where: { studentId: userId },
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-        select: { senderRole: true, mode: true, content: true, createdAt: true },
-      }).catch(() => []),
-      db.supervisorAssessment.findMany({
-        where: { studentId: userId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: {
-          questions: {
-            orderBy: { order: 'asc' },
-            take: 12,
-            select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, cognitiveSkill: true, difficulty: true, correctRationale: true, points: true },
-          },
-          attempts: {
-            where: { studentId: userId },
-            orderBy: { submittedAt: 'desc' },
-            take: 1,
-            include: {
-              answers: {
-                include: {
-                  question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, correctRationale: true, points: true } },
-                },
-                take: 10,
-              },
-            },
-          },
-        },
-      }).catch(() => []),
-      db.programExamAttempt.findMany({
-        where: { userId },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 4,
-        include: {
-          exam: { select: { title: true, semester: true, passScore: true, program: { select: { titleAr: true } } } },
-          answers: {
-            include: {
-              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, sourceChapter: true, sourceLocator: true, correctRationale: true, points: true } },
-            },
-            take: 10,
-          },
-        },
-      }).catch(() => []),
-      db.examAttempt.findMany({
-        where: { userId },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 4,
-        include: {
-          exam: { select: { title: true, passScore: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } },
-          answers: {
-            include: {
-              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, points: true } },
-            },
-            take: 10,
-          },
-        },
-      }).catch(() => []),
+      }).catch(() => []) || [],
     ])
 
     const parts: string[] = []
 
-    if (studentProfile) {
+    if (profile) {
       parts.push(
-        `بطاقة ملف الطالب الأساسية: الاسم ${studentProfile.name} — البريد ${studentProfile.email}` +
-          (studentProfile.phone ? ` — الهاتف ${studentProfile.phone}` : '') +
-          (studentProfile.country ? ` — الدولة ${studentProfile.country}` : '') +
-          ` — الدور ${studentProfile.role} — تاريخ إنشاء الملف ${new Date(studentProfile.createdAt).toLocaleDateString('ar-EG')}`
+        `بطاقة المستخدم: الاسم ${profile.name || 'غير محدد'} — البريد ${profile.email || 'غير متاح'}` +
+          (profile.phone ? ` — الهاتف ${profile.phone}` : '') +
+          (profile.country ? ` — الدولة ${profile.country}` : '') +
+          ` — الدور ${profile.role || 'غير محدد'}`
       )
     }
 
-    if (academicMemory) {
-      const memoryBlock = formatAcademicMemory(academicMemory)
-      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
+    if (memory) {
+      const memoryBlock = formatAcademicMemory(memory)
+      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة:\n${memoryBlock}`)
     }
 
-    if (recentMessages.length > 0) {
-      const chatDigest = recentMessages
-        .slice()
-        .reverse()
-        .map((m) => `${m.role === 'assistant' ? 'المشرف' : 'الطالب'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
-        .join('\n')
-      parts.push(`آخر محادثات محفوظة في ملف الطالب (لا تكررها؛ استخدمها لفهم السياق):\n${chatDigest}`)
-    }
-
-    if (latestAssignments.length > 0) {
+    if (Array.isArray(recentMessages) && recentMessages.length) {
       parts.push(
-        `آخر الواجبات/المشاريع التطبيقية المسلّمة مع معيار التصحيح وإجابة الطالب:\n${latestAssignments.map((a) => {
-          const status = a.score != null ? `الدرجة ${a.score}/${a.assignment.points}` : `الحالة ${a.status}`
-          const rubric = formatRubric(a.assignment.rubric, 360)
-          const answer = compactText(a.answerText, 420)
-          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester}، ${a.assignment.type}) — ${status}${a.assignment.description ? `\n  المطلوب: ${compactText(a.assignment.description, 260)}` : ''}${rubric ? `\n  معيار التصحيح: ${rubric}` : ''}${answer ? `\n  إجابة الطالب: ${answer}` : a.fileName ? `\n  مرفق الطالب: ${a.fileName}` : ''}${a.feedback ? `\n  ملاحظة التصحيح: ${compactText(a.feedback, 260)}` : ''}`
-        }).join('\n')}`
-      )
-    }
-
-    if (supervisorMessages.length > 0) {
-      parts.push(
-        `آخر مراسلات المشرف البشري مع الطالب:\n${supervisorMessages
+        `آخر محادثات محفوظة لفهم السياق فقط:\n${recentMessages
           .slice()
           .reverse()
-          .map((m) => `${m.senderRole}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
+          .map((m: any) => `${m.role === 'assistant' ? 'المشرف' : 'المستخدم'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
           .join('\n')}`
       )
-    }
-
-    if (privateAssessments.length > 0) {
-      parts.push(
-        `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
-          const attempt = a.attempts?.[0]
-          const visibleQuestions = (a.questions || []).slice(0, 6).map((q: any, i: number) => `${i + 1}. ${compactText(q.text, 180)}${q.sourceBookTitle ? ` — من «${q.sourceBookTitle}»` : ''}`).join(' | ')
-          const reviewedAnswers = attempt?.answers?.length ? attempt.answers.slice(0, 8).map((ans: any, i: number) => formatAnswerReview(ans, i)).join('\n') : ''
-          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة — حد النجاح ${a.passScore}%${a.description ? `\n  الوصف: ${compactText(a.description, 260)}` : ''}${attempt ? `\n  آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.passed ? 'ناجح' : attempt.passed === false ? 'غير ناجح' : attempt.status}${attempt.feedback ? ` — ${compactText(attempt.feedback, 220)}` : ''}${reviewedAnswers ? `\n  مراجعة إجابات الطالب بعد التسليم:\n${reviewedAnswers}` : ''}` : `\n  لم يسلّم بعد؛ محاور الأسئلة دون كشف مفتاح الإجابة: ${visibleQuestions || 'غير محفوظة'}`}`
-        }).join('\n')}`
-      )
-    }
-
-    if (enrollments.length === 0 && !thesis && !admission && activePrograms.length > 0) {
-      const programLines = activePrograms.slice(0, 60).map((p, i) => {
-        const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-        const price = p.price ? ` — ${p.price}import { db } from '@/lib/db'
-import { getProgramKnowledgeItems } from '@/lib/knowledge-bank'
-
-const KNOWLEDGE_CATEGORY_AR: Record<string, string> = {
-  CONCEPT: 'مفهوم',
-  THEORY: 'نظرية أو إطار',
-  METHOD: 'منهجية',
-  CASE: 'حالة تطبيقية',
-  DEFINITION: 'تعريف',
-  QUESTION_SEED: 'محور سؤال',
-  SUMMARY: 'ملخص محوري',
-}
-
-export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
-
-type StudentMemorySignalKind = 'CHAT' | 'EXAM' | 'DEFENSE' | 'FILE' | 'THESIS'
-
-const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
-  CHAT: 'مدرّس ومرشد أكاديمي',
-  EXAM: 'خبير قياس وتقويم جامعي',
-  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
-}
-
-export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
-  if (persona === 'EXAM') {
-    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
-- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
-- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
-- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
-  }
-  if (persona === 'DEFENSE') {
-    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
-- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
-- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
-- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
-  }
-  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
-- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
-- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
-- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
-}
-
-function labelKnowledgeCategory(category: string) {
-  return KNOWLEDGE_CATEGORY_AR[String(category || '').toUpperCase()] || 'محور معرفي'
-}
-
-function parseArray(value?: string | null): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x || '').trim()).filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
-
-function compactText(value?: string | null, max = 240): string {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function formatRubric(value?: string | null, max = 420): string | null {
-  if (!value) return null
-  const items = parseArray(value).slice(0, 6)
-  if (items.length) return items.map((x, i) => `${i + 1}) ${compactText(x, 140)}`).join('؛ ')
-  const text = compactText(value, max)
-  return text || null
-}
-
-function optionText(optionsJson: string | null | undefined, index?: number | null): string | null {
-  if (index == null || Number.isNaN(Number(index))) return null
-  const options = parseArray(optionsJson)
-  return options[Number(index)] ? `${Number(index) + 1}) ${compactText(options[Number(index)], 160)}` : String(index)
-}
-
-function expectedAnswerForQuestion(question: any): string | null {
-  const q = question || {}
-  const options = parseArray(q.options)
-  const rawCorrect = q.correctAnswer != null ? String(q.correctAnswer).trim() : ''
-  const correctIndex = rawCorrect !== '' ? Number(rawCorrect) : Number.NaN
-  const correct = rawCorrect
-    ? Number.isFinite(correctIndex) && options[correctIndex]
-      ? `${correctIndex + 1}) ${compactText(options[correctIndex], 220)}`
-      : compactText(rawCorrect, 220)
-    : ''
-  const model = compactText(q.modelAnswer, 360)
-  const rationale = compactText(q.correctRationale, 300)
-  const evidence = compactText(q.sourceEvidence, 340)
-  return [
-    correct ? `الإجابة الصحيحة: ${correct}` : null,
-    model ? `الإجابة النموذجية/معيار القبول: ${model}` : null,
-    rationale ? `سبب الصحة: ${rationale}` : null,
-    evidence ? `الدليل الأكاديمي: ${evidence}` : null,
-  ].filter(Boolean).join(' — ') || null
-}
-
-function studentAnswerForRecord(answer: any): string {
-  const selected = optionText(answer?.question?.options, answer?.selectedOption)
-  const text = compactText(answer?.answerText, 360)
-  return selected || text || 'لم يقدّم إجابة نصية محفوظة'
-}
-
-function formatAnswerReview(answer: any, index: number): string {
-  const q = answer?.question || {}
-  const question = compactText(q.text, 420)
-  const verdict = answer?.isCorrect === true ? 'صحيحة' : answer?.isCorrect === false ? 'خاطئة/ناقصة' : 'بحاجة مراجعة'
-  const points = answer?.points != null || answer?.maxPoints != null ? ` — الدرجة ${answer?.points ?? '؟'}/${answer?.maxPoints ?? q.points ?? '؟'}` : ''
-  const expected = expectedAnswerForQuestion(q)
-  const feedback = compactText(answer?.aiFeedback, 360)
-  const source = compactText([q.sourceBookTitle, q.sourceChapter, q.sourceLocator].filter(Boolean).join(' / '), 180)
-  return `${index + 1}. ${question}${q.type ? ` — نوع السؤال ${q.type}` : ''}${source ? ` — المصدر: ${source}` : ''}\n   إجابة الطالب: ${studentAnswerForRecord(answer)} — الحكم: ${verdict}${points}${expected ? `\n   ${expected}` : ''}${feedback ? `\n   ملاحظة التصحيح: ${feedback}` : ''}`
-}
-
-function cleanMemoryItem(value: unknown, max = 220): string | null {
-  const text = compactText(String(value || ''), max)
-  return text.length >= 3 ? text : null
-}
-
-function mergeJsonList(existing?: string | null, additions: unknown[] = [], max = 12): string {
-  const merged: string[] = []
-  for (const item of [...parseArray(existing), ...additions]) {
-    const clean = cleanMemoryItem(item)
-    if (clean && !merged.some((x) => x.toLowerCase() === clean.toLowerCase())) merged.push(clean)
-  }
-  return JSON.stringify(merged.slice(-max))
-}
-
-function formatJsonList(title: string, value?: string | null, max = 8): string | null {
-  const items = parseArray(value).slice(-max)
-  return items.length ? `${title}: ${items.join(' | ')}` : null
-}
-
-function formatAcademicMemory(memory: any): string {
-  const rows = [
-    memory.profileDigest ? `ملخص الملف الأكاديمي: ${compactText(memory.profileDigest, 500)}` : null,
-    formatJsonList('نقاط القوة المتكررة', memory.strengths),
-    formatJsonList('نقاط الضعف/الفجوات', memory.weaknesses),
-    formatJsonList('مفاهيم يجب مراجعتها', memory.conceptsToReview),
-    formatJsonList('خطوات التعلم المقترحة', memory.recommendedNextActions),
-    memory.lastConversationSummary ? `آخر خلاصة محادثة: ${compactText(memory.lastConversationSummary, 520)}` : null,
-    formatJsonList('إشارات الاختبارات', memory.examSignals, 6),
-    formatJsonList('إشارات البحث/المناقشة', memory.thesisSignals, 6),
-    memory.lastFileAnalysis ? `آخر تحليل ملف: ${compactText(memory.lastFileAnalysis, 420)}` : null,
-  ].filter(Boolean)
-  return rows.join('\n')
-}
-
-function parseCompletedUnits(value?: string | null): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
-  } catch {
-    return []
-  }
-}
-
-/**
- * 12.1 — قاعدة معرفة خاصة بكل طالب (RAG)
- * تبني سياقاً تخصصياً حقيقياً من: كتالوج البرامج النشطة + برامج الطالب الفعّالة +
- * وحداتها الدراسية + الكتب المقررة المعتمدة + تقدمه ونتائجه + بحث تخرجه ومواعيده.
- */
-export async function buildSupervisorContext(userId: string): Promise<string> {
-  try {
-    const [studentProfile, enrollments, thesis, admission, activePrograms] = await Promise.all([
-      db.user.findUnique({
-        where: { id: userId },
-        select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
-      }),
-      db.enrollment.findMany({
-        where: { userId, status: { in: ['ACTIVE', 'COMPLETED'] } },
-        include: {
-          program: {
-            include: {
-              units: {
-                orderBy: { order: 'asc' },
-                select: {
-                  title: true,
-                  summary: true,
-                  objectives: true,
-                  semester: true,
-                  status: true,
-                  exam: {
-                    select: {
-                      title: true,
-                      passScore: true,
-                      questions: {
-                        orderBy: { order: 'asc' },
-                        take: 12,
-                        select: { id: true, order: true, type: true, text: true, options: true, correctAnswer: true, modelAnswer: true, points: true },
-                      },
-                    },
-                  },
-                },
-              },
-              books: {
-                orderBy: { createdAt: 'asc' },
-                select: { title: true, titleEn: true, author: true, description: true, semester: true, textContent: true, levelPolicy: true, readingDepth: true, assessmentOrientation: true },
-              },
-              studyGuides: {
-                where: { status: 'PUBLISHED' },
-                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
-                select: { title: true, overview: true, objectives: true, keyTerms: true, discussionQuestions: true, semester: true },
-              },
-              assignments: {
-                where: { status: 'PUBLISHED' },
-                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
-                take: 12,
-                select: { id: true, title: true, description: true, type: true, semester: true, points: true, weight: true, dueDays: true, rubric: true },
-              },
-              programExams: {
-                orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }],
-                take: 8,
-                select: {
-                  id: true,
-                  title: true,
-                  semester: true,
-                  status: true,
-                  passScore: true,
-                  totalPoints: true,
-                  durationMin: true,
-                  booksUsed: true,
-                  questions: {
-                    where: { status: 'PUBLISHED' },
-                    orderBy: { order: 'asc' },
-                    take: 24,
-                    select: { id: true, order: true, type: true, text: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, sourceChapter: true, sourceLocator: true, cognitiveSkill: true, difficulty: true, correctRationale: true, points: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      }),
-      db.thesisSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
-      db.admissionApplication.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: { reference: true, program: true, status: true, thesisDeadline: true },
-      }),
-      db.program.findMany({
-        where: { active: true },
-        orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
-        take: 100,
-        select: {
-          titleAr: true,
-          titleEn: true,
-          category: true,
-          hours: true,
-          price: true,
-          description: true,
-          books: {
-            orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
-            take: 12,
-            select: { title: true, titleEn: true, author: true, description: true, textContent: true, semester: true },
-          },
-        },
-      }),
-    ])
-
-    const [academicMemory, recentMessages, latestAssignments, supervisorMessages, privateAssessments, recentProgramAttempts, recentUnitAttempts] = await Promise.all([
-      db.studentAcademicMemory.findUnique({ where: { userId } }).catch(() => null),
-      db.chatMessage.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 12,
-        select: { role: true, content: true, mode: true, kind: true, createdAt: true },
-      }).catch(() => []),
-      db.assignmentSubmission.findMany({
-        where: { userId },
-        orderBy: { submittedAt: 'desc' },
-        take: 6,
-        select: {
-          answerText: true,
-          status: true,
-          score: true,
-          feedback: true,
-          fileName: true,
-          submittedAt: true,
-          assignment: { select: { title: true, description: true, type: true, semester: true, points: true, rubric: true, program: { select: { titleAr: true } } } },
-        },
-      }).catch(() => []),
-      db.supervisorChannelMessage.findMany({
-        where: { studentId: userId },
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-        select: { senderRole: true, mode: true, content: true, createdAt: true },
-      }).catch(() => []),
-      db.supervisorAssessment.findMany({
-        where: { studentId: userId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: {
-          questions: {
-            orderBy: { order: 'asc' },
-            take: 12,
-            select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, cognitiveSkill: true, difficulty: true, correctRationale: true, points: true },
-          },
-          attempts: {
-            where: { studentId: userId },
-            orderBy: { submittedAt: 'desc' },
-            take: 1,
-            include: {
-              answers: {
-                include: {
-                  question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, correctRationale: true, points: true } },
-                },
-                take: 10,
-              },
-            },
-          },
-        },
-      }).catch(() => []),
-      db.programExamAttempt.findMany({
-        where: { userId },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 4,
-        include: {
-          exam: { select: { title: true, semester: true, passScore: true, program: { select: { titleAr: true } } } },
-          answers: {
-            include: {
-              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, sourceEvidence: true, sourceBookTitle: true, sourceChapter: true, sourceLocator: true, correctRationale: true, points: true } },
-            },
-            take: 10,
-          },
-        },
-      }).catch(() => []),
-      db.examAttempt.findMany({
-        where: { userId },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 4,
-        include: {
-          exam: { select: { title: true, passScore: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } },
-          answers: {
-            include: {
-              question: { select: { text: true, type: true, options: true, correctAnswer: true, modelAnswer: true, points: true } },
-            },
-            take: 10,
-          },
-        },
-      }).catch(() => []),
-    ])
-
-    const parts: string[] = []
-
-    if (studentProfile) {
-      parts.push(
-        `بطاقة ملف الطالب الأساسية: الاسم ${studentProfile.name} — البريد ${studentProfile.email}` +
-          (studentProfile.phone ? ` — الهاتف ${studentProfile.phone}` : '') +
-          (studentProfile.country ? ` — الدولة ${studentProfile.country}` : '') +
-          ` — الدور ${studentProfile.role} — تاريخ إنشاء الملف ${new Date(studentProfile.createdAt).toLocaleDateString('ar-EG')}`
-      )
-    }
-
-    if (academicMemory) {
-      const memoryBlock = formatAcademicMemory(academicMemory)
-      if (memoryBlock) parts.push(`ذاكرة المشرف الذكي المتراكمة عن الطالب:\n${memoryBlock}`)
-    }
-
-    if (recentMessages.length > 0) {
-      const chatDigest = recentMessages
-        .slice()
-        .reverse()
-        .map((m) => `${m.role === 'assistant' ? 'المشرف' : 'الطالب'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
-        .join('\n')
-      parts.push(`آخر محادثات محفوظة في ملف الطالب (لا تكررها؛ استخدمها لفهم السياق):\n${chatDigest}`)
-    }
-
-    if (latestAssignments.length > 0) {
-      parts.push(
-        `آخر الواجبات/المشاريع التطبيقية المسلّمة مع معيار التصحيح وإجابة الطالب:\n${latestAssignments.map((a) => {
-          const status = a.score != null ? `الدرجة ${a.score}/${a.assignment.points}` : `الحالة ${a.status}`
-          const rubric = formatRubric(a.assignment.rubric, 360)
-          const answer = compactText(a.answerText, 420)
-          return `- ${a.assignment.title} (${a.assignment.program.titleAr}، فصل ${a.assignment.semester}، ${a.assignment.type}) — ${status}${a.assignment.description ? `\n  المطلوب: ${compactText(a.assignment.description, 260)}` : ''}${rubric ? `\n  معيار التصحيح: ${rubric}` : ''}${answer ? `\n  إجابة الطالب: ${answer}` : a.fileName ? `\n  مرفق الطالب: ${a.fileName}` : ''}${a.feedback ? `\n  ملاحظة التصحيح: ${compactText(a.feedback, 260)}` : ''}`
-        }).join('\n')}`
-      )
-    }
-
-    if (supervisorMessages.length > 0) {
-      parts.push(
-        `آخر مراسلات المشرف البشري مع الطالب:\n${supervisorMessages
-          .slice()
-          .reverse()
-          .map((m) => `${m.senderRole}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
-          .join('\n')}`
-      )
-    }
-
-    if (privateAssessments.length > 0) {
-      parts.push(
-        `اختبارات/تكليفات خاصة من المشرف لهذا الطالب:\n${privateAssessments.map((a: any) => {
-          const attempt = a.attempts?.[0]
-          const visibleQuestions = (a.questions || []).slice(0, 6).map((q: any, i: number) => `${i + 1}. ${compactText(q.text, 180)}${q.sourceBookTitle ? ` — من «${q.sourceBookTitle}»` : ''}`).join(' | ')
-          const reviewedAnswers = attempt?.answers?.length ? attempt.answers.slice(0, 8).map((ans: any, i: number) => formatAnswerReview(ans, i)).join('\n') : ''
-          return `- ${a.title} (${a.type}) — ${a.status} — ${a.totalPoints} نقطة — حد النجاح ${a.passScore}%${a.description ? `\n  الوصف: ${compactText(a.description, 260)}` : ''}${attempt ? `\n  آخر نتيجة: ${attempt.score ?? 'بانتظار التصحيح'}% — ${attempt.passed ? 'ناجح' : attempt.passed === false ? 'غير ناجح' : attempt.status}${attempt.feedback ? ` — ${compactText(attempt.feedback, 220)}` : ''}${reviewedAnswers ? `\n  مراجعة إجابات الطالب بعد التسليم:\n${reviewedAnswers}` : ''}` : `\n  لم يسلّم بعد؛ محاور الأسئلة دون كشف مفتاح الإجابة: ${visibleQuestions || 'غير محفوظة'}`}`
-        }).join('\n')}`
-      )
-    }
-
- : ''
-        const desc = p.description ? ` — ${p.description.replace(/\s+/g, ' ').slice(0, 90)}` : ''
-        const books = p.books.length
-          ? `\n   الكتب/المراجع المسجلة حرفياً لهذا البرنامج: ${p.books.map((b) => `«${b.title}»${b.titleEn ? ` (${b.titleEn})` : ''}${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — فصل ${b.semester}` : ''}`).join('؛ ')}`
-          : '\n   الكتب/المراجع المسجلة حرفياً لهذا البرنامج: لا توجد كتب مسجلة في قاعدة البيانات.'
-        return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${price}${desc}${books}`
-      })
-      parts.push(`كتالوج البرامج النشطة في النظام للزائر/الإدارة/المشرف غير المرتبط بطالب محدد (${activePrograms.length} برنامج). عند السؤال عن كتب الماجستير أو أي برنامج، استخرج الإجابة من سطور الكتب أدناه ولا تجب جواباً عاماً:\n${programLines.join('\n')}`)
-    }
-
-    if (enrollments.length === 0 && !thesis && !admission) {
-      parts.push('الطالب لم يسجل في أي برنامج بعد — ركّز على تقديم المشورة حول برامج الأكاديمية وإجراءات الالتحاق، وابدأ بذكر البرامج عندما يسأل عنها.')
     }
 
     if (admission) {
-      const deadline = admission.thesisDeadline
-        ? new Date(admission.thesisDeadline).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
-        : null
-      const daysLeft = admission.thesisDeadline
-        ? Math.ceil((new Date(admission.thesisDeadline).getTime() - Date.now()) / 86400000)
-        : null
-      parts.push(
-        `ملف طلب الالتحاق: رقم ${admission.reference} — البرنامج: ${admission.program} — الحالة: ${admission.status}` +
-          (deadline ? ` — مهلة تسليم بحث التخرج تنتهي في ${deadline}${daysLeft != null ? ` (متبقٍ ${daysLeft} يوم)` : ''}` : '')
-      )
+      parts.push(`طلب الالتحاق الأخير: رقم ${admission.reference || 'غير محدد'} — البرنامج: ${admission.program || 'غير محدد'} — الحالة: ${admission.status || 'غير محددة'}`)
     }
 
     if (thesis) {
-      parts.push(
-        `بحث التخرج: «${thesis.title}» — الحالة: ${thesis.status}` +
-          (thesis.defenseDate ? ` — موعد المناقشة: ${new Date(thesis.defenseDate).toLocaleDateString('ar-EG')}` : '') +
-          (thesis.resultScore != null ? ` — نتيجة المناقشة النهائية: ${thesis.resultScore}` : '') +
-          (thesis.aiScore != null ? ` — تقييم الخبير الذكي في الجلسة: ${thesis.aiScore}/100` : '')
-      )
+      parts.push(`بحث التخرج: «${thesis.title || 'غير محدد'}» — الحالة: ${thesis.status || 'غير محددة'}${thesis.resultScore != null ? ` — النتيجة ${thesis.resultScore}` : ''}${thesis.aiScore != null ? ` — تقييم الذكاء ${thesis.aiScore}/100` : ''}`)
     }
 
-    for (const enr of enrollments) {
-      const p = enr.program
-      const totalUnits = p.units.length
-      const done = parseCompletedUnits(enr.completedUnits)
-      const pct = totalUnits ? Math.round((done.length / totalUnits) * 100) : 0
-
-      const unitLines = p.units.slice(0, 12).map((u, i) => {
-        const obj = u.objectives
-          ? (() => {
-              try {
-                const a = JSON.parse(u.objectives)
-                return Array.isArray(a) ? ` — أهدافه: ${a.slice(0, 3).join('؛ ')}` : ''
-              } catch {
-                return ''
-              }
-            })()
+    if (Array.isArray(enrollments) && enrollments.length) {
+      const enrollmentLines = enrollments.map((enr: any, index: number) => {
+        const program = enr.program || {}
+        const books = formatBooksForProgram(program)
+        const units = Array.isArray(program.units) && program.units.length
+          ? `\nالوحدات: ${program.units.slice(0, 12).map((u: any) => `${u.title}${u.semester ? ` / فصل ${u.semester}` : ''}`).join('، ')}`
           : ''
-        const examInfo = u.exam ? ` — اختبار وحدة: ${u.exam.title}، حد النجاح ${u.exam.passScore}%، عدد الأسئلة ${u.exam.questions.length}` : ''
-        return `${i + 1}. ${u.title} — فصل ${u.semester} — ${u.status}${u.summary ? `: ${u.summary.slice(0, 140)}` : ''}${obj}${examInfo}`
-      })
+        return `${index + 1}. الطالب مسجل في «${program.titleAr || 'برنامج غير محدد'}» (${program.category || 'تصنيف غير محدد'}) — الحالة ${enr.status || 'غير محددة'}\nالكتب المقررة لهذا التسجيل:\n${books}${units}`
+      }).join('\n\n')
+      parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
+    }
 
+    if (Array.isArray(activePrograms) && activePrograms.length) {
       parts.push(
-        `البرنامج المسجل به: «${p.titleAr}» (${p.category}) — تقدم الطالب: ${done.length}/${totalUnits} وحدة (${pct}%)` +
-          (enr.finalScore != null ? ` — النتيجة النهائية: ${enr.finalScore}` : '') +
-          `\nوحدات المنهج:\n${unitLines.join('\n')}`
+        `فهرس البرامج النشطة الرسمي من قاعدة بيانات المنصة. عند السؤال عن كتب الماجستير أو أي برنامج، استخرج الأسماء من هذه القائمة ولا تعطِ جواباً عاماً:\n${formatProgramCatalog(activePrograms)}`
       )
-
-      if (p.books.length > 0) {
-        const bookNames = p.books.map((b, i) => `${i + 1}. «${b.title}»${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — الفصل ${b.semester === 1 ? 'الأول' : b.semester === 2 ? 'الثاني' : b.semester}` : ' — عام'}`)
-        const bookBlocks = p.books.slice(0, 8).map((b) => {
-          const excerpt = (b.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 700)
-          return `- «${b.title}»${b.author ? ` (${b.author})` : ''}${b.semester ? ` — فصل ${b.semester === 1 ? 'أول' : 'ثانٍ'}` : ' — عام'}${b.description ? ` — ${b.description.slice(0, 180)}` : ''}${b.levelPolicy ? `\n  سياسة المستوى: ${compactText(b.levelPolicy, 150)}` : ''}${b.readingDepth ? `\n  عمق القراءة المطلوب: ${compactText(b.readingDepth, 150)}` : ''}${b.assessmentOrientation ? `\n  اتجاه التقييم: ${compactText(b.assessmentOrientation, 150)}` : ''}${excerpt ? `\n  مقتطف قصير من محتواه: «${excerpt}…»` : ''}`
-        })
-        parts.push(`قائمة أسماء الكتب المقررة الحالية لهذا الطالب في تخصص «${p.titleAr}» — عند سؤال الطالب عن الكتب أو المراجع اذكر هذه الأسماء صراحة قبل أي شرح:\n${bookNames.join('\n')}\n\nتفاصيل مختصرة عن الكتب المقررة المعتمدة لهذا التخصص (يُمتحَن بها الطالب):\n${bookBlocks.join('\n')}`)
-      }
-
-      const knowledgeItems = await getProgramKnowledgeItems(p.id, undefined, 30).catch(() => [])
-      if (knowledgeItems.length > 0) {
-        parts.push(
-          `بنك المعرفة الأكاديمي المستخرج من كتب هذا التخصص (استخدمه في الشرح والأسئلة والمناقشة):\n${knowledgeItems
-            .slice(0, 24)
-            .map((k, i) => `${i + 1}. ${labelKnowledgeCategory(k.category)} — ${k.title}: ${k.summary.slice(0, 260)}${k.bookTitle ? ` — من «${k.bookTitle}»` : ''}`)
-            .join('\n')}`
-        )
-      }
-
-      if (p.studyGuides.length > 0) {
-        const guides = p.studyGuides.slice(0, 3).map((g) => {
-          const objectives = parseArray(g.objectives).slice(0, 4)
-          const terms = parseArray(g.keyTerms).slice(0, 6)
-          const qs = parseArray(g.discussionQuestions).slice(0, 4)
-          return `- ${g.title} — ${g.semester === 2 ? 'الفصل الثاني' : g.semester === 3 ? 'البحث/المشروع' : 'الفصل الأول'}: ${g.overview.slice(0, 360)}${objectives.length ? `\n  أهداف: ${objectives.join('؛ ')}` : ''}${terms.length ? `\n  مصطلحات: ${terms.join('، ')}` : ''}${qs.length ? `\n  أسئلة نقاش: ${qs.join(' | ')}` : ''}`
-        })
-        parts.push(`أدلة الدراسة المنشورة للطالب (استند إليها في توجيه القراءة والمناقشة):\n${guides.join('\n')}`)
-      }
-
-      if (p.assignments.length > 0) {
-        const assignmentLines = p.assignments.slice(0, 10).map((a, i) => {
-          const rubric = formatRubric(a.rubric, 320)
-          return `${i + 1}. ${a.title} — ${a.type} — فصل ${a.semester} — ${a.points} نقطة${a.weight ? ` — وزن ${a.weight}%` : ''}${a.dueDays ? ` — مهلة ${a.dueDays} يوم` : ''}\n   المطلوب: ${compactText(a.description, 260)}${rubric ? `\n   معيار التصحيح: ${rubric}` : ''}`
-        })
-        parts.push(`الواجبات/التكليفات المنشورة في خطة الطالب لهذا البرنامج:\n${assignmentLines.join('\n')}`)
-      }
-
-      const readyExams = p.programExams.filter((e) => e.status === 'READY')
-      if (readyExams.length > 0) {
-        const examLines = readyExams.map((e, i) => {
-          const sampleTopics = e.questions.slice(0, 8).map((q: any) => `${q.order}. ${compactText(q.text, 110)}${q.sourceBookTitle ? ` — من «${q.sourceBookTitle}»` : ''}`).join(' | ')
-          return `${i + 1}. ${e.title} — فصل ${e.semester === 2 ? 'ثانٍ' : 'أول'} — حد النجاح ${e.passScore}% — المدة ${e.durationMin} دقيقة — النقاط ${e.totalPoints}${e.booksUsed ? ` — بني على: ${compactText(e.booksUsed, 180)}` : ''}${sampleTopics ? `\n   محاور/نماذج أسئلة منشورة دون كشف مفتاح الإجابة قبل التسليم: ${sampleTopics}` : ''}`
-        })
-        parts.push(`الامتحانات الشاملة الجاهزة في خطة الطالب:\n${examLines.join('\n')}`)
-      }
     }
 
-    if (recentProgramAttempts.length > 0) {
-      const attemptBlocks = recentProgramAttempts.map((a: any, i: number) => {
-        const score = a.finalScore != null ? `${a.finalScore}% نهائية` : a.score != null ? `${a.score}%` : 'قيد التصحيح'
-        const answers = (a.answers || []).slice(0, 8).map((ans: any, idx: number) => formatAnswerReview(ans, idx)).join('\n')
-        return `${i + 1}. ${a.exam.title} (${a.exam.program?.titleAr || 'برنامج غير محدد'}، فصل ${a.exam.semester}) — ${score} — ${a.passed ? 'ناجح' : a.passed === false ? 'غير ناجح' : a.status}${a.appealStatus === 'PENDING' ? ' — اعتراض قيد المراجعة' : ''}${a.feedback ? `\n   تقييم عام: ${compactText(a.feedback, 520)}` : ''}${answers ? `\n   مراجعة إجابات الطالب مقارنة بالإجابة الصحيحة/النموذجية بعد التسليم:\n${answers}` : ''}`
-      })
-      parts.push(`محاولات الامتحانات الشاملة المسلّمة حديثاً — يجوز للمشرف شرح الأخطاء هنا لأنها بعد التسليم:\n${attemptBlocks.join('\n')}`)
+    if (!enrollments?.length && !admission && !thesis) {
+      parts.push('لا يظهر لهذا المستخدم تسجيل طالب فعّال؛ عند الأسئلة العامة عن البرامج أو كتب الماجستير استخدم فهرس البرامج النشطة الرسمي أعلاه.')
     }
 
-    if (recentUnitAttempts.length > 0) {
-      const attemptBlocks = recentUnitAttempts.map((a: any, i: number) => {
-        const answers = (a.answers || []).slice(0, 8).map((ans: any, idx: number) => formatAnswerReview(ans, idx)).join('\n')
-        return `${i + 1}. ${a.exam.title} — وحدة ${a.exam.unit?.title || 'غير محددة'} (${a.exam.unit?.program?.titleAr || 'برنامج غير محدد'}) — ${a.score != null ? `${a.score}%` : 'قيد التصحيح'} — ${a.passed ? 'ناجح' : a.passed === false ? 'غير ناجح' : a.status}${a.feedback ? `\n   تقييم عام: ${compactText(a.feedback, 520)}` : ''}${answers ? `\n   مراجعة إجابات الطالب مقارنة بالإجابة الصحيحة/النموذجية بعد التسليم:\n${answers}` : ''}`
-      })
-      parts.push(`محاولات اختبارات الوحدات المسلّمة حديثاً — استخدمها لتفسير خطأ الطالب وتصحيح المفاهيم:\n${attemptBlocks.join('\n')}`)
-    }
-
-    let ctx = parts.join('\n\n')
-    if (ctx.length > 24000) ctx = ctx.slice(0, 24000) + '…'
-    return ctx
-  } catch (e) {
-    console.error('supervisor-ai context error:', e)
+    const ctx = parts.filter(Boolean).join('\n\n')
+    return ctx.length > 32000 ? `${ctx.slice(0, 32000)}…` : ctx
+  } catch (error) {
+    console.error('supervisor-ai context error:', error)
     return ''
   }
 }
@@ -938,7 +287,7 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
 /** يبني رسالة النظام للمشرف الذكي متضمنة سياق الطالب التخصصي */
 export function mergeContext(ragContext: string, uiContext?: string): string {
   const blocks: string[] = []
-  if (ragContext) blocks.push(`ملف الطالب ومعرفته التخصصية (من قاعدة معرفة الأكاديمية — استند إليها في إجاباتك):\n${ragContext}`)
+  if (ragContext) blocks.push(`ملف المستخدم ومعرفته التخصصية من قاعدة بيانات الأكاديمية — استند إليها في إجاباتك ولا تخترع معلومات غير موجودة:\n${ragContext}`)
   if (uiContext) blocks.push(`سياق إضافي من الواجهة:\n${uiContext}`)
   return blocks.join('\n\n')
 }
@@ -987,14 +336,11 @@ function buildSignalSummary(signal: StudentMemorySignal): string | null {
     )
   }
   if (signal.kind === 'DEFENSE') {
-    return compactText(
-      `مناقشة بحث ${signal.thesisTitle ? `«${signal.thesisTitle}»` : 'التخرج'}: ${signal.score != null ? `${signal.score}/100` : 'دون درجة'}${signal.summary ? ` — ${signal.summary}` : ''}`,
-      700
-    )
+    return compactText(`مناقشة بحث ${signal.thesisTitle ? `«${signal.thesisTitle}»` : 'التخرج'}: ${signal.score != null ? `${signal.score}/100` : 'دون درجة'}`, 700)
   }
   if (signal.kind === 'CHAT') {
     return compactText(
-      `آخر تفاعل ${signal.mode === 'VOICE' ? 'صوتي' : 'نصي'}: الطالب قال «${compactText(signal.userMessage, 240)}» — ورد المشرف: «${compactText(signal.assistantReply, 260)}»`,
+      `آخر تفاعل ${signal.mode === 'VOICE' ? 'صوتي' : 'نصي'}: المستخدم قال «${compactText(signal.userMessage, 240)}» — ورد المشرف: «${compactText(signal.assistantReply, 260)}»`,
       700
     )
   }
@@ -1010,23 +356,18 @@ function buildProfileDigest(signal: StudentMemorySignal, previous?: string | nul
     signal.score != null ? `آخر مؤشر أداء: ${signal.score}${signal.kind === 'DEFENSE' ? '/100' : '%'}` : null,
     persona ? `آخر وضع للمشرف: ${persona}` : null,
   ].filter(Boolean)
-  const next = bits.join(' — ')
-  return next ? compactText(next, 900) : previous ? compactText(previous, 900) : null
+  return bits.length ? compactText(bits.join(' — '), 900) : previous ? compactText(previous, 900) : null
 }
 
-/**
- * يحدّث ذاكرة أكاديمية مركزية للطالب بدون استدعاء نموذج إضافي.
- * هذه الذاكرة تجعل المشرف الذكي يستحضر نقاط القوة والضعف وآخر الامتحانات والمناقشة في كل سياق لاحق.
- */
+/** يحدّث ذاكرة أكاديمية مركزية للطالب بدون استدعاء نموذج إضافي. */
 export async function updateStudentAcademicMemory(userId: string, signal: StudentMemorySignal): Promise<void> {
   try {
     const memoryStore = (db as any).studentAcademicMemory
     if (!memoryStore) return
 
     const now = new Date()
-    const existing = await memoryStore.findUnique({ where: { userId } })
+    const existing = await memoryStore.findUnique({ where: { userId } }).catch(() => null)
     const summary = buildSignalSummary(signal)
-
     const strengths = [...(signal.strengths || [])]
     const weaknesses = [...(signal.weaknesses || [])]
     const concepts = [...(signal.concepts || [])]
@@ -1092,20 +433,10 @@ export async function updateStudentAcademicMemory(userId: string, signal: Studen
     }
     if (signal.fileAnalysis) updateData.lastFileAnalysis = compactText(signal.fileAnalysis, 900)
 
-    await memoryStore.upsert({
-      where: { userId },
-      create: createData,
-      update: updateData,
-    })
-  } catch (e) {
-    console.error('student academic memory update error:', e)
+    await memoryStore.upsert({ where: { userId }, create: createData, update: updateData })
+  } catch (error) {
+    console.error('student academic memory update error:', error)
   }
-}
-
-function dateToIso(value?: Date | string | null): string | null {
-  if (!value) return null
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
 export async function getStudentAcademicMemorySnapshot(userId: string) {
@@ -1169,8 +500,8 @@ export async function getStudentAcademicMemorySnapshot(userId: string) {
       lastDefenseAt: dateToIso(memory.lastDefenseAt),
       updatedAt: dateToIso(memory.updatedAt),
     }
-  } catch (e) {
-    console.error('student academic memory snapshot error:', e)
+  } catch (error) {
+    console.error('student academic memory snapshot error:', error)
     return {
       exists: false,
       profileDigest: null,
