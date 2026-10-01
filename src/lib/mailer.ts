@@ -236,6 +236,69 @@ export async function emailAdminAlert(to: string, title: string, body: string, e
   })
 }
 
+export async function emailRepresentativeOnboardingInvitation(to: string, input: {
+  name: string
+  country: string
+  territory?: string | null
+  contractNo?: string | null
+  onboardingUrl: string
+}) {
+  await sendEmail({
+    to,
+    event: 'REPRESENTATIVE_ONBOARDING_INVITATION',
+    subject: 'استكمال ملف ممثل الأكاديمية الرسمي',
+    html: emailTemplate(
+      'استكمال ملف ممثل الأكاديمية 🌐',
+      `<p>${greeting(input.name)}،</p><p>تم اعتماد طلب التمثيل/الوكالة، والخطوة التالية هي استكمال ملف ممثل الأكاديمية قبل عرضه للعامة.</p>${infoRows([
+        { label: 'الدولة/النطاق', value: input.territory || input.country },
+        { label: 'رقم العقد', value: input.contractNo || 'حسب سجل الوكالة في المنصة' },
+        { label: 'المطلوب', value: 'رفع الصورة الشخصية، السيرة الذاتية، الكرنيه أو المرفقات الرسمية، وروابط الأعمال إن وجدت' },
+      ])}<p>بعد إرسال الملف ستراجعه الإدارة، ولن يظهر الملف للعامة إلا بعد الاعتماد النهائي.</p>`,
+      { label: 'استكمال ملف الممثل', url: input.onboardingUrl }
+    ),
+  })
+}
+
+export async function emailAdminRepresentativeProfileSubmitted(to: string, input: {
+  name: string
+  country: string
+  region: string
+  email?: string | null
+}) {
+  await sendEmail({
+    to,
+    event: 'ADMIN_REPRESENTATIVE_PROFILE_SUBMITTED',
+    subject: `ملف ممثل جاهز للمراجعة — ${input.name}`,
+    html: emailTemplate(
+      'ملف ممثل الأكاديمية جاهز للمراجعة 📌',
+      `<p>قام ممثل وكالة/اعتماد بإرسال ملفه للمراجعة بعد رفع البيانات والمرفقات.</p>${infoRows([
+        { label: 'الاسم', value: input.name },
+        { label: 'الدولة', value: input.country },
+        { label: 'المنطقة', value: input.region },
+        { label: 'البريد', value: input.email || 'غير محدد' },
+        { label: 'الإجراء المطلوب', value: 'مراجعة ملف ممثلي الدول ثم تحويل الحالة إلى ACTIVE عند الاعتماد' },
+      ])}`,
+      { label: 'فتح لوحة الإدارة', url: appLink('/?view=admin') }
+    ),
+  })
+}
+
+export async function emailRepresentativeProfileApproved(to: string, input: {
+  name: string
+  profileUrl: string
+}) {
+  await sendEmail({
+    to,
+    event: 'REPRESENTATIVE_PROFILE_APPROVED',
+    subject: 'تم اعتماد ملف ممثل الأكاديمية ونشره',
+    html: emailTemplate(
+      'تم نشر ملف ممثل الأكاديمية ✅',
+      `<p>${greeting(input.name)}،</p><p>تمت مراجعة ملفك واعتماده للعرض ضمن قسم ممثلي الأكاديمية في الدول.</p>`,
+      { label: 'عرض الملف العام', url: input.profileUrl }
+    ),
+  })
+}
+
 export async function emailAdminNewAdmissionRequest(to: string, input: {
   reference: string
   fullName: string
