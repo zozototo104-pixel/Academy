@@ -788,7 +788,35 @@ export function AdminSystemTab() {
             </div>
             {F('USDT_WALLET_ADDRESS', 'عنوان محفظة USDT', 'مثال: T... أو 0x...', 'text', 'يظهر للطالب عند اختيار USDT، ولا يتم اعتماد السداد حتى تؤكده الإدارة.')}
             {F('USDT_BINANCE_PAY_USER_ID', 'Binance Pay ID', 'مثال: User-xxxxx', 'text', 'ضع حساب Binance Pay الرسمي هنا بدلاً من حفظه داخل الكود. إذا تركته فارغاً لن يظهر كحساب مضبوط.')}
-            {F('USDT_BINANCE_PAY_QR_IMAGE_URL', 'رابط صورة QR لـ Binance Pay', 'مثال: /binance-pay-qr.svg أو رابط صورة من التخزين', 'text', 'يمكن تغييره لاحقاً من لوحة الإدارة بدون تعديل الكود.')}
+            <div className="space-y-1 sm:col-span-2">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                {F('USDT_BINANCE_PAY_QR_IMAGE_URL', 'رابط صورة QR لـ Binance Pay', 'مثال: /binance-pay-qr.svg أو رابط صورة من التخزين', 'text', 'يمكن وضع رابط يدوي أو رفع صورة QR مباشرة من هنا.')}
+                <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-[#c9a227]/40 bg-white px-3 text-xs font-black text-[#0f2b46] shadow-sm hover:bg-[#fff8e6]">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={paymentQrUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      uploadBinanceQr(file)
+                      e.currentTarget.value = ''
+                    }}
+                  />
+                  {paymentQrUploading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Upload className="ml-1 h-4 w-4" />}
+                  رفع صورة QR
+                </label>
+              </div>
+              {form.USDT_BINANCE_PAY_QR_IMAGE_URL && (
+                <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-[#c9a227]/20 bg-white p-3">
+                  <img src={form.USDT_BINANCE_PAY_QR_IMAGE_URL} alt="Binance Pay QR" className="h-24 w-24 rounded-lg border object-contain" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-black text-[#0f2b46]">الصورة الحالية المحفوظة للدفع عبر Binance Pay</p>
+                    <p className="mt-1 break-all font-mono text-[10px] text-slate-500" dir="ltr">{form.USDT_BINANCE_PAY_QR_IMAGE_URL}</p>
+                  </div>
+                </div>
+              )}
+            </div>
             {SelectF('USDT_NETWORK', 'الشبكة', [
               { value: 'TRC20', label: 'TRC20 — تحقق آلي عبر TronGrid' },
               { value: 'BEP20', label: 'BEP20 — مراجعة إدارية عبر TxID' },
