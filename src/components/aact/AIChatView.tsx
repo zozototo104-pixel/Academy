@@ -375,6 +375,7 @@ export function AIChatView() {
       else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
+      try { agent.stop() } catch {}
       agentRef.current = null
     })
   }
