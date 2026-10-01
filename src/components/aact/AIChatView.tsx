@@ -612,12 +612,17 @@ export function AIChatView() {
     <>
       {voiceMode && (
         <div className="aact-live-voice-screen fixed inset-0 z-[100] flex h-dvh flex-col overflow-y-auto bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
-          <div className="shrink-0 flex items-center justify-between px-5 py-4">
-            <div className="flex items-center gap-2.5">
+          <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-2.5">
               <AcademyLogo size={34} light />
-              <div className="flex items-center gap-2 text-[11px] font-black text-[#e0b83a]"><Radio className="h-3.5 w-3.5 animate-pulse" /> محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي</div>
+              <div className="truncate flex items-center gap-2 text-[11px] font-black text-[#e0b83a]"><Radio className="h-3.5 w-3.5 animate-pulse" /> محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي</div>
             </div>
-            <Badge className="gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge className="hidden gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15 sm:inline-flex"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
+              <Button onClick={toggleVoiceMode} size="sm" className="rounded-full bg-[#b22234] px-4 font-black text-white shadow-lg hover:bg-[#c9333f]" title="إنهاء المحادثة الصوتية">
+                <PhoneOff className="ml-1.5 h-4 w-4" /> إنهاء
+              </Button>
+            </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 py-4 sm:gap-8">
             <div className="aact-voice-orb-stage relative flex items-center justify-center">
