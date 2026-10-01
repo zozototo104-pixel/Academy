@@ -179,6 +179,10 @@ jobs:
       - name: Run admin smoke test
         run: bun run e2e:admin
 
+      - name: Sanitize E2E artifacts before upload
+        if: always()
+        run: bash scripts/sanitize-e2e-artifacts.sh test-results playwright-report
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
