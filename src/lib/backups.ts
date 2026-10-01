@@ -116,6 +116,140 @@ function encryptBackupPayload(payload: Buffer, aad: Record<string, unknown>) {
   return Buffer.concat([Buffer.from(`${JSON.stringify(header)}\n`, 'utf8'), ciphertext])
 }
 
+function decryptBackupPayload(payload: Buffer) {
+  const headerEnd = payload.indexOf(10)
+  if (headerEnd <= 0) throw new Error('INVALID_ENCRYPTED_BACKUP_HEADER')
+  const header = JSON.parse(payload.subarray(0, headerEnd).toString('utf8'))
+  if (header.type !== 'aact-encrypted-backup-v1') throw new Error('UNSUPPORTED_BACKUP_FORMAT')
+  if (header.algorithm !== 'AES-256-GCM') throw new Error('UNSUPPORTED_BACKUP_ALGORITHM')
+  if (!header.iv || !header.authTag) throw new Error('INVALID_ENCRYPTED_BACKUP_METADATA')
+  const aad = header.aad || {}
+  const ciphertext = payload.subarray(headerEnd + 1)
+  const decipher = createDecipheriv('aes-256-gcm', backupEncryptionKey(), Buffer.from(header.iv, 'base64'))
+  decipher.setAAD(Buffer.from(JSON.stringify(aad), 'utf8'))
+  decipher.setAuthTag(Buffer.from(header.authTag, 'base64'))
+  const compressed = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+  if (aad.compressedSha256 && aad.compressedSha256 !== sha256(compressed)) throw new Error('BACKUP_COMPRESSED_CHECKSUM_MISMATCH')
+  const plain = gunzipSync(compressed)
+  if (aad.uncompressedSha256 && aad.uncompressedSha256 !== sha256(plain)) throw new Error('BACKUP_UNCOMPRESSED_CHECKSUM_MISMATCH')
+  return { header, aad, compressed, plain }
+}
+
+interface ParsedBackupTable {
+  name: string
+  delegate: string
+  expected: number
+  rows: Record<string, unknown>[]
+}
+
+function parseBackupJsonl(plain: Buffer) {
+  const tables = new Map<string, ParsedBackupTable>()
+  let meta: Record<string, unknown> | null = null
+  let summary: Record<string, unknown> | null = null
+  let parsedLines = 0
+  for (const raw of plain.toString('utf8').split('\n')) {
+    if (!raw.trim()) continue
+    const item = JSON.parse(raw) as any
+    parsedLines += 1
+    if (item.type === 'meta') {
+      meta = item
+      continue
+    }
+    if (item.type === 'table') {
+      tables.set(String(item.name), { name: String(item.name), delegate: String(item.delegate), expected: Number(item.count || 0), rows: [] })
+      continue
+    }
+    if (item.type === 'row') {
+      const table = tables.get(String(item.table))
+      if (table) table.rows.push(item.data || {})
+      continue
+    }
+    if (item.type === 'summary') summary = item
+  }
+  return { meta, summary, tables: Array.from(tables.values()), parsedLines }
+}
+
+function restoreTableSpecsByName() {
+  return new Map(BACKUP_TABLES.map((table) => [table.name, table]))
+}
+
+export async function inspectStoredDatabaseBackup(input: { provider?: string | null; key: string; mimeType?: string | null }) {
+  const key = String(input.key || '').trim()
+  if (!key) throw new Error('BACKUP_STORAGE_KEY_REQUIRED')
+  const stored = await readStoredFile({ provider: input.provider || 's3', key, mimeType: input.mimeType || 'application/octet-stream' })
+  if (!stored?.buffer) throw new Error('BACKUP_FILE_NOT_FOUND')
+  const decrypted = decryptBackupPayload(stored.buffer)
+  const parsed = parseBackupJsonl(decrypted.plain)
+  return {
+    ok: true,
+    mode: 'inspect' as const,
+    storage: { provider: input.provider || 's3', key, size: stored.buffer.byteLength, mimeType: stored.mimeType },
+    encrypted: true,
+    header: { type: decrypted.header.type, algorithm: decrypted.header.algorithm, aad: decrypted.aad },
+    meta: parsed.meta,
+    summary: parsed.summary,
+    parsedLines: parsed.parsedLines,
+    tables: parsed.tables.map((table) => ({ name: table.name, delegate: table.delegate, expected: table.expected, rows: table.rows.length, mismatch: table.expected !== table.rows.length })),
+    checksums: { encryptedSha256: sha256(stored.buffer), compressedSha256: sha256(decrypted.compressed), uncompressedSha256: sha256(decrypted.plain) },
+  }
+}
+
+export async function restoreStoredDatabaseBackup(input: { provider?: string | null; key: string; confirm: string }) {
+  if (String(input.confirm || '').trim() !== 'RESTORE') throw new Error('RESTORE_CONFIRMATION_REQUIRED')
+  const key = String(input.key || '').trim()
+  if (!key) throw new Error('BACKUP_STORAGE_KEY_REQUIRED')
+  const stored = await readStoredFile({ provider: input.provider || 's3', key, mimeType: 'application/octet-stream' })
+  if (!stored?.buffer) throw new Error('BACKUP_FILE_NOT_FOUND')
+  const decrypted = decryptBackupPayload(stored.buffer)
+  const parsed = parseBackupJsonl(decrypted.plain)
+  const specs = restoreTableSpecsByName()
+  const results: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }> = []
+
+  for (const table of parsed.tables) {
+    const spec = specs.get(table.name)
+    if (!spec || spec.delegate !== table.delegate) {
+      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Unknown or mismatched table delegate' })
+      continue
+    }
+    const delegate = (db as any)[spec.delegate]
+    if (!delegate?.createMany) {
+      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Delegate does not support createMany' })
+      continue
+    }
+    if (!table.rows.length) {
+      results.push({ table: table.name, rows: 0, processed: 0 })
+      continue
+    }
+    try {
+      const created = await delegate.createMany({ data: table.rows, skipDuplicates: true })
+      results.push({ table: table.name, rows: table.rows.length, processed: Number(created?.count || 0) })
+    } catch (e: any) {
+      results.push({ table: table.name, rows: table.rows.length, processed: 0, error: e?.message || String(e) })
+    }
+  }
+
+  const errors = results.filter((result) => result.error)
+  await audit(
+    null,
+    errors.length ? 'DB_RESTORE_PARTIAL' : 'DB_RESTORE_SUCCESS',
+    'Backup',
+    key,
+    `provider=${input.provider || 's3'} | tables=${parsed.tables.length} | errors=${errors.length}`
+  ).catch(() => {})
+
+  return {
+    ok: errors.length === 0,
+    mode: 'restore' as const,
+    storage: { provider: input.provider || 's3', key, size: stored.buffer.byteLength, mimeType: stored.mimeType },
+    encrypted: true,
+    meta: parsed.meta,
+    summary: parsed.summary,
+    tables: parsed.tables.length,
+    results,
+    errors,
+  }
+}
+
 export function backupConfigurationStatus() {
   const storageConfigured = !!(
     process.env.AACT_S3_ENDPOINT?.trim() &&
