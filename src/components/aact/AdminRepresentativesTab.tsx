@@ -1,0 +1,337 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, Plus, Save, Trash2, Upload, Sparkles, QrCode, ExternalLink, Image as ImageIcon, FileText } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const EMPTY_FORM = {
+  id: '',
+  slug: '',
+  status: 'ACTIVE',
+  fullName: '',
+  displayTitle: '',
+  degreeTitle: '',
+  academicRank: '',
+  country: '',
+  region: '',
+  territory: '',
+  city: '',
+  specialization: '',
+  representativeRole: 'COUNTRY_REPRESENTATIVE',
+  shortBio: '',
+  rawBio: '',
+  professionalBio: '',
+  worksSummary: '',
+  achievements: '',
+  publicContactNote: '',
+  phone: '',
+  email: '',
+  whatsapp: '',
+  website: '',
+  featured: false,
+  sortOrder: 0,
+}
+
+type FormState = typeof EMPTY_FORM
+
+type Representative = FormState & {
+  profilePhotoUrl?: string | null
+  officialCardUrl?: string | null
+  qrToken?: string | null
+  verifyUrl?: string | null
+  qrDataUrl?: string | null
+  aiRewriteStatus?: string | null
+  aiRewriteNote?: string | null
+  files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null }>
+}
+
+function formFromRepresentative(rep: Representative): FormState {
+  return { ...EMPTY_FORM, ...rep, featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
+}
+
+function fieldValue(value: unknown) {
+  return String(value || '')
+}
+
+export default function AdminRepresentativesTab() {
+  const [rows, setRows] = useState<Representative[]>([])
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [selectedId, setSelectedId] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+  const [query, setQuery] = useState('')
+  const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((row) => [row.fullName, row.country, row.region, row.specialization, row.displayTitle].join(' ').toLowerCase().includes(q))
+  }, [rows, query])
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/representatives', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر تحميل ممثلي الأكاديمية')
+      setRows(data.representatives || [])
+      if (!selectedId && data.representatives?.[0]) {
+        setSelectedId(data.representatives[0].id)
+        setForm(formFromRepresentative(data.representatives[0]))
+      }
+    } catch (e: any) {
+      toast({ title: 'تعذر التحميل', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function newRepresentative() {
+    setSelectedId('')
+    setForm(EMPTY_FORM)
+  }
+
+  function choose(rep: Representative) {
+    setSelectedId(rep.id)
+    setForm(formFromRepresentative(rep))
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const method = form.id ? 'PATCH' : 'POST'
+      const url = form.id ? `/api/admin/representatives/${form.id}` : '/api/admin/representatives'
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر حفظ الممثل')
+      const rep = data.representative
+      setRows((prev) => form.id ? prev.map((row) => row.id === rep.id ? rep : row) : [rep, ...prev])
+      setSelectedId(rep.id)
+      setForm(formFromRepresentative(rep))
+      toast({ title: 'تم الحفظ', description: 'تم حفظ بيانات ممثل الأكاديمية.' })
+    } catch (e: any) {
+      toast({ title: 'فشل الحفظ', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove() {
+    if (!form.id) return
+    if (!window.confirm('هل تريد حذف هذا الممثل من العرض العام؟')) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر حذف الممثل')
+      setRows((prev) => prev.filter((row) => row.id !== form.id))
+      newRepresentative()
+      toast({ title: 'تم الحذف', description: 'تم حذف/أرشفة الممثل من العرض العام.' })
+    } catch (e: any) {
+      toast({ title: 'فشل الحذف', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function upload(assetType: 'profilePhoto' | 'officialCard' | 'file', file?: File | null, extras?: Record<string, string>) {
+    if (!form.id) return toast({ title: 'احفظ الممثل أولاً', description: 'بعد الحفظ يمكنك رفع الملفات والصور.' })
+    if (!file && !extras?.externalUrl) return toast({ title: 'لا يوجد ملف', description: 'اختر ملفاً أو ضع رابطاً خارجياً.' })
+    const body = new FormData()
+    body.set('assetType', assetType)
+    for (const [key, value] of Object.entries(extras || {})) body.set(key, value)
+    if (file) body.set('file', file)
+    setUploading(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/assets`, { method: 'POST', body })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر رفع الملف')
+      await load()
+      toast({ title: 'تم الرفع', description: assetType === 'profilePhoto' ? 'تم تحديث صورة الممثل.' : assetType === 'officialCard' ? 'تم تحديث الكرنيه الرسمي.' : 'تم إضافة الملف/الرابط.' })
+    } catch (e: any) {
+      toast({ title: 'فشل الرفع', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function deleteFile(fileId: string) {
+    if (!form.id) return
+    setUploading(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر حذف الملف')
+      await load()
+      toast({ title: 'تم حذف الملف' })
+    } catch (e: any) {
+      toast({ title: 'فشل حذف الملف', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function rewrite() {
+    if (!form.id) return toast({ title: 'احفظ الممثل أولاً' })
+    setRewriting(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/rewrite`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر إعادة الصياغة')
+      await load()
+      toast({ title: 'تمت إعادة الصياغة', description: 'راجع السيرة قبل اعتماد العرض النهائي.' })
+    } catch (e: any) {
+      toast({ title: 'فشل الذكاء', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setRewriting(false)
+    }
+  }
+
+  if (loading) {
+    return <Card className="mt-4"><CardContent className="flex h-52 items-center justify-center gap-3"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /><span className="text-sm font-black">جاري تحميل ممثلي الأكاديمية...</span></CardContent></Card>
+  }
+
+  return (
+    <div className="mt-4 grid gap-5 lg:grid-cols-[360px_1fr]" dir="rtl">
+      <Card className="border-[#0f2b46]/10">
+        <CardHeader className="space-y-3">
+          <CardTitle className="flex items-center justify-between text-lg font-black text-[#0f2b46]">
+            ممثلو الأكاديمية
+            <Button size="sm" onClick={newRepresentative} className="gap-1 bg-[#0f2b46] text-white"><Plus className="h-4 w-4" /> جديد</Button>
+          </CardTitle>
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الدولة أو التخصص..." className="rounded-2xl" />
+        </CardHeader>
+        <CardContent className="max-h-[720px] space-y-3 overflow-y-auto">
+          {filtered.map((rep) => (
+            <button key={rep.id} onClick={() => choose(rep)} className={`w-full rounded-2xl border p-3 text-right transition ${selectedId === rep.id ? 'border-[#c9a227] bg-amber-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 overflow-hidden rounded-2xl bg-[#0f2b46] text-center text-sm font-black leading-[3rem] text-white">
+                  {rep.profilePhotoUrl ? <img src={rep.profilePhotoUrl} alt="" className="h-full w-full object-cover" /> : rep.fullName.slice(0, 2)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black text-[#0f2b46]">{rep.fullName}</p>
+                  <p className="truncate text-xs font-bold text-slate-500">{rep.country} — {rep.region}</p>
+                  <div className="mt-1 flex gap-1"><Badge variant="outline" className="text-[10px]">{rep.status}</Badge>{rep.featured && <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">مميز</Badge>}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+          {!filtered.length && <p className="rounded-2xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد نتائج مطابقة.</p>}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-5">
+        <Card className="border-[#0f2b46]/10">
+          <CardHeader>
+            <CardTitle className="text-xl font-black text-[#0f2b46]">{form.id ? 'تعديل ممثل الأكاديمية' : 'إضافة ممثل جديد'}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div><Label>الاسم الكامل</Label><Input value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الدولة</Label><Input value={form.country} onChange={(e) => update('country', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>المنطقة الجغرافية</Label><Input value={form.region} onChange={(e) => update('region', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الصفة المعروضة</Label><Input value={form.displayTitle} onChange={(e) => update('displayTitle', e.target.value)} placeholder="ممثل الأكاديمية في..." className="mt-2 rounded-2xl" /></div>
+              <div><Label>الدرجة العلمية</Label><Input value={form.degreeTitle} onChange={(e) => update('degreeTitle', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الرتبة العلمية</Label><Input value={form.academicRank} onChange={(e) => update('academicRank', e.target.value)} placeholder="بروفيسور / دكتور..." className="mt-2 rounded-2xl" /></div>
+              <div><Label>المدينة</Label><Input value={form.city} onChange={(e) => update('city', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>نطاق التمثيل</Label><Input value={form.territory} onChange={(e) => update('territory', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>التخصص</Label><Input value={form.specialization} onChange={(e) => update('specialization', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الجوال</Label><Input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الإيميل</Label><Input value={form.email} onChange={(e) => update('email', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>واتساب</Label><Input value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الموقع / رابط خارجي</Label><Input value={form.website} onChange={(e) => update('website', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>الحالة</Label><Select value={form.status} onValueChange={(v) => update('status', v)}><SelectTrigger className="mt-2 rounded-2xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ACTIVE">نشط</SelectItem><SelectItem value="DRAFT">مسودة</SelectItem><SelectItem value="HIDDEN">مخفي</SelectItem><SelectItem value="ARCHIVED">مؤرشف</SelectItem></SelectContent></Select></div>
+              <div><Label>الترتيب</Label><Input type="number" value={form.sortOrder} onChange={(e) => update('sortOrder', Number(e.target.value) as any)} className="mt-2 rounded-2xl" /></div>
+            </div>
+            <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold"><input type="checkbox" checked={form.featured} onChange={(e) => update('featured', e.target.checked as any)} /> إظهار كممثل مميز</label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><Label>ملخص قصير</Label><Textarea value={form.shortBio} onChange={(e) => update('shortBio', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
+              <div><Label>ملاحظة تواصل عامة</Label><Textarea value={form.publicContactNote} onChange={(e) => update('publicContactNote', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
+              <div><Label>السيرة الخام</Label><Textarea value={form.rawBio} onChange={(e) => update('rawBio', e.target.value)} className="mt-2 min-h-36 rounded-2xl" /></div>
+              <div><Label>السيرة الاحترافية المعروضة</Label><Textarea value={form.professionalBio} onChange={(e) => update('professionalBio', e.target.value)} className="mt-2 min-h-36 rounded-2xl" /></div>
+              <div><Label>الأعمال</Label><Textarea value={form.worksSummary} onChange={(e) => update('worksSummary', e.target.value)} className="mt-2 min-h-32 rounded-2xl" /></div>
+              <div><Label>الإنجازات</Label><Textarea value={form.achievements} onChange={(e) => update('achievements', e.target.value)} className="mt-2 min-h-32 rounded-2xl" /></div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={save} disabled={saving} className="gap-2 bg-[#0f2b46] text-white"><Save className="h-4 w-4" /> {saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+              <Button onClick={rewrite} disabled={!form.id || rewriting} variant="outline" className="gap-2 border-[#c9a227] text-[#8b6b12]"><Sparkles className="h-4 w-4" /> {rewriting ? 'يصيغ...' : 'إعادة صياغة بالذكاء'}</Button>
+              {form.id && <Button onClick={remove} disabled={saving} variant="outline" className="gap-2 border-red-200 text-red-700"><Trash2 className="h-4 w-4" /> حذف</Button>}
+            </div>
+          </CardContent>
+        </Card>
+
+        {form.id && selected && (
+          <Card className="border-[#0f2b46]/10">
+            <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <AssetUploader label="صورة الممثل" icon={<ImageIcon className="h-4 w-4" />} onUpload={(file) => upload('profilePhoto', file)} uploading={uploading} />
+                <AssetUploader label="الكرنيه الرسمي" icon={<QrCode className="h-4 w-4" />} onUpload={(file) => upload('officialCard', file)} uploading={uploading} />
+                <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
+              </div>
+              <ExternalLinkUploader onUpload={(extras) => upload('file', null, extras)} uploading={uploading} />
+              <div className="grid gap-4 md:grid-cols-2">
+                <PreviewBox title="الصورة الحالية" url={selected.profilePhotoUrl} />
+                <PreviewBox title="الكرنيه الحالي" url={selected.officialCardUrl} />
+              </div>
+              <div className="rounded-2xl border border-[#c9a227]/20 bg-amber-50 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {selected.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-24 w-24 rounded-xl bg-white p-2" />}
+                  <div>
+                    <p className="text-sm font-black text-[#0f2b46]">رابط التحقق الآمن</p>
+                    {selected.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
+                    <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق يحتاج آخر 4 أرقام من الجوال أو الإيميل المسجل.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
+                {(selected.files || []).map((file) => (
+                  <div key={file.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-3">
+                    <div className="min-w-0"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><p className="truncate text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p></div>
+                    <div className="flex gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || file.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]"><ExternalLink className="h-4 w-4" /></a>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
+                  </div>
+                ))}
+                {!selected.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AssetUploader({ label, icon, onUpload, uploading }: { label: string; icon: React.ReactNode; onUpload: (file: File) => void; uploading: boolean }) {
+  return <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]"><input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file); e.currentTarget.value = '' }} />{icon}{label}<span className="text-[10px] font-bold text-slate-400"><Upload className="inline h-3 w-3" /> رفع ملف</span></label>
+}
+
+function GeneralFileUploader({ onUpload, uploading }: { onUpload: (file: File, extras: Record<string, string>) => void; uploading: boolean }) {
+  const [kind, setKind] = useState('CV')
+  const [title, setTitle] = useState('السيرة الذاتية')
+  return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3"><div className="grid gap-2"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الملف" className="rounded-xl" /><Select value={kind} onValueChange={setKind}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CV">سيرة ذاتية</SelectItem><SelectItem value="BOOK">كتاب</SelectItem><SelectItem value="WORK">عمل/مشروع</SelectItem><SelectItem value="CERTIFICATE">شهادة</SelectItem><SelectItem value="OTHER">أخرى</SelectItem></SelectContent></Select><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0f2b46] px-3 py-2 text-xs font-black text-white"><input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file, { kind, title }); e.currentTarget.value = '' }} /><FileText className="h-4 w-4" /> رفع ملف عام</label></div></div>
+}
+
+function ExternalLinkUploader({ onUpload, uploading }: { onUpload: (extras: Record<string, string>) => void; uploading: boolean }) {
+  const [url, setUrl] = useState('')
+  const [title, setTitle] = useState('رابط أعمال')
+  return <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[1fr_2fr_auto]"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الرابط" className="rounded-xl" /><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="rounded-xl" /><Button disabled={uploading || !url.trim()} onClick={() => { onUpload({ kind: 'LINK', title, externalUrl: url }); setUrl('') }} variant="outline" className="gap-2"><ExternalLink className="h-4 w-4" /> إضافة رابط</Button></div>
+}
+
+function PreviewBox({ title, url }: { title: string; url?: string | null }) {
+  return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="mb-3 text-sm font-black text-[#0f2b46]">{title}</p>{url ? <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={title} className="max-h-48 w-full rounded-xl object-contain bg-white" /></a> : <p className="text-xs font-bold text-slate-400">لا يوجد ملف مرفوع.</p>}</div>
+}
