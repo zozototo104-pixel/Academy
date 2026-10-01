@@ -91,7 +91,7 @@ export function asksAboutProgramBooks(query?: string | null): boolean {
   const raw = String(query || '').toLowerCase()
   const n = normalizeArabic(query || '')
   const asksBooks = /book|books|bibliography|curriculum|syllabus|libros|livros/.test(raw) || ['كتب', 'الكتب', 'كتاب', 'مراجع', 'المراجع', 'منهاج', 'منهج', 'مواد', 'مقرره', 'مقررة', 'المقرره', 'المقررة'].some((x) => n.includes(x))
-  const asksProgram = /program|degree|major|specialization|master|masters|maestr|mestrado|maestrado|doctor|doctorate|phd|diploma|bachelor/.test(raw) || ['برنامج', 'برامج', 'تخصص', 'تخصصات', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'دبلوم', 'بكالوريوس'].some((x) => n.includes(x))
+  const asksProgram = /program|degree|major|specialization|master|masters|maestr|mestrado|maestrado|doctor|doctorate|phd|diploma|bachelor/.test(raw) || ['برنامج', 'برامج', 'تخصص', 'تخصصات', 'ماجستير', 'مجستير', 'ماحستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'دبلوم', 'بكالوريوس'].some((x) => n.includes(x))
   return asksBooks && asksProgram
 }
 
