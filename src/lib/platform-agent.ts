@@ -366,14 +366,15 @@ function logPlatformProviderAttempt(args: {
 }
 
 function expandArabicProgramQuery(query?: string | null): string {
+  const raw = String(query || '').toLowerCase()
   const n = normalizeArabic(query || '')
-  const aliases: string[] = [n]
+  const aliases: string[] = [n, raw]
 
-  if (includesAny(n, ['دكتوراه', 'دكتوراة', 'دكتورا', 'الدكتوراه', 'الدكتوراة', 'دكتوراء', 'دكتور'])) {
-    aliases.push('الدكتوراه المهنيه دكتوراه مهنيه professional doctorate doctorate phd')
+  if (includesAny(n, ['دكتوراه', 'دكتوراة', 'دكتورا', 'الدكتوراه', 'الدكتوراة', 'دكتوراء', 'دكتور']) || /doctor|doctorate|phd|doctorado|doutorado/.test(raw)) {
+    aliases.push('الدكتوراه المهنيه دكتوراه مهنيه professional doctorate doctorate phd doctorado doutorado')
   }
-  if (includesAny(n, ['ماجستير', 'مجستير', 'ماستر', 'الماجستير', 'المجستير'])) {
-    aliases.push('الماجستير المهني ماجستير مهني master masters')
+  if (includesAny(n, ['ماجستير', 'مجستير', 'ماستر', 'الماجستير', 'المجستير']) || /master|masters|maestr|maestría|maestria|mestrado|maestrado/.test(raw)) {
+    aliases.push('الماجستير المهني ماجستير مهني master masters maestria maestría maestrado mestrado')
   }
   if (includesAny(n, ['بكالوريوس', 'بكلوريوس', 'باكالوريوس', 'البكالوريوس'])) {
     aliases.push('البكالوريوس bachelor bachelors')
