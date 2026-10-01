@@ -489,7 +489,7 @@ function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   if (includesAny(n, ['برامج', 'برنامج', 'تخصص', 'دبلوم', 'دبلومات', 'دبلم', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'دكتورا', 'بكالوريوس', 'بكلوريوس'])) return 'ADMISSIONS'
   if (includesAny(n, ['قبول', 'التحاق', 'تسجيل', 'مرفقات', 'وثائق', 'طلب', 'دفع رسوم التقديم', 'استكمال'])) return 'ADMISSIONS'
   if (includesAny(n, ['شهادة', 'شهادتي', 'تحقق', 'qr', 'سجل اكاديمي', 'رقم شهادة'])) return 'CERTIFICATES'
-  if (includesAny(n, ['وكالة', 'وكيل', 'اعتماد', 'جهة اعتماد', 'مدرب معتمد', 'مستشار معتمد'])) return 'AGENCY_ACCREDITATION'
+  if (includesAny(n, ['وكالة', 'وكيل', 'اعتماد', 'جهة اعتماد', 'مدرب معتمد', 'مستشار معتمد', 'تعاون', 'شراكة', 'شركة تدريب', 'مؤسسة تدريب', 'مركز تدريب', 'مذكرة تفاهم'])) return 'AGENCY_ACCREDITATION'
   if (includesAny(n, ['كتاب', 'كتب', 'منهج', 'منهاج', 'دراسة', 'اشرح', 'مفهوم', 'واجب', 'محاضرة', 'تخصصي', 'برنامجي'])) return 'ACADEMIC_SUPERVISOR'
   return role === 'STUDENT' ? 'ACADEMIC_SUPERVISOR' : 'SUPPORT'
 }
