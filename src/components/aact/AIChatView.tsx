@@ -624,7 +624,7 @@ export function AIChatView() {
               </Button>
             </div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 py-4 sm:gap-8">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden px-6 py-3 sm:gap-6">
             <div className="aact-voice-orb-stage relative flex items-center justify-center">
               <span className="aact-voice-halo" />
               <span className="aact-voice-halo h2" />
