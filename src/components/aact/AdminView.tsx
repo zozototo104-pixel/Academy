@@ -41,6 +41,7 @@ const loadAdminRulesModule = () => import('@/components/aact/AdminRulesTab')
 const loadAdminQualityModule = () => import('@/components/aact/AdminQualityTab')
 const loadAdminSupervisorsModule = () => import('@/components/aact/AdminSupervisors')
 const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsAppInbox')
+const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
