@@ -25,6 +25,7 @@
     "data:cleanup": "tsx scripts/clean-data-keep-admins.ts --execute",
     "data:cleanup:factory:dry-run": "tsx scripts/clean-data-keep-admins.ts --profile factory",
     "data:cleanup:factory": "tsx scripts/clean-data-keep-admins.ts --profile factory --execute",
+    "backup:restore": "tsx scripts/backup-restore.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "e2e:admin": "playwright test --config=playwright.config.ts tests/e2e/admin-smoke.spec.ts",
     "e2e:routes": "playwright test --config=playwright.config.ts tests/e2e/platform-routes.spec.ts",
