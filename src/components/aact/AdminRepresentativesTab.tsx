@@ -296,8 +296,7 @@ export default function AdminRepresentativesTab() {
           </CardContent>
         </Card>
 
-        {form.id && selected && (
-          <Card className="border-[#0f2b46]/10">
+        <Card className="border-[#0f2b46]/10">
             <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
