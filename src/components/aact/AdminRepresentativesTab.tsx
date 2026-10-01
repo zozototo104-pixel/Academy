@@ -224,7 +224,7 @@ export default function AdminRepresentativesTab() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-black text-[#0f2b46]">{rep.fullName}</p>
                   <p className="truncate text-xs font-bold text-slate-500">{rep.country} — {rep.region}</p>
-                  <div className="mt-1 flex gap-1"><Badge variant="outline" className="text-[10px]">{rep.status}</Badge>{rep.featured && <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">مميز</Badge>}</div>
+                  <div className="mt-1 flex flex-wrap gap-1"><Badge variant="outline" className="text-[10px]">{rep.status}</Badge>{rep.onboardingStatus && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-800">{rep.onboardingStatus}</Badge>}{rep.featured && <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">مميز</Badge>}</div>
                 </div>
               </div>
             </button>
