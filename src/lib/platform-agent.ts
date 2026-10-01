@@ -847,7 +847,10 @@ export async function platformPublicAgentComplete(opts: {
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, null)
   const persona = personaForAgent(agent)
-  const platformSnapshot = await buildPublicPlatformSnapshot(last)
+  const publicScope = opts.channel === 'WHATSAPP' ? 'WHATSAPP_VISITOR' : 'PUBLIC_VISITOR'
+  const centralCatalogSnapshot = await buildScopedProgramCatalogSnapshot({ scope: publicScope, query: last }).catch(() => '')
+  const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
+  const platformSnapshot = mergeContext(centralCatalogSnapshot, legacyPlatformSnapshot)
   const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
   const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
