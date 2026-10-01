@@ -244,7 +244,7 @@ export async function restoreStoredDatabaseBackup(input: { provider?: string | n
     encrypted: true,
     meta: parsed.meta,
     summary: parsed.summary,
-    tables: parsed.tables.length,
+    tableCount: parsed.tables.length,
     results,
     errors,
   }
