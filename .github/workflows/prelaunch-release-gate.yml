@@ -298,6 +298,10 @@ jobs:
         if: ${{ github.event_name == 'push' || inputs.run_ux_mobile_perf }}
         run: bun run e2e:perf
 
+      - name: Sanitize experience guardrail diagnostics before upload
+        if: always()
+        run: bash scripts/sanitize-e2e-artifacts.sh test-results playwright-report
+
       - name: Upload experience guardrail diagnostics
         if: always()
         uses: actions/upload-artifact@v4
