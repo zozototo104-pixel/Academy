@@ -1062,7 +1062,7 @@ export function AdminSystemTab() {
                   </div>
                   {!!restorePreview.tables?.length && (
                     <div className="mt-2 grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-                      {restorePreview.tables.slice(0, 24).map((table) => (
+                      {restorePreview.tables.map((table) => (
                         <div key={table.name} className="rounded-lg bg-slate-50 px-2 py-1">
                           <span className="font-mono text-[10px]" dir="ltr">{table.name}</span> · {table.rows ?? 0}
                         </div>
