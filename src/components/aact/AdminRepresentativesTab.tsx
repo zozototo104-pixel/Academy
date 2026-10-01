@@ -316,7 +316,7 @@ export default function AdminRepresentativesTab() {
   )
 }
 
-function AssetUploader({ label, icon, onUpload, uploading }: { label: string; icon: React.ReactNode; onUpload: (file: File) => void; uploading: boolean }) {
+function AssetUploader({ label, icon, onUpload, uploading }: { label: string; icon: ReactNode; onUpload: (file: File) => void; uploading: boolean }) {
   return <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]"><input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file); e.currentTarget.value = '' }} />{icon}{label}<span className="text-[10px] font-bold text-slate-400"><Upload className="inline h-3 w-3" /> رفع ملف</span></label>
 }
 
