@@ -295,11 +295,18 @@ export async function POST(req: NextRequest) {
       return null
     })
     if (await isWhatsAppConversationHumanActive(message.from).catch(() => false)) {
+      try {
+        await sendOfficialWhatsAppReadReceipt(message)
+      } catch (readError: any) {
+        const msg = `read-human-held: ${String(readError?.message || readError || 'failed').slice(0, 220)}`
+        console.warn('official WhatsApp human-held read receipt failed:', msg)
+        errors.push(msg)
+      }
       await auditWhatsAppWebhook('WHATSAPP_HUMAN_CONVERSATION_HELD', {
         from: maskPhone(message.from),
         text: message.text.slice(0, 180),
         conversationId: storedInbound?.conversation?.id || null,
-        note: 'conversation claimed by admin; bot reply suppressed',
+        note: 'conversation claimed by admin; bot reply suppressed; read receipt attempted',
       }, storedInbound?.conversation?.id || message.id)
       continue
     }
