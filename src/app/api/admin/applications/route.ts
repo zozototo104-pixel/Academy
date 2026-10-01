@@ -299,7 +299,7 @@ export async function PATCH(req: NextRequest) {
           'AGENT',
           app.kind === 'AGENCY' ? 'تم اعتماد وكالتك الدولية' : 'تم إصدار شهادة اعتمادك',
           app.kind === 'AGENCY'
-            ? `تم اعتماد وكالتك بنطاق ${app.territory || app.country}. رقم العقد ${contractNo} — العمولة 25% ومستحقات اللجان 100$ لكل بحث. راجع بوابة الوكيل.`
+            ? `تم اعتماد وكالتك بنطاق ${app.territory || app.country}. رقم العقد ${contractNo} — العمولة 25% ومستحقات اللجان 100$ لكل بحث. ${representativeOnboardingLink ? `يرجى استكمال ملف ممثل الأكاديمية ورفع السيرة والصورة والملفات عبر الرابط: ${representativeOnboardingLink}` : 'راجع بوابة الوكيل.'}`
             : `تم إصدار شهادة الاعتماد رقم ${certSerial} باسم ${app.orgName}. راجع تبويب بوابتك أو صفحة التحقق.`,
           'agent'
         )
