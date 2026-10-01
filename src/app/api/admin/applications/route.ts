@@ -14,6 +14,21 @@ const ACC_TYPE_LABEL: Record<string, string> = {
   QUALITY: 'اعتماد الجودة',
 }
 
+async function uniqueRepresentativeSlug(base: string, existingId?: string) {
+  const clean = normalizeRepresentativeSlug(base, 'academy-representative')
+  for (let i = 0; i < 20; i += 1) {
+    const slug = i === 0 ? clean : `${clean}-${i + 1}`
+    const existing = await db.academyRepresentative.findUnique({ where: { slug }, select: { id: true } }).catch(() => null)
+    if (!existing || existing.id === existingId) return slug
+  }
+  return `${clean}-${Date.now().toString(36)}`
+}
+
+function representativeOnboardingUrl(token: string) {
+  const base = String(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
+  return `${base || ''}/representatives/onboarding/${encodeURIComponent(token)}`
+}
+
 // GET /api/admin/applications — قائمة طلبات الوكالة والاعتماد
 export async function GET(req: NextRequest) {
   try {
