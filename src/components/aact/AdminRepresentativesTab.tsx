@@ -264,7 +264,7 @@ export default function AdminRepresentativesTab() {
             )}
             <div className="grid gap-4 md:grid-cols-3">
               <div><Label>الاسم الكامل</Label><Input value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="mt-2 rounded-2xl" /></div>
-              <div><Label>الدولة</Label><Input value={form.country} onChange={(e) => update('country', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <CountryCombobox value={form.country} onChange={(value) => update('country', value)} />
               <div><Label>المنطقة الجغرافية</Label><Input value={form.region} onChange={(e) => update('region', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الصفة المعروضة</Label><Input value={form.displayTitle} onChange={(e) => update('displayTitle', e.target.value)} placeholder="ممثل الأكاديمية في..." className="mt-2 rounded-2xl" /></div>
               <div><Label>الدرجة العلمية</Label><Input value={form.degreeTitle} onChange={(e) => update('degreeTitle', e.target.value)} className="mt-2 rounded-2xl" /></div>
