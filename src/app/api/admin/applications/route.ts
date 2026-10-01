@@ -243,8 +243,9 @@ export async function PATCH(req: NextRequest) {
     const updated = await db.agentApplication.update({ where: { id }, data })
 
     if (status === 'APPROVED' && app.kind === 'AGENCY') {
-      const existingRep = await db.academyRepresentative.findUnique({
-        where: { sourceAgentApplicationId: app.id },
+      const existingRep = await db.academyRepresentative.findFirst({
+        where: { sourceAgentApplicationId: app.id, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
         select: { id: true, slug: true, status: true, onboardingToken: true },
       }).catch(() => null)
       const onboardingToken = existingRep?.onboardingToken || `repr_on_${randomBytes(24).toString('base64url')}`
