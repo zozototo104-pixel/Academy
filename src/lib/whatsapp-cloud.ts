@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import { ACADEMY_INFO } from '@/lib/academyData'
+import { db } from '@/lib/db'
 import { platformPublicAgentComplete } from '@/lib/platform-agent'
+import { hashWhatsAppId } from '@/lib/whatsapp-conversations'
 
 type WhatsAppConfig = {
   accessToken: string
