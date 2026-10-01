@@ -119,9 +119,11 @@ export function AdminWhatsAppInboxTab() {
       })
       setSelected((prev) => prev?.id === data.conversation.id ? { ...prev, ...data.conversation } : data.conversation)
       setSelectedId(data.conversation.id)
+      const nextFilter = action === 'claim' ? 'HUMAN_ACTIVE' : action === 'release' ? 'BOT_ACTIVE' : 'CLOSED'
+      setStatus(nextFilter)
       await loadDetail(data.conversation.id, { silent: true })
-      await loadList({ preserveSelected: true })
-      toast({ title: action === 'claim' ? 'تم استلام المحادثة' : action === 'release' ? 'تم إرجاعها للوكيل' : 'تم إغلاق المحادثة' })
+      await loadList({ preserveSelected: true, statusOverride: nextFilter })
+      toast({ title: action === 'claim' ? 'تم استلام المحادثة وفتحها ضمن مع موظف' : action === 'release' ? 'تم إرجاعها للوكيل' : 'تم إغلاق المحادثة' })
     } catch (e: any) {
       toast({ title: 'تعذر تنفيذ الإجراء', description: e?.message, variant: 'destructive' })
     }
