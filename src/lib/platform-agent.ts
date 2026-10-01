@@ -448,8 +448,9 @@ async function buildDirectProgramBooksReply(query?: string | null) {
   const scored = (programs as any[])
     .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
     .sort((a, b) => (b.score - a.score) || Number(b.program.active) - Number(a.program.active) || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
-  const focused = scored.filter((item) => item.score > 0).slice(0, 10)
-  const selected = focused.length ? focused : scored.slice(0, 12)
+  const focused = scored.filter((item) => item.score > 0)
+  const focusedWithBooks = focused.filter((item) => (item.program.books || []).length > 0)
+  const selected = (focusedWithBooks.length ? focusedWithBooks : focused).slice(0, 12)
 
   const lines = selected.map(({ program }, index) => {
     const books = program.books?.length
