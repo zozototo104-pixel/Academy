@@ -249,9 +249,9 @@ export async function buildSupervisorContext(userId: string): Promise<string> {
           price: true,
           description: true,
           books: {
-            orderBy: { createdAt: 'asc' },
-            take: 3,
-            select: { title: true, titleEn: true, author: true, description: true, textContent: true },
+            orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+            take: 12,
+            select: { title: true, titleEn: true, author: true, description: true, textContent: true, semester: true },
           },
         },
       }),
