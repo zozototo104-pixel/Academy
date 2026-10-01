@@ -267,6 +267,7 @@ export function AdminSystemTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
