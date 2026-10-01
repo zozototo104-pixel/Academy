@@ -282,7 +282,16 @@ export async function PATCH(req: NextRequest) {
             data: { ...representativeBaseData, slug, qrToken: createRepresentativeQrToken(), createdById: admin.id },
             select: { id: true, onboardingToken: true },
           })
-      if (representative.onboardingToken) representativeOnboardingLink = representativeOnboardingUrl(representative.onboardingToken)
+      if (representative.onboardingToken && existingRep?.status !== 'ACTIVE') {
+        representativeOnboardingLink = representativeOnboardingUrl(representative.onboardingToken)
+        await emailRepresentativeOnboardingInvitation(app.email, {
+          name: app.repName,
+          country: app.country,
+          territory: app.territory,
+          contractNo: contractNo || app.contractNo,
+          onboardingUrl: representativeOnboardingLink,
+        }).catch(() => {})
+      }
       await audit(admin, existingRep ? 'UPDATE_REPRESENTATIVE_FROM_AGENCY' : 'CREATE_REPRESENTATIVE_FROM_AGENCY', 'AcademyRepresentative', representative.id, `${app.repName} — ${app.country} — ${app.id}`)
     }
 
