@@ -4,7 +4,7 @@ import { chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiDiscussionThinkingLevel, type GeminiThinkingLevel } from '@/lib/gemini'
+import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, type GeminiThinkingLevel } from '@/lib/gemini'
 
 export type PlatformAgentKind =
   | 'ACADEMIC_SUPERVISOR'
