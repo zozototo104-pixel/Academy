@@ -865,7 +865,7 @@ export async function platformPublicAgentComplete(opts: {
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const publicScope = opts.channel === 'WHATSAPP' ? 'WHATSAPP_VISITOR' : 'PUBLIC_VISITOR'
   const directBooksResult = await buildScopedDirectProgramBooksResult(last, publicScope).catch(() => null)
-  if (directBooksResult?.diagnostics?.returnedReply) {
+  if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
     await auditAiKnowledgeDiagnostics({
       actorName: opts.channel === 'WHATSAPP' ? 'زائر واتساب' : 'زائر عام',
       entityId: opts.channel || 'PUBLIC',
