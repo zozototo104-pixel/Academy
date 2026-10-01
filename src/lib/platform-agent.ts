@@ -738,13 +738,16 @@ export async function platformPublicAgentComplete(opts: {
   uiContext?: string
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
-  if (wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC' })
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = routeAgent(last, null)
+  const agent = intentAnalysis.suggestedAgent || routeAgent(last, null)
   const persona = personaForAgent(agent)
   const platformSnapshot = await buildPublicPlatformSnapshot(last)
   const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
-  const context = mergeContext(baseContext, opts.uiContext)
+  const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 52_000 : 22_000)
