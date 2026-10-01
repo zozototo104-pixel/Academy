@@ -83,6 +83,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'الاسم والدولة والمنطقة الجغرافية مطلوبة.' }, { status: 400 })
   }
   const slug = await uniqueSlug(String(body.slug || fullName), id)
+  const approvingForPublic = current.status !== 'ACTIVE' && data.status === 'ACTIVE'
   const updated = await db.academyRepresentative.update({
     where: { id },
     data: {
@@ -91,6 +92,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       country,
       region,
       slug,
+      onboardingStatus: data.status === 'ACTIVE' ? 'APPROVED' : current.onboardingStatus,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
       verifyEmailLast4Hash: hashRepresentativeVerifier(data.email),
       updatedById: user.id,
