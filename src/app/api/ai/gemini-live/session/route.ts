@@ -45,13 +45,6 @@ function cleanPurpose(value: unknown): LivePurpose {
   return v === 'DISCUSSION' || v === 'DEFENSE' ? 'DISCUSSION' : 'SUPERVISOR'
 }
 
-function knowledgeScopeForLiveSession(role?: string | null, purpose?: LivePurpose): AiKnowledgeScope {
-  if (purpose === 'DISCUSSION') return 'DEFENSE_EXAMINER'
-  if (role === 'ADMIN') return 'ADMIN_ASSISTANT'
-  if (role === 'SUPERVISOR') return 'HUMAN_SUPERVISOR'
-  return 'STUDENT_SUPERVISOR'
-}
-
 async function auditLiveKnowledgeSession(args: {
   userId: string
   role?: string | null
