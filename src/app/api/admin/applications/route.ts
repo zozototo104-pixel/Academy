@@ -153,6 +153,7 @@ export async function PATCH(req: NextRequest) {
     let contractNo: string | null = null
     let certSerial: string | null = null
     let revokedCertificates = 0
+    let representativeOnboardingLink: string | null = null
 
     if (status === 'REVOKED') {
       if (app.status !== 'APPROVED') {
