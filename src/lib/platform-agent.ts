@@ -953,8 +953,16 @@ export async function platformAgentComplete(opts: {
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = user.role === 'ADMIN' ? 'ADMIN_ASSISTANT' : 'HUMAN_SUPERVISOR'
-    const directBooksReply = await buildScopedDirectProgramBooksReply(last, scope).catch(() => null)
-      || await buildDirectProgramBooksReply(last).catch(() => null)
+    const directBooksResult = await buildScopedDirectProgramBooksResult(last, scope).catch(() => null)
+    if (directBooksResult?.diagnostics?.returnedReply) {
+      await auditAiKnowledgeDiagnostics({
+        actorId: opts.userId,
+        actorName: user.role === 'ADMIN' ? 'إدارة النظام' : 'مشرف بشري',
+        entityId: opts.userId,
+        diagnostics: { ...directBooksResult.diagnostics, role: user.role, mode: opts.mode || 'TEXT' },
+      })
+    }
+    const directBooksReply = directBooksResult?.reply || await buildDirectProgramBooksReply(last).catch(() => null)
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
