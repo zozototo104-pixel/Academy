@@ -834,6 +834,24 @@ function buildPublicVisitorContext(channel?: string) {
   ].join('\n')
 }
 
+async function auditAiKnowledgeDiagnostics(args: {
+  actorId?: string | null
+  actorName: string
+  diagnostics: any
+  entityId?: string | null
+}) {
+  await db.auditLog.create({
+    data: {
+      actorId: args.actorId || null,
+      actorName: args.actorName,
+      action: 'AI_KNOWLEDGE_DIAGNOSTICS',
+      entity: 'AIKnowledge',
+      entityId: args.entityId || null,
+      details: JSON.stringify(args.diagnostics).slice(0, 3900),
+    },
+  }).catch(() => {})
+}
+
 export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
