@@ -77,6 +77,43 @@ function backupSecret() {
   return (process.env.AACT_BACKUP_SECRET || process.env.CRON_SECRET || '').trim()
 }
 
+function backupEncryptionSecret() {
+  return (process.env.AACT_BACKUP_ENCRYPTION_KEY || '').trim()
+}
+
+function fixedTimeSecretMatch(provided: string, expected: string) {
+  if (!provided || !expected) return false
+  const a = Buffer.from(createHash('sha256').update(provided).digest('hex'), 'hex')
+  const b = Buffer.from(createHash('sha256').update(expected).digest('hex'), 'hex')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+function backupEncryptionKey() {
+  const secret = backupEncryptionSecret()
+  if (secret.length < 32) {
+    throw new Error('AACT_BACKUP_ENCRYPTION_KEY must be configured with at least 32 characters before creating database backups.')
+  }
+  return createHash('sha256').update(secret).digest()
+}
+
+function encryptBackupPayload(payload: Buffer, aad: Record<string, unknown>) {
+  const iv = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', backupEncryptionKey(), iv)
+  const aadBuffer = Buffer.from(JSON.stringify(aad), 'utf8')
+  cipher.setAAD(aadBuffer)
+  const ciphertext = Buffer.concat([cipher.update(payload), cipher.final()])
+  const authTag = cipher.getAuthTag()
+  const header = {
+    type: 'aact-encrypted-backup-v1',
+    algorithm: 'AES-256-GCM',
+    key: 'AACT_BACKUP_ENCRYPTION_KEY',
+    iv: iv.toString('base64'),
+    authTag: authTag.toString('base64'),
+    aad,
+  }
+  return Buffer.concat([Buffer.from(`${JSON.stringify(header)}\n`, 'utf8'), ciphertext])
+}
+
 export function backupConfigurationStatus() {
   const storageConfigured = !!(
     process.env.AACT_S3_ENDPOINT?.trim() &&
