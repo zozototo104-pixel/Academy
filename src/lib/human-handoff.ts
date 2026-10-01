@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { makeBasicEmailHtml, sendMail } from '@/lib/mail'
 
 export const HUMAN_SUPPORT_REPLY = [
