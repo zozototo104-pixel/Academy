@@ -11,7 +11,6 @@ type BackupLine =
   | { type: 'table'; name: string; delegate: string; count: number }
   | { type: 'row'; table: string; data: Record<string, unknown> }
   | { type: 'summary'; counts?: Record<string, number>; errors?: Array<{ table: string; error: string }> }
-  | { type: string; [key: string]: unknown }
 
 type TableManifest = {
   name: string
