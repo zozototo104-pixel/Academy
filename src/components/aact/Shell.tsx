@@ -562,6 +562,12 @@ export function Header() {
             الشهادات
           </button>
           <button
+            onClick={() => window.location.assign('/representatives')}
+            className="rounded-full px-3.5 py-2 text-sm font-black text-white/86 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ممثلو الدول
+          </button>
+          <button
             onClick={() => navigate('about')}
             className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
               view === 'about' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
