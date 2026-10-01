@@ -268,7 +268,8 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
     }
 
-    const centralProgramCatalog = await buildScopedProgramCatalogSnapshot({ scope: 'STUDENT_SUPERVISOR', query: 'كتب الماجستير البرامج النشطة' }).catch(() => '')
+    const catalogScope = options?.scope || 'STUDENT_SUPERVISOR'
+    const centralProgramCatalog = await buildScopedProgramCatalogSnapshot({ scope: catalogScope, query: options?.query || 'كتب الماجستير البرامج النشطة' }).catch(() => '')
     if (centralProgramCatalog) {
       parts.push(centralProgramCatalog)
     } else if (Array.isArray(activePrograms) && activePrograms.length) {
