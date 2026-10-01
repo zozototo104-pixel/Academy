@@ -184,6 +184,128 @@ async function buildPaymentMethodsContext() {
   ].filter(Boolean).join('\n')
 }
 
+type ConversationIntentKind =
+  | 'HUMAN_HANDOFF'
+  | 'PAYMENT_METHODS'
+  | 'ADMISSION_REGISTRATION'
+  | 'ACADEMIC_PROGRAM_INFO'
+  | 'FOLLOWUP_ANSWER'
+  | 'SOCIAL_SMALL_TALK'
+  | 'GENERAL_SUPPORT'
+  | 'UNKNOWN'
+
+type ConversationIntentAnalysis = {
+  intent: ConversationIntentKind
+  confidence: number
+  suggestedAgent?: PlatformAgentKind
+  responseDepth?: 'short' | 'normal' | 'detailed'
+  shouldGreet?: boolean
+  followupOf?: string
+  reasoning?: string
+}
+
+function clampConfidence(value: unknown) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(1, n))
+}
+
+function parseJsonObject(text: string): any | null {
+  const raw = String(text || '').trim()
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch {}
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try { return JSON.parse(match[0]) } catch { return null }
+}
+
+function normalizeIntentKind(value: unknown): ConversationIntentKind {
+  const v = String(value || '').trim().toUpperCase()
+  const allowed: ConversationIntentKind[] = ['HUMAN_HANDOFF', 'PAYMENT_METHODS', 'ADMISSION_REGISTRATION', 'ACADEMIC_PROGRAM_INFO', 'FOLLOWUP_ANSWER', 'SOCIAL_SMALL_TALK', 'GENERAL_SUPPORT', 'UNKNOWN']
+  return (allowed as string[]).includes(v) ? v as ConversationIntentKind : 'UNKNOWN'
+}
+
+function normalizeSuggestedAgent(value: unknown): PlatformAgentKind | undefined {
+  const v = String(value || '').trim().toUpperCase()
+  const allowed: PlatformAgentKind[] = ['ACADEMIC_SUPERVISOR', 'ADMISSIONS', 'EXAMS', 'THESIS_DEFENSE', 'CERTIFICATES', 'ADMIN_QUALITY', 'AGENCY_ACCREDITATION', 'SUPPORT']
+  return (allowed as string[]).includes(v) ? v as PlatformAgentKind : undefined
+}
+
+function fallbackIntentAnalysis(message: string): ConversationIntentAnalysis {
+  if (wantsHumanSupport(message)) return { intent: 'HUMAN_HANDOFF', confidence: 0.74, suggestedAgent: 'SUPPORT', responseDepth: 'normal' }
+  if (wantsPaymentMethodsInfo(message)) return { intent: 'PAYMENT_METHODS', confidence: 0.76, suggestedAgent: 'ADMISSIONS', responseDepth: 'detailed' }
+  const n = normalizeArabic(message)
+  const social = n.length <= 40 && includesAny(n, ['كيفك', 'كيف الحال', 'شو اخبارك', 'اخبارك', 'السلام عليكم', 'مرحبا', 'اهلا'])
+  if (social) return { intent: 'SOCIAL_SMALL_TALK', confidence: 0.6, responseDepth: 'short', shouldGreet: true }
+  return { intent: 'UNKNOWN', confidence: 0.2 }
+}
+
+async function analyzeConversationIntent(messages: { role: string; content: string }[], opts?: { channel?: string; role?: string | null }): Promise<ConversationIntentAnalysis> {
+  const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const fallback = fallbackIntentAnalysis(last)
+  const ready = await ensureGeminiKey().catch(() => false)
+  if (!ready) return fallback
+  try {
+    const recent = messages.slice(-8).map((m) => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      content: compactText(m.content, 700),
+    }))
+    const raw = await withPlatformTimeout(geminiCompleteJson({
+      system: [
+        'أنت محلل نية محادثة لمنصة أكاديمية. مهمتك فهم المقصود دلالياً من الرسالة الأخيرة ضمن سياق الرسائل السابقة، وليس مطابقة كلمات.',
+        'لا تكتب رداً للمستخدم. أرجع JSON فقط.',
+        'اعتبر طلب موظف/دعم بشري إذا كان المستخدم يريد نقله لشخص حقيقي أو خدمة العملاء أو الدعم الفني أو الإدارة أو متابعة بشرية، بأي صياغة أو لهجة.',
+        'اعتبر FOLLOWUP_ANSWER إذا كانت الرسالة الأخيرة جواباً قصيراً على سؤال سابق من المساعد مثل الاسم، البرنامج المطلوب، الموضوع، البلد، المؤهل، أو بيانات التسجيل.',
+        'اعتبر SOCIAL_SMALL_TALK فقط إذا كانت الرسالة مجاملة قصيرة لا تطلب معلومات أكاديمية أو تسجيل أو دفع.',
+        'أسئلة البرامج والرسوم والتسجيل والأكاديمية تحتاج تفصيلاً مناسباً، ولا تختصرها لمجرد أنها على واتساب.',
+        'لا تعتمد على كلمة واحدة معزولة؛ افهم القصد من السياق الكامل.',
+        'القيم المسموحة intent: HUMAN_HANDOFF, PAYMENT_METHODS, ADMISSION_REGISTRATION, ACADEMIC_PROGRAM_INFO, FOLLOWUP_ANSWER, SOCIAL_SMALL_TALK, GENERAL_SUPPORT, UNKNOWN.',
+        'القيم المسموحة suggestedAgent: SUPPORT, ADMISSIONS, ACADEMIC_SUPERVISOR, EXAMS, THESIS_DEFENSE, CERTIFICATES, AGENCY_ACCREDITATION, ADMIN_QUALITY.',
+        'أرجع JSON بالشكل: {"intent":"...","confidence":0.0,"suggestedAgent":"...","responseDepth":"short|normal|detailed","shouldGreet":true|false,"followupOf":"...","reasoning":"..."}',
+      ].join('\n'),
+      history: [
+        { role: 'user', text: JSON.stringify({ channel: opts?.channel || 'WEB', userRole: opts?.role || 'PUBLIC', recentMessages: recent }, null, 2) },
+      ],
+      temperature: 0.05,
+      maxOutputTokens: 700,
+    }), 6500, 'Conversation intent analysis timed out')
+    const parsed = parseJsonObject(raw)
+    if (!parsed) return fallback
+    const intent = normalizeIntentKind(parsed.intent)
+    const confidence = clampConfidence(parsed.confidence)
+    const suggestedAgent = normalizeSuggestedAgent(parsed.suggestedAgent)
+    const responseDepth = ['short', 'normal', 'detailed'].includes(String(parsed.responseDepth)) ? parsed.responseDepth as ConversationIntentAnalysis['responseDepth'] : undefined
+    const shouldGreet = typeof parsed.shouldGreet === 'boolean' ? parsed.shouldGreet : undefined
+    return {
+      intent,
+      confidence,
+      suggestedAgent,
+      responseDepth,
+      shouldGreet,
+      followupOf: compactText(parsed.followupOf, 180) || undefined,
+      reasoning: compactText(parsed.reasoning, 220) || undefined,
+    }
+  } catch (e: any) {
+    console.warn('conversation intent analysis failed:', String(e?.message || e).slice(0, 220))
+    return fallback
+  }
+}
+
+function conversationStyleContext(analysis: ConversationIntentAnalysis, channel?: string) {
+  const rules: string[] = [
+    `تحليل نية الرسالة الأخيرة: ${analysis.intent} — الثقة ${Math.round((analysis.confidence || 0) * 100)}%.`,
+  ]
+  if (analysis.followupOf) rules.push(`الرسالة الأخيرة تبدو جواباً على طلب سابق بخصوص: ${analysis.followupOf}. تعامل معها كسياق متابعة ولا تبدأ من الصفر.`)
+  if (analysis.shouldGreet === false) rules.push('لا تكرر عبارة الترحيب باسم المستخدم في هذا الرد؛ ادخل مباشرة في جواب السؤال أو الخطوة التالية.')
+  if (analysis.shouldGreet === true) rules.push('يمكن بدء الرد بترحيب قصير مرة واحدة فقط إذا كان هذا مناسباً لبداية المحادثة.')
+  if (analysis.intent === 'SOCIAL_SMALL_TALK') rules.push('هذه مجاملة قصيرة؛ أجب بلطف وباختصار شديد ثم اسأل كيف يمكن المساعدة، ولا تعرض تفاصيل البرامج إلا إذا طلبها المستخدم.')
+  if (analysis.intent === 'ADMISSION_REGISTRATION' || analysis.intent === 'ACADEMIC_PROGRAM_INFO' || analysis.responseDepth === 'detailed') rules.push('السؤال متعلق بالأكاديمية/البرامج/التسجيل؛ أعطِ جواباً مفيداً ومفصلاً بقدر السؤال، ولا تختصره إلى مجاملة عامة.')
+  if (analysis.intent === 'FOLLOWUP_ANSWER') rules.push('اربط إجابة المستخدم بالسؤال السابق: إذا أعطى اسماً أو برنامجاً أو موضوعاً، استخدمه للخطوة التالية بدلاً من طلبه مرة أخرى.')
+  if (channel === 'WHATSAPP') rules.push('نسّق الرد بما يناسب واتساب: فقرات قصيرة، نقاط واضحة، وتجنّب تكرار التحية في كل رسالة.')
+  if (analysis.reasoning) rules.push(`ملاحظة داخلية عن السبب: ${analysis.reasoning}`)
+  return rules.join('\n')
+}
+
 function hasTokenAny(n: string, words: string[]) {
   const tokens = new Set(n.split(/\s+/).filter(Boolean))
   return words.some((w) => tokens.has(normalizeArabic(w)))
