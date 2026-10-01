@@ -277,9 +277,6 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
                   difficulty: true,
                   semester: true,
                   type: true,
-                  book: { select: { title: true } },
-                  unit: { select: { title: true } },
-                  knowledgeItem: { select: { title: true } },
                 },
               },
               programExams: {
