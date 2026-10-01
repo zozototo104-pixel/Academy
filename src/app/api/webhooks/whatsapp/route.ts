@@ -361,8 +361,27 @@ export async function POST(req: NextRequest) {
           phone: digits ? `+${digits}` : null,
         })
         const text = String(message.text || '').trim()
+        const recentMessages = storedInbound?.conversation?.id
+          ? (await db.whatsAppConversationMessage.findMany({
+              where: { conversationId: storedInbound.conversation.id },
+              orderBy: { createdAt: 'desc' },
+              take: 8,
+              select: { direction: true, text: true },
+            }).catch(() => [])).reverse().map((item) => ({
+              role: item.direction === 'INBOUND' ? 'user' : 'assistant',
+              content: item.text,
+            }))
+          : []
+        const handoffIntent = await analyzeHumanHandoffIntent(text, { promptActive, handoffOpen, recentMessages })
+        await auditWhatsAppWebhook('WHATSAPP_HANDOFF_INTENT_ANALYZED', {
+          from: maskPhone(message.from),
+          text: text.slice(0, 180),
+          promptActive,
+          handoffOpen,
+          decision: handoffIntent,
+        }, message.id)
 
-        if (promptActive && !handoffOpen && looksLikeHumanHandoffDetails(text)) {
+        if (promptActive && !handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) {
           const handoff = await createHumanHandoffRequest({
             user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
             message: text,
@@ -371,7 +390,7 @@ export async function POST(req: NextRequest) {
           })
           await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
           reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
-        } else if (wantsHumanSupport(text)) {
+        } else if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
           reply = HUMAN_SUPPORT_REPLY
           await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
         } else {
