@@ -876,7 +876,7 @@ export async function platformPublicAgentComplete(opts: {
         system,
         history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
         temperature: 0.35,
-        maxOutputTokens: isWhatsApp ? 900 : 1100,
+        maxOutputTokens: isWhatsApp ? 1600 : 1100,
       }), timeoutMs, 'Gemini public platform agent timed out')
       logPlatformProviderAttempt({ ok: true, provider: 'GEMINI_DIRECT', model, agent, ms: Date.now() - started })
       return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
