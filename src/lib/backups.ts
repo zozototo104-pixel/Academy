@@ -215,12 +215,21 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
   const jsonl = chunks.join('')
   const plain = Buffer.from(jsonl, 'utf8')
   const gz = gzipSync(plain, { level: 9 })
-  const fileName = `aact-db-backup-${stamp()}.jsonl.gz`
+  const encryptionAad = {
+    platform: 'AACT',
+    format: 'aact-db-jsonl-v1',
+    exportedAt,
+    trigger,
+    compressedSha256: sha256(gz),
+    uncompressedSha256: sha256(plain),
+  }
+  const encrypted = encryptBackupPayload(gz, encryptionAad)
+  const fileName = `aact-db-backup-${stamp()}.jsonl.gz.enc`
 
   const stored = await storeFileBuffer({
-    buffer: gz,
+    buffer: encrypted,
     fileName,
-    mimeType: 'application/gzip',
+    mimeType: 'application/octet-stream',
     namespace: 'backups/db',
   })
 
@@ -232,18 +241,26 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
     tables: tables.length,
     counts,
     errors,
+    encrypted: true,
+    encryption: {
+      algorithm: 'AES-256-GCM',
+      keyEnv: 'AACT_BACKUP_ENCRYPTION_KEY',
+      aad: encryptionAad,
+    },
     storage: {
       provider: stored.provider,
       key: stored.key,
-      url: stored.url,
       size: stored.size,
       mimeType: stored.mimeType,
     },
     checksum: {
-      sha256: sha256(gz),
+      sha256: sha256(encrypted),
+      encryptedSha256: sha256(encrypted),
+      compressedSha256: sha256(gz),
       uncompressedSha256: sha256(plain),
       uncompressedBytes: plain.byteLength,
       compressedBytes: gz.byteLength,
+      encryptedBytes: encrypted.byteLength,
     },
   }
 
