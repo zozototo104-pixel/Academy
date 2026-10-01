@@ -116,6 +116,10 @@ jobs:
               ;;
 
             cleanup-execute)
+              if [ "${AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW:-NO}" != "YES" ]; then
+                echo "Refusing full cleanup. Set GitHub secret AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW=YES to enable this temporary destructive workflow."
+                exit 1
+              fi
               if [ "$OPERATION_CONFIRMATION" != "DELETE_ALL_NON_ADMINS_AND_REAL_DATA" ]; then
                 echo "Refusing full cleanup. This deletes real non-admin users. Type DELETE_ALL_NON_ADMINS_AND_REAL_DATA in the confirm field."
                 exit 1
