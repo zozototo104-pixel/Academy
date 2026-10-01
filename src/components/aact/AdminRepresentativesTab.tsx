@@ -56,10 +56,6 @@ function formFromRepresentative(rep: Representative): FormState {
   return { ...EMPTY_FORM, ...rep, featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
 }
 
-function fieldValue(value: unknown) {
-  return String(value || '')
-}
-
 export default function AdminRepresentativesTab() {
   const [rows, setRows] = useState<Representative[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
