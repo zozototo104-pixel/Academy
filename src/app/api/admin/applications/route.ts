@@ -26,8 +26,8 @@ async function uniqueRepresentativeSlug(base: string, existingId?: string) {
 }
 
 function representativeOnboardingUrl(token: string) {
-  const base = String(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
-  return `${base || ''}/representatives/onboarding/${encodeURIComponent(token)}`
+  const base = String(process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/+$/, '')
+  return `${base}/representatives/onboarding/${encodeURIComponent(token)}`
 }
 
 // GET /api/admin/applications — قائمة طلبات الوكالة والاعتماد
