@@ -4,6 +4,72 @@ set -euo pipefail
 base="${E2E_BASE_URL%/}"
 out="${E2E_PREFLIGHT_DIR:-test-results/e2e-preflight}"
 mkdir -p "$out"
+login_token=""
+
+redact_sensitive_artifacts() {
+  set +e
+  rm -f "$out/admin-login.payload.json"
+  python - "$out" "${E2E_ADMIN_PASSWORD:-}" "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" "${login_token:-}" <<'PY' >/dev/null 2>&1 || true
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+secrets = [value for value in sys.argv[2:] if value]
+secret_markers = ('token', 'password', 'secret', 'authorization', 'cookie')
+
+def redact_json(value):
+    if isinstance(value, dict):
+        return {key: ('[redacted]' if any(marker in key.lower() for marker in secret_markers) else redact_json(item)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_json(item) for item in value]
+    if isinstance(value, str):
+        out = value
+        for secret in secrets:
+            out = out.replace(secret, '[redacted]')
+        return out
+    return value
+
+def redact_text(text):
+    out = text
+    for secret in secrets:
+        out = out.replace(secret, '[redacted]')
+    lines = []
+    for line in out.splitlines():
+        lower = line.lower()
+        if any(header in lower for header in ('authorization:', 'set-cookie:', 'cookie:', 'x-vercel-protection-bypass:')):
+            lines.append(line.split(':', 1)[0] + ': [redacted]')
+        else:
+            lines.append(line)
+    return '\n'.join(lines) + ('\n' if out.endswith('\n') else '')
+
+if root.exists():
+    for path in root.rglob('*'):
+        if not path.is_file():
+            continue
+        name = path.name.lower()
+        if 'admin-login.payload' in name:
+            try:
+                path.unlink()
+            except Exception:
+                pass
+            continue
+        if path.suffix.lower() not in ('.body', '.headers', '.meta', '.json', '.txt', '.log'):
+            continue
+        try:
+            text = path.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            continue
+        try:
+            parsed = json.loads(text)
+            path.write_text(json.dumps(redact_json(parsed), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        except Exception:
+            path.write_text(redact_text(text), encoding='utf-8')
+PY
+  set -e
+}
+trap redact_sensitive_artifacts EXIT
 
 bypass_headers=()
 if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
