@@ -349,17 +349,17 @@ export default function AdminRepresentativesTab() {
 }
 
 function CountryCombobox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [search, setSearch] = useState(value || '')
-  const matches = REPRESENTATIVE_COUNTRIES.filter((country) => country.includes(search.trim()) || search.trim().includes(country)).slice(0, 8)
-  useEffect(() => setSearch(value || ''), [value])
+  const search = value || ''
+  const trimmed = search.trim()
+  const matches = REPRESENTATIVE_COUNTRIES.filter((country) => country.includes(trimmed) || trimmed.includes(country)).slice(0, 8)
   return (
     <div className="relative">
       <Label>الدولة</Label>
-      <Input value={search} onChange={(e) => { setSearch(e.target.value); onChange(e.target.value) }} placeholder="اختر أو اكتب الدولة" className="mt-2 rounded-2xl" />
-      {search && matches.length > 0 && !matches.includes(search) && (
+      <Input value={search} onChange={(e) => onChange(e.target.value)} placeholder="اختر أو اكتب الدولة" className="mt-2 rounded-2xl" />
+      {trimmed && matches.length > 0 && !matches.includes(search) && (
         <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1 shadow-xl">
           {matches.map((country) => (
-            <button key={country} type="button" onClick={() => { setSearch(country); onChange(country) }} className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-[#0f2b46] hover:bg-amber-50">
+            <button key={country} type="button" onClick={() => onChange(country)} className="block w-full rounded-xl px-3 py-2 text-right text-xs font-bold text-[#0f2b46] hover:bg-amber-50">
               {country}
             </button>
           ))}
