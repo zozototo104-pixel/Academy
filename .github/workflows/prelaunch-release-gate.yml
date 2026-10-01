@@ -188,6 +188,11 @@ jobs:
             exit 1
           fi
 
+      - name: Validate critical E2E base URL allowlist
+        env:
+          E2E_ALLOWED_BASE_URLS: ${{ vars.E2E_ALLOWED_BASE_URLS }}
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
       - name: Strict E2E preflight
         shell: bash
         env:
