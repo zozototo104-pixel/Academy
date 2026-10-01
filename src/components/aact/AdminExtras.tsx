@@ -1757,25 +1757,29 @@ export function AdminAuditTab() {
           </div>
           <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق</p>
         </div>
-        <div className="aact-scroll max-h-[560px] overflow-y-auto">
+        <div className="aact-scroll w-full max-h-[560px] overflow-y-auto">
           {auditTotal === 0 && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
             <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
           ) : logs.length === 0 ? (
             <p className="p-10 text-center text-xs text-slate-400">لا توجد إجراءات مطابقة للبحث أو الفلاتر الحالية</p>
           ) : (
-            logs.map((l) => (
-              <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-50 p-3.5">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
-                    <AuditDetailsDisplay log={l} />
+            <div className="w-full divide-y divide-slate-50">
+              {logs.map((l) => (
+                <div key={l.id} className="w-full p-3.5">
+                  <div className="flex w-full flex-col gap-2 rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="w-full min-w-0">
+                      <AuditDetailsDisplay log={l} />
+                    </div>
                   </div>
-                  <p className="mt-0.5 text-[10px] text-slate-400">
-                    بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
         <div className="p-3">
