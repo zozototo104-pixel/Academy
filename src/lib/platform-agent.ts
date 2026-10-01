@@ -819,12 +819,15 @@ export async function platformAgentComplete(opts: {
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
-  if (wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = routeAgent(last, user?.role)
+  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
-  const context = mergeContext(dataContext, opts.uiContext)
+  const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
   const shouldPreferGemini = user?.role === 'STUDENT'
