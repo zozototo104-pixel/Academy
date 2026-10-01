@@ -189,23 +189,69 @@ export async function buildScopedKnowledgeContext(options: { scope: AiKnowledgeS
   return catalog || formatAiKnowledgePolicyForPrompt(options.scope)
 }
 
-export async function buildScopedDirectProgramBooksReply(query: string, scope: AiKnowledgeScope): Promise<string | null> {
+export async function buildScopedDirectProgramBooksResult(query: string, scope: AiKnowledgeScope): Promise<ScopedProgramBooksResult> {
+  const emptyDiagnostics = (reason: string): AiKnowledgeDiagnostics => ({
+    source: 'SCOPED_PROGRAM_CATALOG',
+    scope,
+    query,
+    totalPrograms: 0,
+    matchedPrograms: 0,
+    matchedProgramsWithBooks: 0,
+    selectedPrograms: [],
+    returnedReply: false,
+    reason,
+  })
+
   const policy = getAiKnowledgePolicy(scope)
-  if (!policy.canReadProgramBooks || !asksAboutProgramBooks(query)) return null
+  if (!policy.canReadProgramBooks) return { reply: null, diagnostics: emptyDiagnostics('scope_cannot_read_program_books') }
+  if (!asksAboutProgramBooks(query)) return { reply: null, diagnostics: emptyDiagnostics('query_not_program_books') }
+
   const programs = await loadProgramCatalog(180)
-  if (!programs.length) return null
+  if (!programs.length) return { reply: null, diagnostics: emptyDiagnostics('no_active_programs_loaded') }
+
   const scored = programs.map((program) => ({ program, score: scoreProgramForQuery(program, query), hasBooks: (program.books || []).length > 0 }))
     .sort((a, b) => (b.score - a.score) || Number(b.hasBooks) - Number(a.hasBooks) || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
   const matched = scored.filter((item) => item.score > 0)
   const matchedWithBooks = matched.filter((item) => item.hasBooks)
   const selected = (matchedWithBooks.length ? matchedWithBooks : matched.length ? matched : scored.filter((item) => item.hasBooks)).slice(0, 10)
-  if (!selected.length) return 'حسب قاعدة بيانات المنصة الحالية، لا توجد كتب مسجلة لأي برنامج مطابق للسؤال.'
 
-  return [
+  const diagnosticsBase: AiKnowledgeDiagnostics = {
+    source: 'SCOPED_PROGRAM_CATALOG',
+    scope,
+    query,
+    totalPrograms: programs.length,
+    matchedPrograms: matched.length,
+    matchedProgramsWithBooks: matchedWithBooks.length,
+    selectedPrograms: selected.map((item) => ({
+      titleAr: item.program.titleAr,
+      titleEn: item.program.titleEn,
+      category: item.program.category,
+      score: item.score,
+      booksCount: item.program.books?.length || 0,
+    })),
+    returnedReply: false,
+    reason: selected.length ? 'selected_programs_ready' : 'no_selected_programs_with_books_or_match',
+  }
+
+  if (!selected.length) {
+    return {
+      reply: 'حسب قاعدة بيانات المنصة الحالية، لا توجد كتب مسجلة لأي برنامج مطابق للسؤال.',
+      diagnostics: { ...diagnosticsBase, returnedReply: true, reason: 'no_selected_programs' },
+    }
+  }
+
+  const reply = [
     'حسب قاعدة بيانات المنصة الحالية، هذه الكتب/المراجع المسجلة للبرامج المطابقة لسؤالك:',
     '',
     selected.map((item, index) => formatProgramCatalogLine(item.program, index)).join('\n\n'),
     '',
     selected.some((item) => !(item.program.books || []).length) ? 'ملاحظة: أي برنامج ظاهر بلا كتب يعني أن قاعدة البيانات لا تحتوي كتباً مربوطة به حالياً.' : '',
   ].filter(Boolean).join('\n')
+
+  return { reply, diagnostics: { ...diagnosticsBase, returnedReply: true } }
+}
+
+export async function buildScopedDirectProgramBooksReply(query: string, scope: AiKnowledgeScope): Promise<string | null> {
+  const result = await buildScopedDirectProgramBooksResult(query, scope)
+  return result.reply
 }
