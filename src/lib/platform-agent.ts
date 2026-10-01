@@ -675,6 +675,8 @@ async function buildAdminSnapshot(query?: string | null): Promise<string> {
 }
 
 async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promise<string> {
+  const centralCatalog = await buildScopedProgramCatalogSnapshot({ scope: 'HUMAN_SUPERVISOR', query }).catch(() => '')
+  if (centralCatalog) return centralCatalog
   try {
     const programCatalog = await db.program.findMany({
       where: { active: true },
