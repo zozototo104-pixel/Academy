@@ -350,6 +350,85 @@ model Certificate {
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
 }
 
+model AcademyRepresentative {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  status             String   @default("ACTIVE") // ACTIVE | DRAFT | HIDDEN | ARCHIVED
+  fullName           String
+  displayTitle       String?
+  degreeTitle        String?
+  academicRank       String?
+  country            String
+  region             String
+  territory          String?
+  city               String?
+  specialization     String?
+  representativeRole String   @default("COUNTRY_REPRESENTATIVE") // COUNTRY_REPRESENTATIVE | REGIONAL_REPRESENTATIVE | ACADEMIC_REPRESENTATIVE
+  shortBio           String?
+  rawBio             String?
+  professionalBio    String?
+  worksSummary       String?
+  achievements       String?
+  publicContactNote  String?
+  phone              String?
+  email              String?
+  whatsapp           String?
+  website            String?
+  profilePhotoUrl    String?
+  profilePhotoName   String?
+  profilePhotoMime   String?
+  profilePhotoSize   Int?
+  profilePhotoStorageProvider String?
+  profilePhotoStorageKey      String?
+  officialCardUrl    String?
+  officialCardName   String?
+  officialCardMime   String?
+  officialCardSize   Int?
+  officialCardStorageProvider String?
+  officialCardStorageKey      String?
+  qrToken            String   @unique
+  verifyPhoneLast4Hash String?
+  verifyEmailLast4Hash String?
+  aiRewriteStatus    String   @default("NOT_RUN") // NOT_RUN | UPDATED | FAILED
+  aiRewriteNote      String?
+  featured           Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  createdById        String?
+  updatedById        String?
+  deletedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  files              AcademyRepresentativeFile[]
+
+  @@index([status, sortOrder])
+  @@index([country, region])
+  @@index([featured, status])
+  @@index([deletedAt])
+}
+
+model AcademyRepresentativeFile {
+  id               String   @id @default(cuid())
+  representativeId String
+  representative   AcademyRepresentative @relation(fields: [representativeId], references: [id], onDelete: Cascade)
+  kind             String   @default("OTHER") // CV | BOOK | WORK | CERTIFICATE | CARD | LINK | OTHER
+  title            String
+  description      String?
+  externalUrl      String?
+  fileName         String?
+  mimeType         String?
+  size             Int      @default(0)
+  storageProvider  String?
+  storageKey       String?
+  fileUrl          String?
+  extractedText    String?
+  displayOrder     Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([representativeId, displayOrder])
+  @@index([kind])
+  @@index([storageProvider])
+}
+
 model MicroCredential {
   id              String   @id @default(cuid())
   programId       String
