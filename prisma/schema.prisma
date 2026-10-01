@@ -408,6 +408,9 @@ model AcademyRepresentative {
   @@index([status, sortOrder])
   @@index([country, region])
   @@index([featured, status])
+  @@index([sourceAgentApplicationId])
+  @@index([sourceUserId])
+  @@index([onboardingToken])
   @@index([deletedAt])
 }
 
