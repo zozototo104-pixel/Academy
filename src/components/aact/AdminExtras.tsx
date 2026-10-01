@@ -1685,8 +1685,24 @@ function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
   const data = parseAuditJson(log.details)
   if (!data) return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
   const selected = Array.isArray(data.selectedPrograms) ? data.selectedPrograms.slice(0, 5) : []
-  const scopeLabel = String(data.scope || '').replace('ADMIN_ASSISTANT', 'وكيل الإدارة').replace('HUMAN_SUPERVISOR', 'المشرف البشري').replace('STUDENT_SUPERVISOR', 'المشرف الذكي للطالب').replace('PUBLIC_VISITOR', 'زائر الموقع').replace('WHATSAPP_VISITOR', 'زائر واتساب').replace('DEFENSE_EXAMINER', 'مناقش البحث')
-  const reasonLabel = String(data.reason || '').replace('selected_programs_ready', 'تم اختيار برامج مطابقة').replace('live_session_context_prepared', 'تم تجهيز سياق جلسة صوتية').replace('no_selected_programs', 'لا توجد برامج مختارة').replace('no_active_programs_loaded', 'لم يتم تحميل برامج نشطة')
+  const scopeLabel = String(data.scope || '')
+    .replace('ADMIN_ASSISTANT', 'وكيل الإدارة')
+    .replace('HUMAN_SUPERVISOR', 'المشرف البشري')
+    .replace('STUDENT_SUPERVISOR', 'المشرف الذكي للطالب')
+    .replace('PUBLIC_VISITOR', 'زائر الموقع')
+    .replace('WHATSAPP_VISITOR', 'زائر واتساب')
+    .replace('DEFENSE_EXAMINER', 'مناقش البحث')
+    .replace('EXAM_ASSISTANT', 'وكيل الامتحانات')
+  const sourceLabel = String(data.source || '')
+    .replace('SCOPED_PROGRAM_CATALOG', 'كتالوج البرامج والكتب')
+    .replace('GEMINI_LIVE_SESSION_CONTEXT', 'جلسة صوتية Gemini Live')
+  const reasonLabel = String(data.reason || '')
+    .replace('selected_programs_ready', 'تم اختيار برامج مطابقة')
+    .replace('live_session_context_prepared', 'تم تجهيز سياق جلسة صوتية')
+    .replace('no_selected_programs', 'لا توجد برامج مختارة')
+    .replace('no_active_programs_loaded', 'لم يتم تحميل برامج نشطة')
+    .replace('query_not_program_books', 'ليس سؤال كتب/برامج')
+    .replace('scope_cannot_read_program_books', 'النطاق لا يملك صلاحية قراءة كتب البرامج')
   return (
     <div className="w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-right">
       <div className="flex flex-wrap items-center gap-2">
