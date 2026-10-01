@@ -123,6 +123,28 @@ export const AI_KNOWLEDGE_POLICIES: Record<AiKnowledgeScope, AiKnowledgePolicy> 
   },
 }
 
+export type ResolveAiKnowledgeScopeInput = {
+  role?: string | null
+  channel?: string | null
+  purpose?: string | null
+  mode?: string | null
+}
+
+export function resolveAiKnowledgeScope(input: ResolveAiKnowledgeScopeInput = {}): AiKnowledgeScope {
+  const role = String(input.role || '').trim().toUpperCase()
+  const channel = String(input.channel || '').trim().toUpperCase()
+  const purpose = String(input.purpose || '').trim().toUpperCase()
+  const mode = String(input.mode || '').trim().toUpperCase()
+
+  if (purpose === 'DEFENSE' || purpose === 'DISCUSSION' || mode === 'DEFENSE') return 'DEFENSE_EXAMINER'
+  if (purpose === 'EXAM' || mode === 'EXAM') return 'EXAM_ASSISTANT'
+  if (channel === 'WHATSAPP') return 'WHATSAPP_VISITOR'
+  if (role === 'ADMIN') return 'ADMIN_ASSISTANT'
+  if (role === 'SUPERVISOR') return 'HUMAN_SUPERVISOR'
+  if (role === 'STUDENT') return 'STUDENT_SUPERVISOR'
+  return 'PUBLIC_VISITOR'
+}
+
 export function getAiKnowledgePolicy(scope: AiKnowledgeScope): AiKnowledgePolicy {
   return AI_KNOWLEDGE_POLICIES[scope]
 }
