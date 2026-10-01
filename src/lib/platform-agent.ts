@@ -924,6 +924,7 @@ export async function platformAgentComplete(opts: {
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = user.role === 'ADMIN' ? 'ADMIN_ASSISTANT' : 'HUMAN_SUPERVISOR'
     const directBooksReply = await buildScopedDirectProgramBooksReply(last, scope).catch(() => null)
+      || await buildDirectProgramBooksReply(last).catch(() => null)
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
