@@ -700,7 +700,10 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   const blocks = [base]
 
   if (user.role === 'ADMIN') blocks.push(await buildAdminSnapshot(query))
-  if (user.role === 'SUPERVISOR') blocks.push(await buildSupervisorSnapshot(user.id))
+  if (user.role === 'SUPERVISOR') {
+    blocks.push(await buildSupervisorSnapshot(user.id))
+    blocks.push(await buildAcademicProgramCatalogSnapshot(query))
+  }
 
   if (user.role === 'STUDENT' || agent === 'ACADEMIC_SUPERVISOR' || agent === 'ADMISSIONS' || agent === 'EXAMS' || agent === 'THESIS_DEFENSE') {
     const supervisorContext = await buildSupervisorContext(user.id).catch(() => '')
