@@ -300,11 +300,17 @@ export default function AdminRepresentativesTab() {
           <Card className="border-[#0f2b46]/10">
             <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-3">
-                <AssetUploader label="صورة الممثل" icon={<ImageIcon className="h-4 w-4" />} onUpload={(file) => upload('profilePhoto', file)} uploading={uploading} />
-                <AssetUploader label="الكرنيه الرسمي" icon={<QrCode className="h-4 w-4" />} onUpload={(file) => upload('officialCard', file)} uploading={uploading} />
-                <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
+                يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
               </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading} />
+                <AssetUploader label="الكرنيه الرسمي" hint="صورة أو PDF للكرنيه" icon={<QrCode className="h-4 w-4" />} accept="image/*,.pdf" onUpload={(file) => upload('officialCard', file)} uploading={uploading} />
+                {REPRESENTATIVE_FILE_PRESETS.map((preset) => (
+                  <PresetFileUploader key={preset.kind} preset={preset} onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
+                ))}
+              </div>
+              <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
               <ExternalLinkUploader onUpload={(extras) => upload('file', null, extras)} uploading={uploading} />
               <div className="grid gap-4 md:grid-cols-2">
                 <PreviewBox title="الصورة الحالية" url={selected.profilePhotoUrl} />
