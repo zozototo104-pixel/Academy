@@ -953,7 +953,7 @@ export async function platformAgentComplete(opts: {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
-    const scope = user.role === 'ADMIN' ? 'ADMIN_ASSISTANT' : 'HUMAN_SUPERVISOR'
+    const scope = resolveAiKnowledgeScope({ role: user.role, mode: opts.mode })
     const directBooksResult = await buildScopedDirectProgramBooksResult(last, scope).catch(() => null)
     if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
       await auditAiKnowledgeDiagnostics({
