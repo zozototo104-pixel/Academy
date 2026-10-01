@@ -242,6 +242,54 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await db.agentApplication.update({ where: { id }, data })
 
+    if (status === 'APPROVED' && app.kind === 'AGENCY') {
+      const existingRep = await db.academyRepresentative.findUnique({
+        where: { sourceAgentApplicationId: app.id },
+        select: { id: true, slug: true, status: true, onboardingToken: true },
+      }).catch(() => null)
+      const onboardingToken = existingRep?.onboardingToken || `repr_on_${randomBytes(24).toString('base64url')}`
+      const slug = existingRep?.slug || await uniqueRepresentativeSlug(`${app.repName}-${app.country}`, existingRep?.id)
+      const representativeData = {
+        sourceAgentApplicationId: app.id,
+        sourceUserId: effectiveSubmitter?.id || app.userId || null,
+        status: existingRep?.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT',
+        onboardingStatus: existingRep?.status === 'ACTIVE' ? 'APPROVED' : 'WAITING_PROFILE',
+        onboardingToken,
+        fullName: app.repName,
+        displayTitle: `ممثل الأكاديمية في ${app.territory || app.country}`,
+        country: app.country,
+        region: app.territory || app.country,
+        territory: app.territory,
+        representativeRole: 'COUNTRY_REPRESENTATIVE',
+        shortBio: app.experience ? String(app.experience).replace(/\s+/g, ' ').trim().slice(0, 650) : null,
+        rawBio: app.experience || null,
+        phone: app.phone,
+        email: app.email,
+        whatsapp: app.phone,
+        qrToken: createRepresentativeQrToken(),
+        updatedById: admin.id,
+      }
+      const representative = existingRep
+        ? await db.academyRepresentative.update({
+            where: { id: existingRep.id },
+            data: { ...representativeData, slug, qrToken: undefined, createdById: undefined },
+            select: { id: true, onboardingToken: true },
+          })
+        : await db.academyRepresentative.create({
+            data: { ...representativeData, slug, createdById: admin.id },
+            select: { id: true, onboardingToken: true },
+          })
+      if (representative.onboardingToken) representativeOnboardingLink = representativeOnboardingUrl(representative.onboardingToken)
+      await audit(admin, existingRep ? 'UPDATE_REPRESENTATIVE_FROM_AGENCY' : 'CREATE_REPRESENTATIVE_FROM_AGENCY', 'AcademyRepresentative', representative.id, `${app.repName} — ${app.country} — ${app.id}`)
+    }
+
+    if (status === 'REVOKED' && app.kind === 'AGENCY') {
+      await db.academyRepresentative.updateMany({
+        where: { sourceAgentApplicationId: app.id, deletedAt: null },
+        data: { status: 'HIDDEN', onboardingStatus: 'ADMIN_CREATED', updatedById: admin.id },
+      }).catch(() => {})
+    }
+
     // إشعار صاحب الطلب إن كان مستخدماً مسجلاً بنفس البريد
     const owner = await db.user.findUnique({ where: { email: app.email } })
     if (owner) {
