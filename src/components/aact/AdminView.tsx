@@ -2069,6 +2069,11 @@ export function AdminView() {
           </div>
         </TabsContent>
 
+        {/* ممثلو الأكاديمية في الدول */}
+        <TabsContent value="representatives">
+          <AdminRepresentativesTab />
+        </TabsContent>
+
         {/* المناقشات واللجان */}
         <TabsContent value="thesis">
           <AdminThesisTab />
