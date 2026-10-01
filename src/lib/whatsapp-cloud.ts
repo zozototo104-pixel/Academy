@@ -191,6 +191,29 @@ export async function sendOfficialWhatsAppTypingIndicator(message: WhatsAppInbou
   return sendOfficialWhatsAppMessageStatus(message, true)
 }
 
+export function splitOfficialWhatsAppText(text: string, maxLength = 3600): string[] {
+  const raw = String(text || '').trim()
+  if (!raw) return []
+  if (raw.length <= maxLength) return [raw]
+  const chunks: string[] = []
+  let rest = raw
+  while (rest.length > maxLength && chunks.length < 5) {
+    const windowText = rest.slice(0, maxLength)
+    const splitAt = Math.max(
+      windowText.lastIndexOf('\n\n'),
+      windowText.lastIndexOf('\n'),
+      windowText.lastIndexOf('. '),
+      windowText.lastIndexOf('، '),
+      windowText.lastIndexOf(' ')
+    )
+    const cut = splitAt > 1200 ? splitAt : maxLength
+    chunks.push(rest.slice(0, cut).trim())
+    rest = rest.slice(cut).trim()
+  }
+  if (rest) chunks.push(rest.slice(0, maxLength).trim())
+  return chunks.filter(Boolean)
+}
+
 export async function sendOfficialWhatsAppText(to: string, text: string, options?: { phoneNumberId?: string; replyToMessageId?: string }) {
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
