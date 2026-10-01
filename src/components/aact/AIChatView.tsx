@@ -611,7 +611,7 @@ export function AIChatView() {
   return (
     <>
       {voiceMode && (
-        <div className="aact-live-voice-screen fixed inset-0 z-[100] flex h-dvh flex-col overflow-y-auto bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
+        <div className="aact-live-voice-screen fixed inset-0 z-[100] flex h-dvh flex-col overflow-hidden bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
           <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-4">
             <div className="flex min-w-0 items-center gap-2.5">
               <AcademyLogo size={34} light />
