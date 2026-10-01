@@ -68,10 +68,11 @@ export function AdminWhatsAppInboxTab() {
 
   const activeConversation = selected || conversations.find((c) => c.id === selectedId) || null
 
-  async function loadList(options?: { silent?: boolean; preserveSelected?: boolean }) {
+  async function loadList(options?: { silent?: boolean; preserveSelected?: boolean; statusOverride?: string }) {
     if (!options?.silent) setLoading(true)
+    const effectiveStatus = options?.statusOverride ?? status
     const params = new URLSearchParams()
-    if (status !== 'ALL') params.set('status', status)
+    if (effectiveStatus !== 'ALL') params.set('status', effectiveStatus)
     if (search.trim()) params.set('search', search.trim())
     try {
       const data = await api<{ conversations: WaConversation[] }>(`/api/admin/whatsapp-conversations?${params.toString()}`)
