@@ -15,6 +15,7 @@ import {
   createOfficialWhatsAppAgentReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
+  sendOfficialWhatsAppReadReceipt,
   sendOfficialWhatsAppText,
   sendOfficialWhatsAppTypingIndicator,
   verifyWhatsAppSignature,
