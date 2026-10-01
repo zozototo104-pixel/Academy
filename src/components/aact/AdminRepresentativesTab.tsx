@@ -49,6 +49,9 @@ type Representative = FormState & {
   qrDataUrl?: string | null
   aiRewriteStatus?: string | null
   aiRewriteNote?: string | null
+  onboardingStatus?: string | null
+  onboardingSubmittedAt?: string | null
+  sourceAgentApplicationId?: string | null
   files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null }>
 }
 
