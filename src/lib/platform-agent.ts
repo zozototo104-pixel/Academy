@@ -917,7 +917,8 @@ export async function platformAgentComplete(opts: {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
-    const directBooksReply = await buildDirectProgramBooksReply(last).catch(() => null)
+    const scope = user.role === 'ADMIN' ? 'ADMIN_ASSISTANT' : 'HUMAN_SUPERVISOR'
+    const directBooksReply = await buildScopedDirectProgramBooksReply(last, scope).catch(() => null)
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
