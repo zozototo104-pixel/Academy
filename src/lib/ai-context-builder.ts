@@ -52,8 +52,8 @@ function expandQuery(query?: string | null): string {
   const raw = String(query || '').toLowerCase()
   const n = normalizeArabic(query || '')
   const aliases = [n, raw]
-  if (/(master|masters|maestr|maestría|maestria|mestrado|maestrado)/i.test(raw) || /ماجستير|مجستير|ماستر/.test(n)) {
-    aliases.push('ماجستير مجستير ماستر الماجستير المهني master masters maestria maestría maestrado mestrado')
+  if (/(master|masters|maestr|maestría|maestria|mestrado|maestrado)/i.test(raw) || /ماجستير|مجستير|ماحستير|ماستر/.test(n)) {
+    aliases.push('ماجستير مجستير ماحستير ماستر الماجستير المهني master masters maestria maestría maestrado mestrado')
   }
   if (/(doctor|doctorate|phd|doctorado|doutorado)/i.test(raw) || /دكتوراه|دكتوراة|دكتورا|دكتور/.test(n)) {
     aliases.push('دكتوراه دكتوراة الدكتوراه المهنيه professional doctorate phd doctorado doutorado')
