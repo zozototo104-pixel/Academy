@@ -845,9 +845,11 @@ export async function platformPublicAgentComplete(opts: {
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
+  const publicScope = opts.channel === 'WHATSAPP' ? 'WHATSAPP_VISITOR' : 'PUBLIC_VISITOR'
+  const directBooksReply = await buildScopedDirectProgramBooksReply(last, publicScope).catch(() => null)
+  if (directBooksReply) return { reply: directBooksReply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, null)
   const persona = personaForAgent(agent)
-  const publicScope = opts.channel === 'WHATSAPP' ? 'WHATSAPP_VISITOR' : 'PUBLIC_VISITOR'
   const centralCatalogSnapshot = await buildScopedProgramCatalogSnapshot({ scope: publicScope, query: last }).catch(() => '')
   const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
   const platformSnapshot = mergeContext(centralCatalogSnapshot, legacyPlatformSnapshot)
