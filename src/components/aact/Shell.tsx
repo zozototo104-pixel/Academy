@@ -716,7 +716,14 @@ export function Header() {
             ].map((n) => (
               <button
                 key={n.target}
-                onClick={() => goMobile(n.target)}
+                onClick={() => {
+                  if (n.target === 'representatives') {
+                    setMobileMenuOpen(false)
+                    window.location.assign('/representatives')
+                    return
+                  }
+                  goMobile(n.target)
+                }}
                 className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
                   (view === n.target || (n.target === 'programs' && view === 'program-detail')) ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
                 }`}
