@@ -424,6 +424,7 @@ export function AdminSystemTab() {
     try {
       const result = await api<BackupRunResult>('/api/admin/backups', { method: 'POST' })
       setLastBackup(result)
+      setRestoreKey(result.storage.key || '')
       const status = await api<BackupStatus>('/api/admin/backups').catch(() => null)
       if (status) setBackupStatus(status)
       toast({
@@ -435,6 +436,46 @@ export function AdminSystemTab() {
       toast({ title: 'فشل النسخ الاحتياطي', description: e.message, variant: 'destructive' })
     } finally {
       setBackupBusy(false)
+    }
+  }
+
+  const inspectBackup = async () => {
+    if (!restoreKey.trim()) {
+      toast({ title: 'أدخل مفتاح النسخة', description: 'انسخ storage.key من آخر نسخة أو من سجل التخزين.', variant: 'destructive' })
+      return
+    }
+    setRestoreBusy(true)
+    try {
+      const result = await api<BackupInspectResult>('/api/admin/backups/restore', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'inspect', key: restoreKey.trim(), provider: 's3' }),
+      })
+      setRestorePreview(result)
+      toast({ title: 'تم فحص النسخة بنجاح', description: `${result.tables?.length || 0} جدول داخل النسخة المشفرة.` })
+    } catch (e: any) {
+      toast({ title: 'فشل فحص النسخة', description: e.message, variant: 'destructive' })
+    } finally {
+      setRestoreBusy(false)
+    }
+  }
+
+  const restoreBackup = async () => {
+    if (restoreConfirm.trim() !== 'RESTORE') {
+      toast({ title: 'تأكيد مطلوب', description: 'اكتب RESTORE حرفياً قبل الاستيراد.', variant: 'destructive' })
+      return
+    }
+    setRestoreBusy(true)
+    try {
+      const result = await api<BackupInspectResult>('/api/admin/backups/restore', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'restore', key: restoreKey.trim(), provider: 's3', confirm: restoreConfirm.trim() }),
+      })
+      setRestorePreview(result)
+      toast({ title: result.ok ? 'تم الاستيراد' : 'اكتمل الاستيراد مع أخطاء', description: `${result.results?.length || 0} جدول تمت معالجته.`, variant: result.ok ? 'default' : 'destructive' } as any)
+    } catch (e: any) {
+      toast({ title: 'فشل استيراد النسخة', description: e.message, variant: 'destructive' })
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
