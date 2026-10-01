@@ -58,6 +58,11 @@ jobs:
             exit 1
           fi
 
+      - name: Validate E2E base URL allowlist
+        env:
+          E2E_ALLOWED_BASE_URLS: ${{ vars.E2E_ALLOWED_BASE_URLS }}
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
       - name: Wait for deployed PDF and W3C routes
         shell: bash
         run: |
