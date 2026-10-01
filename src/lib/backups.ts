@@ -137,7 +137,7 @@ export function isBackupRequestAuthorized(req: NextRequest) {
   const headerSecret = req.headers.get('x-aact-backup-secret') || ''
   const auth = req.headers.get('authorization') || ''
   const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
-  return headerSecret === secret || bearer === secret
+  return fixedTimeSecretMatch(headerSecret, secret) || fixedTimeSecretMatch(bearer, secret)
 }
 
 function activeBackupTables() {
