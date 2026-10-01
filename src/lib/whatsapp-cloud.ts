@@ -220,35 +220,44 @@ export async function sendOfficialWhatsAppText(to: string, text: string, options
     throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
   }
 
-  const body: any = {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to,
-    type: 'text',
-    text: {
-      preview_url: false,
-      body: text.slice(0, 4096),
-    },
+  const chunks = splitOfficialWhatsAppText(text)
+  if (!chunks.length) throw new Error('WhatsApp text is empty.')
+  const sentMessages: any[] = []
+  let lastData: any = null
+
+  for (let i = 0; i < chunks.length; i += 1) {
+    const body: any = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: {
+        preview_url: false,
+        body: chunks[i],
+      },
+    }
+
+    if (i === 0 && options?.replyToMessageId) {
+      body.context = { message_id: options.replyToMessageId }
+    }
+
+    const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const message = data?.error?.message || data?.error?.code || `WhatsApp send failed with status ${response.status}`
+      throw new Error(String(message).slice(0, 500))
+    }
+    lastData = data
+    if (Array.isArray(data?.messages)) sentMessages.push(...data.messages)
   }
 
-  if (options?.replyToMessageId) {
-    body.context = { message_id: options.replyToMessageId }
-  }
-
-  const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const message = data?.error?.message || data?.error?.code || `WhatsApp send failed with status ${response.status}`
-    throw new Error(String(message).slice(0, 500))
-  }
-
-  return data
+  return { ...(lastData || {}), messages: sentMessages.length ? sentMessages : lastData?.messages }
 }
