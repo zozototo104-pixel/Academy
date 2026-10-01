@@ -299,46 +299,50 @@ export default function AdminRepresentativesTab() {
         <Card className="border-[#0f2b46]/10">
             <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
             <CardContent className="space-y-5">
+              {!form.id && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-900">
+                  احفظ بيانات الممثل أولاً ليتم إنشاء ملفه، ثم ستتفعّل أزرار رفع الصورة والسيرة والكتب والأعمال والملفات.
+                </div>
+              )}
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
                 يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading} />
-                <AssetUploader label="الكرنيه الرسمي" hint="صورة أو PDF للكرنيه" icon={<QrCode className="h-4 w-4" />} accept="image/*,.pdf" onUpload={(file) => upload('officialCard', file)} uploading={uploading} />
+                <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
+                <AssetUploader label="الكرنيه الرسمي" hint="صورة أو PDF للكرنيه" icon={<QrCode className="h-4 w-4" />} accept="image/*,.pdf" onUpload={(file) => upload('officialCard', file)} uploading={uploading || !form.id} />
                 {REPRESENTATIVE_FILE_PRESETS.map((preset) => (
-                  <PresetFileUploader key={preset.kind} preset={preset} onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
+                  <PresetFileUploader key={preset.kind} preset={preset} onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading || !form.id} />
                 ))}
               </div>
-              <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading} />
-              <ExternalLinkUploader onUpload={(extras) => upload('file', null, extras)} uploading={uploading} />
+              <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading || !form.id} />
+              <ExternalLinkUploader onUpload={(extras) => upload('file', null, extras)} uploading={uploading || !form.id} />
               <div className="grid gap-4 md:grid-cols-2">
-                <PreviewBox title="الصورة الحالية" url={selected.profilePhotoUrl} />
-                <PreviewBox title="الكرنيه الحالي" url={selected.officialCardUrl} />
+                <PreviewBox title="الصورة الحالية" url={selected?.profilePhotoUrl} />
+                <PreviewBox title="الكرنيه الحالي" url={selected?.officialCardUrl} />
               </div>
               <div className="rounded-2xl border border-[#c9a227]/20 bg-amber-50 p-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  {selected.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-24 w-24 rounded-xl bg-white p-2" />}
+                  {selected?.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-24 w-24 rounded-xl bg-white p-2" />}
                   <div>
                     <p className="text-sm font-black text-[#0f2b46]">رابط التحقق الآمن</p>
-                    {selected.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
-                    {selected.qrToken && <a href={`/representatives/qr/${selected.qrToken}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG للمسح والطباعة</a>}
+                    {selected?.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
+                    {selected?.qrToken && <a href={`/representatives/qr/${selected.qrToken}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG للمسح والطباعة</a>}
                     <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق يحتاج آخر 4 أرقام من الجوال أو الإيميل المسجل.</p>
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
-                {(selected.files || []).map((file) => (
+                {(selected?.files || []).map((file) => (
                   <div key={file.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-3">
                     <div className="min-w-0"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><p className="truncate text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p></div>
                     <div className="flex gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || file.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]"><ExternalLink className="h-4 w-4" /></a>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
                   </div>
                 ))}
-                {!selected.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
+                {!selected?.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
               </div>
             </CardContent>
           </Card>
-        )}
       </div>
     </div>
   )
