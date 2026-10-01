@@ -216,7 +216,7 @@ export async function analyzeHumanHandoffIntent(message: string, context?: {
         'wantsHumanSupport=true فقط إذا كان المستخدم يريد بوضوح نقله إلى إنسان/خدمة عملاء/دعم فني/إدارة/موظف يتابع معه.',
         'isHandoffDetails=true فقط إذا كان المستخدم يكتب اسمه وموضوعه/بياناته بعد أن طُلب منه ذلك، وليس إذا كان يسأل سؤالاً معرفياً أو أكاديمياً.',
         'إذا كانت الرسالة سؤالاً عن البرامج أو التخصصات أو الرسوم أو التسجيل أو الشهادات، اجعل isAcademicOrServiceQuestion=true و isHandoffDetails=false حتى لو احتوت كلمة مثل بخصوص.',
-        'أمثلة للفهم فقط لا للحفظ: "حولني للدعم الفني" طلب موظف. "طيب بخصوص الماجستير شو التخصصات الموجودة" سؤال أكاديمي وليس تفاصيل تحويل.',
+        'قرّر من معنى الرسالة وسياقها فقط، ولا تستخدم قائمة أمثلة أو عبارات محفوظة كقواعد قرار.',
         'أرجع JSON بالشكل: {"wantsHumanSupport":boolean,"isHandoffDetails":boolean,"isAcademicOrServiceQuestion":boolean,"confidence":0.0,"reason":"..."}',
       ].join('\n'),
       history: [{
