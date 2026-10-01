@@ -99,8 +99,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   })
-  await audit(user.id, 'UPDATE_ACADEMY_REPRESENTATIVE', id, `${updated.fullName} — ${updated.country}`)
+  await audit(user.id, approvingForPublic ? 'APPROVE_ACADEMY_REPRESENTATIVE_PROFILE' : 'UPDATE_ACADEMY_REPRESENTATIVE', id, `${updated.fullName} — ${updated.country}`)
   const origin = originFrom(req)
+  if (approvingForPublic && updated.email) {
+    await emailRepresentativeProfileApproved(updated.email, {
+      name: updated.fullName,
+      profileUrl: `${origin.replace(/\/+$/, '')}/representatives/${updated.slug}`,
+    }).catch(() => {})
+  }
   return NextResponse.json({
     representative: {
       ...serializeRepresentative(updated, origin, true),
