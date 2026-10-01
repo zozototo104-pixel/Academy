@@ -369,6 +369,9 @@ export async function POST(req: NextRequest) {
           await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
         } else {
           const agentReply = await createOfficialWhatsAppAgentReply(message)
+          if (agentReply.trim() === HUMAN_SUPPORT_REPLY.trim()) {
+            await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
+          }
           reply = handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
         }
       } finally {
