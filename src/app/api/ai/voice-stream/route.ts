@@ -57,8 +57,13 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'الرسالة فارغة' }), { status: 400 })
   }
 
-  // سياق RAG: ملف الطالب + منهجه + تقدمه (نفس مصدر الدردشة النصية)
-  const ragContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query: message })
+  // سياق RAG: ملف المستخدم + المنهج/الكتب حسب نطاق الصلاحية الحالي.
+  const voiceScope = knowledgeScopeForVoiceStream(user.role)
+  const diagnosticResult = await buildScopedDirectProgramBooksResult(message, voiceScope).catch(() => null)
+  if (diagnosticResult?.diagnostics && diagnosticResult.diagnostics.reason !== 'query_not_program_books') {
+    await auditVoiceKnowledgeDiagnostics({ userId: user.id, role: user.role, scope: voiceScope, diagnostics: diagnosticResult.diagnostics })
+  }
+  const ragContext = await buildSupervisorContext(user.id, { scope: voiceScope, query: message })
   const systemPrompt = buildVoiceSystemPrompt(mergeContext(ragContext))
 
   // حفظ رسالة الطالب فوراً — قاعدة البيانات مصدر الحقيقة لذاكرة الجلسة
