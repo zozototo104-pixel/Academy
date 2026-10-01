@@ -131,6 +131,9 @@ export async function POST(req: NextRequest) {
       verifyUrl: representativeVerifyUrl(created.qrToken, origin),
       qrDataUrl: await representativeQrDataUrl(created.qrToken, origin).catch(() => null),
       rawBio: created.rawBio,
+      onboardingStatus: created.onboardingStatus,
+      onboardingSubmittedAt: created.onboardingSubmittedAt,
+      sourceAgentApplicationId: created.sourceAgentApplicationId,
     },
   })
 }
