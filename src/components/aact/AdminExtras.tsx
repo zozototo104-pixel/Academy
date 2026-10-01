@@ -1674,9 +1674,58 @@ function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
   )
 }
 
+function parseAuditJson(details?: string | null): any | null {
+  const raw = String(details || '').trim()
+  if (!raw || !raw.startsWith('{')) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
+  if (log.action !== 'AI_KNOWLEDGE_DIAGNOSTICS' && log.entity !== 'AIKnowledge') return null
+  const data = parseAuditJson(log.details)
+  if (!data) return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
+  const selected = Array.isArray(data.selectedPrograms) ? data.selectedPrograms.slice(0, 5) : []
+  const scopeLabel = String(data.scope || '').replace('ADMIN_ASSISTANT', 'وكيل الإدارة').replace('HUMAN_SUPERVISOR', 'المشرف البشري').replace('STUDENT_SUPERVISOR', 'المشرف الذكي للطالب').replace('PUBLIC_VISITOR', 'زائر الموقع').replace('WHATSAPP_VISITOR', 'زائر واتساب').replace('DEFENSE_EXAMINER', 'مناقش البحث')
+  const reasonLabel = String(data.reason || '').replace('selected_programs_ready', 'تم اختيار برامج مطابقة').replace('live_session_context_prepared', 'تم تجهيز سياق جلسة صوتية').replace('no_selected_programs', 'لا توجد برامج مختارة').replace('no_active_programs_loaded', 'لم يتم تحميل برامج نشطة')
+  return (
+    <div className="w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-right">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-blue-600 text-white hover:bg-blue-600">تشخيص معرفة الذكاء</Badge>
+        {scopeLabel && <Badge variant="outline" className="bg-white text-[10px] font-black text-[#0f2b46]">{scopeLabel}</Badge>}
+        {reasonLabel && <span className="text-[11px] font-bold text-blue-700">{reasonLabel}</span>}
+      </div>
+      <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-700 sm:grid-cols-4">
+        {'totalPrograms' in data && <p><span className="text-slate-400">البرامج المحمّلة:</span> {data.totalPrograms}</p>}
+        {'matchedPrograms' in data && <p><span className="text-slate-400">المطابقة:</span> {data.matchedPrograms}</p>}
+        {'matchedProgramsWithBooks' in data && <p><span className="text-slate-400">مطابقة وفيها كتب:</span> {data.matchedProgramsWithBooks}</p>}
+        {'returnedReply' in data && <p><span className="text-slate-400">رد مباشر:</span> {data.returnedReply ? 'نعم' : 'لا'}</p>}
+        {'contextLength' in data && <p><span className="text-slate-400">طول السياق:</span> {data.contextLength}</p>}
+        {'systemInstructionLength' in data && <p><span className="text-slate-400">تعليمات الصوت:</span> {data.systemInstructionLength}</p>}
+      </div>
+      {data.query && (
+        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-6 text-slate-700">
+          <span className="text-slate-400">السؤال:</span> {String(data.query).slice(0, 260)}
+        </div>
+      )}
+      {selected.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {selected.map((program: any, i: number) => (
+            <div key={`${program.titleAr || program.titleEn || i}`} className="rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-6 text-[#0f2b46]">
+              <p>{i + 1}. {program.titleAr || program.titleEn || 'برنامج بلا عنوان'}</p>
+              <p className="text-slate-500">التصنيف: {program.category || 'غير محدد'} — درجة المطابقة: {program.score ?? 0} — عدد الكتب: {program.booksCount ?? 0}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   const whatsApp = WhatsAppAuditDisplay({ log })
   if (whatsApp) return whatsApp
+  const aiKnowledge = AiKnowledgeAuditDisplay({ log })
+  if (aiKnowledge) return aiKnowledge
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
