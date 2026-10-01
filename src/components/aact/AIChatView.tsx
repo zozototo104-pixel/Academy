@@ -191,6 +191,9 @@ export function AIChatView() {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
       try { window.speechSynthesis?.cancel() } catch {}
+      try { agentRef.current?.stop() } catch {}
+      agentRef.current = null
+      voiceModeRef.current = false
       speechUtteranceRef.current = null
       if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
     }
