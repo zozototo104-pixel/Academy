@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
   const setupVariant = cleanVariant(body.setupVariant)
-  const ragContext = await buildSupervisorContext(user.id)
+  const ragContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query: String(body.context || '') })
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
     'استجب بصوت طبيعي قصير، وتوقف بعد فكرة أو سؤال واحد حتى تمنح الطالب فرصة المقاطعة والرد.'
