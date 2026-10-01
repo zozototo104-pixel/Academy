@@ -5,6 +5,7 @@ import { audit, notify } from '@/lib/notify'
 import { nextCertSerial, nextContractNo, nextInvoiceNo, getSettings } from '@/lib/settings'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { randomBytes } from 'crypto'
+import { createRepresentativeQrToken, normalizeRepresentativeSlug } from '@/lib/academy-representatives'
 
 const ACC_TYPE_LABEL: Record<string, string> = {
   COMPANY: 'اعتماد هيئة تدريبية (شركة/مؤسسة/مركز)',
