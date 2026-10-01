@@ -337,6 +337,30 @@ export function AdminSystemTab() {
     }
   }
 
+  const uploadBinanceQr = async (file?: File | null) => {
+    if (!file) return
+    setPaymentQrUploading(true)
+    try {
+      const body = new FormData()
+      body.set('asset', 'BINANCE_PAY_QR')
+      body.set('file', file)
+      const result = await api<{ ok: boolean; url: string }>('/api/admin/system/payment-assets', {
+        method: 'POST',
+        body,
+      })
+      setForm((prev) => ({
+        ...prev,
+        USDT_BINANCE_PAY_QR_IMAGE_URL: result.url,
+        USDT_NETWORK: 'BINANCE_PAY',
+      }))
+      toast({ title: 'تم رفع QR', description: 'تم حفظ صورة Binance Pay QR في إعدادات الدفع.' })
+    } catch (e: any) {
+      toast({ title: 'فشل رفع QR', description: e.message, variant: 'destructive' })
+    } finally {
+      setPaymentQrUploading(false)
+    }
+  }
+
   const testEmail = async () => {
     setTesting(true)
     try {
