@@ -759,7 +759,7 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
     blocks.push(await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => ''))
   }
   if (user.role === 'SUPERVISOR') {
-    blocks.push(await buildSupervisorSnapshot(user.id))
+    blocks.push(await buildHumanSupervisorAssignedStudentsContext(user.id, query).catch(() => ''))
     blocks.push(await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => ''))
   }
 
