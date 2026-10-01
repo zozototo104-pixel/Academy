@@ -1,3 +1,4 @@
+import { buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import { db } from '@/lib/db'
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
