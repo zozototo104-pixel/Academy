@@ -4,6 +4,7 @@ import { extractDocumentText } from '@/lib/document-extract'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { serializeRepresentative } from '@/lib/academy-representatives'
+import { emailAdminRepresentativeProfileSubmitted } from '@/lib/mailer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
