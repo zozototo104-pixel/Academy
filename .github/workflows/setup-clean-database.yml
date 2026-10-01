@@ -134,6 +134,10 @@ jobs:
               ;;
 
             factory-execute)
+              if [ "${AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW:-NO}" != "YES" ]; then
+                echo "Refusing factory cleanup. Set GitHub secret AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW=YES to enable this temporary destructive workflow."
+                exit 1
+              fi
               if [ "$OPERATION_CONFIRMATION" != "DELETE_CONTENT_TOO" ]; then
                 echo "Refusing factory cleanup. Type DELETE_CONTENT_TOO in the confirm field."
                 exit 1
