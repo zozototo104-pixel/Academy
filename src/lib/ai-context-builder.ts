@@ -168,10 +168,8 @@ export async function buildScopedProgramCatalogSnapshot(options: { scope: AiKnow
 }
 
 export async function buildScopedKnowledgeContext(options: { scope: AiKnowledgeScope; query?: string | null }): Promise<string> {
-  const blocks: string[] = [formatAiKnowledgePolicyForPrompt(options.scope)]
   const catalog = await buildScopedProgramCatalogSnapshot({ scope: options.scope, query: options.query }).catch(() => '')
-  if (catalog) blocks.push(catalog)
-  return blocks.filter(Boolean).join('\n\n')
+  return catalog || formatAiKnowledgePolicyForPrompt(options.scope)
 }
 
 export async function buildScopedDirectProgramBooksReply(query: string, scope: AiKnowledgeScope): Promise<string | null> {
