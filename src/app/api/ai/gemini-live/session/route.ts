@@ -194,13 +194,27 @@ export async function POST(req: NextRequest) {
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
   const setupVariant = cleanVariant(body.setupVariant)
-  const ragContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query: String(body.context || '') })
+  const liveScope = knowledgeScopeForLiveSession(user.role, purpose)
+  const liveQuery = String(body.context || '')
+  const ragContext = await buildSupervisorContext(user.id, { scope: liveScope, query: liveQuery })
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
     'استجب بصوت طبيعي قصير، وتوقف بعد فكرة أو سؤال واحد حتى تمنح الطالب فرصة المقاطعة والرد.'
   const systemInstruction = buildVoiceSystemPrompt(
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
   )
+
+  await auditLiveKnowledgeSession({
+    userId: user.id,
+    role: user.role,
+    purpose,
+    scope: liveScope,
+    query: liveQuery,
+    contextLength: ragContext.length,
+    systemInstructionLength: systemInstruction.length,
+    model,
+    voice,
+  })
 
   const setup = buildSetup(setupVariant, model, systemInstruction, voice)
 
