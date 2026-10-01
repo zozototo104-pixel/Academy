@@ -45,6 +45,48 @@ function cleanPurpose(value: unknown): LivePurpose {
   return v === 'DISCUSSION' || v === 'DEFENSE' ? 'DISCUSSION' : 'SUPERVISOR'
 }
 
+function knowledgeScopeForLiveSession(role?: string | null, purpose?: LivePurpose): AiKnowledgeScope {
+  if (purpose === 'DISCUSSION') return 'DEFENSE_EXAMINER'
+  if (role === 'ADMIN') return 'ADMIN_ASSISTANT'
+  if (role === 'SUPERVISOR') return 'HUMAN_SUPERVISOR'
+  return 'STUDENT_SUPERVISOR'
+}
+
+async function auditLiveKnowledgeSession(args: {
+  userId: string
+  role?: string | null
+  purpose: LivePurpose
+  scope: AiKnowledgeScope
+  query: string
+  contextLength: number
+  systemInstructionLength: number
+  model: string
+  voice: string
+}) {
+  await db.auditLog.create({
+    data: {
+      actorId: args.userId,
+      actorName: args.role === 'ADMIN' ? 'إدارة النظام' : args.role === 'SUPERVISOR' ? 'مشرف بشري' : 'مشرف ذكي للطالب',
+      action: 'AI_KNOWLEDGE_DIAGNOSTICS',
+      entity: 'AIKnowledge',
+      entityId: args.userId,
+      details: JSON.stringify({
+        source: 'GEMINI_LIVE_SESSION_CONTEXT',
+        scope: args.scope,
+        role: args.role || null,
+        purpose: args.purpose,
+        query: args.query.slice(0, 220),
+        contextLength: args.contextLength,
+        systemInstructionLength: args.systemInstructionLength,
+        model: args.model,
+        voice: args.voice,
+        returnedReply: false,
+        reason: 'live_session_context_prepared',
+      }).slice(0, 3900),
+    },
+  }).catch(() => {})
+}
+
 function httpStatusForGeminiError(e: any): number {
   if (isAuthError(e)) return 401
   if (isQuotaError(e)) return 429
