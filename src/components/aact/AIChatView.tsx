@@ -610,8 +610,8 @@ export function AIChatView() {
   return (
     <>
       {voiceMode && (
-        <div className="aact-live-voice-screen fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
-          <div className="flex items-center justify-between px-5 py-4">
+        <div className="aact-live-voice-screen fixed inset-0 z-[100] flex h-dvh flex-col overflow-y-auto bg-gradient-to-b from-[#06182c] via-[#0f2b46] to-[#12365c]" dir="rtl">
+          <div className="shrink-0 flex items-center justify-between px-5 py-4">
             <div className="flex items-center gap-2.5">
               <AcademyLogo size={34} light />
               <div className="flex items-center gap-2 text-[11px] font-black text-[#e0b83a]"><Radio className="h-3.5 w-3.5 animate-pulse" /> محادثة صوتية حية — تتحدث مع مشرف ذكاء اصطناعي</div>
