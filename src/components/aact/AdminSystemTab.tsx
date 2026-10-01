@@ -62,6 +62,7 @@ interface BackupStatus {
   configured: {
     secretConfigured: boolean
     storageConfigured: boolean
+    encryptionConfigured?: boolean
     localFallbackAllowed: boolean
     includeSessions: boolean
     tableCount: number
