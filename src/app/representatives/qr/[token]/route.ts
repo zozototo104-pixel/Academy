@@ -26,7 +26,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     color: { dark: '#0f2b46', light: '#ffffff' },
   })
 
-  return new NextResponse(png, {
+  const imageBody = new Uint8Array(png)
+  return new NextResponse(imageBody, {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=300',
