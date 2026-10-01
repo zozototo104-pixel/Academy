@@ -1539,6 +1539,7 @@ const ACTION_L: Record<string, string> = {
   REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
   GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
   IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
+  AI_KNOWLEDGE_DIAGNOSTICS: 'تشخيص معرفة الذكاء',
   WHATSAPP_WEBHOOK_RECEIVED: 'واتساب — حدث وارد',
   WHATSAPP_IMMEDIATE_GREETING_SENT: 'واتساب — ترحيب فوري',
   WHATSAPP_WEBHOOK_REJECTED: 'واتساب — حدث مرفوض',
