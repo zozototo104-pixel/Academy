@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { db } from '@/lib/db'
-import type { AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { resolveAiKnowledgeScope, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import {
   ensureGeminiKey,
   geminiApiKey,
