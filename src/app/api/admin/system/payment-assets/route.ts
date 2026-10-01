@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
       namespace: 'payments/binance-pay',
     })
 
-    await upsertSetting('USDT_BINANCE_PAY_QR_IMAGE_URL', stored.url)
+    const appQrUrl = `/api/payments/assets/binance-pay-qr?key=${encodeURIComponent(stored.key)}`
+
+    await upsertSetting('USDT_BINANCE_PAY_QR_IMAGE_URL', appQrUrl)
     await upsertSetting('USDT_NETWORK', 'BINANCE_PAY')
 
     await db.auditLog.create({
