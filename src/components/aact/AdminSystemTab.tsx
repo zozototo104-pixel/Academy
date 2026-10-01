@@ -762,11 +762,14 @@ export function AdminSystemTab() {
               </h4>
             </div>
             {F('USDT_WALLET_ADDRESS', 'عنوان محفظة USDT', 'مثال: T... أو 0x...', 'text', 'يظهر للطالب عند اختيار USDT، ولا يتم اعتماد السداد حتى تؤكده الإدارة.')}
+            {F('USDT_BINANCE_PAY_USER_ID', 'Binance Pay ID', 'مثال: User-xxxxx', 'text', 'ضع حساب Binance Pay الرسمي هنا بدلاً من حفظه داخل الكود. إذا تركته فارغاً لن يظهر كحساب مضبوط.')}
+            {F('USDT_BINANCE_PAY_QR_IMAGE_URL', 'رابط صورة QR لـ Binance Pay', 'مثال: /binance-pay-qr.svg أو رابط صورة من التخزين', 'text', 'يمكن تغييره لاحقاً من لوحة الإدارة بدون تعديل الكود.')}
             {SelectF('USDT_NETWORK', 'الشبكة', [
               { value: 'TRC20', label: 'TRC20 — تحقق آلي عبر TronGrid' },
               { value: 'BEP20', label: 'BEP20 — مراجعة إدارية عبر TxID' },
               { value: 'ERC20', label: 'ERC20 — مراجعة إدارية عبر TxID' },
-            ], 'التحقق الآلي مفعّل حالياً لشبكة TRC20 فقط. BEP20/ERC20 تُقبل بـ TxID وتحتاج اعتماداً إدارياً بعد المراجعة.')}
+              { value: 'BINANCE_PAY', label: 'Binance Pay — دفع يدوي عبر ID/QR' },
+            ], 'التحقق الآلي مفعّل حالياً لشبكة TRC20 فقط. BEP20/ERC20/Binance Pay تحتاج اعتماداً إدارياً بعد المراجعة.')}
             {F('USDT_PAYMENT_INSTRUCTIONS', 'تعليمات إضافية', 'أرسل TxID بعد التحويل ولا تعتمد الدفعة قبل تأكيد الإدارة', 'text', 'اختياري: تعليمات تظهر ضمن رسالة الدفع للطالب.')}
           </div>
           <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
