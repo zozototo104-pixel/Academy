@@ -1,6 +1,23 @@
 import { db } from '@/lib/db'
 import { formatAiKnowledgePolicyForPrompt, getAiKnowledgePolicy, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 
+export type AiKnowledgeDiagnostics = {
+  source: 'SCOPED_PROGRAM_CATALOG'
+  scope: AiKnowledgeScope
+  query: string
+  totalPrograms: number
+  matchedPrograms: number
+  matchedProgramsWithBooks: number
+  selectedPrograms: Array<{ titleAr?: string | null; titleEn?: string | null; category?: string | null; score: number; booksCount: number }>
+  returnedReply: boolean
+  reason?: string
+}
+
+export type ScopedProgramBooksResult = {
+  reply: string | null
+  diagnostics: AiKnowledgeDiagnostics
+}
+
 export type ProgramCatalogRecord = {
   titleAr?: string | null
   titleEn?: string | null
