@@ -266,6 +266,8 @@ export async function PATCH(req: NextRequest) {
         phone: app.phone,
         email: app.email,
         whatsapp: app.phone,
+        verifyPhoneLast4Hash: hashRepresentativeVerifier(app.phone),
+        verifyEmailLast4Hash: hashRepresentativeVerifier(app.email),
         qrToken: createRepresentativeQrToken(),
         updatedById: admin.id,
       }
