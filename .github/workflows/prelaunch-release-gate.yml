@@ -90,6 +90,10 @@ jobs:
           check_url "/login" "login"
           check_url "/programs" "programs"
 
+      - name: Sanitize production smoke diagnostics before upload
+        if: always()
+        run: bash scripts/sanitize-e2e-artifacts.sh test-results/prelaunch/http
+
       - name: Upload production smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4
