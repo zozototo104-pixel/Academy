@@ -88,6 +88,9 @@ export async function GET(req: NextRequest) {
     rawBio: row.rawBio,
     aiRewriteStatus: row.aiRewriteStatus,
     aiRewriteNote: row.aiRewriteNote,
+    onboardingStatus: row.onboardingStatus,
+    onboardingSubmittedAt: row.onboardingSubmittedAt,
+    sourceAgentApplicationId: row.sourceAgentApplicationId,
   })))
   await audit(user.id, 'LIST_ACADEMY_REPRESENTATIVES', 'ALL', `count=${representatives.length}`)
   return NextResponse.json({ representatives })
