@@ -75,14 +75,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const current = await db.academyRepresentative.findFirst({ where: { id, deletedAt: null } })
   if (!current) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
   const data = dataFromBody(body)
-  if (!data.fullName || !data.country || !data.region) {
+  const fullName = data.fullName
+  const country = data.country
+  const region = data.region
+  if (!fullName || !country || !region) {
     return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'الاسم والدولة والمنطقة الجغرافية مطلوبة.' }, { status: 400 })
   }
-  const slug = await uniqueSlug(String(body.slug || data.fullName), id)
+  const slug = await uniqueSlug(String(body.slug || fullName), id)
   const updated = await db.academyRepresentative.update({
     where: { id },
     data: {
       ...data,
+      fullName,
+      country,
+      region,
       slug,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
       verifyEmailLast4Hash: hashRepresentativeVerifier(data.email),
