@@ -1708,6 +1708,7 @@ function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
       <div className="flex flex-wrap items-center gap-2">
         <Badge className="bg-blue-600 text-white hover:bg-blue-600">تشخيص معرفة الذكاء</Badge>
         {scopeLabel && <Badge variant="outline" className="bg-white text-[10px] font-black text-[#0f2b46]">{scopeLabel}</Badge>}
+        {sourceLabel && <Badge variant="outline" className="bg-white text-[10px] font-black text-blue-700">{sourceLabel}</Badge>}
         {reasonLabel && <span className="text-[11px] font-bold text-blue-700">{reasonLabel}</span>}
       </div>
       <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-700 sm:grid-cols-4">
