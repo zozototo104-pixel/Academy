@@ -71,9 +71,58 @@ function formatBooksForProgram(program: any): string {
     const titleEn = book?.titleEn && book.titleEn !== title ? ` (${book.titleEn})` : ''
     const author = book?.author ? ` — ${book.author}` : ''
     const semester = book?.semester ? ` — فصل ${book.semester}` : ''
-    const description = book?.description ? ` — ${compactText(book.description, 120)}` : ''
-    return `${index + 1}. «${title}»${titleEn}${author}${semester}${description}`
+    const description = book?.description ? ` — وصف الكتاب: ${compactText(book.description, 180)}` : ''
+    const readingDepth = book?.readingDepth ? `\n   طريقة القراءة المناسبة: ${compactText(book.readingDepth, 240)}` : ''
+    const assessment = book?.assessmentOrientation ? `\n   كيف يدخل في التقييم: ${compactText(book.assessmentOrientation, 240)}` : ''
+    const levelPolicy = book?.levelPolicy ? `\n   سياسة المستوى: ${compactText(book.levelPolicy, 200)}` : ''
+    const extracted = book?.textContent ? `\n   مقتطف محدود من النص المستخرج: ${compactText(book.textContent, 520)}` : ''
+    const knowledge = Array.isArray(book?.knowledgeItems) && book.knowledgeItems.length
+      ? `\n   عناصر معرفة مرتبطة بهذا الكتاب: ${book.knowledgeItems.slice(0, 6).map((k: any) => `${k.title}: ${compactText(k.summary || k.excerpt, 170)}`).join(' | ')}`
+      : ''
+    return `${index + 1}. «${title}»${titleEn}${author}${semester}${description}${readingDepth}${assessment}${levelPolicy}${extracted}${knowledge}`
   }).join('\n')
+}
+
+function formatStudyGuides(program: any): string {
+  const guides = Array.isArray(program?.studyGuides) ? program.studyGuides : []
+  if (!guides.length) return ''
+  return guides.slice(0, 6).map((guide: any, i: number) => {
+    const objectives = guide.objectives ? ` — الأهداف: ${compactText(guide.objectives, 240)}` : ''
+    const terms = guide.keyTerms ? ` — مصطلحات: ${compactText(guide.keyTerms, 180)}` : ''
+    const sections = guide.sections ? ` — المحاور: ${compactText(guide.sections, 260)}` : ''
+    const activities = guide.activities ? ` — أنشطة قراءة: ${compactText(guide.activities, 220)}` : ''
+    const discussions = guide.discussionQuestions ? ` — أسئلة نقاش: ${compactText(guide.discussionQuestions, 220)}` : ''
+    return `${i + 1}. ${guide.title} — فصل ${guide.semester}: ${compactText(guide.overview, 280)}${objectives}${terms}${sections}${activities}${discussions}`
+  }).join('\n')
+}
+
+function formatProgramKnowledge(program: any): string {
+  const items = Array.isArray(program?.knowledgeItems) ? program.knowledgeItems : []
+  if (!items.length) return ''
+  return items.slice(0, 18).map((item: any, i: number) => {
+    const book = item.book?.title ? ` — من كتاب: ${item.book.title}` : ''
+    const importance = item.importance != null ? ` — أهمية ${item.importance}/100` : ''
+    const excerpt = item.excerpt ? ` — مقتطف: ${compactText(item.excerpt, 180)}` : ''
+    return `${i + 1}. [${item.category || 'CONCEPT'}] ${item.title}: ${compactText(item.summary, 240)}${book}${importance}${excerpt}`
+  }).join('\n')
+}
+
+function formatExamReadingSignals(program: any): string {
+  const bankItems = Array.isArray(program?.questionBankItems) ? program.questionBankItems : []
+  const exams = Array.isArray(program?.programExams) ? program.programExams : []
+  const signals: string[] = []
+  for (const item of bankItems.slice(0, 16)) {
+    const source = item.sourceBookTitle || item.book?.title || item.knowledgeItem?.title || item.unit?.title || 'مصدر غير محدد'
+    signals.push(`- مصدر/محور: ${source}${item.sourceLocator ? ` — موضع: ${item.sourceLocator}` : ''}${item.cognitiveSkill ? ` — مهارة: ${item.cognitiveSkill}` : ''}${item.difficulty ? ` — صعوبة: ${item.difficulty}` : ''}${item.sourceEvidence ? ` — دليل دراسي: ${compactText(item.sourceEvidence, 170)}` : ''}`)
+  }
+  for (const exam of exams.slice(0, 6)) {
+    const qSignals = Array.isArray(exam.questions) ? exam.questions.slice(0, 8).map((q: any) => {
+      const source = q.sourceBookTitle || q.sourceChapter || q.sourceLocator || q.sourceEvidence || q.type || 'مؤشر سؤال'
+      return `${compactText(source, 150)}${q.cognitiveSkill ? ` / ${q.cognitiveSkill}` : ''}${q.difficulty ? ` / ${q.difficulty}` : ''}`
+    }).join(' | ') : ''
+    signals.push(`- امتحان ${exam.title} — فصل ${exam.semester} — كتب مستخدمة: ${exam.booksUsed || 'غير محددة'}${qSignals ? ` — مؤشرات الأسئلة: ${qSignals}` : ''}`)
+  }
+  return signals.length ? signals.join('\n') : ''
 }
 
 function formatProgramCatalog(programs: any[]): string {
