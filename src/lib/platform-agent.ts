@@ -954,7 +954,7 @@ export async function platformAgentComplete(opts: {
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = user.role === 'ADMIN' ? 'ADMIN_ASSISTANT' : 'HUMAN_SUPERVISOR'
     const directBooksResult = await buildScopedDirectProgramBooksResult(last, scope).catch(() => null)
-    if (directBooksResult?.diagnostics?.returnedReply) {
+    if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
       await auditAiKnowledgeDiagnostics({
         actorId: opts.userId,
         actorName: user.role === 'ADMIN' ? 'إدارة النظام' : 'مشرف بشري',
