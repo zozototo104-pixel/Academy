@@ -223,7 +223,22 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
             include: {
               books: {
                 orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
-                select: { title: true, titleEn: true, author: true, semester: true, description: true, textContent: true },
+                select: {
+                  title: true,
+                  titleEn: true,
+                  author: true,
+                  semester: true,
+                  description: true,
+                  textContent: true,
+                  readingDepth: true,
+                  assessmentOrientation: true,
+                  levelPolicy: true,
+                  knowledgeItems: {
+                    orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }],
+                    take: 8,
+                    select: { title: true, summary: true, excerpt: true, category: true, importance: true },
+                  },
+                },
               },
               units: {
                 orderBy: [{ semester: 'asc' }, { order: 'asc' }],
