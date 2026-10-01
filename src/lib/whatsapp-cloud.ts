@@ -152,11 +152,18 @@ export function buildOfficialWhatsAppImmediateGreeting(message: WhatsAppInboundM
   return `أهلاً وسهلاً بك ${displayName} في الأكاديمية الأمريكية للاستشارات والتدريب.\nأنا هنا لمساعدتك في أي شيء يخص المنصة التعليمية AACT، وسأجهز لك الرد المناسب الآن.`
 }
 
-export async function sendOfficialWhatsAppTypingIndicator(message: WhatsAppInboundMessage) {
+async function sendOfficialWhatsAppMessageStatus(message: WhatsAppInboundMessage, includeTyping: boolean) {
   const config = getWhatsAppCloudConfig(message.phoneNumberId)
   if (!config) {
     throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
   }
+
+  const body: any = {
+    messaging_product: 'whatsapp',
+    status: 'read',
+    message_id: message.id,
+  }
+  if (includeTyping) body.typing_indicator = { type: 'text' }
 
   const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
     method: 'POST',
@@ -164,21 +171,24 @@ export async function sendOfficialWhatsAppTypingIndicator(message: WhatsAppInbou
       Authorization: `Bearer ${config.accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      status: 'read',
-      message_id: message.id,
-      typing_indicator: { type: 'text' },
-    }),
+    body: JSON.stringify(body),
   })
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.error?.code || `WhatsApp typing indicator failed with status ${response.status}`
+    const errorMessage = data?.error?.message || data?.error?.code || `WhatsApp message status failed with status ${response.status}`
     throw new Error(String(errorMessage).slice(0, 500))
   }
 
   return data
+}
+
+export async function sendOfficialWhatsAppReadReceipt(message: WhatsAppInboundMessage) {
+  return sendOfficialWhatsAppMessageStatus(message, false)
+}
+
+export async function sendOfficialWhatsAppTypingIndicator(message: WhatsAppInboundMessage) {
+  return sendOfficialWhatsAppMessageStatus(message, true)
 }
 
 export async function sendOfficialWhatsAppText(to: string, text: string, options?: { phoneNumberId?: string; replyToMessageId?: string }) {
