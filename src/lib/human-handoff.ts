@@ -152,11 +152,100 @@ export function looksLikeHumanHandoffDetails(message: string) {
   const raw = String(message || '').trim()
   const n = normalizeArabic(raw)
   if (raw.length < 8) return false
+  if (looksLikeQuestion(raw)) return false
   if (wantsHumanSupport(raw) && raw.length >= 24) return true
   if (includesAny(n, ['اسمي', 'انا اسمي', 'الاسم', 'اسمي هو', 'انا اسمي هو'])) return true
   if (includesAny(n, ['موضوعي', 'الموضوع', 'بخصوص', 'بشان', 'بشأن', 'خصوص التسجيل', 'خصوص الدفع', 'خصوص الرسوم'])) return true
-  if (looksLikeQuestion(raw)) return false
   return raw.length >= 28
+}
+
+type HumanHandoffIntentDecision = {
+  wantsHumanSupport: boolean
+  isHandoffDetails: boolean
+  isAcademicOrServiceQuestion: boolean
+  confidence: number
+  reason?: string
+}
+
+function parseJsonObject(text: string): any | null {
+  const raw = String(text || '').trim()
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch {}
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try { return JSON.parse(match[0]) } catch { return null }
+}
+
+function normalizeConfidence(value: unknown) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(1, n))
+}
+
+function fallbackHumanHandoffIntent(message: string, context?: { promptActive?: boolean }): HumanHandoffIntentDecision {
+  const wants = wantsHumanSupport(message)
+  const question = looksLikeQuestion(message)
+  return {
+    wantsHumanSupport: wants,
+    isHandoffDetails: Boolean(context?.promptActive && !question && looksLikeHumanHandoffDetails(message)),
+    isAcademicOrServiceQuestion: question,
+    confidence: wants ? 0.72 : 0.35,
+    reason: 'fallback-rule',
+  }
+}
+
+export async function analyzeHumanHandoffIntent(message: string, context?: {
+  promptActive?: boolean
+  handoffOpen?: boolean
+  recentMessages?: Array<{ role: string; content: string }>
+}) {
+  const raw = String(message || '').trim()
+  const fallback = fallbackHumanHandoffIntent(raw, context)
+  if (!raw) return fallback
+  const ready = await ensureGeminiKey().catch(() => false)
+  if (!ready) return fallback
+  try {
+    const recent = (context?.recentMessages || []).slice(-8).map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || '').slice(0, 700),
+    }))
+    const result = await geminiCompleteJson({
+      system: [
+        'أنت مصنّف نية دلالي لمحادثة واتساب في منصة أكاديمية. لا تكتب رداً للمستخدم؛ أرجع JSON فقط.',
+        'حلل الرسالة الأخيرة ضمن سياق المحادثة، ولا تعتمد على كلمة منفردة مثل بخصوص أو دعم أو موظف دون فهم الجملة.',
+        'wantsHumanSupport=true فقط إذا كان المستخدم يريد بوضوح نقله إلى إنسان/خدمة عملاء/دعم فني/إدارة/موظف يتابع معه.',
+        'isHandoffDetails=true فقط إذا كان المستخدم يكتب اسمه وموضوعه/بياناته بعد أن طُلب منه ذلك، وليس إذا كان يسأل سؤالاً معرفياً أو أكاديمياً.',
+        'إذا كانت الرسالة سؤالاً عن البرامج أو التخصصات أو الرسوم أو التسجيل أو الشهادات، اجعل isAcademicOrServiceQuestion=true و isHandoffDetails=false حتى لو احتوت كلمة مثل بخصوص.',
+        'أمثلة للفهم فقط لا للحفظ: "حولني للدعم الفني" طلب موظف. "طيب بخصوص الماجستير شو التخصصات الموجودة" سؤال أكاديمي وليس تفاصيل تحويل.',
+        'أرجع JSON بالشكل: {"wantsHumanSupport":boolean,"isHandoffDetails":boolean,"isAcademicOrServiceQuestion":boolean,"confidence":0.0,"reason":"..."}',
+      ].join('\n'),
+      history: [{
+        role: 'user',
+        text: JSON.stringify({
+          promptActive: Boolean(context?.promptActive),
+          handoffOpen: Boolean(context?.handoffOpen),
+          recentMessages: recent,
+          lastMessage: raw,
+        }, null, 2),
+      }],
+      temperature: 0,
+      maxOutputTokens: 400,
+    })
+    const parsed = parseJsonObject(result)
+    if (!parsed) return fallback
+    const decision: HumanHandoffIntentDecision = {
+      wantsHumanSupport: Boolean(parsed.wantsHumanSupport),
+      isHandoffDetails: Boolean(parsed.isHandoffDetails),
+      isAcademicOrServiceQuestion: Boolean(parsed.isAcademicOrServiceQuestion),
+      confidence: normalizeConfidence(parsed.confidence),
+      reason: String(parsed.reason || '').slice(0, 220) || undefined,
+    }
+    if (decision.isAcademicOrServiceQuestion) decision.isHandoffDetails = false
+    return decision
+  } catch (error: any) {
+    console.warn('human handoff intent analysis failed:', String(error?.message || error).slice(0, 220))
+    return fallback
+  }
 }
 
 export function withHumanHandoffActiveNote(reply: string) {
