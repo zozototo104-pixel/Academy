@@ -114,6 +114,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       rawBio: updated.rawBio,
       aiRewriteStatus: updated.aiRewriteStatus,
       aiRewriteNote: updated.aiRewriteNote,
+      onboardingStatus: updated.onboardingStatus,
+      onboardingSubmittedAt: updated.onboardingSubmittedAt,
+      sourceAgentApplicationId: updated.sourceAgentApplicationId,
     },
   })
 }
