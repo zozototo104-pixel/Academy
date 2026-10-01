@@ -68,7 +68,7 @@ export function AdminWhatsAppInboxTab() {
 
   const activeConversation = selected || conversations.find((c) => c.id === selectedId) || null
 
-  async function loadList(options?: { silent?: boolean }) {
+  async function loadList(options?: { silent?: boolean; preserveSelected?: boolean }) {
     if (!options?.silent) setLoading(true)
     const params = new URLSearchParams()
     if (status !== 'ALL') params.set('status', status)
