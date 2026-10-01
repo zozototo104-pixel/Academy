@@ -339,6 +339,8 @@ export function AIChatView() {
     }
     audioRef.current?.pause()
     try { window.speechSynthesis?.cancel() } catch {}
+    try { agentRef.current?.stop() } catch {}
+    agentRef.current = null
     speechUtteranceRef.current = null
     setSpeakingId(null)
     setVoiceMode(true)
