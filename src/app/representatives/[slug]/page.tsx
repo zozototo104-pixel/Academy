@@ -113,7 +113,12 @@ export default async function RepresentativeProfilePage({ params }: { params: Pr
           <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-6 text-center shadow-xl shadow-slate-200/70">
             <h2 className="text-xl font-black">التحقق من الكرنيه</h2>
             {qr ? <img src={qr} alt="QR" className="mx-auto mt-4 h-40 w-40 rounded-2xl border border-slate-100 bg-white p-2" /> : <p className="mt-4 text-xs font-bold text-slate-500">سيظهر QR بعد اعتماد الممثل من الإدارة.</p>}
-            {rep.qrToken && <Link href={`/representatives/verify/${rep.qrToken}`} className="mt-4 inline-block rounded-full bg-[#0f2b46] px-5 py-3 text-xs font-black text-white">فتح صفحة التحقق</Link>}
+            {rep.qrToken && (
+              <div className="mt-4 flex flex-col gap-2">
+                <Link href={`/representatives/verify/${rep.qrToken}`} className="inline-block rounded-full bg-[#0f2b46] px-5 py-3 text-xs font-black text-white">فتح صفحة التحقق</Link>
+                <a href={`/representatives/qr/${rep.qrToken}`} target="_blank" rel="noopener noreferrer" className="inline-block rounded-full border border-[#0f2b46]/15 bg-white px-5 py-3 text-xs font-black text-[#0f2b46]">فتح QR كصورة قابلة للمسح</a>
+              </div>
+            )}
           </div>
           <Link href="/representatives" className="block rounded-full border border-[#0f2b46]/15 bg-white px-5 py-3 text-center text-sm font-black text-[#0f2b46]">العودة إلى جميع الممثلين</Link>
         </aside>
