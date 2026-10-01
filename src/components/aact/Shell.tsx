@@ -291,6 +291,97 @@ function NotificationBell() {
     setItems((prev) => prev.map((n) => ({ ...n, read: true })))
   }
 
+  const normalizeForRoute = (value: string) => value.toLowerCase().replace(/أ|إ|آ/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+
+  const adminTabForNotification = (n: Notif, params?: URLSearchParams) => {
+    const explicit = params?.get('tab') || params?.get('adminTab') || params?.get('section')
+    if (explicit) return explicit
+    const text = normalizeForRoute(`${n.type || ''} ${n.title || ''} ${n.body || ''} ${n.link || ''}`)
+    if (text.includes('whatsapp') || text.includes('واتساب') || text.includes('محادث')) return 'whatsapp-inbox'
+    if (text.includes('رسائل التواصل') || text.includes('طلب تواصل') || text.includes('contact message')) return 'messages'
+    if (text.includes('دفع') || text.includes('مالي') || text.includes('فاتور') || n.type === 'PAYMENT') return 'finance'
+    if (text.includes('شهاد') || n.type === 'CERTIFICATE') return 'certs'
+    if (text.includes('بحث') || text.includes('مناقش') || n.type === 'THESIS' || n.type === 'DEFENSE') return 'thesis'
+    if (text.includes('وكال') || text.includes('اعتماد') || n.type === 'AGENT') return 'agents'
+    if (text.includes('اختبار') || text.includes('امتحان') || n.type === 'ASSIGNMENT') return 'attempts'
+    if (text.includes('قبول') || text.includes('التحاق') || n.type === 'ADMISSION') return 'admissions'
+    return null
+  }
+
+  const dispatchAdminTab = (tab: string | null, detail: Record<string, any> = {}) => {
+    if (!tab) return
+    ;[80, 250, 600, 1100].forEach((delay) => {
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { ...detail, tab } }))
+      }, delay)
+    })
+  }
+
+  const routeNotificationLink = (n: Notif) => {
+    const rawLink = String(n.link || '').trim()
+    const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
+
+    if (rawLink) {
+      const url = new URL(rawLink, window.location.origin)
+      if (url.origin !== window.location.origin) {
+        window.location.assign(rawLink)
+        return true
+      }
+      const params = url.searchParams
+      const parts = url.pathname.split('/').filter(Boolean).map((p) => decodeURIComponent(p))
+      const legacyView = params.get('view') || ''
+      const first = parts[0] || ''
+      const second = parts[1] || ''
+      const third = parts[2] || ''
+      const routeParams = Object.fromEntries(params.entries())
+
+      if (first === 'admin' && second === 'students' && third) {
+        navigate('student-preview' as any, { studentId: third })
+        return true
+      }
+      if (first === 'admin' && second === 'agents' && third) {
+        navigate('agent-preview' as any, { agentId: third })
+        return true
+      }
+      if (first === 'dashboard' && second === 'program' && third) {
+        navigate('dashboard' as any, { ...routeParams, programId: third })
+        return true
+      }
+      if (first === 'programs' && second) {
+        navigate('program-detail' as any, { program: second })
+        return true
+      }
+
+      const view = viewLinks.has(legacyView) ? legacyView : viewLinks.has(first) ? first : rawLink.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#&]/)[0]
+      if (viewLinks.has(view)) {
+        navigate(view as any, routeParams)
+        if (view === 'admin') dispatchAdminTab(adminTabForNotification(n, params), routeParams)
+        return true
+      }
+
+      if (rawLink.startsWith('/') || rawLink.startsWith('?')) {
+        window.location.assign(rawLink)
+        return true
+      }
+    }
+
+    const adminTab = user?.role === 'ADMIN' ? adminTabForNotification(n) : null
+    if (adminTab) {
+      navigate('admin' as any)
+      dispatchAdminTab(adminTab)
+      return true
+    }
+    if (user?.role === 'SUPERVISOR') {
+      navigate('supervisor' as any)
+      return true
+    }
+    if (user?.role === 'STUDENT') {
+      navigate('dashboard' as any)
+      return true
+    }
+    return false
+  }
+
   const openNotification = async (n: Notif) => {
     setOpen(false)
     if (!n.read) {
@@ -298,17 +389,7 @@ function NotificationBell() {
       setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item))
       api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch(() => {})
     }
-    const link = String(n.link || '').trim()
-    if (!link) return
-    const clean = link.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#]/)[0]
-    const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
-    if (viewLinks.has(clean)) {
-      navigate(clean as any)
-      return
-    }
-    if (/^https?:\/\//.test(link) || link.startsWith('/') || link.startsWith('?')) {
-      window.location.assign(link)
-    }
+    try { routeNotificationLink(n) } catch {}
   }
 
   return (
