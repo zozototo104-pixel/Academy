@@ -421,6 +421,53 @@ function scoreCatalogProgram(program: any, query?: string | null): number {
   return tokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0)
 }
 
+function asksAboutProgramBooks(query?: string | null) {
+  const raw = String(query || '').toLowerCase()
+  const n = normalizeArabic(query || '')
+  const asksBooks = includesAny(n, ['كتب', 'الكتب', 'كتاب', 'مراجع', 'المراجع', 'منهاج', 'منهج', 'مواد', 'مقرره', 'مقررة', 'المقرره', 'المقررة']) || /book|books|bibliography|curriculum|syllabus|libros|livros/.test(raw)
+  const asksProgram = includesAny(n, ['برنامج', 'برامج', 'تخصص', 'تخصصات', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'دبلوم', 'بكالوريوس']) || /program|degree|major|specialization|master|masters|maestr|mestrado|maestrado|doctor|doctorate|phd|diploma|bachelor/.test(raw)
+  return asksBooks && asksProgram
+}
+
+async function buildDirectProgramBooksReply(query?: string | null) {
+  if (!asksAboutProgramBooks(query)) return null
+  const programs = await db.program.findMany({
+    orderBy: [{ active: 'desc' }, { order: 'asc' }, { titleAr: 'asc' }],
+    take: 160,
+    select: {
+      titleAr: true,
+      titleEn: true,
+      category: true,
+      active: true,
+      books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 30, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
+      units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 12, select: { title: true, semester: true, status: true } },
+    },
+  }).catch(() => [])
+  if (!programs.length) return null
+
+  const scored = (programs as any[])
+    .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
+    .sort((a, b) => (b.score - a.score) || Number(b.program.active) - Number(a.program.active) || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
+  const focused = scored.filter((item) => item.score > 0).slice(0, 10)
+  const selected = focused.length ? focused : scored.slice(0, 12)
+
+  const lines = selected.map(({ program }, index) => {
+    const books = program.books?.length
+      ? program.books.map((b: any, bookIndex: number) => `${bookIndex + 1}. ${b.title}${b.titleEn ? ` (${b.titleEn})` : ''}${b.author ? ` — ${b.author}` : ''}${b.semester ? ` — فصل ${b.semester}` : ''}${b.description ? ` — ${compactText(b.description, 140)}` : ''}`).join('\n')
+      : 'لا توجد كتب مسجلة لهذا البرنامج في قاعدة البيانات.'
+    const units = program.units?.length ? `\nالوحدات المسجلة: ${program.units.map((u: any) => `${u.title}${u.semester ? ` / فصل ${u.semester}` : ''}`).join('، ')}` : ''
+    return `${index + 1}. ${program.titleAr}${program.titleEn ? ` (${program.titleEn})` : ''} — ${program.category}${program.active ? '' : ' — غير نشط'}\nالكتب المسجلة حرفياً:\n${books}${units}`
+  })
+
+  return [
+    'حسب قاعدة بيانات المنصة الحالية، هذه الكتب/المراجع المسجلة للبرامج المطابقة لسؤالك:',
+    '',
+    lines.join('\n\n'),
+    '',
+    'إذا كنت تقصد برنامج ماجستير محدد بالاسم، اذكر اسمه وسأعرض كتبه فقط من نفس قاعدة البيانات.',
+  ].join('\n')
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'بكالوريوس', 'بكلوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
