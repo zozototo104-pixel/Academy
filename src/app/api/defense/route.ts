@@ -505,7 +505,7 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
       .join('\n')
     if (`${dialog} ${latest}`.length < 45) return null
 
-    const rag = await buildSupervisorContext(userId)
+    const rag = await buildSupervisorContext(userId, { scope: 'DEFENSE_EXAMINER', query: `${title} ${latest}` })
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
       messages: [
