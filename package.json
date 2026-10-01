@@ -10,6 +10,7 @@
     "quality": "bun run typecheck",
     "check:deploy": "bun run quality && bun run build",
     "lint": "eslint .",
+    "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "db:push": "tsx scripts/prisma-deploy.ts --push",
     "db:force-push": "tsx scripts/prisma-deploy.ts --force-push",
     "db:deploy": "tsx scripts/prisma-deploy.ts --migrate",
