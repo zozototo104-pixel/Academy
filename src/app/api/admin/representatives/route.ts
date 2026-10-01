@@ -97,14 +97,20 @@ export async function POST(req: NextRequest) {
   const user = await requireAdmin()
   const body = await req.json().catch(() => ({}))
   const data = dataFromBody(body)
-  if (!data.fullName || !data.country || !data.region) {
+  const fullName = data.fullName
+  const country = data.country
+  const region = data.region
+  if (!fullName || !country || !region) {
     return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'الاسم والدولة والمنطقة الجغرافية مطلوبة.' }, { status: 400 })
   }
-  const slug = await uniqueSlug(String(body.slug || data.fullName))
+  const slug = await uniqueSlug(String(body.slug || fullName))
   const qrToken = createRepresentativeQrToken()
   const created = await db.academyRepresentative.create({
     data: {
       ...data,
+      fullName,
+      country,
+      region,
       slug,
       qrToken,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
