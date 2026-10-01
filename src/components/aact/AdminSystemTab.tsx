@@ -78,8 +78,20 @@ interface BackupRunResult {
   tables: number
   counts: Record<string, number>
   errors: Array<{ table: string; error: string }>
-  storage: { provider: string; key: string; url: string; size: number; mimeType: string }
-  checksum: { sha256: string; uncompressedSha256: string; uncompressedBytes: number; compressedBytes: number }
+  encrypted?: boolean
+  storage: { provider: string; key: string; size: number; mimeType: string; url?: string }
+  checksum: { sha256: string; uncompressedSha256?: string; uncompressedBytes?: number; compressedBytes?: number; encryptedSha256?: string; encryptedBytes?: number }
+}
+
+interface BackupInspectResult {
+  ok: boolean
+  mode: 'inspect' | 'restore'
+  encrypted?: boolean
+  storage?: { provider: string; key: string; size: number; mimeType: string }
+  meta?: Record<string, unknown> | null
+  tables?: Array<{ name: string; rows?: number; expected?: number; mismatch?: boolean }>
+  results?: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }>
+  errors?: Array<{ table: string; error?: string }>
 }
 
 interface SystemData {
