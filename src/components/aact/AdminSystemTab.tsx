@@ -1005,6 +1005,22 @@ export function AdminSystemTab() {
               <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-relaxed text-emerald-800">
                 آخر نسخة الآن: {lastBackup.fileName} · {(lastBackup.storage.size / 1024 / 1024).toFixed(2)} MB · SHA256: <span className="font-mono" dir="ltr">{lastBackup.checksum.sha256.slice(0, 16)}…</span>
                 <div className="mt-2 break-all rounded-lg bg-white/70 p-2 font-mono text-[10px] text-emerald-900" dir="ltr">{lastBackup.storage.key}</div>
+                {['ProgramExam', 'ProgramQuestion', 'QuestionBankItem', 'Exam', 'Question'].some((key) => typeof lastBackup.counts?.[key] === 'number') && (
+                  <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-5">
+                    {[
+                      ['ProgramExam', 'امتحانات البرامج'],
+                      ['ProgramQuestion', 'أسئلة امتحانات البرامج'],
+                      ['QuestionBankItem', 'بنك الأسئلة'],
+                      ['Exam', 'امتحانات الوحدات'],
+                      ['Question', 'أسئلة الوحدات'],
+                    ].map(([key, label]) => (
+                      <div key={key} className="rounded-lg bg-white/80 px-2 py-1 text-center text-[10px] text-emerald-900">
+                        <div>{label}</div>
+                        <div className="font-mono text-xs" dir="ltr">{lastBackup.counts?.[key] ?? 0}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-3">
