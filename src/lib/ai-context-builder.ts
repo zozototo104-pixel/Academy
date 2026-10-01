@@ -213,6 +213,7 @@ export async function buildScopedDirectProgramBooksResult(query: string, scope: 
     .sort((a, b) => (b.score - a.score) || Number(b.hasBooks) - Number(a.hasBooks) || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
   const matched = scored.filter((item) => item.score > 0)
   const matchedWithBooks = matched.filter((item) => item.hasBooks)
+  const effectiveMatched = matchedWithBooks.length ? matchedWithBooks : matched
   const selected = (matchedWithBooks.length ? matchedWithBooks : matched.length ? matched : scored.filter((item) => item.hasBooks)).slice(0, 10)
 
   const diagnosticsBase: AiKnowledgeDiagnostics = {
@@ -220,7 +221,7 @@ export async function buildScopedDirectProgramBooksResult(query: string, scope: 
     scope,
     query,
     totalPrograms: programs.length,
-    matchedPrograms: matched.length,
+    matchedPrograms: effectiveMatched.length,
     matchedProgramsWithBooks: matchedWithBooks.length,
     selectedPrograms: selected.map((item) => ({
       titleAr: item.program.titleAr,
