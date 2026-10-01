@@ -249,7 +249,7 @@ export async function PATCH(req: NextRequest) {
       }).catch(() => null)
       const onboardingToken = existingRep?.onboardingToken || `repr_on_${randomBytes(24).toString('base64url')}`
       const slug = existingRep?.slug || await uniqueRepresentativeSlug(`${app.repName}-${app.country}`, existingRep?.id)
-      const representativeData = {
+      const representativeBaseData = {
         sourceAgentApplicationId: app.id,
         sourceUserId: effectiveSubmitter?.id || app.userId || null,
         status: existingRep?.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT',
@@ -268,17 +268,16 @@ export async function PATCH(req: NextRequest) {
         whatsapp: app.phone,
         verifyPhoneLast4Hash: hashRepresentativeVerifier(app.phone),
         verifyEmailLast4Hash: hashRepresentativeVerifier(app.email),
-        qrToken: createRepresentativeQrToken(),
         updatedById: admin.id,
       }
       const representative = existingRep
         ? await db.academyRepresentative.update({
             where: { id: existingRep.id },
-            data: { ...representativeData, slug, qrToken: undefined, createdById: undefined },
+            data: { ...representativeBaseData, slug },
             select: { id: true, onboardingToken: true },
           })
         : await db.academyRepresentative.create({
-            data: { ...representativeData, slug, createdById: admin.id },
+            data: { ...representativeBaseData, slug, qrToken: createRepresentativeQrToken(), createdById: admin.id },
             select: { id: true, onboardingToken: true },
           })
       if (representative.onboardingToken) representativeOnboardingLink = representativeOnboardingUrl(representative.onboardingToken)
