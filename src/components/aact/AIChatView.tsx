@@ -637,7 +637,7 @@ export function AIChatView() {
             )}
             {showTimings && timings.length > 0 && <div dir="ltr" className="rounded-xl bg-black/40 px-4 py-3 font-mono text-[10px] leading-relaxed text-emerald-300">{timings.map((t) => <div key={t.event}>{t.event.padEnd(22, ' ')} +{t.atMs}ms</div>)}</div>}
           </div>
-          <div className="flex items-center justify-center gap-4 px-6 pb-10 pt-4">
+          <div className="shrink-0 flex items-center justify-center gap-4 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3">
             <button onClick={toggleMute} aria-label={muted ? 'إلغاء الكتم' : 'كتم المايك'} className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${muted ? 'border-white/20 bg-white/10 text-white/60' : 'border-white/30 bg-white/15 text-white hover:bg-white/25'}`}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
             <button onClick={toggleVoiceMode} aria-label="إنهاء المحادثة الصوتية" className="flex h-16 w-16 items-center justify-center rounded-full bg-[#b22234] text-white shadow-2xl transition-all hover:bg-[#c9333f] active:scale-95"><PhoneOff className="h-6 w-6" /></button>
             <button onClick={() => setShowCaptions(!showCaptions)} aria-label="إظهار/إخفاء التسميات" className={`flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${showCaptions ? 'border-white/30 bg-white/15 text-white hover:bg-white/25' : 'border-white/20 bg-transparent text-white/50'}`}><Captions className="h-5 w-5" /></button>
