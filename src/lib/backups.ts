@@ -46,6 +46,8 @@ const BACKUP_TABLES: BackupTableSpec[] = [
   { name: 'DefenseMessage', delegate: 'defenseMessage' },
   { name: 'AgentApplication', delegate: 'agentApplication' },
   { name: 'AgentDocument', delegate: 'agentDocument' },
+  { name: 'AcademyRepresentative', delegate: 'academyRepresentative' },
+  { name: 'AcademyRepresentativeFile', delegate: 'academyRepresentativeFile' },
   { name: 'RevenueShareTransaction', delegate: 'revenueShareTransaction' },
   { name: 'AdmissionApplication', delegate: 'admissionApplication' },
   { name: 'TuitionInstallmentAppeal', delegate: 'tuitionInstallmentAppeal' },
