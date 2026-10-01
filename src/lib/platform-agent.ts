@@ -721,28 +721,6 @@ async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promi
   }
 }
 
-async function buildSupervisorSnapshot(userId: string): Promise<string> {
-  try {
-    const rows = await db.admissionApplication.findMany({
-      where: { supervisorId: userId },
-      orderBy: [{ supervisorAt: 'desc' }, { createdAt: 'desc' }],
-      take: 25,
-      select: {
-        reference: true,
-        fullName: true,
-        program: true,
-        status: true,
-        thesisDeadline: true,
-        theses: { orderBy: { updatedAt: 'desc' }, take: 3, select: { title: true, status: true, updatedAt: true } },
-      },
-    })
-    if (!rows.length) return 'لا يوجد طلاب معيّنون لهذا المشرف حالياً.'
-    return `طلاب المشرف البشري المعيّنون له:\n${rows.map((r) => `- ${r.fullName} (${r.reference}) — ${r.program} — ${r.status}${r.thesisDeadline ? ` — مهلة البحث ${new Date(r.thesisDeadline).toLocaleDateString('ar-EG')}` : ''}${r.theses.length ? ` — أبحاث: ${r.theses.map((t) => `${t.title}/${t.status}`).join(' | ')}` : ''}`).join('\n')}`
-  } catch {
-    return ''
-  }
-}
-
 async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query?: string | null): Promise<string> {
   const user = await db.user.findUnique({
     where: { id: userId },
