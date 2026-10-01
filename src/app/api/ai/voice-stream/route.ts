@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { getZAI } from '@/lib/ai'
+import { buildScopedDirectProgramBooksResult } from '@/lib/ai-context-builder'
+import type { AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt, buildInterruptNote } from '@/lib/voicePrompt'
 
