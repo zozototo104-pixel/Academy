@@ -624,6 +624,49 @@ async function buildAdminSnapshot(query?: string | null): Promise<string> {
   }
 }
 
+async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promise<string> {
+  try {
+    const programCatalog = await db.program.findMany({
+      where: { active: true },
+      orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+      take: 120,
+      select: {
+        titleAr: true,
+        titleEn: true,
+        category: true,
+        active: true,
+        hours: true,
+        price: true,
+        description: true,
+        academicReadinessStatus: true,
+        registrationStatus: true,
+        books: { orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], take: 20, select: { title: true, titleEn: true, author: true, semester: true, description: true } },
+        units: { orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 12, select: { title: true, semester: true, status: true, summary: true } },
+        assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 8, select: { title: true, type: true, semester: true, points: true } },
+        programExams: { orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }], take: 8, select: { title: true, semester: true, status: true, passScore: true, booksUsed: true } },
+        _count: { select: { books: true, units: true, knowledgeItems: true, questionBankItems: true, assignments: true, programExams: true, enrollments: true } },
+      },
+    }).catch(() => [])
+
+    if (!programCatalog.length) return ''
+    const scored = (programCatalog as any[])
+      .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
+      .sort((a, b) => (b.score - a.score) || String(a.program.category || '').localeCompare(String(b.program.category || ''), 'ar') || String(a.program.titleAr || '').localeCompare(String(b.program.titleAr || ''), 'ar'))
+    const focused = scored.filter((item) => item.score > 0).slice(0, 10)
+    const general = scored.slice(0, 28).map((item) => item.program)
+    const focusedLines = focused.map((item, index) => `مطابقة ${index + 1} — درجة المطابقة ${item.score}\n${formatAdminProgramLine(item.program, index)}`)
+    const generalLines = general.map((p, i) => formatAdminProgramLine(p, i))
+    return [
+      'فهرس أكاديمي رسمي من قاعدة بيانات المنصة للبرامج النشطة والكتب والوحدات. عند سؤال المشرف عن كتب/تخصصات/منهاج برنامج، ابدأ من هذا الفهرس واذكر أسماء الكتب المسجلة حرفياً ولا تخترع كتباً.',
+      focusedLines.length ? `مطابقات مباشرة للسؤال الحالي "${compactText(query, 180)}":\n${focusedLines.join('\n\n')}` : '',
+      generalLines.length ? `فهرس عام للبرامج النشطة:\n${generalLines.join('\n\n')}` : '',
+    ].filter(Boolean).join('\n\n').slice(0, 30000)
+  } catch (error: any) {
+    console.error('academic catalog snapshot error:', String(error?.message || error).slice(0, 400))
+    return ''
+  }
+}
+
 async function buildSupervisorSnapshot(userId: string): Promise<string> {
   try {
     const rows = await db.admissionApplication.findMany({
