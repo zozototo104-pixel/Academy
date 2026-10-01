@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       settingKey: 'USDT_BINANCE_PAY_QR_IMAGE_URL',
-      url: stored.url,
+      url: appQrUrl,
       storage: {
         provider: stored.provider,
         key: stored.key,
