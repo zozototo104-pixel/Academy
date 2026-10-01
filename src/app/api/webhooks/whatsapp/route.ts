@@ -2,12 +2,11 @@ import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
+  analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
   hasOpenHumanHandoffRequest,
   HUMAN_HANDOFF_CONFIRMATION_REPLY,
   HUMAN_SUPPORT_REPLY,
-  looksLikeHumanHandoffDetails,
-  wantsHumanSupport,
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import {
