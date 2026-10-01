@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
   const setupVariant = cleanVariant(body.setupVariant)
-  const liveScope = knowledgeScopeForLiveSession(user.role, purpose)
+  const liveScope = resolveAiKnowledgeScope({ role: user.role, purpose })
   const liveQuery = String(body.context || '')
   const ragContext = await buildSupervisorContext(user.id, { scope: liveScope, query: liveQuery })
   const extra =
