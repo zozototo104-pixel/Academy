@@ -10,12 +10,6 @@ import { buildVoiceSystemPrompt, buildInterruptNote } from '@/lib/voicePrompt'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-function knowledgeScopeForVoiceStream(role?: string | null): AiKnowledgeScope {
-  if (role === 'ADMIN') return 'ADMIN_ASSISTANT'
-  if (role === 'SUPERVISOR') return 'HUMAN_SUPERVISOR'
-  return 'STUDENT_SUPERVISOR'
-}
-
 async function auditVoiceKnowledgeDiagnostics(args: {
   userId: string
   role?: string | null
