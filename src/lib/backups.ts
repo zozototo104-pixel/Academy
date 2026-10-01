@@ -3,7 +3,7 @@ import { gunzipSync, gzipSync } from 'zlib'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { audit } from '@/lib/notify'
-import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { readStoredFile, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 
 export type BackupTrigger = 'manual-admin' | 'cron' | 'api-secret'
 
