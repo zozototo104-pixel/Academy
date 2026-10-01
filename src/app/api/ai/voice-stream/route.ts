@@ -10,6 +10,30 @@ import { buildVoiceSystemPrompt, buildInterruptNote } from '@/lib/voicePrompt'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
+function knowledgeScopeForVoiceStream(role?: string | null): AiKnowledgeScope {
+  if (role === 'ADMIN') return 'ADMIN_ASSISTANT'
+  if (role === 'SUPERVISOR') return 'HUMAN_SUPERVISOR'
+  return 'STUDENT_SUPERVISOR'
+}
+
+async function auditVoiceKnowledgeDiagnostics(args: {
+  userId: string
+  role?: string | null
+  scope: AiKnowledgeScope
+  diagnostics: any
+}) {
+  await db.auditLog.create({
+    data: {
+      actorId: args.userId,
+      actorName: args.role === 'ADMIN' ? 'إدارة النظام' : args.role === 'SUPERVISOR' ? 'مشرف بشري' : 'مشرف ذكي للطالب',
+      action: 'AI_KNOWLEDGE_DIAGNOSTICS',
+      entity: 'AIKnowledge',
+      entityId: args.userId,
+      details: JSON.stringify({ ...args.diagnostics, role: args.role || null, scope: args.scope, mode: 'VOICE_STREAM' }).slice(0, 3900),
+    },
+  }).catch(() => {})
+}
+
 /**
  * POST /api/ai/voice-stream — بث رد الخبير الصوتي token-by-token (SSE)
  * الأحداث:
