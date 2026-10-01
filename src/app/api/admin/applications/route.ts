@@ -6,6 +6,7 @@ import { nextCertSerial, nextContractNo, nextInvoiceNo, getSettings } from '@/li
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { randomBytes } from 'crypto'
 import { createRepresentativeQrToken, hashRepresentativeVerifier, normalizeRepresentativeSlug } from '@/lib/academy-representatives'
+import { emailRepresentativeOnboardingInvitation } from '@/lib/mailer'
 
 const ACC_TYPE_LABEL: Record<string, string> = {
   COMPANY: 'اعتماد هيئة تدريبية (شركة/مؤسسة/مركز)',
