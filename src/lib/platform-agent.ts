@@ -751,7 +751,10 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   const base = `المستخدم الحالي: ${user.name} — الدور ${user.role} — البريد ${user.email}${user.country ? ` — الدولة ${user.country}` : ''}.`
   const blocks = [base]
 
-  if (user.role === 'ADMIN') blocks.push(await buildAdminSnapshot(query))
+  if (user.role === 'ADMIN') {
+    blocks.push(await buildAdminSnapshot(query))
+    blocks.push(await buildScopedProgramCatalogSnapshot({ scope: 'ADMIN_ASSISTANT', query }).catch(() => ''))
+  }
   if (user.role === 'SUPERVISOR') {
     blocks.push(await buildSupervisorSnapshot(user.id))
     blocks.push(await buildAcademicProgramCatalogSnapshot(query))
