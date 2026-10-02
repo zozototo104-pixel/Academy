@@ -170,16 +170,26 @@ export function SupervisorView() {
   }
 
   const loadDetails = async (admissionId: string) => {
+    const requestId = detailsRequestRef.current + 1
+    detailsRequestRef.current = requestId
     setLoadingDetails(true)
+    setMessages([])
+    setAssessments([])
     try {
-      const [m, a] = await Promise.all([
-        api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${admissionId}`).catch(() => ({ messages: [] })),
-        api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${admissionId}`).catch(() => ({ assessments: [] })),
-      ])
+      const m = await api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${admissionId}`).catch(() => ({ messages: [] }))
+      if (detailsRequestRef.current !== requestId) return
       setMessages(m.messages || [])
-      setAssessments(a.assessments || [])
-    } finally {
       setLoadingDetails(false)
+
+      api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${admissionId}`)
+        .then((a) => {
+          if (detailsRequestRef.current === requestId) setAssessments(a.assessments || [])
+        })
+        .catch(() => {
+          if (detailsRequestRef.current === requestId) setAssessments([])
+        })
+    } finally {
+      if (detailsRequestRef.current === requestId) setLoadingDetails(false)
     }
   }
 
