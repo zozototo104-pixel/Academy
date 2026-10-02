@@ -328,66 +328,12 @@ export async function GET(req: NextRequest) {
     )
     if (verifyLimit) return verifyLimit
 
-    const cert = await db.certificate.findFirst({
-      where: byToken ? { qrToken: token! } : { serial: serial! },
-    })
+    const cert = await findCertificateForVerify(serial, token)
     if (!cert) {
       return NextResponse.json({ valid: false, message: byToken ? 'رابط QR غير صحيح أو لم تعد الشهادة متاحة للتحقق' : 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
     }
-    const program = byToken && cert.program
-      ? await db.program.findFirst({
-          where: { titleAr: cert.program },
-          select: {
-            titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true,
-            units: { orderBy: { order: 'asc' }, select: { order: true, title: true } },
-            books: { orderBy: { createdAt: 'asc' }, select: { title: true, titleEn: true, semester: true } },
-            assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { title: true, semester: true, points: true, status: true } },
-            programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { title: true, semester: true, status: true, _count: { select: { questions: true } } } },
-            _count: { select: { units: true } },
-          },
-        }).catch(() => null)
-      : null
-    const academicProfile = program
-      ? buildAcademicProgramProfile({
-          titleAr: program.titleAr,
-          titleEn: program.titleEn,
-          description: program.description,
-          category: program.category,
-          hours: program.hours,
-          unitsCount: program._count.units,
-          units: program.units,
-          books: program.books,
-          assignments: program.assignments,
-          exams: program.programExams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
-          academicProfile: academicProfileFromRules(program.admissionRules),
-        })
-      : null
-    const academicRecord = byToken ? await buildCertificateAcademicRecord(cert) : null
-    const eligibility = await evaluateCertificateRecordEligibility(cert)
-    const effectiveValid = cert.valid && eligibility.ok
-    return NextResponse.json({
-      valid: effectiveValid,
-      verificationMode: byToken ? 'QR_TOKEN' : 'SERIAL',
-      certificate: {
-        serial: cert.serial,
-        qrToken: byToken ? cert.qrToken : null,
-        type: cert.type,
-        holderName: cert.holderName,
-        program: cert.program,
-        grade: eligibility.gradeLabel || cert.grade,
-        country: cert.country,
-        issuedAt: cert.issuedAt,
-        valid: effectiveValid,
-        academicProfile,
-        academicRecord,
-        eligibility,
-        verificationUrl: certificateVerificationUrl(cert),
-        credentialUrl: certificateCredentialUrl(cert),
-      },
-      message: effectiveValid
-        ? 'شهادة صحيحة ومسجلة رسمياً في سجلات الأكاديمية الأمريكية للاستشارات والتدريب'
-        : eligibility.error || 'الشهادة موجودة لكنها موقوفة أو لم تعد مستوفية لشروط الإصدار الأكاديمية — يرجى التواصل مع الإدارة',
-    })
+
+    return NextResponse.json(await buildVerifyPayload(cert, byToken ? 'QR_TOKEN' : 'SERIAL', false))
   } catch (e) {
     console.error('certificates verify error:', e)
     return NextResponse.json({ error: 'تعذر التحقق من الشهادة' }, { status: 500 })
