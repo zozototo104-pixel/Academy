@@ -996,7 +996,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'TOPTOOLS' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('TOPTOOLS_API_KEYS', 'Top Tools AI API Keys', data.secretsSet.TOPTOOLS_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-...', 'password', 'مفتاح أو أكثر من Top Tools AI مفصول بفاصلة. لا تضع المفتاح داخل الكود.')}
-                {SelectF('TOPTOOLS_TEXT_MODEL', 'نموذج Top Tools AI', modelOptions('TOPTOOLS', TOPTOOLS_TEXT_MODEL_CHOICES), modelHint('TOPTOOLS', 'يمكنك اختيار النموذج الافتراضي أو نموذج محدد متاح في حسابك.'))}
+                {SelectF('TOPTOOLS_TEXT_MODEL', 'نموذج Top Tools AI', modelOptions('TOPTOOLS', TOPTOOLS_TEXT_MODEL_CHOICES), modelHint('TOPTOOLS', 'يتم تحميل نماذج حسابك تلقائياً من /models، والقائمة الثابتة هنا احتياط فقط.'))}
                 {F('TOPTOOLS_BASE_URL', 'Top Tools AI Base URL', 'https://top-tools-ai.com/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
               </>
             ) : null}
