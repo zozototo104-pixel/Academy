@@ -1,0 +1,109 @@
+name: Prisma Baseline Prepare
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_name:
+        description: 'Baseline migration folder name. Keep 0_init unless you know why to change it.'
+        required: true
+        default: '0_init'
+        type: string
+      push_branch:
+        description: 'Push generated baseline migration to a review branch instead of artifact only.'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prisma-baseline-prepare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-baseline:
+    name: Generate baseline migration from schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate migration name
+        shell: bash
+        run: |
+          set -euo pipefail
+          name='${{ inputs.migration_name }}'
+          if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
+            echo "Invalid migration_name: $name"
+            echo "Use only letters, numbers, underscore, and dash."
+            exit 1
+          fi
+          if [ -e "prisma/migrations" ]; then
+            echo "Refusing to overwrite existing prisma/migrations."
+            find prisma/migrations -maxdepth 2 -type f -name migration.sql -print || true
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.22'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate baseline migration SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          name='${{ inputs.migration_name }}'
+          mkdir -p "prisma/migrations/$name"
+          bunx prisma migrate diff \
+            --from-empty \
+            --to-schema prisma/schema.prisma \
+            --script > "prisma/migrations/$name/migration.sql"
+          test -s "prisma/migrations/$name/migration.sql"
+          echo "Generated prisma/migrations/$name/migration.sql"
+          wc -l "prisma/migrations/$name/migration.sql"
+
+      - name: Verify generated changes are limited to migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          unexpected=$(git status --short | awk '{print $2}' | grep -v '^prisma/migrations/' || true)
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected changed files:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+      - name: Upload generated baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-baseline-migration-${{ inputs.migration_name }}
+          path: prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Push review branch
+        if: ${{ inputs.push_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="prisma-baseline-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          git commit -m "Add Prisma baseline migration"
+          git push origin "$branch"
+          echo "Created review branch: $branch"
+          echo "Open a Pull Request from $branch into main after reviewing migration.sql."
