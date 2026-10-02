@@ -361,6 +361,7 @@ export async function POST(req: NextRequest) {
         purpose: 'APPLICATION_FEE',
         description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
         amount: appFee,
+        amountCents: dollarsToCents(appFee),
         payerName: fullName.trim(),
         payerEmail: submittedEmail,
         payerCountry: country.trim(),
