@@ -620,6 +620,7 @@ export function AdminView() {
 
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
+    if (activeTab !== 'admissions' && activeTab !== 'service-requests') return
     let cancelled = false
     setAdmissionsLoading(true)
     const timer = window.setTimeout(() => {
