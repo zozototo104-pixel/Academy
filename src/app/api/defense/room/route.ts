@@ -179,9 +179,9 @@ export async function POST(req: NextRequest) {
       const role = user.role === 'STUDENT' ? 'STUDENT' : ['COMMITTEE', 'AGENT'].includes(body.role) ? body.role : 'COMMITTEE'
       const tz = String(body.tz || '').slice(0, 60) || null
       const p = await db.defenseParticipant.upsert({
-        where: { peerId },
-        update: { name, role, tz, lastSeenAt: new Date() },
-        create: { thesisId, peerId, userId: user.id, name, role, tz },
+        where: { peerId: currentPeerId },
+        update: { name, role, tz, userId: user.id, lastSeenAt: new Date() },
+        create: { thesisId, peerId: currentPeerId, userId: user.id, name, role, tz },
       })
       // تنظيف المشاركين القدماء غير النشطين لهذا البحث
       await db.defenseParticipant.deleteMany({
