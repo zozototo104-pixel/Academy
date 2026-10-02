@@ -647,6 +647,7 @@ export function AdminView() {
 
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
+    if (activeTab !== 'agents') return
     let cancelled = false
     setAppsLoading(true)
     const timer = window.setTimeout(() => {
