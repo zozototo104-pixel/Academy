@@ -77,12 +77,17 @@ export async function POST(req: NextRequest) {
     }
 
     const buf = Buffer.from(await file.arrayBuffer())
+    const signature = validateAdmissionFileSignature({ buffer: buf, fileName: file.name, mimeType: mime })
+    if (!signature.ok) {
+      return NextResponse.json({ error: `تم رفض ملف «${file.name}»: ${signature.error}` }, { status: 400 })
+    }
+
     let stored
     try {
       stored = await storeFileBuffer({
         buffer: buf,
         fileName: file.name,
-        mimeType: mime,
+        mimeType: signature.mimeType,
         namespace: `admissions/${app.reference.toLowerCase()}/${docType.toLowerCase()}`,
       })
     } catch (error) {
