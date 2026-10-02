@@ -159,20 +159,21 @@ export async function POST(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     if (replace && append) return NextResponse.json({ error: 'اختر إما الإضافة إلى الموجود أو الاستبدال، وليس الخيارين معاً.' }, { status: 400 })
 
-    const plan = await generateUnitPlan(programId)
-    if (!plan) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-
     const [currentCount, existingOrder] = await Promise.all([
       db.unit.count({ where: { programId } }),
       db.unit.aggregate({ where: { programId }, _max: { order: true } }),
     ])
-    if (replace) await db.unit.deleteMany({ where: { programId } })
     if (currentCount > 0 && !replace && !append) {
       return NextResponse.json({
         error: 'توجد وحدات حالية لهذا البرنامج. اختر الإضافة إلى الموجود أو الاستبدال.',
         existingUnits: currentCount,
       }, { status: 409 })
     }
+
+    const plan = await generateUnitPlan(programId)
+    if (!plan) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+
+    if (replace) await db.unit.deleteMany({ where: { programId } })
     const orderOffset = replace ? 0 : Number(existingOrder._max.order || currentCount)
 
     const created = await Promise.all(plan.units.map((u, idx) => db.unit.create({
