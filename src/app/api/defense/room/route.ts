@@ -11,6 +11,68 @@ import { requireUser } from '@/lib/auth'
  */
 
 const ONLINE_WINDOW_MS = 15000 // المشارك يعتبر متصلاً ضمن آخر 15 ثانية
+const MAX_PEER_ID_LENGTH = 160
+const MAX_SIGNAL_PAYLOAD_CHARS = 32_000
+const SIGNAL_TYPES = new Set(['OFFER', 'ANSWER', 'ICE', 'BYE'])
+
+function normalizePeerId(peerId?: string | null): string {
+  return String(peerId || '').trim()
+}
+
+function assertValidPeerId(peerId: string) {
+  if (!peerId || peerId.length > MAX_PEER_ID_LENGTH) throw new Error('BAD_PEER')
+}
+
+function serializeSignalPayload(payload: unknown): string {
+  const serialized = JSON.stringify(payload || {})
+  if (serialized.length > MAX_SIGNAL_PAYLOAD_CHARS) throw new Error('PAYLOAD_TOO_LARGE')
+  return serialized
+}
+
+async function requireOwnedParticipant(thesisId: string, peerId: string, userId: string) {
+  assertValidPeerId(peerId)
+  const participant = await db.defenseParticipant.findFirst({
+    where: { thesisId, peerId },
+    select: { id: true, peerId: true, userId: true },
+  })
+  if (!participant || participant.userId !== userId) throw new Error('FORBIDDEN_PEER')
+  return participant
+}
+
+async function createDirectedOrFanoutSignal(params: {
+  thesisId: string
+  fromPeer: string
+  toPeer?: string | null
+  type: string
+  payload: unknown
+}) {
+  const { thesisId, fromPeer, toPeer, type } = params
+  if (!SIGNAL_TYPES.has(type)) throw new Error('BAD_SIGNAL_TYPE')
+  const payload = serializeSignalPayload(params.payload)
+
+  if (toPeer) {
+    const target = await db.defenseParticipant.findFirst({
+      where: { thesisId, peerId: toPeer },
+      select: { id: true },
+    })
+    if (!target) throw new Error('UNKNOWN_TARGET_PEER')
+    await db.defenseSignal.create({
+      data: { thesisId, fromPeer, toPeer, type, payload },
+    })
+    return 1
+  }
+
+  const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS)
+  const recipients = await db.defenseParticipant.findMany({
+    where: { thesisId, peerId: { not: fromPeer }, lastSeenAt: { gte: cutoff } },
+    select: { peerId: true },
+  })
+  if (recipients.length === 0) return 0
+  await db.defenseSignal.createMany({
+    data: recipients.map((recipient) => ({ thesisId, fromPeer, toPeer: recipient.peerId, type, payload })),
+  })
+  return recipients.length
+}
 
 async function getThesisForUser(thesisId: string, userId: string, role: string) {
   const thesis = await db.thesisSubmission.findUnique({ where: { id: thesisId } })
