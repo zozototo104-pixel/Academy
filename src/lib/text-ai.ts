@@ -468,7 +468,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     } catch {
       models = []
     }
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'OPENAI_COMPAT', 'GROQ', 'ZAI'].includes(provider)) {
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'GROQ', 'ZAI'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
