@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api, saveToken } from '@/lib/store'
+import { useAppStore, api, saveToken, clearToken } from '@/lib/store'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '@/hooks/use-toast'
