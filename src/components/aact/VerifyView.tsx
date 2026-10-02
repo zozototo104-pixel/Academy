@@ -357,16 +357,18 @@ export function VerifyView() {
                       )}
                     </div>
                   )}
-                  <div className="sm:col-span-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowCert(true)}
-                      className="border-[#c9a227] font-bold text-[#a8841a]"
-                    >
-                      <Eye className="ml-1 h-3.5 w-3.5" /> عرض قالب الشهادة
-                    </Button>
-                  </div>
+                  {result.detailsUnlocked && (
+                    <div className="sm:col-span-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowCert(true)}
+                        className="border-[#c9a227] font-bold text-[#a8841a]"
+                      >
+                        <Eye className="ml-1 h-3.5 w-3.5" /> عرض قالب الشهادة
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
