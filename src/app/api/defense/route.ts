@@ -457,17 +457,19 @@ async function aiEvaluate(
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('NO_JSON')
     const parsed = JSON.parse(match[0])
+    const score = finiteScore(parsed.score)
+    if (score == null) throw new Error('NO_SCORE')
     return {
-      score: Math.max(0, Math.min(10, Number(parsed.score) || 0)),
+      score,
       feedback: String(parsed.feedback || '').slice(0, 800),
       nextQuestion: String(parsed.nextQuestion || defaultQuestion(qNum + 1)).slice(0, 1200),
     }
   } catch {
-    // تقييم احتياطي موسوم بوضوح — لا درجة صامتة تضخم النتيجة
     return {
-      score: 5,
-      feedback: '(تقييم احتياطي — لم يتوفر نموذج الذكاء لحظة التقييم) تمت مراجعة إجابتك مبدئياً وسيحسم التقييم النهائي اعتماد لجنة المناقشة على تسجيل الجلسة والمحضر.',
-      nextQuestion: defaultQuestion(qNum),
+      score: null,
+      unavailable: true,
+      feedback: 'تعذر توليد تقييم رقمي صالح من خبير الذكاء الاصطناعي لهذه الإجابة؛ لن تدخل هذه الإجابة في المتوسط الآلي، ويجب أن تراجعها اللجنة البشرية من التسجيل والمحضر.',
+      nextQuestion: defaultQuestion(qNum + 1),
     }
   }
 }
