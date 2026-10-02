@@ -339,3 +339,41 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'تعذر التحقق من الشهادة' }, { status: 500 })
   }
 }
+
+// POST /api/certificates/verify — فتح التفاصيل الخاصة بعد مطابقة البريد + آخر 4 أرقام من الهاتف
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}))
+    const serial = String(body?.serial || '').trim()
+    const token = String(body?.token || '').trim()
+    const email = normalizeEmail(body?.email)
+    const phone4 = normalizeDigits(body?.phoneLast4 || body?.phone || '').slice(-4)
+    const byToken = !!token
+
+    if (!serial && !token) {
+      return NextResponse.json({ error: 'يرجى إدخال رقم الشهادة أو رمز QR' }, { status: 400 })
+    }
+    if (!email || phone4.length !== 4) {
+      return NextResponse.json({ error: 'أدخل البريد الإلكتروني المسجل وآخر 4 أرقام من رقم الهاتف المسجل' }, { status: 400 })
+    }
+
+    const subject = `${byToken ? `token:${token}` : `serial:${serial}`}:${email}:${phone4}`
+    const detailsLimit = enforceApiRateLimit(req, 'certificates:verify-details', 5, 15 * 60 * 1000, subject)
+    if (detailsLimit) return detailsLimit
+
+    const cert = await findCertificateForVerify(serial, token)
+    if (!cert) {
+      return NextResponse.json({ valid: false, message: byToken ? 'رابط QR غير صحيح أو لم تعد الشهادة متاحة للتحقق' : 'لا توجد شهادة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة' })
+    }
+
+    const matched = await certificateOwnerMatches(cert, email, phone4)
+    if (!matched) {
+      return NextResponse.json({ error: 'تعذر التحقق من بيانات صاحب الشهادة' }, { status: 403 })
+    }
+
+    return NextResponse.json(await buildVerifyPayload(cert, byToken ? 'QR_TOKEN' : 'SERIAL', true))
+  } catch (e) {
+    console.error('certificates verify details error:', e)
+    return NextResponse.json({ error: 'تعذر فتح تفاصيل الشهادة' }, { status: 500 })
+  }
+}
