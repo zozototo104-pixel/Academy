@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return new Response(JSON.stringify({ error: 'يجب تسجيل الدخول' }), { status: 401 })
   }
+  const limited = enforceUserAiRateLimit(req, AI_RATE_LIMITS.voiceStream, user.id)
+  if (limited) return limited
 
   let body: { message?: string; interruptNote?: string } = {}
   try {
