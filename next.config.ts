@@ -1,9 +1,74 @@
 import type { NextConfig } from "next";
 
+const securityHeaders = [
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "SAMEORIGIN",
+  },
+  {
+    key: "Permissions-Policy",
+    value: [
+      "camera=(self)",
+      "microphone=(self)",
+      "display-capture=(self)",
+      "fullscreen=(self)",
+      "payment=(self)",
+      "autoplay=(self)",
+      "clipboard-read=(self)",
+      "clipboard-write=(self)",
+      "geolocation=()",
+      "magnetometer=()",
+      "gyroscope=()",
+      "accelerometer=()",
+      "usb=()",
+    ].join(", "),
+  },
+  {
+    // Report-only by design: this lets us observe CSP issues without blocking AI, camera/WebRTC,
+    // certificate verification, Stripe/PayPal redirects, Vercel assets, or media/blob streams.
+    key: "Content-Security-Policy-Report-Only",
+    value: [
+      "default-src 'self' https: data: blob:",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https: wss: blob:",
+      "media-src 'self' data: blob: https:",
+      "worker-src 'self' blob:",
+      "frame-src 'self' https:",
+      "form-action 'self' https:",
+      "frame-ancestors 'self'",
+      "upgrade-insecure-requests",
+    ].join("; "),
+  },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
-  /* config options here */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+    ];
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
