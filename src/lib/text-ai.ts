@@ -120,7 +120,7 @@ const UNOROUTER_TEXT_MODELS = [
   'ling-3.0-flash-fin:free',
 ]
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
-const TOPTOOLS_TEXT_MODELS = ['top-tools-ai', 'gpt-5.6', 'claude-opus-5', 'grok-4.6']
+const TOPTOOLS_TEXT_MODELS = ['top-tools-ai', 'gpt-5.6-sol', 'claude-opus-5', 'glm-5.3-flash']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 
 const cooldowns = new Map<string, { until: number; reason: string }>()
