@@ -183,7 +183,7 @@ export function VerifyView() {
               </p>
               {result.valid && result.verificationMode === 'SERIAL' && (
                 <p className="mt-1 text-xs font-bold text-emerald-700">
-                  تم التحقق بالرقم التسلسلي؛ لذلك تُعرض بيانات الشهادة الأساسية فقط. امسح رمز QR لعرض تحقق موسّع عند توفره.
+                  تم التحقق بالرقم التسلسلي؛ لذلك تُعرض بيانات الشهادة العامة فقط. التفاصيل الأكاديمية تظهر لصاحب الشهادة بعد مطابقة البريد وآخر 4 أرقام من الهاتف.
                 </p>
               )}
               {result.valid && result.verificationMode === 'QR_TOKEN' && (
