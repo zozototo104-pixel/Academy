@@ -599,7 +599,7 @@ export async function GET(req: NextRequest) {
       user.role === 'SUPERVISOR' ||
       studentOwnsAdmission(user as any, app)
     )
-    const verified = ownsApplication || trackingVerifierMatches(app, verifier)
+    const verified = ownsApplication || trackingVerifierMatches(app, trackingEmail, trackingPhoneLast4)
     return NextResponse.json({ application: verified ? serialize(app) : serializePublic(app), verified, verificationRequired: !verified })
   } catch (e: any) {
     console.error('admissions GET error:', e)
