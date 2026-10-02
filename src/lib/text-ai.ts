@@ -368,6 +368,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'TOGETHER': return s.togetherBaseUrl
     case 'UNOROUTER': return s.unorouterBaseUrl
     case 'RELAYROUTER': return s.relayrouterBaseUrl
+    case 'TOPTOOLS': return s.topToolsBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
