@@ -281,7 +281,7 @@ export function DefenseRoom({
   useEffect(() => {
     const w = window as any
     setSttSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
-    api<{ iceServers: RTCIceServer[]; hasTurn: boolean }>('/api/webrtc/config')
+    api<{ iceServers: RTCIceServer[]; hasTurn: boolean }>(`/api/webrtc/config?thesisId=${encodeURIComponent(thesisId)}`)
       .then((d) => {
         if (d.iceServers?.length) {
           iceServersRef.current = d.iceServers
