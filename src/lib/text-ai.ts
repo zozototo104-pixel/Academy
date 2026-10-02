@@ -146,7 +146,7 @@ function clean(value: unknown): string {
 
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
-  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'OPENAI_COMPAT', 'AUTO']
+  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'AUTO']
   return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
