@@ -598,10 +598,10 @@ export function AdminView() {
 
   const load = async () => {
     setLoading(true)
-    setAdmissionsLoading(true)
-    setStudentsLoading(true)
-    setAppsLoading(true)
-    setAttemptsLoading(true)
+    setAdmissionsLoading(activeTab === 'admissions' || activeTab === 'service-requests')
+    setStudentsLoading(activeTab === 'students')
+    setAppsLoading(activeTab === 'agents')
+    setAttemptsLoading(activeTab === 'attempts')
     setAdmissionRefresh((v) => v + 1)
     setAgentRefresh((v) => v + 1)
 
