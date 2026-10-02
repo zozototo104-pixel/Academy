@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
           providerRef: result.providerRef || null,
           checkoutUrl: result.redirectUrl || null,
           method: String(method),
-          userId: payment.userId || user?.id || null,
+          userId: effectivePaymentUserId,
         },
       })
     }
