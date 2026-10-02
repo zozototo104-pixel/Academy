@@ -99,24 +99,27 @@ export async function GET(req: NextRequest) {
       orderBy: { joinedAt: 'asc' },
     })
 
-    // الإشارات الموجهة لي أو المبثوة للجميع (غير المرسلة مني)
+    // الإشارات الموجهة لهذا المشارك فقط. رسائل البث تُحوّل عند الإرسال إلى نسخ لكل مستلم.
     let signals: any[] = []
     if (peerId) {
+      await requireOwnedParticipant(thesisId, peerId, user.id)
       const rows = await db.defenseSignal.findMany({
         where: {
           thesisId,
           consumed: false,
           fromPeer: { not: peerId },
-          OR: [{ toPeer: null }, { toPeer: peerId }],
+          toPeer: peerId,
         },
         orderBy: { createdAt: 'asc' },
         take: 60,
       })
       signals = rows
-      await db.defenseSignal.updateMany({
-        where: { id: { in: rows.map((r) => r.id) } },
-        data: { consumed: true },
-      })
+      if (rows.length > 0) {
+        await db.defenseSignal.updateMany({
+          where: { id: { in: rows.map((r) => r.id) }, toPeer: peerId },
+          data: { consumed: true },
+        })
+      }
     }
 
     const messages = await db.defenseMessage.findMany({
