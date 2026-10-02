@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { getZAI } from '@/lib/ai'
+import { AI_RATE_LIMITS, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
