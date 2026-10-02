@@ -191,7 +191,7 @@ async function main() {
 
   // ===== بيانات تجريبية للوحدات الجديدة =====
   const demo = await prisma.user.findUnique({ where: { email: demoEmail } })
-  const admin = await prisma.user.findUnique({ where: { email: adminEmail } })
+  const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' } })
 
   // طلب التحقق المعتمد للطالب التجريبي (مع مشرف ومهلة بحث)
   if (demo && !(await prisma.admissionApplication.findFirst({ where: { email: demoEmail } }))) {
