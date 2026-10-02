@@ -434,17 +434,35 @@ export async function capturePaypalOrder(orderId: string, cfg: PaymentGatewayCon
 
 // ===== التحقق من توقيع Webhook الخاص بـ Stripe =====
 // تنفيذ موثوق للتحقق (t=timestamp,v1=signature) بـ HMAC-SHA256 دون الاعتماد على SDK
-export async function verifyStripeWebhook(payload: string, sigHeader: string, secret: string): Promise<boolean> {
+// Stripe يوصي بنافذة سماحية قصيرة ضد إعادة إرسال توقيع قديم؛ القيمة الافتراضية هنا 5 دقائق.
+const DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS = 5 * 60
+
+export async function verifyStripeWebhook(
+  payload: string,
+  sigHeader: string,
+  secret: string,
+  opts?: { toleranceSeconds?: number; nowSeconds?: number }
+): Promise<boolean> {
   try {
     if (!sigHeader || !secret) return false
     const parts = sigHeader.split(',').reduce<Record<string, string[]>>((acc, p) => {
-      const [k, v] = p.split('=')
+      const separator = p.indexOf('=')
+      if (separator <= 0) return acc
+      const k = p.slice(0, separator).trim()
+      const v = p.slice(separator + 1).trim()
       if (k && v) (acc[k] = acc[k] || []).push(v)
       return acc
     }, {})
     const t = parts.t?.[0]
     const v1List = parts.v1 || []
     if (!t || v1List.length === 0) return false
+
+    const timestamp = Number(t)
+    const toleranceSeconds = opts?.toleranceSeconds ?? DEFAULT_STRIPE_WEBHOOK_TOLERANCE_SECONDS
+    const nowSeconds = opts?.nowSeconds ?? Math.floor(Date.now() / 1000)
+    if (!Number.isSafeInteger(timestamp) || timestamp <= 0) return false
+    if (Math.abs(nowSeconds - timestamp) > toleranceSeconds) return false
+
     const { createHmac, timingSafeEqual } = await import('crypto')
     const expected = createHmac('sha256', secret).update(`${t}.${payload}`).digest('hex')
     const expectedBuf = Buffer.from(expected, 'hex')
