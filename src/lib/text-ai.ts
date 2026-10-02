@@ -414,6 +414,20 @@ function isFreeModel(row: any, id: string): boolean {
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
 }
 
+function isStrongTopToolsTextModel(row: any, id: string): boolean {
+  const haystack = `${id} ${row?.name || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
+  if (/embedding|moderation|rerank|whisper|tts|stt|audio|image|vision|dall|sdxl|stable-diffusion/.test(haystack)) return false
+  return /gpt|claude|gemini|grok|deepseek|qwen|llama|mistral|mixtral|glm|kimi|command|nova|sonar|minimax|nemotron|yi-|phi-4|openai|anthropic|google|x-ai|cohere/.test(haystack)
+}
+
+function topToolsModelRank(id: string): number {
+  const n = id.toLowerCase()
+  if (/gpt-5|claude-opus|gemini-3|grok-4/.test(n)) return 1
+  if (/gpt-4|claude-sonnet|gemini-2\.5|deepseek|qwen|llama-4|glm-5|kimi/.test(n)) return 2
+  if (/mistral|mixtral|llama-3|command|nova|sonar|minimax|nemotron/.test(n)) return 3
+  return 9
+}
+
 function rowsFromModelPayload(data: any): any[] {
   if (Array.isArray(data?.models)) return data.models
   if (Array.isArray(data?.data)) return data.data
