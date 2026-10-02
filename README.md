@@ -88,9 +88,11 @@ prisma/schema.prisma    # 25+ نموذجاً (User, Program, AdmissionApplicatio
 # 1) المتطلبات: Node 20+ أو Bun
 bun install          # أو: npm install
 
-# 2) قاعدة البيانات + البيانات الأولية (52 برنامجاً + حساب الإدارة)
-cp .env.example .env # عدّل ما يلزم (كل شيء يعمل بالقيم الافتراضية)
+# 2) قاعدة البيانات + البيانات الأولية
+cp .env.example .env # عدّل ما يلزم قبل التشغيل
 bun run db:push
+# اختياري لإنشاء أدمن جديد في قاعدة فارغة فقط:
+# AACT_SEED_ADMIN_EMAIL="admin@example.com" AACT_SEED_ADMIN_PASSWORD="StrongPasswordHere" bun run db:seed
 bun run db:seed
 
 # 3) التشغيل
@@ -99,12 +101,13 @@ bun run dev          # http://localhost:3000
 
 **حسابات البداية:**
 
+لا توجد كلمة مرور إدارة منشورة داخل المستودع. أنشئ حساب الإدارة الأول عبر متغيرات البيئة `AACT_SEED_ADMIN_EMAIL` و`AACT_SEED_ADMIN_PASSWORD` عند الحاجة، أو أنشئه من أدوات الإدارة المخصصة.
+
 | الدور | البريد | كلمة المرور |
 |------|--------|-------------|
-| إدارة | `admin@aact.academy` | `Admin@2026` |
-| طالب | `student@demo.com` | `Demo@2026` |
+| طالب تجريبي | `student@demo.com` | `Demo@2026` |
 
-> ⚠️ غيّر كلمتي المرور فور أول تشغيل حقيقي.
+> ⚠️ لا تستخدم حسابات الديمو أو كلماتها في أي بيئة إنتاجية.
 
 ### النشر الإنتاجي
 ```bash
