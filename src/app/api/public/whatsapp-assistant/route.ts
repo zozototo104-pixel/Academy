@@ -28,8 +28,13 @@ export async function POST(req: NextRequest) {
     const messages = [...history, { role: 'user', content: message.slice(0, 1200) }]
     const result = await platformPublicAgentComplete({
       messages,
-      channel: 'WEB_WIDGET',
-      uiContext: 'الزائر يستخدم زر واتساب العائم ويريد معلومات عامة عن الأكاديمية وبرامجها ورسومها وشروطها.',
+      channel: 'WHATSAPP',
+      uiContext: [
+        'المستخدم يتواصل عبر واجهة وكيل واتساب الذكي داخل الموقع، ويجب أن تكون الإجابة بنفس جودة وأسلوب وكيل واتساب الرسمي.',
+        'لا ترد برد عام مقتضب إذا كان السؤال عن البرامج؛ اسأل سؤال متابعة عند الحاجة أو اعرض أهم المسارات والرسوم بإيجاز مرتب.',
+        'لا تخترع أرقاماً أو وعوداً غير موجودة في بيانات المنصة. استخدم كتالوج البرامج وإعدادات الدفع كمصدر حقيقة.',
+        'إذا كان السؤال قصيراً مثل "شو برامجكم" فاعرض تصنيفات البرامج الرئيسية مع أمثلة قليلة ودعوة لاختيار المجال المطلوب.',
+      ].join(' '),
     })
 
     return NextResponse.json({ ok: true, reply: result.reply, agent: result.agent, engine: result.engine })
