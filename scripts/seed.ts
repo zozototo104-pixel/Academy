@@ -149,6 +149,7 @@ async function main() {
           name: 'إدارة الأكاديمية',
           role: 'ADMIN',
           country: 'USA',
+          emailVerifiedAt: new Date(),
         },
       })
       console.log(`  ✓ Seed admin account created: ${seedAdminEmail}`)
