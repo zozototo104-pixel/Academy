@@ -412,7 +412,14 @@ export async function verifyStripeSessionPaid(sessionId: string, cfg: PaymentGat
     })
     const data: any = await res.json()
     if (!res.ok) return { paid: false, error: data?.error?.message || 'تعذر التحقق من الجلسة لدى Stripe' }
-    return { paid: data?.payment_status === 'paid' || data?.status === 'complete' }
+    const paid = data?.payment_status === 'paid' || data?.status === 'complete'
+    if (paid && expected?.amountCents != null && Number(data?.amount_total) !== Number(expected.amountCents)) {
+      return { paid: false, error: 'مبلغ جلسة Stripe لا يطابق مبلغ الفاتورة' }
+    }
+    if (paid && expected?.currency && String(data?.currency || '').toUpperCase() !== String(expected.currency).toUpperCase()) {
+      return { paid: false, error: 'عملة جلسة Stripe لا تطابق عملة الفاتورة' }
+    }
+    return { paid }
   } catch (e: any) {
     return { paid: false, error: String(e?.message || e) }
   }
