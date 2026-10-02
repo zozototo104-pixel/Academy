@@ -2654,51 +2654,57 @@ export function AdminQualityTab() {
           if (!open && !unitSuggestionModeBusy) setUnitSuggestionConflict(null)
         }}
       >
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-[2rem] border-[#c9a227]/30 bg-[#f8f1df] p-0 shadow-2xl" dir="rtl">
-          <div className="bg-[#0f2b46] px-5 py-4 text-[#f5f0e1]">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg overflow-hidden rounded-[1.75rem] border-[#c9a227]/30 bg-white p-0 shadow-2xl" dir="rtl">
+          <div className="border-b border-[#c9a227]/20 bg-[#0f2b46] p-5 text-[#f5f0e1]">
             <DialogHeader>
-              <DialogTitle className="text-xl font-black">اختيار طريقة توليد الوحدات</DialogTitle>
-              <DialogDescription className="pt-1 font-bold text-[#f5f0e1]/75">
-                توجد وحدات محفوظة لهذا البرنامج. اختر هل تريد إضافة المقترح الجديد أو استبدال الخطة الحالية.
+              <DialogTitle className="text-2xl font-black">توجد وحدات محفوظة</DialogTitle>
+              <DialogDescription className="pt-2 font-bold leading-7 text-[#f5f0e1]/75">
+                اختر طريقة التعامل مع المقترح الجديد. بعد الاختيار يبدأ التوليد مرة واحدة فقط.
               </DialogDescription>
             </DialogHeader>
           </div>
-          <div className="space-y-4 p-5">
-            <div className="rounded-2xl border border-[#c9a227]/30 bg-white p-4">
+          <div className="space-y-3 bg-[#fbf6e8] p-4">
+            <div className="rounded-2xl border border-[#c9a227]/25 bg-white p-4">
               <p className="text-xs font-black text-slate-500">البرنامج</p>
-              <p className="mt-1 text-base font-black leading-7 text-[#0f2b46]">{unitSuggestionConflict?.program.titleAr || 'برنامج'}</p>
-              <p className="mt-2 text-sm font-bold text-slate-600">الوحدات الموجودة حالياً: <span className="font-black text-[#a8841a]">{unitSuggestionConflict?.existingUnits || 0}</span></p>
+              <p className="mt-1 text-lg font-black leading-7 text-[#0f2b46]">{unitSuggestionConflict?.program.titleAr || 'برنامج'}</p>
+              <p className="mt-1 text-sm font-bold text-slate-600">الوحدات الحالية: <span className="font-black text-[#a8841a]">{unitSuggestionConflict?.existingUnits || 0}</span></p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={!!unitSuggestionModeBusy}
-                onClick={() => chooseUnitSuggestionMode('append')}
-                className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right transition hover:bg-emerald-100 disabled:opacity-60"
-              >
-                <span className="block text-base font-black text-emerald-800">إضافة إلى الموجود</span>
-                <span className="mt-2 block text-xs font-bold leading-6 text-emerald-700">يحافظ على الوحدات الحالية ويضيف الوحدات المقترحة بعدها للمراجعة.</span>
-                {unitSuggestionModeBusy === 'append' ? <Loader2 className="mt-3 h-5 w-5 animate-spin text-emerald-700" /> : null}
-              </button>
+            <button
+              type="button"
+              disabled={!!unitSuggestionModeBusy}
+              onClick={() => chooseUnitSuggestionMode('append')}
+              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right transition hover:bg-emerald-100 disabled:opacity-60"
+            >
+              <span>
+                <span className="block text-lg font-black text-emerald-800">إضافة إلى الموجود</span>
+                <span className="mt-1 block text-xs font-bold leading-6 text-emerald-700">يبقي الوحدات الحالية ويضيف الوحدات المقترحة بعدها.</span>
+              </span>
+              {unitSuggestionModeBusy === 'append' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-emerald-700" /> : <span className="text-2xl font-black text-emerald-700">＋</span>}
+            </button>
 
-              <button
-                type="button"
-                disabled={!!unitSuggestionModeBusy}
-                onClick={() => chooseUnitSuggestionMode('replace')}
-                className="rounded-2xl border border-red-200 bg-red-50 p-4 text-right transition hover:bg-red-100 disabled:opacity-60"
-              >
-                <span className="block text-base font-black text-red-800">استبدال الموجود</span>
-                <span className="mt-2 block text-xs font-bold leading-6 text-red-700">يحذف وحدات المنهج الحالية ويضع الخطة المقترحة الجديدة مكانها.</span>
-                {unitSuggestionModeBusy === 'replace' ? <Loader2 className="mt-3 h-5 w-5 animate-spin text-red-700" /> : null}
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={!!unitSuggestionModeBusy}
+              onClick={() => chooseUnitSuggestionMode('replace')}
+              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-right transition hover:bg-red-100 disabled:opacity-60"
+            >
+              <span>
+                <span className="block text-lg font-black text-red-800">استبدال الموجود</span>
+                <span className="mt-1 block text-xs font-bold leading-6 text-red-700">يحذف الوحدات الحالية ويضع الخطة المقترحة مكانها.</span>
+              </span>
+              {unitSuggestionModeBusy === 'replace' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-red-700" /> : <span className="text-2xl font-black text-red-700">↻</span>}
+            </button>
 
-            <div className="flex justify-end">
-              <Button variant="outline" disabled={!!unitSuggestionModeBusy} onClick={() => setUnitSuggestionConflict(null)} className="rounded-xl font-black">
-                إلغاء
-              </Button>
-            </div>
+            {unitSuggestionModeBusy ? (
+              <p className="rounded-2xl bg-white px-4 py-3 text-center text-xs font-black leading-6 text-slate-500">
+                جاري توليد خطة منهجية من الكتب وبنك المعرفة. قد يستغرق ذلك قليلاً حسب حجم المصادر.
+              </p>
+            ) : null}
+
+            <Button variant="outline" disabled={!!unitSuggestionModeBusy} onClick={() => setUnitSuggestionConflict(null)} className="h-11 w-full rounded-2xl bg-white font-black">
+              إلغاء
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
