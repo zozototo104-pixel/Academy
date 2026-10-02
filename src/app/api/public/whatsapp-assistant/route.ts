@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { platformPublicAgentComplete } from '@/lib/platform-agent'
 
