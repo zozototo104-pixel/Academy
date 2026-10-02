@@ -535,7 +535,7 @@ export function AdminQualityTab() {
         await runSuggestedUnits(program)
       } catch (e: any) {
         if (String(e?.message || '').includes('توجد وحدات')) {
-          setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.units || 0) })
+          setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.counts?.units || 0) })
         } else {
           throw e
         }
