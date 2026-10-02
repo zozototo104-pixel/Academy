@@ -26,6 +26,10 @@ jobs:
     name: Generate baseline migration from schema
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Prisma validates datasource env vars even when this workflow only reads schema.prisma.
+      # This dummy URL is never used to connect to a database; production DB access belongs to the separate mark-applied workflow.
+      DATABASE_URL: postgresql://baseline:baseline@localhost:5432/baseline?schema=public
     steps:
       - name: Checkout
         uses: actions/checkout@v4
