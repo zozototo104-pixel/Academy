@@ -73,7 +73,9 @@ function isTruthy(value: string): boolean {
 
 export function isProductionRuntime(): boolean {
   const vercelEnv = env('VERCEL_ENV')
-  return vercelEnv ? vercelEnv === 'production' : env('NODE_ENV') === 'production'
+  if (vercelEnv) return vercelEnv === 'production'
+  if (isTruthy(env('CI')) || isTruthy(env('GITHUB_ACTIONS'))) return false
+  return env('NODE_ENV') === 'production'
 }
 
 export function sandboxPaymentsAllowed(): boolean {
