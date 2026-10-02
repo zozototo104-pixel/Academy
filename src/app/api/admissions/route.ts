@@ -558,18 +558,9 @@ export async function GET(req: NextRequest) {
       if (user.role !== 'STUDENT') {
         return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق والخدمات تخص حسابات الطلاب/المتقدمين فقط.' })
       }
-      if ((user as any).emailVerifiedAt) {
-        await db.admissionApplication.updateMany({
-          where: { userId: null, email: user.email },
-          data: { userId: user.id },
-        }).catch(() => {})
-        await db.payment.updateMany({
-          where: { userId: null, payerEmail: user.email },
-          data: { userId: user.id },
-        }).catch(() => {})
-      }
+      await repairVerifiedStudentRecordOwnership(user).catch(() => null)
       const apps = await db.admissionApplication.findMany({
-        where: { userId: user.id },
+        where: studentAdmissionOwnershipWhere(user),
         orderBy: [{ createdAt: 'desc' }],
         take: 10,
         include,
