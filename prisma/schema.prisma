@@ -48,6 +48,9 @@ model User {
   aiLiveUsages  AiLiveUsage[]
   aiLiveCredits AiLiveCredit[]
   humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
+
+  @@index([emailVerificationTokenHash])
+  @@index([emailVerifiedAt])
 }
 
 model Session {
