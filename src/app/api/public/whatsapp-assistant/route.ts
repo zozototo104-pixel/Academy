@@ -3,7 +3,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { platformPublicAgentComplete } from '@/lib/platform-agent'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 45
+export const maxDuration = 60
 
 type PublicMessage = { role: string; content: string }
 
