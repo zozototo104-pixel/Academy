@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       let sent = false
       if (emailVerification.shouldIssueNewVerification(user)) {
         const verification = await emailVerification.issueEmailVerificationToken(user.id)
-        sent = await mailer.emailVerifyAccount(user.email, user.name, emailVerification.emailVerificationUrl(req, verification.token)).then(() => true).catch(() => false)
+        sent = await mailer.emailVerifyAccount(user.email, user.name, emailVerification.emailVerificationUrl(req, verification.token)).catch(() => false)
       }
       return NextResponse.json(
         {
