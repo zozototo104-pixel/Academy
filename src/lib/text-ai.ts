@@ -585,14 +585,17 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
+  const catalogLabel = concrete === 'TOPTOOLS' ? 'نموذج متاح' : 'نموذج مجاني'
   return {
     provider: concrete,
     models,
     discoveredCount: discovered.length,
     staticCount: staticDefaults.length,
     message: discovered.length
-      ? `تم اكتشاف ${discovered.length} نموذج مجاني من المزود.`
-      : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
+      ? `تم اكتشاف ${discovered.length} ${catalogLabel} من المزود.`
+      : concrete === 'TOPTOOLS'
+        ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
+        : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
 }
 
