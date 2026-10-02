@@ -187,7 +187,7 @@ export async function markInvoicePaid(
   // آثار سداد باقة دقائق الصوت: إضافة الرصيد تلقائياً لحساب المستخدم
   if (payment.purpose === 'AI_LIVE_CREDIT' && updated.userId) {
     const minutesFromDescription = Number((payment.description.match(/(\d+)\s*دقيقة/) || [])[1] || 0)
-    const minutes = minutesFromDescription > 0 ? minutesFromDescription : Math.max(1, Math.floor(payment.amount * 6))
+    const minutes = minutesFromDescription > 0 ? minutesFromDescription : Math.max(1, Math.floor(amountDollars * 6))
     const existingCredit = await db.aiLiveCredit.findFirst({ where: { paymentId: updated.id } }).catch(() => null)
     if (!existingCredit) {
       await grantGeminiLiveCredit({
