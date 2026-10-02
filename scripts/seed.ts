@@ -132,27 +132,35 @@ async function main() {
   })
   console.log('  ✓ Generic all-specializations master/doctorate hidden from selection')
 
-  // Admin account — نعيد ضبطه أثناء أول نشر سحابي حتى لا يفشل الدخول على قاعدة جديدة/جزئية
-  const adminEmail = 'admin@aact.academy'
-  const adminPasswordHash = await hashPassword('Admin@2026')
-  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } })
-  if (!existingAdmin) {
-    await prisma.user.create({
-      data: {
-        email: adminEmail,
-        password: adminPasswordHash,
-        name: 'إدارة الأكاديمية',
-        role: 'ADMIN',
-        country: 'USA',
-      },
-    })
-    console.log('  ✓ Admin account: admin@aact.academy / Admin@2026')
+  // Optional admin bootstrap — لا ننشئ أو نعيد ضبط أي أدمن افتراضي منشور داخل الكود.
+  // إذا احتجت تهيئة أدمن في قاعدة جديدة، اضبط AACT_SEED_ADMIN_EMAIL و AACT_SEED_ADMIN_PASSWORD صراحة.
+  const seedAdminEmail = (process.env.AACT_SEED_ADMIN_EMAIL || '').trim().toLowerCase()
+  const seedAdminPassword = process.env.AACT_SEED_ADMIN_PASSWORD || ''
+  if (seedAdminEmail || seedAdminPassword) {
+    if (!seedAdminEmail || seedAdminPassword.length < 12) {
+      throw new Error('AACT_SEED_ADMIN_EMAIL and AACT_SEED_ADMIN_PASSWORD with at least 12 characters are required together to seed an admin account.')
+    }
+    const existingSeedAdmin = await prisma.user.findUnique({ where: { email: seedAdminEmail } })
+    if (!existingSeedAdmin) {
+      await prisma.user.create({
+        data: {
+          email: seedAdminEmail,
+          password: await hashPassword(seedAdminPassword),
+          name: 'إدارة الأكاديمية',
+          role: 'ADMIN',
+          country: 'USA',
+        },
+      })
+      console.log(`  ✓ Seed admin account created: ${seedAdminEmail}`)
+    } else {
+      await prisma.user.update({
+        where: { email: seedAdminEmail },
+        data: { role: 'ADMIN', name: existingSeedAdmin.name || 'إدارة الأكاديمية' },
+      })
+      console.log(`  ℹ Seed admin already exists; password was not reset: ${seedAdminEmail}`)
+    }
   } else {
-    await prisma.user.update({
-      where: { email: adminEmail },
-      data: { password: adminPasswordHash, role: 'ADMIN', name: existingAdmin.name || 'إدارة الأكاديمية' },
-    })
-    console.log('  ✓ Admin account refreshed: admin@aact.academy / Admin@2026')
+    console.log('  ℹ Admin seed skipped. Configure AACT_SEED_ADMIN_EMAIL and AACT_SEED_ADMIN_PASSWORD only for one-time initialization.')
   }
 
   // Demo student account
