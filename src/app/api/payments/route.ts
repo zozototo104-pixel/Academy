@@ -11,15 +11,9 @@ export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ payments: [] })
-    const canClaimEmailRecords = user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt)
-    if (canClaimEmailRecords) {
-      await db.$transaction([
-        db.admissionApplication.updateMany({ where: { userId: null, email: user.email }, data: { userId: user.id } }),
-        db.payment.updateMany({ where: { userId: null, payerEmail: user.email }, data: { userId: user.id } }),
-      ]).catch(() => {})
-    }
+    await repairVerifiedStudentRecordOwnership(user).catch(() => null)
     const ownAdmissions = await db.admissionApplication.findMany({
-      where: { userId: user.id },
+      where: studentAdmissionOwnershipWhere(user),
       select: { id: true, reference: true, program: true, fullName: true },
     })
     const admissionIds = ownAdmissions.map((a) => a.id)
