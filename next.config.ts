@@ -53,7 +53,6 @@ const securityHeaders = [
       "frame-src 'self' https:",
       "form-action 'self' https:",
       "frame-ancestors 'self'",
-      "upgrade-insecure-requests",
     ].join("; "),
   },
 ];
