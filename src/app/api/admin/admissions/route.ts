@@ -359,6 +359,7 @@ export async function PATCH(req: NextRequest) {
             purpose: 'SERVICE_FEE',
             description: `رسوم تنفيذ الخدمة — ${app.program}`,
             amount,
+            amountCents: dollarsToCents(amount),
             payerName: app.fullName,
             payerEmail: app.email,
             payerCountry: app.country,
