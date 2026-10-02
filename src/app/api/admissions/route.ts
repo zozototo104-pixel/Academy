@@ -448,7 +448,7 @@ export async function GET(req: NextRequest) {
       files: { select: { id: true, docType: true, fileName: true, size: true } },
       payments: {
         select: {
-          invoiceNo: true, purpose: true, amount: true, status: true,
+          invoiceNo: true, purpose: true, amount: true, amountCents: true, status: true,
           description: true, receiptNo: true, paidAt: true, createdAt: true,
         },
         orderBy: { createdAt: 'desc' as const },
