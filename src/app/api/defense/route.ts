@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
           user.id,
           'DEFENSE',
           'انتهت جلسة المناقشة',
-          `أنهيت أسئلة اللجنة عبر الفيديو كونفرنس — تقييم خبير الذكاء الاصطناعي: ${aiScore}/100. تُعرض توصية خبير الذكاء على اللجنة لاعتماد النتيجة النهائية.`,
+          `أنهيت أسئلة اللجنة عبر الفيديو كونفرنس — تقييم خبير الذكاء الاصطناعي: ${scoreLabel(aiScore)}. تُعرض توصية خبير الذكاء على اللجنة لاعتماد النتيجة النهائية.`,
           'dashboard'
         )
         await audit({ id: user.id, name: user.name }, 'COMPLETE_DEFENSE', 'ThesisSubmission', thesis.id, `تقييم AI: ${aiScore}/100`)
