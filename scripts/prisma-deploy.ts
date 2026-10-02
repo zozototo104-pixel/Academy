@@ -67,23 +67,18 @@ function assertProductionMigrationsAvailable() {
   process.exit(1)
 }
 
-function assertProductionMigrationHistoryReady() {
-  if (!isProductionDeployment()) return
-  run('npx', ['prisma', 'migrate', 'status', '--schema', 'prisma/schema.prisma'])
-}
-
 const args = new Set(process.argv.slice(2))
 
 assertProductionMigrationsAvailable()
-assertProductionMigrationHistoryReady()
 run('npx', ['prisma', 'generate'])
 
-if (args.has('--migrate')) {
+const shouldRunMigrateDeploy = args.has('--migrate') || isProductionDeployment()
+if (shouldRunMigrateDeploy) {
   if (!existsSync('prisma/migrations')) {
     console.log('No prisma/migrations directory found. Skipping prisma migrate deploy.')
     process.exit(0)
   }
-  run('npx', ['prisma', 'migrate', 'deploy'])
+  run('npx', ['prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma'])
   process.exit(0)
 }
 
