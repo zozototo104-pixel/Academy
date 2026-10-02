@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const cfg = await getGatewayConfig()
     const v =
       payment.provider === 'STRIPE'
-        ? await verifyStripeSessionPaid(payment.providerRef, cfg)
+        ? await verifyStripeSessionPaid(payment.providerRef, cfg, { amountCents: paymentAmountCents(payment), currency: payment.currency || 'USD' })
         : await capturePaypalOrder(payment.providerRef, cfg)
 
     if (v.paid) {
