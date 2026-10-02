@@ -257,6 +257,7 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
       purpose: 'TUITION',
       description: `QA الرسوم الدراسية الكاملة — ${program.titleAr}`,
       amount: Number(program.price || 1200),
+      amountCents: dollarsToCents(Number(program.price || 1200)),
       payerName: student.name,
       payerEmail: student.email,
       payerCountry: student.country,
