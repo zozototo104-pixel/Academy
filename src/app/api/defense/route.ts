@@ -500,9 +500,9 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
       ],
       thinking: { type: 'disabled' },
     })
-    return (completion.choices[0]?.message?.content || `${verdict} — التقييم ${aiScore}/100`).trim().slice(0, 1500)
+    return (completion.choices[0]?.message?.content || `${verdict} — التقييم ${scoreLabel(aiScore)}`).trim().slice(0, 1500)
   } catch {
-    return `توصية خبير الذكاء الاصطناعي للجنة: ${verdict} — التقييم العام عبر أسئلة المناقشة ${aiScore}/100.`
+    return `توصية خبير الذكاء الاصطناعي للجنة: ${verdict} — التقييم العام عبر أسئلة المناقشة ${scoreLabel(aiScore)}.`
   }
 }
 
