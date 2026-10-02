@@ -431,7 +431,7 @@ async function aiEvaluate(
   qNum: number,
   total: number,
   studentAcademicContext?: string
-): Promise<{ score: number; feedback: string; nextQuestion: string }> {
+): Promise<DefenseEvaluation> {
   try {
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
