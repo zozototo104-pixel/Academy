@@ -63,6 +63,21 @@ jobs:
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
 
+      - name: Verify required admin E2E secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in E2E_BASE_URL ADMIN_EMAIL ADMIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required value: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Run book access guard
         run: bun run e2e:books
 
