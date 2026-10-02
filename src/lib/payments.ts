@@ -405,7 +405,7 @@ export async function createProviderCheckout(params: {
 // ===== التحقق الخادمي من السداد الفعلي لدى المزود =====
 // يُستخدم عند العودة من بوابة الدفع (success_url) قبل اعتماد الفاتورة — لا ثقة بالمتصفح
 
-export async function verifyStripeSessionPaid(sessionId: string, cfg: PaymentGatewayConfig): Promise<{ paid: boolean; error?: string }> {
+export async function verifyStripeSessionPaid(sessionId: string, cfg: PaymentGatewayConfig, expected?: { amountCents?: number; currency?: string }): Promise<{ paid: boolean; error?: string }> {
   try {
     const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
       headers: { Authorization: `Bearer ${cfg.stripeSecret}` },
