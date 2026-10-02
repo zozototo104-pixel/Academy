@@ -314,6 +314,7 @@ model Payment {
   purpose     String   // APPLICATION_FEE (30$) | TUITION | ACCREDITATION_APP (100$) | ACCREDITATION | OTHER
   description String
   amount      Float
+  amountCents Int?
   currency    String   @default("USD")
   method      String?  // PAYMOB | FAWRY | STRIPE | PAYPAL | USDT | BANK_TRANSFER | DIRECT_PAYMENT
   status      String   @default("UNPAID") // UNPAID | PAID
