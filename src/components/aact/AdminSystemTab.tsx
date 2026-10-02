@@ -166,6 +166,7 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'TOGETHER', label: 'Together AI — نماذج مفتوحة' },
   { value: 'UNOROUTER', label: 'UnoRouter — خط احتياطي أخير' },
   { value: 'RELAYROUTER', label: 'RelayRouter — بوابة نماذج متعددة مدفوعة' },
+  { value: 'TOPTOOLS', label: 'Top Tools AI — بوابة OpenAI-compatible' },
   { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
 ]
 
