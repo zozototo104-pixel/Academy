@@ -384,7 +384,7 @@ export async function POST(req: NextRequest) {
     const adminEmailInput = {
       reference,
       fullName: fullName.trim(),
-      applicantEmail: email.trim(),
+      applicantEmail: submittedEmail,
       phone: normalizePhone(phone),
       country: country.trim(),
       program: selectedTitle,
