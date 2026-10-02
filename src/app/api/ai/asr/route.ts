@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getZAI } from '@/lib/ai'
 import { requireUser } from '@/lib/auth'
+import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
 // POST /api/ai/asr — تحويل الصوت المسجل إلى نص (احتياطي عندما لا يتوفر Web Speech API)
 export async function POST(req: NextRequest) {
