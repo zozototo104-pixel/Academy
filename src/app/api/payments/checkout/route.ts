@@ -36,11 +36,25 @@ export async function POST(req: NextRequest) {
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     const isPrivileged = ['ADMIN', 'STAFF'].includes(user?.role || '')
+    const verifiedEmailOwner =
+      user?.role === 'STUDENT' &&
+      Boolean((user as any).emailVerifiedAt) &&
+      !payment.userId &&
+      !payment.admission?.userId &&
+      (
+        payment.payerEmail?.toLowerCase() === user?.email?.toLowerCase() ||
+        payment.admission?.email?.toLowerCase() === user?.email?.toLowerCase()
+      )
+    if (verifiedEmailOwner) {
+      await db.$transaction([
+        ...(payment.admissionId ? [db.admissionApplication.update({ where: { id: payment.admissionId }, data: { userId: user.id } })] : []),
+        db.payment.update({ where: { id: payment.id }, data: { userId: user.id } }),
+      ]).catch(() => {})
+    }
     const ownerMatches =
       payment.userId === user?.id ||
-      payment.payerEmail?.toLowerCase() === user?.email?.toLowerCase() ||
       payment.admission?.userId === user?.id ||
-      payment.admission?.email?.toLowerCase() === user?.email?.toLowerCase()
+      verifiedEmailOwner
     if (!isPrivileged && !ownerMatches) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
     }
