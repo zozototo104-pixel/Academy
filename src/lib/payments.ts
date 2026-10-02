@@ -284,6 +284,7 @@ export async function createStripeCheckout(params: {
   invoiceNo: string
   description: string
   amountUsd: number
+  amountCents?: number | null
   payerEmail?: string | null
   origin: string
   cfg: PaymentGatewayConfig
