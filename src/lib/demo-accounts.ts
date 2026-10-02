@@ -52,22 +52,22 @@ function plusDays(days: number) {
 }
 
 export async function ensureDemoAdmin() {
-  return db.user.upsert({
-    where: { email: DEMO_ADMIN_EMAIL },
-    update: {
-      password: hashPassword(DEMO_ADMIN_PASSWORD),
+  const existingAdmin = await db.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' } }).catch(() => null)
+  if (existingAdmin) return existingAdmin
+
+  const email = DEMO_ADMIN_EMAIL
+  const password = process.env.AACT_SEED_ADMIN_PASSWORD || ''
+  if (!email || password.length < 12) return null
+
+  return db.user.create({
+    data: {
+      email,
+      password: hashPassword(password),
       name: 'إدارة الأكاديمية',
       role: 'ADMIN',
       country: 'USA',
       phone: '+13072065544',
-    },
-    create: {
-      email: DEMO_ADMIN_EMAIL,
-      password: hashPassword(DEMO_ADMIN_PASSWORD),
-      name: 'إدارة الأكاديمية',
-      role: 'ADMIN',
-      country: 'USA',
-      phone: '+13072065544',
+      emailVerifiedAt: new Date(),
     },
   })
 }
