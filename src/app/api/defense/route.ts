@@ -228,8 +228,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'لا توجد جلسة جارية' }, { status: 400 })
       }
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' } })
-      const scores = studentMsgs.map((m) => m.score || 0)
-      const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : 0
+      const scores = studentMsgs
+        .map((m) => finiteScore(m.score))
+        .filter((score): score is number => score != null)
+      const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : null
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} جلسة مناقشة منتهية مبكراً` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
