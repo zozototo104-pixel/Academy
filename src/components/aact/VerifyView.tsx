@@ -226,6 +226,73 @@ export function VerifyView() {
                       </div>
                     </div>
                   )}
+                  {result.valid && result.certificate.detailsAvailable && !result.detailsUnlocked && (
+                    <div className="sm:col-span-2 rounded-xl border border-[#0f2b46]/10 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-black text-[#0f2b46]">تفاصيل الشهادة الخاصة</p>
+                          <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
+                            لعرض الدرجات والسجل الأكاديمي، أدخل البريد الإلكتروني المسجل وآخر 4 أرقام من رقم الهاتف المسجل لصاحب الشهادة.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setDetailsOpen((v) => !v)
+                            setDetailsError(null)
+                          }}
+                          className="border-[#0f2b46]/20 font-bold text-[#0f2b46]"
+                        >
+                          عرض التفاصيل الكاملة
+                        </Button>
+                      </div>
+                      {detailsOpen && (
+                        <form
+                          className="mt-3 grid gap-2 sm:grid-cols-[1fr_160px_auto]"
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            unlockDetails()
+                          }}
+                        >
+                          <Input
+                            type="email"
+                            dir="ltr"
+                            className="text-left text-xs"
+                            placeholder="email@example.com"
+                            value={detailsEmail}
+                            onChange={(e) => setDetailsEmail(e.target.value)}
+                            aria-label="البريد الإلكتروني المسجل لصاحب الشهادة"
+                          />
+                          <Input
+                            dir="ltr"
+                            inputMode="numeric"
+                            maxLength={4}
+                            className="text-left font-mono text-xs"
+                            placeholder="آخر 4 أرقام"
+                            value={detailsPhoneLast4}
+                            onChange={(e) => setDetailsPhoneLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            aria-label="آخر 4 أرقام من الهاتف المسجل"
+                          />
+                          <Button
+                            type="submit"
+                            disabled={detailsLoading}
+                            className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
+                          >
+                            {detailsLoading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : null}
+                            فتح التفاصيل
+                          </Button>
+                          {detailsError && <p className="sm:col-span-3 text-[11px] font-bold text-red-600">{detailsError}</p>}
+                        </form>
+                      )}
+                    </div>
+                  )}
+                  {result.detailsUnlocked && (
+                    <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold text-emerald-800">
+                      تم فتح التفاصيل بعد مطابقة البريد الإلكتروني وآخر 4 أرقام من رقم الهاتف المسجل.
+                    </div>
+                  )}
                   {result.certificate.academicProfile && (
                     <div className="sm:col-span-2 rounded-xl border border-[#c9a227]/25 bg-[#fffaf0] p-3">
                       <p className="font-black text-[#0f2b46]">الملف الأكاديمي المرتبط بالشهادة</p>
