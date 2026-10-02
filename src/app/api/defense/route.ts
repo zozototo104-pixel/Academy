@@ -324,6 +324,10 @@ export async function POST(req: NextRequest) {
       }
       const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
       const recordingMime = String(mime || 'video/webm').slice(0, 60)
+      const estimatedSize = base64DecodedSize(base64)
+      if (estimatedSize > 24 * 1024 * 1024) {
+        return NextResponse.json({ error: 'حجم التسجيل يتجاوز 24 ميجابايت — لن تُأرشف (جلسة طويلة جداً)' }, { status: 413 })
+      }
       const buffer = Buffer.from(base64, 'base64')
       const size = buffer.byteLength
       if (size > 24 * 1024 * 1024) {
