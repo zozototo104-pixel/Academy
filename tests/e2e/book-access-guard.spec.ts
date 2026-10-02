@@ -59,7 +59,7 @@ async function createLinkedBook(request: APIRequestContext, adminToken: string, 
     timeout: 45_000,
   })
   const body = await response.json().catch(() => ({}))
-  expect(response.ok(), `Linked book setup failed: ${response.status()} ${JSON.stringify(body).slice(0, 1000)}`).toBeTruthy()
+  expect(response.ok(), `Linked book setup failed: ${response.status()} ${safeSnippet(body, 1000)}`).toBeTruthy()
   expect(body.book?.id, 'Linked book setup must return a book id').toBeTruthy()
   return body.book
 }
