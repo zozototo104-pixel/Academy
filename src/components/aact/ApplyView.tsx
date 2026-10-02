@@ -1078,7 +1078,7 @@ export function ApplyView() {
                     {tracked.nextAction && <p className="mt-3 rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-[#5c4d1a]">الخطوة التالية: {tracked.nextAction}</p>}
                     {tracked.publicTracking && (
                       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
-                        هذه نتيجة تتبع عامة ومحجوبة لحماية بيانات صاحب الطلب. أدخل البريد المسجل أو آخر 4 أرقام من الهاتف ثم اضغط بحث لعرض التفاصيل، أو سجّل الدخول بحساب الطالب.
+                        هذه نتيجة تتبع عامة ومحجوبة لحماية بيانات صاحب الطلب. أدخل البريد الإلكتروني المسجل وآخر 4 أرقام من الهاتف معاً ثم اضغط بحث لعرض التفاصيل، أو سجّل الدخول بحساب الطالب.
                       </div>
                     )}
                   </div>
