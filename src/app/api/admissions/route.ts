@@ -16,6 +16,7 @@ import { normalizePhone, isSupportedCountry, validateApplicantFullName, validate
 import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentOwnsAdmission } from '@/lib/student-record-ownership'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
 // لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
