@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
         existingUnits: currentCount,
       }, { status: 409 })
     }
-    const orderOffset = replace ? 0 : currentCount
+    const orderOffset = replace ? 0 : Number(existingOrder._max.order || currentCount)
 
     const created = await Promise.all(plan.units.map((u, idx) => db.unit.create({
       data: {
