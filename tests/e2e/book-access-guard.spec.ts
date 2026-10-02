@@ -131,7 +131,7 @@ test.describe('Book access guard', () => {
       maxRedirects: 0,
     })
     const forbiddenBody = await studentForbidden.json().catch(() => ({}))
-    expect(studentForbidden.status(), `Student must not open another program's book: ${JSON.stringify(forbiddenBody).slice(0, 700)}`).toBe(403)
+    expect(studentForbidden.status(), `Student must not open another program's book: ${safeSnippet(forbiddenBody, 700)}`).toBe(403)
 
     const legacyAllowed = await request.get(`/api/books/${allowedBook.id}/file`, {
       headers: { Authorization: `Bearer ${student.token}` },
