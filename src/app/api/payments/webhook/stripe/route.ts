@@ -25,7 +25,7 @@ async function validateStripeCheckoutSession(session: any): Promise<{ ok: true; 
 
   const payment = await db.payment.findUnique({
     where: { invoiceNo },
-    select: { invoiceNo: true, amount: true, currency: true, providerRef: true },
+    select: { invoiceNo: true, amount: true, amountCents: true, currency: true, providerRef: true },
   })
   if (!payment) return { ok: false, error: 'الفاتورة غير موجودة' }
 
