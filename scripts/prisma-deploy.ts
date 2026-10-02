@@ -67,9 +67,15 @@ function assertProductionMigrationsAvailable() {
   process.exit(1)
 }
 
+function assertProductionMigrationHistoryReady() {
+  if (!isProductionDeployment()) return
+  run('npx', ['prisma', 'migrate', 'status', '--schema', 'prisma/schema.prisma'])
+}
+
 const args = new Set(process.argv.slice(2))
 
 assertProductionMigrationsAvailable()
+assertProductionMigrationHistoryReady()
 run('npx', ['prisma', 'generate'])
 
 if (args.has('--migrate')) {
