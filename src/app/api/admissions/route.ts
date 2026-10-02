@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
         description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
         amount: appFee,
         payerName: fullName.trim(),
-        payerEmail: email.trim(),
+        payerEmail: submittedEmail,
         payerCountry: country.trim(),
       },
     })
