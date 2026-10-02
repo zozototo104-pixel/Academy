@@ -238,6 +238,7 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
       purpose: 'APPLICATION_FEE',
       description: `QA رسوم تقديم — ${program.titleAr}`,
       amount: 30,
+      amountCents: dollarsToCents(30),
       payerName: student.name,
       payerEmail: student.email,
       payerCountry: student.country,
