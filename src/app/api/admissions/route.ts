@@ -374,9 +374,9 @@ export async function POST(req: NextRequest) {
 
     // إشعار بريدي بكود التتبع وخطوات ما بعد التقديم للبرامج الدراسية؛ الخدمات تُراجع أولاً لتحديد المتطلبات.
     if (isServiceRequest) {
-      emailServiceRequestSubmitted(email.trim(), fullName.trim(), reference, selectedTitle).catch(() => {})
+      emailServiceRequestSubmitted(submittedEmail, fullName.trim(), reference, selectedTitle).catch(() => {})
     } else {
-      emailAdmissionSubmitted(email.trim(), fullName.trim(), reference, selectedTitle, appFee).catch(() => {})
+      emailAdmissionSubmitted(submittedEmail, fullName.trim(), reference, selectedTitle, appFee).catch(() => {})
     }
 
     // تنبيه الإدارة بطلب التسجيل الجديد. فشل البريد لا يعطل حفظ الطلب ولا رد الطالب.
