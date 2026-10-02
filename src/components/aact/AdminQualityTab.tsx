@@ -517,23 +517,44 @@ export function AdminQualityTab() {
     }
   }
 
+  const runSuggestedUnits = async (program: ProgramReadinessItem, mode?: 'append' | 'replace') => {
+    await api('/api/admin/program-units/suggest', {
+      method: 'POST',
+      body: JSON.stringify({ programId: program.id, append: mode === 'append', replace: mode === 'replace' }),
+    })
+    const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
+    setReadinessItems(readiness.items || [])
+    setUnitSuggestionConflict(null)
+    await openUnitReview(program)
+  }
+
   const suggestUnits = async (program: ProgramReadinessItem) => {
     setReadinessBusyId(program.id)
     try {
       try {
-        await api('/api/admin/program-units/suggest', { method: 'POST', body: JSON.stringify({ programId: program.id }) })
+        await runSuggestedUnits(program)
       } catch (e: any) {
-        if (String(e?.message || '').includes('توجد وحدات') && confirm('توجد وحدات حالية. هل تريد استبدالها بخطة مقترحة جديدة من الكتب؟')) {
-          await api('/api/admin/program-units/suggest', { method: 'POST', body: JSON.stringify({ programId: program.id, replace: true }) })
+        if (String(e?.message || '').includes('توجد وحدات')) {
+          setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.units || 0) })
         } else {
           throw e
         }
       }
-      const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
-      setReadinessItems(readiness.items || [])
-      await openUnitReview(program)
     } finally {
       setReadinessBusyId(null)
+    }
+  }
+
+  const chooseUnitSuggestionMode = async (mode: 'append' | 'replace') => {
+    if (!unitSuggestionConflict) return
+    const program = unitSuggestionConflict.program
+    setUnitSuggestionModeBusy(mode)
+    setReadinessBusyId(program.id)
+    try {
+      await runSuggestedUnits(program, mode)
+    } finally {
+      setReadinessBusyId(null)
+      setUnitSuggestionModeBusy(null)
     }
   }
 
