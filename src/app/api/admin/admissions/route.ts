@@ -387,8 +387,8 @@ export async function PATCH(req: NextRequest) {
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
       const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
-      const tuitionTotal = inferTotalTuition(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount })))
-      const tuitionPaid = tuitionPaidTotal(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount })))
+      const tuitionTotal = inferTotalTuition(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
+      const tuitionPaid = tuitionPaidTotal(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
       const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
       if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
         return NextResponse.json(
