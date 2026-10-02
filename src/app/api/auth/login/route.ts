@@ -11,10 +11,12 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    const [{ db }, { verifyPassword, createSession }, { checkRateLimit, clientIpFromHeaders, rateLimitHeaders }] = await Promise.all([
+    const [{ db }, { verifyPassword, createSession }, { checkRateLimit, clientIpFromHeaders, rateLimitHeaders }, emailVerification, mailer] = await Promise.all([
       import('@/lib/db'),
       import('@/lib/auth'),
       import('@/lib/rate-limit'),
+      import('@/lib/email-verification'),
+      import('@/lib/mailer'),
     ])
 
     const ip = clientIpFromHeaders(req.headers)
