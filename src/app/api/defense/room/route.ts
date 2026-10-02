@@ -198,12 +198,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'leave') {
-      if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
-      // بث مغادرة للجميع ثم حذف المشارك
-      await db.defenseSignal.create({
-        data: { thesisId, fromPeer: peerId, toPeer: null, type: 'BYE', payload: '{}' },
-      })
-      await db.defenseParticipant.deleteMany({ where: { peerId, thesisId } })
+      if (!currentPeerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      await requireOwnedParticipant(thesisId, currentPeerId, user.id)
+      // بث مغادرة للجميع كنسخ موجهة حتى لا يستهلكها أول مشارك فقط
+      await createDirectedOrFanoutSignal({ thesisId, fromPeer: currentPeerId, type: 'BYE', payload: {} })
+      await db.defenseParticipant.deleteMany({ where: { peerId: currentPeerId, thesisId, userId: user.id } })
       return NextResponse.json({ ok: true })
     }
 
