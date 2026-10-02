@@ -2418,7 +2418,7 @@ export function AdminBooksTab() {
                           </div>
                         )}
                         {b.hasFile && (
-                          <a href={`/api/books/${b.id}/file`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">
+                          <a href={`/api/books/${b.id}/download`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">
                             <FileText className="h-3 w-3" /> {b.fileName} ({Math.ceil((b.size || 0) / 1024)} ك.ب)
                           </a>
                         )}
