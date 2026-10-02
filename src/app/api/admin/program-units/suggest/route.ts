@@ -162,19 +162,20 @@ export async function POST(req: NextRequest) {
     const plan = await generateUnitPlan(programId)
     if (!plan) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    if (replace) await db.unit.deleteMany({ where: { programId } })
     const currentCount = await db.unit.count({ where: { programId } })
-    if (currentCount > 0 && !replace) {
+    if (replace) await db.unit.deleteMany({ where: { programId } })
+    if (currentCount > 0 && !replace && !append) {
       return NextResponse.json({
-        error: 'توجد وحدات حالية لهذا البرنامج. استخدم خيار الاستبدال إذا أردت إعادة توليد الخطة.',
+        error: 'توجد وحدات حالية لهذا البرنامج. اختر الإضافة إلى الموجود أو الاستبدال.',
         existingUnits: currentCount,
       }, { status: 409 })
     }
+    const orderOffset = replace ? 0 : currentCount
 
     const created = await Promise.all(plan.units.map((u, idx) => db.unit.create({
       data: {
         programId,
-        order: idx + 1,
+        order: orderOffset + idx + 1,
         semester: Math.max(1, Math.min(plan.semestersCount, Number(u.semester || 1))),
         status: 'DRAFT',
         title: u.title,
