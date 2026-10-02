@@ -95,8 +95,8 @@ export async function POST(req: NextRequest) {
           'PAYMENT',
           manualProvider === 'USDT' ? 'طالب اختار الدفع عبر USDT' : 'طالب اختار الدفع المباشر',
           manualProvider === 'USDT'
-            ? `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ مقابل ${purposeLabel} بانتظار وصول USDT عبر ${cfg.usdtWalletAddress ? `شبكة ${cfg.usdtNetwork || 'TRC20'}` : `Binance Pay (${cfg.usdtBinancePayUserId || 'QR'})`} وتأكيد الإدارة.`
-            : `الفاتورة ${payment.invoiceNo} بمبلغ ${payment.amount}$ مقابل ${purposeLabel} بانتظار تأكيد الإدارة بعد استلام المبلغ.`,
+            ? `الفاتورة ${payment.invoiceNo} بمبلغ ${amountDollars.toFixed(2)}$ مقابل ${purposeLabel} بانتظار وصول USDT عبر ${cfg.usdtWalletAddress ? `شبكة ${cfg.usdtNetwork || 'TRC20'}` : `Binance Pay (${cfg.usdtBinancePayUserId || 'QR'})`} وتأكيد الإدارة.`
+            : `الفاتورة ${payment.invoiceNo} بمبلغ ${amountDollars.toFixed(2)}$ مقابل ${purposeLabel} بانتظار تأكيد الإدارة بعد استلام المبلغ.`,
           'admin'
         ).catch(() => {})
       }
