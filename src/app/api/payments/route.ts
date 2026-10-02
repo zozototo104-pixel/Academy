@@ -68,9 +68,16 @@ export async function POST(req: NextRequest) {
     else if (payment.admissionId) {
       const app = await db.admissionApplication.findUnique({
         where: { id: payment.admissionId },
-        select: { userId: true, email: true },
+        select: { id: true, userId: true, email: true },
       })
-      owns = !!app && (app.userId === user.id || (app.email || '').trim().toLowerCase() === email)
+      const verifiedEmailOwner = !!app && user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt) && !app.userId && (app.email || '').trim().toLowerCase() === email
+      if (verifiedEmailOwner) {
+        await db.$transaction([
+          db.admissionApplication.update({ where: { id: app.id }, data: { userId: user.id } }),
+          db.payment.update({ where: { id: payment.id }, data: { userId: user.id } }),
+        ]).catch(() => {})
+      }
+      owns = !!app && (app.userId === user.id || verifiedEmailOwner)
     } else if (payment.agentId) {
       const agent = await db.agentApplication.findUnique({
         where: { id: payment.agentId },
