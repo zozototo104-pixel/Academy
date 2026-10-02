@@ -649,16 +649,12 @@ export function AdminFinanceTab() {
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ page: String(paymentPage), pageSize: String(paymentPageSize), status: paymentStatusFilter })
       if (paymentSearch.trim()) params.set('search', paymentSearch.trim())
-      Promise.all([
-        api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`),
-        api<Report>('/api/admin/reports'),
-      ])
-        .then(([p, r]) => {
+      api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`)
+        .then((p) => {
           if (cancelled) return
           setPayments(Array.isArray(p.payments) ? p.payments : [])
           setTotals(p.totals || { collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
           setPaymentTotal(Number(p.total || p.totals?.count || 0))
-          setReport(r)
         })
         .catch(() => { if (!cancelled) setPayments([]) })
         .finally(() => { if (!cancelled) setLoading(false) })
