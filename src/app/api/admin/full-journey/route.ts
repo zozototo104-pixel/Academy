@@ -7,6 +7,7 @@ import { enforceSemesterTuitionGate, getAdmissionTuitionPlan } from '@/lib/tuiti
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
 import { calculateFinalGrade } from '@/lib/final-grade'
 import { nextAdmissionRef, nextInvoiceNo } from '@/lib/settings'
+import { dollarsToCents } from '@/lib/money'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
