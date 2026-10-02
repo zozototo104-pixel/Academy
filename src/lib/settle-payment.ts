@@ -224,7 +224,7 @@ export async function markInvoicePaid(
     }
   }
 
-  await audit(actor, 'PAYMENT_RECEIVED', 'Payment', updated.id, `${receiptNo} — ${payment.description} (${payment.amount}$ عبر ${method})${opts?.viaWebhook ? ' [Webhook]' : ''}`)
+  await audit(actor, 'PAYMENT_RECEIVED', 'Payment', updated.id, `${receiptNo} — ${payment.description} (${amountLabel}$ عبر ${method})${opts?.viaWebhook ? ' [Webhook]' : ''}`)
 
   return { ok: true, payment: updated, receiptNo }
 }
