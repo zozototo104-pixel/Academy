@@ -9,14 +9,30 @@ type TokenPayload = {
   exp: number
 }
 
+function envSecret(name: string): string | null {
+  const value = process.env[name]?.trim()
+  return value || null
+}
+
+function isProductionRuntime(): boolean {
+  if (process.env.VERCEL_ENV) return process.env.VERCEL_ENV === 'production'
+  if (['1', 'true', 'yes'].includes(String(process.env.CI || process.env.GITHUB_ACTIONS || '').toLowerCase())) return false
+  return process.env.NODE_ENV === 'production'
+}
+
 function tokenSecret() {
-  return (
-    process.env.AACT_UPLOAD_TOKEN_SECRET ||
-    process.env.AUTH_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    process.env.DATABASE_URL ||
-    'aact-upload-token-dev-secret'
-  )
+  const secret =
+    envSecret('AACT_UPLOAD_TOKEN_SECRET') ||
+    envSecret('AUTH_SECRET') ||
+    envSecret('NEXTAUTH_SECRET')
+
+  if (secret) return secret
+
+  if (isProductionRuntime()) {
+    throw new Error('AACT_UPLOAD_TOKEN_SECRET_REQUIRED')
+  }
+
+  return 'aact-upload-token-dev-secret'
 }
 
 function base64Url(input: Buffer | string) {
