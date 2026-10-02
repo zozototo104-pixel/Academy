@@ -84,7 +84,7 @@ test.describe('Book access guard', () => {
 
   test.afterEach(async ({ request }, testInfo: TestInfo) => {
     if (!adminToken || cleanupStamps.length === 0) return
-    const results = []
+    const results: CleanupResult[] = []
     while (cleanupStamps.length) {
       const stamp = cleanupStamps.pop()!
       results.push({ stamp, ...(await cleanupFixture(request, adminToken, stamp)) })
