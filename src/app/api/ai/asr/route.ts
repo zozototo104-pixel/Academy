@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
     if (!audioBase64 || typeof audioBase64 !== 'string') {
       return NextResponse.json({ error: 'الصوت مطلوب' }, { status: 400 })
     }
-    // حد 8MB صوت مسجل (~دقيقتان webm/opus)
-    if (audioBase64.length > 11_000_000) {
+    // حد 8MB صوت مسجل (~دقيقتان webm/opus) قبل إرسال الطلب للمزود
+    if (base64DecodedSize(audioBase64) > 8 * 1024 * 1024) {
       return NextResponse.json({ error: 'حجم التسجيل كبير جداً — سجل مقطعاً أقصر' }, { status: 413 })
     }
 
