@@ -1,6 +1,13 @@
 import { db } from '@/lib/db'
+import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
+
+type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null }
+
+function amountOf(payment: TuitionPayment): number {
+  return paymentAmountDollars(payment)
+}
 
 export interface TuitionPlanSummary {
   admissionId: string
