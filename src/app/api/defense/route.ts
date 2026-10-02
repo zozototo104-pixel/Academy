@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
         data: { defenseStatus: 'COMPLETED', aiScore, aiRecommendation: rec, defenseMinutes: minutes, defenseCompletedAt: new Date() },
       })
       await db.defenseMessage.create({
-        data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة — تقييم على الأسئلة المجاب عنها: ${aiScore}/100 — تم توليد محضر الجلسة وأرشفته في ملف البحث` },
+        data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة — تقييم على الأسئلة المجاب عنها: ${scoreLabel(aiScore)} — تم توليد محضر الجلسة وأرشفته في ملف البحث` },
       })
       await updateStudentAcademicMemory(user.id, {
         kind: 'DEFENSE',
