@@ -310,14 +310,17 @@ export function AdminSystemTab() {
   }, [])
 
   const activeTextProviderForModels = form.AI_TEXT_PROVIDER || data?.textAi?.selectedProvider || 'GEMINI'
+  const catalogProviderForModels = activeTextProviderForModels === 'AUTO'
+    ? (data?.textAi?.activeProvider || 'GEMINI')
+    : activeTextProviderForModels
 
   useEffect(() => {
-    if (!data || !activeTextProviderForModels || textModelCatalog[activeTextProviderForModels]) return
+    if (!data || !catalogProviderForModels || textModelCatalog[catalogProviderForModels]) return
     let cancelled = false
     const timer = window.setTimeout(() => {
       api<{ ok: boolean; provider: string; models: string[]; message: string; discoveredCount: number; staticCount: number }>('/api/admin/system', {
         method: 'POST',
-        body: JSON.stringify({ action: 'text-ai-models', provider: activeTextProviderForModels }),
+        body: JSON.stringify({ action: 'text-ai-models', provider: catalogProviderForModels }),
       })
         .then((r) => {
           if (cancelled || !r?.provider) return
