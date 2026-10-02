@@ -336,6 +336,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'TOGETHER': return s.togetherKeys
     case 'UNOROUTER': return s.unorouterKeys
     case 'RELAYROUTER': return s.relayrouterKeys
+    case 'TOPTOOLS': return s.topToolsKeys
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
 }
