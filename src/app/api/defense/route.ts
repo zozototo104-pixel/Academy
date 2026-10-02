@@ -9,6 +9,17 @@ import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 
+type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; unavailable?: boolean }
+
+function finiteScore(value: unknown): number | null {
+  const score = Number(value)
+  return Number.isFinite(score) ? Math.max(0, Math.min(10, score)) : null
+}
+
+function scoreLabel(score: number | null): string {
+  return score == null ? 'غير متاح — يحتاج مراجعة اللجنة البشرية' : `${score}/100`
+}
+
 // GET /api/defense — حالة قاعة المناقشة للطالب الحالي
 export async function GET() {
   try {
