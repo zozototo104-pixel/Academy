@@ -93,7 +93,7 @@ test.describe('Book access guard', () => {
     await testInfo.attach('book-access-cleanup-json', { path: cleanupPath, contentType: 'application/json' })
     const failedCleanup = results.find((r) => !r.ok)
     if (failedCleanup && testInfo.status !== 'failed') {
-      throw new Error(`Book access cleanup failed: ${JSON.stringify(failedCleanup).slice(0, 1000)}`)
+      throw new Error(`Book access cleanup failed: ${safeSnippet(failedCleanup, 1000)}`)
     }
   })
 
