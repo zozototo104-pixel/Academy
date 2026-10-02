@@ -409,15 +409,20 @@ export function DashboardView() {
   const open = async (programId: string) => {
     setLoadingActive(true)
     try {
-      const [d, a, g] = await Promise.all([
-        api<ProgressData>(`/api/progress?programId=${programId}`),
+      const d = await api<ProgressData>(`/api/progress?programId=${programId}`)
+      setActive(d)
+      setAssignments([])
+      setStudyGuides([])
+      setProgramSection('academic')
+      Promise.all([
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
         api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
       ])
-      setActive(d)
-      setAssignments(a.assignments || [])
-      setStudyGuides(g.guides || [])
-      setProgramSection('academic')
+        .then(([a, g]) => {
+          setAssignments(a.assignments || [])
+          setStudyGuides(g.guides || [])
+        })
+        .catch(() => null)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
