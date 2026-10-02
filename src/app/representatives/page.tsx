@@ -31,6 +31,14 @@ export default async function RepresentativesPage() {
       <section className="relative isolate bg-[#0a1f36] px-4 py-16 text-white sm:py-20">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(201,162,39,.35),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(191,22,70,.22),transparent_35%)]" />
         <div className="mx-auto max-w-7xl">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <Link href="/" className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/10 transition hover:bg-white/18">
+              العودة للقائمة الرئيسية
+            </Link>
+            <Link href="/" className="inline-flex items-center rounded-full border border-[#c9a227]/40 bg-[#c9a227]/15 px-4 py-2 text-xs font-black text-[#f4d77d] transition hover:bg-[#c9a227]/25">
+              الصفحة الرئيسية
+            </Link>
+          </div>
           <div className="max-w-3xl">
             <p className="mb-3 inline-flex rounded-full border border-[#c9a227]/35 bg-white/10 px-4 py-1 text-xs font-black text-[#f4d77d]">شبكة التمثيل الدولي</p>
             <h1 className="text-4xl font-black leading-tight sm:text-6xl">ممثلو الأكاديمية في الدول والمناطق</h1>
