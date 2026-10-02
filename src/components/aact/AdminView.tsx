@@ -683,10 +683,11 @@ export function AdminView() {
         .finally(() => { if (!cancelled) setStudentsLoading(false) })
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [user, studentSearch, studentStatusFilter, studentPage, studentPageSize])
+  }, [user, activeTab, studentSearch, studentStatusFilter, studentPage, studentPageSize])
 
   useEffect(() => {
     if (!user || user.role !== 'ADMIN') return
+    if (activeTab !== 'attempts') return
     let cancelled = false
     setAttemptsLoading(true)
     const timer = window.setTimeout(() => {
