@@ -27,8 +27,10 @@ interface AcademicRecord {
 interface VerifyResult {
   valid: boolean
   verificationMode?: 'QR_TOKEN' | 'SERIAL'
+  detailsUnlocked?: boolean
   certificate?: CertificateData & {
     valid: boolean
+    detailsAvailable?: boolean
     academicProfile?: {
       academicTitle: string
       durationLabel: string
