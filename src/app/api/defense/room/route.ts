@@ -164,7 +164,15 @@ export async function POST(req: NextRequest) {
     if (!thesis) return NextResponse.json({ error: 'لا تملك صلاحية الوصول لهذه القاعة' }, { status: 403 })
 
     if (action === 'join') {
-      if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      if (!currentPeerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      assertValidPeerId(currentPeerId)
+      const existingPeer = await db.defenseParticipant.findUnique({
+        where: { peerId: currentPeerId },
+        select: { thesisId: true, userId: true },
+      })
+      if (existingPeer && (existingPeer.thesisId !== thesisId || existingPeer.userId !== user.id)) {
+        return NextResponse.json({ error: 'معرف الاتصال مستخدم في جلسة أخرى' }, { status: 409 })
+      }
       // الدور يُحسب خادمياً من حساب المستخدم — لا يُقبل دور من العميل (منع انتحال صفة اللجنة)
       const name = String(user.role === 'STUDENT' ? user.name : body.name || user.name)
         .slice(0, 80)
