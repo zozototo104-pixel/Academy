@@ -382,8 +382,9 @@ export function ApplyView() {
         method: 'POST',
         body: JSON.stringify({ applicationId: app.id, reference: app.reference, uploadToken: app.replacementUploadToken }),
       })
-      const verifyParam = trackVerify.trim() ? `&verify=${encodeURIComponent(trackVerify.trim())}` : ''
-      const refreshed = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}${verifyParam}`)
+      const emailParam = trackEmail.trim() ? `&email=${encodeURIComponent(trackEmail.trim())}` : ''
+      const phoneParam = trackPhoneLast4.trim() ? `&phoneLast4=${encodeURIComponent(trackPhoneLast4.trim())}` : ''
+      const refreshed = await api<{ application: any }>(`/api/admissions?ref=${encodeURIComponent(app.reference)}${emailParam}${phoneParam}`)
       setTracked(refreshed.application)
       setMyAdmission((prev) => (prev?.id === app.id ? refreshed.application : prev))
       setMyApplications((prev) => prev.map((item) => (item.id === app.id ? refreshed.application : item)))
