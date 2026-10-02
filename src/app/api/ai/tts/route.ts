@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getZAI } from '@/lib/ai'
 import { requireUser } from '@/lib/auth'
+import { AI_RATE_LIMITS, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 import {
   ensureGeminiKey,
   geminiTTSWav,
