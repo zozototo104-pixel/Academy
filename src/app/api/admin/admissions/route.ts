@@ -73,21 +73,23 @@ export async function GET(req: NextRequest) {
     }
     const where: any = filters.length ? { AND: filters } : {}
 
-    const apps = await db.admissionApplication.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take,
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
-        supervisor: { select: { id: true, name: true } },
-        payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
-        theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
-        files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
-        deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
-      },
-    })
-    const total = await db.admissionApplication.count({ where })
+    const [apps, total] = await Promise.all([
+      db.admissionApplication.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          supervisor: { select: { id: true, name: true } },
+          payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
+          theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
+          files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
+          deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
+        },
+      }),
+      db.admissionApplication.count({ where }),
+    ])
     const appIds = apps.map((a) => a.id)
     let appeals: any[] = []
     if (appIds.length) {
