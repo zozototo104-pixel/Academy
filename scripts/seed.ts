@@ -175,6 +175,7 @@ async function main() {
         name: 'طالب تجريبي',
         role: 'STUDENT',
         country: 'EG',
+        emailVerifiedAt: new Date(),
       },
     })
     const firstProgram = await prisma.program.findUnique({
