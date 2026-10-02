@@ -97,14 +97,12 @@ function strongAdmissionReference() {
   return `AACT-2026-${randomBytes(16).toString('hex').toUpperCase()}`
 }
 
-function trackingVerifierMatches(app: { email?: string | null; phone?: string | null }, verifier?: string | null) {
-  const value = String(verifier || '').trim().toLowerCase()
-  if (!value) return false
-  const email = validEmail(value)
-  if (email && email === String(app.email || '').trim().toLowerCase()) return true
-  const digits = digitsOnly(value)
-  const phoneDigits = digitsOnly(app.phone)
-  return digits.length >= 4 && !!phoneDigits && phoneDigits.endsWith(digits)
+function trackingVerifierMatches(app: { email?: string | null; phone?: string | null }, emailInput?: string | null, phoneLast4Input?: string | null) {
+  const email = validEmail(emailInput)
+  const submittedLast4 = digitsOnly(phoneLast4Input).slice(-4)
+  const appPhoneLast4 = digitsOnly(app.phone).slice(-4)
+  if (!email || submittedLast4.length !== 4 || appPhoneLast4.length !== 4) return false
+  return email === String(app.email || '').trim().toLowerCase() && submittedLast4 === appPhoneLast4
 }
 
 async function adminAdmissionEmailRecipients() {
