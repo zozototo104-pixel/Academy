@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
           providerRef: `${manualProvider}-${Date.now()}`,
           checkoutUrl: null,
           method: manualProvider,
-          userId: payment.userId || user?.id || null,
+          userId: effectivePaymentUserId,
           ...(manualProvider === 'USDT'
             ? {
                 cryptoNetwork: cfg.usdtWalletAddress ? (cfg.usdtNetwork || 'TRC20') : 'BINANCE_PAY',
