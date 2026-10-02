@@ -207,15 +207,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'signal') {
-      if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      if (!currentPeerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      await requireOwnedParticipant(thesisId, currentPeerId, user.id)
       const { type, payload, to } = body as { type: string; payload: any; to?: string | null }
-      if (!['OFFER', 'ANSWER', 'ICE', 'BYE'].includes(type)) {
-        return NextResponse.json({ error: 'نوع إشارة غير معروف' }, { status: 400 })
-      }
-      await db.defenseSignal.create({
-        data: { thesisId, fromPeer: peerId, toPeer: to || null, type, payload: JSON.stringify(payload || {}) },
+      const toPeer = normalizePeerId(to)
+      const delivered = await createDirectedOrFanoutSignal({
+        thesisId,
+        fromPeer: currentPeerId,
+        toPeer: toPeer || null,
+        type,
+        payload,
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true, delivered })
     }
 
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
