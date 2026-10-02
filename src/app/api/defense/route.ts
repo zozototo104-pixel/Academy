@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
           `أنهيت أسئلة اللجنة عبر الفيديو كونفرنس — تقييم خبير الذكاء الاصطناعي: ${scoreLabel(aiScore)}. تُعرض توصية خبير الذكاء على اللجنة لاعتماد النتيجة النهائية.`,
           'dashboard'
         )
-        await audit({ id: user.id, name: user.name }, 'COMPLETE_DEFENSE', 'ThesisSubmission', thesis.id, `تقييم AI: ${aiScore}/100`)
+        await audit({ id: user.id, name: user.name }, 'COMPLETE_DEFENSE', 'ThesisSubmission', thesis.id, `تقييم AI: ${scoreLabel(aiScore)}`)
       } else {
         const interactiveReply = [
           result.feedback ? `تعليق اللجنة: ${result.feedback}` : '',
