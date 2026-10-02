@@ -605,12 +605,21 @@ export function AdminQualityTab() {
     }
   }
 
-  const deleteUnit = async (unitId: string) => {
-    if (!unitReviewProgram || !confirm('حذف هذه الوحدة من خطة المنهج؟')) return
-    setUnitBusyId(unitId)
+  const deleteUnit = (unitId: string) => {
+    if (!unitReviewProgram) return
+    const target = unitReviewItems.find((u) => u.id === unitId) || null
+    if (!target) return
+    setUnitDeleteTarget(target)
+  }
+
+  const confirmDeleteUnit = async () => {
+    if (!unitReviewProgram || !unitDeleteTarget) return
+    const target = unitDeleteTarget
+    setUnitBusyId(target.id)
     try {
-      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${unitReviewProgram.id}&unitId=${unitId}`, { method: 'DELETE' })
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${unitReviewProgram.id}&unitId=${target.id}`, { method: 'DELETE' })
       setUnitReviewItems(res.units || [])
+      setUnitDeleteTarget(null)
     } finally {
       setUnitBusyId(null)
     }
