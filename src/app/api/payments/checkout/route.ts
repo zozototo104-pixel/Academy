@@ -129,7 +129,8 @@ export async function POST(req: NextRequest) {
       method: String(method),
       invoiceNo: payment.invoiceNo,
       description: payment.description,
-      amountUsd: payment.amount,
+      amountUsd: amountDollars,
+      amountCents,
       payerEmail: payment.payerEmail || user?.email || null,
       origin,
     })
