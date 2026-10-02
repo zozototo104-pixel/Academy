@@ -372,20 +372,18 @@ export function DashboardView() {
       setEnrollments(e.enrollments || [])
 
       setServiceDeliverablesLoading(true)
-      api<StudentDashboardSummary>('/api/my/dashboard-summary')
-        .then((summary) => { if (summary) setStudentSummary(summary) })
-        .catch(() => null)
-
       Promise.all([
         api<{ messages: ChatMsg[] }>('/api/chat').catch(() => ({ messages: [] as ChatMsg[] })),
         api<{ memory: AcademicMemorySnapshot | null }>('/api/my/academic-memory').catch(() => ({ memory: null })),
         api<{ earned: MicroCredentialCard[]; available: MicroCredentialCard[] }>('/api/my/micro-credentials').catch(() => ({ earned: [], available: [] })),
+        api<StudentDashboardSummary>('/api/my/dashboard-summary').catch(() => null),
         api<{ deliverables: ServiceDeliverableRow[] }>('/api/service-deliverables').catch(() => ({ deliverables: [] as ServiceDeliverableRow[] })),
-      ]).then(([c, m, mc, deliverablesRes]) => {
+      ]).then(([c, m, mc, summary, deliverablesRes]) => {
         setLastChats(c.messages.slice(-2))
         setAcademicMemory(m.memory || null)
         setEarnedMicroCredentials(mc.earned || [])
         setAvailableMicroCredentials(mc.available || [])
+        if (summary) setStudentSummary(summary)
         setServiceDeliverables(deliverablesRes.deliverables || [])
       }).catch(() => {}).finally(() => setServiceDeliverablesLoading(false))
 
