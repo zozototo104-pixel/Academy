@@ -1,0 +1,82 @@
+name: Prisma Baseline Mark Applied
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_name:
+        description: 'Existing baseline migration folder name to mark as already applied.'
+        required: true
+        default: '0_init'
+        type: string
+      confirm:
+        description: 'Type MARK_BASELINE_APPLIED to confirm this targets an existing production schema and does not run migration SQL.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prisma-baseline-mark-applied-production
+  cancel-in-progress: false
+
+jobs:
+  mark-applied:
+    name: Mark baseline migration as applied
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate confirmation and branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ '${{ github.ref }}' != 'refs/heads/main' ]; then
+            echo 'Refusing to mark production baseline from a non-main ref: ${{ github.ref }}'
+            exit 1
+          fi
+          if [ '${{ inputs.confirm }}' != 'MARK_BASELINE_APPLIED' ]; then
+            echo 'Confirmation text did not match MARK_BASELINE_APPLIED.'
+            exit 1
+          fi
+          name='${{ inputs.migration_name }}'
+          if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
+            echo "Invalid migration_name: $name"
+            exit 1
+          fi
+          if [ ! -s "prisma/migrations/$name/migration.sql" ]; then
+            echo "Missing prisma/migrations/$name/migration.sql on main. Merge the reviewed baseline migration first."
+            exit 1
+          fi
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo 'DATABASE_URL secret is required in the production environment.'
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.22'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Mark baseline as already applied
+        shell: bash
+        run: |
+          set -euo pipefail
+          bunx prisma migrate resolve --schema prisma/schema.prisma --applied '${{ inputs.migration_name }}'
+
+      - name: Show migration status after resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          bunx prisma migrate status --schema prisma/schema.prisma
