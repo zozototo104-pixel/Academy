@@ -142,12 +142,17 @@ async function readAdmissionPayload(req: NextRequest) {
         }
 
         const buf = Buffer.from(await f.arrayBuffer())
+        const signature = validateAdmissionFileSignature({ buffer: buf, fileName: f.name, mimeType: mime })
+        if (!signature.ok) {
+          throw jsonError(`تم رفض ملف «${f.name}»: ${signature.error}`)
+        }
+
         let stored
         try {
           stored = await storeFileBuffer({
             buffer: buf,
             fileName: f.name,
-            mimeType: mime,
+            mimeType: signature.mimeType,
             namespace: `admissions/${docType.toLowerCase()}`,
           })
         } catch (error) {
