@@ -18,7 +18,7 @@ export async function GET() {
     })
     const admissionIds = ownAdmissions.map((a) => a.id)
     const payments = await db.payment.findMany({
-      where: { OR: [{ userId: user.id }, { admissionId: { in: admissionIds } }] },
+      where: studentPaymentOwnershipWhere(user),
       orderBy: { createdAt: 'desc' },
     })
     // إثراء البيانات بمرجع الطلب وخطط التقسيط الدراسية
