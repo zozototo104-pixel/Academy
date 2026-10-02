@@ -340,6 +340,7 @@ export async function createPaypalOrder(params: {
   invoiceNo: string
   description: string
   amountUsd: number
+  amountCents?: number | null
   origin: string
   cfg: PaymentGatewayConfig
 }): Promise<CheckoutResult> {
