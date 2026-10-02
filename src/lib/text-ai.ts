@@ -449,12 +449,17 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
     const data = await response.json().catch(() => ({}))
-    return rowsFromModelPayload(data)
+    const rows = rowsFromModelPayload(data)
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
-      .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' || isFreeModel(raw, id)))
-      .map(({ id }) => id)
+      .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' ? isStrongTopToolsTextModel(raw, id) : isFreeModel(raw, id)))
+    if (provider === 'TOPTOOLS') {
+      return rows
+        .sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
+        .map(({ id }) => id)
+    }
+    return rows.map(({ id }) => id)
   } catch {
     return []
   }
