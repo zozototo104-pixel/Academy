@@ -105,6 +105,14 @@ function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, duratio
   )
 }
 
+const ProgramsView = dynamic(() => import('@/components/aact/ProgramsView').then((m) => m.ProgramsView), { ssr: false, loading: LazyViewLoader })
+const ProgramDetailsView = dynamic(() => import('@/components/aact/ProgramDetailsView').then((m) => m.ProgramDetailsView), { ssr: false, loading: LazyViewLoader })
+const ApplyView = dynamic(() => import('@/components/aact/ApplyView').then((m) => m.ApplyView), { ssr: false, loading: LazyViewLoader })
+const AuthView = dynamic(() => import('@/components/aact/AuthView').then((m) => m.AuthView), { ssr: false, loading: LazyViewLoader })
+const VerifyView = dynamic(() => import('@/components/aact/VerifyView').then((m) => m.VerifyView), { ssr: false, loading: LazyViewLoader })
+const DirectoryView = dynamic(() => import('@/components/aact/DirectoryView').then((m) => m.DirectoryView), { ssr: false, loading: LazyViewLoader })
+const AboutView = dynamic(() => import('@/components/aact/AboutView').then((m) => m.AboutView), { ssr: false, loading: LazyViewLoader })
+const ContactView = dynamic(() => import('@/components/aact/ContactView').then((m) => m.ContactView), { ssr: false, loading: LazyViewLoader })
 const DashboardView = dynamic(() => import('@/components/aact/DashboardView').then((m) => m.DashboardView), { ssr: false, loading: LazyViewLoader })
 const UnitView = dynamic(() => import('@/components/aact/UnitView').then((m) => m.UnitView), { ssr: false, loading: LazyViewLoader })
 const ExamView = dynamic(() => import('@/components/aact/ExamView').then((m) => m.ExamView), { ssr: false, loading: LazyViewLoader })
