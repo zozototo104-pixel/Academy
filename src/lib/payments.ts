@@ -298,7 +298,7 @@ export async function createStripeCheckout(params: {
     body.set('customer_email', params.payerEmail || '')
     body.set('line_items[0][quantity]', '1')
     body.set('line_items[0][price_data][currency]', 'usd')
-    body.set('line_items[0][price_data][unit_amount]', String(Math.round(params.amountUsd * 100)))
+    body.set('line_items[0][price_data][unit_amount]', String(params.amountCents ?? dollarsToCents(params.amountUsd)))
     body.set('line_items[0][price_data][product_data][name]', params.description.slice(0, 120))
     body.set('metadata[invoiceNo]', params.invoiceNo)
 
