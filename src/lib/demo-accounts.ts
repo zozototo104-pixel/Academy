@@ -154,6 +154,7 @@ export async function ensureActiveLearningStudent() {
       role: 'STUDENT',
       country: 'الأردن',
       phone: '+962790000000',
+      emailVerifiedAt: new Date(),
     },
     create: {
       email: DEMO_ACTIVE_STUDENT_EMAIL,
@@ -162,6 +163,7 @@ export async function ensureActiveLearningStudent() {
       role: 'STUDENT',
       country: 'الأردن',
       phone: '+962790000000',
+      emailVerifiedAt: new Date(),
     },
   })
 
