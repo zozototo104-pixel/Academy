@@ -1799,6 +1799,60 @@ function SettingsAuditDisplay({ log }: { log: AuditRow }) {
   )
 }
 
+function parseAuditPairs(details?: string | null) {
+  const raw = String(details || '')
+  const pairs: Record<string, string> = {}
+  raw.split('|').map((part) => part.trim()).forEach((part) => {
+    const index = part.indexOf('=')
+    if (index > 0) pairs[part.slice(0, index).trim()] = part.slice(index + 1).trim()
+  })
+  return pairs
+}
+
+function OperationalAuditDisplay({ log }: { log: AuditRow }) {
+  const pairs = parseAuditPairs(log.details)
+  if (log.action === 'LIST_ACADEMY_REPRESENTATIVES') {
+    return <span className="text-xs font-bold text-slate-600">تم فتح قائمة ممثلي الأكاديمية. عدد النتائج: {pairs.count || '0'}.</span>
+  }
+  if (log.action === 'UPLOAD_BINANCE_PAY_QR') {
+    const key = String(log.details || '').replace(/^s3:/, '')
+    const fileName = key.split('/').filter(Boolean).pop() || 'صورة QR'
+    return (
+      <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+        تم رفع صورة QR للدفع عبر Binance Pay وحفظها في التخزين الآمن.
+        <div className="mt-1 break-all rounded-lg bg-white/70 p-2 font-mono text-[10px] text-amber-800" dir="ltr">{fileName}</div>
+      </div>
+    )
+  }
+  if (log.action === 'DB_BACKUP_SUCCESS' || log.action === 'DB_BACKUP_PARTIAL') {
+    return (
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold leading-6 text-emerald-900">
+        تم إنشاء نسخة احتياطية مشفرة لقاعدة البيانات.
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">المصدر: {pairs.trigger === 'manual-admin' ? 'يدوي من الإدارة' : pairs.trigger === 'cron' ? 'تلقائي مجدول' : pairs.trigger || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">التخزين: {pairs.provider === 's3' ? 'Cloudflare/R2' : pairs.provider || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الجداول: {pairs.tables || '0'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الأخطاء: {pairs.errors || '0'}</span>
+          {pairs.bytes && <span className="rounded-full bg-white px-2 py-1 text-[10px]">الحجم: {(Number(pairs.bytes) / 1024).toFixed(1)} KB</span>}
+        </div>
+      </div>
+    )
+  }
+  if (log.action === 'DB_RESTORE_SUCCESS' || log.action === 'DB_RESTORE_PARTIAL') {
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold leading-6 text-blue-900">
+        تم استيراد نسخة احتياطية مشفرة من التخزين الآمن.
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">التخزين: {pairs.provider === 's3' ? 'Cloudflare/R2' : pairs.provider || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الجداول: {pairs.tables || '0'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الأخطاء: {pairs.errors || '0'}</span>
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+
 function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   const whatsApp = WhatsAppAuditDisplay({ log })
   if (whatsApp) return whatsApp
@@ -1806,6 +1860,8 @@ function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   if (aiKnowledge) return aiKnowledge
   const settings = SettingsAuditDisplay({ log })
   if (settings) return settings
+  const operational = OperationalAuditDisplay({ log })
+  if (operational) return operational
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
