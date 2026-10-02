@@ -180,7 +180,107 @@ export async function GET(req: NextRequest) {
       }),
       db.user.count({ where }),
     ])
-    const students = await Promise.all(users.map(buildStudentSummary))
+
+    const userIds = users.map((u) => u.id)
+    if (userIds.length === 0) {
+      return NextResponse.json({ students: [], total, pagination: adminPaginationMeta(page, pageSize, total) })
+    }
+
+    const [enrollments, ownedAdmissions, unitAttemptStats, programAttemptStats, aiChatStats] = await Promise.all([
+      db.enrollment.findMany({
+        where: { userId: { in: userIds } },
+        select: {
+          userId: true,
+          status: true,
+          certificateNo: true,
+          finalScore: true,
+          createdAt: true,
+          program: { select: { titleAr: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.admissionApplication.findMany({
+        where: { userId: { in: userIds } },
+        select: { userId: true, id: true, reference: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.examAttempt.groupBy({
+        by: ['userId'],
+        where: { userId: { in: userIds } },
+        _count: { _all: true },
+        _max: { score: true },
+      }),
+      db.programExamAttempt.groupBy({
+        by: ['userId'],
+        where: { userId: { in: userIds } },
+        _count: { _all: true },
+        _max: { score: true, finalScore: true },
+      }),
+      db.chatMessage.groupBy({
+        by: ['userId'],
+        where: { userId: { in: userIds } },
+        _count: { _all: true },
+      }),
+    ])
+
+    const enrollmentsByUser = new Map<string, typeof enrollments>()
+    for (const enrollment of enrollments) {
+      const list = enrollmentsByUser.get(enrollment.userId) || []
+      if (list.length < 10) list.push(enrollment)
+      enrollmentsByUser.set(enrollment.userId, list)
+    }
+
+    const admissionsByUser = new Map<string, typeof ownedAdmissions>()
+    for (const admission of ownedAdmissions) {
+      const list = admissionsByUser.get(admission.userId) || []
+      if (list.length < 5) list.push(admission)
+      admissionsByUser.set(admission.userId, list)
+    }
+
+    const unitStatsByUser = new Map(unitAttemptStats.map((s) => [s.userId, s]))
+    const programStatsByUser = new Map(programAttemptStats.map((s) => [s.userId, s]))
+    const aiChatsByUser = new Map(aiChatStats.map((s) => [s.userId, s._count._all || 0]))
+
+    const students = users.map((user) => {
+      const userEnrollments = enrollmentsByUser.get(user.id) || []
+      const latestAdmission = (admissionsByUser.get(user.id) || [])[0]
+      const unitStats = unitStatsByUser.get(user.id)
+      const programStats = programStatsByUser.get(user.id)
+      const scorePool = [
+        ...userEnrollments.map((e) => e.finalScore),
+        unitStats?._max.score,
+        programStats?._max.score,
+        programStats?._max.finalScore,
+      ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        country: user.country,
+        status: user.status,
+        createdAt: user.createdAt,
+        enrollments: userEnrollments.map((e) => ({
+          program: e.program?.titleAr || 'برنامج غير محدد',
+          status: e.status,
+          certificateNo: e.certificateNo,
+          finalScore: e.finalScore,
+        })),
+        attemptsCount: (unitStats?._count._all || 0) + (programStats?._count._all || 0),
+        bestScore: scorePool.length ? Math.max(...scorePool) : null,
+        aiChats: aiChatsByUser.get(user.id) || 0,
+        latestAdmission: latestAdmission
+          ? {
+              id: latestAdmission.id,
+              reference: latestAdmission.reference,
+              status: latestAdmission.status,
+              program: latestAdmission.programRef?.titleAr || latestAdmission.program || 'برنامج غير محدد',
+              createdAt: latestAdmission.createdAt,
+            }
+          : null,
+      }
+    })
+
     return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
