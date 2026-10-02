@@ -91,6 +91,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, reply: result.reply, agent: result.agent, engine: result.engine })
   } catch (e: any) {
     console.error('Public WhatsApp assistant error:', String(e?.message || e).slice(0, 500))
+    const fallbackReply = await groundedProgramFallbackReply(String(message || '')).catch(() => null)
+    if (fallbackReply) return NextResponse.json({ ok: true, reply: fallbackReply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' })
     return NextResponse.json({ error: 'تعذر تشغيل وكيل واتساب الذكي مؤقتاً. يمكنك فتح واتساب المباشر والتواصل مع الإدارة.' }, { status: 500 })
   }
 }
