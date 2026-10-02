@@ -56,6 +56,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
 
+    const amountCents = paymentAmountCents(payment)
+    const amountDollars = paymentAmountDollars(payment)
+
     // الطرق اليدوية ليست بوابات إلكترونية ولا Sandbox: تسجل طلب دفع وينتظر تأكيد الإدارة.
     if (['DIRECT_PAYMENT', 'USDT'].includes(String(method))) {
       const cfg = await getGatewayConfig()
