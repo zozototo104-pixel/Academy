@@ -1126,6 +1126,9 @@ export function AdminView() {
                 const serviceHasInvoice = !isStudyAdmission && (a.payments || []).length > 0
                 const serviceDeliveryReady = !isStudyAdmission && a.status === 'RESULT_APPROVED' && serviceHasInvoice && unpaid.length === 0
                 const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
+                const ownerName = a.user?.name?.trim() || ''
+                const applicantName = a.fullName?.trim() || ''
+                const ownerNameDiffers = !!ownerName && !!applicantName && ownerName !== applicantName
                 return (
                   <Card
                     key={a.id}
