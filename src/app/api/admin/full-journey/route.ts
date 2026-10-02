@@ -542,6 +542,7 @@ async function createAcademicAndFinancialJourney(
       purpose: 'TUITION_INSTALLMENT',
       description: `QA سداد بقية الرسوم قبل امتحان الفصل الثاني — ${scaffold.program.titleAr}`,
       amount: planBeforeFinal?.remainingTuition || 900,
+      amountCents: dollarsToCents(planBeforeFinal?.remainingTuition || 900),
       payerName: academic.student.name,
       payerEmail: academic.student.email,
       payerCountry: academic.student.country,
