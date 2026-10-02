@@ -6,6 +6,7 @@ import { buildScopedDirectProgramBooksResult } from '@/lib/ai-context-builder'
 import { resolveAiKnowledgeScope, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt, buildInterruptNote } from '@/lib/voicePrompt'
+import { AI_RATE_LIMITS, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
