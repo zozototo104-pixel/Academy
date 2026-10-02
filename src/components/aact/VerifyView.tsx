@@ -65,6 +65,9 @@ export function VerifyView() {
     if (!s) return
     setLoading(true)
     setResult(null)
+    setDetailsOpen(false)
+    setDetailsError(null)
+    setLookup({ mode, value: s })
     try {
       const param = mode === 'token' ? 'token' : 'serial'
       const d = await api<VerifyResult>(`/api/certificates/verify?${param}=${encodeURIComponent(s)}`)
