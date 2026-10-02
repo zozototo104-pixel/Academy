@@ -163,9 +163,11 @@ export async function GET(req: NextRequest) {
 
     const admissionsByUser = new Map<string, typeof ownedAdmissions>()
     for (const admission of ownedAdmissions) {
-      const list = admissionsByUser.get(admission.userId) || []
+      const admissionUserId = admission.userId
+      if (!admissionUserId) continue
+      const list = admissionsByUser.get(admissionUserId) || []
       if (list.length < 5) list.push(admission)
-      admissionsByUser.set(admission.userId, list)
+      admissionsByUser.set(admissionUserId, list)
     }
 
     const unitStatsByUser = new Map(unitAttemptStats.map((s) => [s.userId, s]))
