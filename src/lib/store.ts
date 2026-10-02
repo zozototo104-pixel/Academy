@@ -180,29 +180,56 @@ export const useAppStore = create<AppState>((set) => ({
 }))
 
 // ---- رمز الجلسة (Bearer Token) ----
-// يُخزَّن في localStorage ليعمل تسجيل الدخول حتى في البيئات التي تحجب الكوكيز
-// (iframe المعاينة / حجب كوكيز الطرف الثالث / WebView أندرويد)
+// الكوكي httpOnly هو قناة الجلسة الأساسية في المتصفح.
+// نحتفظ بنسخة Bearer مؤقتة في sessionStorage فقط لدعم البيئات التي تحجب الكوكيز
+// (iframe المعاينة / حجب كوكيز الطرف الثالث / WebView أندرويد) دون بقاء التوكن في localStorage طويل المدى.
 const TOKEN_KEY = 'aact_token'
 
-export function getToken(): string | null {
-  if (typeof window === 'undefined') return null
+function storageGet(storage: Storage | undefined, key: string): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY)
+    return storage?.getItem(key) || null
   } catch {
     return null
   }
 }
 
-export function saveToken(t: string) {
+function storageSet(storage: Storage | undefined, key: string, value: string) {
   try {
-    localStorage.setItem(TOKEN_KEY, t)
+    storage?.setItem(key, value)
   } catch {}
 }
 
-export function clearToken() {
+function storageRemove(storage: Storage | undefined, key: string) {
   try {
-    localStorage.removeItem(TOKEN_KEY)
+    storage?.removeItem(key)
   } catch {}
+}
+
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  const sessionToken = storageGet(window.sessionStorage, TOKEN_KEY)
+  if (sessionToken) return sessionToken
+
+  // ترحيل آمن للتوكنات القديمة: استخدمها لهذه الجلسة فقط ثم احذفها من localStorage.
+  const legacyToken = storageGet(window.localStorage, TOKEN_KEY)
+  if (legacyToken) {
+    storageSet(window.sessionStorage, TOKEN_KEY, legacyToken)
+    storageRemove(window.localStorage, TOKEN_KEY)
+    return legacyToken
+  }
+  return null
+}
+
+export function saveToken(t: string) {
+  if (typeof window === 'undefined') return
+  storageSet(window.sessionStorage, TOKEN_KEY, t)
+  storageRemove(window.localStorage, TOKEN_KEY)
+}
+
+export function clearToken() {
+  if (typeof window === 'undefined') return
+  storageRemove(window.sessionStorage, TOKEN_KEY)
+  storageRemove(window.localStorage, TOKEN_KEY)
 }
 
 function wait(ms: number) {
