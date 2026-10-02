@@ -305,6 +305,7 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
       purpose: 'TUITION_INSTALLMENT',
       description: `QA الدفعة الأولى وفق التقسيط — ${program.titleAr}`,
       amount: halfTuitionAmount,
+      amountCents: dollarsToCents(halfTuitionAmount),
       payerName: student.name,
       payerEmail: student.email,
       payerCountry: student.country,
