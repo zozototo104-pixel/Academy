@@ -384,6 +384,7 @@ export async function createProviderCheckout(params: {
   invoiceNo: string
   description: string
   amountUsd: number
+  amountCents?: number | null
   payerEmail?: string | null
   origin: string
 }): Promise<CheckoutResult> {
