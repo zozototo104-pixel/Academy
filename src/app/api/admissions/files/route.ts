@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف — نرفع كل ملف بطلب مستقل لتجنب 413.
 const ALLOWED_MIME = [
