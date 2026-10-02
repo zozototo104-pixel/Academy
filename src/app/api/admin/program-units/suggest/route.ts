@@ -155,7 +155,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const replace = body?.replace === true
+    const append = body?.append === true
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+    if (replace && append) return NextResponse.json({ error: 'اختر إما الإضافة إلى الموجود أو الاستبدال، وليس الخيارين معاً.' }, { status: 400 })
 
     const plan = await generateUnitPlan(programId)
     if (!plan) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
