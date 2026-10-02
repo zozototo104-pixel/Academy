@@ -10,10 +10,6 @@ function stripeInvoiceNo(session: any): string {
   return String(session?.client_reference_id || session?.metadata?.invoiceNo || '').trim()
 }
 
-function expectedMinorAmount(amount: number): number {
-  return Math.round(Number(amount) * 100)
-}
-
 async function validateStripeCheckoutSession(session: any): Promise<{ ok: true; invoiceNo: string } | { ok: false; error: string }> {
   const invoiceNo = stripeInvoiceNo(session)
   if (!invoiceNo) return { ok: false, error: 'حدث Stripe لا يحتوي رقم فاتورة' }
