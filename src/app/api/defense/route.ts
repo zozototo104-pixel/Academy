@@ -158,9 +158,13 @@ export async function POST(req: NextRequest) {
 
       if (answeredCount + 1 >= QUESTIONS_COUNT) {
         // آخر إجابة → ختام الجلسة والتوصية والمحضر التلقائي
-        const scores = [...history.filter((m) => m.role === 'STUDENT').map((m) => m.score || 0), result.score]
-        const avg = scores.reduce((s, x) => s + x, 0) / scores.length
-        const aiScore = Math.round(avg * 10) // من 100
+        const priorScores = history
+          .filter((m) => m.role === 'STUDENT')
+          .map((m) => finiteScore(m.score))
+          .filter((score): score is number => score != null)
+        const currentScore = finiteScore(result.score)
+        const scores = currentScore == null ? priorScores : [...priorScores, currentScore]
+        const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : null // من 100
         const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
         const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
         await db.thesisSubmission.update({
