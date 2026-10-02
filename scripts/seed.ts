@@ -156,7 +156,7 @@ async function main() {
     } else {
       await prisma.user.update({
         where: { email: seedAdminEmail },
-        data: { role: 'ADMIN', name: existingSeedAdmin.name || 'إدارة الأكاديمية' },
+        data: { role: 'ADMIN', name: existingSeedAdmin.name || 'إدارة الأكاديمية', emailVerifiedAt: existingSeedAdmin.emailVerifiedAt || new Date() },
       })
       console.log(`  ℹ Seed admin already exists; password was not reset: ${seedAdminEmail}`)
     }
