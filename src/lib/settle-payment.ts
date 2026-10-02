@@ -4,6 +4,7 @@ import { notify, audit } from '@/lib/notify'
 import { emailPaymentReceipt, emailFinalRegistration } from '@/lib/mailer'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
+import { paymentAmountDollars } from '@/lib/money'
 
 // ===== تسوية فاتورة: تُستخدم من تأكيد الدفع داخل المنصة ومن Webhook المزودين =====
 // تُطبق آثار السداد الكاملة: الإيصال + تحويل حالة طلب الالتحاق + تفعيل التسجيل + الإشعارات والبريد
