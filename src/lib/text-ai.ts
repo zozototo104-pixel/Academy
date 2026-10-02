@@ -532,7 +532,7 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 
 function providerOrder(s: Settings): ConcreteProvider[] {
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
-  const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER'])
+  const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
   return baseOrder(s).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
     if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
