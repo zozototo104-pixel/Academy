@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword, createSession } from '@/lib/auth'
-import { emailWelcome } from '@/lib/mailer'
+import { hashPassword } from '@/lib/auth'
+import { emailVerifyAccount } from '@/lib/mailer'
+import { createEmailVerificationToken, emailVerificationUrl } from '@/lib/email-verification'
 import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
 
 function sameSiteRequest(req: NextRequest) {
