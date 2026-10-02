@@ -35,8 +35,8 @@ async function createJourneyFixture(request: APIRequestContext, adminToken: stri
     timeout: 90_000,
   })
   const body = await response.json().catch(() => ({}))
-  expect(response.ok(), `Full journey fixture setup failed: ${response.status()} ${JSON.stringify(body).slice(0, 1200)}`).toBeTruthy()
-  expect(body.ok, `Full journey fixture returned non-ok: ${JSON.stringify(body.steps || body).slice(0, 1200)}`).toBe(true)
+  expect(response.ok(), `Full journey fixture setup failed: ${response.status()} ${safeSnippet(body, 1200)}`).toBeTruthy()
+  expect(body.ok, `Full journey fixture returned non-ok: ${safeSnippet(body.steps || body, 1200)}`).toBe(true)
   expect(body.student?.email, 'Fixture must include a student email').toBeTruthy()
   expect(body.student?.password, 'Fixture must include a student password').toBeTruthy()
   expect(body.program?.id, 'Fixture must include a program id').toBeTruthy()
