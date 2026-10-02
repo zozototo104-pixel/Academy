@@ -35,26 +35,19 @@ export async function POST(req: NextRequest) {
       include: { admission: { select: { userId: true, email: true } } },
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
-    const isPrivileged = ['ADMIN', 'STAFF'].includes(user?.role || '')
-    const verifiedEmailOwner =
-      user?.role === 'STUDENT' &&
-      Boolean((user as any).emailVerifiedAt) &&
-      !payment.userId &&
-      !payment.admission?.userId &&
-      (
-        payment.payerEmail?.toLowerCase() === user?.email?.toLowerCase() ||
-        payment.admission?.email?.toLowerCase() === user?.email?.toLowerCase()
-      )
-    if (verifiedEmailOwner) {
+    const isPrivileged = ['ADMIN', 'STAFF', 'SUPERVISOR'].includes(user?.role || '')
+    const userEmail = String(user.email || '').trim().toLowerCase()
+    const verifiedStudent = user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt)
+    const admissionEmailMatches = verifiedStudent && !!payment.admission?.email && payment.admission.email.trim().toLowerCase() === userEmail
+    const directPaymentMatches = verifiedStudent && !payment.admissionId && payment.userId === user.id && (!payment.payerEmail || payment.payerEmail.trim().toLowerCase() === userEmail)
+    if (admissionEmailMatches && (payment.userId !== user.id || payment.admission?.userId !== user.id)) {
       await db.$transaction([
         ...(payment.admissionId ? [db.admissionApplication.update({ where: { id: payment.admissionId }, data: { userId: user.id } })] : []),
         db.payment.update({ where: { id: payment.id }, data: { userId: user.id } }),
       ]).catch(() => {})
     }
-    const ownerMatches =
-      payment.userId === user?.id ||
-      payment.admission?.userId === user?.id ||
-      verifiedEmailOwner
+    const ownerMatches = admissionEmailMatches || directPaymentMatches
+    const effectivePaymentUserId = isPrivileged ? (payment.userId || user.id) : user.id
     if (!isPrivileged && !ownerMatches) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
     }
