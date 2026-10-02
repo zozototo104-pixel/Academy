@@ -596,26 +596,32 @@ export function AdminBooksTab() {
     if (!pid) return
     if (!silent) setLoadingBooks(true)
     try {
-      const [b, e, a, k, readiness, units, qb, g] = await Promise.all([
+      const [b, e, a] = await Promise.all([
         api<{ books: BookRow[] }>(`/api/admin/books?programId=${pid}`),
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
+      ])
+      setBooks(b.books)
+      setExams(e.exams)
+      setAssignments(a.assignments)
+
+      Promise.all([
         api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
         api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
         api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any })),
         api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
       ])
-      setBooks(b.books)
-      setExams(e.exams)
-      setAssignments(a.assignments)
-      setKnowledgeItems(k.items || [])
-      setKnowledgeStats(k.stats || {})
-      setProgramReadiness(readiness.item || null)
-      setCurriculumUnits(units.units || [])
-      setQuestionBankItems(qb.items || [])
-      setQuestionBankStats(qb.stats || null)
-      setStudyGuides(g.guides || [])
+        .then(([k, readiness, units, qb, g]) => {
+          setKnowledgeItems(k.items || [])
+          setKnowledgeStats(k.stats || {})
+          setProgramReadiness(readiness.item || null)
+          setCurriculumUnits(units.units || [])
+          setQuestionBankItems(qb.items || [])
+          setQuestionBankStats(qb.stats || null)
+          setStudyGuides(g.guides || [])
+        })
+        .catch(() => null)
     } catch (err: any) {
       if (!silent) toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
