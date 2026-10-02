@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
         select: { email: true },
       })
       owns = !!agent && (agent.email || '').trim().toLowerCase() === email
-    } else if (payment.enrollmentId) {
+    } else if (!owns && payment.enrollmentId) {
       const enr = await db.enrollment.findUnique({
         where: { id: payment.enrollmentId },
         select: { userId: true },
