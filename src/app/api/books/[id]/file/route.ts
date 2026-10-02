@@ -1,42 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
 
-// GET /api/books/[id]/file — تحميل/عرض ملف الكتاب المقرر (للمستخدمين المسجلين)
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ error: 'يجب تسجيل الدخول لعرض الكتب المقررة' }, { status: 401 })
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-    const book = await db.book.findUnique({ where: { id } })
-    if (!book || !book.data) {
-      return NextResponse.json({ error: 'لا يوجد ملف مرفوع لهذا الكتاب' }, { status: 404 })
-    }
+type RouteContext = { params: Promise<{ id: string }> | { id: string } }
 
-    if (user.role !== 'ADMIN') {
-      const enrollment = await db.enrollment.findUnique({
-        where: { userId_programId: { userId: user.id, programId: book.programId } },
-        select: { status: true },
-      })
-      if (!enrollment || enrollment.status === 'PENDING_PAYMENT') {
-        return NextResponse.json({ error: 'صلاحيات غير كافية لفتح هذا الكتاب' }, { status: 403 })
-      }
-    }
+// Legacy compatibility route: keep /api/books/:id/file working, but force it
+// through the canonical /download route where enrollment/admin checks live.
+export async function GET(req: NextRequest, context: RouteContext) {
+  const { id } = await Promise.resolve(context.params)
+  if (!id) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
 
-    const buf = Buffer.from(book.data, 'base64')
-    return new NextResponse(new Uint8Array(buf), {
-      headers: {
-        'Content-Type': book.mimeType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${encodeURIComponent(book.fileName || book.title)}"`,
-        'Cache-Control': 'private, no-store',
-      },
-    })
-  } catch (e) {
-    console.error('book file GET error:', e)
-    return NextResponse.json({ error: 'تعذر تحميل ملف الكتاب' }, { status: 500 })
-  }
+  const url = new URL(req.url)
+  url.pathname = `/api/books/${encodeURIComponent(id)}/download`
+  return NextResponse.redirect(url, { status: 307 })
 }
