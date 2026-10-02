@@ -142,6 +142,8 @@ export async function GET(req: NextRequest) {
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
+    if (e?.message === 'FORBIDDEN_PEER') return NextResponse.json({ error: 'معرف الاتصال لا يخص حسابك' }, { status: 403 })
+    if (e?.message === 'BAD_PEER') return NextResponse.json({ error: 'معرف الاتصال غير صالح' }, { status: 400 })
     console.error('defense room GET error:', e)
     return NextResponse.json({ error: 'خطأ في قاعة المناقشة' }, { status: 500 })
   }
