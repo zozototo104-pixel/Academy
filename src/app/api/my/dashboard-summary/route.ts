@@ -10,9 +10,23 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const user = await requireUser()
+    const canClaimEmailRecords = user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt)
+    if (canClaimEmailRecords) {
+      await db.$transaction([
+        db.admissionApplication.updateMany({
+          where: { userId: null, email: user.email },
+          data: { userId: user.id },
+        }),
+        db.payment.updateMany({
+          where: { userId: null, payerEmail: user.email },
+          data: { userId: user.id },
+        }),
+      ]).catch(() => {})
+    }
+
     const [rawAdmissions, payments, enrollments, notifications, unread, assignmentSubmissions, thesis, deliverables, aiSupervisorAccess] = await Promise.all([
       db.admissionApplication.findMany({
-        where: { OR: [{ userId: user.id }, { email: user.email }] },
+        where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
         take: 12,
         select: {
