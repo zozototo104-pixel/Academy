@@ -374,8 +374,9 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
-function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string): string {
-  return `${provider}:${(baseUrl || '').replace(/\/$/, '')}`
+function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): string {
+  const keyHash = key ? createHash('sha256').update(key).digest('hex').slice(0, 12) : 'anonymous'
+  return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
 }
 
 function apiRootFromBase(baseUrl: string, fallback: string): string {
