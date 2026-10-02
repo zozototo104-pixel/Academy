@@ -1,11 +1,12 @@
 name: Import AACT project
 
 on:
-  push:
-    paths:
-      - '.github/workflows/import-project.yml'
-      - 'AACT-Platform-v1.3.zip'
   workflow_dispatch:
+    inputs:
+      zip_path:
+        description: "ZIP file path already committed to the repository"
+        required: true
+        default: "AACT-Platform-v1.3.zip"
 
 permissions:
   contents: write
@@ -15,21 +16,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Extract project ZIP
+      - name: Create isolated import branch
+        shell: bash
         run: |
-          test -f AACT-Platform-v1.3.zip
+          set -euo pipefail
+          IMPORT_BRANCH="import/aact-platform-v1-3-${GITHUB_RUN_ID}"
+          git switch -c "${IMPORT_BRANCH}"
+          echo "IMPORT_BRANCH=${IMPORT_BRANCH}" >> "$GITHUB_ENV"
+          echo "Import branch: ${IMPORT_BRANCH}"
+
+      - name: Extract project ZIP into import branch
+        shell: bash
+        env:
+          ZIP_PATH: ${{ inputs.zip_path }}
+        run: |
+          set -euo pipefail
+          if [ "${ZIP_PATH}" != "AACT-Platform-v1.3.zip" ]; then
+            echo "Refusing unexpected ZIP path. Only AACT-Platform-v1.3.zip is allowed by this legacy importer."
+            exit 1
+          fi
+          test -f "${ZIP_PATH}"
+          rm -rf /tmp/aact-project
           mkdir -p /tmp/aact-project
-          unzip -q AACT-Platform-v1.3.zip -d /tmp/aact-project
+          unzip -q "${ZIP_PATH}" -d /tmp/aact-project
           cp -a /tmp/aact-project/. .
 
-      - name: Commit project files
+      - name: Commit project files to import branch only
+        shell: bash
         run: |
+          set -euo pipefail
           rm -f AACT-Platform-v1.3.zip
           rm -rf .upload
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then exit 0; fi
+          if git diff --cached --quiet; then
+            echo "No imported changes to commit."
+            exit 0
+          fi
           git commit -m "Import AACT Platform v1.3"
-          git push
+          git push --set-upstream origin "${IMPORT_BRANCH}"
+          {
+            echo "### Import completed safely"
+            echo ""
+            echo "Imported files were pushed to branch: \`${IMPORT_BRANCH}\`."
+            echo "No changes were pushed directly to \`main\`."
+            echo "Review the diff and open a Pull Request before merging."
+            echo ""
+            echo "Compare: https://github.com/${GITHUB_REPOSITORY}/compare/main...${IMPORT_BRANCH}?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
