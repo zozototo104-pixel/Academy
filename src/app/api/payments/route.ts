@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { markInvoicePaid } from '@/lib/settle-payment'
-import { sandboxPaymentsAllowed, sandboxPaymentsBlockedMessage } from '@/lib/payments'
+import { isProductionRuntime, sandboxPaymentsAllowed, sandboxPaymentsBlockedMessage } from '@/lib/payments'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
 
