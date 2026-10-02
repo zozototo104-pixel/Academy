@@ -48,7 +48,7 @@ cd aact-platform
 cp .env.example .env      # عدّل القيم إن رغبت
 npm install               # أو: bun install
 npx prisma db push        # إنشاء قاعدة البيانات
-npm run db:seed           # بيانات أولية: 52 برنامجاً + حسابات تجريبية
+npm run db:seed           # بيانات أولية وحسابات ديمو غير إدارية
 npm run dev               # التشغيل على http://localhost:3000
 ```
 
@@ -56,10 +56,15 @@ npm run dev               # التشغيل على http://localhost:3000
 
 **حسابات تجريبية بعد التهيئة:**
 
+لا توجد بيانات دخول إدارة منشورة داخل المستودع. لإنشاء أدمن أولي في قاعدة جديدة فقط، شغّل seed مع متغيرات:
+
+```bash
+AACT_SEED_ADMIN_EMAIL="admin@example.com" AACT_SEED_ADMIN_PASSWORD="StrongPasswordHere" npm run db:seed
+```
+
 | الحساب | البريد | كلمة المرور |
 |--------|--------|-------------|
-| الإدارة | `admin@aact.academy` | `Admin@2026` |
-| طالب | `student@demo.com` | `Demo@2026` |
+| طالب تجريبي | `student@demo.com` | `Demo@2026` |
 
 ---
 
