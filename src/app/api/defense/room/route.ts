@@ -191,8 +191,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'heartbeat') {
-      if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
-      await db.defenseParticipant.updateMany({ where: { peerId, thesisId }, data: { lastSeenAt: new Date() } })
+      if (!currentPeerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
+      await requireOwnedParticipant(thesisId, currentPeerId, user.id)
+      await db.defenseParticipant.updateMany({ where: { peerId: currentPeerId, thesisId, userId: user.id }, data: { lastSeenAt: new Date() } })
       return NextResponse.json({ ok: true })
     }
 
