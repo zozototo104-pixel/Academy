@@ -258,10 +258,7 @@ const RELAYROUTER_TEXT_MODEL_CHOICES = [
 ]
 
 const TOPTOOLS_TEXT_MODEL_CHOICES = [
-  { value: 'top-tools-ai', label: 'top-tools-ai — النموذج الافتراضي في Top Tools AI' },
-  { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol عبر Top Tools AI' },
-  { value: 'claude-opus-5', label: 'Claude Opus 5 عبر Top Tools AI' },
-  { value: 'glm-5.3-flash', label: 'GLM-5.3 Flash عبر Top Tools AI' },
+  { value: 'top-tools-ai', label: 'top-tools-ai — احتياطي إذا تعذر تحميل كتالوج /models' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
