@@ -356,7 +356,7 @@ export async function createPaypalOrder(params: {
           {
             custom_id: params.invoiceNo,
             description: params.description.slice(0, 127),
-            amount: { currency_code: 'USD', value: params.amountUsd.toFixed(2) },
+            amount: { currency_code: 'USD', value: centsToDollars(params.amountCents ?? dollarsToCents(params.amountUsd)).toFixed(2) },
           },
         ],
         application_context: {
