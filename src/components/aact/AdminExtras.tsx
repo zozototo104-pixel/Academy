@@ -1775,7 +1775,7 @@ function settingGroupLabel(key: string) {
   if (/^(SMTP_|RESEND_|MAIL_)/.test(key)) return 'إعدادات البريد'
   if (/^(PAYMENT_|PAYPAL_|STRIPE_|USDT_)/.test(key)) return 'إعدادات الدفع'
   if (/^(TURN_|STUN_)/.test(key)) return 'إعدادات الفيديو والمحادثة'
-  if (/^(GEMINI_|AI_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
+  if (/^(GEMINI_|AI_|OPENAI_|ANTHROPIC_|ZAI_|GROQ_|OPENROUTER_|DEEPINFRA_|TOGETHER_|UNOROUTER_|RELAYROUTER_|TOPTOOLS_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
   if (/^(AACT_BACKUP_|CRON_)/.test(key)) return 'إعدادات النسخ الاحتياطي'
   return 'إعدادات النظام'
 }
