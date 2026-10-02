@@ -162,7 +162,7 @@ async function readAdmissionPayload(req: NextRequest) {
         files.push({
           docType,
           fileName: f.name.slice(0, 180),
-          mimeType: stored.mimeType || mime,
+          mimeType: stored.mimeType || signature.mimeType,
           size: stored.size || f.size,
           data: null,
           storageProvider: stored.provider,
