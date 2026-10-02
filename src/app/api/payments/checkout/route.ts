@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
         ).catch(() => {})
       }
       const usdtMessage = cfg.usdtWalletAddress
-        ? `تم تسجيل طلب الدفع عبر USDT. أرسل ${payment.amount}$ USDT على شبكة ${cfg.usdtNetwork || 'TRC20'} إلى العنوان: ${cfg.usdtWalletAddress}${cfg.usdtInstructions ? ` — ${cfg.usdtInstructions}` : ''}. ستؤكد الإدارة السداد بعد التحقق من التحويل.`
-        : `تم تسجيل طلب الدفع عبر Binance Pay. أرسل ${payment.amount} USDT عبر QR أو إلى ${cfg.usdtBinancePayUserId || 'حساب Binance Pay الموضح'}، ثم أدخل رقم العملية/إثبات الدفع ليتم تأكيده من الإدارة.`
+        ? `تم تسجيل طلب الدفع عبر USDT. أرسل ${amountDollars.toFixed(2)}$ USDT على شبكة ${cfg.usdtNetwork || 'TRC20'} إلى العنوان: ${cfg.usdtWalletAddress}${cfg.usdtInstructions ? ` — ${cfg.usdtInstructions}` : ''}. ستؤكد الإدارة السداد بعد التحقق من التحويل.`
+        : `تم تسجيل طلب الدفع عبر Binance Pay. أرسل ${amountDollars.toFixed(2)} USDT عبر QR أو إلى ${cfg.usdtBinancePayUserId || 'حساب Binance Pay الموضح'}، ثم أدخل رقم العملية/إثبات الدفع ليتم تأكيده من الإدارة.`
       return NextResponse.json({
         ok: true,
         mode: 'MANUAL',
