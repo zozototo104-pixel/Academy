@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         admissionId: app.id,
         docType,
         fileName: file.name.slice(0, 180),
-        mimeType: stored.mimeType || mime,
+        mimeType: stored.mimeType || signature.mimeType,
         size: stored.size || file.size,
         data: null,
         storageProvider: stored.provider,
