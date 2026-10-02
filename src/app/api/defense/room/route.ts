@@ -226,6 +226,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
+    if (e?.message === 'FORBIDDEN_PEER') return NextResponse.json({ error: 'معرف الاتصال لا يخص حسابك' }, { status: 403 })
+    if (e?.message === 'BAD_PEER') return NextResponse.json({ error: 'معرف الاتصال غير صالح' }, { status: 400 })
+    if (e?.message === 'BAD_SIGNAL_TYPE') return NextResponse.json({ error: 'نوع إشارة غير معروف' }, { status: 400 })
+    if (e?.message === 'UNKNOWN_TARGET_PEER') return NextResponse.json({ error: 'المشارك المستهدف غير موجود في القاعة' }, { status: 404 })
+    if (e?.message === 'PAYLOAD_TOO_LARGE') return NextResponse.json({ error: 'حجم إشارة الاتصال أكبر من الحد المسموح' }, { status: 413 })
     console.error('defense room POST error:', e)
     return NextResponse.json({ error: 'خطأ في قاعة المناقشة' }, { status: 500 })
   }
