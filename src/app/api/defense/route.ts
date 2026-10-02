@@ -56,6 +56,12 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
     const { action, text, userText, aiText, model, dataUrl, mime, durationSec } = await req.json()
+    const limited = enforceUserAiRateLimit(
+      req,
+      action === 'save-recording' ? AI_RATE_LIMITS.defenseRecording : AI_RATE_LIMITS.defense,
+      user.id
+    )
+    if (limited) return limited
 
     const thesis = await db.thesisSubmission.findFirst({
       where: { userId: user.id },
