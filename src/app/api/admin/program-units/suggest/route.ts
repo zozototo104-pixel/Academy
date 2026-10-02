@@ -162,7 +162,10 @@ export async function POST(req: NextRequest) {
     const plan = await generateUnitPlan(programId)
     if (!plan) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const currentCount = await db.unit.count({ where: { programId } })
+    const [currentCount, existingOrder] = await Promise.all([
+      db.unit.count({ where: { programId } }),
+      db.unit.aggregate({ where: { programId }, _max: { order: true } }),
+    ])
     if (replace) await db.unit.deleteMany({ where: { programId } })
     if (currentCount > 0 && !replace && !append) {
       return NextResponse.json({
