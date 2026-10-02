@@ -125,7 +125,7 @@ export async function markInvoicePaid(
         'dashboard'
       )
       if (app.email) {
-        await emailPaymentReceipt(app.email, app.fullName, payment.invoiceNo, payment.description, payment.amount, receiptNo)
+        await emailPaymentReceipt(app.email, app.fullName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
       }
       if (payment.purpose === 'SERVICE_FEE') {
         const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
