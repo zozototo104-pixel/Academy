@@ -195,7 +195,121 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
   }
 }
 
-// GET /api/certificates/verify?serial=AACT-C-2026-00001 — تحقق عام من صحة الشهادة
+async function buildCertificateAcademicProfile(cert: { program: string }) {
+  const program = cert.program
+    ? await db.program.findFirst({
+        where: { titleAr: cert.program },
+        select: {
+          titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true,
+          units: { orderBy: { order: 'asc' }, select: { order: true, title: true } },
+          books: { orderBy: { createdAt: 'asc' }, select: { title: true, titleEn: true, semester: true } },
+          assignments: { where: { status: 'PUBLISHED' }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }], select: { title: true, semester: true, points: true, status: true } },
+          programExams: { orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }], select: { title: true, semester: true, status: true, _count: { select: { questions: true } } } },
+          _count: { select: { units: true } },
+        },
+      }).catch(() => null)
+    : null
+  if (!program) return null
+  return buildAcademicProgramProfile({
+    titleAr: program.titleAr,
+    titleEn: program.titleEn,
+    description: program.description,
+    category: program.category,
+    hours: program.hours,
+    unitsCount: program._count.units,
+    units: program.units,
+    books: program.books,
+    assignments: program.assignments,
+    exams: program.programExams.map((e) => ({ title: e.title, semester: e.semester, status: e.status, questionCount: e._count.questions })),
+    academicProfile: academicProfileFromRules(program.admissionRules),
+  })
+}
+
+async function resolveCertificateOwnerContact(cert: { userId?: string | null; admissionId?: string | null; agentId?: string | null }) {
+  const contacts: Array<{ email?: string | null; phone?: string | null }> = []
+
+  if (cert.admissionId) {
+    const admission = await db.admissionApplication.findUnique({
+      where: { id: cert.admissionId },
+      select: { email: true, phone: true, user: { select: { email: true, phone: true } } },
+    }).catch(() => null)
+    if (admission) {
+      contacts.push({ email: admission.email, phone: admission.phone })
+      contacts.push({ email: admission.user?.email, phone: admission.user?.phone })
+    }
+  }
+
+  if (cert.userId) {
+    const user = await db.user.findUnique({
+      where: { id: cert.userId },
+      select: { email: true, phone: true },
+    }).catch(() => null)
+    if (user) contacts.push(user)
+  }
+
+  if (cert.agentId) {
+    const agent = await db.agentApplication.findUnique({
+      where: { id: cert.agentId },
+      select: { email: true, phone: true, user: { select: { email: true, phone: true } } },
+    }).catch(() => null)
+    if (agent) {
+      contacts.push({ email: agent.email, phone: agent.phone })
+      contacts.push({ email: agent.user?.email, phone: agent.user?.phone })
+    }
+  }
+
+  return contacts.filter((c) => normalizeEmail(c.email) && phoneLast4(c.phone).length === 4)
+}
+
+async function certificateOwnerMatches(cert: { userId?: string | null; admissionId?: string | null; agentId?: string | null }, email: string, last4: string) {
+  const normalizedEmail = normalizeEmail(email)
+  const normalizedLast4 = normalizeDigits(last4).slice(-4)
+  if (!normalizedEmail || normalizedLast4.length !== 4) return false
+  const contacts = await resolveCertificateOwnerContact(cert)
+  return contacts.some((contact) => normalizeEmail(contact.email) === normalizedEmail && phoneLast4(contact.phone) === normalizedLast4)
+}
+
+async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SERIAL', includeDetails: boolean) {
+  const eligibility = await evaluateCertificateRecordEligibility(cert)
+  const effectiveValid = cert.valid && eligibility.ok
+  const academicProfile = includeDetails && effectiveValid ? await buildCertificateAcademicProfile(cert) : null
+  const academicRecord = includeDetails && effectiveValid ? await buildCertificateAcademicRecord(cert) : null
+  return {
+    valid: effectiveValid,
+    verificationMode,
+    detailsUnlocked: includeDetails,
+    certificate: {
+      serial: cert.serial,
+      qrToken: includeDetails ? cert.qrToken : null,
+      type: cert.type,
+      holderName: cert.holderName,
+      program: cert.program,
+      grade: includeDetails ? (eligibility.gradeLabel || cert.grade) : null,
+      country: cert.country,
+      issuedAt: cert.issuedAt,
+      valid: effectiveValid,
+      detailsAvailable: true,
+      academicProfile,
+      academicRecord,
+      eligibility: includeDetails ? eligibility : null,
+      verificationUrl: certificateVerificationUrl(cert),
+      credentialUrl: certificateCredentialUrl(cert),
+    },
+    message: effectiveValid
+      ? includeDetails
+        ? 'تم التحقق من بيانات صاحب الشهادة وعرض التفاصيل الأكاديمية الكاملة.'
+        : 'شهادة صحيحة ومسجلة رسمياً. تظهر هنا بيانات التحقق العامة فقط؛ يمكن لصاحب الشهادة فتح التفاصيل بإدخال البريد المسجل وآخر 4 أرقام من الهاتف.'
+      : 'الشهادة موجودة لكنها موقوفة أو لم تعد مستوفية لشروط الإصدار الأكاديمية — يرجى التواصل مع الإدارة',
+  }
+}
+
+async function findCertificateForVerify(serial?: string | null, token?: string | null) {
+  if (token) return db.certificate.findFirst({ where: { qrToken: token } })
+  if (serial) return db.certificate.findFirst({ where: { serial } })
+  return null
+}
+
+// GET /api/certificates/verify?serial=AACT-C-2026-00001 — تحقق عام مختصر من صحة الشهادة
 export async function GET(req: NextRequest) {
   try {
     const serial = req.nextUrl.searchParams.get('serial')?.trim()
