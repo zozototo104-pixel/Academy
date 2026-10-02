@@ -157,6 +157,7 @@ export async function POST(req: NextRequest) {
       peerId?: string
       action: 'join' | 'heartbeat' | 'leave' | 'signal'
     }
+    const currentPeerId = normalizePeerId(peerId)
     if (!thesisId || !action) return NextResponse.json({ error: 'بيانات ناقصة' }, { status: 400 })
 
     const thesis = await getThesisForUser(thesisId, user.id, user.role)
