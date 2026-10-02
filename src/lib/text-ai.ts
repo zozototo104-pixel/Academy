@@ -576,14 +576,15 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const provider = normalizeProvider(providerValue)
   if (provider === 'AUTO') {
     const providers = providerOrder(s)
-    const all: string[] = []
-    for (const p of providers) all.push(...(await modelFallbacks(s, p)).map((m) => `${p}:${m}`))
+    const models = providers.map((p) => `${p}:${modelFor(s, p) || 'auto'}`)
     return {
       provider: 'AUTO',
-      models: [...new Set(all)],
-      discoveredCount: all.length,
-      staticCount: 0,
-      message: all.length ? 'تم تحميل نماذج AUTO المتاحة حسب المفاتيح المضبوطة.' : 'لا توجد نماذج متاحة في وضع AUTO حالياً.',
+      models,
+      discoveredCount: 0,
+      staticCount: models.length,
+      message: models.length
+        ? 'وضع AUTO يعرض المزودات النشطة فقط. اختر مزوداً محدداً لتحميل كتالوج نماذجه.'
+        : 'لا توجد مزودات متاحة في وضع AUTO حالياً.',
     }
   }
   const concrete = provider as ConcreteProvider
