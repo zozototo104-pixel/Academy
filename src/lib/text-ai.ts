@@ -57,6 +57,7 @@ export interface TextAiDiagnostics {
   togetherConfigured: boolean
   unorouterConfigured: boolean
   relayrouterConfigured: boolean
+  topToolsConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -68,6 +69,7 @@ export interface TextAiDiagnostics {
   togetherModel: string
   unorouterModel: string
   relayrouterModel: string
+  topToolsModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
