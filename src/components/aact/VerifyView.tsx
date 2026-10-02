@@ -188,7 +188,7 @@ export function VerifyView() {
               )}
               {result.valid && result.verificationMode === 'QR_TOKEN' && (
                 <p className="mt-1 text-xs font-bold text-emerald-700">
-                  تم التحقق عبر رمز QR الآمن المرتبط بهذه الشهادة.
+                  تم التحقق عبر رمز QR الآمن المرتبط بهذه الشهادة. بيانات QR العامة لا تعرض الدرجات أو السجل الخاص إلا بعد مطابقة بيانات صاحب الشهادة.
                 </p>
               )}
               {result.certificate && (
