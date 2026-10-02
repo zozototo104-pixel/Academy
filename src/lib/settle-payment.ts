@@ -47,6 +47,8 @@ export async function markInvoicePaid(
   const updated = await db.payment.findUnique({ where: { id: payment.id } })
   if (!updated) return { ok: false, error: 'تعذر قراءة الفاتورة بعد تأكيد السداد' }
   const actor = opts?.actor || { name: payment.payerName || 'دافع' }
+  const amountDollars = paymentAmountDollars(payment)
+  const amountLabel = amountDollars.toFixed(2)
 
   // آثار السداد على طلب الالتحاق (وفق ترتيب دليل الإجراءات الرسمي)
   if (payment.admissionId) {
