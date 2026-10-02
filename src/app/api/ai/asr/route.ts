@@ -10,6 +10,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     }
+    const limited = enforceUserAiRateLimit(req, AI_RATE_LIMITS.asr, user.id)
+    if (limited) return limited
+
     const { audioBase64 } = await req.json()
     if (!audioBase64 || typeof audioBase64 !== 'string') {
       return NextResponse.json({ error: 'الصوت مطلوب' }, { status: 400 })
