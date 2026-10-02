@@ -156,7 +156,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     where: { userId, programId },
     orderBy: { createdAt: 'desc' },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true } },
       programRef: { select: { price: true } },
     },
   })
