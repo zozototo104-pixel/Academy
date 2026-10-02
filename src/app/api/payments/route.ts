@@ -104,6 +104,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (isProductionRuntime() && user.role === 'STUDENT') {
+      return NextResponse.json({ error: sandboxPaymentsBlockedMessage() }, { status: 403 })
+    }
+
     if (!sandboxPaymentsAllowed() && user.role === 'STUDENT') {
       return NextResponse.json({ error: sandboxPaymentsBlockedMessage() }, { status: 403 })
     }
