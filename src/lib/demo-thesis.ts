@@ -68,6 +68,7 @@ export async function ensureDemoThesisStudent(options: { resetDefense?: boolean;
       role: 'STUDENT',
       country: 'مصر',
       phone: '+201000000001',
+      emailVerifiedAt: new Date(),
     },
     create: {
       email: DEMO_THESIS_STUDENT_EMAIL,
@@ -76,6 +77,7 @@ export async function ensureDemoThesisStudent(options: { resetDefense?: boolean;
       role: 'STUDENT',
       country: 'مصر',
       phone: '+201000000001',
+      emailVerifiedAt: new Date(),
     },
   })
 
