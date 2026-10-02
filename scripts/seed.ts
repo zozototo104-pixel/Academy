@@ -188,6 +188,7 @@ async function main() {
     }
     console.log('  ✓ Demo student: student@demo.com / Demo@2026')
   } else {
+    await prisma.user.update({ where: { email: demoEmail }, data: { emailVerifiedAt: existingDemo.emailVerifiedAt || new Date() } })
     console.log('  ℹ Demo student already exists')
   }
 
