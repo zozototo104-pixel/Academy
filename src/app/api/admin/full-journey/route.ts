@@ -890,6 +890,7 @@ async function createServiceAndContact(admin: { id: string; name: string }, stam
       purpose: 'SERVICE_FEE',
       description: `QA رسوم خدمة عابرة — ${service.program}`,
       amount: 50,
+      amountCents: dollarsToCents(50),
       payerName: student.name,
       payerEmail: student.email,
       payerCountry: student.country,
