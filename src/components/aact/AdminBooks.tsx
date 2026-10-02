@@ -604,6 +604,13 @@ export function AdminBooksTab() {
       setBooks(b.books)
       setExams(e.exams)
       setAssignments(a.assignments)
+      setKnowledgeItems([])
+      setKnowledgeStats({})
+      setProgramReadiness(null)
+      setCurriculumUnits([])
+      setQuestionBankItems([])
+      setQuestionBankStats(null)
+      setStudyGuides([])
 
       Promise.all([
         api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
