@@ -53,6 +53,12 @@ export function VerifyView() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<VerifyResult | null>(null)
   const [showCert, setShowCert] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [detailsEmail, setDetailsEmail] = useState('')
+  const [detailsPhoneLast4, setDetailsPhoneLast4] = useState('')
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [lookup, setLookup] = useState<{ mode: 'serial' | 'token'; value: string } | null>(null)
 
   const verify = async (value?: string, mode: 'serial' | 'token' = 'serial') => {
     const s = (value ?? serial).trim()
