@@ -30,10 +30,14 @@ export function AuthView() {
         : 'تعذر تسجيل الدخول عبر Google. جرّب مرة أخرى أو استخدم البريد وكلمة المرور.'
       toast({ title: 'Google Login', description: message, variant: 'destructive' })
     }
+    if (params.get('reset_session') === '1' || params.get('email_verified') === '1') {
+      clearToken()
+      setUser(null)
+    }
     if (params.get('email_verified') === '1') {
       const email = params.get('email') || ''
       setLoginData((prev) => ({ ...prev, email: email || prev.email }))
-      toast({ title: 'تم تأكيد البريد', description: 'يمكنك الآن تسجيل الدخول إلى بوابة الطالب.' })
+      toast({ title: 'تم تأكيد البريد', description: 'يمكنك الآن تسجيل الدخول بالبريد المؤكد، وتم إغلاق أي جلسة قديمة في هذا المتصفح.' })
     }
     const verifyError = params.get('verify_email')
     if (verifyError) {
