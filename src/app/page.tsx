@@ -168,6 +168,11 @@ export default function Home() {
   useEffect(() => {
     let alive = true
     const q = new URLSearchParams(window.location.search)
+    const resetSession = q.get('reset_session') === '1' || q.get('email_verified') === '1'
+    if (resetSession) {
+      clearToken()
+      setUser(null)
+    }
     const oauthToken = q.get('authToken')
     if (oauthToken) {
       saveToken(oauthToken)
