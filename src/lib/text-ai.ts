@@ -609,6 +609,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     TOGETHER: s.togetherKeys.length,
     UNOROUTER: s.unorouterKeys.length,
     RELAYROUTER: s.relayrouterKeys.length,
+    TOPTOOLS: s.topToolsKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
