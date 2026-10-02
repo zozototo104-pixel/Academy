@@ -490,6 +490,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<
     provider === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
     provider === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
     provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
+    provider === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
   const discoveredFree = await liveFreeModels(provider, s)
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
