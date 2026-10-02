@@ -703,7 +703,7 @@ export function AdminView() {
         .finally(() => { if (!cancelled) setAttemptsLoading(false) })
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [user, attemptSearch, attemptStatusFilter, attemptPage, attemptPageSize])
+  }, [user, activeTab, attemptSearch, attemptStatusFilter, attemptPage, attemptPageSize])
 
   useEffect(() => {
     if (activeTab !== 'admissions' || !highlightAdmissionId) return
