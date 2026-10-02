@@ -12,6 +12,7 @@ export type TextAiProvider =
   | 'TOGETHER'
   | 'UNOROUTER'
   | 'RELAYROUTER'
+  | 'TOPTOOLS'
   | 'OPENAI_COMPAT'
   | 'AUTO'
 
