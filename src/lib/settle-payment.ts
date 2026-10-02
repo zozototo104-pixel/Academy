@@ -121,7 +121,7 @@ export async function markInvoicePaid(
         linkedUserId,
         'PAYMENT',
         'تم استلام دفعتك بنجاح',
-        `سُددت فاتورة «${payment.description}» بمبلغ ${payment.amount}$ — رقم الإيصال ${receiptNo}.`,
+        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo}.`,
         'dashboard'
       )
       if (app.email) {
