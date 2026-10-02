@@ -899,7 +899,7 @@ export function AdminSystemTab() {
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
-                <p className="text-[10px] leading-relaxed text-indigo-700">OpenRouter/DeepInfra/Together/UnoRouter/OpenAI-compatible تُستخدم في AUTO فقط عند تفعيل هذا الخيار، أو عند اختيارها كمزود مباشر.</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">OpenRouter/DeepInfra/Together/UnoRouter/RelayRouter/Top Tools AI/OpenAI-compatible تُستخدم في AUTO فقط عند تفعيل هذا الخيار، أو عند اختيارها كمزود مباشر.</p>
               </div>
               <Switch checked={form.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS === '1'} onCheckedChange={(v) => set('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', v ? '1' : '0')} />
             </div>
