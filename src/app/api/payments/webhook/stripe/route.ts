@@ -34,7 +34,7 @@ async function validateStripeCheckoutSession(session: any): Promise<{ ok: true; 
     return { ok: false, error: 'عملة Stripe لا تطابق عملة الفاتورة' }
   }
 
-  if (amountTotal !== expectedMinorAmount(payment.amount)) {
+  if (amountTotal !== paymentAmountCents(payment)) {
     return { ok: false, error: 'مبلغ Stripe لا يطابق مبلغ الفاتورة' }
   }
 
