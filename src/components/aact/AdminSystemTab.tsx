@@ -332,7 +332,7 @@ export function AdminSystemTab() {
         .catch(() => null)
     }, 1200)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [data, activeTextProviderForModels, textModelCatalog])
+  }, [data, catalogProviderForModels, textModelCatalog])
 
   const set = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }))
 
