@@ -71,15 +71,18 @@ function isTruthy(value: string): boolean {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
-export function sandboxPaymentsAllowed(): boolean {
+export function isProductionRuntime(): boolean {
   const vercelEnv = env('VERCEL_ENV')
-  const isProduction = vercelEnv ? vercelEnv === 'production' : env('NODE_ENV') === 'production'
-  if (!isProduction) return true
+  return vercelEnv ? vercelEnv === 'production' : env('NODE_ENV') === 'production'
+}
+
+export function sandboxPaymentsAllowed(): boolean {
+  if (!isProductionRuntime()) return true
   return isTruthy(env('AACT_ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION'))
 }
 
 export function sandboxPaymentsBlockedMessage(): string {
-  return 'الدفع التجريبي SANDBOX معطّل في بيئة الإنتاج. فعّل بوابة دفع حقيقية أو اضبط AACT_ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=true لبيئة اختبار مقصودة.'
+  return 'الدفع التجريبي SANDBOX معطّل في بيئة الإنتاج. استخدم بوابة دفع حقيقية أو سجّل طلب دفع يدوي لتراجعه الإدارة.'
 }
 
 export function stripeKeyKind(key: string): PaymentDiagnostics['stripeKeyKind'] {
