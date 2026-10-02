@@ -138,6 +138,7 @@ export function SupervisorView() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const detailsRequestRef = useRef(0)
   const [creating, setCreating] = useState(false)
   const [assessmentForm, setAssessmentForm] = useState({
     title: '',
