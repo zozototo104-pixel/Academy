@@ -71,7 +71,7 @@ jobs:
           mkdir -p "prisma/migrations/$name"
           bunx prisma migrate diff \
             --from-empty \
-            --to-schema prisma/schema.prisma \
+            --to-schema-datamodel prisma/schema.prisma \
             --script > "prisma/migrations/$name/migration.sql"
           test -s "prisma/migrations/$name/migration.sql"
           echo "Generated prisma/migrations/$name/migration.sql"
