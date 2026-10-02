@@ -9,6 +9,14 @@ function requiredAnyEnv(names: string[]) {
   throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
 }
 
+function safeSnippet(value: unknown, maxLength = 900) {
+  return JSON.stringify(value, (_key, item) => {
+    if (_key.toLowerCase().includes('password')) return '[redacted]'
+    if (_key.toLowerCase().includes('token')) return '[redacted]'
+    return item
+  }).slice(0, maxLength)
+}
+
 async function login(request: APIRequestContext, email: string, password: string) {
   const response = await request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
