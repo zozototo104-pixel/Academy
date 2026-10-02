@@ -188,7 +188,7 @@ export default function Home() {
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
     const loadMe = async () => {
-      const activeToken = oauthToken || getToken()
+      const activeToken = resetSession ? null : (oauthToken || getToken())
       const shouldRetryAuth = Boolean(oauthToken || oauthReturn || activeToken)
       const maxAttempts = shouldRetryAuth ? 6 : 1
 
