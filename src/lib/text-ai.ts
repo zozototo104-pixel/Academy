@@ -578,6 +578,7 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     concrete === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
     concrete === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
     concrete === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
+    concrete === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
   const discovered = await liveFreeModels(concrete, s)
   const selected = modelFor(s, concrete)
