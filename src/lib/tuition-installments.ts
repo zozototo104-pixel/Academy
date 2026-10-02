@@ -88,7 +88,7 @@ export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): num
 
   const installmentsOnly = payments
     .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
-    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    .reduce((sum, p) => sum + amountOf(p), 0)
   return roundMoney(installmentsOnly)
 }
 
