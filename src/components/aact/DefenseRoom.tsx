@@ -299,7 +299,7 @@ export function DefenseRoom({
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       audioRef.current?.pause()
     }
-  }, [cleanupRecordingMixer])
+  }, [cleanupRecordingMixer, thesis.id])
 
   // فتح قناة الصوت بأول لمسة داخل القاعة — لضمان نطق الخبير على iOS
   useEffect(() => {
