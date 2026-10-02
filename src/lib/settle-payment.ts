@@ -219,7 +219,7 @@ export async function markInvoicePaid(
         'agent'
       ).catch(() => {})
       if (agent.email) {
-        await emailPaymentReceipt(agent.email, agent.repName, payment.invoiceNo, payment.description, payment.amount, receiptNo)
+        await emailPaymentReceipt(agent.email, agent.repName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
       }
     }
   }
