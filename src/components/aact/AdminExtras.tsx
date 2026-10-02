@@ -662,6 +662,20 @@ export function AdminFinanceTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [paymentSearch, paymentStatusFilter, paymentPage, paymentPageSize, paymentRefresh])
 
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      api<Report>('/api/admin/reports')
+        .then((r) => {
+          if (!cancelled) setReport(r)
+        })
+        .catch(() => {
+          if (!cancelled) setReport(null)
+        })
+    }, 700)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [paymentRefresh])
+
   const confirm = async (id: string) => {
     try {
       await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id }) })
