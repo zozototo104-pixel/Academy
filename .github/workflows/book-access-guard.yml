@@ -66,20 +66,12 @@ jobs:
       - name: Run book access guard
         run: bun run e2e:books
 
-      - name: Upload Playwright report
+      - name: Upload sanitized book access reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: book-access-guard-playwright-report
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: book-access-guard-test-results
-          path: test-results
+          name: book-access-guard-json-reports
+          path: |
+            test-results/book-access-guard/*.json
           if-no-files-found: ignore
           retention-days: 7
