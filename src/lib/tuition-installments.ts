@@ -60,7 +60,7 @@ export function tuitionPaidTotal(payments: TuitionPayment[]): number {
     0,
     ...payments
       .filter((p) => p.purpose === 'TUITION' && p.status === 'PAID')
-      .map((p) => Number(p.amount) || 0)
+      .map(amountOf)
   )
   const paidInstallments = payments
     .filter((p) => p.purpose === 'TUITION_INSTALLMENT' && p.status === 'PAID')
