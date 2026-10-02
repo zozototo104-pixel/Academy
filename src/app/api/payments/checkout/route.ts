@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { createProviderCheckout, getGatewayConfig, paymentMethodStatus } from '@/lib/payments'
 import { notify } from '@/lib/notify'
+import { paymentAmountCents, paymentAmountDollars } from '@/lib/money'
 
 function paymentPurposeLabel(purpose?: string | null) {
   const labels: Record<string, string> = {
