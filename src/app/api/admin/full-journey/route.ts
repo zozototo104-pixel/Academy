@@ -202,6 +202,7 @@ async function createStudentAndAdmission(admin: { id: string; name: string }, st
       country: 'QA',
       role: 'STUDENT',
       status: 'ACTIVE',
+      emailVerifiedAt: new Date(),
     },
   })
 
