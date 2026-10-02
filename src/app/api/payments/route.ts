@@ -10,13 +10,20 @@ export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ payments: [] })
+    const canClaimEmailRecords = user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt)
+    if (canClaimEmailRecords) {
+      await db.$transaction([
+        db.admissionApplication.updateMany({ where: { userId: null, email: user.email }, data: { userId: user.id } }),
+        db.payment.updateMany({ where: { userId: null, payerEmail: user.email }, data: { userId: user.id } }),
+      ]).catch(() => {})
+    }
     const ownAdmissions = await db.admissionApplication.findMany({
-      where: { OR: [{ userId: user.id }, { email: user.email }] },
+      where: { userId: user.id },
       select: { id: true, reference: true, program: true, fullName: true },
     })
     const admissionIds = ownAdmissions.map((a) => a.id)
     const payments = await db.payment.findMany({
-      where: { OR: [{ userId: user.id }, { admissionId: { in: admissionIds } }, { payerEmail: user.email }] },
+      where: { OR: [{ userId: user.id }, { admissionId: { in: admissionIds } }] },
       orderBy: { createdAt: 'desc' },
     })
     // إثراء البيانات بمرجع الطلب وخطط التقسيط الدراسية
