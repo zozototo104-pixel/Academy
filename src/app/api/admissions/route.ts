@@ -17,6 +17,7 @@ import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-i
 import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentOwnsAdmission } from '@/lib/student-record-ownership'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
+import { dollarsToCents } from '@/lib/money'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
 // لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
