@@ -510,8 +510,9 @@ export function ApplyView() {
     setTrackError('')
     setTracked(null)
     try {
-      const verifyParam = trackVerify.trim() ? `&verify=${encodeURIComponent(trackVerify.trim())}` : ''
-      const d = await api<{ application: any; verified?: boolean; verificationRequired?: boolean }>(`/api/admissions?ref=${encodeURIComponent(trackRef.trim())}${verifyParam}`)
+      const emailParam = trackEmail.trim() ? `&email=${encodeURIComponent(trackEmail.trim())}` : ''
+      const phoneParam = trackPhoneLast4.trim() ? `&phoneLast4=${encodeURIComponent(trackPhoneLast4.trim())}` : ''
+      const d = await api<{ application: any; verified?: boolean; verificationRequired?: boolean }>(`/api/admissions?ref=${encodeURIComponent(trackRef.trim())}${emailParam}${phoneParam}`)
       setTracked(d.application)
     } catch (e: any) {
       setTrackError(e.message || 'لم يتم العثور على الطلب')
