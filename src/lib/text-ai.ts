@@ -449,7 +449,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = providerKeys(s, provider)[0]
-  const cacheKey = cacheKeyForFreeModels(provider, baseUrl)
+  const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
   if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
