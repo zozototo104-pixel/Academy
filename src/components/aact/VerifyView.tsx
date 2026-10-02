@@ -79,6 +79,31 @@ export function VerifyView() {
     }
   }
 
+  const unlockDetails = async () => {
+    if (!lookup || !result?.certificate) return
+    setDetailsLoading(true)
+    setDetailsError(null)
+    try {
+      const payload = {
+        [lookup.mode]: lookup.value,
+        email: detailsEmail.trim(),
+        phoneLast4: detailsPhoneLast4.trim(),
+      }
+      const d = await api<VerifyResult>('/api/certificates/verify', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      setResult(d)
+      setDetailsOpen(false)
+      setDetailsEmail('')
+      setDetailsPhoneLast4('')
+    } catch (e: any) {
+      setDetailsError(e.message || 'تعذر فتح تفاصيل الشهادة')
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
   // دعم فتح الرابط مباشرة من QR (?view=verify&token=...) أو من الرقم التسلسلي (?view=verify&serial=...)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
