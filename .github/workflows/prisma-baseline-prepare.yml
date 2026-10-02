@@ -60,6 +60,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Restore dependency manifest after install
+        shell: bash
+        run: |
+          set -euo pipefail
+          # bun install may refresh bun.lock in this repository. The baseline workflow must only commit prisma/migrations.
+          git restore package.json bun.lock 2>/dev/null || true
+          git status --short
+
       - name: Validate Prisma schema
         run: bunx prisma validate --schema prisma/schema.prisma
 
