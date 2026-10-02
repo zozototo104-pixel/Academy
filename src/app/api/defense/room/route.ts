@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser()
     const thesisId = req.nextUrl.searchParams.get('thesisId')
-    const peerId = req.nextUrl.searchParams.get('peerId')
+    const peerId = normalizePeerId(req.nextUrl.searchParams.get('peerId'))
     if (!thesisId) return NextResponse.json({ error: 'معرف البحث مطلوب' }, { status: 400 })
 
     const thesis = await getThesisForUser(thesisId, user.id, user.role)
