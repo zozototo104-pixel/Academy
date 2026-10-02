@@ -318,6 +318,7 @@ export async function PATCH(req: NextRequest) {
             purpose: 'TUITION',
             description: `الرسوم الدراسية الكاملة للدخول للبرنامج — ${app.program}`,
             amount: tuition,
+            amountCents: dollarsToCents(tuition),
             payerName: app.fullName,
             payerEmail: app.email,
             payerCountry: app.country,
