@@ -474,13 +474,15 @@ async function aiEvaluate(
   }
 }
 
-async function aiRecommendation(title: string, name: string, aiScore: number, answered: number, lastFeedback: string, studentAcademicContext?: string): Promise<string> {
+async function aiRecommendation(title: string, name: string, aiScore: number | null, answered: number, lastFeedback: string, studentAcademicContext?: string): Promise<string> {
   const verdict =
-    aiScore >= 80
-      ? 'توصية بالقبول والاجتياز'
-      : aiScore >= 60
-        ? 'توصية بالقبول مع ملاحظات'
-        : 'توصية بمراجعة البحث وإعادة المناقشة'
+    aiScore == null
+      ? 'تعذر إصدار توصية رقمية آلية — يلزم اعتماد اللجنة البشرية'
+      : aiScore >= 80
+        ? 'توصية بالقبول والاجتياز'
+        : aiScore >= 60
+          ? 'توصية بالقبول مع ملاحظات'
+          : 'توصية بمراجعة البحث وإعادة المناقشة'
   try {
     const zai = await getZAI()
     const completion = await zai.chat.completions.create({
