@@ -160,10 +160,17 @@ export async function GET(req: NextRequest) {
     if (!profile.emailVerified) return authRedirect(req, { oauth_error: 'email_not_verified' })
 
     const existing = await db.user.findUnique({ where: { email: profile.email } })
+    const verifiedAt = new Date()
     const user = existing
       ? await db.user.update({
           where: { id: existing.id },
-          data: { name: existing.name || profile.name },
+          data: {
+            name: existing.name || profile.name,
+            emailVerifiedAt: existing.emailVerifiedAt || verifiedAt,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null,
+            emailVerificationSentAt: null,
+          },
         })
       : await db.user.create({
           data: {
@@ -171,6 +178,7 @@ export async function GET(req: NextRequest) {
             name: profile.name,
             password: hashPassword(`google:${randomBytes(32).toString('hex')}`),
             role: 'STUDENT',
+            emailVerifiedAt: verifiedAt,
           },
         })
 
