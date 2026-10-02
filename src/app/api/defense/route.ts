@@ -5,6 +5,7 @@ import { getZAI } from '@/lib/ai'
 import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
+import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 
