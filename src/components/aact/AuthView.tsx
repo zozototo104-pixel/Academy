@@ -22,12 +22,23 @@ export function AuthView() {
   const [regData, setRegData] = useState({ name: '', email: '', password: '', phone: '', country: '', website: '' })
 
   useEffect(() => {
-    const error = new URLSearchParams(window.location.search).get('oauth_error')
-    if (!error) return
-    const message = error === 'google_not_configured'
-      ? 'يجب إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في Vercel لتفعيل الدخول عبر Google.'
-      : 'تعذر تسجيل الدخول عبر Google. جرّب مرة أخرى أو استخدم البريد وكلمة المرور.'
-    toast({ title: 'Google Login', description: message, variant: 'destructive' })
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('oauth_error')
+    if (error) {
+      const message = error === 'google_not_configured'
+        ? 'يجب إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في Vercel لتفعيل الدخول عبر Google.'
+        : 'تعذر تسجيل الدخول عبر Google. جرّب مرة أخرى أو استخدم البريد وكلمة المرور.'
+      toast({ title: 'Google Login', description: message, variant: 'destructive' })
+    }
+    if (params.get('email_verified') === '1') {
+      const email = params.get('email') || ''
+      setLoginData((prev) => ({ ...prev, email: email || prev.email }))
+      toast({ title: 'تم تأكيد البريد', description: 'يمكنك الآن تسجيل الدخول إلى بوابة الطالب.' })
+    }
+    const verifyError = params.get('verify_email')
+    if (verifyError) {
+      toast({ title: 'تعذر تأكيد البريد', description: 'رابط تأكيد البريد غير صالح أو انتهت صلاحيته. جرّب تسجيل الدخول لإرسال رابط جديد.', variant: 'destructive' })
+    }
   }, [toast])
 
   const doGoogleLogin = () => {
