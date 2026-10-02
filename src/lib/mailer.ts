@@ -213,6 +213,22 @@ function greeting(name?: string | null): string {
   return `عزيزي/عزيزتي <strong>${escapeHtml(name || 'الطالب')}</strong>`
 }
 
+export async function emailVerifyAccount(to: string, name: string, verifyUrl: string) {
+  await sendEmail({
+    to,
+    event: 'EMAIL_VERIFICATION',
+    subject: 'تأكيد بريدك الإلكتروني في منصة الأكاديمية الأمريكية',
+    html: emailTemplate(
+      'تأكيد البريد الإلكتروني ✉️',
+      `<p>${greeting(name)}،</p><p>شكراً لإنشاء حسابك في منصة الأكاديمية الأمريكية. قبل فتح بوابة الطالب، يرجى تأكيد ملكية بريدك الإلكتروني.</p>${infoRows([
+        { label: 'البريد', value: to },
+        { label: 'صلاحية الرابط', value: '24 ساعة من وقت الإرسال' },
+      ])}<p>إذا لم تنشئ هذا الحساب، يمكنك تجاهل هذه الرسالة.</p>`,
+      { label: 'تأكيد البريد الإلكتروني', url: verifyUrl }
+    ),
+  })
+}
+
 export async function emailWelcome(to: string, name: string) {
   await sendEmail({
     to,
