@@ -1767,6 +1767,7 @@ const SETTING_KEY_LABELS: Record<string, string> = {
   USDT_WALLET_ADDRESS: 'محفظة USDT', USDT_BINANCE_PAY_USER_ID: 'حساب Binance Pay', USDT_BINANCE_PAY_QR_IMAGE_URL: 'صورة QR للدفع', USDT_NETWORK: 'شبكة الدفع', USDT_PAYMENT_INSTRUCTIONS: 'تعليمات الدفع',
   TURN_URL: 'خادم TURN', TURN_TCP_URL: 'خادم TURN TCP', TURN_USERNAME: 'مستخدم TURN', TURN_CREDENTIAL: 'كلمة مرور TURN', STUN_URLS: 'خوادم STUN',
   GEMINI_API_KEY: 'مفتاح Gemini', GEMINI_TEXT_MODEL: 'نموذج النص', GEMINI_TTS_MODEL: 'نموذج الصوت', GEMINI_LIVE_MODEL: 'نموذج المحادثة الصوتية', GEMINI_SUPERVISOR_LIVE_MODEL: 'نموذج المشرف الصوتي', GEMINI_DISCUSSION_LIVE_MODEL: 'نموذج المناقشة الصوتية', GEMINI_DISCUSSION_THINKING_LEVEL: 'مستوى تفكير المناقشة', GEMINI_TTS_VOICE: 'صوت Gemini',
+  TOPTOOLS_API_KEY: 'مفتاح Top Tools AI', TOPTOOLS_API_KEYS: 'مفاتيح Top Tools AI', TOPTOOLS_TEXT_MODEL: 'نموذج Top Tools AI', TOPTOOLS_BASE_URL: 'رابط Top Tools AI',
   AI_TEXT_PROVIDER: 'مزود النص الذكي', AI_ROUTER_POLICY: 'سياسة توجيه الذكاء',
 }
 
