@@ -1741,11 +1741,62 @@ function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
   )
 }
 
+const SETTING_KEY_LABELS: Record<string, string> = {
+  SMTP_HOST: 'خادم البريد', SMTP_PORT: 'منفذ البريد', SMTP_USER: 'حساب البريد', SMTP_FROM: 'بريد الإرسال', SMTP_NAME: 'اسم المرسل', SMTP_ENABLED: 'تفعيل البريد',
+  RESEND_API_KEY: 'مفتاح Resend', RESEND_FROM: 'مرسل Resend', MAIL_FROM: 'بريد الإرسال',
+  PAYMENT_MODE: 'وضع الدفع', PAYPAL_CLIENT_ID: 'حساب PayPal', PAYPAL_API_BASE: 'بيئة PayPal',
+  USDT_WALLET_ADDRESS: 'محفظة USDT', USDT_BINANCE_PAY_USER_ID: 'حساب Binance Pay', USDT_BINANCE_PAY_QR_IMAGE_URL: 'صورة QR للدفع', USDT_NETWORK: 'شبكة الدفع', USDT_PAYMENT_INSTRUCTIONS: 'تعليمات الدفع',
+  TURN_URL: 'خادم TURN', TURN_TCP_URL: 'خادم TURN TCP', TURN_USERNAME: 'مستخدم TURN', TURN_CREDENTIAL: 'كلمة مرور TURN', STUN_URLS: 'خوادم STUN',
+  GEMINI_API_KEY: 'مفتاح Gemini', GEMINI_TEXT_MODEL: 'نموذج النص', GEMINI_TTS_MODEL: 'نموذج الصوت', GEMINI_LIVE_MODEL: 'نموذج المحادثة الصوتية', GEMINI_SUPERVISOR_LIVE_MODEL: 'نموذج المشرف الصوتي', GEMINI_DISCUSSION_LIVE_MODEL: 'نموذج المناقشة الصوتية', GEMINI_DISCUSSION_THINKING_LEVEL: 'مستوى تفكير المناقشة', GEMINI_TTS_VOICE: 'صوت Gemini',
+  AI_TEXT_PROVIDER: 'مزود النص الذكي', AI_ROUTER_POLICY: 'سياسة توجيه الذكاء',
+}
+
+function settingGroupLabel(key: string) {
+  if (/^(SMTP_|RESEND_|MAIL_)/.test(key)) return 'إعدادات البريد'
+  if (/^(PAYMENT_|PAYPAL_|STRIPE_|USDT_)/.test(key)) return 'إعدادات الدفع'
+  if (/^(TURN_|STUN_)/.test(key)) return 'إعدادات الفيديو والمحادثة'
+  if (/^(GEMINI_|AI_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
+  if (/^(AACT_BACKUP_|CRON_)/.test(key)) return 'إعدادات النسخ الاحتياطي'
+  return 'إعدادات النظام'
+}
+
+function SettingsAuditDisplay({ log }: { log: AuditRow }) {
+  if (log.action !== 'UPDATE_SETTINGS') return null
+  const raw = String(log.details || '')
+  const keys = Array.from(new Set((raw.match(/[A-Z][A-Z0-9_]{2,}/g) || []).filter((key) => key.includes('_'))))
+  if (!keys.length) return <span className="text-xs font-bold text-slate-600">تم تحديث إعدادات النظام.</span>
+  const groups = Array.from(new Set(keys.map(settingGroupLabel)))
+  const labels = keys.map((key) => SETTING_KEY_LABELS[key] || settingGroupLabel(key)).filter(Boolean)
+  const visibleLabels = Array.from(new Set(labels)).slice(0, 10)
+  const hiddenCount = Math.max(0, labels.length - visibleLabels.length)
+  return (
+    <div className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-[#0f2b46] text-white hover:bg-[#0f2b46]">تحديث إعدادات النظام</Badge>
+        {groups.map((group) => (
+          <Badge key={group} variant="outline" className="bg-white text-[10px] font-black text-[#0f2b46]">{group}</Badge>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] font-bold leading-6 text-slate-600">
+        تم تحديث {keys.length} بنداً من الإعدادات. تم تحويل أسماء الحقول التقنية إلى وصف إداري وإخفاء التفاصيل الحساسة.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {visibleLabels.map((label) => (
+          <span key={label} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">{label}</span>
+        ))}
+        {hiddenCount > 0 && <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-400 shadow-sm">+{hiddenCount} بند آخر</span>}
+      </div>
+    </div>
+  )
+}
+
 function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   const whatsApp = WhatsAppAuditDisplay({ log })
   if (whatsApp) return whatsApp
   const aiKnowledge = AiKnowledgeAuditDisplay({ log })
   if (aiKnowledge) return aiKnowledge
+  const settings = SettingsAuditDisplay({ log })
+  if (settings) return settings
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
