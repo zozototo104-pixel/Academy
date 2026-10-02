@@ -133,6 +133,7 @@ export async function ensureActiveLearningStudent() {
       role: 'SUPERVISOR',
       country: 'USA',
       phone: '+10000000001',
+      emailVerifiedAt: new Date(),
     },
     create: {
       email: DEMO_THESIS_SUPERVISOR_EMAIL,
@@ -141,6 +142,7 @@ export async function ensureActiveLearningStudent() {
       role: 'SUPERVISOR',
       country: 'USA',
       phone: '+10000000001',
+      emailVerifiedAt: new Date(),
     },
   })
 
