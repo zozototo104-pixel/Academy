@@ -45,12 +45,13 @@ export function studentOwnsAdmission(user: StudentLike | null | undefined, app: 
 
 export async function repairVerifiedStudentRecordOwnership(user: StudentLike | null | undefined) {
   if (!isVerifiedStudent(user)) return { updatedAdmissions: 0, updatedPayments: 0 }
+  const verifiedUser = user as StudentLike
 
-  const email = normalizedEmail(user.email)
+  const email = normalizedEmail(verifiedUser.email)
   const admissions = await db.admissionApplication.findMany({
     where: {
       email,
-      OR: [{ userId: null }, { userId: { not: user.id } }],
+      OR: [{ userId: null }, { userId: { not: verifiedUser.id } }],
     },
     select: { id: true },
     take: 200,
@@ -59,22 +60,22 @@ export async function repairVerifiedStudentRecordOwnership(user: StudentLike | n
 
   const [admissionUpdate, directPaymentUpdate, admissionPaymentUpdate] = await Promise.all([
     admissionIds.length
-      ? db.admissionApplication.updateMany({ where: { id: { in: admissionIds } }, data: { userId: user.id } }).catch(() => ({ count: 0 }))
+      ? db.admissionApplication.updateMany({ where: { id: { in: admissionIds } }, data: { userId: verifiedUser.id } }).catch(() => ({ count: 0 }))
       : Promise.resolve({ count: 0 }),
     db.payment.updateMany({
       where: {
         payerEmail: email,
-        OR: [{ userId: null }, { userId: { not: user.id } }],
+        OR: [{ userId: null }, { userId: { not: verifiedUser.id } }],
       },
-      data: { userId: user.id },
+      data: { userId: verifiedUser.id },
     }).catch(() => ({ count: 0 })),
     admissionIds.length
       ? db.payment.updateMany({
           where: {
             admissionId: { in: admissionIds },
-            OR: [{ userId: null }, { userId: { not: user.id } }],
+            OR: [{ userId: null }, { userId: { not: verifiedUser.id } }],
           },
-          data: { userId: user.id },
+          data: { userId: verifiedUser.id },
         }).catch(() => ({ count: 0 }))
       : Promise.resolve({ count: 0 }),
   ])
