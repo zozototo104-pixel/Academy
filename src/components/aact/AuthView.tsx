@@ -70,19 +70,24 @@ export function AuthView() {
     e?.preventDefault()
     setLoading('register')
     try {
-      const d = await api<{ user: any; token?: string }>('/api/auth/register', {
+      const d = await api<{ user: any; token?: string; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
         method: 'POST',
         headers: { 'X-AACT-Register-Form': 'web' },
         body: JSON.stringify(regData),
       })
-      if (d.token) saveToken(d.token)
-      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
-      setUser(d.user)
+      if (d.token) {
+        saveToken(d.token)
+        try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
+        setUser(d.user)
+        navigate('dashboard')
+        return
+      }
+      setLoginData((prev) => ({ ...prev, email: d.user?.email || regData.email }))
+      setRegData((prev) => ({ ...prev, password: '' }))
       toast({
-        title: `مرحباً ${d.user.name}!`,
-        description: 'تم إنشاء حسابك بنجاح — يمكنك الآن التسجيل في البرامج والتحدث مع المشرف الذكي',
+        title: 'تحقق من بريدك الإلكتروني',
+        description: d.message || (d.verificationEmailSent ? 'أرسلنا لك رابط تأكيد البريد. بعد التأكيد يمكنك تسجيل الدخول.' : 'تم إنشاء الحساب، لكن تعذر إرسال رابط التأكيد حالياً.'),
       })
-      navigate('dashboard')
     } catch (err: any) {
       toast({ title: 'خطأ في التسجيل', description: err.message, variant: 'destructive' })
     } finally {
