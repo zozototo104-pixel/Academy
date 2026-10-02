@@ -64,6 +64,8 @@ async function createLinkedBook(request: APIRequestContext, adminToken: string, 
   return body.book
 }
 
+type CleanupResult = Awaited<ReturnType<typeof cleanupFixture>> & { stamp: string }
+
 async function cleanupFixture(request: APIRequestContext, adminToken: string, stamp: string) {
   const response = await request.delete('/api/admin/full-journey', {
     headers: { Authorization: `Bearer ${adminToken}` },
