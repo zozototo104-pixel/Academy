@@ -364,7 +364,7 @@ export function VerifyView() {
                       onClick={() => setShowCert(true)}
                       className="border-[#c9a227] font-bold text-[#a8841a]"
                     >
-                      <Eye className="ml-1 h-3.5 w-3.5" /> عرض الشهادة كاملة
+                      <Eye className="ml-1 h-3.5 w-3.5" /> عرض قالب الشهادة
                     </Button>
                   </div>
                 </div>
