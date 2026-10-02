@@ -73,6 +73,8 @@ export function AuthView() {
   const doRegister = async (e?: FormEvent) => {
     e?.preventDefault()
     setLoading('register')
+    clearToken()
+    setUser(null)
     try {
       const d = await api<{ user: any; token?: string; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
         method: 'POST',
