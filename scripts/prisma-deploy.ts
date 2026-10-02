@@ -44,8 +44,32 @@ function run(command: string, args: string[]) {
   if (result.status !== 0) process.exit(result.status || 1)
 }
 
+function isProductionDeployment() {
+  return process.env.VERCEL_ENV === 'production'
+}
+
+function committedMigrationDirectories() {
+  const migrationsPath = 'prisma/migrations'
+  if (!existsSync(migrationsPath)) return []
+  return readdirSync(migrationsPath)
+    .map((name) => join(migrationsPath, name))
+    .filter((path) => statSync(path).isDirectory())
+    .filter((path) => existsSync(join(path, 'migration.sql')))
+}
+
+function assertProductionMigrationsAvailable() {
+  if (!isProductionDeployment()) return
+  const migrations = committedMigrationDirectories()
+  if (migrations.length > 0) return
+
+  console.error('Refusing production Prisma deploy: prisma/migrations is missing or has no migration.sql files.')
+  console.error('Create and commit a safe Prisma migration baseline before deploying production database changes.')
+  process.exit(1)
+}
+
 const args = new Set(process.argv.slice(2))
 
+assertProductionMigrationsAvailable()
 run('npx', ['prisma', 'generate'])
 
 if (args.has('--migrate')) {
