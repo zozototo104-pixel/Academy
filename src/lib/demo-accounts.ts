@@ -11,8 +11,8 @@ import {
   DEMO_THESIS_SUPERVISOR_NAME,
 } from './demo-thesis'
 
-export const DEMO_ADMIN_EMAIL = 'admin@aact.academy'
-export const DEMO_ADMIN_PASSWORD = 'Admin@2026'
+export const DEMO_ADMIN_EMAIL = (process.env.AACT_SEED_ADMIN_EMAIL || '').trim().toLowerCase()
+export const DEMO_ADMIN_PASSWORD = process.env.AACT_SEED_ADMIN_PASSWORD ? '[configured by environment]' : ''
 
 export const DEMO_ACTIVE_STUDENT_EMAIL = 'demo.learning@student.aact.academy'
 export const DEMO_ACTIVE_STUDENT_PASSWORD = 'Student@2026'
