@@ -996,6 +996,13 @@ export function AdminSystemTab() {
                 {F('RELAYROUTER_BASE_URL', 'RelayRouter Base URL', 'https://relayrouter.io/v1', 'text')}
               </>
             ) : null}
+            {currentTextProvider === 'TOPTOOLS' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('TOPTOOLS_API_KEYS', 'Top Tools AI API Keys', data.secretsSet.TOPTOOLS_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-...', 'password', 'مفتاح أو أكثر من Top Tools AI مفصول بفاصلة. لا تضع المفتاح داخل الكود.')}
+                {SelectF('TOPTOOLS_TEXT_MODEL', 'نموذج Top Tools AI', modelOptions('TOPTOOLS', TOPTOOLS_TEXT_MODEL_CHOICES), modelHint('TOPTOOLS', 'يمكنك اختيار النموذج الافتراضي أو نموذج محدد متاح في حسابك.'))}
+                {F('TOPTOOLS_BASE_URL', 'Top Tools AI Base URL', 'https://top-tools-ai.com/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
+              </>
+            ) : null}
             {currentTextProvider === 'OPENAI_COMPAT' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('OPENAI_COMPAT_API_KEYS', 'OpenAI-compatible API Keys', data.secretsSet.OPENAI_COMPAT_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'RelayFreeLLM / LiteLLM / Gateway خاص.')}
