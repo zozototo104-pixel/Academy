@@ -299,6 +299,11 @@ export function AdminSystemTab() {
     load()
   }, [])
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => loadBackupStatus(), 600)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   const activeTextProviderForModels = form.AI_TEXT_PROVIDER || data?.textAi?.selectedProvider || 'GEMINI'
 
   useEffect(() => {
