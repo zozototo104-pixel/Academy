@@ -2703,6 +2703,46 @@ export function AdminQualityTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={!!unitDeleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !unitBusyId) setUnitDeleteTarget(null)
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md overflow-hidden rounded-[1.75rem] border-red-100 bg-white p-0 shadow-2xl" dir="rtl">
+          <div className="space-y-3 p-5">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black text-[#0f2b46]">تأكيد حذف الوحدة</DialogTitle>
+              <DialogDescription className="font-bold leading-7 text-slate-600">
+                سيتم حذف هذه الوحدة من خطة المنهج. لا يؤثر الحذف على باقي الوحدات.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+              <p className="text-xs font-black text-red-500">الوحدة المحددة</p>
+              <p className="mt-1 text-base font-black leading-7 text-red-900">{unitDeleteTarget?.title || 'وحدة منهجية'}</p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                disabled={!!unitBusyId}
+                onClick={() => setUnitDeleteTarget(null)}
+                className="h-12 flex-1 rounded-2xl font-black"
+              >
+                إلغاء
+              </Button>
+              <Button
+                disabled={!!unitBusyId}
+                onClick={confirmDeleteUnit}
+                className="h-12 flex-1 rounded-2xl bg-red-600 font-black text-white hover:bg-red-700"
+              >
+                {unitBusyId === unitDeleteTarget?.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                حذف الوحدة
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={unitReviewOpen} onOpenChange={setUnitReviewOpen}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
           <DialogHeader>
