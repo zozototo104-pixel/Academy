@@ -214,7 +214,7 @@ function greeting(name?: string | null): string {
 }
 
 export async function emailVerifyAccount(to: string, name: string, verifyUrl: string) {
-  await sendEmail({
+  return sendEmail({
     to,
     event: 'EMAIL_VERIFICATION',
     subject: 'تأكيد بريدك الإلكتروني في منصة الأكاديمية الأمريكية',
