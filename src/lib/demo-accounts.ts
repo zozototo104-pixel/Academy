@@ -287,7 +287,7 @@ export async function ensurePlatformDemoAccounts(options: { resetDefense?: boole
   const thesisStudent = await ensureDemoThesisStudent({ resetDefense: !!options.resetDefense, actor: null })
   return {
     accounts: DEMO_ACCOUNTS,
-    admin: { id: admin.id, email: DEMO_ADMIN_EMAIL, password: DEMO_ADMIN_PASSWORD },
+    admin: admin ? { id: admin.id, email: admin.email, password: DEMO_ADMIN_PASSWORD } : null,
     activeStudent,
     thesisStudent,
   }
