@@ -439,7 +439,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
-      .filter(({ raw, id }) => validModelName(id) && isFreeModel(raw, id))
+      .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' || isFreeModel(raw, id)))
       .map(({ id }) => id)
   } catch {
     return []
