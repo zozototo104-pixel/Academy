@@ -215,7 +215,7 @@ export async function markInvoicePaid(
         null,
         'PAYMENT',
         'تم استلام دفعة اعتماد بنجاح',
-        `سُددت فاتورة «${payment.description}» بمبلغ ${payment.amount}$ — رقم الإيصال ${receiptNo} — لطلب اعتماد: ${agent.orgName}.`,
+        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo} — لطلب اعتماد: ${agent.orgName}.`,
         'agent'
       ).catch(() => {})
       if (agent.email) {
