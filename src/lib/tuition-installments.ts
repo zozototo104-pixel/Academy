@@ -64,10 +64,10 @@ export function tuitionPaidTotal(payments: TuitionPayment[]): number {
   )
   const paidInstallments = payments
     .filter((p) => p.purpose === 'TUITION_INSTALLMENT' && p.status === 'PAID')
-    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    .reduce((sum, p) => sum + amountOf(p), 0)
   const paidOtherTuition = payments
     .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose) && p.status === 'PAID')
-    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    .reduce((sum, p) => sum + amountOf(p), 0)
 
   // إذا وُجدت فاتورة رسوم كاملة مدفوعة فلا نضيف فوقها أقساطاً مدفوعة لنفس الرسوم.
   return roundMoney(Math.max(paidFullTuition, paidInstallments + paidOtherTuition))
