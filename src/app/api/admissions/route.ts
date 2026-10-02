@@ -86,7 +86,10 @@ function validEmail(value?: string | null) {
 }
 
 function digitsOnly(value?: string | null) {
-  return String(value || '').replace(/\D/g, '')
+  return String(value || '')
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/\D/g, '')
 }
 
 function strongAdmissionReference() {
