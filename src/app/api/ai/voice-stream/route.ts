@@ -53,6 +53,9 @@ export async function POST(req: NextRequest) {
   if (!message) {
     return new Response(JSON.stringify({ error: 'الرسالة فارغة' }), { status: 400 })
   }
+  if (message.length > 2500) {
+    return new Response(JSON.stringify({ error: 'الرسالة أطول من الحد المسموح' }), { status: 413 })
+  }
 
   // سياق RAG: ملف المستخدم + المنهج/الكتب حسب نطاق الصلاحية الحالي.
   const voiceScope = resolveAiKnowledgeScope({ role: user.role, mode: 'VOICE' })
