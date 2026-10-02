@@ -292,8 +292,8 @@ async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SER
       academicProfile,
       academicRecord,
       eligibility: includeDetails ? eligibility : null,
-      verificationUrl: certificateVerificationUrl(cert),
-      credentialUrl: certificateCredentialUrl(cert),
+      verificationUrl: includeDetails ? certificateVerificationUrl(cert) : null,
+      credentialUrl: includeDetails ? certificateCredentialUrl(cert) : null,
     },
     message: effectiveValid
       ? includeDetails
