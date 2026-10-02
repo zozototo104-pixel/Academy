@@ -55,7 +55,7 @@ function installmentAppealEligibility(args: {
   return { ok: true, reason: null }
 }
 
-export function tuitionPaidTotal(payments: Array<{ purpose: string; status: string; amount: number }>): number {
+export function tuitionPaidTotal(payments: TuitionPayment[]): number {
   const paidFullTuition = Math.max(
     0,
     ...payments
