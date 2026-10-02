@@ -1152,6 +1152,11 @@ export function AdminView() {
                             {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</p>
+                          {ownerNameDiffers && (
+                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
+                              <span className="font-black">تنبيه مطابقة الحساب:</span> اسم الطلب/المستندات هو <span className="font-black">{applicantName}</span>، بينما اسم صاحب الحساب المرتبط بهذا البريد هو <span className="font-black">{ownerName}</span>. لا يتم تغيير اسم الطلب تلقائياً حفاظاً على بيانات المستندات.
+                            </div>
+                          )}
                           {(a.files?.length || 0) > 0 ? (
                             <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
                               <p className="text-[11px] font-black text-emerald-700">
