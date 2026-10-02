@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const verificationSent = await emailVerifyAccount(user.email, user.name, emailVerificationUrl(req, verification.token)).then(() => true).catch(() => false)
+    const verificationSent = await emailVerifyAccount(user.email, user.name, emailVerificationUrl(req, verification.token)).catch(() => false)
 
     return NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
