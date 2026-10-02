@@ -20,6 +20,21 @@ function gradeLabel(score?: number | null): string | null {
   return 'غير مجتاز'
 }
 
+function normalizeEmail(value?: string | null): string {
+  return String(value || '').trim().toLowerCase()
+}
+
+function normalizeDigits(value?: string | null): string {
+  return String(value || '')
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/\D/g, '')
+}
+
+function phoneLast4(value?: string | null): string {
+  return normalizeDigits(value).slice(-4)
+}
+
 async function resolveCertificateOwnerUserId(cert: { userId?: string | null; admissionId?: string | null }): Promise<string | null> {
   if (cert.userId) return cert.userId
   if (!cert.admissionId) return null
