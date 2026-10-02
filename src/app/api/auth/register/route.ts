@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const verification = createEmailVerificationToken()
     const user = await db.user.create({
       data: {
         name: normalizeOptionalText(name, 120),
@@ -91,17 +92,21 @@ export async function POST(req: NextRequest) {
         phone: normalizeOptionalText(phone, 40) || null,
         country: normalizeOptionalText(country, 80) || null,
         role: 'STUDENT',
+        emailVerificationTokenHash: verification.tokenHash,
+        emailVerificationExpiresAt: verification.expiresAt,
+        emailVerificationSentAt: new Date(),
       },
     })
 
-    const token = await createSession(user.id)
-
-    // إشعار بريدي ترحيبي (آمن: لا يعمل التسجيل فشلاً إن تعذر الإرسال)
-    emailWelcome(user.email, user.name).catch(() => {})
+    const verificationSent = await emailVerifyAccount(user.email, user.name, emailVerificationUrl(req, verification.token)).then(() => true).catch(() => false)
 
     return NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      token,
+      requiresEmailVerification: true,
+      verificationEmailSent: verificationSent,
+      message: verificationSent
+        ? 'تم إنشاء الحساب. أرسلنا لك رابط تأكيد البريد الإلكتروني.'
+        : 'تم إنشاء الحساب، لكن تعذر إرسال بريد التأكيد. تواصل مع الإدارة أو جرّب تسجيل الدخول لاحقاً لإعادة الإرسال.',
     })
   } catch (e) {
     console.error('Register error:', e)
