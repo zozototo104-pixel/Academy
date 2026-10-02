@@ -20,7 +20,7 @@ function safeSnippet(value: unknown, maxLength = 900) {
 async function login(request: APIRequestContext, email: string, password: string) {
   const response = await request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
-  expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 700)}`).toBeTruthy()
+  expect(response.ok(), `Login failed for ${email}: ${response.status()} ${safeSnippet(body, 700)}`).toBeTruthy()
   expect(body.token, 'Login response must include token').toBeTruthy()
   return { token: String(body.token), user: body.user }
 }
