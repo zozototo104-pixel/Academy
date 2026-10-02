@@ -27,5 +27,5 @@ export function middleware(req: Request) {
 }
 
 export const config = {
-  matcher: ['/api/verify/certificates/__route_probe__'],
+  matcher: ['/api/:path*'],
 }
