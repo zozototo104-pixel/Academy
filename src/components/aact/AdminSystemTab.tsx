@@ -257,6 +257,13 @@ const RELAYROUTER_TEXT_MODEL_CHOICES = [
   { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash عبر RelayRouter' },
 ]
 
+const TOPTOOLS_TEXT_MODEL_CHOICES = [
+  { value: 'top-tools-ai', label: 'top-tools-ai — النموذج الافتراضي في Top Tools AI' },
+  { value: 'gpt-5.6', label: 'GPT-5.6 عبر Top Tools AI' },
+  { value: 'claude-opus-5', label: 'Claude Opus 5 عبر Top Tools AI' },
+  { value: 'grok-4.6', label: 'Grok 4.6 عبر Top Tools AI' },
+]
+
 const GEMINI_VOICE_CHOICES = [
   'Charon', 'Aoede', 'Puck', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Zephyr', 'Achernar', 'Algenib', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Iapetus', 'Laomedeia', 'Pulcherrima', 'Rasalgethi', 'Sadachbia', 'Schedar', 'Sulafat', 'Umbriel', 'Vindemiatrix', 'Zubenelgenubi'
 ]
