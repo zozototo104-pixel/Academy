@@ -267,7 +267,16 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       )
     }
-    const owner = me ? me : await db.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+    const submittedEmail = email.trim().toLowerCase()
+    if (me?.role === 'STUDENT') {
+      if (!(me as any).emailVerifiedAt) {
+        return NextResponse.json({ error: 'يجب تأكيد البريد الإلكتروني قبل تقديم طلب التحاق أو خدمة.' }, { status: 403 })
+      }
+      if (submittedEmail !== String(me.email || '').trim().toLowerCase()) {
+        return NextResponse.json({ error: 'بريد الطلب يجب أن يطابق بريد حساب الطالب المؤكد. سجّل خروجاً واستخدم الحساب الصحيح إذا كان الطلب لطالب آخر.' }, { status: 400 })
+      }
+    }
+    const owner = me ? me : await db.user.findUnique({ where: { email: submittedEmail } })
     if (owner && owner.role !== 'STUDENT') {
       return NextResponse.json(
         { error: 'البريد المدخل مرتبط بحساب إداري/غير طالب. أنشئ حساب طالب منفصل أو استخدم بريد الطالب الحقيقي قبل تقديم الطلب.' },
