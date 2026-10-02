@@ -39,6 +39,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.' }, { status: 403 })
     }
 
+    if (emailVerification.shouldRequireEmailVerification(user)) {
+      let sent = false
+      if (emailVerification.shouldIssueNewVerification(user)) {
+        const verification = await emailVerification.issueEmailVerificationToken(user.id)
+        sent = await mailer.emailVerifyAccount(user.email, user.name, emailVerification.emailVerificationUrl(req, verification.token)).then(() => true).catch(() => false)
+      }
+      return NextResponse.json(
+        {
+          error: sent
+            ? 'يجب تأكيد البريد الإلكتروني قبل الدخول. أرسلنا لك رابط تأكيد جديد.'
+            : 'يجب تأكيد البريد الإلكتروني قبل الدخول. افحص بريدك أو حاول لاحقاً لإعادة الإرسال.',
+          code: 'EMAIL_NOT_VERIFIED',
+          verificationEmailSent: sent,
+        },
+        { status: 403 }
+      )
+    }
+
     const token = await createSession(user.id)
 
     return NextResponse.json({
