@@ -56,24 +56,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
 
-    // تحقق ملكية صارم: الفاتورة يجب أن تخص المستخدم الحالي (حسابه أو بريده في الطلب/التسجيل/الوكالة)
+    // تحقق ملكية صارم: الطالب يملك الفاتورة فقط إذا كان بريد الطلب/الفاتورة يطابق بريده المؤكد.
     const email = user.email.toLowerCase()
-    let owns = false
-    if (payment.userId) owns = payment.userId === user.id
-    else if (payment.admissionId) {
+    const isPrivileged = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+    let owns = isPrivileged
+    if (!owns && payment.admissionId) {
       const app = await db.admissionApplication.findUnique({
         where: { id: payment.admissionId },
         select: { id: true, userId: true, email: true },
       })
-      const verifiedEmailOwner = !!app && user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt) && !app.userId && (app.email || '').trim().toLowerCase() === email
-      if (verifiedEmailOwner) {
+      const verifiedEmailOwner = !!app && user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt) && (app.email || '').trim().toLowerCase() === email
+      if (verifiedEmailOwner && app.userId !== user.id) {
         await db.$transaction([
           db.admissionApplication.update({ where: { id: app.id }, data: { userId: user.id } }),
           db.payment.update({ where: { id: payment.id }, data: { userId: user.id } }),
         ]).catch(() => {})
       }
-      owns = !!app && (app.userId === user.id || verifiedEmailOwner)
-    } else if (payment.agentId) {
+      owns = verifiedEmailOwner
+    } else if (!owns && payment.userId) {
+      owns = user.role === 'STUDENT' && Boolean((user as any).emailVerifiedAt) && payment.userId === user.id && (!payment.payerEmail || payment.payerEmail.trim().toLowerCase() === email)
+    } else if (!owns && payment.agentId) {
       const agent = await db.agentApplication.findUnique({
         where: { id: payment.agentId },
         select: { email: true },
