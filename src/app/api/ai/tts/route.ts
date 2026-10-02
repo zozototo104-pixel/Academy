@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     }
+    const limited = enforceUserAiRateLimit(req, AI_RATE_LIMITS.tts, user.id)
+    if (limited) return limited
 
     const { text, speed } = await req.json()
     const cleanText = String(text || '')
