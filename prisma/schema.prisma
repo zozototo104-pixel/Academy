@@ -334,6 +334,8 @@ model Payment {
   cryptoVerificationNote   String?
   cryptoVerifiedAt         DateTime?
   cryptoVerificationRaw    Json?
+  manualApprovalReference String?
+  manualApprovalNote      String?
   proofs       PaymentProof[]
   paidAt      DateTime?
   payerName   String?
