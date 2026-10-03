@@ -129,6 +129,7 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
     admissionRules: safeJsonHasRules(program.admissionRules),
     semesters: semestersCount > 0,
     booksPerSemester: booksBySemester.every((s) => s.count >= 1),
+    sourcesReady: sourceReady,
     units: program.units.length > 0,
     unitObjectives: program.units.length > 0 && program.units.every((u) => hasUnitObjectives(u.objectives)),
     knowledge: knowledgeItems > 0,
