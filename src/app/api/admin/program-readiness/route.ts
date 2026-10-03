@@ -127,9 +127,11 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
   const booksWithKnowledge = program.books.filter((book) => Number(book._count.knowledgeItems || 0) > 0).length
   const totalExtractedTextChars = program.books.reduce((sum, book) => sum + readableTextLength(book.textContent), 0)
   const sourceReady = program.books.length > 0 && (readableBooks > 0 || knowledgeItems >= Math.max(3, program.books.length))
+  const generationAudit = curriculumGenerationAudit(program.curriculumPreparationNote)
+  const actualAi = generationAudit?.actualAi || null
   const selectedAiProvider = String(aiDiag?.selectedProvider || '').toUpperCase()
-  const activeAiProvider = aiDiag?.activeProvider || (selectedAiProvider && selectedAiProvider !== 'AUTO' ? selectedAiProvider : 'GEMINI')
-  const activeAiModel = aiModelForProvider(aiDiag, activeAiProvider)
+  const configuredProvider = aiDiag?.activeProvider || (selectedAiProvider && selectedAiProvider !== 'AUTO' ? selectedAiProvider : 'GEMINI')
+  const configuredModel = aiModelForProvider(aiDiag, configuredProvider)
   const readyExams = program.programExams.filter((e) => e.status === 'READY' && e._count.questions > 0).length
   const publishedAssignments = program.assignments.filter((a) => a.status === 'PUBLISHED').length
   const unitExams = program.units.filter((u) => !!u.exam).length
