@@ -203,6 +203,8 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
       aiStage: actualAi?.stage || null,
       aiGeneratedAt: actualAi?.at || generationAudit?.generatedAt || null,
       aiTrace: Array.isArray(generationAudit?.executionTrace) ? generationAudit.executionTrace : [],
+      generationMode: generationAudit?.mode || null,
+      generationSourceBooks: Array.isArray(generationAudit?.sourceBooks) ? generationAudit.sourceBooks : [],
       configuredProvider,
       configuredModel,
       routerPolicy: aiDiag?.policy || 'غير محدد',
