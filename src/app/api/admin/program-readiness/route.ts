@@ -198,8 +198,13 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
       booksWithKnowledge,
       knowledgeItems,
       extractedTextChars: totalExtractedTextChars,
-      aiProvider: activeAiProvider,
-      aiModel: activeAiModel,
+      aiProvider: actualAi?.provider || null,
+      aiModel: actualAi?.model || null,
+      aiStage: actualAi?.stage || null,
+      aiGeneratedAt: actualAi?.at || generationAudit?.generatedAt || null,
+      aiTrace: Array.isArray(generationAudit?.executionTrace) ? generationAudit.executionTrace : [],
+      configuredProvider,
+      configuredModel,
       routerPolicy: aiDiag?.policy || 'غير محدد',
       books: program.books.map((book) => {
         const textChars = readableTextLength(book.textContent)
