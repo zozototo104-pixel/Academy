@@ -1807,7 +1807,7 @@ export function AdminView() {
                 onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}
                 total={studentTotal}
                 filtered={studentTotal}
-                label="طالب"
+                label={studentStatusFilter === 'INCOMPLETE_ADMISSIONS' ? 'طلب غير مستكمل' : 'طالب'}
               />
             )}
           <Card className="border-[#0f2b46]/10">
