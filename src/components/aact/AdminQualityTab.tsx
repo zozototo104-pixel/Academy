@@ -1468,17 +1468,17 @@ export function AdminQualityTab() {
                                 {item.sourceReadiness.generationMode === 'append' ? 'آخر عملية: إضافة إلى الموجود' : item.sourceReadiness.generationMode === 'replace' ? 'آخر عملية: استبدال الموجود' : 'آخر عملية: إنشاء جديد'}
                               </Badge>
                               <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
-                                مصادر: {item.sourceReadiness.generationSourceBooks?.length || 0} كتاب
+                                مصادر: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length} كتاب
                               </Badge>
                             </div>
-                            {asArray<{ stage: string; ok: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).length ? (
+                            {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).length ? (
                               <p className="mt-2 leading-5">
-                                مراحل التشغيل: {asArray<{ stage: string; ok: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).filter((t) => t.ok).map((t) => `${t.stage}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
+                                مراحل التشغيل: {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).filter((t) => t.ok).map((t) => `${t.stage || 'مرحلة'}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
                               </p>
                             ) : null}
-                            {asArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length ? (
+                            {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length ? (
                               <p className="mt-1 leading-5">
-                                الكتب المستخدمة: {asArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
+                                الكتب المستخدمة: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
                               </p>
                             ) : null}
                           </div>
