@@ -58,7 +58,10 @@ jobs:
             exit 1
           fi
 
-      - name: Wait for full journey schema v4 route
+      - name: Validate E2E base URL allowlist
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
+      - name: Wait for full journey schema v5 route
         shell: bash
         run: |
           set -euo pipefail
