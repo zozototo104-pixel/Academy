@@ -287,7 +287,8 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'لا توجد تغييرات للحفظ' }, { status: 400 })
     await db.program.update({ where: { id: programId }, data })
     await audit({ id: admin.id, name: admin.name }, 'UPDATE_PROGRAM_READINESS', 'Program', programId, `تحديث جاهزية/اعتماد البرنامج: ${Object.keys(data).join(', ')}`)
-    const item = await buildProgramReadiness(programId)
+    const aiDiag = await textAiDiagnostics().catch(() => null)
+    const item = await buildProgramReadiness(programId, aiDiag)
     return NextResponse.json({ ok: true, item })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
