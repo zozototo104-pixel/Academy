@@ -90,6 +90,7 @@ interface Payment {
   cryptoTxHash?: string | null
   cryptoVerificationStatus?: string | null
   cryptoVerificationNote?: string | null
+  proofs?: PaymentProofSummary[]
 }
 
 interface TuitionPlan {
