@@ -16,13 +16,17 @@ jobs:
     name: Mobile UX checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: qa-e2e
 
     env:
       CI: true
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      E2E_BASE_URL: ${{ inputs.base_url || vars.QA_ALLOWED_BASE_URLS }}
+      DATABASE_URL: ${{ secrets.QA_DATABASE_URL }}
+      E2E_ADMIN_EMAIL: ${{ secrets.QA_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.QA_ADMIN_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.QA_VERCEL_BYPASS }}
+      E2E_ALLOWED_BASE_URLS: ${{ vars.QA_ALLOWED_BASE_URLS }}
+      E2E_QA_ONLY: "1"
 
     steps:
       - name: Checkout repository
