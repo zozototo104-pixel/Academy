@@ -566,14 +566,17 @@ export function AdminQualityTab() {
   }
 
   const runSuggestedUnits = async (program: ProgramReadinessItem, mode?: 'append' | 'replace') => {
-    await api('/api/admin/program-units/suggest', {
+    const result = await api<{ count: number; mode: string; actualAi?: any; generationAudit?: any }>('/api/admin/program-units/suggest', {
       method: 'POST',
       body: JSON.stringify({ programId: program.id, append: mode === 'append', replace: mode === 'replace' }),
     })
     const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
-    setReadinessItems(readiness.items || [])
+    const refreshedItems = readiness.items || []
+    const refreshedProgram = refreshedItems.find((item) => item.id === program.id) || program
+    setReadinessItems(refreshedItems)
+    setUnitGenerationResult({ ...result, programId: program.id })
     setUnitSuggestionConflict(null)
-    await openUnitReview(program)
+    await openUnitReview(refreshedProgram)
   }
 
   const suggestUnits = async (program: ProgramReadinessItem) => {
