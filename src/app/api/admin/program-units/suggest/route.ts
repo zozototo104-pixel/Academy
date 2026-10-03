@@ -396,13 +396,13 @@ ${sourceUnitDrafts}
 
   let finalUnits = evidenceUnits
   try {
-    const raw = await geminiCompleteJson({
+    const raw = await geminiCompleteJsonWithTrace({
       system: 'أنت محرر منهج أكاديمي. رتب وحدات مستخرجة من أدلة فقط، ولا تخترع محتوى عاماً.',
       history: [{ role: 'user', text: synthesisPrompt }],
       temperature: 0.18,
       thinkingBudget: 512,
       maxOutputTokens: 9000,
-    })
+    }, trace, { stage: 'SYNTHESIS' })
     const parsed = parseJsonArray(raw)
     const normalized = Array.isArray(parsed)
       ? parsed.map((unit: any, index: number) => normalizeEvidenceUnit(unit, Number(unit?.semester || Math.floor(index / 4) + 1), index)).filter(Boolean)
