@@ -247,7 +247,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
           waIdHash: waIdHash(message.from),
           phoneNumberId: message.phoneNumberId || null,
           messageType: message.rawType || null,
-          payload: { message },
+          payload: inboundEventPayload(message),
           status: 'RECEIVED',
         },
         select: { id: true },
