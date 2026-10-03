@@ -258,6 +258,8 @@ interface ProgramReadinessItem {
     aiStage?: string | null
     aiGeneratedAt?: string | null
     aiTrace?: { stage: string; ok: boolean; provider?: string; model?: string; at: string; ms: number; bookTitle?: string; error?: string }[]
+    generationMode?: string | null
+    generationSourceBooks?: { bookTitle?: string; semester?: number; hasTextContent?: boolean; knowledgeCount?: number; coverageNote?: string }[]
     configuredProvider?: string | null
     configuredModel?: string | null
     routerPolicy: string
