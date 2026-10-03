@@ -58,6 +58,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate E2E base URL allowlist
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
       - name: Run mobile UX guardrails suite
         run: bun run e2e:mobile
 
