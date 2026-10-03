@@ -222,8 +222,9 @@ export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
     const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
+    const aiDiag = await textAiDiagnostics().catch(() => null)
     if (programId) {
-      const item = await buildProgramReadiness(programId)
+      const item = await buildProgramReadiness(programId, aiDiag)
       if (!item) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
       return NextResponse.json({ item, generatedAt: new Date() })
     }
