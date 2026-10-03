@@ -242,7 +242,7 @@ export async function GET(req: NextRequest) {
     })
 
     const curriculumDemanded = demanded.filter((p) => isCurriculumProgram(p))
-    const items = (await Promise.all(curriculumDemanded.map((p) => buildProgramReadiness(p.id)))).filter(Boolean) as any[]
+    const items = (await Promise.all(curriculumDemanded.map((p) => buildProgramReadiness(p.id, aiDiag)))).filter(Boolean) as any[]
     const needsPreparation = items.filter((item) => !item.isCurriculumReady || item.registrationStatus !== 'OPEN')
     return NextResponse.json({ items: needsPreparation, generatedAt: new Date() })
   } catch (e: any) {
