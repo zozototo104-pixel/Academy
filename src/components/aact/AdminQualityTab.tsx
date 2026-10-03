@@ -394,6 +394,10 @@ function asArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : []
 }
 
+function asObjectArray<T extends Record<string, any> = Record<string, any>>(value: unknown): T[] {
+  return asArray(value).filter((item): item is T => !!item && typeof item === 'object' && !Array.isArray(item))
+}
+
 function safeDateLabel(value?: string | null) {
   if (!value) return ''
   const date = new Date(value)
