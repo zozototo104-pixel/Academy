@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund --package-lock=false",
-  "buildCommand": "npm run build",
+  "installCommand": "bun pm cache rm || true; bun install",
+  "buildCommand": "bun run build",
   "framework": "nextjs",
   "crons": [
     {
