@@ -522,84 +522,90 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 
   if (await isWhatsAppConversationHumanActive(inboundMessage.from).catch(() => false)) {
     try {
-      await sendOfficialWhatsAppReadReceipt(message)
+      await sendOfficialWhatsAppReadReceipt(inboundMessage)
     } catch (readError: any) {
       console.warn('official WhatsApp human-held read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
     }
     await auditWhatsAppWebhook('WHATSAPP_HUMAN_CONVERSATION_HELD', {
-      from: maskPhone(message.from),
-      text: message.text.slice(0, 180),
+      from: maskPhone(inboundMessage.from),
+      text: inboundMessage.text.slice(0, 180),
       conversationId: storedInbound?.conversation?.id || null,
       note: 'conversation claimed by admin; bot reply suppressed; read receipt attempted',
-    }, storedInbound?.conversation?.id || message.id)
+    }, storedInbound?.conversation?.id || inboundMessage.id)
     return 'SKIPPED'
   }
 
-  if (isSimpleWhatsAppGreeting(message.text)) {
-    await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
-    const sendResult = await sendOfficialWhatsAppText(message.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
-      phoneNumberId: message.phoneNumberId,
-      replyToMessageId: message.id,
+  if (prepared.immediateReply) {
+    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
+    await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
+    return 'SENT'
+  }
+
+  if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
+    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
+    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
+      phoneNumberId: inboundMessage.phoneNumberId,
+      replyToMessageId: inboundMessage.id,
     })
     await recordWhatsAppOutboundMessage({
-      waId: message.from,
-      phoneNumberId: message.phoneNumberId,
+      waId: inboundMessage.from,
+      phoneNumberId: inboundMessage.phoneNumberId,
       text: SIMPLE_WHATSAPP_GREETING_REPLY,
       sender: 'BOT',
       whatsappMessageId: sendResult?.messages?.[0]?.id || null,
     }).catch(() => {})
-    await markSimpleGreetingReplySent(conversationKey(message.from), message.from, message.id)
+    await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
     return 'SENT'
   }
 
-  await sendOfficialWhatsAppReadReceipt(message).catch((readError: any) => {
+  await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
     console.warn('official WhatsApp read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
   })
-  await sendOfficialWhatsAppTypingIndicator(message).catch((typingError: any) => {
+  await sendOfficialWhatsAppTypingIndicator(inboundMessage).catch((typingError: any) => {
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  const greetingDecision = await shouldSendImmediateGreeting(message.from)
+  const greetingDecision = await shouldSendImmediateGreeting(inboundMessage.from)
   if (greetingDecision.ok) {
     try {
-      const greetingText = buildOfficialWhatsAppImmediateGreeting(message)
-      const greetingSend = await sendOfficialWhatsAppText(message.from, greetingText, {
-        phoneNumberId: message.phoneNumberId,
-        replyToMessageId: message.id,
+      const greetingText = buildOfficialWhatsAppImmediateGreeting(inboundMessage)
+      const greetingSend = await sendOfficialWhatsAppText(inboundMessage.from, greetingText, {
+        phoneNumberId: inboundMessage.phoneNumberId,
+        replyToMessageId: inboundMessage.id,
       })
       await recordWhatsAppOutboundMessage({
-        waId: message.from,
-        phoneNumberId: message.phoneNumberId,
+        waId: inboundMessage.from,
+        phoneNumberId: inboundMessage.phoneNumberId,
         text: greetingText,
         sender: 'BOT',
         whatsappMessageId: greetingSend?.messages?.[0]?.id || null,
       }).catch(() => {})
-      await markImmediateGreetingSent(greetingDecision.key, message.from, message.id)
+      await markImmediateGreetingSent(greetingDecision.key, inboundMessage.from, inboundMessage.id)
     } catch (greetingError: any) {
       console.warn('official WhatsApp immediate greeting failed:', String(greetingError?.message || greetingError || 'failed').slice(0, 220))
     }
   }
 
   const stopTypingRefresh = keepTypingIndicatorAlive(
-    message,
+    inboundMessage,
     () => {},
     (typingMessage) => console.warn('official WhatsApp typing refresh failed:', typingMessage)
   )
 
   let reply = ''
   try {
-    reply = await withTimeout(resolveWhatsAppBotReply(message, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
+    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
   } finally {
     stopTypingRefresh()
   }
 
-  const sendResult = await sendOfficialWhatsAppText(message.from, reply, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
+  const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, reply, {
+    phoneNumberId: inboundMessage.phoneNumberId,
+    replyToMessageId: inboundMessage.id,
   })
   await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
+    waId: inboundMessage.from,
+    phoneNumberId: inboundMessage.phoneNumberId,
     text: reply,
     sender: 'BOT',
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,
