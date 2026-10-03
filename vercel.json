@@ -1,6 +1,6 @@
 {
-  "installCommand": "bun install",
-  "buildCommand": "bun run build",
+  "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund --package-lock=false",
+  "buildCommand": "npm run build",
   "framework": "nextjs",
   "crons": [
     {
