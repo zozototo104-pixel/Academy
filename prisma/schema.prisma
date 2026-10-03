@@ -34,6 +34,8 @@ model User {
   sessions       Session[]
   notifications  Notification[]
   payments       Payment[]
+  paymentProofUploads PaymentProof[] @relation("PaymentProofUploader")
+  paymentProofReviews PaymentProof[] @relation("PaymentProofReviewer")
   theses         ThesisSubmission[]
   supervisedAdmissions AdmissionApplication[] @relation("Supervisor")
   ownedAdmissions      AdmissionApplication[] @relation("AdmissionOwner")
