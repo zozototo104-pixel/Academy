@@ -80,6 +80,17 @@ function textFromWhatsAppMessage(message: any) {
   return ''
 }
 
+function mediaFromWhatsAppMessage(message: any) {
+  if (message?.type !== 'audio') return {}
+  const audio = message?.audio || {}
+  return {
+    mediaId: trim(audio?.id),
+    mediaMimeType: trim(audio?.mime_type),
+    mediaSha256: trim(audio?.sha256),
+    isVoice: Boolean(audio?.voice),
+  }
+}
+
 export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMessage[] {
   const inbound: WhatsAppInboundMessage[] = []
   for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
