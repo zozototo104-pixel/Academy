@@ -329,7 +329,7 @@ model Payment {
   // حقول الدفع بالعملات المستقرة: يتم التحقق آلياً من Hash التحويل ثم تؤكد الإدارة السداد يدوياً.
   cryptoNetwork            String?
   cryptoWalletAddress      String?
-  cryptoTxHash             String?
+  cryptoTxHash             String?   @unique
   cryptoVerificationStatus String?   // WAITING_TX | VERIFIED | FAILED | UNSUPPORTED
   cryptoVerificationNote   String?
   cryptoVerifiedAt         DateTime?
