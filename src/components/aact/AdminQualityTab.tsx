@@ -1445,7 +1445,7 @@ export function AdminQualityTab() {
                                 : 'لم يتم توليد وحدات بعد'}
                             </Badge>
                             {item.sourceReadiness.aiGeneratedAt ? (
-                              <span className="text-[10px] font-bold text-slate-500">آخر تشغيل: {new Date(item.sourceReadiness.aiGeneratedAt).toLocaleString('ar')}</span>
+                              <span className="text-[10px] font-bold text-slate-500">آخر تشغيل: {safeDateLabel(item.sourceReadiness.aiGeneratedAt) || 'غير محدد'}</span>
                             ) : (
                               <span className="text-[10px] font-bold text-slate-500">الإعداد الحالي: {item.sourceReadiness.configuredProvider}/{item.sourceReadiness.configuredModel}</span>
                             )}
