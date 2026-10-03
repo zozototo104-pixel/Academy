@@ -631,6 +631,7 @@ interface PaymentRow {
   payerName?: string | null
   payerCountry?: string | null
   createdAt: string
+  proofs?: PaymentProofRow[]
   admission?: { reference: string; fullName: string; country?: string; program: string } | null
 }
 
