@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Production URL to validate before public launch"
+        description: "Approved QA Preview URL to validate before public launch gate"
         required: true
-        default: "https://academy-raqaba.vercel.app"
+        default: ""
       route_limit:
         description: "Maximum number of UI routes to crawl"
         required: false
