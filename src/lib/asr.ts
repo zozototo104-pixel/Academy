@@ -18,11 +18,21 @@ function normalizeAudioMimeType(value?: string | null) {
   const raw = String(value || '').trim().toLowerCase()
   const base = raw.split(';')[0]?.trim() || ''
   if (base) return base
-  return 'audio/webm'
+  return 'audio/ogg'
 }
 
 function geminiApiKey() {
   return String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
+}
+
+function audioExtensionForMime(mimeType: string) {
+  const mime = normalizeAudioMimeType(mimeType)
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3'
+  if (mime.includes('wav')) return 'wav'
+  if (mime.includes('webm')) return 'webm'
+  if (mime.includes('opus')) return 'opus'
+  if (mime.includes('ogg')) return 'ogg'
+  return 'audio'
 }
 
 async function transcribeWithGemini(audioBase64: string, options: TranscribeAudioOptions = {}) {
@@ -33,19 +43,40 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
   if (!clean) return ''
 
   const ai = new GoogleGenAI({ apiKey })
-  const response = await ai.models.generateContent({
-    model: process.env.GEMINI_ASR_MODEL || 'gemini-3.5-transcribe',
-    contents: [
-      {
-        inlineData: {
-          mimeType,
-          data: clean,
-        },
-      },
-    ],
-  } as any)
+  const audioBuffer = Buffer.from(clean, 'base64')
+  const audioBlob = new Blob([audioBuffer], { type: mimeType })
+  let uploadedFile: any = null
 
-  return String((response as any)?.text || '').trim()
+  try {
+    uploadedFile = await ai.files.upload({
+      file: audioBlob as any,
+      config: {
+        mimeType,
+        displayName: `whatsapp-voice-${Date.now()}.${audioExtensionForMime(mimeType)}`,
+      },
+    } as any)
+
+    const response = await ai.models.generateContent({
+      model: process.env.GEMINI_ASR_MODEL || 'gemini-3.5-transcribe',
+      contents: [uploadedFile],
+      config: options.languageCode
+        ? {
+            audioTranscriptionConfig: {
+              languageCodes: [options.languageCode],
+            },
+          }
+        : undefined,
+    } as any)
+
+    return String((response as any)?.text || '').trim()
+  } finally {
+    const uploadedName = uploadedFile?.name
+    if (uploadedName) {
+      ai.files.delete({ name: uploadedName }).catch((error: any) => {
+        console.warn('Gemini ASR temp file delete failed:', String(error).slice(0, 240))
+      })
+    }
+  }
 }
 
 async function transcribeWithZai(audioBase64: string) {
