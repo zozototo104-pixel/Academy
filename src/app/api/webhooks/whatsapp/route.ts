@@ -315,6 +315,7 @@ export async function POST(req: NextRequest) {
 
   let sent = 0
   let immediateGreetings = 0
+  let simpleGreetings = 0
   let typingIndicators = 0
   let skippedDuplicates = 0
   const errors: string[] = []
