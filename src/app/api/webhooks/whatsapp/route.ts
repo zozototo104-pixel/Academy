@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { transcribeAudioBase64 } from '@/lib/asr'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
@@ -26,6 +27,10 @@ import {
   recordWhatsAppInboundMessage,
   recordWhatsAppOutboundMessage,
 } from '@/lib/whatsapp-conversations'
+import {
+  downloadOfficialWhatsAppMediaBase64,
+  getOfficialWhatsAppMediaInfo,
+} from '@/lib/whatsapp-media'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,6 +40,10 @@ const recentGreetingKeys = new Map<string, number>()
 const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 45_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
+const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
+const WHATSAPP_VOICE_HOURLY_LIMIT = 10
+const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة، ممكن تختصرها أو تكتب سؤالك؟'
+const WHATSAPP_VOICE_UNCLEAR_REPLY = 'ما قدرت أسمع الرسالة بوضوح، ممكن تكتبها أو تعيد تسجيلها؟'
 const WHATSAPP_AI_FALLBACK_REPLY = 'استلمنا رسالتك ✅ وسيتم الرد عليك قريباً.'
 
 function cleanupGreetingKeys() {
@@ -232,6 +241,12 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
       rawType: message.rawType || null,
+      mediaId: message.mediaId || null,
+      mediaMimeType: message.mediaMimeType || null,
+      mediaSha256: message.mediaSha256 || null,
+      mediaFileSize: message.mediaFileSize || null,
+      isVoice: Boolean(message.isVoice),
+      originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
   }
 }
@@ -293,6 +308,12 @@ function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | 
     name: message?.name ? String(message.name) : undefined,
     phoneNumberId: message?.phoneNumberId ? String(message.phoneNumberId) : undefined,
     rawType: message?.rawType ? String(message.rawType) : undefined,
+    mediaId: message?.mediaId ? String(message.mediaId) : undefined,
+    mediaMimeType: message?.mediaMimeType ? String(message.mediaMimeType) : undefined,
+    mediaSha256: message?.mediaSha256 ? String(message.mediaSha256) : undefined,
+    mediaFileSize: Number(message?.mediaFileSize || 0) || undefined,
+    isVoice: Boolean(message?.isVoice),
+    originKind: message?.originKind === 'VOICE' ? 'VOICE' : 'TEXT',
   }
 }
 
@@ -317,6 +338,109 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => {
     if (timer) clearTimeout(timer)
   })
+}
+
+async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
+  const sendResult = await sendOfficialWhatsAppText(message.from, text, {
+    phoneNumberId: message.phoneNumberId,
+    replyToMessageId: message.id,
+  })
+  await recordWhatsAppOutboundMessage({
+    waId: message.from,
+    phoneNumberId: message.phoneNumberId,
+    text,
+    sender: 'BOT',
+    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
+  }).catch(() => {})
+}
+
+async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
+  const since = new Date(Date.now() - 60 * 60 * 1000)
+  const count = await db.whatsAppInboundEvent.count({
+    where: {
+      waIdHash: waIdHash(message.from),
+      messageType: 'audio',
+      createdAt: { gte: since },
+    },
+  }).catch(() => 0)
+  return count > WHATSAPP_VOICE_HOURLY_LIMIT
+}
+
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string }> {
+  if (message.rawType !== 'audio') return { message }
+
+  if (await hasExceededVoiceHourlyLimit(message)) {
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
+      immediateReply: 'وصلتنا عدة رسائل صوتية خلال وقت قصير. ممكن تكتب سؤالك نصاً أو تحاول لاحقاً؟',
+    }
+  }
+
+  if (!message.mediaId) {
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
+      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+    }
+  }
+
+  try {
+    const mediaInfo = await getOfficialWhatsAppMediaInfo(message.mediaId, message.phoneNumberId)
+    const fileSize = Number(mediaInfo.fileSize || message.mediaFileSize || 0)
+    if (fileSize > WHATSAPP_VOICE_MAX_BYTES) {
+      return {
+        message: {
+          ...message,
+          text: '🎤 رسالة صوتية طويلة أو كبيرة الحجم.',
+          mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+          mediaFileSize: fileSize,
+          mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+          originKind: 'VOICE',
+        },
+        immediateReply: WHATSAPP_VOICE_TOO_LONG_REPLY,
+      }
+    }
+
+    const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
+    const transcript = await withTimeout(transcribeAudioBase64(audioBase64), 25_000, 'whatsapp_voice_transcription')
+    const text = String(transcript || '').trim()
+    if (!text) {
+      return {
+        message: {
+          ...message,
+          text: '🎤 رسالة صوتية غير واضحة.',
+          mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+          mediaFileSize: fileSize,
+          mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+          originKind: 'VOICE',
+        },
+        immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+      }
+    }
+
+    return {
+      message: {
+        ...message,
+        text,
+        mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+        mediaFileSize: fileSize,
+        mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+        isVoice: true,
+        originKind: 'VOICE',
+      },
+    }
+  } catch (error: any) {
+    const msg = String(error?.message || error || 'voice transcription failed').slice(0, 300)
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_FAILED', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      mediaId: message.mediaId || null,
+      error: msg,
+    }, message.id)
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها.', originKind: 'VOICE' },
+      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+    }
+  }
 }
 
 async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string) {
@@ -392,88 +516,100 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
-  const storedInbound = await recordWhatsAppInboundMessage(message)
+  if (message.rawType === 'audio') {
+    await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
+    await sendOfficialWhatsAppTypingIndicator(message).catch(() => null)
+  }
+  const prepared = await prepareWhatsAppMessageForProcessing(message)
+  const inboundMessage = prepared.message
+  const storedInbound = await recordWhatsAppInboundMessage(inboundMessage)
 
-  if (await isWhatsAppConversationHumanActive(message.from).catch(() => false)) {
+  if (await isWhatsAppConversationHumanActive(inboundMessage.from).catch(() => false)) {
     try {
-      await sendOfficialWhatsAppReadReceipt(message)
+      await sendOfficialWhatsAppReadReceipt(inboundMessage)
     } catch (readError: any) {
       console.warn('official WhatsApp human-held read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
     }
     await auditWhatsAppWebhook('WHATSAPP_HUMAN_CONVERSATION_HELD', {
-      from: maskPhone(message.from),
-      text: message.text.slice(0, 180),
+      from: maskPhone(inboundMessage.from),
+      text: inboundMessage.text.slice(0, 180),
       conversationId: storedInbound?.conversation?.id || null,
       note: 'conversation claimed by admin; bot reply suppressed; read receipt attempted',
-    }, storedInbound?.conversation?.id || message.id)
+    }, storedInbound?.conversation?.id || inboundMessage.id)
     return 'SKIPPED'
   }
 
-  if (isSimpleWhatsAppGreeting(message.text)) {
-    await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
-    const sendResult = await sendOfficialWhatsAppText(message.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
-      phoneNumberId: message.phoneNumberId,
-      replyToMessageId: message.id,
+  if (prepared.immediateReply) {
+    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
+    await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
+    return 'SENT'
+  }
+
+  if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
+    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
+    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
+      phoneNumberId: inboundMessage.phoneNumberId,
+      replyToMessageId: inboundMessage.id,
     })
     await recordWhatsAppOutboundMessage({
-      waId: message.from,
-      phoneNumberId: message.phoneNumberId,
+      waId: inboundMessage.from,
+      phoneNumberId: inboundMessage.phoneNumberId,
       text: SIMPLE_WHATSAPP_GREETING_REPLY,
       sender: 'BOT',
       whatsappMessageId: sendResult?.messages?.[0]?.id || null,
     }).catch(() => {})
-    await markSimpleGreetingReplySent(conversationKey(message.from), message.from, message.id)
+    await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
     return 'SENT'
   }
 
-  await sendOfficialWhatsAppReadReceipt(message).catch((readError: any) => {
+  await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
     console.warn('official WhatsApp read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
   })
-  await sendOfficialWhatsAppTypingIndicator(message).catch((typingError: any) => {
+  await sendOfficialWhatsAppTypingIndicator(inboundMessage).catch((typingError: any) => {
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  const greetingDecision = await shouldSendImmediateGreeting(message.from)
+  const greetingDecision = await shouldSendImmediateGreeting(inboundMessage.from)
   if (greetingDecision.ok) {
     try {
-      const greetingText = buildOfficialWhatsAppImmediateGreeting(message)
-      const greetingSend = await sendOfficialWhatsAppText(message.from, greetingText, {
-        phoneNumberId: message.phoneNumberId,
-        replyToMessageId: message.id,
+      const greetingText = buildOfficialWhatsAppImmediateGreeting(inboundMessage)
+      const greetingSend = await sendOfficialWhatsAppText(inboundMessage.from, greetingText, {
+        phoneNumberId: inboundMessage.phoneNumberId,
+        replyToMessageId: inboundMessage.id,
       })
       await recordWhatsAppOutboundMessage({
-        waId: message.from,
-        phoneNumberId: message.phoneNumberId,
+        waId: inboundMessage.from,
+        phoneNumberId: inboundMessage.phoneNumberId,
         text: greetingText,
         sender: 'BOT',
         whatsappMessageId: greetingSend?.messages?.[0]?.id || null,
       }).catch(() => {})
-      await markImmediateGreetingSent(greetingDecision.key, message.from, message.id)
+      await markImmediateGreetingSent(greetingDecision.key, inboundMessage.from, inboundMessage.id)
     } catch (greetingError: any) {
       console.warn('official WhatsApp immediate greeting failed:', String(greetingError?.message || greetingError || 'failed').slice(0, 220))
     }
   }
 
   const stopTypingRefresh = keepTypingIndicatorAlive(
-    message,
+    inboundMessage,
     () => {},
     (typingMessage) => console.warn('official WhatsApp typing refresh failed:', typingMessage)
   )
 
   let reply = ''
   try {
-    reply = await withTimeout(resolveWhatsAppBotReply(message, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
+    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
   } finally {
     stopTypingRefresh()
   }
 
-  const sendResult = await sendOfficialWhatsAppText(message.from, reply, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
+  const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, reply, {
+    phoneNumberId: inboundMessage.phoneNumberId,
+    replyToMessageId: inboundMessage.id,
   })
   await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
+    waId: inboundMessage.from,
+    phoneNumberId: inboundMessage.phoneNumberId,
     text: reply,
     sender: 'BOT',
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,

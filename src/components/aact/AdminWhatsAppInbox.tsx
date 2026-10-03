@@ -9,13 +9,15 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowRight, Loader2, MessageCircle, Send, UserCheck, Lock, Bot, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Loader2, MessageCircle, Send, UserCheck, Lock, Bot, CheckCircle2, Mic } from 'lucide-react'
 
 type WaMessage = {
   id: string
   direction: 'INBOUND' | 'OUTBOUND'
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
+  rawType?: string | null
+  meta?: { kind?: string | null; isVoice?: boolean | null } | null
   sentByName?: string | null
   createdAt: string
 }
@@ -262,9 +264,15 @@ export function AdminWhatsAppInboxTab() {
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                   {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#075e54]" /></div> : messages.map((m) => {
                     const outbound = m.direction === 'OUTBOUND'
+                    const isVoice = m.rawType === 'audio' || m.meta?.kind === 'VOICE' || Boolean(m.meta?.isVoice)
                     return (
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
+                          {isVoice && (
+                            <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                              <Mic className="h-3 w-3" /> رسالة صوتية مفرغة
+                            </div>
+                          )}
                           <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[#102a43]">{m.text}</p>
                           <p className="mt-1 text-left text-[10px] font-bold text-slate-400">{m.sender === 'HUMAN' && m.sentByName ? `${m.sentByName} · ` : ''}{formatTime(m.createdAt)}</p>
                         </div>

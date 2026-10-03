@@ -17,6 +17,12 @@ export type WhatsAppInboundMessage = {
   name?: string
   phoneNumberId?: string
   rawType?: string
+  mediaId?: string
+  mediaMimeType?: string
+  mediaSha256?: string
+  mediaFileSize?: number
+  isVoice?: boolean
+  originKind?: 'TEXT' | 'VOICE'
 }
 
 function trim(value: unknown) {
@@ -74,6 +80,17 @@ function textFromWhatsAppMessage(message: any) {
   return ''
 }
 
+function mediaFromWhatsAppMessage(message: any) {
+  if (message?.type !== 'audio') return {}
+  const audio = message?.audio || {}
+  return {
+    mediaId: trim(audio?.id),
+    mediaMimeType: trim(audio?.mime_type),
+    mediaSha256: trim(audio?.sha256),
+    isVoice: Boolean(audio?.voice),
+  }
+}
+
 export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMessage[] {
   const inbound: WhatsAppInboundMessage[] = []
   for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
@@ -87,6 +104,7 @@ export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMes
         if (!from || !id) continue
         const contact = contacts.find((c: any) => trim(c?.wa_id) === from) || contacts[0]
         const text = textFromWhatsAppMessage(message)
+        const media = mediaFromWhatsAppMessage(message)
         inbound.push({
           id,
           from,
@@ -94,6 +112,8 @@ export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMes
           name: compactText(contact?.profile?.name, 120),
           phoneNumberId,
           rawType: trim(message?.type) || 'unknown',
+          originKind: message?.type === 'audio' ? 'VOICE' : 'TEXT',
+          ...media,
         })
       }
     }

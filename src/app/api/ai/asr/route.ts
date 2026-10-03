@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/ai'
+import { transcribeAudioBase64 } from '@/lib/asr'
 import { requireUser } from '@/lib/auth'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
@@ -22,9 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'حجم التسجيل كبير جداً — سجل مقطعاً أقصر' }, { status: 413 })
     }
 
-    const zai = await getZAI()
-    const response = await zai.audio.asr.create({ file_base64: audioBase64 })
-    const text = response.text || ''
+    const text = await transcribeAudioBase64(audioBase64)
 
     return NextResponse.json({ text })
   } catch (e: any) {
