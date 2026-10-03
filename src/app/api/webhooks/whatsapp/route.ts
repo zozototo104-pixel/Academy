@@ -308,6 +308,12 @@ function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | 
     name: message?.name ? String(message.name) : undefined,
     phoneNumberId: message?.phoneNumberId ? String(message.phoneNumberId) : undefined,
     rawType: message?.rawType ? String(message.rawType) : undefined,
+    mediaId: message?.mediaId ? String(message.mediaId) : undefined,
+    mediaMimeType: message?.mediaMimeType ? String(message.mediaMimeType) : undefined,
+    mediaSha256: message?.mediaSha256 ? String(message.mediaSha256) : undefined,
+    mediaFileSize: Number(message?.mediaFileSize || 0) || undefined,
+    isVoice: Boolean(message?.isVoice),
+    originKind: message?.originKind === 'VOICE' ? 'VOICE' : 'TEXT',
   }
 }
 
