@@ -20,6 +20,24 @@ export async function GET() {
     const payments = await db.payment.findMany({
       where: studentPaymentOwnershipWhere(user),
       orderBy: { createdAt: 'desc' },
+      include: {
+        proofs: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            proofType: true,
+            status: true,
+            note: true,
+            adminNote: true,
+            fileName: true,
+            mimeType: true,
+            fileSize: true,
+            createdAt: true,
+            reviewedAt: true,
+          },
+        },
+      },
     })
     // إثراء البيانات بمرجع الطلب وخطط التقسيط الدراسية
     const refById: Record<string, string> = {}
