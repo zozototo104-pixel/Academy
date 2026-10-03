@@ -627,6 +627,8 @@ interface PaymentRow {
   cryptoWalletAddress?: string | null
   cryptoVerificationStatus?: string | null
   cryptoVerificationNote?: string | null
+  manualApprovalReference?: string | null
+  manualApprovalNote?: string | null
   receiptNo?: string | null
   payerName?: string | null
   payerCountry?: string | null
