@@ -111,8 +111,14 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id } = await req.json()
-    const payment = await db.payment.findUnique({ where: { id } })
+    const body = await req.json().catch(() => ({}))
+    const id = cleanText(body?.id, 120)
+    const approvalReference = cleanText(body?.approvalReference, 180)
+    const approvalNote = cleanText(body?.approvalNote, 700)
+    const payment = await db.payment.findUnique({
+      where: { id },
+      include: { _count: { select: { proofs: true } } },
+    })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
     if (!payment.method) {
