@@ -29,6 +29,15 @@ if parsed.path not in ('', '/'):
 
 origin = f"{parsed.scheme}://{parsed.netloc.lower()}"
 qa_only = os.environ.get('E2E_QA_ONLY', '').strip() == '1'
+production_origins = {
+    'https://academy-raqaba.vercel.app',
+    'https://aactacademy.com',
+    'https://www.aactacademy.com',
+}
+if qa_only and origin in production_origins:
+    print('Refusing to run QA E2E against a production origin.', file=sys.stderr)
+    print(f"URL: {origin}", file=sys.stderr)
+    sys.exit(1)
 defaults = [] if qa_only else [
     'https://academy-raqaba.vercel.app',
     'https://aactacademy.com',
