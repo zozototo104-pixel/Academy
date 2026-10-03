@@ -1807,7 +1807,7 @@ export function AdminBooksTab() {
                             <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
                           </div>
                           <Button size="sm" variant="outline" onClick={() => rebuildBookKnowledge(b.id)} disabled={rebuildingKnowledge || rebuildingBookId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
-                            {rebuildingBookId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تحليل'}
+                            {rebuildingBookId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
                           </Button>
                         </div>
                       )
