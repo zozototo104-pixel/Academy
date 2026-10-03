@@ -492,6 +492,7 @@ export async function POST(req: NextRequest) {
     received: messages.length,
     sent,
     immediateGreetings,
+    simpleGreetings,
     typingIndicators,
     skippedDuplicates,
     configured: true,
