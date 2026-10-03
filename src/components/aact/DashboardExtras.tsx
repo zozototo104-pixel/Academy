@@ -197,6 +197,7 @@ export function PaymentsTab() {
   const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
   const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
+  const [uploadingProof, setUploadingProof] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
   const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
