@@ -58,6 +58,14 @@ export async function GET(req: NextRequest) {
         take,
         include: {
           admission: { select: { reference: true, fullName: true, country: true, program: true } },
+          proofs: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: {
+              uploadedBy: { select: { id: true, name: true, email: true } },
+              reviewedBy: { select: { id: true, name: true, email: true } },
+            },
+          },
         },
       }),
       db.payment.count({ where }),
