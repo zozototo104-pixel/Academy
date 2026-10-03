@@ -1862,7 +1862,9 @@ export function AdminView() {
                             ) : null}
                           </td>
                           <td className="p-3">
-                            {s.enrollments.length === 0 ? (
+                            {s.rowKind === 'INCOMPLETE_ADMISSION' && s.latestAdmission ? (
+                              <div className="max-w-56 truncate text-[11px] font-bold text-orange-700">{s.latestAdmission.program}</div>
+                            ) : s.enrollments.length === 0 ? (
                               <span className="text-slate-400">—</span>
                             ) : (
                               <div className="space-y-1">
