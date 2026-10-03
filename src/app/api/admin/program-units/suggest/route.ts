@@ -420,7 +420,7 @@ ${sourceUnitDrafts}
     return true
   }).slice(0, Math.max(semestersCount * 5, 6))
 
-  return { program, semestersCount, units: cleaned, analyses }
+  return { program, semestersCount, units: cleaned, analyses, executionTrace: trace, actualAi: latestSuccessfulTrace(trace) }
 }
 
 // POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية من نصوص الكتب وبنك المعرفة
