@@ -155,7 +155,13 @@ export async function PATCH(req: NextRequest) {
     })
     if (!r.ok) return NextResponse.json({ error: r.error || 'تعذر تأكيد السداد' }, { status: 400 })
 
-    await audit(admin, 'CONFIRM_PAYMENT', 'Payment', id, `${r.receiptNo} — ${payment.description} (${payment.amount}$) [تأكيد إداري يدوي]`)
+    await audit(
+      admin,
+      'CONFIRM_PAYMENT',
+      'Payment',
+      id,
+      `${r.receiptNo} — ${payment.description} (${payment.amount}$) [تأكيد إداري يدوي${hasUploadedProof ? ` · إثباتات: ${payment._count.proofs}` : ''}${approvalReference || hasCryptoReference ? ` · مرجع: ${approvalReference || payment.cryptoTxHash}` : ''}${approvalNote ? ` · ملاحظة: ${approvalNote}` : ''}]`
+    )
     return NextResponse.json({ ok: true, payment: r.payment, receiptNo: r.receiptNo })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
