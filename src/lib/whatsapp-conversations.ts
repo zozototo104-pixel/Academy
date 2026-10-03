@@ -81,6 +81,11 @@ export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessa
       meta: {
         phoneNumberId: message.phoneNumberId || null,
         contactName: message.name || null,
+        kind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
+        mediaId: message.mediaId || null,
+        mediaMimeType: message.mediaMimeType || null,
+        mediaFileSize: message.mediaFileSize || null,
+        isVoice: Boolean(message.isVoice),
       },
     },
   }).catch(() => null)
