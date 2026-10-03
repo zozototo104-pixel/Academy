@@ -231,8 +231,48 @@ interface ProgramReadinessItem {
   academicApproved: boolean
   curriculumDueAt?: string | null
   semestersCount: number
-  counts: { books: number; units: number; unitsWithObjectives: number; knowledgeItems: number; exams: number; readyExams: number; assignments: number; assessments: number }
+  counts: {
+    books: number
+    readableBooks?: number
+    analyzedBooks?: number
+    booksWithKnowledge?: number
+    extractedTextChars?: number
+    units: number
+    unitsWithObjectives: number
+    knowledgeItems: number
+    exams: number
+    readyExams: number
+    assignments: number
+    assessments: number
+  }
   targets: { books: number; units: number; knowledgeItems: number; assessments: number }
+  sourceReadiness?: {
+    ready: boolean
+    readableBooks: number
+    analyzedBooks: number
+    booksWithKnowledge: number
+    knowledgeItems: number
+    extractedTextChars: number
+    aiProvider: string
+    aiModel: string
+    routerPolicy: string
+    message: string
+    books: {
+      id: string
+      title: string
+      semester?: number | null
+      readStatus?: string | null
+      readStatusLabel: string
+      readNote?: string | null
+      textChars: number
+      hasReadableText: boolean
+      knowledgeItems: number
+      analyzed: boolean
+      readingDepth?: string | null
+      levelPolicy?: string | null
+      assessmentOrientation?: string | null
+    }[]
+  }
   checks: Record<string, boolean>
   missing: string[]
   readyWithoutManualApproval: boolean
