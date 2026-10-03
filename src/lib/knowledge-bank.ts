@@ -1561,7 +1561,7 @@ export async function rebuildKnowledgeForBook(bookId: string, options: { strictF
       // أما إذا لم توجد أداة قراءة أخرى فلا نؤلف عناصر عامة.
       if (hasUploadedBookFile(book) && !canReadBookFileWithGemini(book)) throw e
     }
-  } else if (strictFullRead) {
+  } else if (strictFullRead && !canReadBookFileWithGemini(book)) {
     throw new Error(`لا يوجد نص كتاب كافٍ للقراءة الكاملة. النص المستخرج ${sourceText.length} حرف فقط. استخرج نص الكتاب أولاً أو ارفع نسخة PDF نصية/Word أوضح.`)
   }
 
