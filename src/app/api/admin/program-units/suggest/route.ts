@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { geminiCompleteJson } from '@/lib/gemini'
+import { geminiActiveTextModel, geminiCompleteJson } from '@/lib/gemini'
 import { audit } from '@/lib/notify'
+import { textAiDiagnostics } from '@/lib/text-ai'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
