@@ -35,6 +35,39 @@ function audioExtensionForMime(mimeType: string) {
   return 'audio'
 }
 
+function previewGeminiParts(parts: any[]) {
+  try {
+    return JSON.stringify(parts).slice(0, 500)
+  } catch {
+    return String(parts).slice(0, 500)
+  }
+}
+
+function extractGeminiTranscript(response: any) {
+  const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
+    ? response.candidates[0].content.parts
+    : []
+
+  const fromTranscription = parts
+    .map((part: any) => part?.audioTranscription?.text ?? part?.audioTranscription?.transcript ?? '')
+    .filter((text: unknown) => typeof text === 'string' && text.trim())
+    .join(' ')
+    .trim()
+
+  if (fromTranscription) return fromTranscription
+
+  const fromText = parts
+    .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+    .join(' ')
+    .trim()
+
+  if (!fromText) {
+    console.warn('Gemini ASR returned empty transcript parts:', previewGeminiParts(parts))
+  }
+
+  return fromText
+}
+
 async function transcribeWithGemini(audioBase64: string, options: TranscribeAudioOptions = {}) {
   const apiKey = geminiApiKey()
   if (!apiKey) return null
