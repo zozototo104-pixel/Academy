@@ -2905,7 +2905,7 @@ export function AdminQualityTab() {
                 </Button>
               </div>
 
-              {unitGenerationResult?.programId === unitReviewProgram?.id ? (
+              {unitGenerationResult && unitReviewProgram && unitGenerationResult.programId === unitReviewProgram.id ? (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-900">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-black">نتيجة توليد الوحدات الأخيرة</span>
@@ -2916,11 +2916,11 @@ export function AdminQualityTab() {
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
                     <div className="rounded-xl bg-white/80 p-2">الوحدات المضافة: <span className="font-black">{unitGenerationResult.count || unitGenerationResult.generationAudit?.unitsCount || 0}</span></div>
                     <div className="rounded-xl bg-white/80 p-2">النموذج الفعلي: <span className="font-black">{unitGenerationResult.actualAi?.provider && unitGenerationResult.actualAi?.model ? `${unitGenerationResult.actualAi.provider}/${unitGenerationResult.actualAi.model}` : 'لم يُلتقط من التنفيذ'}</span></div>
-                    <div className="rounded-xl bg-white/80 p-2">الكتب المصدرية: <span className="font-black">{unitGenerationResult.generationAudit?.sourceBooks?.length || 0}</span></div>
+                    <div className="rounded-xl bg-white/80 p-2">الكتب المصدرية: <span className="font-black">{asObjectArray(unitGenerationResult.generationAudit?.sourceBooks).length}</span></div>
                   </div>
-                  {unitGenerationResult.generationAudit?.executionTrace?.length ? (
+                  {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(unitGenerationResult.generationAudit?.executionTrace).length ? (
                     <p className="mt-2 text-[11px] leading-5 text-emerald-800">
-                      مراحل التشغيل: {unitGenerationResult.generationAudit.executionTrace.filter((t: any) => t.ok).map((t: any) => `${t.stage}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ')}
+                      مراحل التشغيل: {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(unitGenerationResult.generationAudit?.executionTrace).filter((t) => t.ok).map((t) => `${t.stage || 'مرحلة'}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ')}
                     </p>
                   ) : null}
                 </div>
