@@ -1467,14 +1467,14 @@ export function AdminQualityTab() {
                                 مصادر: {item.sourceReadiness.generationSourceBooks?.length || 0} كتاب
                               </Badge>
                             </div>
-                            {item.sourceReadiness.aiTrace?.length ? (
+                            {asArray<{ stage: string; ok: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).length ? (
                               <p className="mt-2 leading-5">
-                                مراحل التشغيل: {item.sourceReadiness.aiTrace.filter((t) => t.ok).map((t) => `${t.stage}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
+                                مراحل التشغيل: {asArray<{ stage: string; ok: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).filter((t) => t.ok).map((t) => `${t.stage}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
                               </p>
                             ) : null}
-                            {item.sourceReadiness.generationSourceBooks?.length ? (
+                            {asArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length ? (
                               <p className="mt-1 leading-5">
-                                الكتب المستخدمة: {item.sourceReadiness.generationSourceBooks.slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
+                                الكتب المستخدمة: {asArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
                               </p>
                             ) : null}
                           </div>
