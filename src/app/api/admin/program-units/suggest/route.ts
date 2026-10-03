@@ -316,7 +316,7 @@ async function generateUnitPlan(programId: string) {
     }
   }
 
-  const analyses = (await Promise.all(evidenceBooks.map((book) => analyzeBookForCurriculum(program, book, program.knowledgeItems))))
+  const analyses = (await Promise.all(evidenceBooks.map((book) => analyzeBookForCurriculum(program, book, program.knowledgeItems, trace))))
     .filter(Boolean) as any[]
 
   const evidenceUnits = analyses.flatMap((analysis, analysisIndex) => {
