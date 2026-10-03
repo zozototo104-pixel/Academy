@@ -72,6 +72,17 @@ function aiModelForProvider(diag: any, provider?: string | null) {
   return 'غير محدد'
 }
 
+function curriculumGenerationAudit(note?: string | null) {
+  if (!note) return null
+  try {
+    const parsed = JSON.parse(note)
+    if (parsed?.kind !== 'CURRICULUM_GENERATION_AUDIT') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 function daysFromNow(days: number) {
   const d = new Date()
   d.setDate(d.getDate() + days)
