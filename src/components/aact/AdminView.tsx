@@ -349,6 +349,7 @@ function normalizeStudentRow(raw: any): StudentRow {
 
   return {
     id: studentText(raw?.id, ''),
+    rowKind: raw?.rowKind === 'INCOMPLETE_ADMISSION' ? 'INCOMPLETE_ADMISSION' : 'STUDENT',
     name: studentText(raw?.name, 'طالب بدون اسم'),
     email: studentText(raw?.email, '—'),
     country: raw?.country == null ? null : studentText(raw.country, ''),
