@@ -40,6 +40,38 @@ function hasUnitObjectives(objectives?: string | null) {
   }
 }
 
+function readableTextLength(value?: string | null) {
+  return String(value || '').replace(/\s+/g, ' ').trim().length
+}
+
+function bookReadStatusLabel(status?: string | null) {
+  switch (String(status || '').toUpperCase()) {
+    case 'TEXT_EXTRACTED': return 'نص مستخرج من الرابط'
+    case 'FILE_EXTRACTED': return 'نص مستخرج من الملف'
+    case 'SEARCH_LINK_ONLY': return 'رابط فقط بدون قراءة كاملة'
+    case 'FAILED': return 'فشل استخراج النص'
+    case 'UNSUPPORTED': return 'نوع غير مدعوم'
+    default: return 'لم تبدأ القراءة'
+  }
+}
+
+function aiModelForProvider(diag: any, provider?: string | null) {
+  const p = String(provider || '').toUpperCase()
+  if (p === 'GEMINI') return diag?.geminiModel || 'gemini-auto'
+  if (p === 'OPENAI') return diag?.openaiModel || 'openai-auto'
+  if (p === 'ANTHROPIC') return diag?.anthropicModel || 'anthropic-auto'
+  if (p === 'ZAI') return diag?.zaiModel || 'zai-auto'
+  if (p === 'GROQ') return diag?.groqModel || 'groq-auto'
+  if (p === 'OPENROUTER') return diag?.openrouterModel || 'openrouter-auto'
+  if (p === 'DEEPINFRA') return diag?.deepinfraModel || 'deepinfra-auto'
+  if (p === 'TOGETHER') return diag?.togetherModel || 'together-auto'
+  if (p === 'UNOROUTER') return diag?.unorouterModel || 'unorouter-auto'
+  if (p === 'RELAYROUTER') return diag?.relayrouterModel || 'relayrouter-auto'
+  if (p === 'TOPTOOLS') return diag?.topToolsModel || 'top-tools-ai'
+  if (p === 'OPENAI_COMPAT') return diag?.openaiCompatModel || 'openai-compatible-auto'
+  return 'غير محدد'
+}
+
 function daysFromNow(days: number) {
   const d = new Date()
   d.setDate(d.getDate() + days)
