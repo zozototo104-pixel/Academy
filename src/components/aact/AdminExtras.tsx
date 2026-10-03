@@ -694,9 +694,23 @@ export function AdminFinanceTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [paymentRefresh])
 
-  const confirm = async (id: string) => {
+  const confirm = async (payment: PaymentRow) => {
+    const method = String(payment.method || payment.provider || '').toUpperCase()
+    const hasProof = !!payment.proofs?.length
+    let approvalReference = ''
+    let approvalNote = ''
+    if (!hasProof && method !== 'USDT') {
+      const value = window.prompt('اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد:', payment.manualApprovalReference || payment.manualApprovalNote || '')
+      if (value === null) return
+      const trimmed = value.trim()
+      if (trimmed.length < 3) {
+        toast({ title: 'مطلوب دليل اعتماد', description: 'اكتب رقم حوالة أو ملاحظة واضحة، أو اطلب من الطالب رفع إثبات الدفع أولاً.', variant: 'destructive' })
+        return
+      }
+      approvalNote = trimmed
+    }
     try {
-      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id }) })
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: payment.id, approvalReference, approvalNote }) })
       toast({ title: 'تم التأكيد', description: 'أُصدر إيصال الدفع وأُبلغ الطالب' })
       load()
     } catch (e: any) {
