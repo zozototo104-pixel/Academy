@@ -390,6 +390,21 @@ function formatSeconds(value: number | null | undefined) {
   return seconds ? `${minutes}د ${seconds}ث` : `${minutes}د`
 }
 
+function asArray<T = any>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : []
+}
+
+function safeDateLabel(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  try {
+    return date.toLocaleString('ar')
+  } catch {
+    return date.toISOString()
+  }
+}
+
 export function AdminQualityTab() {
   const [data, setData] = useState<AcademicQualityData | null>(null)
   const [reviewItems, setReviewItems] = useState<ChatReviewItem[]>([])
