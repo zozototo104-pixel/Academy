@@ -52,11 +52,17 @@ export async function GET() {
         }),
       ])
 
-    const passRate = totalAttempts > 0 ? Math.round((passedAttempts / totalAttempts) * 100) : 0
-    const pendingAdmissions = pendingAdmissionApps.filter((app) => {
+    const isStudyAdmission = (app: { programRef?: { slug?: string | null; category?: string | null } | null }) => {
       const flow = getServiceFlow(app.programRef?.slug)
       return flow ? flow.isStudyProgram : app.programRef?.category !== 'SERVICE'
-    }).length
+    }
+    const isIncompleteAdmission = (app: { userId?: string | null; acknowledged?: boolean | null; status?: string | null; _count?: { files?: number } }) => {
+      return !app.userId || !app.acknowledged || (app._count?.files || 0) === 0 || app.status === 'DOCUMENTS_NEED_REPLACEMENT'
+    }
+
+    const passRate = totalAttempts > 0 ? Math.round((passedAttempts / totalAttempts) * 100) : 0
+    const pendingAdmissions = pendingAdmissionApps.filter(isStudyAdmission).length
+    const incompleteAdmissions = incompleteAdmissionApps.filter((app) => isStudyAdmission(app) && isIncompleteAdmission(app)).length
     const pendingServices = pendingAdmissionApps.length - pendingAdmissions
     const paidServicesWaitingDelivery = serviceDeliveryApps.filter((app) => {
       const flow = getServiceFlow(app.programRef?.slug)
