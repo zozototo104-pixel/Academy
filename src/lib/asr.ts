@@ -37,14 +37,6 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
     model: process.env.GEMINI_ASR_MODEL || 'gemini-3.5-transcribe',
     contents: [
       {
-        text: [
-          'حوّل الكلام في هذا الملف الصوتي إلى نص فقط.',
-          'لا تضف شرحاً ولا تلخيصاً ولا علامات اقتباس.',
-          'إذا كان الكلام عربياً فاكتبه بالعربية كما سمعته.',
-          options.languageCode ? `لغة متوقعة: ${options.languageCode}` : '',
-        ].filter(Boolean).join('\n'),
-      },
-      {
         inlineData: {
           mimeType,
           data: clean,
