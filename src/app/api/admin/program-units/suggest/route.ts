@@ -149,7 +149,7 @@ function hasReadableBookEvidence(book: any, items: any[]) {
   return cleanText(book.textContent, 1000).length >= 800 || items.some((item) => cleanText(item.summary || item.excerpt, 300).length >= 80)
 }
 
-async function analyzeBookForCurriculum(program: any, book: any, allKnowledgeItems: any[]) {
+async function analyzeBookForCurriculum(program: any, book: any, allKnowledgeItems: any[], trace: CurriculumAiTrace[]) {
   const bookKnowledge = evidenceItemsForBook(book.id, allKnowledgeItems)
   const windows = textWindows(book.textContent || '', 52000)
   const hasBookText = windows.length > 0
