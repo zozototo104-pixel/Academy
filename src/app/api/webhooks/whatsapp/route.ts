@@ -236,6 +236,12 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
   }
 }
 
+function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Date }) {
+  if (event.status === 'RECEIVED' || event.status === 'FAILED') return true
+  if (event.status === 'PROCESSING') return Date.now() - new Date(event.updatedAt).getTime() > STALE_PROCESSING_RETRY_MS
+  return false
+}
+
 async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[]) {
   const eventIds: string[] = []
   let skippedDuplicates = 0
