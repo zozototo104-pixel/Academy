@@ -97,12 +97,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, rebuilt, count: items.length, stats: categoryStats(items), items })
     }
 
-    if (action === 'rebuild-book') {
+    if (action === 'rebuild-book' || action === 'read-book-full') {
       if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
-      const result = await rebuildKnowledgeForBook(bookId)
-      await audit(admin, 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `بناء ${result.inserted} عنصر معرفة من كتاب واحد`)
+      const strictFullRead = action === 'read-book-full' || body.strictFullRead === true
+      const result = await rebuildKnowledgeForBook(bookId, { strictFullRead })
+      await audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`)
       const items = await getProgramKnowledgeItems(result.programId, semester, 140)
-      return NextResponse.json({ ok: true, result, count: items.length, stats: categoryStats(items), items })
+      return NextResponse.json({ ok: true, strictFullRead, result, count: items.length, stats: categoryStats(items), items })
     }
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
