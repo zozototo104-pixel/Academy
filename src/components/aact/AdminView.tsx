@@ -311,10 +311,12 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 
 interface StudentRow {
   id: string; name: string; email: string; country?: string | null; createdAt: string
+  rowKind?: 'STUDENT' | 'INCOMPLETE_ADMISSION'
   enrollments: { program: string; status: string; certificateNo?: string | null; finalScore?: number | null }[]
   attemptsCount: number
   bestScore: number | null
   aiChats: number
+  incompleteReasons?: string[]
   latestAdmission?: { id: string; reference: string; status: string; program: string; createdAt: string } | null
 }
 
