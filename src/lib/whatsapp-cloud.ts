@@ -104,6 +104,7 @@ export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMes
         if (!from || !id) continue
         const contact = contacts.find((c: any) => trim(c?.wa_id) === from) || contacts[0]
         const text = textFromWhatsAppMessage(message)
+        const media = mediaFromWhatsAppMessage(message)
         inbound.push({
           id,
           from,
@@ -111,6 +112,8 @@ export function extractWhatsAppInboundMessages(payload: any): WhatsAppInboundMes
           name: compactText(contact?.profile?.name, 120),
           phoneNumberId,
           rawType: trim(message?.type) || 'unknown',
+          originKind: message?.type === 'audio' ? 'VOICE' : 'TEXT',
+          ...media,
         })
       }
     }
