@@ -28,7 +28,8 @@ if parsed.path not in ('', '/'):
     sys.exit(1)
 
 origin = f"{parsed.scheme}://{parsed.netloc.lower()}"
-defaults = [
+qa_only = os.environ.get('E2E_QA_ONLY', '').strip() == '1'
+defaults = [] if qa_only else [
     'https://academy-raqaba.vercel.app',
     'https://aactacademy.com',
     'https://www.aactacademy.com',
