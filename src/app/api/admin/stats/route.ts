@@ -81,6 +81,7 @@ export async function GET() {
         totalChats,
         pendingAgents,
         pendingAdmissions,
+        incompleteAdmissions,
         pendingServices,
         paidServicesWaitingDelivery,
         passRate,
