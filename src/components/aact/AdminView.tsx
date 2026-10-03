@@ -1845,13 +1845,21 @@ export function AdminView() {
                           title="اضغط لفتح بطاقة طلب الالتحاق المرتبطة بهذا الطالب"
                         >
                           <td className="p-3">
-                            <div className="font-extrabold text-[#0f2b46]">{s.name}</div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <div className="font-extrabold text-[#0f2b46]">{s.name}</div>
+                              {s.rowKind === 'INCOMPLETE_ADMISSION' && (
+                                <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">طلب غير مستكمل</Badge>
+                              )}
+                            </div>
                             <div className="text-[10px] text-slate-400" dir="ltr">{s.email}</div>
                             {s.latestAdmission ? (
                               <div className="mt-1 text-[10px] font-black text-[#a8841a]">فتح طلب {s.latestAdmission.reference}</div>
                             ) : (
                               <div className="mt-1 text-[10px] font-bold text-slate-400">لا يوجد طلب التحاق مرتبط</div>
                             )}
+                            {s.incompleteReasons?.length ? (
+                              <div className="mt-1 text-[10px] font-bold text-orange-700">{s.incompleteReasons.join(' · ')}</div>
+                            ) : null}
                           </td>
                           <td className="p-3">
                             {s.enrollments.length === 0 ? (
