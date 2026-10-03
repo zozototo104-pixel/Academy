@@ -423,7 +423,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
       whatsappMessageId: sendResult?.messages?.[0]?.id || null,
     }).catch(() => {})
     await markSimpleGreetingReplySent(conversationKey(message.from), message.from, message.id)
-    return
+    return 'SENT'
   }
 
   await sendOfficialWhatsAppReadReceipt(message).catch((readError: any) => {
