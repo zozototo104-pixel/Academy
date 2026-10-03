@@ -56,9 +56,13 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
       },
     } as any)
 
+    const fileUri = uploadedFile?.uri
+    const fileMimeType = uploadedFile?.mimeType || mimeType
+    if (!fileUri) throw new Error('Gemini ASR upload did not return a file URI.')
+
     const response = await ai.models.generateContent({
       model: process.env.GEMINI_ASR_MODEL || 'gemini-3.5-transcribe',
-      contents: [uploadedFile],
+      contents: [createUserContent([createPartFromUri(fileUri, fileMimeType)])],
       config: options.languageCode
         ? {
             audioTranscriptionConfig: {
