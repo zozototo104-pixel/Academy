@@ -79,6 +79,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate E2E base URL allowlist
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
       - name: Strict launch quality preflight
         shell: bash
         env:
