@@ -75,6 +75,7 @@ let dbDiscussionThinkingLevelCache = ''
 let geminiInstance: GoogleGenAI | null = null
 let instanceKey = ''
 let activeTextModel: string | null = null
+let lastTextResult: { provider: 'GEMINI'; model: string; ok: boolean; error?: string; at: string } | null = null
 let activeTtsModel: string | null = null
 let activeSupervisorLiveModel: string | null = null
 let activeDiscussionLiveModel: string | null = null
