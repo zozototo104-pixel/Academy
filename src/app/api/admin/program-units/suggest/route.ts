@@ -453,6 +453,24 @@ export async function POST(req: NextRequest) {
     if (replace) await db.unit.deleteMany({ where: { programId } })
     const orderOffset = replace ? 0 : Number(existingOrder._max.order || currentCount)
 
+    const generationAudit = {
+      kind: 'CURRICULUM_GENERATION_AUDIT',
+      generatedAt: new Date().toISOString(),
+      mode: replace ? 'replace' : append ? 'append' : 'create',
+      source: 'BOOK_TEXT_AND_KNOWLEDGE_BANK',
+      unitsCount: plan.units.length,
+      actualAi: (plan as any).actualAi || null,
+      executionTrace: ((plan as any).executionTrace || []).slice(-20),
+      sourceBooks: ((plan as any).analyses || []).map((analysis: any) => ({
+        bookTitle: analysis.bookTitle,
+        semester: analysis.semester,
+        hasTextContent: analysis.hasTextContent,
+        knowledgeCount: analysis.knowledgeCount,
+        coverageNote: analysis.coverageNote,
+      })),
+      previousNote: cleanText((plan.program as any).curriculumPreparationNote, 1200) || undefined,
+    }
+
     const created = await Promise.all(plan.units.map((u: any, idx: number) => db.unit.create({
       data: {
         programId,
