@@ -67,6 +67,7 @@ interface Stats {
     totalChats: number
     pendingAgents: number
     pendingAdmissions: number
+    incompleteAdmissions?: number
     pendingServices?: number
     paidServicesWaitingDelivery?: number
     passRate: number
