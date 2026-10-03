@@ -363,6 +363,7 @@ function normalizeStudentRow(raw: any): StudentRow {
     attemptsCount,
     bestScore,
     aiChats,
+    incompleteReasons: Array.isArray(raw?.incompleteReasons) ? raw.incompleteReasons.map((r: any) => studentText(r, '')).filter(Boolean) : undefined,
     latestAdmission: admission
       ? {
           id: studentText(admission.id, ''),
