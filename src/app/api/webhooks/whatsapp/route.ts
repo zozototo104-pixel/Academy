@@ -500,5 +500,5 @@ export async function POST(req: NextRequest) {
     messages: messages.map((message) => ({ id: message.id, from: maskPhone(message.from), text: message.text.slice(0, 180), phoneNumberId: message.phoneNumberId || null })),
   }, messages[0]?.id)
 
-  return NextResponse.json({ ok: true, received: messages.length, sent, immediateGreetings, typingIndicators, skippedDuplicates, errors: errors.slice(0, 3), configured: true })
+  return NextResponse.json({ ok: true, received: messages.length, sent, immediateGreetings, simpleGreetings, typingIndicators, skippedDuplicates, errors: errors.slice(0, 3), configured: true })
 }
