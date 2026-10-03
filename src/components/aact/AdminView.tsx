@@ -1820,6 +1820,8 @@ export function AdminView() {
                   </div>
                 ) : studentTotal === 0 && !studentSearch && studentStatusFilter === 'ALL' ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا يوجد طلاب ملتحقون ببرامج دراسية بعد</div>
+                ) : studentTotal === 0 && !studentSearch && studentStatusFilter === 'INCOMPLETE_ADMISSIONS' ? (
+                  <div className="p-10 text-center text-sm text-slate-400">لا توجد طلبات غير مستكملة حالياً</div>
                 ) : academicStudents.length === 0 ? (
                   <div className="p-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للبحث أو الفلتر الحالي.</div>
                 ) : (
