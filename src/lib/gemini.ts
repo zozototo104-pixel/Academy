@@ -224,6 +224,10 @@ export async function geminiActiveTextModel(): Promise<string> {
   return (await textModelChain())[0]
 }
 
+export function geminiLastTextResult(): { provider: 'GEMINI'; model: string; ok: boolean; error?: string; at: string } | null {
+  return lastTextResult
+}
+
 export async function geminiActiveTTSModel(): Promise<string> {
   return (await ttsModelChain())[0]
 }
