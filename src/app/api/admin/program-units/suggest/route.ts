@@ -211,13 +211,13 @@ ${textEvidence || 'لا يوجد textContent مستخرج؛ اعتمد فقط ع
 - لا تكتب Markdown ولا أي نص خارج JSON.`
 
   try {
-    const raw = await geminiCompleteJson({
+    const raw = await geminiCompleteJsonWithTrace({
       system: 'أنت محلل كتب ومصمم مناهج. اقرأ النص وبنك المعرفة أولاً، ثم استخرج وحدات مبررة بالأدلة. لا تولد وحدات عامة.',
       history: [{ role: 'user', text: prompt }],
       temperature: 0.2,
       thinkingBudget: 768,
       maxOutputTokens: 9000,
-    })
+    }, trace, { stage: 'BOOK_ANALYSIS', bookTitle: book.title })
     const parsed = parseJsonObject(raw)
     return {
       bookId: book.id,
