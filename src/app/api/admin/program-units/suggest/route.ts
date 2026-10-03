@@ -30,6 +30,62 @@ function parseJsonArray(raw: string) {
   throw new Error('INVALID_JSON_ARRAY')
 }
 
+type CurriculumAiTrace = {
+  stage: 'BOOK_ANALYSIS' | 'SYNTHESIS'
+  ok: boolean
+  provider?: string
+  model?: string
+  at: string
+  ms: number
+  bookTitle?: string
+  error?: string
+}
+
+async function geminiCompleteJsonWithTrace(
+  opts: Parameters<typeof geminiCompleteJson>[0],
+  trace: CurriculumAiTrace[],
+  meta: { stage: CurriculumAiTrace['stage']; bookTitle?: string },
+) {
+  const started = Date.now()
+  try {
+    const text = await geminiCompleteJson(opts)
+    const at = new Date().toISOString()
+    const diag = await textAiDiagnostics().catch(() => null)
+    const external = diag?.lastResult?.ok && Date.parse(diag.lastResult.at) >= started - 1000 ? diag.lastResult : null
+    const direct = geminiLastTextResult()
+    const directFresh = direct?.ok && Date.parse(direct.at) >= started - 1000 ? direct : null
+    const actual = external || directFresh
+    trace.push({
+      stage: meta.stage,
+      ok: true,
+      provider: actual?.provider || (directFresh ? 'GEMINI' : undefined),
+      model: actual?.model,
+      at: actual?.at || at,
+      ms: Date.now() - started,
+      bookTitle: meta.bookTitle,
+    })
+    return text
+  } catch (error: any) {
+    trace.push({
+      stage: meta.stage,
+      ok: false,
+      at: new Date().toISOString(),
+      ms: Date.now() - started,
+      bookTitle: meta.bookTitle,
+      error: String(error?.message || error).slice(0, 500),
+    })
+    throw error
+  }
+}
+
+function latestSuccessfulTrace(trace: CurriculumAiTrace[]) {
+  return [...trace].reverse().find((item) => item.ok && item.provider && item.model) || null
+}
+
+function safeJson(value: unknown) {
+  try { return JSON.stringify(value) } catch { return 'null' }
+}
+
 function safeObjectives(value: unknown) {
   const arr = Array.isArray(value) ? value : []
   return arr.map((x) => cleanText(x, 260)).filter((x) => x.length > 10).slice(0, 6)
