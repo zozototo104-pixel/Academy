@@ -16,6 +16,8 @@ type WaMessage = {
   direction: 'INBOUND' | 'OUTBOUND'
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
+  rawType?: string | null
+  meta?: { kind?: string | null; isVoice?: boolean | null } | null
   sentByName?: string | null
   createdAt: string
 }
