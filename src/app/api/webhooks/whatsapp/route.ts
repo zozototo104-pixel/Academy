@@ -478,6 +478,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     sender: 'BOT',
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,
   }).catch(() => {})
+  return 'SENT'
 }
 
 async function processWhatsAppEvent(eventId: string) {
