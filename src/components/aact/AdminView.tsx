@@ -1931,7 +1931,7 @@ export function AdminView() {
               </div>
             </CardContent>
           </Card>
-          <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label="طالب" />
+          <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label={studentStatusFilter === 'INCOMPLETE_ADMISSIONS' ? 'طلب غير مستكمل' : 'طالب'} />
           </div>
         </TabsContent>
 
