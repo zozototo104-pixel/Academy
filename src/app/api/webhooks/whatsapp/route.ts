@@ -27,6 +27,10 @@ import {
   recordWhatsAppInboundMessage,
   recordWhatsAppOutboundMessage,
 } from '@/lib/whatsapp-conversations'
+import {
+  downloadOfficialWhatsAppMediaBase64,
+  getOfficialWhatsAppMediaInfo,
+} from '@/lib/whatsapp-media'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
