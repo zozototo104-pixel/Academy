@@ -1030,7 +1030,7 @@ export function AdminView() {
               <TabsTrigger value="admissions" className="gap-1 text-[10px] font-bold sm:text-xs">الالتحاق الدراسي ({activeTab === 'admissions' && !admissionsLoading ? admissionTotal : '…'})</TabsTrigger>
               <TabsTrigger value="service-requests" className="gap-1 text-[10px] font-bold sm:text-xs">الخدمات العابرة ({activeTab === 'service-requests' && !admissionsLoading ? admissionTotal : '…'})</TabsTrigger>
               <TabsTrigger value="rules" className="gap-1 text-[10px] font-bold sm:text-xs">قواعد القبول</TabsTrigger>
-              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({studentsLoading ? '…' : studentTotal})</TabsTrigger>
+              <TabsTrigger value="students" className="gap-1 text-[10px] font-bold sm:text-xs">الطلاب ({activeTab === 'students' ? (studentsLoading ? '…' : studentTotal) : (studentTotal || data?.stats.totalStudents || 0)})</TabsTrigger>
               <TabsTrigger value="supervisors" className="gap-1 text-[10px] font-bold sm:text-xs">إدارة المشرفين</TabsTrigger>
               <TabsTrigger value="agents" className="gap-1 text-[10px] font-bold sm:text-xs">الوكالة والاعتماد ({appsLoading ? '…' : agentTotal})</TabsTrigger>
               <TabsTrigger value="representatives" className="gap-1 text-[10px] font-bold sm:text-xs">ممثلو الدول</TabsTrigger>
