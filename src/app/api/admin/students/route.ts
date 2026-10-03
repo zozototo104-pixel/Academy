@@ -81,7 +81,97 @@ export async function GET(req: NextRequest) {
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
     const enrollmentWhere: any = {}
     if (programId && programId !== 'ALL') enrollmentWhere.programId = programId
-    if (status && status !== 'ALL') enrollmentWhere.status = status
+    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS') enrollmentWhere.status = status
+
+    if (status === 'INCOMPLETE_ADMISSIONS') {
+      const incompleteWhere: any = {
+        status: { notIn: ['REJECTED', 'CERTIFIED'] },
+        AND: [
+          {
+            OR: [
+              { programRef: { is: null } },
+              { programRef: { is: { category: { not: 'SERVICE' } } } },
+            ],
+          },
+          {
+            OR: [
+              { userId: null },
+              { acknowledged: false },
+              { files: { none: {} } },
+              { status: 'DOCUMENTS_NEED_REPLACEMENT' },
+            ],
+          },
+        ],
+      }
+      if (q) {
+        incompleteWhere.AND.push({
+          OR: [
+            { fullName: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q, mode: 'insensitive' } },
+            { reference: { contains: q, mode: 'insensitive' } },
+            { program: { contains: q, mode: 'insensitive' } },
+            { programRef: { is: { titleAr: { contains: q, mode: 'insensitive' } } } },
+          ],
+        })
+      }
+
+      const [applications, total] = await Promise.all([
+        db.admissionApplication.findMany({
+          where: incompleteWhere,
+          orderBy: [{ createdAt: 'desc' }],
+          skip,
+          take,
+          select: {
+            id: true,
+            reference: true,
+            fullName: true,
+            email: true,
+            country: true,
+            program: true,
+            status: true,
+            userId: true,
+            acknowledged: true,
+            createdAt: true,
+            programRef: { select: { titleAr: true } },
+            _count: { select: { files: true } },
+          },
+        }),
+        db.admissionApplication.count({ where: incompleteWhere }),
+      ])
+
+      const students = applications.map((app) => {
+        const reasons = [
+          !app.userId ? 'بدون حساب مرتبط' : '',
+          !app.acknowledged ? 'الإقرار غير مكتمل' : '',
+          (app._count.files || 0) === 0 ? 'لا توجد مرفقات' : '',
+          app.status === 'DOCUMENTS_NEED_REPLACEMENT' ? 'بانتظار استبدال مرفقات' : '',
+        ].filter(Boolean)
+        return {
+          id: `admission:${app.id}`,
+          rowKind: 'INCOMPLETE_ADMISSION',
+          name: app.fullName || 'طلب بدون اسم',
+          email: app.email,
+          country: app.country,
+          status: app.status,
+          createdAt: app.createdAt,
+          enrollments: [],
+          attemptsCount: 0,
+          bestScore: null,
+          aiChats: 0,
+          incompleteReasons: reasons,
+          latestAdmission: {
+            id: app.id,
+            reference: app.reference,
+            status: app.status,
+            program: app.programRef?.titleAr || app.program || 'برنامج غير محدد',
+            createdAt: app.createdAt,
+          },
+        }
+      })
+
+      return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
+    }
 
     const where: any = { role: 'STUDENT', enrollments: { some: enrollmentWhere } }
     if (q) {
