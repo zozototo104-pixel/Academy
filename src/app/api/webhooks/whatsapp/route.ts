@@ -391,7 +391,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
   return handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
 }
 
-async function processWhatsAppMessage(message: WhatsAppInboundMessage) {
+async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
   const storedInbound = await recordWhatsAppInboundMessage(message)
 
   if (await isWhatsAppConversationHumanActive(message.from).catch(() => false)) {
