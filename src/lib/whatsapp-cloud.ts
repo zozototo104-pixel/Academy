@@ -17,6 +17,12 @@ export type WhatsAppInboundMessage = {
   name?: string
   phoneNumberId?: string
   rawType?: string
+  mediaId?: string
+  mediaMimeType?: string
+  mediaSha256?: string
+  mediaFileSize?: number
+  isVoice?: boolean
+  originKind?: 'TEXT' | 'VOICE'
 }
 
 function trim(value: unknown) {
