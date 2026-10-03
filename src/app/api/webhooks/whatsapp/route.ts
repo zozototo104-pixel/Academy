@@ -401,7 +401,14 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     }
 
     const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
-    const transcript = await withTimeout(transcribeAudioBase64(audioBase64), 25_000, 'whatsapp_voice_transcription')
+    const transcript = await withTimeout(
+      transcribeAudioBase64(audioBase64, {
+        mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
+        languageCode: 'ar',
+      }),
+      25_000,
+      'whatsapp_voice_transcription'
+    )
     const text = String(transcript || '').trim()
     if (!text) {
       return {
