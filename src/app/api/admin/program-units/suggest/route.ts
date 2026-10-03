@@ -492,6 +492,7 @@ export async function POST(req: NextRequest) {
         academicApproved: false,
         academicApprovedAt: null,
         academicApprovedById: null,
+        curriculumPreparationNote: safeJson(generationAudit),
       },
     })
 
