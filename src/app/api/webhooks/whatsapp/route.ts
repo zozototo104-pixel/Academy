@@ -406,7 +406,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
       conversationId: storedInbound?.conversation?.id || null,
       note: 'conversation claimed by admin; bot reply suppressed; read receipt attempted',
     }, storedInbound?.conversation?.id || message.id)
-    return
+    return 'SKIPPED'
   }
 
   if (isSimpleWhatsAppGreeting(message.text)) {
