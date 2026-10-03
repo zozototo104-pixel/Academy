@@ -1403,6 +1403,39 @@ export function AdminQualityTab() {
                       <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الاختبارات/الواجبات: {item.counts.assessments}/{item.targets.assessments}</div>
                     </div>
 
+                    {item.sourceReadiness ? (
+                      <div className={`mt-3 rounded-2xl border p-3 ${item.sourceReadiness.ready ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className={`font-black ${item.sourceReadiness.ready ? 'text-emerald-800' : 'text-red-800'}`}>
+                              {item.sourceReadiness.ready ? 'مصادر التوليد جاهزة' : 'مصادر التوليد غير جاهزة'}
+                            </p>
+                            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{item.sourceReadiness.message}</p>
+                          </div>
+                          <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
+                            النموذج: {item.sourceReadiness.aiProvider}/{item.sourceReadiness.aiModel}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب مقروءة: {item.sourceReadiness.readableBooks}/{item.counts.books}</div>
+                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب محللة: {item.sourceReadiness.analyzedBooks}/{item.counts.books}</div>
+                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">معرفة الكتب: {item.sourceReadiness.booksWithKnowledge}/{item.counts.books}</div>
+                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">نصوص: {Math.round((item.sourceReadiness.extractedTextChars || 0) / 1000)} ألف حرف</div>
+                        </div>
+                        {item.sourceReadiness.books?.length ? (
+                          <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-xl bg-white/70 p-2">
+                            {item.sourceReadiness.books.slice(0, 8).map((book) => (
+                              <div key={book.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600">
+                                <span className="max-w-[15rem] truncate font-black text-[#0f2b46]">{book.title}</span>
+                                <span>{book.readStatusLabel}</span>
+                                <span>{book.textChars >= 800 ? 'مقروء' : 'نص ناقص'} · {book.knowledgeItems} معرفة</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {Object.entries(item.checks).map(([key, ok]) => (
                         <span key={key} className={`rounded-full px-2 py-1 text-[10px] font-black ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
