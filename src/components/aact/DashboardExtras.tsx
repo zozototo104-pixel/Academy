@@ -578,6 +578,29 @@ export function PaymentsTab() {
                       </div>
                     </div>
                   )}
+                  {p.status === 'UNPAID' && ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'].includes(String(p.method || '').toUpperCase()) && (
+                    <div className='mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold text-emerald-900'>
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <span>إثباتات الدفع المرفوعة: {p.proofs?.length || 0}</span>
+                        {p.proofs?.[0] ? <Badge className='bg-white text-emerald-700 hover:bg-white'>{p.proofs[0].status === 'PENDING' ? 'قيد مراجعة الإدارة' : p.proofs[0].status}</Badge> : null}
+                      </div>
+                      {p.proofs?.[0] ? <p className='mt-1 text-emerald-800'>آخر ملف: {p.proofs[0].fileName}</p> : <p className='mt-1 text-emerald-800'>ارفع صورة أو PDF لإثبات التحويل حتى تراجعه الإدارة داخل الفاتورة.</p>}
+                      <div className='mt-2'>
+                        <Input
+                          type='file'
+                          accept='image/jpeg,image/png,image/webp,image/heic,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'
+                          disabled={uploadingProof === p.id}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0]
+                            event.currentTarget.value = ''
+                            uploadPaymentProof(p, file)
+                          }}
+                          className='bg-white text-[11px]'
+                        />
+                        {uploadingProof === p.id ? <p className='mt-1 flex items-center gap-1 text-emerald-700'><Loader2 className='h-3 w-3 animate-spin' /> جاري رفع إثبات الدفع...</p> : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className='flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end'>
                   <span className='text-lg font-black text-[#0f2b46]'><Money value={p.amount} /></span>
