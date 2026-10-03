@@ -100,8 +100,9 @@ export async function nextInvoiceNo(): Promise<string> {
 }
 
 export async function nextReceiptNo(): Promise<string> {
-  const paid = await db.payment.count({ where: { status: 'PAID' } })
-  return `AACT-REC-${new Date().getFullYear()}-${pad(paid + 1)}`
+  const rows = await db.$queryRaw<Array<{ n: bigint | number }>>`SELECT nextval('payment_receipt_no_seq') AS n`
+  const n = Number(rows[0]?.n || 1)
+  return `AACT-REC-${new Date().getFullYear()}-${pad(n)}`
 }
 
 export async function nextCertSerial(): Promise<string> {
