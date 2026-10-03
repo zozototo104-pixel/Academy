@@ -88,7 +88,10 @@ export async function POST(req: NextRequest) {
       verification: { status: result.status, note: result.note, amount: result.amount || null, txHash: result.txHash || cleanHash },
       payment: updated,
     })
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.code === 'P2002') {
+      return NextResponse.json({ error: 'هذا TX Hash مستخدم مسبقاً على فاتورة أخرى ولا يمكن استخدامه مرتين.' }, { status: 409 })
+    }
     console.error('USDT verify error:', e)
     return NextResponse.json({ error: 'تعذر التحقق من تحويل USDT' }, { status: 500 })
   }
