@@ -264,6 +264,7 @@ export function AdminWhatsAppInboxTab() {
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                   {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#075e54]" /></div> : messages.map((m) => {
                     const outbound = m.direction === 'OUTBOUND'
+                    const isVoice = m.rawType === 'audio' || m.meta?.kind === 'VOICE' || Boolean(m.meta?.isVoice)
                     return (
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
