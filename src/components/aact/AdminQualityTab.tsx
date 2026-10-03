@@ -1417,9 +1417,18 @@ export function AdminQualityTab() {
                             </p>
                             <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{item.sourceReadiness.message}</p>
                           </div>
-                          <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
-                            النموذج: {item.sourceReadiness.aiProvider}/{item.sourceReadiness.aiModel}
-                          </Badge>
+                          <div className="flex flex-col items-start gap-1 sm:items-end">
+                            <Badge className={`${item.sourceReadiness.aiProvider ? 'bg-[#0f2b46]' : 'bg-slate-500'} text-[#f5f0e1] hover:bg-[#0f2b46]`}>
+                              آخر تحليل فعلي: {item.sourceReadiness.aiProvider && item.sourceReadiness.aiModel
+                                ? `${item.sourceReadiness.aiProvider}/${item.sourceReadiness.aiModel}`
+                                : 'لم يتم توليد وحدات بعد'}
+                            </Badge>
+                            {item.sourceReadiness.aiGeneratedAt ? (
+                              <span className="text-[10px] font-bold text-slate-500">آخر تشغيل: {new Date(item.sourceReadiness.aiGeneratedAt).toLocaleString('ar')}</span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-500">الإعداد الحالي: {item.sourceReadiness.configuredProvider}/{item.sourceReadiness.configuredModel}</span>
+                            )}
+                          </div>
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-4">
                           <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب مقروءة: {item.sourceReadiness.readableBooks}/{item.counts.books}</div>
