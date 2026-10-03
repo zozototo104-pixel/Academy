@@ -85,7 +85,7 @@ jobs:
             fi
             sleep 10
           done
-          echo "Full journey schema v4 was not deployed after waiting. Last response:"
+          echo "Full journey schema v5 was not deployed after waiting. Last response:"
           cat /tmp/ux-route-check.txt || true
           exit 1
 
