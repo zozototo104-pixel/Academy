@@ -241,6 +241,12 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
       rawType: message.rawType || null,
+      mediaId: message.mediaId || null,
+      mediaMimeType: message.mediaMimeType || null,
+      mediaSha256: message.mediaSha256 || null,
+      mediaFileSize: message.mediaFileSize || null,
+      isVoice: Boolean(message.isVoice),
+      originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
   }
 }
