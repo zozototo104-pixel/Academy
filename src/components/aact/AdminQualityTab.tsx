@@ -253,8 +253,13 @@ interface ProgramReadinessItem {
     booksWithKnowledge: number
     knowledgeItems: number
     extractedTextChars: number
-    aiProvider: string
-    aiModel: string
+    aiProvider?: string | null
+    aiModel?: string | null
+    aiStage?: string | null
+    aiGeneratedAt?: string | null
+    aiTrace?: { stage: string; ok: boolean; provider?: string; model?: string; at: string; ms: number; bookTitle?: string; error?: string }[]
+    configuredProvider?: string | null
+    configuredModel?: string | null
     routerPolicy: string
     message: string
     books: {
