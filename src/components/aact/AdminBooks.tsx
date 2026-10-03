@@ -1198,15 +1198,15 @@ export function AdminBooksTab() {
     if (!programId) return
     setRebuildingBookId(bookId)
     try {
-      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { inserted?: number; sourceNote?: string } }>('/api/admin/knowledge-bank', {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; strictFullRead?: boolean; result?: { inserted?: number; sourceNote?: string } }>('/api/admin/knowledge-bank', {
         method: 'POST',
-        body: JSON.stringify({ bookId, action: 'rebuild-book' }),
+        body: JSON.stringify({ bookId, action: 'read-book-full', strictFullRead: true }),
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      toast({ title: 'تم تحليل الكتاب', description: d.result?.sourceNote || `تم استخراج ${d.result?.inserted || 0} عنصر معرفة من هذا الكتاب` })
+      toast({ title: 'تمت قراءة وتحليل الكتاب بالكامل', description: d.result?.sourceNote || `تم استخراج ${d.result?.inserted || 0} عنصر معرفة من هذا الكتاب` })
     } catch (e: any) {
-      toast({ title: 'تعذر تحليل الكتاب', description: e.message, variant: 'destructive' })
+      toast({ title: 'تعذر قراءة وتحليل الكتاب بالكامل', description: e.message, variant: 'destructive' })
     } finally {
       setRebuildingBookId(null)
     }
