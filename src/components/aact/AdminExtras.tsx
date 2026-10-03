@@ -929,6 +929,18 @@ export function AdminFinanceTab() {
                             {p.cryptoVerificationNote && <div className="line-clamp-2 text-slate-400">{p.cryptoVerificationNote}</div>}
                           </div>
                         )}
+                        {p.proofs?.length ? (
+                          <div className="mt-1 space-y-1 rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-[10px] font-bold text-emerald-800">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span>إثباتات الدفع: {p.proofs.length}</span>
+                              <Badge className="bg-white text-emerald-700 hover:bg-white">{p.proofs[0].status === 'PENDING' ? 'قيد المراجعة' : p.proofs[0].status}</Badge>
+                            </div>
+                            <a href={`/api/admin/payments/proofs/${encodeURIComponent(p.proofs[0].id)}/download`} target="_blank" rel="noreferrer" className="inline-flex font-black text-emerald-700 underline">
+                              فتح آخر إثبات: {p.proofs[0].fileName}
+                            </a>
+                            {p.proofs[0].uploadedBy?.name ? <div className="text-emerald-700">رفعه: {p.proofs[0].uploadedBy.name}</div> : null}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-3 font-black text-[#0f2b46]">{p.amount}$</td>
                       <td className="p-3">
