@@ -5,6 +5,15 @@ import { markInvoicePaid } from '@/lib/settle-payment'
 import { notify, audit } from '@/lib/notify'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 
+function cleanText(value: unknown, max = 500) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function isManualPaymentMethod(method?: string | null, provider?: string | null) {
+  const value = String(method || provider || '').toUpperCase()
+  return ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'].includes(value)
+}
+
 // GET /api/admin/payments — كل الفواتير والمستحقات (للإدارة)
 export async function GET(req: NextRequest) {
   try {
