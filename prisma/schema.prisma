@@ -641,6 +641,33 @@ model WhatsAppConversationMessage {
   @@index([direction, createdAt])
 }
 
+enum WhatsAppInboundEventStatus {
+  RECEIVED
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model WhatsAppInboundEvent {
+  id            String                     @id @default(cuid())
+  waMessageId   String                     @unique
+  waIdHash      String
+  phoneNumberId String?
+  messageType   String?
+  payload       Json
+  status        WhatsAppInboundEventStatus @default(RECEIVED)
+  attempts      Int                        @default(0)
+  error         String?
+  processedAt   DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  @@index([status, createdAt])
+  @@index([waIdHash, createdAt])
+  @@index([phoneNumberId, createdAt])
+}
+
 model ThesisSubmission {
   id          String   @id @default(cuid())
   userId      String
