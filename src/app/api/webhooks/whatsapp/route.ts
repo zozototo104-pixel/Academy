@@ -222,6 +222,19 @@ function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage
   return { accepted, ignored }
 }
 
+function inboundEventPayload(message: WhatsAppInboundMessage) {
+  return {
+    message: {
+      id: message.id,
+      from: message.from,
+      text: message.text || '',
+      name: message.name || null,
+      phoneNumberId: message.phoneNumberId || null,
+      rawType: message.rawType || null,
+    },
+  }
+}
+
 async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[]) {
   const eventIds: string[] = []
   let skippedDuplicates = 0
