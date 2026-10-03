@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'حجم التسجيل كبير جداً — سجل مقطعاً أقصر' }, { status: 413 })
     }
 
-    const text = await transcribeAudioBase64(audioBase64)
+    const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm' })
 
     return NextResponse.json({ text })
   } catch (e: any) {
