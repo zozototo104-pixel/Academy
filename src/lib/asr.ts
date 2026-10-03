@@ -105,7 +105,7 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
         : undefined,
     } as any)
 
-    return String((response as any)?.text || '').trim()
+    return extractGeminiTranscript(response)
   } finally {
     const uploadedName = uploadedFile?.name
     if (uploadedName) {
