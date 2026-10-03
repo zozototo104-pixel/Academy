@@ -983,7 +983,7 @@ export function AdminFinanceTab() {
                       </td>
                       <td className="p-3">
                         {p.status === 'UNPAID' ? (
-                          <Button size="sm" variant="outline" onClick={() => confirm(p.id)}
+                          <Button size="sm" variant="outline" onClick={() => confirm(p)}
                             className="border-emerald-200 font-bold text-emerald-600">
                             <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
                           </Button>
