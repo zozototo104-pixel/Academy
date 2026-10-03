@@ -516,9 +516,11 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
-  const storedInbound = await recordWhatsAppInboundMessage(message)
+  const prepared = await prepareWhatsAppMessageForProcessing(message)
+  const inboundMessage = prepared.message
+  const storedInbound = await recordWhatsAppInboundMessage(inboundMessage)
 
-  if (await isWhatsAppConversationHumanActive(message.from).catch(() => false)) {
+  if (await isWhatsAppConversationHumanActive(inboundMessage.from).catch(() => false)) {
     try {
       await sendOfficialWhatsAppReadReceipt(message)
     } catch (readError: any) {
