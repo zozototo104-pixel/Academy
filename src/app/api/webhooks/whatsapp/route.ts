@@ -352,6 +352,29 @@ export async function POST(req: NextRequest) {
       }, storedInbound?.conversation?.id || message.id)
       continue
     }
+    if (isSimpleWhatsAppGreeting(message.text)) {
+      try {
+        const sendResult = await sendOfficialWhatsAppText(message.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
+          phoneNumberId: message.phoneNumberId,
+          replyToMessageId: message.id,
+        })
+        await recordWhatsAppOutboundMessage({
+          waId: message.from,
+          phoneNumberId: message.phoneNumberId,
+          text: SIMPLE_WHATSAPP_GREETING_REPLY,
+          sender: 'BOT',
+          whatsappMessageId: sendResult?.messages?.[0]?.id || null,
+        }).catch(() => {})
+        await markSimpleGreetingReplySent(conversationKey(message.from), message.from, message.id)
+        sent += 1
+        simpleGreetings += 1
+      } catch (greetingError: any) {
+        const msg = `simple-greeting: ${String(greetingError?.message || greetingError || 'failed').slice(0, 220)}`
+        console.warn('official WhatsApp simple greeting reply failed:', msg)
+        errors.push(msg)
+      }
+      continue
+    }
     try {
       const greetingDecision = await shouldSendImmediateGreeting(message.from)
       if (greetingDecision.ok) {
