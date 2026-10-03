@@ -262,7 +262,15 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
       eventIds.push(event.id)
     } catch (error: any) {
       if (isUniqueConstraintError(error)) {
-        skippedDuplicates += 1
+        const existing = await db.whatsAppInboundEvent.findUnique({
+          where: { waMessageId: message.id },
+          select: { id: true, status: true, updatedAt: true },
+        }).catch(() => null)
+        if (existing && shouldRetryExistingInboundEvent(existing)) {
+          eventIds.push(existing.id)
+        } else {
+          skippedDuplicates += 1
+        }
         continue
       }
       const msg = `register-event: ${String(error?.message || error || 'failed').slice(0, 220)}`
