@@ -158,6 +158,10 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
     semestersCount,
     counts: {
       books: program.books.length,
+      readableBooks,
+      analyzedBooks,
+      booksWithKnowledge,
+      extractedTextChars: totalExtractedTextChars,
       units: program.units.length,
       unitsWithObjectives: program.units.filter((u) => hasUnitObjectives(u.objectives)).length,
       knowledgeItems,
