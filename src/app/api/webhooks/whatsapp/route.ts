@@ -487,7 +487,8 @@ async function processWhatsAppEvent(eventId: string) {
     where: {
       id: eventId,
       OR: [
-        { status: { in: ['RECEIVED', 'FAILED'] } },
+        { status: 'RECEIVED' },
+        { status: 'FAILED' },
         { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
       ],
     },
