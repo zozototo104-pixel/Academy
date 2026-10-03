@@ -6,6 +6,32 @@ function enabled(value?: string | null) {
 
 const isEnabled = enabled(process.env.RUN_AI_KNOWLEDGE_CHECK) || enabled(process.env.AI_KNOWLEDGE_CHECK)
 
+const databaseUrlCandidates = [
+  'DIRECT_URL',
+  'DATABASE_URL_UNPOOLED',
+  'DATABASE_POSTGRES_URL_NON_POOLING',
+  'POSTGRES_URL_NON_POOLING',
+  'DATABASE_POSTGRES_URL',
+  'POSTGRES_URL',
+  'DATABASE_POSTGRES_PRISMA_URL',
+  'POSTGRES_PRISMA_URL',
+  'DATABASE_URL',
+  'DATABASE_SUPABASE_URL',
+  'SUPABASE_URL',
+  'QA_DATABASE_URL',
+]
+
+function resolveDatabaseUrl() {
+  for (const key of databaseUrlCandidates) {
+    const value = process.env[key]
+    if (value && /^postgres(ql)?:\/\//i.test(value.trim())) {
+      if (key !== 'DATABASE_URL') console.log(`[ai-knowledge-check] Using ${key} as DATABASE_URL for build-time knowledge check.`)
+      return value.trim()
+    }
+  }
+  return null
+}
+
 if (!isEnabled) {
   console.log('[ai-knowledge-check] SKIPPED: set RUN_AI_KNOWLEDGE_CHECK=true to run this check during build.')
   process.exit(0)
