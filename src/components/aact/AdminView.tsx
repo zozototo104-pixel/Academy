@@ -1883,18 +1883,32 @@ export function AdminView() {
                           </td>
                           <td className="p-3">
                             <div className="flex flex-wrap gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  openStudentPreview(s.id)
-                                }}
-                                className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a] hover:bg-[#fff7df]"
-                              >
-                                <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
-                              </Button>
-                              {s.latestAdmission && !['CERTIFIED', 'REJECTED'].includes(s.latestAdmission.status) && (
+                              {s.rowKind !== 'INCOMPLETE_ADMISSION' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openStudentPreview(s.id)
+                                  }}
+                                  className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a] hover:bg-[#fff7df]"
+                                >
+                                  <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openStudentAdmission(s)
+                                  }}
+                                  className="border-orange-200 text-[10px] font-black text-orange-700 hover:bg-orange-50"
+                                >
+                                  <AlertTriangle className="ml-1 h-3.5 w-3.5" /> فتح الطلب
+                                </Button>
+                              )}
+                              {s.rowKind !== 'INCOMPLETE_ADMISSION' && s.latestAdmission && !['CERTIFIED', 'REJECTED'].includes(s.latestAdmission.status) && (
                                 <Button
                                   size="sm"
                                   variant="outline"
