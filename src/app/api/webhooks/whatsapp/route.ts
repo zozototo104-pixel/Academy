@@ -70,7 +70,7 @@ async function shouldSendImmediateGreeting(from: string) {
   const since = new Date(now - IMMEDIATE_GREETING_WINDOW_MS)
   const previous = await db.auditLog.findFirst({
     where: {
-      action: 'WHATSAPP_IMMEDIATE_GREETING_SENT',
+      action: { in: ['WHATSAPP_IMMEDIATE_GREETING_SENT', 'WHATSAPP_SIMPLE_GREETING_REPLY_SENT'] },
       entityId: key,
       createdAt: { gte: since },
     },
@@ -93,6 +93,48 @@ async function markImmediateGreetingSent(key: string, from: string, messageId: s
     windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
   }, key)
 }
+
+async function markSimpleGreetingReplySent(key: string, from: string, messageId: string) {
+  recentGreetingKeys.set(key, Date.now())
+  await auditWhatsAppWebhook('WHATSAPP_SIMPLE_GREETING_REPLY_SENT', {
+    from: maskPhone(from),
+    messageId,
+    windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
+  }, key)
+}
+
+function normalizeGreetingText(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isSimpleWhatsAppGreeting(text: string) {
+  const normalized = normalizeGreetingText(text)
+  if (!normalized) return false
+  const greetings = new Set([
+    'السلام عليكم',
+    'سلام عليكم',
+    'وعليكم السلام',
+    'السلام عليكم ورحمه الله',
+    'السلام عليكم ورحمه الله وبركاته',
+    'مرحبا',
+    'هلا',
+    'اهلا',
+    'اهلا وسهلا',
+    'صباح الخير',
+    'مساء الخير',
+  ])
+  return greetings.has(normalized)
+}
+
+const SIMPLE_WHATSAPP_GREETING_REPLY = 'وعليكم السلام ورحمة الله 🌟\n\nكيف يمكنني مساعدتك اليوم؟'
 
 async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
