@@ -340,6 +340,109 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
+async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
+  const sendResult = await sendOfficialWhatsAppText(message.from, text, {
+    phoneNumberId: message.phoneNumberId,
+    replyToMessageId: message.id,
+  })
+  await recordWhatsAppOutboundMessage({
+    waId: message.from,
+    phoneNumberId: message.phoneNumberId,
+    text,
+    sender: 'BOT',
+    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
+  }).catch(() => {})
+}
+
+async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
+  const since = new Date(Date.now() - 60 * 60 * 1000)
+  const count = await db.whatsAppInboundEvent.count({
+    where: {
+      waIdHash: waIdHash(message.from),
+      messageType: 'audio',
+      createdAt: { gte: since },
+    },
+  }).catch(() => 0)
+  return count > WHATSAPP_VOICE_HOURLY_LIMIT
+}
+
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string }> {
+  if (message.rawType !== 'audio') return { message }
+
+  if (await hasExceededVoiceHourlyLimit(message)) {
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
+      immediateReply: 'وصلتنا عدة رسائل صوتية خلال وقت قصير. ممكن تكتب سؤالك نصاً أو تحاول لاحقاً؟',
+    }
+  }
+
+  if (!message.mediaId) {
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
+      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+    }
+  }
+
+  try {
+    const mediaInfo = await getOfficialWhatsAppMediaInfo(message.mediaId, message.phoneNumberId)
+    const fileSize = Number(mediaInfo.fileSize || message.mediaFileSize || 0)
+    if (fileSize > WHATSAPP_VOICE_MAX_BYTES) {
+      return {
+        message: {
+          ...message,
+          text: '🎤 رسالة صوتية طويلة أو كبيرة الحجم.',
+          mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+          mediaFileSize: fileSize,
+          mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+          originKind: 'VOICE',
+        },
+        immediateReply: WHATSAPP_VOICE_TOO_LONG_REPLY,
+      }
+    }
+
+    const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
+    const transcript = await withTimeout(transcribeAudioBase64(audioBase64), 25_000, 'whatsapp_voice_transcription')
+    const text = String(transcript || '').trim()
+    if (!text) {
+      return {
+        message: {
+          ...message,
+          text: '🎤 رسالة صوتية غير واضحة.',
+          mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+          mediaFileSize: fileSize,
+          mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+          originKind: 'VOICE',
+        },
+        immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+      }
+    }
+
+    return {
+      message: {
+        ...message,
+        text,
+        mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
+        mediaFileSize: fileSize,
+        mediaSha256: mediaInfo.sha256 || message.mediaSha256,
+        isVoice: true,
+        originKind: 'VOICE',
+      },
+    }
+  } catch (error: any) {
+    const msg = String(error?.message || error || 'voice transcription failed').slice(0, 300)
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_FAILED', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      mediaId: message.mediaId || null,
+      error: msg,
+    }, message.id)
+    return {
+      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها.', originKind: 'VOICE' },
+      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+    }
+  }
+}
+
 async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string) {
   const sendResult = await sendOfficialWhatsAppText(message.from, WHATSAPP_AI_FALLBACK_REPLY, {
     phoneNumberId: message.phoneNumberId,
