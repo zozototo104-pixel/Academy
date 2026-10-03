@@ -177,6 +177,39 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
       assessments: 1,
     },
     booksBySemester,
+    sourceReadiness: {
+      ready: sourceReady,
+      readableBooks,
+      analyzedBooks,
+      booksWithKnowledge,
+      knowledgeItems,
+      extractedTextChars: totalExtractedTextChars,
+      aiProvider: activeAiProvider,
+      aiModel: activeAiModel,
+      routerPolicy: aiDiag?.policy || 'غير محدد',
+      books: program.books.map((book) => {
+        const textChars = readableTextLength(book.textContent)
+        const knowledgeCount = Number(book._count.knowledgeItems || 0)
+        return {
+          id: book.id,
+          title: book.title,
+          semester: book.semester,
+          readStatus: book.linkReadStatus,
+          readStatusLabel: bookReadStatusLabel(book.linkReadStatus),
+          readNote: book.linkReadNote,
+          textChars,
+          hasReadableText: textChars >= 800,
+          knowledgeItems: knowledgeCount,
+          analyzed: textChars >= 800 && knowledgeCount > 0,
+          readingDepth: book.readingDepth,
+          levelPolicy: book.levelPolicy,
+          assessmentOrientation: book.assessmentOrientation,
+        }
+      }),
+      message: sourceReady
+        ? `جاهز للتوليد من المصادر: ${readableBooks} كتاب مقروء، ${knowledgeItems} عنصر معرفة.`
+        : 'غير جاهز: اقرأ/حلل الكتب أو ابنِ بنك المعرفة قبل توليد الوحدات.',
+    },
     checks,
     missing,
     readyWithoutManualApproval,
