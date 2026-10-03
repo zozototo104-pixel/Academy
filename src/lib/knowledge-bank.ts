@@ -1554,10 +1554,15 @@ export async function rebuildKnowledgeForBook(bookId: string, options: { strictF
       return await rebuildKnowledgeForBookByUnits(book as any, sourceText, semester, hydrated.sourceNote)
     } catch (e: any) {
       console.error('unit-based knowledge build failed:', String(e?.message || e).slice(0, 320))
+      if (strictFullRead) {
+        throw new Error(`فشل تحليل الكتاب كاملاً على شكل مقاطع/وحدات من النص المستخرج: ${String(e?.message || e).slice(0, 240)}`)
+      }
       // إذا كان هناك ملف PDF/صورة مرفوع، نترك المسار التالي يحاول قراءة الملف مباشرة كأداة قراءة إضافية.
       // أما إذا لم توجد أداة قراءة أخرى فلا نؤلف عناصر عامة.
       if (hasUploadedBookFile(book) && !canReadBookFileWithGemini(book)) throw e
     }
+  } else if (strictFullRead) {
+    throw new Error(`لا يوجد نص كتاب كافٍ للقراءة الكاملة. النص المستخرج ${sourceText.length} حرف فقط. استخرج نص الكتاب أولاً أو ارفع نسخة PDF نصية/Word أوضح.`)
   }
 
   const metadataOnly = cleanText(`${book.title}. ${book.description || ''}`, 900)
