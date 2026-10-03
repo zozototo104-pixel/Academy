@@ -338,6 +338,35 @@ export function PaymentsTab() {
     }
   }
 
+  const uploadPaymentProof = async (payment: Payment, file?: File | null) => {
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ title: 'الملف كبير جداً', description: 'حجم إثبات الدفع يجب ألا يتجاوز 8MB.', variant: 'destructive' })
+      return
+    }
+    setUploadingProof(payment.id)
+    try {
+      const form = new FormData()
+      form.set('paymentId', payment.id)
+      form.set('proofType', payment.method === 'USDT' ? 'USDT_RECEIPT' : 'TRANSFER_RECEIPT')
+      form.set('file', file)
+      const token = getToken()
+      const res = await fetch('/api/payments/proofs', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'تعذر رفع إثبات الدفع')
+      toast({ title: data?.duplicate ? 'الإثبات مرفوع سابقاً' : 'تم رفع إثبات الدفع', description: 'سيظهر للإدارة داخل نفس الفاتورة للمراجعة.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر رفع إثبات الدفع', description: e.message, variant: 'destructive' })
+    } finally {
+      setUploadingProof(null)
+    }
+  }
+
   const submitUsdtProof = async (payment: Payment) => {
     const txHash = (usdtHashes[payment.id] || payment.cryptoTxHash || '').trim()
     if (!txHash) {
