@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/ai'
+import { transcribeAudioBase64 } from '@/lib/asr'
 import { requireUser } from '@/lib/auth'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 
