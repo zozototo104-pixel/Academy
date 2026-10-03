@@ -40,6 +40,10 @@ const recentGreetingKeys = new Map<string, number>()
 const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 45_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
+const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
+const WHATSAPP_VOICE_HOURLY_LIMIT = 10
+const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة، ممكن تختصرها أو تكتب سؤالك؟'
+const WHATSAPP_VOICE_UNCLEAR_REPLY = 'ما قدرت أسمع الرسالة بوضوح، ممكن تكتبها أو تعيد تسجيلها؟'
 const WHATSAPP_AI_FALLBACK_REPLY = 'استلمنا رسالتك ✅ وسيتم الرد عليك قريباً.'
 
 function cleanupGreetingKeys() {
