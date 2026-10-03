@@ -188,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for name in E2E_BASE_URL E2E_ADMIN_EMAIL E2E_ADMIN_PASSWORD; do
+          for name in E2E_BASE_URL E2E_ADMIN_EMAIL E2E_ADMIN_PASSWORD DATABASE_URL; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required value: $name"
               missing=1
