@@ -8,7 +8,7 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, serviceDeliveryApps, passedAttempts, recentAttempts, programCounts] =
+    const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, incompleteAdmissionApps, serviceDeliveryApps, passedAttempts, recentAttempts, programCounts] =
       await Promise.all([
         db.user.count({ where: { role: 'STUDENT', enrollments: { some: {} } } }),
         db.enrollment.count(),
@@ -18,6 +18,16 @@ export async function GET() {
         db.admissionApplication.findMany({
           where: { status: { in: ['PENDING', 'AWAITING_FEE', 'UNDER_REVIEW'] } },
           select: { programRef: { select: { slug: true, category: true } } },
+        }),
+        db.admissionApplication.findMany({
+          where: { status: { notIn: ['REJECTED', 'CERTIFIED'] } },
+          select: {
+            userId: true,
+            acknowledged: true,
+            status: true,
+            programRef: { select: { slug: true, category: true } },
+            _count: { select: { files: true } },
+          },
         }),
         db.admissionApplication.findMany({
           where: { status: { in: ['RESULT_APPROVED', 'CERTIFIED'] } },
