@@ -1534,7 +1534,8 @@ async function rebuildKnowledgeForBookByUnits(
   }
 }
 
-export async function rebuildKnowledgeForBook(bookId: string): Promise<KnowledgeBuildResult> {
+export async function rebuildKnowledgeForBook(bookId: string, options: { strictFullRead?: boolean } = {}): Promise<KnowledgeBuildResult> {
+  const strictFullRead = options.strictFullRead === true
   const book = await db.book.findUnique({
     where: { id: bookId },
     include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
