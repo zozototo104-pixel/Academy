@@ -78,11 +78,24 @@ function daysFromNow(days: number) {
   return d
 }
 
-async function buildProgramReadiness(programId: string) {
+async function buildProgramReadiness(programId: string, aiDiag?: any) {
   const program = await db.program.findUnique({
     where: { id: programId },
     include: {
-      books: { select: { id: true, semester: true } },
+      books: {
+        select: {
+          id: true,
+          title: true,
+          semester: true,
+          textContent: true,
+          linkReadStatus: true,
+          linkReadNote: true,
+          readingDepth: true,
+          levelPolicy: true,
+          assessmentOrientation: true,
+          _count: { select: { knowledgeItems: true } },
+        },
+      },
       units: { select: { id: true, objectives: true, exam: { select: { id: true } } } },
       assignments: { select: { id: true, status: true } },
       programExams: { select: { id: true, status: true, _count: { select: { questions: true } } } },
