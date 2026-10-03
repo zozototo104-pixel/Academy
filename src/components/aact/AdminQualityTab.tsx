@@ -363,6 +363,7 @@ const READINESS_CHECK_LABEL: Record<string, string> = {
   admissionRules: 'قواعد القبول',
   semesters: 'عدد الفصول',
   booksPerSemester: 'كتاب لكل فصل',
+  sourcesReady: 'قراءة وتحليل الكتب',
   units: 'الوحدات المنظمة',
   unitObjectives: 'أهداف كل وحدة',
   knowledge: 'بنك المعرفة',
