@@ -132,6 +132,23 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    const hasUploadedProof = Number(payment._count?.proofs || 0) > 0
+    const hasAdminEvidence = approvalReference.length >= 3 || approvalNote.length >= 6
+    const hasCryptoReference = payment.method === 'USDT' && !!payment.cryptoTxHash
+    if (isManualPaymentMethod(payment.method, payment.provider) && !hasUploadedProof && !hasAdminEvidence && !hasCryptoReference) {
+      return NextResponse.json({ error: 'قبل اعتماد الدفع اليدوي أرفق إثبات دفع داخل المنصة، أو اكتب رقم حوالة/ملاحظة إدارية واضحة.' }, { status: 400 })
+    }
+
+    if (approvalReference || approvalNote || hasCryptoReference) {
+      await db.payment.update({
+        where: { id: payment.id },
+        data: {
+          manualApprovalReference: approvalReference || (hasCryptoReference ? payment.cryptoTxHash : payment.manualApprovalReference || null),
+          manualApprovalNote: approvalNote || payment.manualApprovalNote || null,
+        },
+      })
+    }
+
     const confirmMethod = payment.method === 'DIRECT_PAYMENT' ? 'DIRECT_PAYMENT' : payment.method === 'USDT' ? 'USDT' : 'BANK_TRANSFER'
     const r = await markInvoicePaid(payment.invoiceNo, confirmMethod, {
       actor: { id: admin.id, name: admin.name },
