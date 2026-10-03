@@ -35,15 +35,19 @@ jobs:
     name: Speed, AI, curriculum, thesis, and voice quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: qa-e2e
 
     env:
       CI: true
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.E2E_ADMIN_PASSWORD }}
+      E2E_BASE_URL: ${{ inputs.base_url || vars.QA_ALLOWED_BASE_URLS }}
+      DATABASE_URL: ${{ secrets.QA_DATABASE_URL }}
+      E2E_ADMIN_EMAIL: ${{ secrets.QA_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.QA_ADMIN_PASSWORD }}
       E2E_RUN_VOICE_TOKEN: ${{ inputs.run_voice_token && '1' || '0' }}
       E2E_REQUIRE_VOICE_READY: ${{ inputs.require_voice_ready && '1' || '0' }}
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.QA_VERCEL_BYPASS }}
+      E2E_ALLOWED_BASE_URLS: ${{ vars.QA_ALLOWED_BASE_URLS }}
+      E2E_QA_ONLY: "1"
 
     steps:
       - name: Checkout repository
