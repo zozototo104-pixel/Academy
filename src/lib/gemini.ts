@@ -455,6 +455,7 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
         const text = String((response as any).text || '').trim()
         if (!text) throw new Error('EMPTY_AI_RESPONSE')
         activeTextModel = model
+        lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
         return text
       } catch (e) {
         lastErr = e
