@@ -411,6 +411,7 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
           if (text) yield text
         }
         activeTextModel = model
+        lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
         return
       } catch (e) {
         lastErr = e
