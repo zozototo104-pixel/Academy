@@ -1442,6 +1442,28 @@ export function AdminQualityTab() {
                           <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">معرفة الكتب: {item.sourceReadiness.booksWithKnowledge}/{item.counts.books}</div>
                           <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">نصوص: {Math.round((item.sourceReadiness.extractedTextChars || 0) / 1000)} ألف حرف</div>
                         </div>
+                        {item.sourceReadiness.aiGeneratedAt ? (
+                          <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/80 p-3 text-[11px] font-bold text-slate-700">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+                                {item.sourceReadiness.generationMode === 'append' ? 'آخر عملية: إضافة إلى الموجود' : item.sourceReadiness.generationMode === 'replace' ? 'آخر عملية: استبدال الموجود' : 'آخر عملية: إنشاء جديد'}
+                              </Badge>
+                              <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
+                                مصادر: {item.sourceReadiness.generationSourceBooks?.length || 0} كتاب
+                              </Badge>
+                            </div>
+                            {item.sourceReadiness.aiTrace?.length ? (
+                              <p className="mt-2 leading-5">
+                                مراحل التشغيل: {item.sourceReadiness.aiTrace.filter((t) => t.ok).map((t) => `${t.stage}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
+                              </p>
+                            ) : null}
+                            {item.sourceReadiness.generationSourceBooks?.length ? (
+                              <p className="mt-1 leading-5">
+                                الكتب المستخدمة: {item.sourceReadiness.generationSourceBooks.slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {item.sourceReadiness.books?.length ? (
                           <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-xl bg-white/70 p-2">
                             {item.sourceReadiness.books.slice(0, 8).map((book) => (
