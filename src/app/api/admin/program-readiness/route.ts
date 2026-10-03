@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getServiceFlow } from '@/lib/service-flows'
+import { textAiDiagnostics } from '@/lib/text-ai'
 
 const READINESS_STATUSES = new Set(['NEEDS_PREPARATION', 'IN_PREPARATION', 'READY_FOR_REVIEW', 'APPROVED'])
 const REGISTRATION_STATUSES = new Set(['OPEN', 'CLOSED'])
