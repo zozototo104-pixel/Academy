@@ -218,7 +218,7 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
         bookTitle: cleanText(trace.bookTitle, 180),
         error: cleanText(trace.error, 500),
       })),
-      generationMode: generationAudit?.mode || null,
+      generationMode: cleanText(generationAudit?.mode, 80) || null,
       generationSourceBooks: objectArray(generationAudit?.sourceBooks).map((book) => ({
         bookTitle: cleanText(book.bookTitle, 220),
         semester: book.semester == null ? null : Number(book.semester),
