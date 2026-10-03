@@ -598,6 +598,21 @@ export function AdminThesisTab() {
 
 // ============ المالية: المدفوعات + التقارير ============
 
+interface PaymentProofRow {
+  id: string
+  proofType: string
+  status: string
+  note?: string | null
+  adminNote?: string | null
+  fileName: string
+  mimeType: string
+  fileSize: number
+  createdAt: string
+  reviewedAt?: string | null
+  uploadedBy?: { id: string; name: string; email: string } | null
+  reviewedBy?: { id: string; name: string; email: string } | null
+}
+
 interface PaymentRow {
   id: string
   invoiceNo: string
