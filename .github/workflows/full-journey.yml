@@ -93,6 +93,10 @@ jobs:
       - name: Run full platform journey suite
         run: bun run e2e:journey
 
+      - name: Sanitize full journey artifacts before upload
+        if: always()
+        run: bash scripts/sanitize-e2e-artifacts.sh test-results playwright-report
+
       - name: Upload full journey report
         if: always()
         uses: actions/upload-artifact@v4
