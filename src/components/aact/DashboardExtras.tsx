@@ -57,6 +57,19 @@ interface PaymentConfig {
   }
 }
 
+interface PaymentProofSummary {
+  id: string
+  proofType: string
+  status: string
+  note?: string | null
+  adminNote?: string | null
+  fileName: string
+  mimeType: string
+  fileSize: number
+  createdAt: string
+  reviewedAt?: string | null
+}
+
 interface Payment {
   id: string
   invoiceNo: string
