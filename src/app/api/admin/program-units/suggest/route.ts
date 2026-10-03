@@ -305,6 +305,7 @@ async function generateUnitPlan(programId: string) {
   if (!program) return null
   const semestersCount = Math.max(1, Math.min(8, Number(program.semestersCount || 2)))
 
+  const trace: CurriculumAiTrace[] = []
   const evidenceBooks = program.books.filter((book) => hasReadableBookEvidence(book, program.knowledgeItems))
   if (!evidenceBooks.length) {
     return {
