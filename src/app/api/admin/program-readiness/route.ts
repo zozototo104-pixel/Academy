@@ -83,6 +83,12 @@ function curriculumGenerationAudit(note?: string | null) {
   }
 }
 
+function objectArray<T extends Record<string, any> = Record<string, any>>(value: unknown): T[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is T => !!item && typeof item === 'object' && !Array.isArray(item))
+    : []
+}
+
 function daysFromNow(days: number) {
   const d = new Date()
   d.setDate(d.getDate() + days)
