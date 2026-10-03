@@ -1,5 +1,5 @@
 {
-  "installCommand": "bun pm cache rm || true; bun install",
+  "installCommand": "bun install",
   "buildCommand": "bun run build",
   "framework": "nextjs",
   "crons": [
