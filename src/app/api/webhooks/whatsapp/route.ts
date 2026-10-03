@@ -507,9 +507,9 @@ async function processWhatsAppEvent(eventId: string) {
   }
 
   try {
-    await processWhatsAppMessage(message)
-    await markInboundEventStatus(eventId, 'SENT')
-    await auditWhatsAppWebhook('WHATSAPP_INBOUND_EVENT_SENT', {
+    const outcome = await processWhatsAppMessage(message)
+    await markInboundEventStatus(eventId, outcome)
+    await auditWhatsAppWebhook(outcome === 'SENT' ? 'WHATSAPP_INBOUND_EVENT_SENT' : 'WHATSAPP_INBOUND_EVENT_SKIPPED', {
       eventId,
       messageId: message.id,
       from: maskPhone(message.from),
