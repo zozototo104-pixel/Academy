@@ -103,6 +103,9 @@ export async function GET() {
       const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
       return {
         ...p,
+        features: JSON.parse(p.features || '[]'),
+        sortOrder: p.order,
+        program: programSnapshot(p),
         rules: p.admissionRules
           ? resolveRules(p.category, p.admissionRules, isStudyProgram)
           : (buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(p) : resolveRules(p.category, p.admissionRules, isStudyProgram))),
