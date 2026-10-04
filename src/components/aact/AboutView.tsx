@@ -45,6 +45,50 @@ const STATS = [
 export function AboutView() {
   const { navigate, openPrograms } = useAppStore()
   const featuredServices = SERVICE_OFFERINGS.slice(0, 4)
+  const [homeStats, setHomeStats] = useState({ graduates: 15000, experts: 50, countries: 25 })
+  const [officialContact, setOfficialContact] = useState({
+    legalEntity: ACADEMY_INFO.nameAr,
+    address: ACADEMY_INFO.locationAr,
+  })
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+        try {
+          const parsed = JSON.parse(values.OFFICIAL_CONTACT || '{}')
+          if (parsed && typeof parsed === 'object') {
+            setOfficialContact((prev) => ({
+              legalEntity: String(parsed.legalEntity || prev.legalEntity),
+              address: String(parsed.address || prev.address),
+            }))
+          }
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  const stats = [
+    { value: `+${homeStats.graduates.toLocaleString('en-US')}`, label: 'خريج ومتدرب معتمد' },
+    { value: '+25', label: 'برنامج تدريبي ومهني' },
+    { value: `+${homeStats.experts.toLocaleString('en-US')}`, label: 'خبير ومستشار دولي' },
+    { value: `+${homeStats.countries.toLocaleString('en-US')}`, label: 'دولة وشراكة مهنية' },
+  ]
 
   return (
     <div className="aact-fade-in">
