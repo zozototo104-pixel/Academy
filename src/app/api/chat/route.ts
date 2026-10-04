@@ -74,6 +74,85 @@ export async function POST(req: NextRequest) {
     const userText = message.trim()
     const handoffPromptActive = hadRecentHumanSupportPrompt(orderedMessages)
 
+    if (stream === true && chatMode === 'TEXT') {
+      const encoder = new TextEncoder()
+      const writeEvent = (controller: ReadableStreamDefaultController<Uint8Array>, event: Record<string, any>) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
+      }
+
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let reply = ''
+          let agentResult: { agent: any; engine: any } = { agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+          const emitChunk = async (chunk: string) => {
+            if (!chunk) return
+            writeEvent(controller, { type: 'chunk', text: chunk })
+          }
+
+          try {
+            if (handoffPromptActive && looksLikeHumanHandoffDetails(userText)) {
+              await createHumanHandoffRequest({
+                user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+                message: userText,
+                source: 'CHAT',
+                sourceRef: user.id,
+              })
+              reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
+              await emitChunk(reply)
+            } else if (wantsHumanSupport(userText)) {
+              reply = HUMAN_SUPPORT_REPLY
+              await emitChunk(reply)
+            } else {
+              const result = await platformAgentStream({
+                userId: user.id,
+                messages: [...orderedMessages, { role: 'user', content: userText }],
+                uiContext: context,
+                mode: chatMode,
+              }, emitChunk)
+              const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
+              agentResult = result
+              reply = (handoffPromptActive || hasSubmittedHandoff) ? withHumanHandoffActiveNote(result.reply) : result.reply
+              if (reply !== result.reply) {
+                const suffix = reply.startsWith(result.reply) ? reply.slice(result.reply.length) : `\n\n${reply}`
+                await emitChunk(suffix)
+              }
+            }
+
+            const saved = await db.chatMessage.create({
+              data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
+            })
+
+            await updateStudentAcademicMemory(user.id, {
+              kind: 'CHAT',
+              persona: agentResult.agent === 'EXAMS' ? 'EXAM' : agentResult.agent === 'THESIS_DEFENSE' ? 'DEFENSE' : 'CHAT',
+              mode: chatMode,
+              userMessage: message.trim(),
+              assistantReply: reply,
+            }).catch(() => {})
+
+            writeEvent(controller, { type: 'done', messageId: saved.id, agent: agentResult.agent, engine: agentResult.engine })
+          } catch (e: any) {
+            console.error('Chat stream error:', e)
+            const msg = String(e?.message || '')
+            const error = msg.includes('EMPTY_AI_RESPONSE') || msg.includes('AI_PROVIDER_UNAVAILABLE')
+              ? 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.'
+              : 'خطأ في المحادثة — أعد المحاولة'
+            writeEvent(controller, { type: 'error', error })
+          } finally {
+            controller.close()
+          }
+        },
+      })
+
+      return new Response(body, {
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+        },
+      })
+    }
+
     let reply = ''
     let agentResult: { agent: any; engine: any } = { agent: 'SUPPORT', engine: 'LOCAL_RULE' }
 
