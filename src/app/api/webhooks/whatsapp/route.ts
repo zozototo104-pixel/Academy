@@ -412,14 +412,6 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       38_000,
       'whatsapp_voice_transcription'
     )
-    await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_OK', {
-      from: maskPhone(message.from),
-      messageId: message.id,
-      mediaId: message.mediaId || null,
-      mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
-      fileSize,
-      ms: Date.now() - startedAt,
-    }, message.id)
     const text = String(transcript || '').trim()
     if (!text) {
       await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_EMPTY', {
