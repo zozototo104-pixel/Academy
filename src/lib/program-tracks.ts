@@ -262,6 +262,46 @@ function cleanStudyPlan(list: unknown): AcademicPlanStage[] | undefined {
   return rows.length ? rows.slice(0, 6) : undefined
 }
 
+function cleanEvaluationFormula(list: unknown): AcademicEvaluationItem[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list
+    .map((x) => {
+      const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
+      return {
+        label: cleanAcademicText(String(row.label || '')),
+        weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
+        description: cleanAcademicText(String(row.description || '')),
+      }
+    })
+    .filter((x) => x.label && x.weight > 0)
+  return rows.length ? rows.slice(0, 12) : undefined
+}
+
+function cleanTermPlans(list: unknown): AcademicTermPlan[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list
+    .map((x, index) => {
+      const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
+      return {
+        id: cleanAcademicText(String(row.id || `term-${index + 1}`)),
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index + 1,
+        title: cleanAcademicText(String(row.title || '')),
+        phase: ['TERM', 'THESIS', 'PROJECT', 'ACCREDITATION'].includes(String(row.phase)) ? String(row.phase) as AcademicTermPlan['phase'] : 'TERM',
+        weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
+        description: cleanAcademicText(String(row.description || '')),
+        learningOutcomes: cleanList(row.learningOutcomes, 10) || [],
+        requiredSkills: cleanList(row.requiredSkills, 10) || [],
+        requiredBooks: [],
+        exams: [],
+        assignments: cleanList(row.assignments, 10) || [],
+        finalEvaluation: cleanAcademicText(String(row.finalEvaluation || '')),
+        statusHint: cleanAcademicText(String(row.statusHint || '')),
+      }
+    })
+    .filter((x) => x.title || x.description)
+  return rows.length ? rows.slice(0, 8) : undefined
+}
+
 export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicProgramProfile | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = raw as Record<string, unknown>
