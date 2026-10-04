@@ -382,6 +382,45 @@ export function AdminRulesTab() {
     setDraft(next)
   }
 
+  const defaultAcademicProfileForSelected = (): AcademicProfileDraft | null => {
+    if (!selected) return null
+    const flow = getServiceFlow(selected.slug)
+    if (flow && !flow.isStudyProgram) {
+      return (buildServiceAdmissionDefaults(flow)?.academicProfile || null) as AcademicProfileDraft | null
+    }
+    return (buildOfficialStudyAdmissionDefaults({
+      slug: selected.slug,
+      titleAr: selected.titleAr,
+      titleEn: selected.titleEn,
+      description: selected.description,
+      category: selected.category,
+      hours: selected.hours,
+      _count: selected._count,
+    }).academicProfile || null) as AcademicProfileDraft | null
+  }
+
+  const toggleAcademicSectionHidden = (sectionKey: string, hidden: boolean) => {
+    const current = new Set(draft.academicProfile?.hiddenSections || [])
+    if (hidden) current.add(sectionKey)
+    else current.delete(sectionKey)
+    patchAcademic({ hiddenSections: Array.from(current) })
+  }
+
+  const restoreAcademicSectionDefault = (sectionKey: string) => {
+    const section = ACADEMIC_SECTION_CONFIG.find((item) => item.key === sectionKey)
+    const defaults = defaultAcademicProfileForSelected()
+    if (!section || !defaults) return
+    const next: AcademicProfileDraft = { ...(draft.academicProfile || {}) }
+    for (const field of section.fields) {
+      const value = (defaults as any)[field]
+      if (Array.isArray(value) || (value && typeof value === 'object')) (next as any)[field] = JSON.parse(JSON.stringify(value))
+      else if (value !== undefined && value !== null && String(value).trim()) (next as any)[field] = value
+      else delete (next as any)[field]
+    }
+    next.hiddenSections = (next.hiddenSections || []).filter((key) => key !== sectionKey)
+    setDraft({ ...draft, academicProfile: next })
+  }
+
   const fillAcademicFromDefault = () => {
     if (!selected) return
     const flow = getServiceFlow(selected.slug)
