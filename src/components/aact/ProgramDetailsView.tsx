@@ -28,6 +28,10 @@ interface Program {
   price?: number | null
   icon: string
   features: string[]
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  disclosureConsentText?: string | null
+  updatedAt?: string | null
   unitsCount: number
   units?: { id?: string; order?: number; title?: string }[]
   books?: { id?: string; title?: string; titleEn?: string | null; semester?: number | null; source?: string | null }[]
