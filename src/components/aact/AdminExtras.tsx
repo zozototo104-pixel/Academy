@@ -1435,6 +1435,7 @@ export function AdminSettingsTab() {
               {defs.filter((d) => d.group === g.key).map((d) => {
                 const inputType = d.inputType || 'number'
                 const wide = inputType === 'textarea' || inputType === 'json'
+                const structuredJsonControl = inputType === 'json' ? renderStructuredJsonSetting(d) : null
                 return (
                   <div key={d.key} className={`rounded-xl border border-slate-100 bg-slate-50/60 p-3 ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}>
                     <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
