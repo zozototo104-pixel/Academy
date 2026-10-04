@@ -187,7 +187,6 @@ export async function GET(req: NextRequest) {
           titleEn: row.titleEn,
           description: row.description,
           category: row.category,
-          updatedAt: row.updatedAt,
           credentialType: row.credentialType || null,
           trademarkNotice: row.trademarkNotice || null,
           disclosureConsentText: row.disclosureConsentText || null,
