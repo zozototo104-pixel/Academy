@@ -991,3 +991,482 @@ export function AdminFinanceTab() {
     </div>
   )
 }
+
+// ============ إدارة الشهادات ============
+
+export function AdminCertificatesTab() {
+  const { toast } = useToast()
+  const [certs, setCerts] = useState<CertificateData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<CertificateData | null>(null)
+  const [open, setOpen] = useState(false)
+  const [issueOpen, setIssueOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState({ holderName: '', program: '', grade: '', country: '' })
+  const [certSearch, setCertSearch] = useState('')
+  const [certPage, setCertPage] = useState(1)
+  const [certPageSize, setCertPageSize] = useState(25)
+  const [certTotal, setCertTotal] = useState(0)
+  const [certRefresh, setCertRefresh] = useState(0)
+
+  const load = () => setCertRefresh((v) => v + 1)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(certPage), pageSize: String(certPageSize) })
+      if (certSearch.trim()) params.set('search', certSearch.trim())
+      api<{ certificates: CertificateData[]; total: number }>(`/api/admin/certificates?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setCerts(Array.isArray(d.certificates) ? d.certificates : [])
+          setCertTotal(Number(d.total || 0))
+        })
+        .catch(() => { if (!cancelled) setCerts([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [certSearch, certPage, certPageSize, certRefresh])
+
+  const issue = async () => {
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify(form) })
+      toast({ title: 'تم الإصدار', description: `أُصدرت الشهادة برقم متسلسل وQR — ظاهرة الآن في صفحة التحقق` })
+      setIssueOpen(false)
+      setForm({ holderName: '', program: '', grade: '', country: '' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+
+  const filteredCerts = certs
+  const pagedCerts = certs
+  const currentCertPage = certPage
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-bold text-slate-500">كل الشهادات الصادرة — كل شهادة برقم تسلسلي فريد وQR للتحقق العام</p>
+        <Button onClick={() => setIssueOpen(true)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+          <Plus className="ml-1 h-4 w-4" /> إصدار شهادة يدوياً
+        </Button>
+      </div>
+      <AdminListToolbar
+        search={certSearch}
+        onSearchChange={(v) => { setCertSearch(v); setCertPage(1) }}
+        searchPlaceholder="ابحث بالاسم أو الرقم التسلسلي أو البرنامج..."
+        pageSize={certPageSize}
+        onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
+        total={certTotal}
+        filtered={certTotal}
+        label="شهادة"
+      />
+      {certTotal === 0 && !certSearch ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات بعد — تُصدر تلقائياً عند إكمال برنامج أو اعتماد طلب اعتماد</CardContent></Card>
+      ) : certs.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {pagedCerts.map((c) => (
+            <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <Award className="h-5 w-5 text-[#a8841a]" />
+                  <span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span>
+                </div>
+                <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
+                <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
+                <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]"
+                  onClick={() => { setSelected(c); setOpen(true) }}>
+                  <FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />
+
+      <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
+
+      <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">إصدار شهادة جديدة</DialogTitle>
+            <DialogDescription>يولد النظام الرقم التسلسلي ورمز QR تلقائياً</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3.5">
+            <div className="space-y-1.5"><Label>اسم صاحب الشهادة *</Label>
+              <Input value={form.holderName} onChange={(e) => setForm({ ...form, holderName: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>البرنامج / نوع الاعتماد *</Label>
+              <Input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })}
+                placeholder="مثال: الدبلوم المهني في إدارة الموارد البشرية" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>الدرجة/التقدير</Label>
+                <Input value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} placeholder="مثال: 92% أو امتياز" /></div>
+              <div className="space-y-1.5"><Label>الدولة</Label>
+                <Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
+            </div>
+            <Button onClick={issue} disabled={busy || !form.holderName.trim() || !form.program.trim()}
+              className="w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+              {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ============ إدارة الرسوم ومدراء النظام (بدون كود) ============
+
+interface SystemAdminAccount {
+  id: string
+  name: string
+  email: string
+  role: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function AdminSettingsTab() {
+  const { toast } = useToast()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json'; help?: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(true)
+  const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [adminForm, setAdminForm] = useState({
+    name: 'QA Admin',
+    email: 'qa-admin@aactacademy.com',
+    password: '',
+  })
+
+  const loadSystemAdmins = () => {
+    setAdminsLoading(true)
+    api<{ admins: SystemAdminAccount[] }>('/api/admin/system-admins')
+      .then((d) => setAdmins(Array.isArray(d.admins) ? d.admins : []))
+      .catch((e: any) => toast({ title: 'تعذر تحميل مدراء النظام', description: e.message, variant: 'destructive' }))
+      .finally(() => setAdminsLoading(false))
+  }
+
+  useEffect(() => {
+    loadSystemAdmins()
+    api<{ values: any; defs?: any[] }>('/api/settings')
+      .then((d) => {
+        setValues(d.values)
+        setDefs(d.defs || [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
+      toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const createSystemAdmin = async () => {
+    const email = adminForm.email.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      toast({ title: 'البريد مطلوب', description: 'أدخل بريد حساب الإدارة الاختباري بشكل صحيح.', variant: 'destructive' })
+      return
+    }
+    if (adminForm.password.length < 12) {
+      toast({ title: 'كلمة المرور قصيرة', description: 'استخدم كلمة مرور من 12 حرفاً على الأقل.', variant: 'destructive' })
+      return
+    }
+    setAdminBusy('create')
+    try {
+      await api('/api/admin/system-admins', {
+        method: 'POST',
+        body: JSON.stringify({ ...adminForm, email }),
+      })
+      setAdminForm((prev) => ({ ...prev, password: '' }))
+      loadSystemAdmins()
+      toast({ title: 'تم تجهيز حساب الإدارة', description: 'يمكن استخدام الحساب الآن لاختبارات لوحة الإدارة ثم تعطيله من نفس القسم.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء حساب الإدارة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  const disableSystemAdmin = async (admin: SystemAdminAccount) => {
+    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    setAdminBusy(admin.id)
+    try {
+      await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
+      loadSystemAdmins()
+      toast({ title: 'تم تعطيل حساب الإدارة', description: 'لم يتم حذف السجل التاريخي، وتم إبطال جلسات الحساب.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعطيل الحساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+
+  const groups: { key: string; label: string; note?: string }[] = [
+    { key: 'FEES', label: 'الإعدادات المالية الافتراضية', note: 'سعر كل برنامج يُعدّل من قواعد القبول. هذه القيم تُستخدم فقط عند عدم وجود سعر محدد للبرنامج.' },
+    { key: 'AI', label: 'باقات المحادثة الصوتية للمشرف الذكي' },
+    { key: 'RULES', label: 'المهل الزمنية والنسب وفق دليل الإجراءات وعقد التمثيل' },
+    { key: 'CONTENT', label: 'نصوص عامة تظهر للطلاب والزوار' },
+    { key: 'CONTACT', label: 'بيانات التواصل الرسمية' },
+  ]
+
+  const readJsonSetting = <T extends Record<string, any>>(key: string, fallback: T): T => {
+    try {
+      const parsed = JSON.parse(values[key] || '{}')
+      return { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+    } catch {
+      return fallback
+    }
+  }
+
+  const patchJsonSetting = (key: string, patch: Record<string, any>, fallback: Record<string, any>) => {
+    setValues((prev) => {
+      let current = fallback
+      try {
+        const parsed = JSON.parse(prev[key] || '{}')
+        current = { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+      } catch {}
+      return { ...prev, [key]: JSON.stringify({ ...current, ...patch }) }
+    })
+  }
+
+  const renderStructuredJsonSetting = (d: { key: string }) => {
+    if (d.key === 'HOME_STATS') {
+      const stats = readJsonSetting('HOME_STATS', { graduates: 2000, experts: 120, countries: 18 })
+      return (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخريجين والمتدربين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.graduates || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { graduates: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخبراء والمستشارين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.experts || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { experts: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الدول / الشراكات</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.countries || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { countries: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+        </div>
+      )
+    }
+    if (d.key === 'OFFICIAL_CONTACT') {
+      const contact = readJsonSetting('OFFICIAL_CONTACT', { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })
+      const fields: Array<[string, string, string]> = [
+        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب'],
+        ['registrationNumber', 'رقم التسجيل', ''],
+        ['address', 'العنوان الرسمي', ''],
+        ['email', 'الإيميل الرسمي', 'info@example.com'],
+        ['phone', 'الهاتف الرسمي', '+1 ...'],
+        ['whatsapp', 'رقم الواتساب', '+1 ...'],
+        ['responsiblePerson', 'الشخص المسؤول', ''],
+      ]
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {fields.map(([key, label, placeholder]) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">{label}</Label>
+              <Input
+                dir={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'ltr' : 'rtl'}
+                className={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'text-left font-bold' : 'font-bold'}
+                value={contact[key] || ''}
+                placeholder={placeholder}
+                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })}
+              />
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="mt-4 space-y-5">
+      <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <ShieldCheck className="h-4.5 w-4.5 text-[#a8841a]" /> مدراء النظام وحساب الاختبار
+              </h3>
+              <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-600">
+                أنشئ حساب إدارة مؤقت لاختبارات الإطلاق من داخل المنصة. التعطيل هنا يحذف جلسات الحساب ويمنع دخوله مع الحفاظ على سجل التدقيق.
+              </p>
+            </div>
+            <Badge className="w-fit bg-[#0f2b46] text-[#f5f0e1]">محمي بصلاحية ADMIN</Badge>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-name" className="text-[11px] font-bold text-slate-600">الاسم</Label>
+              <Input
+                id="admin-name"
+                value={adminForm.name}
+                onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                placeholder="QA Admin"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-email" className="text-[11px] font-bold text-slate-600">البريد الإلكتروني</Label>
+              <Input
+                id="admin-email"
+                dir="ltr"
+                type="email"
+                className="text-left"
+                value={adminForm.email}
+                onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                placeholder="qa-admin@aactacademy.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-password" className="text-[11px] font-bold text-slate-600">كلمة المرور المؤقتة</Label>
+              <Input
+                id="admin-password"
+                dir="ltr"
+                type="password"
+                className="text-left"
+                value={adminForm.password}
+                onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                placeholder="12+ characters"
+              />
+            </div>
+            <Button
+              onClick={createSystemAdmin}
+              disabled={adminBusy === 'create'}
+              className="self-end bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              {adminBusy === 'create' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <KeyRound className="ml-2 h-4 w-4" />}
+              إنشاء / تحديث
+            </Button>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs font-black text-[#0f2b46]">الحسابات الإدارية الحالية</p>
+              <Button type="button" variant="ghost" size="sm" onClick={loadSystemAdmins} disabled={adminsLoading} className="h-8 text-xs font-bold">
+                {adminsLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                تحديث
+              </Button>
+            </div>
+            {adminsLoading ? (
+              <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
+            ) : admins.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد حسابات إدارة ظاهرة.</div>
+            ) : (
+              <div className="space-y-2">
+                {admins.map((admin) => {
+                  const disabled = admin.status === 'DISABLED' || admin.status === 'ARCHIVED'
+                  return (
+                    <div key={admin.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-black text-[#0f2b46]">{admin.name}</p>
+                          <Badge variant={disabled ? 'outline' : 'default'} className={disabled ? 'border-slate-300 text-slate-500' : 'bg-emerald-600 text-white'}>
+                            {disabled ? 'معطّل' : 'نشط'}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500" dir="ltr">{admin.email}</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-400">أُنشئ: {new Date(admin.createdAt).toLocaleDateString('ar-EG')}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled || adminBusy === admin.id}
+                        onClick={() => disableSystemAdmin(admin)}
+                        className="border-red-200 font-extrabold text-red-600 hover:bg-red-50"
+                      >
+                        {adminBusy === admin.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="ml-1 h-3.5 w-3.5" />}
+                        تعطيل / حذف آمن
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {groups.map((g) => (
+        <Card key={g.key} className="border-[#0f2b46]/10">
+          <CardContent className="p-5">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+              <Settings2 className="h-4.5 w-4.5 text-[#c9a227]" /> {g.label}
+            </h3>
+            {g.note && <p className="mb-4 text-xs font-bold leading-6 text-slate-500">{g.note}</p>}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {defs.filter((d) => d.group === g.key).map((d) => {
+                const inputType = d.inputType || 'number'
+                const wide = inputType === 'textarea' || inputType === 'json'
+                const structuredJsonControl = inputType === 'json' ? renderStructuredJsonSetting(d) : null
+                return (
+                  <div key={d.key} className={`rounded-xl border border-slate-100 bg-slate-50/60 p-3 ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}>
+                    <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
+                    {d.help && <p className="mt-1 text-[10px] font-bold leading-5 text-slate-400">{d.help}</p>}
+                    <div className="relative mt-2">
+                      {structuredJsonControl ? (
+                        structuredJsonControl
+                      ) : inputType === 'textarea' || inputType === 'json' ? (
+                        <Textarea
+                          id={d.key}
+                          dir={inputType === 'json' ? 'ltr' : 'rtl'}
+                          rows={inputType === 'json' ? 7 : 4}
+                          className={inputType === 'json' ? 'font-mono text-xs text-left' : 'text-xs font-bold leading-6'}
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      ) : (
+                        <Input
+                          id={d.key}
+                          dir="ltr"
+                          type={inputType === 'number' ? 'number' : 'text'}
+                          className="pl-9 text-left font-black"
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      )}
+                      {d.suffix && inputType !== 'textarea' && inputType !== 'json' && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+      <Button onClick={save} disabled={saving} className="w-full max-w-md bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+        {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />}
+        حفظ التعديلات (بدون كود — فوري)
+      </Button>
+    </div>
+  )
+}
+
+// __RESTORE_APPEND__
