@@ -302,6 +302,44 @@ export function AdminRulesTab() {
     patchAcademic({ studyPlan: rows })
   }
 
+  const updateEvaluationItem = (index: number, patch: Partial<AcademicEvaluationItemDraft>) => {
+    const rows = [...(draft.academicProfile?.finalEvaluationFormula || [])]
+    while (rows.length <= index) rows.push({ label: '', weight: 0, description: '' })
+    rows[index] = { ...rows[index], ...patch }
+    patchAcademic({ finalEvaluationFormula: rows })
+  }
+
+  const appendEvaluationItem = () => {
+    const rows = [...(draft.academicProfile?.finalEvaluationFormula || [])]
+    rows.push({ label: '', weight: 0, description: '' })
+    patchAcademic({ finalEvaluationFormula: rows })
+  }
+
+  const removeEvaluationItem = (index: number) => {
+    const rows = [...(draft.academicProfile?.finalEvaluationFormula || [])]
+    rows.splice(index, 1)
+    patchAcademic({ finalEvaluationFormula: rows })
+  }
+
+  const updateTermPlan = (index: number, patch: Partial<AcademicTermPlanDraft>) => {
+    const rows = [...(draft.academicProfile?.termPlans || [])]
+    while (rows.length <= index) rows.push({ title: '', description: '', phase: 'TERM', weight: 0 })
+    rows[index] = { ...rows[index], ...patch }
+    patchAcademic({ termPlans: rows })
+  }
+
+  const appendTermPlan = () => {
+    const rows = [...(draft.academicProfile?.termPlans || [])]
+    rows.push({ title: '', description: '', phase: 'TERM', weight: 0 })
+    patchAcademic({ termPlans: rows })
+  }
+
+  const removeTermPlan = (index: number) => {
+    const rows = [...(draft.academicProfile?.termPlans || [])]
+    rows.splice(index, 1)
+    patchAcademic({ termPlans: rows })
+  }
+
   const patchProgramDraft = (patch: Partial<ProgramDraft>) => {
     setProgramDraft((prev) => prev ? { ...prev, ...patch } : prev)
   }
