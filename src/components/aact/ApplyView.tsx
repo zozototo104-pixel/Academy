@@ -54,6 +54,7 @@ interface ProgramLite {
     customRules?: string
     displayNote?: string
   } | null
+  disclosureConsentText?: string | null
 }
 
 interface TrackedInvoice {
