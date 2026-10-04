@@ -161,24 +161,63 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false })
     }
 
-    // تنقية القواعد الواردة
-    const EDU = ['HIGH_SCHOOL', 'BACHELOR', 'MASTER', 'NONE']
-    const r: AdmissionRules = rules || {}
-    const clean: AdmissionRules = {}
-    if (r.minEducation && EDU.includes(r.minEducation)) clean.minEducation = r.minEducation
-    if (typeof r.requireMasterForDoctorate === 'boolean') clean.requireMasterForDoctorate = r.requireMasterForDoctorate
-    if (typeof r.allowExperienceEquivalency === 'boolean') clean.allowExperienceEquivalency = r.allowExperienceEquivalency
-    if (Number.isFinite(Number(r.minYearsExperience))) clean.minYearsExperience = Math.max(0, Math.min(40, Math.round(Number(r.minYearsExperience))))
-    if (Array.isArray(r.requiredDocuments)) clean.requiredDocuments = r.requiredDocuments.filter((d) => typeof d === 'string' && d.length <= 40).slice(0, 10)
-    if (Number.isFinite(Number(r.minAge))) clean.minAge = Math.max(12, Math.min(80, Math.round(Number(r.minAge))))
-    if (typeof r.customRules === 'string') clean.customRules = r.customRules.slice(0, 3000)
-    if (typeof r.displayNote === 'string') clean.displayNote = r.displayNote.slice(0, 600)
-    const academicProfile = normalizeAcademicProfileOverride(r.academicProfile)
-    if (academicProfile) clean.academicProfile = academicProfile
+    const before = programSnapshot(program)
+    const data: Prisma.ProgramUpdateInput = {}
+    let clean: AdmissionRules | null = null
 
-    const saved = await db.program.update({ where: { id: programId }, data: { admissionRules: JSON.parse(JSON.stringify(clean)) } })
-    await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ قواعد قبول مخصصة لبرنامج «${program.titleAr}»`)
-    return NextResponse.json({ ok: true, rules: resolveRules(program.category, saved.admissionRules, isStudyProgram), custom: true })
+    // تنقية القواعد الواردة، مع الحفاظ على القواعد القديمة إذا لم تُرسل rules في الطلب.
+    if (rules) {
+      const EDU = ['HIGH_SCHOOL', 'BACHELOR', 'MASTER', 'NONE']
+      const r: AdmissionRules = rules || {}
+      clean = {}
+      if (r.minEducation && EDU.includes(r.minEducation)) clean.minEducation = r.minEducation
+      if (typeof r.requireMasterForDoctorate === 'boolean') clean.requireMasterForDoctorate = r.requireMasterForDoctorate
+      if (typeof r.allowExperienceEquivalency === 'boolean') clean.allowExperienceEquivalency = r.allowExperienceEquivalency
+      if (Number.isFinite(Number(r.minYearsExperience))) clean.minYearsExperience = Math.max(0, Math.min(40, Math.round(Number(r.minYearsExperience))))
+      if (Array.isArray(r.requiredDocuments)) clean.requiredDocuments = r.requiredDocuments.filter((d) => typeof d === 'string' && d.length <= 40).slice(0, 10)
+      if (Number.isFinite(Number(r.minAge))) clean.minAge = Math.max(12, Math.min(80, Math.round(Number(r.minAge))))
+      if (typeof r.customRules === 'string') clean.customRules = r.customRules.slice(0, 3000)
+      if (typeof r.displayNote === 'string') clean.displayNote = r.displayNote.slice(0, 600)
+      const academicProfile = normalizeAcademicProfileOverride(r.academicProfile)
+      if (academicProfile) clean.academicProfile = academicProfile
+      data.admissionRules = JSON.parse(JSON.stringify(clean))
+    }
+
+    if (programPatch) {
+      if (programPatch.titleAr !== undefined) data.titleAr = programPatch.titleAr
+      if (programPatch.titleEn !== undefined) data.titleEn = programPatch.titleEn || null
+      if (programPatch.description !== undefined) data.description = programPatch.description || null
+      if (programPatch.category !== undefined) data.category = programPatch.category as any
+      if (programPatch.icon !== undefined) data.icon = programPatch.icon || 'graduation-cap'
+      if (programPatch.features !== undefined) data.features = normalizeFeaturesForDb(programPatch.features)
+      if (programPatch.active !== undefined) data.active = programPatch.active
+      if (programPatch.sortOrder !== undefined) data.order = programPatch.sortOrder
+      if (programPatch.price !== undefined) data.price = programPatch.price === null ? null : Number(programPatch.price)
+      if (programPatch.hours !== undefined) data.hours = Number(programPatch.hours)
+      if (programPatch.credentialType !== undefined) data.credentialType = programPatch.credentialType || null
+      if (programPatch.trademarkNotice !== undefined) data.trademarkNotice = programPatch.trademarkNotice || null
+      if (programPatch.disclosureConsentText !== undefined) data.disclosureConsentText = programPatch.disclosureConsentText || null
+    }
+
+    if (!Object.keys(data).length) {
+      return NextResponse.json({ error: 'لا توجد بيانات للحفظ' }, { status: 400 })
+    }
+
+    const saved = await db.program.update({ where: { id: programId }, data })
+    clearPublicProgramsCache()
+    const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
+    const after = programSnapshot(saved)
+    const changes = pickChangedFields(before, after)
+    await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+    const savedFlow = getServiceFlow(saved.slug)
+    const savedIsStudyProgram = savedFlow ? savedFlow.isStudyProgram : saved.category !== 'SERVICE'
+    return NextResponse.json({
+      ok: true,
+      program: programSnapshot(saved),
+      rules: resolveRules(saved.category, saved.admissionRules, savedIsStudyProgram),
+      custom: !!saved.admissionRules,
+      invalidatedAdmissionAiReviews: invalidated.count,
+    })
   } catch (e: any) {
     console.error('program-rules error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر حفظ القواعد' }, { status: 500 })
