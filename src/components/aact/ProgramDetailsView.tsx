@@ -637,7 +637,7 @@ export function ProgramDetailsView() {
                   </div>
                 )}
 
-                {(academicProfile.qualityControls?.length || 0) > 0 && (
+                {showAcademicSection('qualityControls') && (academicProfile.qualityControls?.length || 0) > 0 && (
                   <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ShieldCheck className="h-5 w-5 text-[#d2ad5a]" /> ضوابط الجودة والاعتماد</h3>
                     <ul className="grid gap-2 text-xs font-bold leading-7 text-white/62 md:grid-cols-2">
