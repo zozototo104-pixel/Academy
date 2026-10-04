@@ -132,6 +132,55 @@ export async function GET() {
   })
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const action = String(body.action || '')
+    if (action !== 'APPLY_CATEGORY_PRICE_HOURS') {
+      return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
+    }
+
+    const payload = bulkApplyPriceHoursSchema.parse(body)
+    const programs = await db.program.findMany({
+      where: { category: payload.category, active: true },
+      orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+      select: { id: true, slug: true, titleAr: true, titleEn: true, category: true, price: true, hours: true },
+    })
+    const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
+    if (!visiblePrograms.length) {
+      return NextResponse.json({ error: 'لا توجد برامج منشورة ضمن هذا التصنيف' }, { status: 404 })
+    }
+
+    const ids = visiblePrograms.map((p) => p.id)
+    await db.program.updateMany({
+      where: { id: { in: ids } },
+      data: { price: payload.price, hours: payload.hours },
+    })
+    clearPublicProgramsCache()
+
+    const changedSummary = visiblePrograms
+      .map((p) => `${p.titleAr}: السعر ${p.price ?? 'فارغ'} ← ${payload.price}، الساعات ${p.hours ?? 'فارغ'} ← ${payload.hours}`)
+      .join('؛ ')
+    await audit(user, 'PROGRAM_CATEGORY_PRICE_HOURS_APPLIED', 'Program', payload.category, `تطبيق السعر/الساعات على تصنيف ${payload.category}: ${changedSummary}`)
+
+    return NextResponse.json({
+      ok: true,
+      count: visiblePrograms.length,
+      programs: visiblePrograms.map((p) => ({ id: p.id, titleAr: p.titleAr, titleEn: p.titleEn, oldPrice: p.price, oldHours: p.hours })),
+      price: payload.price,
+      hours: payload.hours,
+    })
+  } catch (e: any) {
+    console.error('program-rules bulk apply error:', e)
+    return NextResponse.json({ error: e?.message || 'تعذر تطبيق السعر والساعات على التصنيف' }, { status: 500 })
+  }
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const user = await getCurrentUser()
