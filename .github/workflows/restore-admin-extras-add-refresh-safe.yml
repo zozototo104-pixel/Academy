@@ -1,6 +1,7 @@
 name: Safely restore AdminExtras and add invoice refresh UI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - program-rules-canonical-editor
@@ -30,16 +31,13 @@ jobs:
           from pathlib import Path
           path = Path('src/components/aact/AdminExtras.tsx')
           text = path.read_text()
-
           state_old = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
           state_new = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n  const [amountBusy, setAmountBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
           if state_old in text:
               text = text.replace(state_old, state_new, 1)
           elif state_new not in text:
               raise SystemExit('state marker not found')
-
-          needle = "  const openInvoicePdf = async (id: string) => {"
-          start = text.index(needle)
+          start = text.index("  const openInvoicePdf = async (id: string) => {")
           marker = "\n  if (loading) return <div className=\"flex h-40 items-center justify-center\"><Loader2 className=\"h-8 w-8 animate-spin text-[#c9a227]\" /></div>\n"
           insert_at = text.index(marker, start)
           handler = """
@@ -78,13 +76,9 @@ jobs:
   }
 """
           text = text[:insert_at] + handler + text[insert_at:]
-
           header_old = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
           header_new = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تحديث المبلغ</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
-          if header_old not in text:
-              raise SystemExit('header marker not found')
           text = text.replace(header_old, header_new, 1)
-
           confirm_old = """                      <td className=\"p-3\">
                         {p.status === 'UNPAID' ? (
                           <Button size=\"sm\" variant=\"outline\" onClick={() => confirm(p)}
@@ -103,10 +97,7 @@ jobs:
                         ) : '—'}
                       </td>
 """
-          if confirm_old not in text:
-              raise SystemExit('confirm cell marker not found')
           text = text.replace(confirm_old, refresh_cell + confirm_old, 1)
-
           checks = {
               "use client": text.count("'use client'"),
               "refresh handler": text.count('const refreshPaymentAmount = async'),
