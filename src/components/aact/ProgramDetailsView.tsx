@@ -303,9 +303,9 @@ export function ProgramDetailsView() {
   const serviceStepItems = serviceStepsFromProfile(serviceProfile)
   const serviceOutputItems = serviceVisibleOutputs(flow, serviceProfile)
   const serviceOptionItems = serviceVisibleOptions(flow, serviceProfile)
-  const displayTitle = flow?.title || program?.titleAr || ''
-  const displayDescription = flow?.summary || program?.description || ''
-  const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
+  const displayTitle = program?.titleAr || flow?.title || ''
+  const displayDescription = program?.description || flow?.summary || ''
+  const displayFeatures = program?.features?.length ? program.features : (flow?.highlights || [])
   const displayPrimaryAction = flow?.primaryAction || (isService ? 'طلب هذه الخدمة' : 'قدّم طلب الالتحاق بهذا البرنامج')
 
   const startAdmission = () => {
