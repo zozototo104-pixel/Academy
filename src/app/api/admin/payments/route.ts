@@ -137,11 +137,25 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const hasUploadedProof = Number(payment._count?.proofs || 0) > 0
-    const hasAdminEvidence = approvalReference.length >= 3 || approvalNote.length >= 6
+    const proofCount = payment.proofs.length
+    const reviewableProofs = payment.proofs.filter((proof) => ['PENDING', 'ACCEPTED'].includes(proof.status))
+    const hasReviewableProof = reviewableProofs.length > 0
+    const effectiveApprovalReference = approvalReference || payment.manualApprovalReference || ''
+    const effectiveApprovalNote = approvalNote || payment.manualApprovalNote || ''
+    const hasAdminEvidence = effectiveApprovalReference.length >= 3 || effectiveApprovalNote.length >= 6
     const hasCryptoReference = payment.method === 'USDT' && !!payment.cryptoTxHash
-    if (isManualPaymentMethod(payment.method, payment.provider) && !hasUploadedProof && !hasAdminEvidence && !hasCryptoReference) {
-      return NextResponse.json({ error: 'قبل اعتماد الدفع اليدوي أرفق إثبات دفع داخل المنصة، أو اكتب رقم حوالة/ملاحظة إدارية واضحة.' }, { status: 400 })
+
+    if (payment.method === 'DIRECT_PAYMENT' && effectiveApprovalNote.length < 6) {
+      return NextResponse.json({ error: 'اعتماد الدفع المباشر يحتاج ملاحظة إدارية واضحة توضّح أساس الاعتماد.' }, { status: 400 })
+    }
+
+    if (isManualPaymentMethod(payment.method, payment.provider) && !hasReviewableProof && !hasAdminEvidence && !hasCryptoReference) {
+      const rejectedOnly = proofCount > 0
+      return NextResponse.json({
+        error: rejectedOnly
+          ? 'لا يمكن اعتماد الدفع اليدوي لأن كل إثباتات الدفع المرفوعة مرفوضة. أرفق إثباتاً جديداً أو اكتب مرجعاً/ملاحظة إدارية واضحة.'
+          : 'قبل اعتماد الدفع اليدوي أرفق إثبات دفع داخل المنصة، أو اكتب رقم حوالة/ملاحظة إدارية واضحة.',
+      }, { status: 400 })
     }
 
     if (approvalReference || approvalNote || hasCryptoReference) {
