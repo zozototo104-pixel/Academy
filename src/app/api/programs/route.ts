@@ -42,10 +42,15 @@ export async function GET(req: NextRequest) {
         setPublicProgramsCountCache(count, summaryCache.payload.catalogVersion || null)
         return NextResponse.json({ count, catalogVersion: summaryCache.payload.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
-      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true } })
-      const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p)).length
-      publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-      return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true, updatedAt: true } })
+      const visibleCountRows = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p))
+      const count = visibleCountRows.length
+      const catalogVersion = visibleCountRows.reduce<string | null>((latest, p) => {
+        const value = p.updatedAt?.toISOString?.() || null
+        return value && (!latest || value > latest) ? value : latest
+      }, null)
+      setPublicProgramsCountCache(count, catalogVersion)
+      return NextResponse.json({ count, catalogVersion }, { headers: publicCacheHeaders() })
     }
 
     if (publicOnly && summaryOnly && publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > Date.now()) {
