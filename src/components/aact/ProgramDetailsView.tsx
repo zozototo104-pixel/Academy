@@ -397,6 +397,11 @@ export function ProgramDetailsView() {
               <p className="mx-auto mt-5 max-w-3xl text-base font-bold leading-9 text-white/64 lg:mx-0">
                 {displayDescription}
               </p>
+              {program.trademarkNotice && (
+                <p className="mx-auto mt-3 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-xs font-bold leading-7 text-white/62 lg:mx-0">
+                  {program.trademarkNotice}
+                </p>
+              )}
               <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                 <Button onClick={startAdmission} className="rounded-[1.35rem] bg-[#a98a52] px-8 py-6 text-base font-black text-white shadow-xl shadow-black/20 hover:bg-[#b7975d]">
                   {program.enrolled && !isService ? 'الدخول إلى البرنامج' : displayPrimaryAction}
