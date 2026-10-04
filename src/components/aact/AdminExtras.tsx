@@ -1237,10 +1237,12 @@ export function AdminSettingsTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
-  const groups: { key: string; label: string }[] = [
-    { key: 'FEES', label: 'جدول الرسوم (دولار أمريكي)' },
+  const groups: { key: string; label: string; note?: string }[] = [
+    { key: 'FEES', label: 'الإعدادات المالية الافتراضية', note: 'سعر كل برنامج يُعدّل من قواعد القبول. هذه القيم تُستخدم فقط عند عدم وجود سعر محدد للبرنامج.' },
     { key: 'AI', label: 'باقات المحادثة الصوتية للمشرف الذكي' },
     { key: 'RULES', label: 'المهل الزمنية والنسب وفق دليل الإجراءات وعقد التمثيل' },
+    { key: 'CONTENT', label: 'نصوص عامة تظهر للطلاب والزوار' },
+    { key: 'CONTACT', label: 'بيانات التواصل الرسمية' },
   ]
 
   return (
