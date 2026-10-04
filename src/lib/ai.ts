@@ -18,6 +18,7 @@ interface ChatCompleteOptions {
    * الرد المحلي العام يبقى مسموحاً للزائر، لكنه لا يصلح كبديل عن المشرف/المناقش.
    */
   requireModelResponse?: boolean
+  routerPolicy?: TextAiRouterPolicy
 }
 
 function aiTimeoutMs(configured: number | undefined, fallback: number) {
