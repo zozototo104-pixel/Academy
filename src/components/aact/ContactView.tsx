@@ -171,7 +171,7 @@ export function ContactView() {
                   <p className="text-xs font-black text-[#0f2b46]" dir="ltr">aactacademy.com/ar</p>
                 </div>
               </a>
-              <a href={`tel:${ACADEMY_INFO.officialPhone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              <a href={`tel:${officialContact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                 <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400">الهاتف والواتساب الرسمي</p>
