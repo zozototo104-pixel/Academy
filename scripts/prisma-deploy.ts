@@ -89,15 +89,11 @@ function shouldRunMigrateDeploy(args: Set<string>) {
 
 const args = new Set(process.argv.slice(2))
 
-assertProductionMigrationsAvailable()
 run('npx', ['prisma', 'generate'])
 
-const shouldRunMigrateDeploy = args.has('--migrate') || isProductionDeployment()
-if (shouldRunMigrateDeploy) {
-  if (!existsSync('prisma/migrations')) {
-    console.log('No prisma/migrations directory found. Skipping prisma migrate deploy.')
-    process.exit(0)
-  }
+const runMigrateDeploy = shouldRunMigrateDeploy(args)
+if (runMigrateDeploy) {
+  assertMigrationsAvailableForDeploy()
   run('npx', ['prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma'])
   process.exit(0)
 }
