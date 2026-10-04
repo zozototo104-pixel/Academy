@@ -302,14 +302,37 @@ export function AdminRulesTab() {
     if (!selectedId) return
     setSaving(true)
     try {
-      const d = await api<{ rules: Rules; custom: boolean }>('/api/admin/program-rules', {
+      const d = await api<{ rules: Rules; custom: boolean; program?: ProgramDraft }>('/api/admin/program-rules', {
         method: 'PUT',
-        body: JSON.stringify({ programId: selectedId, rules: reset ? { reset: true } : normalizeRulesForSave(draft) }),
+        body: JSON.stringify({
+          programId: selectedId,
+          rules: reset ? { reset: true } : normalizeRulesForSave(draft),
+          ...(reset ? {} : { programPatch: programDraft }),
+        }),
       })
       setDraft({ ...d.rules })
+      if (d.program) setProgramDraft(d.program)
       setCustom(d.custom)
-      setPrograms((ps) => ps.map((p) => (p.id === selectedId ? { ...p, rules: d.rules, custom: d.custom } : p)))
-      toast({ title: reset ? 'أُعيدت القواعد والملف الأكاديمي للافتراضي' : 'حُفظت قواعد القبول والملف الأكاديمي — سيظهر التحديث في تفاصيل البرنامج والسجل والشهادة' })
+      setPrograms((ps) => ps.map((p) => (p.id === selectedId ? {
+        ...p,
+        ...(d.program || {}),
+        program: d.program || p.program,
+        titleAr: d.program?.titleAr || p.titleAr,
+        titleEn: d.program?.titleEn ?? p.titleEn,
+        description: d.program?.description ?? p.description,
+        category: d.program?.category || p.category,
+        hours: d.program?.hours ?? p.hours,
+        price: d.program?.price ?? p.price,
+        features: d.program?.features || p.features,
+        active: d.program?.active ?? p.active,
+        sortOrder: d.program?.sortOrder ?? p.sortOrder,
+        credentialType: d.program?.credentialType ?? p.credentialType,
+        trademarkNotice: d.program?.trademarkNotice ?? p.trademarkNotice,
+        disclosureConsentText: d.program?.disclosureConsentText ?? p.disclosureConsentText,
+        rules: d.rules,
+        custom: d.custom,
+      } : p)))
+      toast({ title: reset ? 'أُعيدت القواعد والملف الأكاديمي للافتراضي' : 'حُفظت بيانات البرنامج وقواعد القبول والملف الأكاديمي' })
     } catch {
       toast({ title: 'تعذر الحفظ', variant: 'destructive' })
     } finally {
