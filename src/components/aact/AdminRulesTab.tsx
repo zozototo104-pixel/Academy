@@ -900,6 +900,30 @@ export function AdminRulesTab() {
                     </div>
                   </div>
 
+                  <div className="mb-4 rounded-2xl border border-[#c9a227]/25 bg-white p-3">
+                    <p className="text-xs font-black text-[#0f2b46]">إظهار الأقسام واستعادة النص التلقائي</p>
+                    <p className="mt-1 text-[10px] leading-5 text-slate-500">الحقل الفارغ بدون إخفاء يرجع للنص التلقائي من الدليل. أما القسم المخفي فلا يظهر أبداً في صفحة البرنامج حتى لو له نص تلقائي.</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {ACADEMIC_SECTION_CONFIG.map((section) => {
+                        const hidden = (draft.academicProfile?.hiddenSections || []).includes(section.key)
+                        return (
+                          <div key={section.key} className="rounded-xl border border-slate-100 bg-slate-50 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-black text-[#0f2b46]">{section.label}</span>
+                              <Switch checked={!hidden} onCheckedChange={(checked) => toggleAcademicSectionHidden(section.key, !checked)} />
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <span className={`text-[10px] font-bold ${hidden ? 'text-red-500' : 'text-emerald-600'}`}>{hidden ? 'مخفي من صفحة البرنامج' : 'ظاهر في صفحة البرنامج'}</span>
+                              <Button type="button" size="sm" variant="outline" onClick={() => restoreAcademicSectionDefault(section.key)} className="h-7 border-[#c9a227]/35 px-2 text-[10px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                                استعادة الافتراضي
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">{isStudyProgram ? 'المسمى الأكاديمي الظاهر' : 'اسم الخدمة الظاهر'}</label>
