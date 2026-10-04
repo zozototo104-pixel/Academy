@@ -1032,3 +1032,109 @@ export async function platformAgentComplete(opts: {
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
+
+export async function platformAgentStream(opts: {
+  userId: string
+  messages: { role: string; content: string }[]
+  uiContext?: string
+  mode?: 'TEXT' | 'VOICE' | string
+}, onChunk: (chunk: string) => void | Promise<void>): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  const emit = async (chunk: string) => {
+    if (chunk) await onChunk(chunk)
+  }
+
+  const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
+
+  if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
+    const scope = resolveAiKnowledgeScope({ role: user.role, mode: opts.mode })
+    const directBooksResult = await buildScopedDirectProgramBooksResult(last, scope).catch(() => null)
+    if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
+      await auditAiKnowledgeDiagnostics({
+        actorId: opts.userId,
+        actorName: user.role === 'ADMIN' ? 'إدارة النظام' : 'مشرف بشري',
+        entityId: opts.userId,
+        diagnostics: { ...directBooksResult.diagnostics, role: user.role, mode: opts.mode || 'TEXT' },
+      })
+    }
+    const directBooksReply = directBooksResult?.reply || await buildDirectProgramBooksReply(last).catch(() => null)
+    if (directBooksReply) {
+      await emit(directBooksReply)
+      return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
+    }
+  }
+
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
+    await emit(HUMAN_SUPPORT_REPLY)
+    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
+  }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
+    await emit(HUMAN_SUPPORT_REPLY)
+    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  }
+  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
+    const reply = await buildDynamicPaymentMethodsReply()
+    await emit(reply)
+    return { reply, agent: 'ADMISSIONS', engine: 'GEMINI' }
+  }
+  if (wantsPaymentMethodsInfo(last)) {
+    const reply = await buildDynamicPaymentMethodsReply()
+    await emit(reply)
+    return { reply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
+  }
+
+  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
+  const persona = personaForAgent(agent)
+  const dataContext = await buildUserSnapshot(opts.userId, agent, last)
+  const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
+  const system = buildPlatformAgentSystem(agent, context)
+  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
+  const shouldPreferGemini = user?.role === 'STUDENT'
+    || agent === 'ACADEMIC_SUPERVISOR'
+    || agent === 'EXAMS'
+    || agent === 'THESIS_DEFENSE'
+    || String(opts.uiContext || '').includes('Launch Quality Probe')
+
+  const runGeminiStream = async () => {
+    const geminiReady = await ensureGeminiKey().catch(() => false)
+    if (!geminiReady) return null
+    const model = await geminiActiveTextModel().catch(() => 'unknown')
+    const started = Date.now()
+    const thinkingLevel: GeminiThinkingLevel | undefined = agent === 'THESIS_DEFENSE'
+      ? await geminiDiscussionThinkingLevel().catch(() => 'high' as GeminiThinkingLevel)
+      : agent === 'EXAMS' || agent === 'ADMIN_QUALITY'
+        ? 'medium'
+        : undefined
+    let reply = ''
+    try {
+      for await (const chunk of geminiStreamText({
+        system,
+        history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+        temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
+        thinkingLevel,
+        maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
+      })) {
+        reply += chunk
+        await emit(chunk)
+      }
+      const clean = annotateReply(agent, reply, 'GEMINI')
+      if (!clean.trim()) throw new Error('EMPTY_AI_RESPONSE')
+      logPlatformProviderAttempt({ ok: true, provider: 'GEMINI_DIRECT_STREAM', model, agent, ms: Date.now() - started })
+      return { reply: clean, agent, engine: 'GEMINI' as const }
+    } catch (e: any) {
+      logPlatformProviderAttempt({ ok: false, provider: 'GEMINI_DIRECT_STREAM', model, agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
+      if (reply.trim()) throw e
+      return null
+    }
+  }
+
+  if (shouldPreferGemini) {
+    const streamed = await runGeminiStream().catch((e) => { throw e })
+    if (streamed) return streamed
+  }
+
+  const fallback = await platformAgentComplete(opts)
+  await emit(fallback.reply)
+  return fallback
+}
