@@ -240,6 +240,7 @@ export interface PartialAcademicProgramProfile {
   assessmentComponents?: string[]
   thesisRequirement?: string
   qualityControls?: string[]
+  hiddenSections?: string[]
 }
 
 function cleanList(list: unknown, max = 12): string[] | undefined {
