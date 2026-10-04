@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest) {
       'CONFIRM_PAYMENT',
       'Payment',
       id,
-      `${r.receiptNo} — ${payment.description} (${payment.amount}$) [تأكيد إداري يدوي${hasUploadedProof ? ` · إثباتات: ${payment._count.proofs}` : ''}${approvalReference || hasCryptoReference ? ` · مرجع: ${approvalReference || payment.cryptoTxHash}` : ''}${approvalNote ? ` · ملاحظة: ${approvalNote}` : ''}]`
+      `${r.receiptNo} — ${payment.description} (${payment.amount}$) [تأكيد إداري يدوي${hasReviewableProof ? ` · إثباتات قابلة للمراجعة: ${reviewableProofs.length}/${proofCount}` : ''}${approvalReference || hasCryptoReference ? ` · مرجع: ${approvalReference || payment.cryptoTxHash}` : ''}${approvalNote ? ` · ملاحظة: ${approvalNote}` : ''}]`
     )
     return NextResponse.json({ ok: true, payment: r.payment, receiptNo: r.receiptNo })
   } catch (e: any) {
