@@ -574,6 +574,15 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   if (prepared.immediateReply) {
     await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
     await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
+    if (prepared.requestHuman) {
+      await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: null })
+      await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
+        from: maskPhone(inboundMessage.from),
+        messageId: inboundMessage.id,
+        conversationId: storedInbound?.conversation?.id || null,
+        reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
+      }, storedInbound?.conversation?.id || inboundMessage.id)
+    }
     return 'SENT'
   }
 
