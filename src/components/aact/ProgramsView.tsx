@@ -100,10 +100,10 @@ export function ProgramsView() {
 
     try {
       const d = user
-        ? await api<{ programs: Program[] }>('/api/programs?summary=1')
+        ? await api<{ programs: Program[]; catalogVersion?: string | null }>('/api/programs?summary=1')
         : await fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } }).then(async (res) => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
-            return res.json() as Promise<{ programs: Program[] }>
+            return res.json() as Promise<{ programs: Program[]; catalogVersion?: string | null }>
           })
       const list = Array.isArray(d.programs) ? d.programs : []
       setPrograms(list)
