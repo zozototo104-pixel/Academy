@@ -26,13 +26,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Always start from the known-good long design.
           git checkout e6fa54372aac059e3ada0e4bb6beda85d9eb6c1a -- src/components/aact/AdminExtras.tsx
 
           python3 <<'PY'
           from pathlib import Path
-
           path = Path('src/components/aact/AdminExtras.tsx')
           text = path.read_text()
 
@@ -42,9 +39,12 @@ jobs:
                   raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
               return src.replace(old, new, 1)
 
-          state_old = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
-          state_new = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n  const [amountBusy, setAmountBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
-          text = replace_once(text, state_old, state_new, 'amountBusy state')
+          text = replace_once(
+              text,
+              "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n",
+              "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n  const [amountBusy, setAmountBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n",
+              'amountBusy state'
+          )
 
           start = text.index("  const openInvoicePdf = async (id: string) => {")
           marker = "\n  if (loading) return <div className=\"flex h-40 items-center justify-center\"><Loader2 className=\"h-8 w-8 animate-spin text-[#c9a227]\" /></div>\n"
@@ -86,9 +86,12 @@ jobs:
 """
           text = text[:insert_at] + handler + text[insert_at:]
 
-          header_old = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
-          header_new = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تحديث المبلغ</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
-          text = replace_once(text, header_old, header_new, 'payment table header')
+          text = replace_once(
+              text,
+              "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n",
+              "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تحديث المبلغ</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n",
+              'payment table header'
+          )
 
           confirm_cell = """                      <td className=\"p-3\">
                         {p.status === 'UNPAID' ? (
@@ -111,31 +114,22 @@ jobs:
           text = replace_once(text, confirm_cell, refresh_cell + confirm_cell, 'payment refresh cell')
 
           checks = {
-              "use client": text.count("'use client'"),
-              "AdminFinanceTab": text.count('export function AdminFinanceTab'),
-              "AdminCertificatesTab": text.count('export function AdminCertificatesTab'),
-              "AdminMessagesTab": text.count('export function AdminMessagesTab'),
-              "refresh handler": text.count('const refreshPaymentAmount = async'),
-              "duplicate marker": text.count('DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED'),
+              'use client': text.count("'use client'"),
+              'AdminFinanceTab': text.count('export function AdminFinanceTab'),
+              'AdminCertificatesTab': text.count('export function AdminCertificatesTab'),
+              'AdminMessagesTab': text.count('export function AdminMessagesTab'),
+              'refresh handler': text.count('const refreshPaymentAmount = async'),
+              'duplicate marker': text.count('DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED'),
           }
-          expected = {
-              "use client": 1,
-              "AdminFinanceTab": 1,
-              "AdminCertificatesTab": 1,
-              "AdminMessagesTab": 1,
-              "refresh handler": 1,
-              "duplicate marker": 0,
-          }
+          expected = {'use client': 1, 'AdminFinanceTab': 1, 'AdminCertificatesTab': 1, 'AdminMessagesTab': 1, 'refresh handler': 1, 'duplicate marker': 0}
           bad = {k: checks[k] for k in expected if checks[k] != expected[k]}
           if bad:
               raise SystemExit(f'bad counts after patch: {bad}')
           if text.count('تحديث المبلغ') < 3:
               raise SystemExit('refresh UI text missing')
-
           path.write_text(text)
           PY
 
-          # Delete all temporary workflows, including this one.
           rm -f .github/workflows/zz-rebuild-admin-extras.yml
           rm -f .github/workflows/zz-fix-admin-extras.yml
           rm -f .github/workflows/restore-admin-extras-add-refresh-safe.yml
