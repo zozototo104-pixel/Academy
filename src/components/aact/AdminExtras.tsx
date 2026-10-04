@@ -1469,4 +1469,362 @@ export function AdminSettingsTab() {
   )
 }
 
+export function AdminAdminsTab() {
+  const { toast } = useToast()
+  const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(true)
+  const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [adminForm, setAdminForm] = useState({
+    name: 'QA Admin',
+    email: 'qa-admin@aactacademy.com',
+    password: '',
+  })
+
+  const loadSystemAdmins = () => {
+    setAdminsLoading(true)
+    api<{ admins: SystemAdminAccount[] }>('/api/admin/system-admins')
+      .then((d) => setAdmins(Array.isArray(d.admins) ? d.admins : []))
+      .catch((e: any) => toast({ title: 'تعذر تحميل مدراء النظام', description: e.message, variant: 'destructive' }))
+      .finally(() => setAdminsLoading(false))
+  }
+
+  useEffect(() => {
+    loadSystemAdmins()
+  }, [])
+
+  const createSystemAdmin = async () => {
+    const email = adminForm.email.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      toast({ title: 'البريد مطلوب', description: 'أدخل بريد حساب الإدارة الاختباري بشكل صحيح.', variant: 'destructive' })
+      return
+    }
+    if (adminForm.password.length < 12) {
+      toast({ title: 'كلمة المرور قصيرة', description: 'استخدم كلمة مرور من 12 حرفاً على الأقل.', variant: 'destructive' })
+      return
+    }
+    setAdminBusy('create')
+    try {
+      await api('/api/admin/system-admins', {
+        method: 'POST',
+        body: JSON.stringify({ ...adminForm, email }),
+      })
+      setAdminForm((prev) => ({ ...prev, password: '' }))
+      loadSystemAdmins()
+      toast({ title: 'تم تجهيز حساب الإدارة', description: 'يمكن استخدام الحساب الآن لاختبارات لوحة الإدارة ثم تعطيله من نفس القسم.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء حساب الإدارة', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  const disableSystemAdmin = async (admin: SystemAdminAccount) => {
+    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    setAdminBusy(admin.id)
+    try {
+      await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
+      loadSystemAdmins()
+      toast({ title: 'تم تعطيل حساب الإدارة', description: 'لم يتم حذف السجل التاريخي، وتم إبطال جلسات الحساب.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعطيل الحساب', description: e.message, variant: 'destructive' })
+    } finally {
+      setAdminBusy(null)
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-5">
+      <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <ShieldCheck className="h-4.5 w-4.5 text-[#a8841a]" /> مدراء النظام وحساب الاختبار
+              </h3>
+              <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-600">
+                أنشئ حساب إدارة مؤقت لاختبارات الإطلاق من داخل المنصة. التعطيل هنا يحذف جلسات الحساب ويمنع دخوله مع الحفاظ على سجل التدقيق.
+              </p>
+            </div>
+            <Badge className="w-fit bg-[#0f2b46] text-[#f5f0e1]">محمي بصلاحية ADMIN</Badge>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-name" className="text-[11px] font-bold text-slate-600">الاسم</Label>
+              <Input
+                id="admins-tab-admin-name"
+                value={adminForm.name}
+                onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                placeholder="QA Admin"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-email" className="text-[11px] font-bold text-slate-600">البريد الإلكتروني</Label>
+              <Input
+                id="admins-tab-admin-email"
+                dir="ltr"
+                type="email"
+                className="text-left"
+                value={adminForm.email}
+                onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                placeholder="qa-admin@aactacademy.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admins-tab-admin-password" className="text-[11px] font-bold text-slate-600">كلمة المرور المؤقتة</Label>
+              <Input
+                id="admins-tab-admin-password"
+                dir="ltr"
+                type="password"
+                className="text-left"
+                value={adminForm.password}
+                onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                placeholder="12+ characters"
+              />
+            </div>
+            <Button
+              onClick={createSystemAdmin}
+              disabled={adminBusy === 'create'}
+              className="self-end bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              {adminBusy === 'create' ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <KeyRound className="ml-2 h-4 w-4" />}
+              إنشاء / تحديث
+            </Button>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs font-black text-[#0f2b46]">الحسابات الإدارية الحالية</p>
+              <Button type="button" variant="ghost" size="sm" onClick={loadSystemAdmins} disabled={adminsLoading} className="h-8 text-xs font-bold">
+                {adminsLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                تحديث
+              </Button>
+            </div>
+            {adminsLoading ? (
+              <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
+            ) : admins.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد حسابات إدارة ظاهرة.</div>
+            ) : (
+              <div className="space-y-2">
+                {admins.map((admin) => {
+                  const disabled = admin.status === 'DISABLED' || admin.status === 'ARCHIVED'
+                  return (
+                    <div key={admin.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-black text-[#0f2b46]">{admin.name}</p>
+                          <Badge variant={disabled ? 'outline' : 'default'} className={disabled ? 'border-slate-300 text-slate-500' : 'bg-emerald-600 text-white'}>
+                            {disabled ? 'معطّل' : 'نشط'}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500" dir="ltr">{admin.email}</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-400">أُنشئ: {new Date(admin.createdAt).toLocaleDateString('ar-EG')}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled || adminBusy === admin.id}
+                        onClick={() => disableSystemAdmin(admin)}
+                        className="border-red-200 font-extrabold text-red-600 hover:bg-red-50"
+                      >
+                        {adminBusy === admin.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="ml-1 h-3.5 w-3.5" />}
+                        تعطيل / حذف آمن
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ============ سجل التدقيق ============
+
+interface AuditRow {
+  id: string
+  actorName: string
+  action: string
+  entity: string
+  details?: string | null
+  createdAt: string
+}
+
+const ACTION_L: Record<string, string> = {
+  APPROVE_ADMISSION: 'قبول طلب التحاق', REJECT_ADMISSION: 'رفض طلب التحاق',
+  REVIEW_ADMISSION: 'بدء دراسة طلب', UPDATE_ADMISSION_STATUS: 'تحديث حالة طلب',
+  ASSIGN_SUPERVISOR: 'تعيين مشرف', APPROVE_AGENT: 'قبول وكالة/اعتماد',
+  REJECT_AGENT: 'رفض وكالة/اعتماد', ISSUE_CERTIFICATE: 'إصدار شهادة',
+  PAYMENT_RECEIVED: 'استلام دفعة', CONFIRM_PAYMENT: 'تأكيد دفعة يدوياً',
+  SCHEDULE_DEFENSE: 'جدولة مناقشة', APPROVE_RESULT: 'اعتماد نتيجة',
+  SUBMIT_THESIS: 'تسليم بحث', UPDATE_SETTINGS: 'تحديث الرسوم/الإعدادات',
+  CREATE_ADMIN_ACCOUNT: 'إنشاء حساب إدارة', UPDATE_ADMIN_ACCOUNT: 'تحديث حساب إدارة',
+  DISABLE_ADMIN_ACCOUNT: 'تعطيل حساب إدارة',
+  ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
+  RESOLVE_MESSAGE: 'معالجة رسالة',
+  GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',
+  UPDATE_CURRICULUM_UNIT: 'تعديل وحدة منهج',
+  DELETE_CURRICULUM_UNIT: 'حذف وحدة منهج',
+  UPDATE_PROGRAM_READINESS: 'تحديث جاهزية/اعتماد منهج برنامج',
+  GENERATE_QUESTION_BANK: 'توليد أسئلة لبنك الأسئلة',
+  ADD_QUESTION_BANK_ITEM: 'إضافة سؤال يدوي لبنك الأسئلة',
+  IMPORT_QUESTION_BANK: 'استيراد أسئلة إلى بنك الأسئلة',
+  COPY_EXAM_TO_QUESTION_BANK: 'نسخ أسئلة اختبار إلى بنك الأسئلة',
+  REVIEW_QUESTION_BANK_ITEM: 'مراجعة سؤال في بنك الأسئلة',
+  GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK: 'توليد امتحان من بنك الأسئلة',
+  IMPORT_PROGRAM_CATALOG: 'استيراد كتالوج البرامج',
+  AI_KNOWLEDGE_DIAGNOSTICS: 'تشخيص معرفة الذكاء',
+  DB_BACKUP_SUCCESS: 'إنشاء نسخة احتياطية',
+  DB_BACKUP_PARTIAL: 'إنشاء نسخة احتياطية مع تنبيهات',
+  DB_RESTORE_SUCCESS: 'استيراد نسخة احتياطية',
+  DB_RESTORE_PARTIAL: 'استيراد نسخة احتياطية مع أخطاء',
+  UPLOAD_BINANCE_PAY_QR: 'رفع صورة QR للدفع عبر Binance Pay',
+  LIST_ACADEMY_REPRESENTATIVES: 'استعراض ممثلي الأكاديمية',
+  CREATE_ACADEMY_REPRESENTATIVE: 'إضافة ممثل أكاديمية',
+  UPDATE_ACADEMY_REPRESENTATIVE: 'تحديث ممثل أكاديمية',
+  DELETE_ACADEMY_REPRESENTATIVE: 'حذف ممثل أكاديمية',
+  WHATSAPP_WEBHOOK_RECEIVED: 'واتساب — حدث وارد',
+  WHATSAPP_IMMEDIATE_GREETING_SENT: 'واتساب — ترحيب فوري',
+  WHATSAPP_WEBHOOK_REJECTED: 'واتساب — حدث مرفوض',
+  WHATSAPP_WEBHOOK_VERIFIED: 'واتساب — تحقق ناجح',
+  WHATSAPP_WEBHOOK_VERIFY_FAILED: 'واتساب — فشل التحقق',
+}
+
+function parseAuditDetails(details?: string | null): any | null {
+  if (!details) return null
+  try {
+    return JSON.parse(details)
+  } catch {
+    return null
+  }
+}
+
+function humanWhatsAppError(error: string): string {
+  const text = String(error || '')
+  if (text.includes('#131030')) return 'الرقم كان خارج قائمة الأرقام المسموحة في وضع الاختبار.'
+  if (text.includes('#131005')) return 'تم رفض الإرسال من Meta بسبب صلاحيات رمز الوصول أو حساب واتساب.'
+  if (text.includes('missing_cloud_api_environment')) return 'إعدادات واتساب في Vercel غير مكتملة.'
+  if (text.includes('invalid_signature')) return 'توقيع الطلب غير صالح.'
+  if (text.includes('invalid_json')) return 'بيانات الطلب من واتساب غير صالحة.'
+  return text.replace(/[{}\[\]"]/g, '').slice(0, 180) || 'حدث خطأ أثناء معالجة واتساب.'
+}
+
+function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
+  const details = parseAuditDetails(log.details)
+  if (!details || !String(log.action || '').startsWith('WHATSAPP_')) return null
+
+  const received = Number(details.received || 0)
+  const sent = Number(details.sent || 0)
+  const configured = details.configured !== false
+  const messages = Array.isArray(details.messages) ? details.messages : []
+  const firstMessage = messages[0] || {}
+  const text = String(firstMessage.text || '').trim()
+  const from = String(firstMessage.from || '').trim()
+  const errors = Array.isArray(details.errors) ? details.errors.filter(Boolean) : []
+  const isStatusOnly = log.action === 'WHATSAPP_WEBHOOK_RECEIVED' && received === 0
+  const isImmediateGreeting = log.action === 'WHATSAPP_IMMEDIATE_GREETING_SENT'
+
+  if (isImmediateGreeting) {
+    return (
+      <div className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        تم إرسال الترحيب الفوري مرة واحدة لهذه المحادثة
+      </div>
+    )
+  }
+
+  if (isStatusOnly) {
+    const statusUpdates = Array.isArray(details.statusUpdates) ? details.statusUpdates : []
+    const webhookErrors = Array.isArray(details.webhookErrors) ? details.webhookErrors : []
+    const firstStatus = statusUpdates[0] || {}
+    return (
+      <div className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-[11px] font-bold text-slate-500">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+          <span className="text-[#0f2b46]">تحديث حالة من واتساب — لا توجد رسالة جديدة</span>
+        </div>
+        {statusUpdates.length > 0 && (
+          <div className="mt-2 grid gap-1 text-[10px] sm:grid-cols-2">
+            <p><span className="text-slate-400">نوع الحالة:</span> {String(firstStatus.status || 'غير محدد')}</p>
+            {firstStatus.recipient && <p><span className="text-slate-400">المستلم:</span> {firstStatus.recipient}</p>}
+            {firstStatus.phoneNumberId && <p><span className="text-slate-400">رقم واتساب:</span> جاهز</p>}
+            {firstStatus.conversationId && <p dir="ltr"><span className="text-slate-400">conversation:</span> {String(firstStatus.conversationId).slice(0, 18)}…</p>}
+          </div>
+        )}
+        {webhookErrors.length > 0 && (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800">
+            {String(webhookErrors[0]?.title || webhookErrors[0]?.message || 'يوجد خطأ من Meta في هذا الحدث')}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const title = log.action === 'WHATSAPP_WEBHOOK_REJECTED'
+    ? 'تم رفض حدث واتساب'
+    : log.action === 'WHATSAPP_WEBHOOK_VERIFY_FAILED'
+      ? 'فشل تحقق واتساب'
+      : log.action === 'WHATSAPP_WEBHOOK_VERIFIED'
+        ? 'تم تحقق واتساب بنجاح'
+        : received > 0
+          ? 'رسالة واتساب واردة'
+          : 'حدث واتساب'
+
+  const status = sent > 0
+    ? 'تم رد الوكيل بنجاح'
+    : errors.length
+      ? 'وصلت الرسالة ولم يتم إرسال الرد'
+      : configured
+        ? 'تم الاستلام'
+        : 'تحتاج إعدادات واتساب'
+
+  return (
+    <div className="mt-2 rounded-2xl border border-[#25d366]/15 bg-[#f3fff8] p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`flex h-9 w-9 items-center justify-center rounded-full text-white ${sent > 0 ? 'bg-[#25d366]' : errors.length ? 'bg-amber-500' : 'bg-[#0f2b46]'}`}>وات</span>
+          <div>
+            <p className="text-xs font-black text-[#0f2b46]">{title}</p>
+            <p className="text-[10px] font-bold text-slate-500">{status}</p>
+          </div>
+        </div>
+        <Badge className={sent > 0 ? 'bg-emerald-600 text-white' : errors.length ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}>
+          {sent > 0 ? 'تم الرد' : errors.length ? 'بحاجة متابعة' : 'مستلم'}
+        </Badge>
+      </div>
+
+      {received > 0 && (
+        <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-600 sm:grid-cols-2">
+          {from && <p><span className="text-slate-400">من:</span> {from}</p>}
+          <p><span className="text-slate-400">الرسائل:</span> {received}</p>
+          <p><span className="text-slate-400">ردود الوكيل:</span> {sent}</p>
+          {firstMessage.phoneNumberId && <p><span className="text-slate-400">رقم واتساب:</span> جاهز</p>}
+        </div>
+      )}
+
+      {text && (
+        <div className="mt-3 rounded-xl border border-white bg-white px-3 py-2 text-sm font-black leading-7 text-[#0f2b46]">
+          {text}
+        </div>
+      )}
+
+      {errors.length > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
+          {humanWhatsAppError(String(errors[0]))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function parseAuditJson(details?: string | null): any | null {
+  const raw = String(details || '').trim()
+  if (!raw || !raw.startsWith('{')) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
 // __RESTORE_APPEND__
