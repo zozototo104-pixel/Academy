@@ -1107,15 +1107,18 @@ export async function platformAgentStream(opts: {
         : undefined
     let reply = ''
     try {
-      for await (const chunk of geminiStreamText({
+      for await (const rawChunk of geminiStreamText({
         system,
         history: opts.messages.slice(-18).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
         temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
       })) {
-        reply += chunk
-        await emit(chunk)
+        const chunk = String(rawChunk || '')
+        const delta = chunk.startsWith(reply) ? chunk.slice(reply.length) : chunk
+        if (!delta) continue
+        reply += delta
+        await emit(delta)
       }
       const clean = annotateReply(agent, reply, 'GEMINI')
       if (!clean.trim()) throw new Error('EMPTY_AI_RESPONSE')
