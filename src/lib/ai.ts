@@ -298,7 +298,316 @@ export async function chatWithRetry(
   throw lastErr
 }
 
-export function buildSupervisorSystemPrompt(context?: string, persona: SupervisorPersona = 'CHAT'): string {
+export function buildSupervisorSystemPrompt(
+  context?: string,
+  persona: SupervisorPersona = 'CHAT',
+  runtime?: SupervisorRuntimeContext
+): string {
+  const contactEmail = runtime?.contactEmail || ACADEMY_INFO.email
+  const contactWhatsapp = runtime?.contactWhatsapp || ACADEMY_INFO.whatsapp
+  const programCatalogText = runtime?.programCatalogText || 'لم يتم تحميل كتالوج البرامج من قاعدة البيانات في هذا الاستدعاء.'
+  const feeText = (n: number | undefined) => Number.isFinite(n || NaN) && (n || 0) > 0 ? `${n}import ZAI from 'z-ai-web-dev-sdk'
+import { ACADEMY_INFO, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
+import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
+import { textAiComplete, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { db } from '@/lib/db'
+import { getSettings } from '@/lib/settings'
+
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
+
+const SMART_SUPERVISOR_INTELLIGENCE = 96
+const SMART_SUPERVISOR_MEMORY = 98
+
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+interface ChatCompleteOptions {
+  skipGemini?: boolean
+  timeoutMs?: number
+  /**
+   * في مسارات الطالب الأكاديمية وفحوص الجودة يجب أن تأتي الإجابة من نموذج فعلي.
+   * الرد المحلي العام يبقى مسموحاً للزائر، لكنه لا يصلح كبديل عن المشرف/المناقش.
+   */
+  requireModelResponse?: boolean
+  routerPolicy?: TextAiRouterPolicy
+}
+
+function aiTimeoutMs(configured: number | undefined, fallback: number) {
+  if (Number.isFinite(configured || NaN) && (configured || 0) >= 3_000) return Math.min(Math.floor(configured || fallback), 45_000)
+  const env = Number(process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  return fallback
+}
+
+function withAiTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
+interface ProgramCatalogItem {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string | null
+  description?: string | null
+  category: string
+  hours?: number | null
+  price?: number | null
+  features: string[]
+}
+
+interface SupervisorRuntimeContext {
+  programCatalog: ProgramCatalogItem[]
+  programCatalogText: string
+  applicationFee: number
+  doctorateStartsFrom: number
+  mastersStartsFrom: number
+  diplomaStartsFrom: number
+  accreditationApplicationFee: number
+  accreditationCompanyFee: number
+  accreditationConsultantFee: number
+  accreditationTrainerFee: number
+  certificateIssueDays: number
+  thesisMinMonths: number
+  thesisMaxMonths: number
+  agentCommissionRate: number
+  committeeMemberFee: number
+  contactEmail: string
+  contactWhatsapp: string
+}
+
+function parseFeatures(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function parseSettingsJson<T>(raw: string | undefined, fallback: T): T {
+  try {
+    return raw ? JSON.parse(raw) as T : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function settingNum(settings: Record<string, string>, key: string, fallback = 0) {
+  const n = Number(settings[key])
+  return Number.isFinite(n) ? n : fallback
+}
+
+function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
+  const slug = String(p.slug || '')
+  const titleAr = String(p.titleAr || '')
+  const titleEn = String(p.titleEn || '')
+  return slug.startsWith('qa-full-journey-')
+    || slug === 'launch-quality-diagnostic-program'
+    || titleAr.startsWith('برنامج جودة رحلة كاملة QA')
+    || titleEn.startsWith('QA Full Journey Program')
+}
+
+function minCatalogPrice(programs: ProgramCatalogItem[], categories: string[], fallback: number) {
+  const prices = programs
+    .filter((p) => categories.includes(p.category))
+    .map((p) => Number(p.price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0)
+  return prices.length ? Math.min(...prices) : fallback
+}
+
+function programDigestLine(p: ProgramCatalogItem, i: number): string {
+  const features = (p.features || []).slice(0, 3).join('، ')
+  const price = p.price ? ` — رسومه ${p.price}import ZAI from 'z-ai-web-dev-sdk'
+import { ACADEMY_INFO, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
+import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
+import { textAiComplete, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { db } from '@/lib/db'
+import { getSettings } from '@/lib/settings'
+
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
+
+const SMART_SUPERVISOR_INTELLIGENCE = 96
+const SMART_SUPERVISOR_MEMORY = 98
+
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+interface ChatCompleteOptions {
+  skipGemini?: boolean
+  timeoutMs?: number
+  /**
+   * في مسارات الطالب الأكاديمية وفحوص الجودة يجب أن تأتي الإجابة من نموذج فعلي.
+   * الرد المحلي العام يبقى مسموحاً للزائر، لكنه لا يصلح كبديل عن المشرف/المناقش.
+   */
+  requireModelResponse?: boolean
+  routerPolicy?: TextAiRouterPolicy
+}
+
+function aiTimeoutMs(configured: number | undefined, fallback: number) {
+  if (Number.isFinite(configured || NaN) && (configured || 0) >= 3_000) return Math.min(Math.floor(configured || fallback), 45_000)
+  const env = Number(process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  return fallback
+}
+
+function withAiTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
+ : ''
+  const hours = p.hours ? ` — ${p.hours} ساعة` : ''
+  return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — التصنيف: ${p.category}${hours}${price}${features ? ` — محاوره: ${features}` : ''}`
+}
+
+async function loadPublicProgramCatalog(max = 90): Promise<ProgramCatalogItem[]> {
+  const rows = await db.program.findMany({
+    where: { active: true },
+    orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
+    select: {
+      id: true,
+      slug: true,
+      titleAr: true,
+      titleEn: true,
+      description: true,
+      category: true,
+      hours: true,
+      price: true,
+      features: true,
+    },
+    take: max,
+  })
+  return rows
+    .filter((p) => !isInternalQaProgram(p))
+    .map((p) => ({ ...p, features: parseFeatures(p.features) }))
+}
+
+async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext> {
+  const [settings, programCatalog] = await Promise.all([
+    getSettings(),
+    loadPublicProgramCatalog(),
+  ])
+  const officialContact = parseSettingsJson<Record<string, string>>(settings.OFFICIAL_CONTACT, {})
+  const doctorateDefault = settingNum(settings, 'FEE_DOCTORATE', 0)
+  const mastersDefault = settingNum(settings, 'FEE_MASTERS', 0)
+  const diplomaDefault = settingNum(settings, 'FEE_DIPLOMAS_MIN', 0)
+  return {
+    programCatalog,
+    programCatalogText: programCatalog.map(programDigestLine).join('\n'),
+    applicationFee: settingNum(settings, 'FEE_APPLICATION', 0),
+    doctorateStartsFrom: minCatalogPrice(programCatalog, ['DOCTORATE'], doctorateDefault),
+    mastersStartsFrom: minCatalogPrice(programCatalog, ['MASTERS'], mastersDefault),
+    diplomaStartsFrom: minCatalogPrice(programCatalog, ['DIPLOMA', 'INTL_CERT'], diplomaDefault),
+    accreditationApplicationFee: settingNum(settings, 'FEE_ACC_APPLICATION', 0),
+    accreditationCompanyFee: settingNum(settings, 'FEE_ACC_COMPANY', 0),
+    accreditationConsultantFee: settingNum(settings, 'FEE_ACC_CONSULTANT', 0),
+    accreditationTrainerFee: settingNum(settings, 'FEE_ACC_TRAINER', 0),
+    certificateIssueDays: settingNum(settings, 'CERTIFICATE_ISSUE_DAYS', Number(ACADEMY_INFO.certificateDays || 30)),
+    thesisMinMonths: settingNum(settings, 'THESIS_MIN_MONTHS', 3),
+    thesisMaxMonths: settingNum(settings, 'THESIS_MAX_MONTHS', 6),
+    agentCommissionRate: settingNum(settings, 'AGENT_COMMISSION_RATE', Number(ACADEMY_INFO.agentCommission || 25)),
+    committeeMemberFee: settingNum(settings, 'COMMITTEE_MEMBER_FEE', Number(ACADEMY_INFO.researchFee || 100)),
+    contactEmail: String(officialContact.email || ACADEMY_INFO.email),
+    contactWhatsapp: String(officialContact.whatsapp || ACADEMY_INFO.whatsapp),
+  }
+}
+
+export async function getZAI() {
+  if (!zaiInstance) zaiInstance = await ZAI.create()
+  return zaiInstance
+}
+
+/** استدعاء النموذج مع إعادة محاولة تلقائية عند ضغط المعدل (429) أو فراغ الاستجابة */
+export async function chatWithRetry(
+  zai: Awaited<ReturnType<typeof ZAI.create>>,
+  messages: { role: string; content: string }[],
+  retries = 4
+): Promise<string> {
+  let lastErr: any
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const completion = await zai.chat.completions.create({
+        messages: messages as any,
+        thinking: { type: 'disabled' },
+      })
+      const content = completion.choices[0]?.message?.content
+      if (!content || !content.trim()) throw new Error('EMPTY_AI_RESPONSE')
+      return content.trim()
+    } catch (e: any) {
+      lastErr = e
+      const msg = String(e?.message || '')
+      const rateLimited = msg.includes('429') || msg.toLowerCase().includes('too many')
+      console.error(`AI attempt ${attempt}/${retries} failed:`, msg.slice(0, 120))
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, rateLimited ? 5000 * attempt : 2000 * attempt))
+      }
+    }
+  }
+  throw lastErr
+}
+
+ : 'حسب إعدادات الإدارة'
+
   return `أنت "المشرف الذكي" — المرشد الأكاديمي المعتمد لطلاب ${ACADEMY_INFO.nameAr} (${ACADEMY_INFO.nameEn})، تأسست ${ACADEMY_INFO.founded}.
 
 ${buildSupervisorPersonaBlock(persona)}
@@ -318,33 +627,33 @@ ${buildSupervisorPersonaBlock(persona)}
 
 معلومات الأكاديمية:
 - الشعار: "${ACADEMY_INFO.taglineAr}" (${ACADEMY_INFO.taglineEn})
-- البريد: ${ACADEMY_INFO.email} | واتساب: ${ACADEMY_INFO.whatsapp}
+- البريد: ${contactEmail} | واتساب: ${contactWhatsapp}
 - البرامج: ${ACADEMY_INFO.programs}
-- الشهادات تُصدر خلال ${ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم.
-- الوكلاء الدوليون: نسبة ${ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${ACADEMY_INFO.researchFee} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته.
+- الشهادات تُصدر خلال ${runtime?.certificateIssueDays || ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم.
+- الوكلاء الدوليون: نسبة ${runtime?.agentCommissionRate || ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${feeText(runtime?.committeeMemberFee)} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته.
 
 دليل إجراءات وشروط الالتحاق:
 - شروط القبول: ${ADMISSION_GUIDE.conditions.join(' / ')}
 - الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}
 - خطوات التسجيل: ${ADMISSION_GUIDE.steps.join(' ← ')}
-- رسوم تقديم الطلب وحجز المقعد: ${ADMISSION_FEES.applicationFee}$ غير مستردة.
-- التكلفة المالية: الدكتوراه المهنية (معادلة خبرات) ${ADMISSION_FEES.doctorate}$ — الماجستير المهني (معادلة خبرات) ${ADMISSION_FEES.masters}$ — الدبلومات والبرامج الدولية من ${ADMISSION_FEES.diplomasRange}$ حسب البرنامج.
+- رسوم تقديم الطلب وحجز المقعد: ${feeText(runtime?.applicationFee)} غير مستردة.
+- التكلفة المالية الافتراضية عند عدم وجود سعر خاص للبرنامج: الدكتوراه المهنية تبدأ من ${feeText(runtime?.doctorateStartsFrom)} — الماجستير المهني يبدأ من ${feeText(runtime?.mastersStartsFrom)} — الدبلومات والبرامج الدولية تبدأ من ${feeText(runtime?.diplomaStartsFrom)} حسب البرنامج.
 - متطلبات التخرج: ${ADMISSION_GUIDE.graduation.join(' / ')}
-- مدة بحث التخرج: من 3 إلى 6 شهور كحد أقصى، وتتم مناقشته من قبل لجنة متخصصة.
+- مدة بحث التخرج: من ${runtime?.thesisMinMonths || 3} إلى ${runtime?.thesisMaxMonths || 6} شهور كحد أقصى، وتتم مناقشته من قبل لجنة متخصصة.
 - ملاحظة رسمية: ${ADMISSION_GUIDE.note}
 
 دليل الاعتمادات الدولية:
-- رسوم تقديم طلب الاعتماد: ${ACCREDITATION_GUIDE.applicationFee}$ غير مستردة.
-- أنواع الاعتماد ورسومها: الهيئات التدريبية 1000$ — المستشارون 350$ — المدرب الدولي المعتمد 200$ — اعتماد الجودة حسب طبيعة الاعتماد.
+- رسوم تقديم طلب الاعتماد: ${feeText(runtime?.accreditationApplicationFee)} غير مستردة.
+- أنواع الاعتماد ورسومها: الهيئات التدريبية ${feeText(runtime?.accreditationCompanyFee)} — المستشارون ${feeText(runtime?.accreditationConsultantFee)} — المدرب الدولي المعتمد ${feeText(runtime?.accreditationTrainerFee)} — اعتماد الجودة حسب طبيعة الاعتماد.
 - مميزات الاعتماد: ${ACCREDITATION_GUIDE.benefits.join(' / ')}
 
-كتالوج البرامج الرسمي المتاح في ذاكرة المشرف:
-${buildStaticProgramCatalog()}
+كتالوج البرامج الرسمي المتاح في ذاكرة المشرف من قاعدة البيانات:
+${programCatalogText}
 
 تعليمات مهمة:
 - إذا سأل الطالب عن البرامج، اعرض البرامج أو المجالات أولاً، ثم اسأله عن المجال الذي يريده. لا تبدأ بالرسوم.
 - إذا سأل عن الرسوم أو السعر أو التكلفة، اذكر الرسوم باختصار ثم اسأله عن اسم البرنامج.
-- إذا سأل عن حالة إدارية خاصة غير متوفرة لديك، اطلب التواصل مع الإدارة عبر البريد ${ACADEMY_INFO.email}.
+- إذا سأل عن حالة إدارية خاصة غير متوفرة لديك، اطلب التواصل مع الإدارة عبر البريد ${contactEmail}.
 - أبقِ إجاباتك موجزة ومركزة لأنها قد تُقرأ صوتياً: 2-5 جمل غالباً.
 - لا تستخدم جداول Markdown أو عناوين معقدة.
 
