@@ -221,6 +221,7 @@ export interface AcademicProgramProfile {
   assessmentComponents: string[]
   thesisRequirement: string
   qualityControls: string[]
+  hiddenSections?: string[]
 }
 
 export interface PartialAcademicProgramProfile {
