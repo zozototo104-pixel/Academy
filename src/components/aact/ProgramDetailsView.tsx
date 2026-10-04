@@ -608,7 +608,7 @@ export function ProgramDetailsView() {
                 )}
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  {(academicProfile.graduationRequirements?.length || 0) > 0 && (
+                  {showAcademicSection('graduationRequirements') && (academicProfile.graduationRequirements?.length || 0) > 0 && (
                     <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                       <h3 className="mb-3 flex items-center gap-2 font-black text-white"><FileCheck2 className="h-5 w-5 text-[#d2ad5a]" /> متطلبات التخرج</h3>
                       <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
