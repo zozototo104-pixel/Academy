@@ -6,6 +6,10 @@ type TranscribeAudioOptions = {
   languageCode?: string | null
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function cleanBase64AndMime(audioBase64: string, mimeType?: string | null) {
   const raw = String(audioBase64 || '').trim()
   const dataUrlMatch = raw.match(/^data:([^;]+);base64,(.+)$/i)
