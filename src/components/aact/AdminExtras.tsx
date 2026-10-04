@@ -1245,6 +1245,77 @@ export function AdminSettingsTab() {
     { key: 'CONTACT', label: 'بيانات التواصل الرسمية' },
   ]
 
+  const readJsonSetting = <T extends Record<string, any>>(key: string, fallback: T): T => {
+    try {
+      const parsed = JSON.parse(values[key] || '{}')
+      return { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+    } catch {
+      return fallback
+    }
+  }
+
+  const patchJsonSetting = (key: string, patch: Record<string, any>, fallback: Record<string, any>) => {
+    setValues((prev) => {
+      let current = fallback
+      try {
+        const parsed = JSON.parse(prev[key] || '{}')
+        current = { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+      } catch {}
+      return { ...prev, [key]: JSON.stringify({ ...current, ...patch }) }
+    })
+  }
+
+  const renderStructuredJsonSetting = (d: { key: string }) => {
+    if (d.key === 'HOME_STATS') {
+      const stats = readJsonSetting('HOME_STATS', { graduates: 2000, experts: 120, countries: 18 })
+      return (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخريجين والمتدربين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.graduates || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { graduates: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخبراء والمستشارين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.experts || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { experts: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الدول / الشراكات</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.countries || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { countries: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+        </div>
+      )
+    }
+    if (d.key === 'OFFICIAL_CONTACT') {
+      const contact = readJsonSetting('OFFICIAL_CONTACT', { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })
+      const fields: Array<[string, string, string]> = [
+        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب'],
+        ['registrationNumber', 'رقم التسجيل', ''],
+        ['address', 'العنوان الرسمي', ''],
+        ['email', 'الإيميل الرسمي', 'info@example.com'],
+        ['phone', 'الهاتف الرسمي', '+1 ...'],
+        ['whatsapp', 'رقم الواتساب', '+1 ...'],
+        ['responsiblePerson', 'الشخص المسؤول', ''],
+      ]
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {fields.map(([key, label, placeholder]) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">{label}</Label>
+              <Input
+                dir={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'ltr' : 'rtl'}
+                className={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'text-left font-bold' : 'font-bold'}
+                value={contact[key] || ''}
+                placeholder={placeholder}
+                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })}
+              />
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <div className="mt-4 space-y-5">
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
