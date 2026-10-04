@@ -256,6 +256,9 @@ export function AdminRulesTab() {
   }, [selectProgram])
 
   const selected = programs.find((p) => p.id === selectedId)
+  const categoryProgramsForBulkApply = programDraft
+    ? programs.filter((p) => p.category === programDraft.category && p.active !== false)
+    : []
   const selectedFlow = getServiceFlow(selected?.slug)
   const isStudyProgram = selectedFlow ? selectedFlow.isStudyProgram : selected?.category !== 'SERVICE'
   const serviceDocOptions = selectedFlow ? getServiceDocumentOptions(selectedFlow) : []
