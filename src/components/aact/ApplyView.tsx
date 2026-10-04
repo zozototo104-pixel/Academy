@@ -196,6 +196,7 @@ export function ApplyView() {
   const [myAdmissionLoading, setMyAdmissionLoading] = useState(false)
   const [myAdmission, setMyAdmission] = useState<any | null>(null)
   const [myApplications, setMyApplications] = useState<any[]>([])
+  const [applicationFee, setApplicationFee] = useState(30)
 
   const [form, setForm] = useState({
     fullName: '',
