@@ -76,7 +76,25 @@ export async function GET() {
   const programs = await db.program.findMany({
     where: { active: true },
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
-    select: { id: true, slug: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, admissionRules: true, _count: { select: { units: true } } },
+    select: {
+      id: true,
+      slug: true,
+      titleAr: true,
+      titleEn: true,
+      description: true,
+      category: true,
+      hours: true,
+      price: true,
+      icon: true,
+      features: true,
+      active: true,
+      order: true,
+      credentialType: true,
+      trademarkNotice: true,
+      disclosureConsentText: true,
+      admissionRules: true,
+      _count: { select: { units: true } },
+    },
   })
   const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
   return NextResponse.json({
