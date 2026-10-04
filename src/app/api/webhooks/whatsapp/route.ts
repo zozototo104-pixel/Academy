@@ -436,6 +436,16 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       }
     }
 
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_OK', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      mediaId: message.mediaId || null,
+      mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
+      fileSize,
+      ms: Date.now() - startedAt,
+      transcriptChars: text.length,
+    }, message.id)
+
     return {
       message: {
         ...message,
