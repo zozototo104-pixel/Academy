@@ -136,6 +136,20 @@ function listItems(list?: any[]): string[] {
   return Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : []
 }
 
+const ACADEMIC_VISIBLE_SECTIONS = [
+  'overview',
+  'duration',
+  'learningOutcomes',
+  'skills',
+  'studyPlan',
+  'termPlans',
+  'finalEvaluationFormula',
+  'graduationRequirements',
+  'assessmentComponents',
+  'thesisRequirement',
+  'qualityControls',
+]
+
 function documentLabel(doc: string, flow?: ServiceFlow | null): string {
   const serviceDoc = flow ? getServiceDocumentOptions(flow).find((item) => item.value === doc || item.type === doc) : null
   return DOCUMENT_LABEL[doc] || serviceDoc?.label || doc
