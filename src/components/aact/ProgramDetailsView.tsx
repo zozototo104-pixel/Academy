@@ -618,7 +618,7 @@ export function ProgramDetailsView() {
                       </ul>
                     </div>
                   )}
-                  {(academicProfile.assessmentComponents?.length || 0) > 0 && (
+                  {showAcademicSection('assessmentComponents') && (academicProfile.assessmentComponents?.length || 0) > 0 && (
                     <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                       <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ClipboardList className="h-5 w-5 text-[#d2ad5a]" /> نظام التقييم</h3>
                       <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
