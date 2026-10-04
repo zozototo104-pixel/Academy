@@ -146,6 +146,9 @@ async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> 
       hours: true,
       price: true,
       description: true,
+      credentialType: true,
+      trademarkNotice: true,
+      admissionRules: true,
       books: {
         orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
         take: 30,
