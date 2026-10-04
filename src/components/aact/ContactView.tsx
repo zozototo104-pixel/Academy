@@ -181,8 +181,8 @@ export function ContactView() {
               <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                 <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400">تواصل سريع — {ACADEMY_INFO.whatsappContactName}</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{ACADEMY_INFO.whatsappDisplay}</p>
+                  <p className="text-[10px] font-bold text-slate-400">تواصل سريع — {officialContact.responsiblePerson}</p>
+                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.whatsapp}</p>
                 </div>
               </a>
               <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
