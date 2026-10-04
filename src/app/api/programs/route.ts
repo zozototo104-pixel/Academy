@@ -125,7 +125,6 @@ export async function GET(req: NextRequest) {
             features: true,
             order: true,
             active: true,
-            updatedAt: true,
             credentialType: true,
             trademarkNotice: true,
             disclosureConsentText: true,
