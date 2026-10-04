@@ -314,6 +314,9 @@ export function ProgramDetailsView() {
   const isService = flow ? !flow.isStudyProgram : program?.category === 'SERVICE'
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
   const academicProfile = program && !isService ? buildAcademicProgramProfile({ ...program, academicProfile: program.academicProfile || program.admissionRules?.academicProfile }) : null
+  const hiddenAcademicSections = new Set(listItems(academicProfile?.hiddenSections))
+  const showAcademicSection = (key: string) => !hiddenAcademicSections.has(key)
+  const hasVisibleAcademicSections = !!academicProfile && ACADEMIC_VISIBLE_SECTIONS.some((key) => showAcademicSection(key))
   const serviceProfile = isService ? (program?.academicProfile || program?.admissionRules?.academicProfile || null) : null
   const admissionRules = program?.admissionRules || null
   const requiredDocuments = listItems(admissionRules?.requiredDocuments)
