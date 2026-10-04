@@ -269,20 +269,98 @@ export function AIChatView() {
     setSending(true)
     try {
       const unitCtx = activeUnitRef.current ? `الطالب يقرأ الآن وحدة دراسية في منصة الأكاديمية (معرف الوحدة: ${activeUnitRef.current}) — إن كان سؤاله عن درسه الحالي فاربط إجابتك به.` : undefined
+
+      if (!voice) {
+        const assistantTempId = `tmp-ai-${Date.now()}`
+        let finalReply = ''
+        let finalMessageId = assistantTempId
+        let finalAgent: string | null = null
+        let finalEngine: string | null = null
+        setMessages((prev) => [...prev, {
+          id: assistantTempId,
+          role: 'assistant',
+          content: '',
+          mode: 'TEXT',
+          agent: null,
+          engine: null,
+          time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
+        }])
+
+        const token = getToken()
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ message: text, mode: 'TEXT', context: unitCtx, stream: true }),
+        })
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data?.error || `HTTP ${res.status}`)
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let doneEventReceived = false
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (!line.trim()) continue
+            const event = JSON.parse(line)
+            if (event.type === 'chunk') {
+              const chunk = String(event.text || '')
+              if (!chunk) continue
+              finalReply += chunk
+              setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, content: finalReply } : m))
+            } else if (event.type === 'done') {
+              doneEventReceived = true
+              finalMessageId = String(event.messageId || assistantTempId)
+              finalAgent = event.agent || null
+              finalEngine = event.engine || null
+            } else if (event.type === 'error') {
+              throw new Error(event.error || 'خطأ في المحادثة — أعد المحاولة')
+            }
+          }
+        }
+        if (buffer.trim()) {
+          const event = JSON.parse(buffer)
+          if (event.type === 'chunk') {
+            const chunk = String(event.text || '')
+            finalReply += chunk
+            setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, content: finalReply } : m))
+          } else if (event.type === 'done') {
+            doneEventReceived = true
+            finalMessageId = String(event.messageId || assistantTempId)
+            finalAgent = event.agent || null
+            finalEngine = event.engine || null
+          } else if (event.type === 'error') {
+            throw new Error(event.error || 'خطأ في المحادثة — أعد المحاولة')
+          }
+        }
+        if (!doneEventReceived || !finalReply.trim()) throw new Error('لم يكتمل رد المشرف الذكي — أعد المحاولة')
+        setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, id: finalMessageId, content: finalReply, agent: finalAgent, engine: finalEngine } : m))
+        if (autoSpeakRef.current) speak(finalReply, finalMessageId)
+        return
+      }
+
       const d = await api<{ reply: string; messageId: string; agent?: string; engine?: string }>('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ message: text, mode: voice ? 'VOICE' : 'TEXT', context: unitCtx }),
+        body: JSON.stringify({ message: text, mode: 'VOICE', context: unitCtx }),
       })
-      const aiMsg: Msg = { id: d.messageId, role: 'assistant', content: d.reply, mode: voice ? 'VOICE' : 'TEXT', agent: d.agent || null, engine: d.engine || null, time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) }
+      const aiMsg: Msg = { id: d.messageId, role: 'assistant', content: d.reply, mode: 'VOICE', agent: d.agent || null, engine: d.engine || null, time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) }
       let preparedVoiceUrl: string | null = null
-      if (voice && autoSpeakRef.current) {
+      if (autoSpeakRef.current) {
         try { preparedVoiceUrl = await fetchSpeechUrl(d.reply) } catch (e) { showSpeechError(e) }
       }
       setMessages((prev) => [...prev, aiMsg])
-      if (autoSpeakRef.current) {
-        if (preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
-        else if (!voice) speak(d.reply, d.messageId)
-      }
+      if (autoSpeakRef.current && preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
       setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
