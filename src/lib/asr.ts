@@ -40,6 +40,35 @@ function audioExtensionForMime(mimeType: string) {
   return 'audio'
 }
 
+function isOggOrOpusMime(mimeType?: string | null) {
+  const mime = normalizeAudioMimeType(mimeType)
+  return mime.includes('ogg') || mime.includes('opus')
+}
+
+function shouldWaitForGeminiFileState(state: string) {
+  const normalized = String(state || '').toUpperCase()
+  return normalized.includes('PROCESSING') || normalized.includes('PENDING') || normalized.includes('UNSPECIFIED')
+}
+
+async function waitForGeminiFileReady(ai: GoogleGenAI, uploadedFile: any) {
+  const name = uploadedFile?.name
+  if (!name) return uploadedFile
+
+  let file = uploadedFile
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const state = String(file?.state || '').toUpperCase()
+    if (!state || state.includes('ACTIVE') || state.includes('READY')) return file
+    if (state.includes('FAILED') || state.includes('ERROR')) {
+      throw new Error(`Gemini ASR uploaded file failed to become active: ${state}`)
+    }
+    if (!shouldWaitForGeminiFileState(state)) return file
+    await sleep(400 + attempt * 250)
+    file = await ai.files.get({ name } as any).catch(() => file)
+  }
+  console.warn('Gemini ASR uploaded file still not active after wait:', String(file?.state || 'unknown').slice(0, 80))
+  return file
+}
+
 function previewGeminiParts(parts: any[]) {
   try {
     return JSON.stringify(parts).slice(0, 500)
