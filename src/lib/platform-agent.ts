@@ -864,7 +864,7 @@ export async function platformPublicAgentComplete(opts: {
   const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
-  const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 52_000 : 22_000)
+  const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000)
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
