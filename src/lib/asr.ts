@@ -123,6 +123,8 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
       },
     } as any)
 
+    uploadedFile = await waitForGeminiFileReady(ai, uploadedFile)
+
     const fileUri = uploadedFile?.uri
     const fileMimeType = uploadedFile?.mimeType || mimeType
     if (!fileUri) throw new Error('Gemini ASR upload did not return a file URI.')
