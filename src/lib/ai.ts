@@ -65,17 +65,203 @@ function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): strin
 - إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
 }
 
-type SeedProgramItem = (typeof allSeedPrograms)[number]
+interface ProgramCatalogItem {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string | null
+  description?: string | null
+  category: string
+  hours?: number | null
+  price?: number | null
+  features: string[]
+}
 
-function programDigestLine(p: SeedProgramItem, i: number): string {
+interface SupervisorRuntimeContext {
+  programCatalog: ProgramCatalogItem[]
+  programCatalogText: string
+  applicationFee: number
+  doctorateStartsFrom: number
+  mastersStartsFrom: number
+  diplomaStartsFrom: number
+  accreditationApplicationFee: number
+  accreditationCompanyFee: number
+  accreditationConsultantFee: number
+  accreditationTrainerFee: number
+  certificateIssueDays: number
+  thesisMinMonths: number
+  thesisMaxMonths: number
+  agentCommissionRate: number
+  committeeMemberFee: number
+  contactEmail: string
+  contactWhatsapp: string
+}
+
+function parseFeatures(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function parseSettingsJson<T>(raw: string | undefined, fallback: T): T {
+  try {
+    return raw ? JSON.parse(raw) as T : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function settingNum(settings: Record<string, string>, key: string, fallback = 0) {
+  const n = Number(settings[key])
+  return Number.isFinite(n) ? n : fallback
+}
+
+function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
+  const slug = String(p.slug || '')
+  const titleAr = String(p.titleAr || '')
+  const titleEn = String(p.titleEn || '')
+  return slug.startsWith('qa-full-journey-')
+    || slug === 'launch-quality-diagnostic-program'
+    || titleAr.startsWith('برنامج جودة رحلة كاملة QA')
+    || titleEn.startsWith('QA Full Journey Program')
+}
+
+function minCatalogPrice(programs: ProgramCatalogItem[], categories: string[], fallback: number) {
+  const prices = programs
+    .filter((p) => categories.includes(p.category))
+    .map((p) => Number(p.price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0)
+  return prices.length ? Math.min(...prices) : fallback
+}
+
+function programDigestLine(p: ProgramCatalogItem, i: number): string {
   const features = (p.features || []).slice(0, 3).join('، ')
-  const price = p.price ? ` — رسومه التقريبية ${p.price}$` : ''
+  const price = p.price ? ` — رسومه ${p.price}import ZAI from 'z-ai-web-dev-sdk'
+import { ACADEMY_INFO, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
+import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
+import { textAiComplete, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { db } from '@/lib/db'
+import { getSettings } from '@/lib/settings'
+
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
+
+const SMART_SUPERVISOR_INTELLIGENCE = 96
+const SMART_SUPERVISOR_MEMORY = 98
+
+export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
+
+interface ChatCompleteOptions {
+  skipGemini?: boolean
+  timeoutMs?: number
+  /**
+   * في مسارات الطالب الأكاديمية وفحوص الجودة يجب أن تأتي الإجابة من نموذج فعلي.
+   * الرد المحلي العام يبقى مسموحاً للزائر، لكنه لا يصلح كبديل عن المشرف/المناقش.
+   */
+  requireModelResponse?: boolean
+  routerPolicy?: TextAiRouterPolicy
+}
+
+function aiTimeoutMs(configured: number | undefined, fallback: number) {
+  if (Number.isFinite(configured || NaN) && (configured || 0) >= 3_000) return Math.min(Math.floor(configured || fallback), 45_000)
+  const env = Number(process.env.SUPERVISOR_AI_PROVIDER_TIMEOUT_MS || '')
+  if (Number.isFinite(env) && env >= 3_000) return Math.min(Math.floor(env), 45_000)
+  return fallback
+}
+
+function withAiTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
+const PERSONA_LABEL_AR: Record<SupervisorPersona, string> = {
+  CHAT: 'مدرّس ومرشد أكاديمي',
+  EXAM: 'خبير قياس وتقويم جامعي',
+  DEFENSE: 'عضو لجنة مناقشة بحث تخرج',
+}
+
+function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT'): string {
+  if (persona === 'EXAM') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.EXAM}.
+- قيّم الإجابات وفق مخرجات التعلم، المهارة المطلوبة، مستوى الصعوبة، والدليل الأكاديمي.
+- لا تعتبر السؤال صحيحاً لمجرد التشابه اللفظي؛ ابحث عن الفهم والتطبيق والتحليل.
+- عند التغذية الراجعة اربط الخلل بمفهوم أو فصل أو مهارة، واذكر خطوة مراجعة عملية.`
+  }
+  if (persona === 'DEFENSE') {
+    return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.DEFENSE}.
+- تصرّف كعضو لجنة محترف: اسأل، قاطع بلطف عند التشتت، اطلب توضيحاً، واربط كلام الطالب بالمنهجية والنتائج.
+- القرار النهائي للجنة البشرية والإدارة، ودورك استشاري موثق في المحضر.
+- لا تكتفِ بالسؤال التالي؛ علّق على إجابة الطالب وانقل النقاش إلى مستوى أكاديمي أعلى.`
+  }
+  return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
+- درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- قدّم إجابات قصيرة مفيدة، ثم اقترح خطوة تعلم أو قراءة أو تدريب واحدة.
+- إذا ظهر ضعف متكرر، عالجه تربوياً دون لوم الطالب.`
+}
+
+ : ''
   const hours = p.hours ? ` — ${p.hours} ساعة` : ''
   return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — التصنيف: ${p.category}${hours}${price}${features ? ` — محاوره: ${features}` : ''}`
 }
 
-function buildStaticProgramCatalog(max = 90): string {
-  return allSeedPrograms.slice(0, max).map(programDigestLine).join('\n')
+async function loadPublicProgramCatalog(max = 90): Promise<ProgramCatalogItem[]> {
+  const rows = await db.program.findMany({
+    where: { active: true },
+    orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
+    select: {
+      id: true,
+      slug: true,
+      titleAr: true,
+      titleEn: true,
+      description: true,
+      category: true,
+      hours: true,
+      price: true,
+      features: true,
+    },
+    take: max,
+  })
+  return rows
+    .filter((p) => !isInternalQaProgram(p))
+    .map((p) => ({ ...p, features: parseFeatures(p.features) }))
+}
+
+async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext> {
+  const [settings, programCatalog] = await Promise.all([
+    getSettings(),
+    loadPublicProgramCatalog(),
+  ])
+  const officialContact = parseSettingsJson<Record<string, string>>(settings.OFFICIAL_CONTACT, {})
+  const doctorateDefault = settingNum(settings, 'FEE_DOCTORATE', 0)
+  const mastersDefault = settingNum(settings, 'FEE_MASTERS', 0)
+  const diplomaDefault = settingNum(settings, 'FEE_DIPLOMAS_MIN', 0)
+  return {
+    programCatalog,
+    programCatalogText: programCatalog.map(programDigestLine).join('\n'),
+    applicationFee: settingNum(settings, 'FEE_APPLICATION', 0),
+    doctorateStartsFrom: minCatalogPrice(programCatalog, ['DOCTORATE'], doctorateDefault),
+    mastersStartsFrom: minCatalogPrice(programCatalog, ['MASTERS'], mastersDefault),
+    diplomaStartsFrom: minCatalogPrice(programCatalog, ['DIPLOMA', 'INTL_CERT'], diplomaDefault),
+    accreditationApplicationFee: settingNum(settings, 'FEE_ACC_APPLICATION', 0),
+    accreditationCompanyFee: settingNum(settings, 'FEE_ACC_COMPANY', 0),
+    accreditationConsultantFee: settingNum(settings, 'FEE_ACC_CONSULTANT', 0),
+    accreditationTrainerFee: settingNum(settings, 'FEE_ACC_TRAINER', 0),
+    certificateIssueDays: settingNum(settings, 'CERTIFICATE_ISSUE_DAYS', Number(ACADEMY_INFO.certificateDays || 30)),
+    thesisMinMonths: settingNum(settings, 'THESIS_MIN_MONTHS', 3),
+    thesisMaxMonths: settingNum(settings, 'THESIS_MAX_MONTHS', 6),
+    agentCommissionRate: settingNum(settings, 'AGENT_COMMISSION_RATE', Number(ACADEMY_INFO.agentCommission || 25)),
+    committeeMemberFee: settingNum(settings, 'COMMITTEE_MEMBER_FEE', Number(ACADEMY_INFO.researchFee || 100)),
+    contactEmail: String(officialContact.email || ACADEMY_INFO.email),
+    contactWhatsapp: String(officialContact.whatsapp || ACADEMY_INFO.whatsapp),
+  }
 }
 
 export async function getZAI() {
