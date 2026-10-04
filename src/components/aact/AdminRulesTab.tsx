@@ -59,6 +59,7 @@ interface AcademicProfileDraft {
   assessmentComponents?: string[]
   thesisRequirement?: string
   qualityControls?: string[]
+  hiddenSections?: string[]
 }
 
 interface Rules {
