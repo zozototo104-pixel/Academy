@@ -135,7 +135,7 @@ export function formatProgramCatalogLine(program: ProgramCatalogRecord, index: n
 }
 
 async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> {
-  return (await db.program.findMany({
+  const rows = await db.program.findMany({
     where: { active: true },
     orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
     take: limit,
