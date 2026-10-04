@@ -227,6 +227,7 @@ export function ApplyView() {
       .then((d) => {
         if (!alive) return
         setGeneralDisclosureConsentText(d.values?.DISCLOSURE_CONSENT_TEXT || '')
+        setApplicationFee(Number(d.values?.FEE_APPLICATION || 30))
       })
       .catch(() => {})
     return () => { alive = false }
