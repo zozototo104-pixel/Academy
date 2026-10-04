@@ -571,8 +571,10 @@ export function ProgramDetailsView() {
                       ))}
                     </div>
                   </div>
+                  )}
                 </div>
 
+                {showAcademicSection('studyPlan') && (academicProfile.studyPlan?.length || 0) > 0 && (
                 <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                   <h3 className="mb-3 flex items-center gap-2 font-black text-white"><BookOpen className="h-5 w-5 text-[#d2ad5a]" /> الخطة الدراسية المعتمدة</h3>
                   <div className="grid gap-3 md:grid-cols-3">
