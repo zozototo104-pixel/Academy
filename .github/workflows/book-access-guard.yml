@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'Allowed target URL: academy-raqaba.vercel.app or aactacademy.com only'
-        required: false
-        default: 'https://academy-raqaba.vercel.app'
+        description: 'Approved QA preview URL to test'
+        required: true
+        default: ''
         type: string
 
 permissions:
