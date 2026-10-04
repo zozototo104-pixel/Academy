@@ -589,6 +589,59 @@ export function AdminRulesTab() {
                           سعر القسط المحسوب سيظهر هنا بعد ربط خطة الأقساط الخاصة بالبرنامج.
                         </div>
                       </div>
+
+                      <div className="mt-4 rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black text-[#0f2b46]">تطبيق السعر والساعات على كل برامج هذا التصنيف</p>
+                            <p className="mt-1 text-[10px] font-bold leading-5 text-slate-500">
+                              سيستخدم السعر والساعات أعلاه ويطبقهما على {categoryProgramsForBulkApply.length} برنامج/مسار ضمن تصنيف «{CAT_AR[programDraft.category] || programDraft.category}».
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-[#c9a227]/50 text-[11px] font-black text-[#0f2b46] hover:bg-[#f7edd0]"
+                            disabled={saving || bulkApplying || !categoryProgramsForBulkApply.length}
+                            onClick={() => setBulkApplyOpen((v) => !v)}
+                          >
+                            {bulkApplyOpen ? 'إخفاء التأكيد' : 'تطبيق على التصنيف'}
+                          </Button>
+                        </div>
+
+                        {bulkApplyOpen && (
+                          <div className="mt-3 rounded-xl border bg-white p-3">
+                            <p className="text-xs font-black text-red-700">تأكيد قبل التنفيذ</p>
+                            <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
+                              سيتم تحديث السعر إلى <span className="font-black text-[#0f2b46]">{programDraft.price ?? 'فارغ'}$</span> وعدد الساعات إلى <span className="font-black text-[#0f2b46]">{programDraft.hours ?? 'فارغ'}</span> للبرامج التالية:
+                            </p>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-2 text-[11px] font-bold leading-6 text-slate-600">
+                              {categoryProgramsForBulkApply.map((p) => (
+                                <div key={p.id} className="border-b border-slate-100 py-1 last:border-b-0">
+                                  {p.titleAr}
+                                  <span className="text-slate-400"> — حالياً: {p.price ?? 'بدون سعر'}$ / {p.hours ?? 'بدون ساعات'} ساعة</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-red-600 text-xs font-black text-white hover:bg-red-700"
+                                disabled={bulkApplying}
+                                onClick={applyPriceHoursToCategory}
+                              >
+                                {bulkApplying ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                                نعم، طبّق على كل التصنيف
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" disabled={bulkApplying} onClick={() => setBulkApplyOpen(false)}>
+                                إلغاء
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </details>
 
                     <details className="rounded-2xl border bg-white p-4">
