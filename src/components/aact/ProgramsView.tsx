@@ -204,8 +204,8 @@ export function ProgramsView() {
             const Icon = ICONS[p.icon] || GraduationCap
             const flow = getServiceFlow(p.slug)
             const serviceLike = flow ? !flow.isStudyProgram : p.category === 'SERVICE'
-            const displayDescription = flow?.summary || p.description
-            const displayFeatures = flow?.highlights?.length ? flow.highlights : p.features
+            const displayDescription = p.description || flow?.summary || ''
+            const displayFeatures = p.features?.length ? p.features : (flow?.highlights || [])
             const displayAction = flow?.cardAction || (serviceLike ? 'اطلب الخدمة الآن' : 'قدّم طلب الالتحاق بالبرنامج')
             return (
               <Card key={p.id} className="aact-card flex flex-col border-[#0f2b46]/10 bg-white">
