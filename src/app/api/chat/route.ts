@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     await requireStudentAiSupervisorAccess(user)
     const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
-    const { message, context, mode } = await req.json()
+    const { message, context, mode, stream } = await req.json()
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
