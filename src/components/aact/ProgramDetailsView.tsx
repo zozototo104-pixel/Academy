@@ -471,7 +471,7 @@ export function ProgramDetailsView() {
           </div>
 
           <TabsContent value="overview" className="mt-0 space-y-5">
-            {academicProfile && (
+            {academicProfile && showAcademicSection('overview') && (
               <DetailSection title="الملف الأكاديمي الرسمي للبرنامج" icon={School} accent>
                 <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
                   <div>
