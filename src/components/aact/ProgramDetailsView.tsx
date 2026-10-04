@@ -548,6 +548,7 @@ export function ProgramDetailsView() {
                   <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">المدة/المسار</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.durationLabel}</span></div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الساعات</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.creditHoursLabel}</span></div>
                 </div>
+                )}
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
