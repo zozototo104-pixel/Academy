@@ -1441,7 +1441,9 @@ export function AdminSettingsTab() {
                     <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
                     {d.help && <p className="mt-1 text-[10px] font-bold leading-5 text-slate-400">{d.help}</p>}
                     <div className="relative mt-2">
-                      {inputType === 'textarea' || inputType === 'json' ? (
+                      {structuredJsonControl ? (
+                        structuredJsonControl
+                      ) : inputType === 'textarea' || inputType === 'json' ? (
                         <Textarea
                           id={d.key}
                           dir={inputType === 'json' ? 'ltr' : 'rtl'}
