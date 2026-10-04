@@ -130,7 +130,7 @@ export function AboutView() {
 
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {STATS.map((s) => (
+          {stats.map((s) => (
             <Card key={s.label} className="border-[#c9a227]/30 bg-white text-center shadow-sm">
               <CardContent className="p-5">
                 <p className="text-3xl font-black text-[#a8841a]">{s.value}</p>
