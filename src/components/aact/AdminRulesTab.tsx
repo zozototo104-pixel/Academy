@@ -393,7 +393,95 @@ export function AdminRulesTab() {
                   </Badge>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                {programDraft && (
+                  <div className="space-y-3">
+                    <details open className="rounded-2xl border bg-white p-4">
+                      <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">1) البيانات الأساسية</summary>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">اسم البرنامج بالعربية</label>
+                          <Input className="text-xs" value={programDraft.titleAr} onChange={(e) => patchProgramDraft({ titleAr: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">اسم البرنامج بالإنجليزية</label>
+                          <Input className="text-xs" value={programDraft.titleEn || ''} onChange={(e) => patchProgramDraft({ titleEn: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">التصنيف</label>
+                          <Select value={programDraft.category} onValueChange={(v) => patchProgramDraft({ category: v })}>
+                            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {CATEGORY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الأيقونة</label>
+                          <Input className="text-xs" value={programDraft.icon} onChange={(e) => patchProgramDraft({ icon: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">ترتيب العرض</label>
+                          <Input type="number" className="text-xs" value={programDraft.sortOrder} onChange={(e) => patchProgramDraft({ sortOrder: Number(e.target.value) })} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-2.5">
+                          <div>
+                            <p className="text-xs font-black text-[#0f2b46]">البرنامج منشور</p>
+                            <p className="text-[10px] text-slate-500">إيقافه يخفيه من الكتالوج العام.</p>
+                          </div>
+                          <Switch checked={programDraft.active} onCheckedChange={(v) => patchProgramDraft({ active: v })} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الوصف</label>
+                          <Textarea rows={3} className="text-xs" value={programDraft.description || ''} onChange={(e) => patchProgramDraft({ description: e.target.value })} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">الميزات — كل سطر ميزة، بحد أقصى 12</label>
+                          <Textarea rows={4} className="text-xs" value={listToText(programDraft.features)} onChange={(e) => patchProgramDraft({ features: cleanTextList(textToList(e.target.value)).slice(0, 12) })} />
+                        </div>
+                      </div>
+                    </details>
+
+                    <details className="rounded-2xl border bg-white p-4">
+                      <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">2) السعر والمدة</summary>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">السعر بالدولار</label>
+                          <Input type="number" min={0} className="text-xs" value={programDraft.price ?? ''} onChange={(e) => patchProgramDraft({ price: e.target.value === '' ? null : Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">عدد الساعات</label>
+                          <Input type="number" min={1} className="text-xs" value={programDraft.hours ?? ''} onChange={(e) => patchProgramDraft({ hours: e.target.value === '' ? null : Number(e.target.value) })} />
+                        </div>
+                        <div className="rounded-xl border bg-[#faf6ea] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
+                          سعر القسط المحسوب سيظهر هنا بعد ربط خطة الأقساط الخاصة بالبرنامج.
+                        </div>
+                      </div>
+                    </details>
+
+                    <details className="rounded-2xl border bg-white p-4">
+                      <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">3) بيانات الشهادة</summary>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">نوع الاعتماد/الشهادة</label>
+                          <Select value={programDraft.credentialType || 'PROFESSIONAL_CERTIFICATE'} onValueChange={(v) => patchProgramDraft({ credentialType: v })}>
+                            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {CREDENTIAL_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">تنبيه العلامة التجارية أو الجهة المالكة</label>
+                          <Textarea rows={3} className="text-xs" value={programDraft.trademarkNotice || ''} onChange={(e) => patchProgramDraft({ trademarkNotice: e.target.value })} />
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                )}
+
+                <details open className="rounded-2xl border bg-white p-4">
+                  <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">4) شروط القبول</summary>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {/* الحد الأدنى للمؤهل */}
                   <div>
                     <label className="mb-1.5 block text-xs font-black text-[#0f2b46]">{isStudyProgram ? 'الحد الأدنى للمؤهل المطلوب' : 'شرط المؤهل للخدمة'}</label>
