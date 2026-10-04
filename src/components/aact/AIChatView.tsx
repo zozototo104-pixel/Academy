@@ -363,7 +363,7 @@ export function AIChatView() {
       if (autoSpeakRef.current && preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
+      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id && !m.id.startsWith('tmp-ai-')))
       if (!voice) setInput(text)
     } finally {
       setSending(false)
