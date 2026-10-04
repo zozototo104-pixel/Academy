@@ -469,10 +469,10 @@ export function HomeView() {
           {/* Stats — عدادات متحركة تبدأ عند الظهور */}
           <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
             {[
-              { v: 20000, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
               { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
-              { v: 250, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
-              { v: 50, s: '+', l: 'اعتماد دولي ومحلي', icon: Globe2 },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
             ].map((s) => {
               const Icon = s.icon
               return (
