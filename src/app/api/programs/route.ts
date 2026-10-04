@@ -21,6 +21,35 @@ function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null;
     || titleEn.startsWith('QA Full Journey Program')
 }
 
+function buildCatalogVersion(programs: any[]) {
+  const signature = programs
+    .map((p) => [
+      p.id,
+      p.slug,
+      p.titleAr,
+      p.titleEn,
+      p.description,
+      p.category,
+      p.hours,
+      p.price,
+      p.icon,
+      p.features,
+      p.active,
+      p.order,
+      p.credentialType,
+      p.trademarkNotice,
+      p.disclosureConsentText,
+      JSON.stringify(p.admissionRules || null),
+    ].join('|'))
+    .sort()
+    .join('::')
+  let hash = 0
+  for (let i = 0; i < signature.length; i += 1) {
+    hash = ((hash << 5) - hash + signature.charCodeAt(i)) | 0
+  }
+  return `${programs.length}-${Math.abs(hash).toString(36)}`
+}
+
 export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
