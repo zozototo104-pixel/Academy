@@ -126,7 +126,11 @@ export function formatProgramCatalogLine(program: ProgramCatalogRecord, index: n
   const counts = program._count
     ? `\nعدادات المحتوى: كتب ${program._count.books ?? 0}، وحدات ${program._count.units ?? 0}، واجبات ${program._count.assignments ?? 0}، امتحانات ${program._count.programExams ?? 0}`
     : ''
-  return `${index + 1}. ${program.titleAr || 'برنامج بلا عنوان'}${program.titleEn ? ` (${program.titleEn})` : ''} — ${program.category || 'تصنيف غير محدد'}${hours}${price}${status}\nالكتب/المراجع المسجلة حرفياً:\n${formatProgramBooks(program)}${units}${counts}`
+  const admission = program.admissionRules ? `\nقواعد القبول: ${compactText(JSON.stringify(program.admissionRules), 900)}` : ''
+  const academic = program.academicProfile ? `\nالملف الأكاديمي: ${compactText(JSON.stringify(program.academicProfile), 1200)}` : ''
+  const credential = program.credentialType ? `\nنوع الشهادة/المسار: ${program.credentialType}` : ''
+  const trademark = program.trademarkNotice ? `\nتنبيه العلامة التجارية: ${compactText(program.trademarkNotice, 500)}` : ''
+  return `${index + 1}. ${program.titleAr || 'برنامج بلا عنوان'}${program.titleEn ? ` (${program.titleEn})` : ''} — ${program.category || 'تصنيف غير محدد'}${hours}${price}${status}${credential}${trademark}${admission}${academic}\nالكتب/المراجع المسجلة حرفياً:\n${formatProgramBooks(program)}${units}${counts}`
 }
 
 async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> {
