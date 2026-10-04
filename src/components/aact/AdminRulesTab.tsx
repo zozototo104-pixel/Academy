@@ -230,6 +230,8 @@ function stageAt(profile: AcademicProfileDraft | null | undefined, index: number
 export function AdminRulesTab() {
   const [programs, setPrograms] = useState<ProgramRules[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
+  const [programSearch, setProgramSearch] = useState('')
+  const [programCategoryFilter, setProgramCategoryFilter] = useState('ALL')
   const [draft, setDraft] = useState<Rules>({})
   const [programDraft, setProgramDraft] = useState<ProgramDraft | null>(null)
   const [custom, setCustom] = useState(false)
