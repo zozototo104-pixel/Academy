@@ -146,6 +146,20 @@ const CREDENTIAL_OPTIONS = [
   { value: 'SERVICE', label: 'خدمة مهنية' },
 ]
 
+const ACADEMIC_SECTION_CONFIG = [
+  { key: 'overview', label: 'بيانات الملف الأساسية', fields: ['degreeLabel', 'specialization', 'academicTitle', 'levelDescription'] },
+  { key: 'duration', label: 'المدة والساعات', fields: ['durationLabel', 'creditHoursLabel'] },
+  { key: 'learningOutcomes', label: 'مخرجات التعلم', fields: ['learningOutcomes'] },
+  { key: 'skills', label: 'المهارات المهنية', fields: ['skills'] },
+  { key: 'studyPlan', label: 'الخطة الدراسية', fields: ['studyPlan'] },
+  { key: 'termPlans', label: 'خطط الفصول', fields: ['termPlans'] },
+  { key: 'finalEvaluationFormula', label: 'معادلة التقييم النهائي', fields: ['finalEvaluationFormula'] },
+  { key: 'graduationRequirements', label: 'متطلبات التخرج', fields: ['graduationRequirements'] },
+  { key: 'assessmentComponents', label: 'مكونات التقييم', fields: ['assessmentComponents'] },
+  { key: 'thesisRequirement', label: 'الرسالة أو المشروع النهائي', fields: ['thesisRequirement'] },
+  { key: 'qualityControls', label: 'ضوابط الجودة', fields: ['qualityControls'] },
+] as const
+
 function programDraftFromProgram(p: ProgramRules): ProgramDraft {
   return {
     titleAr: p.program?.titleAr || p.titleAr || '',
