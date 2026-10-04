@@ -243,6 +243,7 @@ export function AdminRulesTab() {
     setDraft({ ...p.rules })
     setProgramDraft(programDraftFromProgram(p))
     setCustom(p.custom)
+    setBulkApplyOpen(false)
   }, [])
 
   useEffect(() => {
