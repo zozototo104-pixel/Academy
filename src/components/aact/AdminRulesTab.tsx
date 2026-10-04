@@ -594,8 +594,12 @@ export function AdminRulesTab() {
                   />
                 </div>
 
+                </details>
+
                 {/* الملف الأكاديمي الرسمي */}
-                <div className="rounded-2xl border-2 border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                <details open className="rounded-2xl border-2 border-[#c9a227]/35 bg-[#fffaf0] p-4">
+                  <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">5) الملف الأكاديمي</summary>
+                  <div className="mt-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h4 className="flex items-center gap-1.5 text-sm font-black text-[#0f2b46]">
