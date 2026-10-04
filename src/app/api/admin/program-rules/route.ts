@@ -4,8 +4,10 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { resolveRules, type AdmissionRules } from '@/lib/admission-ai'
+import { clearAdmissionAiReviewCacheForProgram, resolveRules, type AdmissionRules } from '@/lib/admission-ai'
 import { normalizeAcademicProfileOverride } from '@/lib/program-tracks'
+import { clearPublicProgramsCache } from '@/lib/programs-public-cache'
+import { compactChangeSummary, pickChangedFields } from '@/lib/program-rules-audit'
 import { buildOfficialStudyAdmissionDefaults, buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
 
 function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
