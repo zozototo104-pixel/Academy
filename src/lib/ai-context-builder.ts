@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { formatAiKnowledgePolicyForPrompt, getAiKnowledgePolicy, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { academicProfileFromRules } from '@/lib/program-tracks'
 
 export type AiKnowledgeDiagnostics = {
   source: 'SCOPED_PROGRAM_CATALOG'
