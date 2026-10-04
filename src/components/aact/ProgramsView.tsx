@@ -109,8 +109,10 @@ export function ProgramsView() {
       setPrograms(list)
       if (list.length > 0) {
         try {
+          const version = d.catalogVersion || 'current'
           localStorage.setItem('aact_program_count', String(list.length))
-          localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 140)))
+          localStorage.setItem('aact_programs_summary_version', version)
+          localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
         } catch {}
       }
     } catch {
