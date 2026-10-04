@@ -303,38 +303,47 @@ export function AIChatView() {
 
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
         let buffer = ''
         let doneEventReceived = false
-        while (true) {
-          const { value, done } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-          for (const line of lines) {
-            if (!line.trim()) continue
-            const event = JSON.parse(line)
-            if (event.type === 'chunk') {
-              const chunk = String(event.text || '')
-              if (!chunk) continue
-              finalReply += chunk
-              setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, content: finalReply } : m))
-            } else if (event.type === 'done') {
-              doneEventReceived = true
-              finalMessageId = String(event.messageId || assistantTempId)
-              finalAgent = event.agent || null
-              finalEngine = event.engine || null
-            } else if (event.type === 'error') {
-              throw new Error(event.error || 'خطأ في المحادثة — أعد المحاولة')
+        let displayedReply = ''
+        let pendingDisplay = ''
+        let flushingDisplay = false
+        let streamCancelled = false
+
+        const renderDisplayedReply = () => {
+          setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, content: displayedReply } : m))
+        }
+        const nextTypewriterPiece = () => {
+          const match = pendingDisplay.match(/^(\s+|[^\s]+\s*)/)
+          return match?.[0] || pendingDisplay.slice(0, 1)
+        }
+        const flushTypewriter = async () => {
+          if (flushingDisplay) return
+          flushingDisplay = true
+          try {
+            while (pendingDisplay && !streamCancelled) {
+              const piece = nextTypewriterPiece()
+              pendingDisplay = pendingDisplay.slice(piece.length)
+              displayedReply += piece
+              renderDisplayedReply()
+              await sleep(piece.trim().length > 10 ? 45 : 28)
             }
+          } finally {
+            flushingDisplay = false
           }
         }
-        if (buffer.trim()) {
-          const event = JSON.parse(buffer)
+        const enqueueChunk = (rawText: string) => {
+          const raw = String(rawText || '')
+          const chunk = raw.startsWith(finalReply) ? raw.slice(finalReply.length) : raw
+          if (!chunk) return
+          finalReply += chunk
+          pendingDisplay += chunk
+          void flushTypewriter()
+        }
+        const handleStreamEvent = (event: any) => {
           if (event.type === 'chunk') {
-            const chunk = String(event.text || '')
-            finalReply += chunk
-            setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, content: finalReply } : m))
+            enqueueChunk(String(event.text || ''))
           } else if (event.type === 'done') {
             doneEventReceived = true
             finalMessageId = String(event.messageId || assistantTempId)
@@ -344,6 +353,26 @@ export function AIChatView() {
             throw new Error(event.error || 'خطأ في المحادثة — أعد المحاولة')
           }
         }
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              if (!line.trim()) continue
+              handleStreamEvent(JSON.parse(line))
+            }
+          }
+          if (buffer.trim()) handleStreamEvent(JSON.parse(buffer))
+          while ((pendingDisplay || flushingDisplay) && !streamCancelled) await sleep(20)
+        } catch (err) {
+          streamCancelled = true
+          throw err
+        }
+
         if (!doneEventReceived || !finalReply.trim()) throw new Error('لم يكتمل رد المشرف الذكي — أعد المحاولة')
         setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, id: finalMessageId, content: finalReply, agent: finalAgent, engine: finalEngine } : m))
         if (autoSpeakRef.current) speak(finalReply, finalMessageId)
