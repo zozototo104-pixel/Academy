@@ -258,6 +258,10 @@ export function AdminRulesTab() {
     patchAcademic({ studyPlan: rows })
   }
 
+  const patchProgramDraft = (patch: Partial<ProgramDraft>) => {
+    setProgramDraft((prev) => prev ? { ...prev, ...patch } : prev)
+  }
+
   const clearAcademicProfile = () => {
     const next = { ...draft }
     delete next.academicProfile
