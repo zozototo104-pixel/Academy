@@ -7,8 +7,10 @@ export interface SettingDef {
   key: string
   value: string
   label: string
-  group: string // FEES | RULES | AI
+  group: string // FEES | RULES | AI | CONTENT | CONTACT
   suffix: string // $ | يوم | شهر | % | دقيقة
+  inputType?: 'number' | 'text' | 'textarea' | 'json'
+  help?: string
 }
 
 export const DEFAULT_SETTINGS: SettingDef[] = [
