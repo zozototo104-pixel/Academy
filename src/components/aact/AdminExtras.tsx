@@ -2264,6 +2264,7 @@ export function AdminMessagesTab() {
       <AdminPager page={currentMsgPage} pageSize={msgPageSize} total={msgTotal} onPageChange={setMsgPage} label="رسالة" />
     </div>
   )
+  /* real file end; duplicated tail below is intentionally disabled */
 }
 /* DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
