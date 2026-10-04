@@ -5,10 +5,7 @@ import { ensureCoreSeed } from '@/lib/bootstrap'
 import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CATEGORY_AR, programSpecialtyLabel } from '@/lib/program-tracks'
 import { resolveRules } from '@/lib/admission-ai'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
-
-const PUBLIC_PROGRAMS_CACHE_TTL_MS = 5 * 60 * 1000
-let publicProgramsSummaryCache: { expiresAt: number; payload: { programs: any[] } } | null = null
-let publicProgramsCountCache: { expiresAt: number; count: number } | null = null
+import { getPublicProgramsCountCache, getPublicProgramsSummaryCache, setPublicProgramsCountCache, setPublicProgramsSummaryCache } from '@/lib/programs-public-cache'
 
 function publicCacheHeaders() {
   return { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800' }
