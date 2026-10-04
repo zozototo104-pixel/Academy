@@ -404,13 +404,23 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     }
 
     const audioBase64 = await downloadOfficialWhatsAppMediaBase64(mediaInfo, message.phoneNumberId)
+    const startedAt = Date.now()
     const transcript = await withTimeout(
       transcribeAudioBase64(audioBase64, {
         mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
+        allowZaiFallback: false,
       }),
-      25_000,
+      38_000,
       'whatsapp_voice_transcription'
     )
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_OK', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      mediaId: message.mediaId || null,
+      mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
+      fileSize,
+      ms: Date.now() - startedAt,
+    }, message.id)
     const text = String(transcript || '').trim()
     if (!text) {
       return {
