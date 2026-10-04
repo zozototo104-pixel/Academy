@@ -821,7 +821,8 @@ function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
-  const s = await settings()
+  const baseSettings = await settings()
+  const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
   const providers = providerOrder(s)
   if (!providers.length) throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
   const errors: string[] = []
