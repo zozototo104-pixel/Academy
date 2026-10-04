@@ -4,6 +4,7 @@ import { getZAI } from '@/lib/ai'
 type TranscribeAudioOptions = {
   mimeType?: string | null
   languageCode?: string | null
+  allowZaiFallback?: boolean | null
 }
 
 function sleep(ms: number) {
