@@ -414,6 +414,11 @@ export function HomeView() {
             <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
               منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
             </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
             <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
               <Button
                 size="lg"
