@@ -164,10 +164,7 @@ export async function GET(req: NextRequest) {
       enrolledProgramIds = enrolls.map((e) => e.programId)
     }
 
-    const catalogVersion = programs.reduce<string | null>((latest, p: any) => {
-      const value = p.updatedAt?.toISOString?.() || null
-      return value && (!latest || value > latest) ? value : latest
-    }, null)
+    const catalogVersion = buildCatalogVersion(programs as any[])
 
     const payload = {
       catalogVersion,
