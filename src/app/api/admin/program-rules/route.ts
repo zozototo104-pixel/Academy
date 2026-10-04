@@ -157,8 +157,10 @@ export async function PUT(req: NextRequest) {
     // reset=true يعيد القواعد الافتراضية (يمسح التخصيص)
     if (rules?.reset) {
       await db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } })
-      await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية`)
-      return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false })
+      clearPublicProgramsCache()
+      const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
+      await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+      return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
     }
 
     const before = programSnapshot(program)
