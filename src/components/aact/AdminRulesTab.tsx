@@ -226,6 +226,7 @@ function normalizeAcademicProfile(profile?: AcademicProfileDraft | null): Academ
         description: String(item.description || '').trim(),
       }))
       .filter((item) => item.label && item.weight > 0),
+    hiddenSections: cleanTextList(profile.hiddenSections),
   }
 }
 
