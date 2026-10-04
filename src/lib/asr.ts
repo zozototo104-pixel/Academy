@@ -161,14 +161,25 @@ async function transcribeWithZai(audioBase64: string) {
 }
 
 export async function transcribeAudioBase64(audioBase64: string, options: TranscribeAudioOptions = {}) {
-  const { clean } = cleanBase64AndMime(audioBase64, options.mimeType)
+  const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) return ''
 
+  const skipZaiFallback = options.allowZaiFallback === false || isOggOrOpusMime(mimeType)
+
   try {
-    const geminiText = await transcribeWithGemini(clean, options)
+    const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
     if (geminiText !== null) return geminiText
   } catch (error) {
-    console.warn('Gemini ASR failed, falling back to ZAI:', String(error).slice(0, 300))
+    const reason = String((error as any)?.message || error).slice(0, 300)
+    if (skipZaiFallback) {
+      console.warn('Gemini ASR failed; ZAI fallback disabled for this audio:', JSON.stringify({ mimeType, reason }).slice(0, 500))
+      throw error
+    }
+    console.warn('Gemini ASR failed, falling back to ZAI:', reason)
+  }
+
+  if (skipZaiFallback) {
+    throw new Error(`Gemini ASR unavailable for ${mimeType}; ZAI fallback disabled.`)
   }
 
   return transcribeWithZai(clean)
