@@ -1187,7 +1187,7 @@ export function AdminSettingsTab() {
     setSaving(true)
     try {
       await api('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
-      toast({ title: 'حُفظت الرسوم', description: 'تُطبق القيم الجديدة فوراً على كامل المنصة — سُجل الإجراء في سجل التدقيق' })
+      toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
