@@ -52,6 +52,17 @@ function normalizeFeaturesForDb(features?: string[]) {
   return JSON.stringify(features.map((item) => item.trim()).filter(Boolean).slice(0, 12))
 }
 
+function parseProgramFeatures(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()).slice(0, 12)
+  const text = String(raw || '').trim()
+  if (!text) return []
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()).slice(0, 12)
+  } catch {}
+  return text.split(/\r?\n|،|,/).map((item) => item.trim()).filter(Boolean).slice(0, 12)
+}
+
 function programSnapshot(program: any) {
   return {
     titleAr: program.titleAr,
@@ -59,7 +70,7 @@ function programSnapshot(program: any) {
     description: program.description,
     category: program.category,
     icon: program.icon,
-    features: JSON.parse(program.features || '[]'),
+    features: parseProgramFeatures(program.features),
     active: program.active,
     sortOrder: program.order,
     price: program.price,
