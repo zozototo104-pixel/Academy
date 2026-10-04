@@ -32,13 +32,15 @@ export async function GET(req: NextRequest) {
 
     if (publicOnly && countOnly) {
       const now = Date.now()
-      if (publicProgramsCountCache && publicProgramsCountCache.expiresAt > now) {
-        return NextResponse.json({ count: publicProgramsCountCache.count }, { headers: publicCacheHeaders() })
+      const countCache = getPublicProgramsCountCache()
+      if (countCache && countCache.expiresAt > now) {
+        return NextResponse.json({ count: countCache.count, catalogVersion: countCache.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
-      if (publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > now) {
-        const count = publicProgramsSummaryCache.payload.programs.length
-        publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-        return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+      const summaryCache = getPublicProgramsSummaryCache()
+      if (summaryCache && summaryCache.expiresAt > now) {
+        const count = summaryCache.payload.programs.length
+        setPublicProgramsCountCache(count, summaryCache.payload.catalogVersion || null)
+        return NextResponse.json({ count, catalogVersion: summaryCache.payload.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
       const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true } })
       const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p)).length
