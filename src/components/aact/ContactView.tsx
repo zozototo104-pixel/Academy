@@ -175,7 +175,7 @@ export function ContactView() {
                 <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400">الهاتف والواتساب الرسمي</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{ACADEMY_INFO.officialPhone}</p>
+                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.phone}</p>
                 </div>
               </a>
               <a href={`https://wa.me/${ACADEMY_INFO.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
