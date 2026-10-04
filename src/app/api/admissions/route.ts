@@ -244,9 +244,11 @@ export async function POST(req: NextRequest) {
     const uploadedTypes = new Set(files.map((f) => f.docType))
     const rules = programRules
     const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
-    const requiredDocList = isServiceRequest
-      ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
-      : REQUIRED_DOCS
+    const defaultDocMap = new Map(REQUIRED_DOCS.map((d) => [d.type, d.label]))
+    const requiredDocTypes = Array.isArray(rules.requiredDocuments) && rules.requiredDocuments.length
+      ? rules.requiredDocuments
+      : REQUIRED_DOCS.map((d) => d.type)
+    const requiredDocList = requiredDocTypes.map((type) => ({ type, label: serviceDocMap.get(type) || defaultDocMap.get(type) || type }))
     const missing = stagedUpload ? [] : requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json(
