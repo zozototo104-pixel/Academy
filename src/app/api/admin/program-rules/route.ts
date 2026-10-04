@@ -130,7 +130,25 @@ export async function PUT(req: NextRequest) {
 
     const program = await db.program.findUnique({
       where: { id: programId },
-      select: { id: true, slug: true, titleAr: true, titleEn: true, description: true, category: true, hours: true, _count: { select: { units: true } } },
+      select: {
+        id: true,
+        slug: true,
+        titleAr: true,
+        titleEn: true,
+        description: true,
+        category: true,
+        hours: true,
+        price: true,
+        icon: true,
+        features: true,
+        active: true,
+        order: true,
+        credentialType: true,
+        trademarkNotice: true,
+        disclosureConsentText: true,
+        admissionRules: true,
+        _count: { select: { units: true } },
+      },
     })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     const flow = getServiceFlow(program.slug)
