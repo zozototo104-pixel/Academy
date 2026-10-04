@@ -498,24 +498,52 @@ export function AdminRulesTab() {
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
             {/* قائمة البرامج */}
-            <div className="max-h-[560px] space-y-1.5 overflow-y-auto rounded-xl border bg-[#faf6ea]/50 p-2">
-              {programs.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => selectProgram(p)}
-                  className={`block w-full rounded-lg px-3 py-2.5 text-right transition-colors ${
-                    p.id === selectedId ? 'bg-[#0f2b46] text-white' : 'hover:bg-[#f7edd0]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-xs font-black ${p.id === selectedId ? 'text-[#e0b83a]' : 'text-[#0f2b46]'}`}>{p.titleAr}</span>
-                    {p.custom && <Badge className="shrink-0 bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+            <div className="rounded-xl border bg-[#faf6ea]/50 p-2">
+              <div className="sticky top-0 z-10 space-y-2 rounded-lg bg-[#faf6ea] p-2 shadow-sm">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={programSearch}
+                    onChange={(e) => setProgramSearch(e.target.value)}
+                    placeholder="ابحث باسم البرنامج أو slug..."
+                    className="h-10 pr-9 text-xs font-bold"
+                  />
+                </div>
+                <Select value={programCategoryFilter} onValueChange={setProgramCategoryFilter}>
+                  <SelectTrigger className="h-10 text-xs font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs">كل التصنيفات</SelectItem>
+                    {CATEGORY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-center text-[10px] font-black text-slate-500">
+                  ظاهر {filteredPrograms.length} من {programs.length} برنامج/مسار
+                </p>
+              </div>
+              <div className="mt-2 max-h-[460px] space-y-1.5 overflow-y-auto">
+                {filteredPrograms.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectProgram(p)}
+                    className={`block w-full rounded-lg px-3 py-2.5 text-right transition-colors ${
+                      p.id === selectedId ? 'bg-[#0f2b46] text-white' : 'hover:bg-[#f7edd0]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-xs font-black ${p.id === selectedId ? 'text-[#e0b83a]' : 'text-[#0f2b46]'}`}>{p.titleAr}</span>
+                      {p.custom && <Badge className="shrink-0 bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+                    </div>
+                    <span className={`mt-0.5 block text-[10px] ${p.id === selectedId ? 'text-white/70' : 'text-slate-400'}`}>
+                      {CAT_AR[p.category] || p.category}
+                    </span>
+                  </button>
+                ))}
+                {!filteredPrograms.length && (
+                  <div className="rounded-lg border border-dashed bg-white/70 p-4 text-center text-xs font-bold text-slate-500">
+                    لا توجد برامج مطابقة للبحث أو التصنيف المحدد.
                   </div>
-                  <span className={`mt-0.5 block text-[10px] ${p.id === selectedId ? 'text-white/70' : 'text-slate-400'}`}>
-                    {CAT_AR[p.category] || p.category}
-                  </span>
-                </button>
-              ))}
+                )}
+              </div>
             </div>
 
             {/* محرر القواعد */}
