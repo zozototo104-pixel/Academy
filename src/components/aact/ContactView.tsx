@@ -161,7 +161,7 @@ export function ContactView() {
                 <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Mail className="h-4 w-4" /></span>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400">البريد الرسمي</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{ACADEMY_INFO.officialEmail}</p>
+                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.email}</p>
                 </div>
               </a>
               <a href={ACADEMY_INFO.officialSite} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
