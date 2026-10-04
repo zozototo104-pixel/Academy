@@ -110,6 +110,9 @@ model Program {
   price       Int?
   icon        String       @default("graduation-cap")
   features    String? // JSON array
+  credentialType String?   // PROFESSIONAL_MASTER | PROFESSIONAL_DOCTORATE | DIPLOMA | PROFESSIONAL_CERTIFICATE | SERVICE
+  trademarkNotice String?  // تنبيه اختياري للعلامات التجارية يظهر تحت وصف البرنامج
+  disclosureConsentText String? // نص إقرار اختياري قبل الدفع لهذا البرنامج، وإلا يستخدم النص العام
   // قواعد قبول مخصصة لكل برنامج (تضبطها الإدارة) — يقرأها خبير القبول الذكي ويطبقها على كل طلب:
   // { minEducation, requireMasterForDoctorate, allowExperienceEquivalency, minYearsExperience,
   //   requiredDocuments[], minAge, customRules, displayNote }
