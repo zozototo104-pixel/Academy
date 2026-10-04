@@ -188,7 +188,7 @@ export async function PUT(req: NextRequest) {
     if (programPatch) {
       if (programPatch.titleAr !== undefined) data.titleAr = programPatch.titleAr
       if (programPatch.titleEn !== undefined) data.titleEn = programPatch.titleEn || null
-      if (programPatch.description !== undefined) data.description = programPatch.description || null
+      if (programPatch.description !== undefined) data.description = programPatch.description || ''
       if (programPatch.category !== undefined) data.category = programPatch.category as any
       if (programPatch.icon !== undefined) data.icon = programPatch.icon || 'graduation-cap'
       if (programPatch.features !== undefined) data.features = normalizeFeaturesForDb(programPatch.features)
