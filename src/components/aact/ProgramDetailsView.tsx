@@ -541,6 +541,7 @@ export function ProgramDetailsView() {
           {!isService && academicProfile && hasVisibleAcademicSections && (
             <TabsContent value="academic" className="mt-0 space-y-5">
               <DetailSection title="النظام الأكاديمي ومخرجات التعلم" icon={GraduationCap} accent>
+                {(showAcademicSection('overview') || showAcademicSection('duration')) && (
                 <div className="mb-5 grid gap-3 text-center text-xs font-black sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الدرجة</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.degreeLabel}</span></div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">التخصص</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.specialization}</span></div>
