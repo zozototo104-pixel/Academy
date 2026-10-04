@@ -48,6 +48,14 @@ function isProductionDeployment() {
   return process.env.VERCEL_ENV === 'production'
 }
 
+function isPreviewDeployment() {
+  return process.env.VERCEL_ENV === 'preview'
+}
+
+function isPreviewDatabaseIsolated() {
+  return String(process.env.AACT_PREVIEW_DB_ISOLATED || '').toLowerCase() === 'true'
+}
+
 function committedMigrationDirectories() {
   const migrationsPath = 'prisma/migrations'
   if (!existsSync(migrationsPath)) return []
