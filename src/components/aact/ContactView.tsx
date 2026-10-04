@@ -189,7 +189,8 @@ export function ContactView() {
                 <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><MapPin className="h-4 w-4" /></span>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400">مقر الأكاديمية</p>
-                  <p className="text-xs font-black text-[#0f2b46]">{ACADEMY_INFO.locationAr}</p>
+                  <p className="text-xs font-black text-[#0f2b46]">{officialContact.address}</p>
+                  {officialContact.registrationNumber && <p className="mt-1 text-[10px] font-bold text-slate-400">رقم التسجيل: {officialContact.registrationNumber}</p>}
                 </div>
               </div>
             </CardContent>
