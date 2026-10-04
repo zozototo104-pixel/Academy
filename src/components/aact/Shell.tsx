@@ -177,6 +177,7 @@ export function FloatingActions() {
               </div>
             )}
             {error && <p className="text-center text-[10px] font-bold text-red-500">{error}</p>}
+            <div ref={messagesEndRef} />
           </div>
           <div className="border-t border-[#25d366]/10 bg-white p-3">
             <div className="flex gap-2">
