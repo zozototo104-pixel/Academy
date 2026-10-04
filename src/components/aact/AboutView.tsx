@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
 import { AcademyLogo } from '@/components/aact/Shell'
