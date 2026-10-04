@@ -38,7 +38,7 @@ export const maxDuration = 60
 
 const recentGreetingKeys = new Map<string, number>()
 const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
-const MESSAGE_PROCESSING_BUDGET_MS = 45_000
+const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
 const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
 const WHATSAPP_VOICE_HOURLY_LIMIT = 10
