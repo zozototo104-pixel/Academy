@@ -350,6 +350,8 @@ function applyAcademicOverride(base: AcademicProgramProfile, override?: PartialA
     learningOutcomes: clean.learningOutcomes?.length ? clean.learningOutcomes : base.learningOutcomes,
     skills: clean.skills?.length ? clean.skills : base.skills,
     studyPlan: clean.studyPlan?.length ? clean.studyPlan : base.studyPlan,
+    termPlans: clean.termPlans?.length ? clean.termPlans : base.termPlans,
+    finalEvaluationFormula: clean.finalEvaluationFormula?.length ? clean.finalEvaluationFormula : base.finalEvaluationFormula,
     graduationRequirements: clean.graduationRequirements?.length ? clean.graduationRequirements : base.graduationRequirements,
     assessmentComponents: clean.assessmentComponents?.length ? clean.assessmentComponents : base.assessmentComponents,
     qualityControls: clean.qualityControls?.length ? clean.qualityControls : base.qualityControls,
