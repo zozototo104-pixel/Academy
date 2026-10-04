@@ -718,7 +718,23 @@ export function AdminRulesTab() {
                       )
                     })}
                   </div>
-                </div>
+                </details>
+
+                {programDraft && (
+                  <details className="rounded-2xl border bg-white p-4">
+                    <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">6) نص الإقرار قبل الدفع</summary>
+                    <div className="mt-4">
+                      <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">نص اختياري خاص بهذا البرنامج</label>
+                      <Textarea
+                        rows={4}
+                        className="text-xs"
+                        placeholder="اتركه فارغاً ليستخدم النظام نص الإقرار العام من صفحة الرسوم والقواعد"
+                        value={programDraft.disclosureConsentText || ''}
+                        onChange={(e) => patchProgramDraft({ disclosureConsentText: e.target.value })}
+                      />
+                    </div>
+                  </details>
+                )}
 
                 <div className="flex flex-wrap gap-2 border-t pt-3">
                   <Button onClick={() => save(false)} disabled={saving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
