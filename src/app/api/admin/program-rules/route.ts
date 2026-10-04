@@ -20,6 +20,51 @@ function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null;
     || titleEn.startsWith('QA Full Journey Program')
 }
 
+const PROGRAM_CATEGORIES = ['DIPLOMA', 'DOCTORATE', 'MASTERS', 'ACCREDITATION', 'INTL_CERT', 'SERVICE'] as const
+const CREDENTIAL_TYPES = ['PROFESSIONAL_MASTER', 'PROFESSIONAL_DOCTORATE', 'DIPLOMA', 'PROFESSIONAL_CERTIFICATE', 'SERVICE'] as const
+
+const programPatchSchema = z.object({
+  titleAr: z.string().trim().min(1, 'اسم البرنامج العربي مطلوب').max(220).optional(),
+  titleEn: z.string().trim().max(220).nullable().optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
+  category: z.enum(PROGRAM_CATEGORIES).optional(),
+  icon: z.string().trim().max(80).optional(),
+  features: z.array(z.string().trim().min(1).max(180)).max(12, 'الميزات بحد أقصى 12').optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
+  price: z.coerce.number().min(0, 'السعر يجب أن يكون صفراً أو أكثر').nullable().optional(),
+  hours: z.coerce.number().int().min(1, 'الساعات يجب أن تكون أكبر من صفر').max(10000).optional(),
+  credentialType: z.enum(CREDENTIAL_TYPES).nullable().optional(),
+  trademarkNotice: z.string().trim().max(1200).nullable().optional(),
+  disclosureConsentText: z.string().trim().max(2000).nullable().optional(),
+})
+
+type ProgramPatchInput = z.infer<typeof programPatchSchema>
+
+function normalizeFeaturesForDb(features?: string[]) {
+  if (!features) return undefined
+  return JSON.stringify(features.map((item) => item.trim()).filter(Boolean).slice(0, 12))
+}
+
+function programSnapshot(program: any) {
+  return {
+    titleAr: program.titleAr,
+    titleEn: program.titleEn,
+    description: program.description,
+    category: program.category,
+    icon: program.icon,
+    features: JSON.parse(program.features || '[]'),
+    active: program.active,
+    sortOrder: program.order,
+    price: program.price,
+    hours: program.hours,
+    credentialType: program.credentialType || null,
+    trademarkNotice: program.trademarkNotice || null,
+    disclosureConsentText: program.disclosureConsentText || null,
+    admissionRules: program.admissionRules || null,
+  }
+}
+
 // GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها (المخصصة + المفعّلة فعلياً)
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
