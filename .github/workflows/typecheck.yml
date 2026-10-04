@@ -30,6 +30,7 @@ jobs:
       # Dummy values only for Prisma client generation/type checking. This workflow does not connect to production DB.
       DATABASE_URL: postgresql://user:password@localhost:5432/aact?schema=public
       DIRECT_URL: postgresql://user:password@localhost:5432/aact?schema=public
+      SHADOW_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/shadow?schema=public
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-only-dummy-secret-change-in-production
