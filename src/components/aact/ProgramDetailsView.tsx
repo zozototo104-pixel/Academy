@@ -588,8 +588,9 @@ export function ProgramDetailsView() {
                     ))}
                   </div>
                 </div>
+                )}
 
-                {(academicProfile.finalEvaluationFormula?.length || 0) > 0 && (
+                {showAcademicSection('finalEvaluationFormula') && (academicProfile.finalEvaluationFormula?.length || 0) > 0 && (
                   <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 font-black text-white">توزيع الدرجة النهائية</h3>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
