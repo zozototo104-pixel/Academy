@@ -182,6 +182,7 @@ export function ApplyView() {
   const { user, applyProgramTitle, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
   const [activeTab, setActiveTab] = useState('apply')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState<{ reference: string; invoice: { invoiceNo: string; amount: number; description: string } | null } | null>(null)
