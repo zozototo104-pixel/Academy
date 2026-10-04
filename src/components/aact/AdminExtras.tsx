@@ -2273,6 +2273,7 @@ export function AdminMessagesTab() {
     </div>
   )
 }
+// REAL_ADMIN_EXTRAS_END
 /* DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED
  })
       load()
