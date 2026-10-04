@@ -387,7 +387,16 @@ export function AdminRulesTab() {
             {selected && (
               <div className="space-y-4 rounded-xl border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-black text-[#0f2b46]">{selected.titleAr}</h3>
+                  <div>
+                    <h3 className="text-sm font-black text-[#0f2b46]">{selected.titleAr}</h3>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/programs/${selected.slug}`, '_blank', 'noopener,noreferrer')}
+                      className="mt-1 text-[11px] font-bold text-[#a8841a] underline-offset-4 hover:underline"
+                    >
+                      معاينة صفحة البرنامج
+                    </button>
+                  </div>
                   <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
                     {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
                   </Badge>
