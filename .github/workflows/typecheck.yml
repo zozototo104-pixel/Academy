@@ -12,6 +12,20 @@ jobs:
     name: TypeScript full check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # Dummy values only for Prisma client generation/type checking. This workflow does not connect to production DB.
       DATABASE_URL: postgresql://user:password@localhost:5432/aact?schema=public
