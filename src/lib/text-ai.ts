@@ -29,6 +29,7 @@ export interface TextAiCallOpts {
   temperature?: number
   maxOutputTokens?: number
   json?: boolean
+  routerPolicy?: TextAiRouterPolicy
 }
 
 export interface TextAiAttemptDiagnostics {
