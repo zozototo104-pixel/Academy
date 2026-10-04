@@ -809,6 +809,67 @@ export function AdminRulesTab() {
                       )
                     })}
                   </div>
+
+                  <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-black text-[#0f2b46]">معادلة التقييم النهائي</p>
+                      <Button type="button" size="sm" variant="outline" onClick={appendEvaluationItem} className="h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة عنصر تقييم
+                      </Button>
+                    </div>
+                    {(draft.academicProfile?.finalEvaluationFormula || []).map((item, i) => (
+                      <div key={i} className="rounded-lg bg-slate-50 p-2">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-black text-[#0f2b46]">عنصر تقييم {i + 1}</p>
+                          <button type="button" onClick={() => removeEvaluationItem(i)} className="text-[11px] font-bold text-red-600">حذف</button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_110px_1.5fr]">
+                          <Input className="text-xs" placeholder="العنصر: بحث، اختبار، مشاركة..." value={item.label} onChange={(e) => updateEvaluationItem(i, { label: e.target.value })} />
+                          <Input type="number" min={0} max={100} className="text-xs" placeholder="النسبة %" value={item.weight || ''} onChange={(e) => updateEvaluationItem(i, { weight: Number(e.target.value) })} />
+                          <Input className="text-xs" placeholder="وصف مختصر" value={item.description || ''} onChange={(e) => updateEvaluationItem(i, { description: e.target.value })} />
+                        </div>
+                      </div>
+                    ))}
+                    {!(draft.academicProfile?.finalEvaluationFormula || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام معادلة التقييم التلقائية من الدليل.</p>}
+                  </div>
+
+                  <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-black text-[#0f2b46]">خطة الفصول التفصيلية</p>
+                      <Button type="button" size="sm" variant="outline" onClick={appendTermPlan} className="h-8 border-[#c9a227]/40 text-[11px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]">
+                        إضافة فصل/مرحلة
+                      </Button>
+                    </div>
+                    {(draft.academicProfile?.termPlans || []).map((term, i) => (
+                      <div key={i} className="rounded-lg bg-slate-50 p-2">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-black text-[#0f2b46]">فصل/مرحلة {i + 1}</p>
+                          <button type="button" onClick={() => removeTermPlan(i)} className="text-[11px] font-bold text-red-600">حذف</button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_150px_100px]">
+                          <Input className="text-xs" placeholder="عنوان الفصل أو المرحلة" value={term.title} onChange={(e) => updateTermPlan(i, { title: e.target.value })} />
+                          <Select value={term.phase || 'TERM'} onValueChange={(v) => updateTermPlan(i, { phase: v as AcademicTermPlanDraft['phase'] })}>
+                            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TERM" className="text-xs">فصل</SelectItem>
+                              <SelectItem value="THESIS" className="text-xs">رسالة/بحث</SelectItem>
+                              <SelectItem value="PROJECT" className="text-xs">مشروع</SelectItem>
+                              <SelectItem value="ACCREDITATION" className="text-xs">اعتماد</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input type="number" min={0} max={100} className="text-xs" placeholder="الوزن %" value={term.weight || ''} onChange={(e) => updateTermPlan(i, { weight: Number(e.target.value) })} />
+                        </div>
+                        <Textarea rows={2} className="mt-2 text-xs" placeholder="وصف الفصل أو المرحلة" value={term.description || ''} onChange={(e) => updateTermPlan(i, { description: e.target.value })} />
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <Textarea rows={3} className="text-xs" placeholder="مخرجات التعلم — كل سطر بند" value={listToText(term.learningOutcomes)} onChange={(e) => updateTermPlan(i, { learningOutcomes: textToList(e.target.value) })} />
+                          <Textarea rows={3} className="text-xs" placeholder="المهارات المطلوبة — كل سطر بند" value={listToText(term.requiredSkills)} onChange={(e) => updateTermPlan(i, { requiredSkills: textToList(e.target.value) })} />
+                          <Textarea rows={3} className="text-xs" placeholder="الواجبات/المخرجات — كل سطر بند" value={listToText(term.assignments)} onChange={(e) => updateTermPlan(i, { assignments: textToList(e.target.value) })} />
+                          <Textarea rows={3} className="text-xs" placeholder="التقييم النهائي أو ملاحظة الحالة" value={term.finalEvaluation || term.statusHint || ''} onChange={(e) => updateTermPlan(i, { finalEvaluation: e.target.value, statusHint: e.target.value })} />
+                        </div>
+                      </div>
+                    ))}
+                    {!(draft.academicProfile?.termPlans || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام خطط الفصول التلقائية من الدليل.</p>}
+                  </div>
                 </details>
 
                 {programDraft && (
