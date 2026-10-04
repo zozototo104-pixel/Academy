@@ -112,6 +112,7 @@ export function HomeView() {
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [trustBannerText, setTrustBannerText] = useState('')
   const [homeStats, setHomeStats] = useState<{ graduates: number; experts: number; countries: number }>({ graduates: 20000, experts: 250, countries: 50 })
+  const [financialSettings, setFinancialSettings] = useState({ applicationFee: 30, doctorateDefault: 1300, mastersDefault: 700, diplomaMinDefault: 100, diplomaMaxDefault: 350 })
   const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
