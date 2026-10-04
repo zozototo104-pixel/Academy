@@ -173,7 +173,12 @@ async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> 
       },
       _count: { select: { books: true, units: true, knowledgeItems: true, questionBankItems: true, assignments: true, programExams: true, enrollments: true } },
     },
-  }).catch(() => [])) as ProgramCatalogRecord[]
+  }).catch(() => [])
+
+  return (rows as any[]).map((row) => ({
+    ...row,
+    academicProfile: academicProfileFromRules(row.admissionRules),
+  })) as ProgramCatalogRecord[]
 }
 
 export function rankProgramCatalog(programs: ProgramCatalogRecord[], query?: string | null): ProgramCatalogRecord[] {
