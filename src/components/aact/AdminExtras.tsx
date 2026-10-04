@@ -1827,4 +1827,405 @@ function parseAuditJson(details?: string | null): any | null {
   try { return JSON.parse(raw) } catch { return null }
 }
 
-// __RESTORE_APPEND__
+function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
+  if (log.action !== 'AI_KNOWLEDGE_DIAGNOSTICS' && log.entity !== 'AIKnowledge') return null
+  const data = parseAuditJson(log.details)
+  if (!data) return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
+  const selected = Array.isArray(data.selectedPrograms) ? data.selectedPrograms.slice(0, 5) : []
+  const scopeLabel = String(data.scope || '')
+    .replace('ADMIN_ASSISTANT', 'وكيل الإدارة')
+    .replace('HUMAN_SUPERVISOR', 'المشرف البشري')
+    .replace('STUDENT_SUPERVISOR', 'المشرف الذكي للطالب')
+    .replace('PUBLIC_VISITOR', 'زائر الموقع')
+    .replace('WHATSAPP_VISITOR', 'زائر واتساب')
+    .replace('DEFENSE_EXAMINER', 'مناقش البحث')
+    .replace('EXAM_ASSISTANT', 'وكيل الامتحانات')
+  const sourceLabel = String(data.source || '')
+    .replace('SCOPED_PROGRAM_CATALOG', 'كتالوج البرامج والكتب')
+    .replace('GEMINI_LIVE_SESSION_CONTEXT', 'جلسة صوتية Gemini Live')
+  const reasonLabel = String(data.reason || '')
+    .replace('selected_programs_ready', 'تم اختيار برامج مطابقة')
+    .replace('live_session_context_prepared', 'تم تجهيز سياق جلسة صوتية')
+    .replace('no_selected_programs', 'لا توجد برامج مختارة')
+    .replace('no_active_programs_loaded', 'لم يتم تحميل برامج نشطة')
+    .replace('query_not_program_books', 'ليس سؤال كتب/برامج')
+    .replace('scope_cannot_read_program_books', 'النطاق لا يملك صلاحية قراءة كتب البرامج')
+  return (
+    <div className="w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-right">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-blue-600 text-white hover:bg-blue-600">تشخيص معرفة الذكاء</Badge>
+        {scopeLabel && <Badge variant="outline" className="bg-white text-[10px] font-black text-[#0f2b46]">{scopeLabel}</Badge>}
+        {sourceLabel && <Badge variant="outline" className="bg-white text-[10px] font-black text-blue-700">{sourceLabel}</Badge>}
+        {reasonLabel && <span className="text-[11px] font-bold text-blue-700">{reasonLabel}</span>}
+      </div>
+      <div className="mt-3 grid gap-2 text-[11px] font-bold text-slate-700 sm:grid-cols-4">
+        {'totalPrograms' in data && <p><span className="text-slate-400">البرامج المحمّلة:</span> {data.totalPrograms}</p>}
+        {'matchedPrograms' in data && <p><span className="text-slate-400">المطابقة:</span> {data.matchedPrograms}</p>}
+        {'matchedProgramsWithBooks' in data && <p><span className="text-slate-400">مطابقة وفيها كتب:</span> {data.matchedProgramsWithBooks}</p>}
+        {'returnedReply' in data && <p><span className="text-slate-400">رد مباشر:</span> {data.returnedReply ? 'نعم' : 'لا'}</p>}
+        {'contextLength' in data && <p><span className="text-slate-400">طول السياق:</span> {data.contextLength}</p>}
+        {'systemInstructionLength' in data && <p><span className="text-slate-400">تعليمات الصوت:</span> {data.systemInstructionLength}</p>}
+        {data.purpose && <p><span className="text-slate-400">نوع الجلسة:</span> {String(data.purpose).replace('SUPERVISOR', 'مشرف صوتي').replace('DISCUSSION', 'مناقشة')}</p>}
+        {data.model && <p><span className="text-slate-400">النموذج:</span> {data.model}</p>}
+        {data.voice && <p><span className="text-slate-400">الصوت:</span> {data.voice}</p>}
+      </div>
+      {data.query && (
+        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-6 text-slate-700">
+          <span className="text-slate-400">السؤال:</span> {String(data.query).slice(0, 260)}
+        </div>
+      )}
+      {selected.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {selected.map((program: any, i: number) => (
+            <div key={`${program.titleAr || program.titleEn || i}`} className="rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-6 text-[#0f2b46]">
+              <p>{i + 1}. {program.titleAr || program.titleEn || 'برنامج بلا عنوان'}</p>
+              <p className="text-slate-500">التصنيف: {program.category || 'غير محدد'} — درجة المطابقة: {program.score ?? 0} — عدد الكتب: {program.booksCount ?? 0}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const SETTING_KEY_LABELS: Record<string, string> = {
+  SMTP_HOST: 'خادم البريد', SMTP_PORT: 'منفذ البريد', SMTP_USER: 'حساب البريد', SMTP_FROM: 'بريد الإرسال', SMTP_NAME: 'اسم المرسل', SMTP_ENABLED: 'تفعيل البريد',
+  RESEND_API_KEY: 'مفتاح Resend', RESEND_FROM: 'مرسل Resend', MAIL_FROM: 'بريد الإرسال',
+  PAYMENT_MODE: 'وضع الدفع', PAYPAL_CLIENT_ID: 'حساب PayPal', PAYPAL_API_BASE: 'بيئة PayPal',
+  USDT_WALLET_ADDRESS: 'محفظة USDT', USDT_BINANCE_PAY_USER_ID: 'حساب Binance Pay', USDT_BINANCE_PAY_QR_IMAGE_URL: 'صورة QR للدفع', USDT_NETWORK: 'شبكة الدفع', USDT_PAYMENT_INSTRUCTIONS: 'تعليمات الدفع',
+  TURN_URL: 'خادم TURN', TURN_TCP_URL: 'خادم TURN TCP', TURN_USERNAME: 'مستخدم TURN', TURN_CREDENTIAL: 'كلمة مرور TURN', STUN_URLS: 'خوادم STUN',
+  GEMINI_API_KEY: 'مفتاح Gemini', GEMINI_TEXT_MODEL: 'نموذج النص', GEMINI_TTS_MODEL: 'نموذج الصوت', GEMINI_LIVE_MODEL: 'نموذج المحادثة الصوتية', GEMINI_SUPERVISOR_LIVE_MODEL: 'نموذج المشرف الصوتي', GEMINI_DISCUSSION_LIVE_MODEL: 'نموذج المناقشة الصوتية', GEMINI_DISCUSSION_THINKING_LEVEL: 'مستوى تفكير المناقشة', GEMINI_TTS_VOICE: 'صوت Gemini',
+  TOPTOOLS_API_KEY: 'مفتاح Top Tools AI', TOPTOOLS_API_KEYS: 'مفاتيح Top Tools AI', TOPTOOLS_TEXT_MODEL: 'نموذج Top Tools AI', TOPTOOLS_BASE_URL: 'رابط Top Tools AI',
+  AI_TEXT_PROVIDER: 'مزود النص الذكي', AI_ROUTER_POLICY: 'سياسة توجيه الذكاء',
+}
+
+function settingGroupLabel(key: string) {
+  if (/^(SMTP_|RESEND_|MAIL_)/.test(key)) return 'إعدادات البريد'
+  if (/^(PAYMENT_|PAYPAL_|STRIPE_|USDT_)/.test(key)) return 'إعدادات الدفع'
+  if (/^(TURN_|STUN_)/.test(key)) return 'إعدادات الفيديو والمحادثة'
+  if (/^(GEMINI_|AI_|OPENAI_|ANTHROPIC_|ZAI_|GROQ_|OPENROUTER_|DEEPINFRA_|TOGETHER_|UNOROUTER_|RELAYROUTER_|TOPTOOLS_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
+  if (/^(AACT_BACKUP_|CRON_)/.test(key)) return 'إعدادات النسخ الاحتياطي'
+  return 'إعدادات النظام'
+}
+
+function SettingsAuditDisplay({ log }: { log: AuditRow }) {
+  if (log.action !== 'UPDATE_SETTINGS') return null
+  const raw = String(log.details || '')
+  const keys = Array.from(new Set((raw.match(/[A-Z][A-Z0-9_]{2,}/g) || []).filter((key) => key.includes('_'))))
+  if (!keys.length) return <span className="text-xs font-bold text-slate-600">تم تحديث إعدادات النظام.</span>
+  const groups = Array.from(new Set(keys.map(settingGroupLabel)))
+  const labels = keys.map((key) => SETTING_KEY_LABELS[key] || settingGroupLabel(key)).filter(Boolean)
+  const visibleLabels = Array.from(new Set(labels)).slice(0, 10)
+  const hiddenCount = Math.max(0, labels.length - visibleLabels.length)
+  return (
+    <div className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className="bg-[#0f2b46] text-white hover:bg-[#0f2b46]">تحديث إعدادات النظام</Badge>
+        {groups.map((group) => (
+          <Badge key={group} variant="outline" className="bg-white text-[10px] font-black text-[#0f2b46]">{group}</Badge>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] font-bold leading-6 text-slate-600">
+        تم تحديث {keys.length} بنداً من الإعدادات. تم تحويل أسماء الحقول التقنية إلى وصف إداري وإخفاء التفاصيل الحساسة.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {visibleLabels.map((label) => (
+          <span key={label} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">{label}</span>
+        ))}
+        {hiddenCount > 0 && <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-400 shadow-sm">+{hiddenCount} بند آخر</span>}
+      </div>
+    </div>
+  )
+}
+
+function parseAuditPairs(details?: string | null) {
+  const raw = String(details || '')
+  const pairs: Record<string, string> = {}
+  raw.split('|').map((part) => part.trim()).forEach((part) => {
+    const index = part.indexOf('=')
+    if (index > 0) pairs[part.slice(0, index).trim()] = part.slice(index + 1).trim()
+  })
+  return pairs
+}
+
+function OperationalAuditDisplay({ log }: { log: AuditRow }) {
+  const pairs = parseAuditPairs(log.details)
+  if (log.action === 'LIST_ACADEMY_REPRESENTATIVES') {
+    return <span className="text-xs font-bold text-slate-600">تم فتح قائمة ممثلي الأكاديمية. عدد النتائج: {pairs.count || '0'}.</span>
+  }
+  if (log.action === 'UPLOAD_BINANCE_PAY_QR') {
+    const key = String(log.details || '').replace(/^s3:/, '')
+    const fileName = key.split('/').filter(Boolean).pop() || 'صورة QR'
+    return (
+      <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+        تم رفع صورة QR للدفع عبر Binance Pay وحفظها في التخزين الآمن.
+        <div className="mt-1 break-all rounded-lg bg-white/70 p-2 font-mono text-[10px] text-amber-800" dir="ltr">{fileName}</div>
+      </div>
+    )
+  }
+  if (log.action === 'DB_BACKUP_SUCCESS' || log.action === 'DB_BACKUP_PARTIAL') {
+    return (
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold leading-6 text-emerald-900">
+        تم إنشاء نسخة احتياطية مشفرة لقاعدة البيانات.
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">المصدر: {pairs.trigger === 'manual-admin' ? 'يدوي من الإدارة' : pairs.trigger === 'cron' ? 'تلقائي مجدول' : pairs.trigger || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">التخزين: {pairs.provider === 's3' ? 'Cloudflare/R2' : pairs.provider || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الجداول: {pairs.tables || '0'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الأخطاء: {pairs.errors || '0'}</span>
+          {pairs.bytes && <span className="rounded-full bg-white px-2 py-1 text-[10px]">الحجم: {(Number(pairs.bytes) / 1024).toFixed(1)} KB</span>}
+        </div>
+      </div>
+    )
+  }
+  if (log.action === 'DB_RESTORE_SUCCESS' || log.action === 'DB_RESTORE_PARTIAL') {
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold leading-6 text-blue-900">
+        تم استيراد نسخة احتياطية مشفرة من التخزين الآمن.
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">التخزين: {pairs.provider === 's3' ? 'Cloudflare/R2' : pairs.provider || 'غير محدد'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الجداول: {pairs.tables || '0'}</span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px]">الأخطاء: {pairs.errors || '0'}</span>
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+
+function AuditDetailsDisplay({ log }: { log: AuditRow }) {
+  const whatsApp = WhatsAppAuditDisplay({ log })
+  if (whatsApp) return whatsApp
+  const aiKnowledge = AiKnowledgeAuditDisplay({ log })
+  if (aiKnowledge) return aiKnowledge
+  const settings = SettingsAuditDisplay({ log })
+  if (settings) return settings
+  const operational = OperationalAuditDisplay({ log })
+  if (operational) return operational
+  return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
+}
+
+export function AdminAuditTab() {
+  const [logs, setLogs] = useState<AuditRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditPageSize, setAuditPageSize] = useState(50)
+  const [auditTotal, setAuditTotal] = useState(0)
+  const [actionOptions, setActionOptions] = useState<string[]>([])
+  const [entityOptions, setEntityOptions] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true)
+      const params = new URLSearchParams({ page: String(auditPage), pageSize: String(auditPageSize) })
+      if (filters.search.trim()) params.set('search', filters.search.trim())
+      if (filters.action !== 'ALL') params.set('action', filters.action)
+      if (filters.entity !== 'ALL') params.set('entity', filters.entity)
+      api<{ logs: AuditRow[]; total: number; actions: string[]; entities: string[] }>(`/api/admin/audit?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setLogs(Array.isArray(d.logs) ? d.logs : [])
+          setAuditTotal(Number(d.total || 0))
+          setActionOptions(Array.isArray(d.actions) ? d.actions : [])
+          setEntityOptions(Array.isArray(d.entities) ? d.entities : [])
+        })
+        .catch(() => { if (!cancelled) setLogs([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [filters, auditPage, auditPageSize])
+
+  const currentAuditPage = auditPage
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+
+  return (
+    <Card className="mt-4 border-[#0f2b46]/10">
+      <CardContent className="p-0">
+        <div className="border-b border-slate-100 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+            <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
+          </h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-4">
+            <Input
+              value={filters.search}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, search: e.target.value })); setAuditPage(1) }}
+              placeholder="بحث باسم المنفذ أو تفاصيل العملية"
+              className="text-xs font-bold"
+            />
+            <select
+              value={filters.action}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, action: e.target.value })); setAuditPage(1) }}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="ALL">كل العمليات</option>
+              {actionOptions.map((a) => <option key={a} value={a}>{ACTION_L[a] || a}</option>)}
+            </select>
+            <select
+              value={filters.entity}
+              onChange={(e) => { setFilters((prev) => ({ ...prev, entity: e.target.value })); setAuditPage(1) }}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="ALL">كل الكيانات</option>
+              {entityOptions.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <select
+              value={String(auditPageSize)}
+              onChange={(e) => { setAuditPageSize(Number(e.target.value)); setAuditPage(1) }}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:border-[#c9a227]"
+            >
+              <option value="25">عرض 25</option>
+              <option value="50">عرض 50</option>
+              <option value="100">عرض 100</option>
+            </select>
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق</p>
+        </div>
+        <div className="aact-scroll w-full max-h-[560px] overflow-y-auto">
+          {auditTotal === 0 && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
+            <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
+          ) : logs.length === 0 ? (
+            <p className="p-10 text-center text-xs text-slate-400">لا توجد إجراءات مطابقة للبحث أو الفلاتر الحالية</p>
+          ) : (
+            <div className="w-full divide-y divide-slate-50">
+              {logs.map((l) => (
+                <div key={l.id} className="w-full p-3.5">
+                  <div className="flex w-full flex-col gap-2 rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="w-full min-w-0">
+                      <AuditDetailsDisplay log={l} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-3">
+          <AdminPager page={currentAuditPage} pageSize={auditPageSize} total={auditTotal} onPageChange={setAuditPage} label="إجراء" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============ رسائل التواصل ============
+
+interface Msg {
+  id: string
+  name: string
+  email: string
+  phone?: string | null
+  subject: string
+  message: string
+  handled: boolean
+  createdAt: string
+}
+
+export function AdminMessagesTab() {
+  const { toast } = useToast()
+  const [msgs, setMsgs] = useState<Msg[]>([])
+  const [loading, setLoading] = useState(true)
+  const [msgSearch, setMsgSearch] = useState('')
+  const [msgStatusFilter, setMsgStatusFilter] = useState('OPEN')
+  const [msgPage, setMsgPage] = useState(1)
+  const [msgPageSize, setMsgPageSize] = useState(25)
+  const [msgTotal, setMsgTotal] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true)
+      const params = new URLSearchParams({ page: String(msgPage), pageSize: String(msgPageSize), status: msgStatusFilter })
+      if (msgSearch.trim()) params.set('search', msgSearch.trim())
+      api<{ messages: Msg[]; total: number }>(`/api/admin/contact?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setMsgs(Array.isArray(d.messages) ? d.messages : [])
+          setMsgTotal(Number(d.total || 0))
+        })
+        .catch(() => { if (!cancelled) setMsgs([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [msgSearch, msgStatusFilter, msgPage, msgPageSize])
+
+  const mark = async (id: string, handled: boolean) => {
+    await api('/api/admin/contact', { method: 'PATCH', body: JSON.stringify({ id, handled }) }).catch(() => {})
+    setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, handled } : m)).filter((m) => {
+      if (msgStatusFilter === 'OPEN') return !m.handled
+      if (msgStatusFilter === 'HANDLED') return m.handled
+      return true
+    }))
+    if ((msgStatusFilter === 'OPEN' && handled) || (msgStatusFilter === 'HANDLED' && !handled)) {
+      setMsgTotal((prev) => Math.max(0, prev - 1))
+    }
+    toast({ title: handled ? 'أُعلّمت كمعالجة' : 'أُعيد فتحها' })
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
+
+  const currentMsgPage = msgPage
+
+  return (
+    <div className="mt-4 space-y-3">
+      <AdminListToolbar
+        search={msgSearch}
+        onSearchChange={(v) => { setMsgSearch(v); setMsgPage(1) }}
+        searchPlaceholder="ابحث باسم المرسل أو البريد أو الموضوع أو نص الرسالة..."
+        status={msgStatusFilter}
+        onStatusChange={(v) => { setMsgStatusFilter(v); setMsgPage(1) }}
+        statusOptions={[
+          { value: 'OPEN', label: 'الجديدة/المفتوحة' },
+          { value: 'HANDLED', label: 'المعالجة' },
+          { value: 'ALL', label: 'كل الرسائل' },
+        ]}
+        pageSize={msgPageSize}
+        onPageSizeChange={(v) => { setMsgPageSize(v); setMsgPage(1) }}
+        total={msgTotal}
+        filtered={msgTotal}
+        label="رسالة"
+      />
+      {msgTotal === 0 && !msgSearch && msgStatusFilter === 'ALL' ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا رسائل تواصل بعد</CardContent></Card>
+      ) : msgs.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد رسائل مطابقة للبحث أو الفلتر الحالي.</CardContent></Card>
+      ) : (
+        msgs.map((m) => (
+          <Card key={m.id} className={`border ${m.handled ? 'border-slate-100 opacity-60' : 'border-[#c9a227]/40 bg-[#f7edd0]/30'}`}>
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Mail className="h-4 w-4 text-[#c9a227]" />
+                    <h4 className="text-sm font-black text-[#0f2b46]">{m.subject}</h4>
+                    {m.handled ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> معالجة</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">جديدة</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] font-bold text-slate-500" dir="ltr">{m.name} · {m.email} {m.phone ? `· ${m.phone}` : ''}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{m.message}</p>
+                  <p className="mt-1.5 text-[10px] text-slate-300">{new Date(m.createdAt).toLocaleString('ar-EG')}</p>
+                </div>
+                <Button size="sm" variant="outline"
+                  onClick={() => mark(m.id, !m.handled)}
+                  className={m.handled ? 'border-slate-200 font-bold text-slate-500' : 'border-emerald-200 font-bold text-emerald-600'}>
+                  {m.handled ? <><XCircle className="ml-1 h-3.5 w-3.5" /> إعادة فتح</> : <><CheckCircle2 className="ml-1 h-3.5 w-3.5" /> تمت المعالجة</>}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+      <AdminPager page={currentMsgPage} pageSize={msgPageSize} total={msgTotal} onPageChange={setMsgPage} label="رسالة" />
+    </div>
+  )
+}
