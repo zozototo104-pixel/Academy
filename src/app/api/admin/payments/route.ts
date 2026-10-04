@@ -117,7 +117,12 @@ export async function PATCH(req: NextRequest) {
     const approvalNote = cleanText(body?.approvalNote, 700)
     const payment = await db.payment.findUnique({
       where: { id },
-      include: { _count: { select: { proofs: true } } },
+      include: {
+        proofs: {
+          select: { id: true, status: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
