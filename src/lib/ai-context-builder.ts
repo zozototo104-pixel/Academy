@@ -26,6 +26,10 @@ export type ProgramCatalogRecord = {
   hours?: number | string | null
   price?: number | string | null
   description?: string | null
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  admissionRules?: any
+  academicProfile?: any
   books?: Array<{ title?: string | null; titleEn?: string | null; author?: string | null; semester?: string | number | null; description?: string | null }>
   units?: Array<{ title?: string | null; semester?: string | number | null; status?: string | null; summary?: string | null }>
   assignments?: Array<{ title?: string | null; type?: string | null; semester?: string | number | null; points?: number | null }>
