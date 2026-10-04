@@ -1,0 +1,148 @@
+name: Rebuild AdminExtras cleanly with invoice refresh button
+
+on:
+  push:
+    branches:
+      - program-rules-canonical-editor
+    paths:
+      - .github/workflows/zz-rebuild-admin-extras.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild-admin-extras:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch with full history
+        uses: actions/checkout@v4
+        with:
+          ref: program-rules-canonical-editor
+          fetch-depth: 0
+
+      - name: Restore clean long AdminExtras and add refresh button
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Always start from the known-good long design.
+          git checkout e6fa54372aac059e3ada0e4bb6beda85d9eb6c1a -- src/components/aact/AdminExtras.tsx
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/aact/AdminExtras.tsx')
+          text = path.read_text()
+
+          def replace_once(src: str, old: str, new: str, label: str) -> str:
+              count = src.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return src.replace(old, new, 1)
+
+          state_old = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
+          state_new = "  const [paymentRefresh, setPaymentRefresh] = useState(0)\n  const [pdfBusy, setPdfBusy] = useState<string | null>(null)\n  const [amountBusy, setAmountBusy] = useState<string | null>(null)\n\n  const load = () => setPaymentRefresh((v) => v + 1)\n"
+          text = replace_once(text, state_old, state_new, 'amountBusy state')
+
+          start = text.index("  const openInvoicePdf = async (id: string) => {")
+          marker = "\n  if (loading) return <div className=\"flex h-40 items-center justify-center\"><Loader2 className=\"h-8 w-8 animate-spin text-[#c9a227]\" /></div>\n"
+          insert_at = text.index(marker, start)
+          handler = """
+
+  const refreshPaymentAmount = async (payment: PaymentRow) => {
+    setAmountBusy(payment.id)
+    try {
+      const preview = await api<{ changed: boolean; oldAmount: number; newAmount: number; source?: string }>('/api/admin/payments', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: payment.id, action: 'REFRESH_AMOUNT', dryRun: true }),
+      })
+      if (!preview.changed) {
+        toast({ title: 'لا يوجد تغيير', description: 'المبلغ الحالي مطابق للمبلغ المحسوب من الإعدادات الحالية.' })
+        return
+      }
+      const confirmed = window.confirm('سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار. هل تريد المتابعة؟')
+      if (!confirmed) return
+      const reason = window.prompt('اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق:')
+      if (reason === null) return
+      const trimmedReason = reason.trim()
+      if (trimmedReason.length < 6) {
+        toast({ title: 'سبب مطلوب', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف.', variant: 'destructive' })
+        return
+      }
+      await api('/api/admin/payments', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: payment.id, action: 'REFRESH_AMOUNT', reason: trimmedReason }),
+      })
+      toast({ title: 'تم تحديث المبلغ', description: 'تم تحديث الفاتورة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث المبلغ', description: e.message, variant: 'destructive' })
+    } finally {
+      setAmountBusy(null)
+    }
+  }
+"""
+          text = text[:insert_at] + handler + text[insert_at:]
+
+          header_old = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
+          header_new = "                    <th className=\"p-3 font-black\">الحالة</th>\n                    <th className=\"p-3 font-black\">PDF</th>\n                    <th className=\"p-3 font-black\">تحديث المبلغ</th>\n                    <th className=\"p-3 font-black\">تأكيد يدوي</th>\n                  </tr>\n"
+          text = replace_once(text, header_old, header_new, 'payment table header')
+
+          confirm_cell = """                      <td className=\"p-3\">
+                        {p.status === 'UNPAID' ? (
+                          <Button size=\"sm\" variant=\"outline\" onClick={() => confirm(p)}
+                            className=\"border-emerald-200 font-bold text-emerald-600\">
+                            <Banknote className=\"ml-1 h-3 w-3\" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
+                          </Button>
+                        ) : '—'}
+                      </td>
+"""
+          refresh_cell = """                      <td className=\"p-3\">
+                        {p.status === 'UNPAID' ? (
+                          <Button size=\"sm\" variant=\"outline\" disabled={amountBusy === p.id} onClick={() => refreshPaymentAmount(p)}
+                            className=\"border-[#c9a227]/40 font-bold text-[#a8841a]\">
+                            {amountBusy === p.id ? <Loader2 className=\"ml-1 h-3 w-3 animate-spin\" /> : <RefreshCw className=\"ml-1 h-3 w-3\" />} تحديث المبلغ
+                          </Button>
+                        ) : '—'}
+                      </td>
+"""
+          text = replace_once(text, confirm_cell, refresh_cell + confirm_cell, 'payment refresh cell')
+
+          checks = {
+              "use client": text.count("'use client'"),
+              "AdminFinanceTab": text.count('export function AdminFinanceTab'),
+              "AdminCertificatesTab": text.count('export function AdminCertificatesTab'),
+              "AdminMessagesTab": text.count('export function AdminMessagesTab'),
+              "refresh handler": text.count('const refreshPaymentAmount = async'),
+              "duplicate marker": text.count('DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED'),
+          }
+          expected = {
+              "use client": 1,
+              "AdminFinanceTab": 1,
+              "AdminCertificatesTab": 1,
+              "AdminMessagesTab": 1,
+              "refresh handler": 1,
+              "duplicate marker": 0,
+          }
+          bad = {k: checks[k] for k in expected if checks[k] != expected[k]}
+          if bad:
+              raise SystemExit(f'bad counts after patch: {bad}')
+          if text.count('تحديث المبلغ') < 3:
+              raise SystemExit('refresh UI text missing')
+
+          path.write_text(text)
+          PY
+
+          # Delete all temporary workflows, including this one.
+          rm -f .github/workflows/zz-rebuild-admin-extras.yml
+          rm -f .github/workflows/zz-fix-admin-extras.yml
+          rm -f .github/workflows/restore-admin-extras-add-refresh-safe.yml
+          rm -f .github/workflows/restore-admin-extras-clean.yml
+          rm -f .github/workflows/restore-admin-extras.yml
+          rm -f .github/workflows/restore-and-add-invoice-refresh.yml
+
+          git add src/components/aact/AdminExtras.tsx .github/workflows/zz-rebuild-admin-extras.yml .github/workflows/zz-fix-admin-extras.yml .github/workflows/restore-admin-extras-add-refresh-safe.yml .github/workflows/restore-admin-extras-clean.yml .github/workflows/restore-admin-extras.yml .github/workflows/restore-and-add-invoice-refresh.yml
+          git commit -m "restore AdminExtras long design and add invoice refresh button cleanly"
+          git push origin HEAD:program-rules-canonical-editor
