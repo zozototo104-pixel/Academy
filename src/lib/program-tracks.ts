@@ -316,12 +316,16 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   const assessmentComponents = cleanList(r.assessmentComponents, 12)
   const qualityControls = cleanList(r.qualityControls, 12)
   const studyPlan = cleanStudyPlan(r.studyPlan)
+  const termPlans = cleanTermPlans(r.termPlans)
+  const finalEvaluationFormula = cleanEvaluationFormula(r.finalEvaluationFormula)
   if (learningOutcomes) out.learningOutcomes = learningOutcomes
   if (skills) out.skills = skills
   if (graduationRequirements) out.graduationRequirements = graduationRequirements
   if (assessmentComponents) out.assessmentComponents = assessmentComponents
   if (qualityControls) out.qualityControls = qualityControls
   if (studyPlan) out.studyPlan = studyPlan
+  if (termPlans) out.termPlans = termPlans
+  if (finalEvaluationFormula) out.finalEvaluationFormula = finalEvaluationFormula
   return Object.keys(out).length ? out : null
 }
 
