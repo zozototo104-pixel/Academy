@@ -560,7 +560,9 @@ export function ProgramDetailsView() {
                       ))}
                     </ul>
                   </div>
+                  )}
 
+                  {showAcademicSection('skills') && (academicProfile.skills?.length || 0) > 0 && (
                   <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><Briefcase className="h-5 w-5 text-[#d2ad5a]" /> المهارات المهنية المكتسبة</h3>
                     <div className="flex flex-wrap gap-2">
