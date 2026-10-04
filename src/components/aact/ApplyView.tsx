@@ -234,7 +234,7 @@ export function ApplyView() {
         if (!alive) return
         const list = Array.isArray(d.programs) ? d.programs : []
         setPrograms(list)
-        cachePrograms(list)
+        cachePrograms(list, d.catalogVersion)
       })
       .catch(() => {
         if (!alive || hadCache) return
