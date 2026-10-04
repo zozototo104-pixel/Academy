@@ -423,16 +423,25 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     }, message.id)
     const text = String(transcript || '').trim()
     if (!text) {
+      await auditWhatsAppWebhook('WHATSAPP_VOICE_TRANSCRIPTION_EMPTY', {
+        from: maskPhone(message.from),
+        messageId: message.id,
+        mediaId: message.mediaId || null,
+        mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
+        fileSize,
+      }, message.id)
       return {
         message: {
           ...message,
-          text: '🎤 رسالة صوتية غير واضحة.',
+          text: '🎤 رسالة صوتية تعذر تفريغها إلى نص.',
           mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
           mediaFileSize: fileSize,
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
-        immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+        immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
+        requestHuman: true,
+        failureReason: 'empty_transcript',
       }
     }
 
