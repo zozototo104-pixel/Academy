@@ -16,6 +16,43 @@ export function ContactView() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' })
+  const [officialContact, setOfficialContact] = useState({
+    legalEntity: ACADEMY_INFO.nameAr,
+    registrationNumber: '',
+    address: ACADEMY_INFO.locationAr,
+    email: ACADEMY_INFO.officialEmail,
+    phone: ACADEMY_INFO.officialPhone,
+    whatsapp: ACADEMY_INFO.whatsapp,
+    responsiblePerson: ACADEMY_INFO.whatsappContactName,
+  })
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        try {
+          const parsed = JSON.parse(d.values?.OFFICIAL_CONTACT || '{}')
+          if (parsed && typeof parsed === 'object') {
+            setOfficialContact((prev) => ({
+              legalEntity: String(parsed.legalEntity || prev.legalEntity),
+              registrationNumber: String(parsed.registrationNumber || prev.registrationNumber),
+              address: String(parsed.address || prev.address),
+              email: String(parsed.email || prev.email),
+              phone: String(parsed.phone || prev.phone),
+              whatsapp: String(parsed.whatsapp || prev.whatsapp),
+              responsiblePerson: String(parsed.responsiblePerson || prev.responsiblePerson),
+            }))
+          }
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
