@@ -210,6 +210,9 @@ jobs:
       - name: Run admin launch smoke test
         run: bun run e2e:admin
 
+      - name: Run manual payment guardrails
+        run: bunx playwright test --config=playwright.config.ts tests/e2e/manual-payment-guard.spec.ts
+
       - name: Run full platform journey
         if: ${{ github.event_name == 'push' || inputs.run_full_journey }}
         run: bun run e2e:journey
