@@ -266,6 +266,14 @@ export function AdminRulesTab() {
   const isStudyProgram = selectedFlow ? selectedFlow.isStudyProgram : selected?.category !== 'SERVICE'
   const serviceDocOptions = selectedFlow ? getServiceDocumentOptions(selectedFlow) : []
   const activeDocOptions = isStudyProgram ? DOC_OPTIONS : (serviceDocOptions.length ? serviceDocOptions.map((d) => ({ value: d.value, label: d.label, icon: FileText })) : DOC_OPTIONS)
+  const normalizedProgramSearch = programSearch.trim().toLowerCase()
+  const filteredPrograms = programs.filter((p) => {
+    const matchesCategory = programCategoryFilter === 'ALL' || p.category === programCategoryFilter
+    if (!matchesCategory) return false
+    if (!normalizedProgramSearch) return true
+    return [p.titleAr, p.titleEn, p.slug, CAT_AR[p.category] || p.category]
+      .some((value) => String(value || '').toLowerCase().includes(normalizedProgramSearch))
+  })
 
   const toggleDoc = (doc: string) => {
     const cur = new Set(draft.requiredDocuments || [])
