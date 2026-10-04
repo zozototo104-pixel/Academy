@@ -589,7 +589,7 @@ function EmptyCard({ text }: { text: string }) {
   return <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">{text}</CardContent></Card>
 }
 
-function SectionHeader({ title, icon, onRefresh }: { title: string; icon: React.ReactNode; onRefresh: () => void }) {
+function SectionHeader({ title, icon, onRefresh }: { title: string; icon: ReactNode; onRefresh: () => void }) {
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4"><h2 className="flex items-center gap-2 text-base font-black text-[#0f2b46]">{icon}{title}</h2><Button variant="outline" onClick={onRefresh}><RefreshCw className="ml-1 h-4 w-4" /> تحديث</Button></div>
 }
 
