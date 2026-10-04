@@ -870,6 +870,7 @@ export function AdminRulesTab() {
                     ))}
                     {!(draft.academicProfile?.termPlans || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام خطط الفصول التلقائية من الدليل.</p>}
                   </div>
+                  </div>
                 </details>
 
                 {programDraft && (
