@@ -41,6 +41,12 @@ const programPatchSchema = z.object({
 
 type ProgramPatchInput = z.infer<typeof programPatchSchema>
 
+const bulkApplyPriceHoursSchema = z.object({
+  category: z.enum(PROGRAM_CATEGORIES),
+  price: z.coerce.number().min(0, 'السعر يجب أن يكون صفراً أو أكثر').nullable(),
+  hours: z.coerce.number().int().min(1, 'الساعات يجب أن تكون أكبر من صفر').max(10000),
+})
+
 function normalizeFeaturesForDb(features?: string[]) {
   if (!features) return undefined
   return JSON.stringify(features.map((item) => item.trim()).filter(Boolean).slice(0, 12))
