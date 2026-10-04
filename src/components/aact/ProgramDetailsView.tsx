@@ -262,7 +262,7 @@ export function ProgramDetailsView() {
     }
 
     const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}${user ? '' : '&public=1'}`
-    api<{ program?: Program | null; programs?: Program[] }>(detailUrl)
+    api<{ program?: Program | null; programs?: Program[]; catalogVersion?: string | null }>(detailUrl)
       .then((d) => {
         if (!alive) return
         const detail = d.program || d.programs?.[0]
