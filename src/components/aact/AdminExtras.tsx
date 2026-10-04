@@ -1152,7 +1152,7 @@ interface SystemAdminAccount {
 export function AdminSettingsTab() {
   const { toast } = useToast()
   const [values, setValues] = useState<Record<string, string>>({})
-  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string }[]>([])
+  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json'; help?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
