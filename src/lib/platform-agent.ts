@@ -1085,7 +1085,6 @@ export async function platformAgentStream(opts: {
   }
 
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
-  const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
