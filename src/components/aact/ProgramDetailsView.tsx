@@ -630,7 +630,7 @@ export function ProgramDetailsView() {
                   )}
                 </div>
 
-                {academicProfile.thesisRequirement && (
+                {showAcademicSection('thesisRequirement') && academicProfile.thesisRequirement && (
                   <div className="mt-4 rounded-[1.5rem] border border-[#b08a38]/25 bg-[#b08a38]/10 p-4">
                     <h3 className="mb-2 flex items-center gap-2 font-black text-white"><Presentation className="h-5 w-5 text-[#d2ad5a]" /> البحث/الأطروحة أو المشروع النهائي</h3>
                     <p className="text-xs font-bold leading-7 text-white/62">{academicProfile.thesisRequirement}</p>
