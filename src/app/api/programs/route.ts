@@ -71,13 +71,30 @@ export async function GET(req: NextRequest) {
         setPublicProgramsCountCache(count, summaryCache.payload.catalogVersion || null)
         return NextResponse.json({ count, catalogVersion: summaryCache.payload.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
-      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true, updatedAt: true } })
+      const countRows = await db.program.findMany({
+        where: { active: true },
+        select: {
+          id: true,
+          slug: true,
+          titleAr: true,
+          titleEn: true,
+          description: true,
+          category: true,
+          hours: true,
+          price: true,
+          icon: true,
+          features: true,
+          active: true,
+          order: true,
+          credentialType: true,
+          trademarkNotice: true,
+          disclosureConsentText: true,
+          admissionRules: true,
+        },
+      })
       const visibleCountRows = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p))
       const count = visibleCountRows.length
-      const catalogVersion = visibleCountRows.reduce<string | null>((latest, p) => {
-        const value = p.updatedAt?.toISOString?.() || null
-        return value && (!latest || value > latest) ? value : latest
-      }, null)
+      const catalogVersion = buildCatalogVersion(visibleCountRows)
       setPublicProgramsCountCache(count, catalogVersion)
       return NextResponse.json({ count, catalogVersion }, { headers: publicCacheHeaders() })
     }
