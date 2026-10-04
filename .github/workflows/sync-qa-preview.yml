@@ -1,0 +1,35 @@
+name: Sync QA Preview Branch
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-qa-check-main-preview
+  cancel-in-progress: false
+
+jobs:
+  sync-qa-preview:
+    name: Sync qa-check-main from main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Force qa-check-main to latest main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git push --force origin HEAD:refs/heads/qa-check-main
+          echo "qa-check-main now points to $(git rev-parse HEAD)"
