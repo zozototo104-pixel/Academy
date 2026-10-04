@@ -2270,10 +2270,10 @@ export function AdminMessagesTab() {
         ))
       )}
       <AdminPager page={currentMsgPage} pageSize={msgPageSize} total={msgTotal} onPageChange={setMsgPage} label="رسالة" />
+      {/* REAL_ADMIN_EXTRAS_END */}
     </div>
   )
 }
-// REAL_ADMIN_EXTRAS_END
 /* DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED
  })
       load()
