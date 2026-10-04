@@ -120,7 +120,7 @@ export async function GET() {
       const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
       return {
         ...p,
-        features: JSON.parse(p.features || '[]'),
+        features: parseProgramFeatures(p.features),
         sortOrder: p.order,
         program: programSnapshot(p),
         rules: p.admissionRules
