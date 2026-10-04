@@ -832,10 +832,3346 @@ export function HomeView() {
                 </h3>
                 <div className="space-y-3">
                   {[
-                    { p: 'الدكتوراه المهنية (معادلة خبرات)', f: `${ADMISSION_FEES.doctorate}$` },
-                    { p: 'الماجستير المهني (معادلة خبرات)', f: `${ADMISSION_FEES.masters}$` },
-                    { p: 'الدبلومات والبرامج الدولية (حسب البرنامج)', f: `${ADMISSION_FEES.diplomasRange}$` },
-                    { p: 'رسوم تقديم الطلب وحجز المقعد (غير مستردة)', f: `${ADMISSION_FEES.applicationFee}$` },
+                    { p: 'الدكتوراه المهنية (معادلة خبرات)', f: `تبدأ من ${doctorateStartsFrom}'use client'
+
+import { useAppStore } from '@/lib/store'
+import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { AcademyLogo } from '@/components/aact/Shell'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
+  Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
+  Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText,
+} from 'lucide-react'
+
+interface ProgramLite {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string
+  description: string
+  category: string
+  hours?: number | null
+  price?: number | null
+  icon: string
+  unitsCount: number
+  enrolled: boolean
+}
+
+const ICONS: Record<string, any> = {
+  briefcase: Briefcase, award: Award, 'book-open': BookOpen,
+  'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
+  'file-check-2': FileCheck2, 'package-check': PackageCheck, 'messages-square': MessagesSquare,
+  presentation: Presentation, headphones: Headphones, megaphone: Megaphone, calendar: Calendar,
+  'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
+  compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
+  gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
+  'trending-up': TrendingUp, network: Network, school: School, clipboard: Clipboard,
+  languages: Languages, globe: Globe, 'file-text': FileText, bot: Bot,
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  DIPLOMA: 'دبلوم مهني',
+  DOCTORATE: 'دكتوراه مهنية',
+  MASTERS: 'ماجستير مهني',
+  ACCREDITATION: 'اعتماد دولي',
+  INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
+}
+
+const ACADEMY_IMAGES = {
+  // صور الواجهة الرئيسية تُقدَّم عبر Route داخلي يفضّل Cloudflare/R2،
+  // ويرفعها تلقائياً من الموقع القديم عند أول طلب إذا كانت غير موجودة بعد.
+  heroGroup: '/api/site-assets/home/about2',
+  heroSolo: '/api/site-assets/home/about1',
+  heroBg: '/api/site-assets/home/about2',
+}
+
+// أبرز البرامج والخدمات المميزة — الشريط المتحرك
+const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
+  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
+  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
+  { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
+  { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
+  { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
+  { icon: BadgeCheck, t: 'معادلة الخبرة المهنية', hint: 'توثيق وتحكيم خبرات', slug: 'professional-experience-equivalency' },
+  { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
+  { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
+  { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
+]
+
+/** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
+function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: string; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [val, setVal] = useState(0)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !started.current) {
+          started.current = true
+          const t0 = performance.now()
+          const tick = (t: number) => {
+            const p = Math.min(1, (t - t0) / duration)
+            // easeOutCubic — بداية سريعة ثم تباطؤ ناعم
+            setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
+            if (p < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+          io.disconnect()
+        }
+      },
+      { threshold: 0.4 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [to, duration])
+
+  return <span ref={ref}>{val.toLocaleString('ar-EG')}{suffix}</span>
+}
+
+export function HomeView() {
+  const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
+  const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [trustBannerText, setTrustBannerText] = useState('')
+  const [homeStats, setHomeStats] = useState<{ graduates: number; experts: number; countries: number }>({ graduates: 20000, experts: 250, countries: 50 })
+  const [financialSettings, setFinancialSettings] = useState({ applicationFee: 30, doctorateDefault: 1300, mastersDefault: 700, diplomaMinDefault: 100, diplomaMaxDefault: 350 })
+  const [programCount, setProgramCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        setFinancialSettings((prev) => ({
+          applicationFee: Number(values.FEE_APPLICATION || prev.applicationFee),
+          doctorateDefault: Number(values.FEE_DOCTORATE || prev.doctorateDefault),
+          mastersDefault: Number(values.FEE_MASTERS || prev.mastersDefault),
+          diplomaMinDefault: Number(values.FEE_DIPLOMAS_MIN || prev.diplomaMinDefault),
+          diplomaMaxDefault: Number(values.FEE_DIPLOMAS_MAX || prev.diplomaMaxDefault),
+        }))
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    let hasCachedList = false
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      if (Array.isArray(cachedList) && cachedList.length > 0) {
+        hasCachedList = true
+        setPrograms(cachedList)
+        setProgramCount(cachedList.length)
+        setLoading(false)
+      } else {
+        const cached = Number(localStorage.getItem('aact_program_count') || '')
+        if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      }
+    } catch {}
+
+    const controller = new AbortController()
+
+    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
+    fetch('/api/programs?count=1&public=1', {
+      signal: controller.signal,
+      cache: 'force-cache',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ count: number }>
+      })
+      .then((d) => {
+        if (!alive) return
+        if (Number.isFinite(d.count) && d.count > 0) {
+          setProgramCount(d.count)
+          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
+        }
+      })
+      .catch(() => {})
+
+    const loadSummary = () => {
+      fetch('/api/programs?summary=1&public=1', {
+        signal: controller.signal,
+        cache: 'force-cache',
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json() as Promise<{ programs: ProgramLite[] }>
+        })
+        .then((d) => {
+          if (!alive) return
+          const list = Array.isArray(d.programs) ? d.programs : []
+          setPrograms(list)
+          if (list.length > 0) {
+            setProgramCount(list.length)
+            try {
+              localStorage.setItem('aact_program_count', String(list.length))
+              localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 120)))
+            } catch {}
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          setProgramCount((current) => current ?? null)
+        })
+        .finally(() => {
+          if (alive && !hasCachedList) setLoading(false)
+        })
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(loadSummary, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(loadSummary, 120)
+    }
+
+    return () => {
+      alive = false
+      controller.abort()
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [])
+
+  const visibleProgramCount = programCount ?? programs.length
+  const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], financialSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], financialSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], financialSettings.diplomaMinDefault)
+
+  // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
+  // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
+  // إذا لم يتحرك المسار لمسافتين متتاليتين، نشغّل محركاً يدوياً بـ requestAnimationFrame
+  // بنفس رياضيات الحركة الأصلية (36 ثانية لكل دورة، إزاحة حتى 50%) — نفس الشكل تماماً.
+  const trackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    let lastX = el.getBoundingClientRect().x
+    let fails = 0
+    let raf = 0
+    let started = false
+    const iv = setInterval(() => {
+      if (started || document.visibilityState !== 'visible') return
+      const x = el.getBoundingClientRect().x
+      if (Math.abs(x - lastX) < 1) {
+        if (++fails >= 2) {
+          started = true
+          clearInterval(iv)
+          const DURATION = 36000
+          let t0: number | null = null
+          const step = (ts: number) => {
+            if (t0 === null) t0 = ts
+            const p = ((ts - t0) % DURATION) / DURATION
+            el.style.transform = `translateX(${(p * 50).toFixed(4)}%)`
+            raf = requestAnimationFrame(step)
+          }
+          raf = requestAnimationFrame(step)
+        }
+      } else {
+        fails = 0
+      }
+      lastX = x
+    }, 1500)
+    return () => {
+      clearInterval(iv)
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  useEffect(() => {
+    const scope = document.querySelector('.aact-fade-in')
+    if (!scope) return
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section button, .aact-card, .aact-reveal-manual'))
+    const isMobileReveal = window.matchMedia('(max-width: 640px)').matches
+    nodes.forEach((el, i) => {
+      const tag = el.tagName.toLowerCase()
+      const hasImage = Boolean(el.querySelector('img'))
+      el.classList.add('aact-scroll-reveal')
+      if (isMobileReveal) {
+        // على الهاتف لا نستخدم إزاحة يمين/يسار حتى لا يظهر أي عنصر خارج حدود الشاشة أثناء الحركة.
+        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+          el.classList.add('aact-text-drop')
+        } else if (el.classList.contains('aact-feature-badge')) {
+          el.classList.add('aact-badge-drop')
+        } else if (hasImage || el.classList.contains('aact-card')) {
+          el.classList.add('aact-reveal-clean')
+        }
+        el.classList.add('aact-reveal-from-bottom')
+      } else if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+        el.classList.add('aact-text-drop')
+      } else if (el.classList.contains('aact-feature-badge')) {
+        el.classList.add('aact-badge-drop')
+      } else if (hasImage || el.classList.contains('aact-card')) {
+        el.classList.add('aact-reveal-clean')
+        el.classList.add('aact-reveal-from-bottom')
+      } else {
+        el.classList.add(i % 2 === 0 ? 'aact-reveal-from-right' : 'aact-reveal-from-left')
+      }
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
+    })
+    const revealVisible = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight
+      nodes.forEach((el) => {
+        if (el.classList.contains('aact-in-view')) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
+      })
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aact-in-view')
+            io.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
+    )
+    const onScroll = () => requestAnimationFrame(revealVisible)
+    const timer = window.setTimeout(() => {
+      nodes.forEach((el) => io.observe(el))
+      revealVisible()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+    }, 140)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      io.disconnect()
+    }
+  }, [])
+
+  const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
+
+  return (
+    <div className="aact-fade-in">
+      {/* بانر لوحة الإدارة — ظاهر ومباشر لمسؤولي الأكاديمية */}
+      {user?.role === 'ADMIN' && (
+        <div className="border-b-4 border-[#c9a227] bg-[#0f2b46]">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-xl bg-[#c9a227] p-2">
+                <ShieldCheck className="h-5 w-5 text-[#0f2b46]" />
+              </span>
+              <div>
+                <p className="text-sm font-black text-[#e0b83a]">أنت مسجّل بحساب إدارة الأكاديمية</p>
+                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق بتقييم خبير الذكاء الاصطناعي · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('admin')}
+              className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]"
+            >
+              فتح لوحة الإدارة ←
+            </button>
+          </div>
+        </div>
+      )}
+      {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
+      <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
+        <div className="mx-auto flex max-w-7xl items-stretch">
+          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>أبرز البرامج المميزة</span>
+          </div>
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            <div ref={trackRef} className="aact-marquee-track py-2">
+              {[0, 1].map((copy) => (
+                <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+                  {FEATURED_TICKER.map((f, i) => (
+                    <button
+                      key={`${copy}-${i}`}
+                      onClick={() => {
+                        if (f.slug) return openProgramDetails(f.slug)
+                        return openPrograms(f.filter || 'ALL')
+                      }}
+                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
+                    >
+                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
+                      <span>{f.t}</span>
+                      {f.hint && <span className="hidden text-[9px] font-black text-[#d2ad5a] sm:inline">· {f.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#1d2947] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#1d2947] to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:py-12 lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr] lg:py-14">
+          <div className="order-2 text-center lg:order-1 lg:text-right">
+            <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
+              أكاديمية مهنية بمعايير دولية منذ 2016
+            </Badge>
+            <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
+              أهلاً بكم في
+              <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+              <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-normal text-white/84 sm:text-base sm:tracking-[0.08em] lg:mx-0 lg:text-right">
+              نصنع قادة المستقبل برؤية عالمية
+            </p>
+            <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
+              منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
+            </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
+            <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Button
+                size="lg"
+                onClick={() => navigate('programs')}
+                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
+              >
+                استكشف برامجنا
+                <ChevronLeft className="mr-1 h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate('apply')}
+                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
+              >
+                قدّم طلب الالتحاق
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate(user ? 'chat' : 'auth')}
+                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
+              >
+                <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
+                المشرف الذكي
+              </Button>
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <div className="relative mx-auto max-w-[420px] pb-10 sm:max-w-[460px] lg:max-w-[480px] lg:pb-12">
+              <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
+              <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
+              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
+                <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
+                  <span className="block text-3xl font-black text-white">+15</span>
+                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
+                <img src={ACADEMY_IMAGES.heroSolo} alt="خريجة من الأكاديمية الأمريكية" className="aspect-square w-full object-cover" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
+          <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
+            {[
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
+            ].map((s) => {
+              const Icon = s.icon
+              return (
+                <div
+                  key={s.l}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
+                >
+                  <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
+                  <div className="text-4xl font-black text-white sm:text-5xl">
+                    <CountUp to={s.v} suffix={s.s} />
+                  </div>
+                  <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+              عن الأكاديمية الأمريكية
+            </Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
+              بناء قادة المستقبل من خلال التعليم المبتكر
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
+              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
+              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                'نخبة من المهنيين وخبراء التدريب والاستشارات',
+                'برامج وخدمات مهنية بمعايير دولية',
+                'مرونة في التعلم وتدريب عملي مكثف',
+                'دعم مستمر وإرشاد مهني بعد التخرج',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 rounded-2xl bg-white p-3 text-xs font-black leading-6 text-[#0f2b46] ring-1 ring-[#0f2b46]/10">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> {item}
+                </div>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+              onClick={() => navigate('about')}
+            >
+              اكتشف المزيد عنا
+              <ChevronLeft className="mr-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="relative min-h-[430px]">
+            <div className="absolute inset-x-10 top-16 h-72 rounded-full bg-[#bf1646]/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute left-0 top-10 w-[78%] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-8 ring-white">
+              <img src={ACADEMY_IMAGES.heroGroup} alt="صورة خريجين من الأكاديمية" className="aspect-[1.05/1] w-full object-cover" />
+            </div>
+            <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
+              <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
+            </div>
+            <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="h-10 w-px bg-slate-200" />
+                <span className="text-4xl font-black text-[#bf1646]">+15</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
+          </Badge>
+          <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
+          </p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_OFFERINGS.map((s, i) => {
+            const Icon = ICONS[s.icon] || Briefcase
+            const image = i % 2 === 0 ? ACADEMY_IMAGES.heroGroup : ACADEMY_IMAGES.heroSolo
+            return (
+              <Card key={s.slug} className="aact-card group overflow-hidden border-[#1d2947]/10 bg-white">
+                <div className="relative h-40 overflow-hidden bg-[#1d2947]">
+                  <img src={image} alt={s.titleAr} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/72 via-[#1d2947]/10 to-transparent" />
+                  <span className="absolute bottom-3 right-3 rounded-2xl bg-white/90 px-3 py-1 text-[10px] font-black text-[#bf1646] shadow">خدمة مهنية</span>
+                </div>
+                <CardContent className="flex h-full flex-col p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
+                      خدمة مهنية
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
+                  {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
+                  <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
+                  <div className="mt-3 space-y-1.5">
+                    {s.highlights.slice(0, 3).map((h) => (
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
+                      </p>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+                    onClick={() => openProgramDetails(s.slug)}
+                  >
+                    {s.cta}
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* AI Supervisor feature */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+              <Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية
+            </Badge>
+            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              مشرف شخصي ذكي لكل طالب
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+              لأول مرة: مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة على مدار الساعة.
+              اسأله بصوتك أو اكتب سؤالك، وسيرد عليك فوراً بصوت واضح وكتابة، يشرح المفاهيم
+              بأمثلة عملية، يرشدك في رحلتك التدريبية، ويصحح امتحاناتك المقالية بتقييم منصف
+              وتغذية راجعة بنّاءة.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: Mic, t: 'أسأل بصوتك', d: 'تقنية التعرف على الكلام العربي' },
+                { icon: Bot, t: 'يرد صوتاً وكتابة', d: 'ردود فورية مدعومة بمحتوى دوراتك' },
+                { icon: FileCheck2, t: 'يصحح امتحاناتك', d: 'تصحيح آلي للمقاليات بتغذية راجعة' },
+                { icon: Clock3, t: 'متاح 24/7', d: 'في أي وقت ومن أي جهاز' },
+              ].map((f) => (
+                <div key={f.t} className="flex items-start gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
+                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
+                    <f.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div>
+                    <div className="text-xs text-slate-500">{f.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]"
+              onClick={() => navigate(user ? 'chat' : 'auth')}
+            >
+              جرّب المشرف الذكي الآن
+            </Button>
+          </div>
+
+          {/* Chat preview mockup */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-[#c9a227]/20 to-[#0f2b46]/10 blur-xl" />
+            <div className="relative rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-2xl">
+              <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="rounded-full bg-[#0f2b46] p-2 text-[#e0b83a]"><Bot className="h-4 w-4" /></div>
+                <div>
+                  <div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">
+                  ما الفرق بين تحليل SWOT وتحليل PESTEL؟
+                </div>
+                <div className="ml-auto max-w-[90%] rounded-2xl rounded-tl-sm bg-[#f7edd0] px-3.5 py-2.5 text-xs leading-relaxed text-[#0f2b46] sm:text-sm">
+                  سؤال ممتاز! SWOT يحلل عوامل داخلية (قوة/ضعف) وخارجية مباشرة (فرص/تهديدات) حول
+                  المؤسسة نفسها، أما PESTEL فيمسح البيئة الكلية الخارجية: سياسي، اقتصادي، اجتماعي،
+                  تكنولوجي، بيئي، قانوني. استخدم SWOT لفهم موقعك، وPESTEL لقراءة السوق. هل تريد
+                  مثالاً تطبيقياً؟
+                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]">
+                    <span className="aact-speak-wave text-[#c9a227]">
+                      <span /><span /><span /><span />
+                    </span>
+                    يشغّل الرد صوتياً...
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400">
+                <MicOff className="h-4 w-4" />
+                اكتب سؤالك أو اضغط على المايكروفون لالتحدث...
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured program */}
+      {featured && (
+        <section className="bg-[#f7edd0]/40 py-14">
+          <div className="mx-auto max-w-7xl px-4">
+            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              البرنامج الأبرز هذا الموسم
+            </h2>
+            <Card className="aact-card mx-auto max-w-4xl overflow-hidden border-[#c9a227]/40 bg-white">
+              <CardContent className="p-0">
+                <div className="grid md:grid-cols-[1fr_auto]">
+                  <div className="p-6 sm:p-8">
+                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+                      {CATEGORY_LABEL[featured.category]}
+                    </Badge>
+                    <h3 className="text-xl font-black text-[#0f2b46] sm:text-2xl">{featured.titleAr}</h3>
+                    <p className="mt-1 text-xs font-bold text-[#a8841a]">{featured.titleEn}</p>
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {featured.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                      {featured.hours && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                          <Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                        <BookOpen className="h-3.5 w-3.5" /> 5 وحدات متخصصة
+                      </span>
+                      {featured.price != null && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]">
+                          <BadgeCheck className="h-3.5 w-3.5" /> فقط {featured.price}$
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
+                    <Button
+                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
+                      className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
+                    >
+                      {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* Programs grid */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+          أكاديميتنا وبرامجنا
+        </h2>
+        <p className="mb-8 text-center text-sm text-slate-500">
+          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
+        </p>
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {programs.slice(0, 6).map((p) => {
+              const Icon = ICONS[p.icon] || GraduationCap
+              return (
+                <Card
+                  key={p.id}
+                  className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
+                  onClick={() => openProgramDetails(p.id)}
+                >
+                  <CardContent className="flex h-full flex-col p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">
+                        {CATEGORY_LABEL[p.category]}
+                      </Badge>
+                    </div>
+                    <h3 className="text-base font-black leading-snug text-[#0f2b46]">{p.titleAr}</h3>
+                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">
+                      {p.description}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
+                        التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        <div className="mt-8 text-center">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => navigate('programs')}
+            className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+          >
+            عرض جميع الخدمات والبرامج ({programCountLabel})
+            <ChevronLeft className="mr-1 h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Admission guide + fees */}
+      <section className="bg-[#f7edd0]/40 py-14">
+        <div className="mx-auto max-w-7xl px-4">
+          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+            دليل الالتحاق والرسوم
+          </h2>
+          <p className="mb-8 text-center text-sm text-slate-500">
+            وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-[#c9a227]/40 bg-white">
+              <CardContent className="p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
+                  <Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج
+                </h3>
+                <div className="space-y-3">
+                  {[
+ },
+                    { p: 'الماجستير المهني (معادلة خبرات)', f: `تبدأ من ${mastersStartsFrom}'use client'
+
+import { useAppStore } from '@/lib/store'
+import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { AcademyLogo } from '@/components/aact/Shell'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
+  Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
+  Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText,
+} from 'lucide-react'
+
+interface ProgramLite {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string
+  description: string
+  category: string
+  hours?: number | null
+  price?: number | null
+  icon: string
+  unitsCount: number
+  enrolled: boolean
+}
+
+const ICONS: Record<string, any> = {
+  briefcase: Briefcase, award: Award, 'book-open': BookOpen,
+  'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
+  'file-check-2': FileCheck2, 'package-check': PackageCheck, 'messages-square': MessagesSquare,
+  presentation: Presentation, headphones: Headphones, megaphone: Megaphone, calendar: Calendar,
+  'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
+  compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
+  gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
+  'trending-up': TrendingUp, network: Network, school: School, clipboard: Clipboard,
+  languages: Languages, globe: Globe, 'file-text': FileText, bot: Bot,
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  DIPLOMA: 'دبلوم مهني',
+  DOCTORATE: 'دكتوراه مهنية',
+  MASTERS: 'ماجستير مهني',
+  ACCREDITATION: 'اعتماد دولي',
+  INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
+}
+
+const ACADEMY_IMAGES = {
+  // صور الواجهة الرئيسية تُقدَّم عبر Route داخلي يفضّل Cloudflare/R2،
+  // ويرفعها تلقائياً من الموقع القديم عند أول طلب إذا كانت غير موجودة بعد.
+  heroGroup: '/api/site-assets/home/about2',
+  heroSolo: '/api/site-assets/home/about1',
+  heroBg: '/api/site-assets/home/about2',
+}
+
+// أبرز البرامج والخدمات المميزة — الشريط المتحرك
+const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
+  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
+  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
+  { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
+  { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
+  { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
+  { icon: BadgeCheck, t: 'معادلة الخبرة المهنية', hint: 'توثيق وتحكيم خبرات', slug: 'professional-experience-equivalency' },
+  { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
+  { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
+  { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
+]
+
+/** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
+function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: string; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [val, setVal] = useState(0)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !started.current) {
+          started.current = true
+          const t0 = performance.now()
+          const tick = (t: number) => {
+            const p = Math.min(1, (t - t0) / duration)
+            // easeOutCubic — بداية سريعة ثم تباطؤ ناعم
+            setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
+            if (p < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+          io.disconnect()
+        }
+      },
+      { threshold: 0.4 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [to, duration])
+
+  return <span ref={ref}>{val.toLocaleString('ar-EG')}{suffix}</span>
+}
+
+export function HomeView() {
+  const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
+  const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [trustBannerText, setTrustBannerText] = useState('')
+  const [homeStats, setHomeStats] = useState<{ graduates: number; experts: number; countries: number }>({ graduates: 20000, experts: 250, countries: 50 })
+  const [financialSettings, setFinancialSettings] = useState({ applicationFee: 30, doctorateDefault: 1300, mastersDefault: 700, diplomaMinDefault: 100, diplomaMaxDefault: 350 })
+  const [programCount, setProgramCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        setFinancialSettings((prev) => ({
+          applicationFee: Number(values.FEE_APPLICATION || prev.applicationFee),
+          doctorateDefault: Number(values.FEE_DOCTORATE || prev.doctorateDefault),
+          mastersDefault: Number(values.FEE_MASTERS || prev.mastersDefault),
+          diplomaMinDefault: Number(values.FEE_DIPLOMAS_MIN || prev.diplomaMinDefault),
+          diplomaMaxDefault: Number(values.FEE_DIPLOMAS_MAX || prev.diplomaMaxDefault),
+        }))
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    let hasCachedList = false
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      if (Array.isArray(cachedList) && cachedList.length > 0) {
+        hasCachedList = true
+        setPrograms(cachedList)
+        setProgramCount(cachedList.length)
+        setLoading(false)
+      } else {
+        const cached = Number(localStorage.getItem('aact_program_count') || '')
+        if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      }
+    } catch {}
+
+    const controller = new AbortController()
+
+    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
+    fetch('/api/programs?count=1&public=1', {
+      signal: controller.signal,
+      cache: 'force-cache',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ count: number }>
+      })
+      .then((d) => {
+        if (!alive) return
+        if (Number.isFinite(d.count) && d.count > 0) {
+          setProgramCount(d.count)
+          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
+        }
+      })
+      .catch(() => {})
+
+    const loadSummary = () => {
+      fetch('/api/programs?summary=1&public=1', {
+        signal: controller.signal,
+        cache: 'force-cache',
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json() as Promise<{ programs: ProgramLite[] }>
+        })
+        .then((d) => {
+          if (!alive) return
+          const list = Array.isArray(d.programs) ? d.programs : []
+          setPrograms(list)
+          if (list.length > 0) {
+            setProgramCount(list.length)
+            try {
+              localStorage.setItem('aact_program_count', String(list.length))
+              localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 120)))
+            } catch {}
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          setProgramCount((current) => current ?? null)
+        })
+        .finally(() => {
+          if (alive && !hasCachedList) setLoading(false)
+        })
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(loadSummary, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(loadSummary, 120)
+    }
+
+    return () => {
+      alive = false
+      controller.abort()
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [])
+
+  const visibleProgramCount = programCount ?? programs.length
+  const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], financialSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], financialSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], financialSettings.diplomaMinDefault)
+
+  // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
+  // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
+  // إذا لم يتحرك المسار لمسافتين متتاليتين، نشغّل محركاً يدوياً بـ requestAnimationFrame
+  // بنفس رياضيات الحركة الأصلية (36 ثانية لكل دورة، إزاحة حتى 50%) — نفس الشكل تماماً.
+  const trackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    let lastX = el.getBoundingClientRect().x
+    let fails = 0
+    let raf = 0
+    let started = false
+    const iv = setInterval(() => {
+      if (started || document.visibilityState !== 'visible') return
+      const x = el.getBoundingClientRect().x
+      if (Math.abs(x - lastX) < 1) {
+        if (++fails >= 2) {
+          started = true
+          clearInterval(iv)
+          const DURATION = 36000
+          let t0: number | null = null
+          const step = (ts: number) => {
+            if (t0 === null) t0 = ts
+            const p = ((ts - t0) % DURATION) / DURATION
+            el.style.transform = `translateX(${(p * 50).toFixed(4)}%)`
+            raf = requestAnimationFrame(step)
+          }
+          raf = requestAnimationFrame(step)
+        }
+      } else {
+        fails = 0
+      }
+      lastX = x
+    }, 1500)
+    return () => {
+      clearInterval(iv)
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  useEffect(() => {
+    const scope = document.querySelector('.aact-fade-in')
+    if (!scope) return
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section button, .aact-card, .aact-reveal-manual'))
+    const isMobileReveal = window.matchMedia('(max-width: 640px)').matches
+    nodes.forEach((el, i) => {
+      const tag = el.tagName.toLowerCase()
+      const hasImage = Boolean(el.querySelector('img'))
+      el.classList.add('aact-scroll-reveal')
+      if (isMobileReveal) {
+        // على الهاتف لا نستخدم إزاحة يمين/يسار حتى لا يظهر أي عنصر خارج حدود الشاشة أثناء الحركة.
+        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+          el.classList.add('aact-text-drop')
+        } else if (el.classList.contains('aact-feature-badge')) {
+          el.classList.add('aact-badge-drop')
+        } else if (hasImage || el.classList.contains('aact-card')) {
+          el.classList.add('aact-reveal-clean')
+        }
+        el.classList.add('aact-reveal-from-bottom')
+      } else if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+        el.classList.add('aact-text-drop')
+      } else if (el.classList.contains('aact-feature-badge')) {
+        el.classList.add('aact-badge-drop')
+      } else if (hasImage || el.classList.contains('aact-card')) {
+        el.classList.add('aact-reveal-clean')
+        el.classList.add('aact-reveal-from-bottom')
+      } else {
+        el.classList.add(i % 2 === 0 ? 'aact-reveal-from-right' : 'aact-reveal-from-left')
+      }
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
+    })
+    const revealVisible = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight
+      nodes.forEach((el) => {
+        if (el.classList.contains('aact-in-view')) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
+      })
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aact-in-view')
+            io.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
+    )
+    const onScroll = () => requestAnimationFrame(revealVisible)
+    const timer = window.setTimeout(() => {
+      nodes.forEach((el) => io.observe(el))
+      revealVisible()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+    }, 140)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      io.disconnect()
+    }
+  }, [])
+
+  const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
+
+  return (
+    <div className="aact-fade-in">
+      {/* بانر لوحة الإدارة — ظاهر ومباشر لمسؤولي الأكاديمية */}
+      {user?.role === 'ADMIN' && (
+        <div className="border-b-4 border-[#c9a227] bg-[#0f2b46]">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-xl bg-[#c9a227] p-2">
+                <ShieldCheck className="h-5 w-5 text-[#0f2b46]" />
+              </span>
+              <div>
+                <p className="text-sm font-black text-[#e0b83a]">أنت مسجّل بحساب إدارة الأكاديمية</p>
+                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق بتقييم خبير الذكاء الاصطناعي · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('admin')}
+              className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]"
+            >
+              فتح لوحة الإدارة ←
+            </button>
+          </div>
+        </div>
+      )}
+      {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
+      <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
+        <div className="mx-auto flex max-w-7xl items-stretch">
+          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>أبرز البرامج المميزة</span>
+          </div>
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            <div ref={trackRef} className="aact-marquee-track py-2">
+              {[0, 1].map((copy) => (
+                <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+                  {FEATURED_TICKER.map((f, i) => (
+                    <button
+                      key={`${copy}-${i}`}
+                      onClick={() => {
+                        if (f.slug) return openProgramDetails(f.slug)
+                        return openPrograms(f.filter || 'ALL')
+                      }}
+                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
+                    >
+                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
+                      <span>{f.t}</span>
+                      {f.hint && <span className="hidden text-[9px] font-black text-[#d2ad5a] sm:inline">· {f.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#1d2947] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#1d2947] to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:py-12 lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr] lg:py-14">
+          <div className="order-2 text-center lg:order-1 lg:text-right">
+            <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
+              أكاديمية مهنية بمعايير دولية منذ 2016
+            </Badge>
+            <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
+              أهلاً بكم في
+              <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+              <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-normal text-white/84 sm:text-base sm:tracking-[0.08em] lg:mx-0 lg:text-right">
+              نصنع قادة المستقبل برؤية عالمية
+            </p>
+            <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
+              منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
+            </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
+            <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Button
+                size="lg"
+                onClick={() => navigate('programs')}
+                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
+              >
+                استكشف برامجنا
+                <ChevronLeft className="mr-1 h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate('apply')}
+                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
+              >
+                قدّم طلب الالتحاق
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate(user ? 'chat' : 'auth')}
+                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
+              >
+                <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
+                المشرف الذكي
+              </Button>
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <div className="relative mx-auto max-w-[420px] pb-10 sm:max-w-[460px] lg:max-w-[480px] lg:pb-12">
+              <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
+              <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
+              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
+                <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
+                  <span className="block text-3xl font-black text-white">+15</span>
+                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
+                <img src={ACADEMY_IMAGES.heroSolo} alt="خريجة من الأكاديمية الأمريكية" className="aspect-square w-full object-cover" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
+          <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
+            {[
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
+            ].map((s) => {
+              const Icon = s.icon
+              return (
+                <div
+                  key={s.l}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
+                >
+                  <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
+                  <div className="text-4xl font-black text-white sm:text-5xl">
+                    <CountUp to={s.v} suffix={s.s} />
+                  </div>
+                  <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+              عن الأكاديمية الأمريكية
+            </Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
+              بناء قادة المستقبل من خلال التعليم المبتكر
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
+              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
+              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                'نخبة من المهنيين وخبراء التدريب والاستشارات',
+                'برامج وخدمات مهنية بمعايير دولية',
+                'مرونة في التعلم وتدريب عملي مكثف',
+                'دعم مستمر وإرشاد مهني بعد التخرج',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 rounded-2xl bg-white p-3 text-xs font-black leading-6 text-[#0f2b46] ring-1 ring-[#0f2b46]/10">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> {item}
+                </div>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+              onClick={() => navigate('about')}
+            >
+              اكتشف المزيد عنا
+              <ChevronLeft className="mr-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="relative min-h-[430px]">
+            <div className="absolute inset-x-10 top-16 h-72 rounded-full bg-[#bf1646]/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute left-0 top-10 w-[78%] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-8 ring-white">
+              <img src={ACADEMY_IMAGES.heroGroup} alt="صورة خريجين من الأكاديمية" className="aspect-[1.05/1] w-full object-cover" />
+            </div>
+            <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
+              <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
+            </div>
+            <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="h-10 w-px bg-slate-200" />
+                <span className="text-4xl font-black text-[#bf1646]">+15</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
+          </Badge>
+          <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
+          </p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_OFFERINGS.map((s, i) => {
+            const Icon = ICONS[s.icon] || Briefcase
+            const image = i % 2 === 0 ? ACADEMY_IMAGES.heroGroup : ACADEMY_IMAGES.heroSolo
+            return (
+              <Card key={s.slug} className="aact-card group overflow-hidden border-[#1d2947]/10 bg-white">
+                <div className="relative h-40 overflow-hidden bg-[#1d2947]">
+                  <img src={image} alt={s.titleAr} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/72 via-[#1d2947]/10 to-transparent" />
+                  <span className="absolute bottom-3 right-3 rounded-2xl bg-white/90 px-3 py-1 text-[10px] font-black text-[#bf1646] shadow">خدمة مهنية</span>
+                </div>
+                <CardContent className="flex h-full flex-col p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
+                      خدمة مهنية
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
+                  {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
+                  <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
+                  <div className="mt-3 space-y-1.5">
+                    {s.highlights.slice(0, 3).map((h) => (
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
+                      </p>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+                    onClick={() => openProgramDetails(s.slug)}
+                  >
+                    {s.cta}
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* AI Supervisor feature */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+              <Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية
+            </Badge>
+            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              مشرف شخصي ذكي لكل طالب
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+              لأول مرة: مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة على مدار الساعة.
+              اسأله بصوتك أو اكتب سؤالك، وسيرد عليك فوراً بصوت واضح وكتابة، يشرح المفاهيم
+              بأمثلة عملية، يرشدك في رحلتك التدريبية، ويصحح امتحاناتك المقالية بتقييم منصف
+              وتغذية راجعة بنّاءة.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: Mic, t: 'أسأل بصوتك', d: 'تقنية التعرف على الكلام العربي' },
+                { icon: Bot, t: 'يرد صوتاً وكتابة', d: 'ردود فورية مدعومة بمحتوى دوراتك' },
+                { icon: FileCheck2, t: 'يصحح امتحاناتك', d: 'تصحيح آلي للمقاليات بتغذية راجعة' },
+                { icon: Clock3, t: 'متاح 24/7', d: 'في أي وقت ومن أي جهاز' },
+              ].map((f) => (
+                <div key={f.t} className="flex items-start gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
+                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
+                    <f.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div>
+                    <div className="text-xs text-slate-500">{f.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]"
+              onClick={() => navigate(user ? 'chat' : 'auth')}
+            >
+              جرّب المشرف الذكي الآن
+            </Button>
+          </div>
+
+          {/* Chat preview mockup */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-[#c9a227]/20 to-[#0f2b46]/10 blur-xl" />
+            <div className="relative rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-2xl">
+              <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="rounded-full bg-[#0f2b46] p-2 text-[#e0b83a]"><Bot className="h-4 w-4" /></div>
+                <div>
+                  <div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">
+                  ما الفرق بين تحليل SWOT وتحليل PESTEL؟
+                </div>
+                <div className="ml-auto max-w-[90%] rounded-2xl rounded-tl-sm bg-[#f7edd0] px-3.5 py-2.5 text-xs leading-relaxed text-[#0f2b46] sm:text-sm">
+                  سؤال ممتاز! SWOT يحلل عوامل داخلية (قوة/ضعف) وخارجية مباشرة (فرص/تهديدات) حول
+                  المؤسسة نفسها، أما PESTEL فيمسح البيئة الكلية الخارجية: سياسي، اقتصادي، اجتماعي،
+                  تكنولوجي، بيئي، قانوني. استخدم SWOT لفهم موقعك، وPESTEL لقراءة السوق. هل تريد
+                  مثالاً تطبيقياً؟
+                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]">
+                    <span className="aact-speak-wave text-[#c9a227]">
+                      <span /><span /><span /><span />
+                    </span>
+                    يشغّل الرد صوتياً...
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400">
+                <MicOff className="h-4 w-4" />
+                اكتب سؤالك أو اضغط على المايكروفون لالتحدث...
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured program */}
+      {featured && (
+        <section className="bg-[#f7edd0]/40 py-14">
+          <div className="mx-auto max-w-7xl px-4">
+            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              البرنامج الأبرز هذا الموسم
+            </h2>
+            <Card className="aact-card mx-auto max-w-4xl overflow-hidden border-[#c9a227]/40 bg-white">
+              <CardContent className="p-0">
+                <div className="grid md:grid-cols-[1fr_auto]">
+                  <div className="p-6 sm:p-8">
+                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+                      {CATEGORY_LABEL[featured.category]}
+                    </Badge>
+                    <h3 className="text-xl font-black text-[#0f2b46] sm:text-2xl">{featured.titleAr}</h3>
+                    <p className="mt-1 text-xs font-bold text-[#a8841a]">{featured.titleEn}</p>
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {featured.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                      {featured.hours && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                          <Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                        <BookOpen className="h-3.5 w-3.5" /> 5 وحدات متخصصة
+                      </span>
+                      {featured.price != null && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]">
+                          <BadgeCheck className="h-3.5 w-3.5" /> فقط {featured.price}$
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
+                    <Button
+                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
+                      className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
+                    >
+                      {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* Programs grid */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+          أكاديميتنا وبرامجنا
+        </h2>
+        <p className="mb-8 text-center text-sm text-slate-500">
+          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
+        </p>
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {programs.slice(0, 6).map((p) => {
+              const Icon = ICONS[p.icon] || GraduationCap
+              return (
+                <Card
+                  key={p.id}
+                  className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
+                  onClick={() => openProgramDetails(p.id)}
+                >
+                  <CardContent className="flex h-full flex-col p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">
+                        {CATEGORY_LABEL[p.category]}
+                      </Badge>
+                    </div>
+                    <h3 className="text-base font-black leading-snug text-[#0f2b46]">{p.titleAr}</h3>
+                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">
+                      {p.description}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
+                        التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        <div className="mt-8 text-center">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => navigate('programs')}
+            className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+          >
+            عرض جميع الخدمات والبرامج ({programCountLabel})
+            <ChevronLeft className="mr-1 h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Admission guide + fees */}
+      <section className="bg-[#f7edd0]/40 py-14">
+        <div className="mx-auto max-w-7xl px-4">
+          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+            دليل الالتحاق والرسوم
+          </h2>
+          <p className="mb-8 text-center text-sm text-slate-500">
+            وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-[#c9a227]/40 bg-white">
+              <CardContent className="p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
+                  <Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج
+                </h3>
+                <div className="space-y-3">
+                  {[
+ },
+                    { p: 'الدبلومات والبرامج الدولية (حسب البرنامج)', f: `تبدأ من ${diplomaStartsFrom}'use client'
+
+import { useAppStore } from '@/lib/store'
+import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { AcademyLogo } from '@/components/aact/Shell'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
+  Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
+  Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText,
+} from 'lucide-react'
+
+interface ProgramLite {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string
+  description: string
+  category: string
+  hours?: number | null
+  price?: number | null
+  icon: string
+  unitsCount: number
+  enrolled: boolean
+}
+
+const ICONS: Record<string, any> = {
+  briefcase: Briefcase, award: Award, 'book-open': BookOpen,
+  'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
+  'file-check-2': FileCheck2, 'package-check': PackageCheck, 'messages-square': MessagesSquare,
+  presentation: Presentation, headphones: Headphones, megaphone: Megaphone, calendar: Calendar,
+  'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
+  compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
+  gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
+  'trending-up': TrendingUp, network: Network, school: School, clipboard: Clipboard,
+  languages: Languages, globe: Globe, 'file-text': FileText, bot: Bot,
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  DIPLOMA: 'دبلوم مهني',
+  DOCTORATE: 'دكتوراه مهنية',
+  MASTERS: 'ماجستير مهني',
+  ACCREDITATION: 'اعتماد دولي',
+  INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
+}
+
+const ACADEMY_IMAGES = {
+  // صور الواجهة الرئيسية تُقدَّم عبر Route داخلي يفضّل Cloudflare/R2،
+  // ويرفعها تلقائياً من الموقع القديم عند أول طلب إذا كانت غير موجودة بعد.
+  heroGroup: '/api/site-assets/home/about2',
+  heroSolo: '/api/site-assets/home/about1',
+  heroBg: '/api/site-assets/home/about2',
+}
+
+// أبرز البرامج والخدمات المميزة — الشريط المتحرك
+const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
+  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
+  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
+  { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
+  { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
+  { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
+  { icon: BadgeCheck, t: 'معادلة الخبرة المهنية', hint: 'توثيق وتحكيم خبرات', slug: 'professional-experience-equivalency' },
+  { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
+  { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
+  { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
+]
+
+/** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
+function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: string; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [val, setVal] = useState(0)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !started.current) {
+          started.current = true
+          const t0 = performance.now()
+          const tick = (t: number) => {
+            const p = Math.min(1, (t - t0) / duration)
+            // easeOutCubic — بداية سريعة ثم تباطؤ ناعم
+            setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
+            if (p < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+          io.disconnect()
+        }
+      },
+      { threshold: 0.4 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [to, duration])
+
+  return <span ref={ref}>{val.toLocaleString('ar-EG')}{suffix}</span>
+}
+
+export function HomeView() {
+  const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
+  const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [trustBannerText, setTrustBannerText] = useState('')
+  const [homeStats, setHomeStats] = useState<{ graduates: number; experts: number; countries: number }>({ graduates: 20000, experts: 250, countries: 50 })
+  const [financialSettings, setFinancialSettings] = useState({ applicationFee: 30, doctorateDefault: 1300, mastersDefault: 700, diplomaMinDefault: 100, diplomaMaxDefault: 350 })
+  const [programCount, setProgramCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        setFinancialSettings((prev) => ({
+          applicationFee: Number(values.FEE_APPLICATION || prev.applicationFee),
+          doctorateDefault: Number(values.FEE_DOCTORATE || prev.doctorateDefault),
+          mastersDefault: Number(values.FEE_MASTERS || prev.mastersDefault),
+          diplomaMinDefault: Number(values.FEE_DIPLOMAS_MIN || prev.diplomaMinDefault),
+          diplomaMaxDefault: Number(values.FEE_DIPLOMAS_MAX || prev.diplomaMaxDefault),
+        }))
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    let hasCachedList = false
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      if (Array.isArray(cachedList) && cachedList.length > 0) {
+        hasCachedList = true
+        setPrograms(cachedList)
+        setProgramCount(cachedList.length)
+        setLoading(false)
+      } else {
+        const cached = Number(localStorage.getItem('aact_program_count') || '')
+        if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      }
+    } catch {}
+
+    const controller = new AbortController()
+
+    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
+    fetch('/api/programs?count=1&public=1', {
+      signal: controller.signal,
+      cache: 'force-cache',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ count: number }>
+      })
+      .then((d) => {
+        if (!alive) return
+        if (Number.isFinite(d.count) && d.count > 0) {
+          setProgramCount(d.count)
+          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
+        }
+      })
+      .catch(() => {})
+
+    const loadSummary = () => {
+      fetch('/api/programs?summary=1&public=1', {
+        signal: controller.signal,
+        cache: 'force-cache',
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json() as Promise<{ programs: ProgramLite[] }>
+        })
+        .then((d) => {
+          if (!alive) return
+          const list = Array.isArray(d.programs) ? d.programs : []
+          setPrograms(list)
+          if (list.length > 0) {
+            setProgramCount(list.length)
+            try {
+              localStorage.setItem('aact_program_count', String(list.length))
+              localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 120)))
+            } catch {}
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          setProgramCount((current) => current ?? null)
+        })
+        .finally(() => {
+          if (alive && !hasCachedList) setLoading(false)
+        })
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(loadSummary, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(loadSummary, 120)
+    }
+
+    return () => {
+      alive = false
+      controller.abort()
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [])
+
+  const visibleProgramCount = programCount ?? programs.length
+  const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], financialSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], financialSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], financialSettings.diplomaMinDefault)
+
+  // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
+  // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
+  // إذا لم يتحرك المسار لمسافتين متتاليتين، نشغّل محركاً يدوياً بـ requestAnimationFrame
+  // بنفس رياضيات الحركة الأصلية (36 ثانية لكل دورة، إزاحة حتى 50%) — نفس الشكل تماماً.
+  const trackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    let lastX = el.getBoundingClientRect().x
+    let fails = 0
+    let raf = 0
+    let started = false
+    const iv = setInterval(() => {
+      if (started || document.visibilityState !== 'visible') return
+      const x = el.getBoundingClientRect().x
+      if (Math.abs(x - lastX) < 1) {
+        if (++fails >= 2) {
+          started = true
+          clearInterval(iv)
+          const DURATION = 36000
+          let t0: number | null = null
+          const step = (ts: number) => {
+            if (t0 === null) t0 = ts
+            const p = ((ts - t0) % DURATION) / DURATION
+            el.style.transform = `translateX(${(p * 50).toFixed(4)}%)`
+            raf = requestAnimationFrame(step)
+          }
+          raf = requestAnimationFrame(step)
+        }
+      } else {
+        fails = 0
+      }
+      lastX = x
+    }, 1500)
+    return () => {
+      clearInterval(iv)
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  useEffect(() => {
+    const scope = document.querySelector('.aact-fade-in')
+    if (!scope) return
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section button, .aact-card, .aact-reveal-manual'))
+    const isMobileReveal = window.matchMedia('(max-width: 640px)').matches
+    nodes.forEach((el, i) => {
+      const tag = el.tagName.toLowerCase()
+      const hasImage = Boolean(el.querySelector('img'))
+      el.classList.add('aact-scroll-reveal')
+      if (isMobileReveal) {
+        // على الهاتف لا نستخدم إزاحة يمين/يسار حتى لا يظهر أي عنصر خارج حدود الشاشة أثناء الحركة.
+        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+          el.classList.add('aact-text-drop')
+        } else if (el.classList.contains('aact-feature-badge')) {
+          el.classList.add('aact-badge-drop')
+        } else if (hasImage || el.classList.contains('aact-card')) {
+          el.classList.add('aact-reveal-clean')
+        }
+        el.classList.add('aact-reveal-from-bottom')
+      } else if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+        el.classList.add('aact-text-drop')
+      } else if (el.classList.contains('aact-feature-badge')) {
+        el.classList.add('aact-badge-drop')
+      } else if (hasImage || el.classList.contains('aact-card')) {
+        el.classList.add('aact-reveal-clean')
+        el.classList.add('aact-reveal-from-bottom')
+      } else {
+        el.classList.add(i % 2 === 0 ? 'aact-reveal-from-right' : 'aact-reveal-from-left')
+      }
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
+    })
+    const revealVisible = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight
+      nodes.forEach((el) => {
+        if (el.classList.contains('aact-in-view')) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
+      })
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aact-in-view')
+            io.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
+    )
+    const onScroll = () => requestAnimationFrame(revealVisible)
+    const timer = window.setTimeout(() => {
+      nodes.forEach((el) => io.observe(el))
+      revealVisible()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+    }, 140)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      io.disconnect()
+    }
+  }, [])
+
+  const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
+
+  return (
+    <div className="aact-fade-in">
+      {/* بانر لوحة الإدارة — ظاهر ومباشر لمسؤولي الأكاديمية */}
+      {user?.role === 'ADMIN' && (
+        <div className="border-b-4 border-[#c9a227] bg-[#0f2b46]">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-xl bg-[#c9a227] p-2">
+                <ShieldCheck className="h-5 w-5 text-[#0f2b46]" />
+              </span>
+              <div>
+                <p className="text-sm font-black text-[#e0b83a]">أنت مسجّل بحساب إدارة الأكاديمية</p>
+                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق بتقييم خبير الذكاء الاصطناعي · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('admin')}
+              className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]"
+            >
+              فتح لوحة الإدارة ←
+            </button>
+          </div>
+        </div>
+      )}
+      {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
+      <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
+        <div className="mx-auto flex max-w-7xl items-stretch">
+          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>أبرز البرامج المميزة</span>
+          </div>
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            <div ref={trackRef} className="aact-marquee-track py-2">
+              {[0, 1].map((copy) => (
+                <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+                  {FEATURED_TICKER.map((f, i) => (
+                    <button
+                      key={`${copy}-${i}`}
+                      onClick={() => {
+                        if (f.slug) return openProgramDetails(f.slug)
+                        return openPrograms(f.filter || 'ALL')
+                      }}
+                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
+                    >
+                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
+                      <span>{f.t}</span>
+                      {f.hint && <span className="hidden text-[9px] font-black text-[#d2ad5a] sm:inline">· {f.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#1d2947] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#1d2947] to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:py-12 lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr] lg:py-14">
+          <div className="order-2 text-center lg:order-1 lg:text-right">
+            <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
+              أكاديمية مهنية بمعايير دولية منذ 2016
+            </Badge>
+            <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
+              أهلاً بكم في
+              <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+              <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-normal text-white/84 sm:text-base sm:tracking-[0.08em] lg:mx-0 lg:text-right">
+              نصنع قادة المستقبل برؤية عالمية
+            </p>
+            <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
+              منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
+            </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
+            <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Button
+                size="lg"
+                onClick={() => navigate('programs')}
+                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
+              >
+                استكشف برامجنا
+                <ChevronLeft className="mr-1 h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate('apply')}
+                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
+              >
+                قدّم طلب الالتحاق
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate(user ? 'chat' : 'auth')}
+                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
+              >
+                <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
+                المشرف الذكي
+              </Button>
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <div className="relative mx-auto max-w-[420px] pb-10 sm:max-w-[460px] lg:max-w-[480px] lg:pb-12">
+              <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
+              <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
+              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
+                <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
+                  <span className="block text-3xl font-black text-white">+15</span>
+                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
+                <img src={ACADEMY_IMAGES.heroSolo} alt="خريجة من الأكاديمية الأمريكية" className="aspect-square w-full object-cover" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
+          <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
+            {[
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
+            ].map((s) => {
+              const Icon = s.icon
+              return (
+                <div
+                  key={s.l}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
+                >
+                  <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
+                  <div className="text-4xl font-black text-white sm:text-5xl">
+                    <CountUp to={s.v} suffix={s.s} />
+                  </div>
+                  <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+              عن الأكاديمية الأمريكية
+            </Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
+              بناء قادة المستقبل من خلال التعليم المبتكر
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
+              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
+              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                'نخبة من المهنيين وخبراء التدريب والاستشارات',
+                'برامج وخدمات مهنية بمعايير دولية',
+                'مرونة في التعلم وتدريب عملي مكثف',
+                'دعم مستمر وإرشاد مهني بعد التخرج',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 rounded-2xl bg-white p-3 text-xs font-black leading-6 text-[#0f2b46] ring-1 ring-[#0f2b46]/10">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> {item}
+                </div>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+              onClick={() => navigate('about')}
+            >
+              اكتشف المزيد عنا
+              <ChevronLeft className="mr-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="relative min-h-[430px]">
+            <div className="absolute inset-x-10 top-16 h-72 rounded-full bg-[#bf1646]/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute left-0 top-10 w-[78%] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-8 ring-white">
+              <img src={ACADEMY_IMAGES.heroGroup} alt="صورة خريجين من الأكاديمية" className="aspect-[1.05/1] w-full object-cover" />
+            </div>
+            <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
+              <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
+            </div>
+            <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="h-10 w-px bg-slate-200" />
+                <span className="text-4xl font-black text-[#bf1646]">+15</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
+          </Badge>
+          <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
+          </p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_OFFERINGS.map((s, i) => {
+            const Icon = ICONS[s.icon] || Briefcase
+            const image = i % 2 === 0 ? ACADEMY_IMAGES.heroGroup : ACADEMY_IMAGES.heroSolo
+            return (
+              <Card key={s.slug} className="aact-card group overflow-hidden border-[#1d2947]/10 bg-white">
+                <div className="relative h-40 overflow-hidden bg-[#1d2947]">
+                  <img src={image} alt={s.titleAr} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/72 via-[#1d2947]/10 to-transparent" />
+                  <span className="absolute bottom-3 right-3 rounded-2xl bg-white/90 px-3 py-1 text-[10px] font-black text-[#bf1646] shadow">خدمة مهنية</span>
+                </div>
+                <CardContent className="flex h-full flex-col p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
+                      خدمة مهنية
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
+                  {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
+                  <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
+                  <div className="mt-3 space-y-1.5">
+                    {s.highlights.slice(0, 3).map((h) => (
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
+                      </p>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+                    onClick={() => openProgramDetails(s.slug)}
+                  >
+                    {s.cta}
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* AI Supervisor feature */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+              <Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية
+            </Badge>
+            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              مشرف شخصي ذكي لكل طالب
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+              لأول مرة: مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة على مدار الساعة.
+              اسأله بصوتك أو اكتب سؤالك، وسيرد عليك فوراً بصوت واضح وكتابة، يشرح المفاهيم
+              بأمثلة عملية، يرشدك في رحلتك التدريبية، ويصحح امتحاناتك المقالية بتقييم منصف
+              وتغذية راجعة بنّاءة.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: Mic, t: 'أسأل بصوتك', d: 'تقنية التعرف على الكلام العربي' },
+                { icon: Bot, t: 'يرد صوتاً وكتابة', d: 'ردود فورية مدعومة بمحتوى دوراتك' },
+                { icon: FileCheck2, t: 'يصحح امتحاناتك', d: 'تصحيح آلي للمقاليات بتغذية راجعة' },
+                { icon: Clock3, t: 'متاح 24/7', d: 'في أي وقت ومن أي جهاز' },
+              ].map((f) => (
+                <div key={f.t} className="flex items-start gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
+                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
+                    <f.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div>
+                    <div className="text-xs text-slate-500">{f.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]"
+              onClick={() => navigate(user ? 'chat' : 'auth')}
+            >
+              جرّب المشرف الذكي الآن
+            </Button>
+          </div>
+
+          {/* Chat preview mockup */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-[#c9a227]/20 to-[#0f2b46]/10 blur-xl" />
+            <div className="relative rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-2xl">
+              <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="rounded-full bg-[#0f2b46] p-2 text-[#e0b83a]"><Bot className="h-4 w-4" /></div>
+                <div>
+                  <div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">
+                  ما الفرق بين تحليل SWOT وتحليل PESTEL؟
+                </div>
+                <div className="ml-auto max-w-[90%] rounded-2xl rounded-tl-sm bg-[#f7edd0] px-3.5 py-2.5 text-xs leading-relaxed text-[#0f2b46] sm:text-sm">
+                  سؤال ممتاز! SWOT يحلل عوامل داخلية (قوة/ضعف) وخارجية مباشرة (فرص/تهديدات) حول
+                  المؤسسة نفسها، أما PESTEL فيمسح البيئة الكلية الخارجية: سياسي، اقتصادي، اجتماعي،
+                  تكنولوجي، بيئي، قانوني. استخدم SWOT لفهم موقعك، وPESTEL لقراءة السوق. هل تريد
+                  مثالاً تطبيقياً؟
+                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]">
+                    <span className="aact-speak-wave text-[#c9a227]">
+                      <span /><span /><span /><span />
+                    </span>
+                    يشغّل الرد صوتياً...
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400">
+                <MicOff className="h-4 w-4" />
+                اكتب سؤالك أو اضغط على المايكروفون لالتحدث...
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured program */}
+      {featured && (
+        <section className="bg-[#f7edd0]/40 py-14">
+          <div className="mx-auto max-w-7xl px-4">
+            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              البرنامج الأبرز هذا الموسم
+            </h2>
+            <Card className="aact-card mx-auto max-w-4xl overflow-hidden border-[#c9a227]/40 bg-white">
+              <CardContent className="p-0">
+                <div className="grid md:grid-cols-[1fr_auto]">
+                  <div className="p-6 sm:p-8">
+                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+                      {CATEGORY_LABEL[featured.category]}
+                    </Badge>
+                    <h3 className="text-xl font-black text-[#0f2b46] sm:text-2xl">{featured.titleAr}</h3>
+                    <p className="mt-1 text-xs font-bold text-[#a8841a]">{featured.titleEn}</p>
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {featured.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                      {featured.hours && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                          <Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                        <BookOpen className="h-3.5 w-3.5" /> 5 وحدات متخصصة
+                      </span>
+                      {featured.price != null && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]">
+                          <BadgeCheck className="h-3.5 w-3.5" /> فقط {featured.price}$
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
+                    <Button
+                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
+                      className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
+                    >
+                      {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* Programs grid */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+          أكاديميتنا وبرامجنا
+        </h2>
+        <p className="mb-8 text-center text-sm text-slate-500">
+          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
+        </p>
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {programs.slice(0, 6).map((p) => {
+              const Icon = ICONS[p.icon] || GraduationCap
+              return (
+                <Card
+                  key={p.id}
+                  className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
+                  onClick={() => openProgramDetails(p.id)}
+                >
+                  <CardContent className="flex h-full flex-col p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">
+                        {CATEGORY_LABEL[p.category]}
+                      </Badge>
+                    </div>
+                    <h3 className="text-base font-black leading-snug text-[#0f2b46]">{p.titleAr}</h3>
+                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">
+                      {p.description}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
+                        التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        <div className="mt-8 text-center">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => navigate('programs')}
+            className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+          >
+            عرض جميع الخدمات والبرامج ({programCountLabel})
+            <ChevronLeft className="mr-1 h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Admission guide + fees */}
+      <section className="bg-[#f7edd0]/40 py-14">
+        <div className="mx-auto max-w-7xl px-4">
+          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+            دليل الالتحاق والرسوم
+          </h2>
+          <p className="mb-8 text-center text-sm text-slate-500">
+            وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-[#c9a227]/40 bg-white">
+              <CardContent className="p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
+                  <Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج
+                </h3>
+                <div className="space-y-3">
+                  {[
+ },
+                    { p: 'رسوم تقديم الطلب وحجز المقعد (غير مستردة)', f: `${financialSettings.applicationFee}'use client'
+
+import { useAppStore } from '@/lib/store'
+import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { AcademyLogo } from '@/components/aact/Shell'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  GraduationCap, Award, Briefcase, ShieldCheck, Building2, BookOpen,
+  Bot, Mic, MicOff, FileCheck2, Globe2, Clock3, BadgeCheck, ChevronLeft, Sparkles,
+  Banknote, ClipboardList, Users, Star, Quote, HelpCircle, PackageCheck, MessagesSquare,
+  Presentation, Headphones, Megaphone, Calendar, HardHat, HeartPulse, Calculator, Monitor,
+  Compass, Library, Newspaper, Plane, ShoppingCart, Gauge, CheckCircle2,
+  TrendingUp, Network, School, Clipboard, Languages, Globe, FileText,
+} from 'lucide-react'
+
+interface ProgramLite {
+  id: string
+  slug: string
+  titleAr: string
+  titleEn?: string
+  description: string
+  category: string
+  hours?: number | null
+  price?: number | null
+  icon: string
+  unitsCount: number
+  enrolled: boolean
+}
+
+const ICONS: Record<string, any> = {
+  briefcase: Briefcase, award: Award, 'book-open': BookOpen,
+  'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
+  'file-check-2': FileCheck2, 'package-check': PackageCheck, 'messages-square': MessagesSquare,
+  presentation: Presentation, headphones: Headphones, megaphone: Megaphone, calendar: Calendar,
+  'hard-hat': HardHat, 'heart-pulse': HeartPulse, calculator: Calculator, monitor: Monitor,
+  compass: Compass, library: Library, newspaper: Newspaper, plane: Plane, 'shopping-cart': ShoppingCart,
+  gauge: Gauge, users: Users, 'badge-check': BadgeCheck, sparkles: Sparkles,
+  'trending-up': TrendingUp, network: Network, school: School, clipboard: Clipboard,
+  languages: Languages, globe: Globe, 'file-text': FileText, bot: Bot,
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  DIPLOMA: 'دبلوم مهني',
+  DOCTORATE: 'دكتوراه مهنية',
+  MASTERS: 'ماجستير مهني',
+  ACCREDITATION: 'اعتماد دولي',
+  INTL_CERT: 'شهادة دولية',
+  SERVICE: 'خدمة مهنية',
+}
+
+const ACADEMY_IMAGES = {
+  // صور الواجهة الرئيسية تُقدَّم عبر Route داخلي يفضّل Cloudflare/R2،
+  // ويرفعها تلقائياً من الموقع القديم عند أول طلب إذا كانت غير موجودة بعد.
+  heroGroup: '/api/site-assets/home/about2',
+  heroSolo: '/api/site-assets/home/about1',
+  heroBg: '/api/site-assets/home/about2',
+}
+
+// أبرز البرامج والخدمات المميزة — الشريط المتحرك
+const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
+  { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
+  { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
+  { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
+  { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
+  { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
+  { icon: BadgeCheck, t: 'معادلة الخبرة المهنية', hint: 'توثيق وتحكيم خبرات', slug: 'professional-experience-equivalency' },
+  { icon: Briefcase, t: 'دبلوم مهارات الاستشاري المحترف', hint: 'الأكثر طلباً', slug: 'professional-consulting-skills' },
+  { icon: Award, t: 'شهادة مدرب دولي معتمد (CIT)', hint: '', slug: 'cert-cit' },
+  { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
+]
+
+/** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
+function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: string; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [val, setVal] = useState(0)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !started.current) {
+          started.current = true
+          const t0 = performance.now()
+          const tick = (t: number) => {
+            const p = Math.min(1, (t - t0) / duration)
+            // easeOutCubic — بداية سريعة ثم تباطؤ ناعم
+            setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
+            if (p < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+          io.disconnect()
+        }
+      },
+      { threshold: 0.4 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [to, duration])
+
+  return <span ref={ref}>{val.toLocaleString('ar-EG')}{suffix}</span>
+}
+
+export function HomeView() {
+  const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
+  const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [trustBannerText, setTrustBannerText] = useState('')
+  const [homeStats, setHomeStats] = useState<{ graduates: number; experts: number; countries: number }>({ graduates: 20000, experts: 250, countries: 50 })
+  const [financialSettings, setFinancialSettings] = useState({ applicationFee: 30, doctorateDefault: 1300, mastersDefault: 700, diplomaMinDefault: 100, diplomaMaxDefault: 350 })
+  const [programCount, setProgramCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        setFinancialSettings((prev) => ({
+          applicationFee: Number(values.FEE_APPLICATION || prev.applicationFee),
+          doctorateDefault: Number(values.FEE_DOCTORATE || prev.doctorateDefault),
+          mastersDefault: Number(values.FEE_MASTERS || prev.mastersDefault),
+          diplomaMinDefault: Number(values.FEE_DIPLOMAS_MIN || prev.diplomaMinDefault),
+          diplomaMaxDefault: Number(values.FEE_DIPLOMAS_MAX || prev.diplomaMaxDefault),
+        }))
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    let hasCachedList = false
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      if (Array.isArray(cachedList) && cachedList.length > 0) {
+        hasCachedList = true
+        setPrograms(cachedList)
+        setProgramCount(cachedList.length)
+        setLoading(false)
+      } else {
+        const cached = Number(localStorage.getItem('aact_program_count') || '')
+        if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
+      }
+    } catch {}
+
+    const controller = new AbortController()
+
+    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
+    fetch('/api/programs?count=1&public=1', {
+      signal: controller.signal,
+      cache: 'force-cache',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ count: number }>
+      })
+      .then((d) => {
+        if (!alive) return
+        if (Number.isFinite(d.count) && d.count > 0) {
+          setProgramCount(d.count)
+          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
+        }
+      })
+      .catch(() => {})
+
+    const loadSummary = () => {
+      fetch('/api/programs?summary=1&public=1', {
+        signal: controller.signal,
+        cache: 'force-cache',
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json() as Promise<{ programs: ProgramLite[] }>
+        })
+        .then((d) => {
+          if (!alive) return
+          const list = Array.isArray(d.programs) ? d.programs : []
+          setPrograms(list)
+          if (list.length > 0) {
+            setProgramCount(list.length)
+            try {
+              localStorage.setItem('aact_program_count', String(list.length))
+              localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 120)))
+            } catch {}
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          setProgramCount((current) => current ?? null)
+        })
+        .finally(() => {
+          if (alive && !hasCachedList) setLoading(false)
+        })
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(loadSummary, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(loadSummary, 120)
+    }
+
+    return () => {
+      alive = false
+      controller.abort()
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [])
+
+  const visibleProgramCount = programCount ?? programs.length
+  const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], financialSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], financialSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], financialSettings.diplomaMinDefault)
+
+  // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
+  // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
+  // إذا لم يتحرك المسار لمسافتين متتاليتين، نشغّل محركاً يدوياً بـ requestAnimationFrame
+  // بنفس رياضيات الحركة الأصلية (36 ثانية لكل دورة، إزاحة حتى 50%) — نفس الشكل تماماً.
+  const trackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    let lastX = el.getBoundingClientRect().x
+    let fails = 0
+    let raf = 0
+    let started = false
+    const iv = setInterval(() => {
+      if (started || document.visibilityState !== 'visible') return
+      const x = el.getBoundingClientRect().x
+      if (Math.abs(x - lastX) < 1) {
+        if (++fails >= 2) {
+          started = true
+          clearInterval(iv)
+          const DURATION = 36000
+          let t0: number | null = null
+          const step = (ts: number) => {
+            if (t0 === null) t0 = ts
+            const p = ((ts - t0) % DURATION) / DURATION
+            el.style.transform = `translateX(${(p * 50).toFixed(4)}%)`
+            raf = requestAnimationFrame(step)
+          }
+          raf = requestAnimationFrame(step)
+        }
+      } else {
+        fails = 0
+      }
+      lastX = x
+    }, 1500)
+    return () => {
+      clearInterval(iv)
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  useEffect(() => {
+    const scope = document.querySelector('.aact-fade-in')
+    if (!scope) return
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('section > div, section h1, section h2, section h3, section p, section button, .aact-card, .aact-reveal-manual'))
+    const isMobileReveal = window.matchMedia('(max-width: 640px)').matches
+    nodes.forEach((el, i) => {
+      const tag = el.tagName.toLowerCase()
+      const hasImage = Boolean(el.querySelector('img'))
+      el.classList.add('aact-scroll-reveal')
+      if (isMobileReveal) {
+        // على الهاتف لا نستخدم إزاحة يمين/يسار حتى لا يظهر أي عنصر خارج حدود الشاشة أثناء الحركة.
+        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+          el.classList.add('aact-text-drop')
+        } else if (el.classList.contains('aact-feature-badge')) {
+          el.classList.add('aact-badge-drop')
+        } else if (hasImage || el.classList.contains('aact-card')) {
+          el.classList.add('aact-reveal-clean')
+        }
+        el.classList.add('aact-reveal-from-bottom')
+      } else if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
+        el.classList.add('aact-text-drop')
+      } else if (el.classList.contains('aact-feature-badge')) {
+        el.classList.add('aact-badge-drop')
+      } else if (hasImage || el.classList.contains('aact-card')) {
+        el.classList.add('aact-reveal-clean')
+        el.classList.add('aact-reveal-from-bottom')
+      } else {
+        el.classList.add(i % 2 === 0 ? 'aact-reveal-from-right' : 'aact-reveal-from-left')
+      }
+      el.style.setProperty('--aact-reveal-delay', `${Math.min((i % 7) * 70, 420)}ms`)
+    })
+    const revealVisible = () => {
+      const vh = window.innerHeight || document.documentElement.clientHeight
+      nodes.forEach((el) => {
+        if (el.classList.contains('aact-in-view')) return
+        const rect = el.getBoundingClientRect()
+        if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
+      })
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aact-in-view')
+            io.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
+    )
+    const onScroll = () => requestAnimationFrame(revealVisible)
+    const timer = window.setTimeout(() => {
+      nodes.forEach((el) => io.observe(el))
+      revealVisible()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+    }, 140)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      io.disconnect()
+    }
+  }, [])
+
+  const featured = programs.find((p) => p.slug === 'professional-consulting-skills')
+
+  return (
+    <div className="aact-fade-in">
+      {/* بانر لوحة الإدارة — ظاهر ومباشر لمسؤولي الأكاديمية */}
+      {user?.role === 'ADMIN' && (
+        <div className="border-b-4 border-[#c9a227] bg-[#0f2b46]">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-xl bg-[#c9a227] p-2">
+                <ShieldCheck className="h-5 w-5 text-[#0f2b46]" />
+              </span>
+              <div>
+                <p className="text-sm font-black text-[#e0b83a]">أنت مسجّل بحساب إدارة الأكاديمية</p>
+                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق بتقييم خبير الذكاء الاصطناعي · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('admin')}
+              className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]"
+            >
+              فتح لوحة الإدارة ←
+            </button>
+          </div>
+        </div>
+      )}
+      {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
+      <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
+        <div className="mx-auto flex max-w-7xl items-stretch">
+          <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>أبرز البرامج المميزة</span>
+          </div>
+          <div className="relative min-w-0 flex-1 overflow-hidden">
+            <div ref={trackRef} className="aact-marquee-track py-2">
+              {[0, 1].map((copy) => (
+                <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+                  {FEATURED_TICKER.map((f, i) => (
+                    <button
+                      key={`${copy}-${i}`}
+                      onClick={() => {
+                        if (f.slug) return openProgramDetails(f.slug)
+                        return openPrograms(f.filter || 'ALL')
+                      }}
+                      className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
+                    >
+                      <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
+                      <span>{f.t}</span>
+                      {f.hint && <span className="hidden text-[9px] font-black text-[#d2ad5a] sm:inline">· {f.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#1d2947] to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#1d2947] to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
+          <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06142a]/55 via-[#06142a]/40 to-[#06142a]/70" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:py-12 lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr] lg:py-14">
+          <div className="order-2 text-center lg:order-1 lg:text-right">
+            <Badge className="mb-4 border-[#bf1646]/45 bg-[#bf1646]/18 text-white hover:bg-[#bf1646]/18">
+              <Sparkles className="ml-1 h-3.5 w-3.5 text-[#d2ad5a]" />
+              أكاديمية مهنية بمعايير دولية منذ 2016
+            </Badge>
+            <h1 className="text-4xl font-black leading-[1.22] sm:text-5xl lg:text-6xl lg:leading-[1.18]">
+              أهلاً بكم في
+              <span className="block text-[#bf1646]">الأكاديمية الأمريكية</span>
+              <span className="block text-[#f8f8fb]">للاستشارات والتدريب</span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-full text-center text-sm font-black leading-8 tracking-normal text-white/84 sm:text-base sm:tracking-[0.08em] lg:mx-0 lg:text-right">
+              نصنع قادة المستقبل برؤية عالمية
+            </p>
+            <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
+              منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
+            </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
+            <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Button
+                size="lg"
+                onClick={() => navigate('programs')}
+                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
+              >
+                استكشف برامجنا
+                <ChevronLeft className="mr-1 h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate('apply')}
+                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
+              >
+                قدّم طلب الالتحاق
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate(user ? 'chat' : 'auth')}
+                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
+              >
+                <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
+                المشرف الذكي
+              </Button>
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <div className="relative mx-auto max-w-[420px] pb-10 sm:max-w-[460px] lg:max-w-[480px] lg:pb-12">
+              <div className="absolute -right-6 top-5 h-36 w-36 rounded-full bg-[#bf1646]/30 blur-3xl" aria-hidden="true" />
+              <div className="absolute -left-6 bottom-6 h-44 w-44 rounded-full bg-[#b08a38]/25 blur-3xl" aria-hidden="true" />
+              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/15 bg-white/8 shadow-2xl ring-1 ring-white/10">
+                <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
+                <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
+                  <span className="block text-3xl font-black text-white">+15</span>
+                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
+                <img src={ACADEMY_IMAGES.heroSolo} alt="خريجة من الأكاديمية الأمريكية" className="aspect-square w-full object-cover" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
+          <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
+            {[
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
+            ].map((s) => {
+              const Icon = s.icon
+              return (
+                <div
+                  key={s.l}
+                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
+                >
+                  <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
+                  <div className="text-4xl font-black text-white sm:text-5xl">
+                    <CountUp to={s.v} suffix={s.s} />
+                  </div>
+                  <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+              عن الأكاديمية الأمريكية
+            </Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
+              بناء قادة المستقبل من خلال التعليم المبتكر
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
+              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
+              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                'نخبة من المهنيين وخبراء التدريب والاستشارات',
+                'برامج وخدمات مهنية بمعايير دولية',
+                'مرونة في التعلم وتدريب عملي مكثف',
+                'دعم مستمر وإرشاد مهني بعد التخرج',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 rounded-2xl bg-white p-3 text-xs font-black leading-6 text-[#0f2b46] ring-1 ring-[#0f2b46]/10">
+                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> {item}
+                </div>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+              onClick={() => navigate('about')}
+            >
+              اكتشف المزيد عنا
+              <ChevronLeft className="mr-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="relative min-h-[430px]">
+            <div className="absolute inset-x-10 top-16 h-72 rounded-full bg-[#bf1646]/10 blur-3xl" aria-hidden="true" />
+            <div className="absolute left-0 top-10 w-[78%] overflow-hidden rounded-[2rem] bg-white shadow-2xl ring-8 ring-white">
+              <img src={ACADEMY_IMAGES.heroGroup} alt="صورة خريجين من الأكاديمية" className="aspect-[1.05/1] w-full object-cover" />
+            </div>
+            <div className="absolute bottom-6 right-0 w-[52%] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-8 ring-white sm:w-[48%]">
+              <img src={ACADEMY_IMAGES.heroSolo} alt="صورة طالبة تحمل شهادة الأكاديمية" className="aspect-square w-full object-cover" />
+            </div>
+            <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="h-10 w-px bg-slate-200" />
+                <span className="text-4xl font-black text-[#bf1646]">+15</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
+            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
+          </Badge>
+          <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
+          </p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_OFFERINGS.map((s, i) => {
+            const Icon = ICONS[s.icon] || Briefcase
+            const image = i % 2 === 0 ? ACADEMY_IMAGES.heroGroup : ACADEMY_IMAGES.heroSolo
+            return (
+              <Card key={s.slug} className="aact-card group overflow-hidden border-[#1d2947]/10 bg-white">
+                <div className="relative h-40 overflow-hidden bg-[#1d2947]">
+                  <img src={image} alt={s.titleAr} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/72 via-[#1d2947]/10 to-transparent" />
+                  <span className="absolute bottom-3 right-3 rounded-2xl bg-white/90 px-3 py-1 text-[10px] font-black text-[#bf1646] shadow">خدمة مهنية</span>
+                </div>
+                <CardContent className="flex h-full flex-col p-5">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
+                      خدمة مهنية
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
+                  {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
+                  <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
+                  <div className="mt-3 space-y-1.5">
+                    {s.highlights.slice(0, 3).map((h) => (
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
+                      </p>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+                    onClick={() => openProgramDetails(s.slug)}
+                  >
+                    {s.cta}
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* AI Supervisor feature */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+              <Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية
+            </Badge>
+            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              مشرف شخصي ذكي لكل طالب
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+              لأول مرة: مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة على مدار الساعة.
+              اسأله بصوتك أو اكتب سؤالك، وسيرد عليك فوراً بصوت واضح وكتابة، يشرح المفاهيم
+              بأمثلة عملية، يرشدك في رحلتك التدريبية، ويصحح امتحاناتك المقالية بتقييم منصف
+              وتغذية راجعة بنّاءة.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: Mic, t: 'أسأل بصوتك', d: 'تقنية التعرف على الكلام العربي' },
+                { icon: Bot, t: 'يرد صوتاً وكتابة', d: 'ردود فورية مدعومة بمحتوى دوراتك' },
+                { icon: FileCheck2, t: 'يصحح امتحاناتك', d: 'تصحيح آلي للمقاليات بتغذية راجعة' },
+                { icon: Clock3, t: 'متاح 24/7', d: 'في أي وقت ومن أي جهاز' },
+              ].map((f) => (
+                <div key={f.t} className="flex items-start gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
+                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
+                    <f.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div>
+                    <div className="text-xs text-slate-500">{f.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]"
+              onClick={() => navigate(user ? 'chat' : 'auth')}
+            >
+              جرّب المشرف الذكي الآن
+            </Button>
+          </div>
+
+          {/* Chat preview mockup */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-[#c9a227]/20 to-[#0f2b46]/10 blur-xl" />
+            <div className="relative rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-2xl">
+              <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="rounded-full bg-[#0f2b46] p-2 text-[#e0b83a]"><Bot className="h-4 w-4" /></div>
+                <div>
+                  <div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">
+                  ما الفرق بين تحليل SWOT وتحليل PESTEL؟
+                </div>
+                <div className="ml-auto max-w-[90%] rounded-2xl rounded-tl-sm bg-[#f7edd0] px-3.5 py-2.5 text-xs leading-relaxed text-[#0f2b46] sm:text-sm">
+                  سؤال ممتاز! SWOT يحلل عوامل داخلية (قوة/ضعف) وخارجية مباشرة (فرص/تهديدات) حول
+                  المؤسسة نفسها، أما PESTEL فيمسح البيئة الكلية الخارجية: سياسي، اقتصادي، اجتماعي،
+                  تكنولوجي، بيئي، قانوني. استخدم SWOT لفهم موقعك، وPESTEL لقراءة السوق. هل تريد
+                  مثالاً تطبيقياً؟
+                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]">
+                    <span className="aact-speak-wave text-[#c9a227]">
+                      <span /><span /><span /><span />
+                    </span>
+                    يشغّل الرد صوتياً...
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400">
+                <MicOff className="h-4 w-4" />
+                اكتب سؤالك أو اضغط على المايكروفون لالتحدث...
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured program */}
+      {featured && (
+        <section className="bg-[#f7edd0]/40 py-14">
+          <div className="mx-auto max-w-7xl px-4">
+            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+              البرنامج الأبرز هذا الموسم
+            </h2>
+            <Card className="aact-card mx-auto max-w-4xl overflow-hidden border-[#c9a227]/40 bg-white">
+              <CardContent className="p-0">
+                <div className="grid md:grid-cols-[1fr_auto]">
+                  <div className="p-6 sm:p-8">
+                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
+                      {CATEGORY_LABEL[featured.category]}
+                    </Badge>
+                    <h3 className="text-xl font-black text-[#0f2b46] sm:text-2xl">{featured.titleAr}</h3>
+                    <p className="mt-1 text-xs font-bold text-[#a8841a]">{featured.titleEn}</p>
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {featured.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                      {featured.hours && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                          <Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
+                        <BookOpen className="h-3.5 w-3.5" /> 5 وحدات متخصصة
+                      </span>
+                      {featured.price != null && (
+                        <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]">
+                          <BadgeCheck className="h-3.5 w-3.5" /> فقط {featured.price}$
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
+                    <Button
+                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
+                      className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
+                    >
+                      {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* Programs grid */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+          أكاديميتنا وبرامجنا
+        </h2>
+        <p className="mb-8 text-center text-sm text-slate-500">
+          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
+        </p>
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {programs.slice(0, 6).map((p) => {
+              const Icon = ICONS[p.icon] || GraduationCap
+              return (
+                <Card
+                  key={p.id}
+                  className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
+                  onClick={() => openProgramDetails(p.id)}
+                >
+                  <CardContent className="flex h-full flex-col p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]">
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">
+                        {CATEGORY_LABEL[p.category]}
+                      </Badge>
+                    </div>
+                    <h3 className="text-base font-black leading-snug text-[#0f2b46]">{p.titleAr}</h3>
+                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">
+                      {p.description}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
+                        التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        <div className="mt-8 text-center">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => navigate('programs')}
+            className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
+          >
+            عرض جميع الخدمات والبرامج ({programCountLabel})
+            <ChevronLeft className="mr-1 h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Admission guide + fees */}
+      <section className="bg-[#f7edd0]/40 py-14">
+        <div className="mx-auto max-w-7xl px-4">
+          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
+            دليل الالتحاق والرسوم
+          </h2>
+          <p className="mb-8 text-center text-sm text-slate-500">
+            وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-[#c9a227]/40 bg-white">
+              <CardContent className="p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
+                  <Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج
+                </h3>
+                <div className="space-y-3">
+                  {[
+ },
                   ].map((r) => (
                     <div key={r.p} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-4 py-2.5">
                       <span className="text-xs font-bold text-slate-700 sm:text-sm">{r.p}</span>
