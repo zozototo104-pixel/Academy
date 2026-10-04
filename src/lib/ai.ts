@@ -367,6 +367,7 @@ export async function chatComplete(
       })),
       temperature: 0.45,
       maxOutputTokens: 900,
+      routerPolicy: options.routerPolicy,
     }), timeoutMs, 'Text AI router chatComplete timed out')
   } catch (e: any) {
     console.error('Text AI router chatComplete failed:', String(e?.message || e).slice(0, 500))
