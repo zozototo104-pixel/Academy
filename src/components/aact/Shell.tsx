@@ -130,10 +130,12 @@ export function FloatingActions() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || 'تعذر الرد الآن')
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'أهلاً بك، كيف أساعدك؟' }])
+      setLoading(false)
+      await typeFloatingAssistantReply(data.reply || 'أهلاً بك، كيف أساعدك؟')
     } catch (e: any) {
       setError(String(e?.message || 'تعذر تشغيل وكيل واتساب الذكي مؤقتاً'))
-      setMessages((prev) => [...prev, { role: 'assistant', content: `تعذر الرد الآلي مؤقتاً. يمكنك فتح واتساب المباشر على ${ACADEMY_INFO.whatsappDisplay} وسيتم تحويل استفسارك للإدارة.` }])
+      setLoading(false)
+      await typeFloatingAssistantReply(`تعذر الرد الآلي مؤقتاً. يمكنك فتح واتساب المباشر على ${ACADEMY_INFO.whatsappDisplay} وسيتم تحويل استفسارك للإدارة.`)
     } finally {
       setLoading(false)
     }
