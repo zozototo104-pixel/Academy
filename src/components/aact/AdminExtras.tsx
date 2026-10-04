@@ -1356,26 +1356,45 @@ export function AdminSettingsTab() {
       {groups.map((g) => (
         <Card key={g.key} className="border-[#0f2b46]/10">
           <CardContent className="p-5">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
               <Settings2 className="h-4.5 w-4.5 text-[#c9a227]" /> {g.label}
             </h3>
+            {g.note && <p className="mb-4 text-xs font-bold leading-6 text-slate-500">{g.note}</p>}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {defs.filter((d) => d.group === g.key).map((d) => (
-                <div key={d.key} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                  <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id={d.key}
-                      dir="ltr"
-                      type="number"
-                      className="pl-9 text-left font-black"
-                      value={values[d.key] || ''}
-                      onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
+              {defs.filter((d) => d.group === g.key).map((d) => {
+                const inputType = d.inputType || 'number'
+                const wide = inputType === 'textarea' || inputType === 'json'
+                return (
+                  <div key={d.key} className={`rounded-xl border border-slate-100 bg-slate-50/60 p-3 ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}>
+                    <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
+                    {d.help && <p className="mt-1 text-[10px] font-bold leading-5 text-slate-400">{d.help}</p>}
+                    <div className="relative mt-2">
+                      {inputType === 'textarea' || inputType === 'json' ? (
+                        <Textarea
+                          id={d.key}
+                          dir={inputType === 'json' ? 'ltr' : 'rtl'}
+                          rows={inputType === 'json' ? 7 : 4}
+                          className={inputType === 'json' ? 'font-mono text-xs text-left' : 'text-xs font-bold leading-6'}
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      ) : (
+                        <Input
+                          id={d.key}
+                          dir="ltr"
+                          type={inputType === 'number' ? 'number' : 'text'}
+                          className="pl-9 text-left font-black"
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      )}
+                      {d.suffix && inputType !== 'textarea' && inputType !== 'json' && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>
