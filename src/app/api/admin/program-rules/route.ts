@@ -43,7 +43,7 @@ type ProgramPatchInput = z.infer<typeof programPatchSchema>
 
 const bulkApplyPriceHoursSchema = z.object({
   category: z.enum(PROGRAM_CATEGORIES),
-  price: z.coerce.number().min(0, 'السعر يجب أن يكون صفراً أو أكثر').nullable(),
+  price: z.coerce.number().min(0, 'السعر يجب أن يكون صفراً أو أكثر'),
   hours: z.coerce.number().int().min(1, 'الساعات يجب أن تكون أكبر من صفر').max(10000),
 })
 
