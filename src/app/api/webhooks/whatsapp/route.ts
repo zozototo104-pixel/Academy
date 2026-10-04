@@ -380,7 +380,9 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
   if (!message.mediaId) {
     return {
       message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
+      requestHuman: true,
+      failureReason: 'missing_media_id',
     }
   }
 
