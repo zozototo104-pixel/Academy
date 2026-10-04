@@ -359,6 +359,7 @@ function applyAcademicOverride(base: AcademicProgramProfile, override?: PartialA
     graduationRequirements: clean.graduationRequirements?.length ? clean.graduationRequirements : base.graduationRequirements,
     assessmentComponents: clean.assessmentComponents?.length ? clean.assessmentComponents : base.assessmentComponents,
     qualityControls: clean.qualityControls?.length ? clean.qualityControls : base.qualityControls,
+    hiddenSections: clean.hiddenSections || [],
   }
 }
 
