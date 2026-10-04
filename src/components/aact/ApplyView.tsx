@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
-import { ADMISSION_GUIDE, ADMISSION_FEES, ACADEMY_INFO } from '@/lib/academyData'
+import { ADMISSION_GUIDE, ACADEMY_INFO } from '@/lib/academyData'
 import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { SUPPORTED_COUNTRIES, normalizePhone, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
 import { useToast } from '@/hooks/use-toast'
