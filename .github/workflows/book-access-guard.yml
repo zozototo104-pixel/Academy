@@ -33,27 +33,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate allowed target URL
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const raw = process.env.E2E_BASE_URL || ''
-          let parsed
-          try {
-            parsed = new URL(raw.startsWith('http') ? raw : `https://${raw}`)
-          } catch (error) {
-            console.error(`Invalid target_url: ${raw}`)
-            process.exit(1)
-          }
-          const allowedHosts = new Set(['academy-raqaba.vercel.app', 'aactacademy.com', 'www.aactacademy.com'])
-          if (parsed.protocol !== 'https:' || !allowedHosts.has(parsed.hostname)) {
-            console.error(`Refusing to send admin credentials to disallowed target: ${parsed.href}`)
-            console.error(`Allowed hosts: ${Array.from(allowedHosts).join(', ')}`)
-            process.exit(1)
-          }
-          console.log(`Validated E2E target: ${parsed.href}`)
-          NODE
+      - name: Validate E2E base URL allowlist
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
