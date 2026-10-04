@@ -157,7 +157,7 @@ export function ContactView() {
           <Card className="border-[#c9a227]/40 bg-[#f7edd0]/50">
             <CardContent className="space-y-4 p-5">
               <h3 className="text-sm font-black text-[#0f2b46]">بيانات التواصل الرسمية</h3>
-              <a href={`mailto:${ACADEMY_INFO.officialEmail}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              <a href={`mailto:${officialContact.email}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                 <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Mail className="h-4 w-4" /></span>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400">البريد الرسمي</p>
