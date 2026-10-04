@@ -114,6 +114,33 @@ const CAT_AR: Record<string, string> = {
   SERVICE: 'خدمة عابرة',
 }
 
+const CATEGORY_OPTIONS = Object.entries(CAT_AR).map(([value, label]) => ({ value, label }))
+const CREDENTIAL_OPTIONS = [
+  { value: 'PROFESSIONAL_MASTER', label: 'ماجستير مهني' },
+  { value: 'PROFESSIONAL_DOCTORATE', label: 'دكتوراه مهنية' },
+  { value: 'DIPLOMA', label: 'دبلوم مهني' },
+  { value: 'PROFESSIONAL_CERTIFICATE', label: 'شهادة مهنية' },
+  { value: 'SERVICE', label: 'خدمة مهنية' },
+]
+
+function programDraftFromProgram(p: ProgramRules): ProgramDraft {
+  return {
+    titleAr: p.program?.titleAr || p.titleAr || '',
+    titleEn: p.program?.titleEn ?? p.titleEn ?? '',
+    description: p.program?.description ?? p.description ?? '',
+    category: p.program?.category || p.category || 'DIPLOMA',
+    icon: p.program?.icon || p.icon || 'graduation-cap',
+    features: p.program?.features || p.features || [],
+    active: p.program?.active ?? p.active ?? true,
+    sortOrder: p.program?.sortOrder ?? p.sortOrder ?? 0,
+    price: p.program?.price ?? p.price ?? null,
+    hours: p.program?.hours ?? p.hours ?? null,
+    credentialType: p.program?.credentialType ?? p.credentialType ?? null,
+    trademarkNotice: p.program?.trademarkNotice ?? p.trademarkNotice ?? '',
+    disclosureConsentText: p.program?.disclosureConsentText ?? p.disclosureConsentText ?? '',
+  }
+}
+
 function listToText(list?: string[]) {
   return (list || []).join('\n')
 }
