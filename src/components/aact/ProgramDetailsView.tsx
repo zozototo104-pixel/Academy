@@ -273,7 +273,7 @@ export function ProgramDetailsView() {
           const next = exists
             ? base.map((p) => (p.id === detail.id || p.slug === detail.slug || p.id === programDetailsId || p.slug === programDetailsId ? { ...p, ...detail } : p))
             : [detail, ...base]
-          cachePrograms(next)
+          cachePrograms(next, d.catalogVersion)
           return next
         })
       })
