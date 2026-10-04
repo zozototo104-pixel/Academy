@@ -228,7 +228,7 @@ export function ApplyView() {
     fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ programs: ProgramLite[] }>
+        return res.json() as Promise<{ programs: ProgramLite[]; catalogVersion?: string | null }>
       })
       .then((d) => {
         if (!alive) return
