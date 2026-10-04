@@ -117,6 +117,30 @@ export function HomeView() {
 
   useEffect(() => {
     let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
     let hasCachedList = false
     let idleId: number | null = null
     let timeoutId: ReturnType<typeof setTimeout> | null = null
