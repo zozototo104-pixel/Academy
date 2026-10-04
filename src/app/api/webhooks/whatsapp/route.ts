@@ -462,11 +462,15 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       from: maskPhone(message.from),
       messageId: message.id,
       mediaId: message.mediaId || null,
+      mimeType: message.mediaMimeType || 'unknown',
+      fileSize: message.mediaFileSize || null,
       error: msg,
     }, message.id)
     return {
-      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_UNCLEAR_REPLY,
+      message: { ...message, text: `🎤 رسالة صوتية تعذر تفريغها. السبب التقني: ${msg}`, originKind: 'VOICE' },
+      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
+      requestHuman: true,
+      failureReason: msg,
     }
   }
 }
