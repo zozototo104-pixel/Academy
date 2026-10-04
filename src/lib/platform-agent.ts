@@ -921,7 +921,12 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  const reply = await chatComplete(opts.messages, context, persona, { skipGemini: true, timeoutMs })
+  const reply = await chatComplete(opts.messages, context, persona, {
+    skipGemini: true,
+    timeoutMs,
+    requireModelResponse: isWhatsApp,
+    routerPolicy: isWhatsApp ? 'primary_first' : undefined,
+  })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
 
