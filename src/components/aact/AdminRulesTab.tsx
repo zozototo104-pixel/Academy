@@ -23,6 +23,26 @@ interface AcademicPlanStage {
   deliverable: string
 }
 
+interface AcademicEvaluationItemDraft {
+  label: string
+  weight: number
+  description: string
+}
+
+interface AcademicTermPlanDraft {
+  id?: string
+  order?: number
+  title: string
+  phase?: 'TERM' | 'THESIS' | 'PROJECT' | 'ACCREDITATION'
+  weight?: number
+  description: string
+  learningOutcomes?: string[]
+  requiredSkills?: string[]
+  assignments?: string[]
+  finalEvaluation?: string
+  statusHint?: string
+}
+
 interface AcademicProfileDraft {
   degreeLabel?: string
   specialization?: string
