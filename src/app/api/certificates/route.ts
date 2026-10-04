@@ -9,7 +9,7 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ certificates: [] })
     const ownAdmissions = await db.admissionApplication.findMany({
-      where: { OR: [{ userId: user.id }, { email: user.email }] },
+      where: { userId: user.id },
       select: { id: true },
     })
     const certificates = await db.certificate.findMany({
