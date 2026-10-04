@@ -189,6 +189,28 @@ function normalizeAcademicProfile(profile?: AcademicProfileDraft | null): Academ
     studyPlan: (profile.studyPlan || [])
       .map((s) => ({ title: String(s.title || '').trim(), description: String(s.description || '').trim(), deliverable: String(s.deliverable || '').trim() }))
       .filter((s) => s.title || s.description || s.deliverable),
+    termPlans: (profile.termPlans || [])
+      .map((t, index) => ({
+        id: String(t.id || `term-${index + 1}`).trim(),
+        order: Number(t.order || index + 1),
+        title: String(t.title || '').trim(),
+        phase: t.phase || 'TERM',
+        weight: Number(t.weight || 0),
+        description: String(t.description || '').trim(),
+        learningOutcomes: cleanTextList(t.learningOutcomes),
+        requiredSkills: cleanTextList(t.requiredSkills),
+        assignments: cleanTextList(t.assignments),
+        finalEvaluation: String(t.finalEvaluation || '').trim(),
+        statusHint: String(t.statusHint || '').trim(),
+      }))
+      .filter((t) => t.title || t.description),
+    finalEvaluationFormula: (profile.finalEvaluationFormula || [])
+      .map((item) => ({
+        label: String(item.label || '').trim(),
+        weight: Number(item.weight || 0),
+        description: String(item.description || '').trim(),
+      }))
+      .filter((item) => item.label && item.weight > 0),
   }
 }
 
