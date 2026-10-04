@@ -119,7 +119,13 @@ export async function GET(req: NextRequest) {
       enrolledProgramIds = enrolls.map((e) => e.programId)
     }
 
+    const catalogVersion = programs.reduce<string | null>((latest, p: any) => {
+      const value = p.updatedAt?.toISOString?.() || null
+      return value && (!latest || value > latest) ? value : latest
+    }, null)
+
     const payload = {
+      catalogVersion,
       programs: programs.map((p) => {
         const row = p as any
         const units = Array.isArray(row.units) ? row.units : []
