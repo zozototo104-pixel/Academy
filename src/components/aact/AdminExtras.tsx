@@ -1771,6 +1771,14 @@ export function AdminFinanceTab() {
                       </td>
                       <td className="p-3">
                         {p.status === 'UNPAID' ? (
+                          <Button size="sm" variant="outline" disabled={amountBusy === p.id} onClick={() => refreshPaymentAmount(p)}
+                            className="border-[#c9a227]/40 font-bold text-[#a8841a]">
+                            {amountBusy === p.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />} تحديث المبلغ
+                          </Button>
+                        ) : '—'}
+                      </td>
+                      <td className="p-3">
+                        {p.status === 'UNPAID' ? (
                           <Button size="sm" variant="outline" onClick={() => confirm(p)}
                             className="border-emerald-200 font-bold text-emerald-600">
                             <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
