@@ -427,6 +427,43 @@ export function AdminRulesTab() {
     }
   }
 
+  const applyPriceHoursToCategory = async () => {
+    if (!programDraft) return
+    if (programDraft.price === null || programDraft.price === undefined || !Number.isFinite(Number(programDraft.price))) {
+      toast({ title: 'أدخل السعر أولاً قبل التطبيق الجماعي', variant: 'destructive' })
+      return
+    }
+    if (!programDraft.hours || !Number.isFinite(Number(programDraft.hours)) || Number(programDraft.hours) <= 0) {
+      toast({ title: 'أدخل عدد ساعات صحيح قبل التطبيق الجماعي', variant: 'destructive' })
+      return
+    }
+    setBulkApplying(true)
+    try {
+      const d = await api<{ ok: boolean; count: number; price: number; hours: number; programs: Array<{ id: string; titleAr: string; oldPrice?: number | null; oldHours?: number | null }> }>('/api/admin/program-rules', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'APPLY_CATEGORY_PRICE_HOURS',
+          category: programDraft.category,
+          price: Number(programDraft.price),
+          hours: Number(programDraft.hours),
+        }),
+      })
+      const updatedIds = new Set((d.programs || []).map((p) => p.id))
+      setPrograms((ps) => ps.map((p) => updatedIds.has(p.id) ? {
+        ...p,
+        price: d.price,
+        hours: d.hours,
+        program: p.program ? { ...p.program, price: d.price, hours: d.hours } : p.program,
+      } : p))
+      setBulkApplyOpen(false)
+      toast({ title: `تم تطبيق السعر والساعات على ${d.count} برنامج/مسار` })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تطبيق السعر والساعات على التصنيف', variant: 'destructive' })
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
   if (loading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
   }
