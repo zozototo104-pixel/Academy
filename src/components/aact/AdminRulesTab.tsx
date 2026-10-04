@@ -187,6 +187,7 @@ export function AdminRulesTab() {
   const [programs, setPrograms] = useState<ProgramRules[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [draft, setDraft] = useState<Rules>({})
+  const [programDraft, setProgramDraft] = useState<ProgramDraft | null>(null)
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
