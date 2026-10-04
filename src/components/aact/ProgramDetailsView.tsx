@@ -538,7 +538,7 @@ export function ProgramDetailsView() {
             )}
           </TabsContent>
 
-          {!isService && academicProfile && (
+          {!isService && academicProfile && hasVisibleAcademicSections && (
             <TabsContent value="academic" className="mt-0 space-y-5">
               <DetailSection title="النظام الأكاديمي ومخرجات التعلم" icon={GraduationCap} accent>
                 <div className="mb-5 grid gap-3 text-center text-xs font-black sm:grid-cols-2 lg:grid-cols-4">
