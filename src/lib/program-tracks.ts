@@ -320,6 +320,8 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   const studyPlan = cleanStudyPlan(r.studyPlan)
   const termPlans = cleanTermPlans(r.termPlans)
   const finalEvaluationFormula = cleanEvaluationFormula(r.finalEvaluationFormula)
+  const hiddenSections = cleanList(r.hiddenSections, 40)
+  if (hiddenSections) out.hiddenSections = hiddenSections
   if (learningOutcomes) out.learningOutcomes = learningOutcomes
   if (skills) out.skills = skills
   if (graduationRequirements) out.graduationRequirements = graduationRequirements
