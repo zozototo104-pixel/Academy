@@ -53,8 +53,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ count, catalogVersion }, { headers: publicCacheHeaders() })
     }
 
-    if (publicOnly && summaryOnly && publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > Date.now()) {
-      return NextResponse.json(publicProgramsSummaryCache.payload, { headers: publicCacheHeaders() })
+    const summaryCache = getPublicProgramsSummaryCache()
+    if (publicOnly && summaryOnly && summaryCache && summaryCache.expiresAt > Date.now()) {
+      return NextResponse.json(summaryCache.payload, { headers: publicCacheHeaders() })
     }
 
     const programWhere = detailId
