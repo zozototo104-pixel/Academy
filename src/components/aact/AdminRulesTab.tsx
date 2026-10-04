@@ -51,6 +51,22 @@ interface Rules {
   academicProfile?: AcademicProfileDraft | null
 }
 
+interface ProgramDraft {
+  titleAr: string
+  titleEn?: string | null
+  description?: string | null
+  category: string
+  icon: string
+  features: string[]
+  active: boolean
+  sortOrder: number
+  price?: number | null
+  hours?: number | null
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  disclosureConsentText?: string | null
+}
+
 interface ProgramRules {
   id: string
   slug: string
@@ -59,6 +75,15 @@ interface ProgramRules {
   description?: string | null
   category: string
   hours?: number | null
+  price?: number | null
+  icon?: string | null
+  features?: string[]
+  active?: boolean
+  sortOrder?: number
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  disclosureConsentText?: string | null
+  program?: ProgramDraft
   _count?: { units: number }
   rules: Rules
   custom: boolean
