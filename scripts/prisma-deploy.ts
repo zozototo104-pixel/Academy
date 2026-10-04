@@ -65,14 +65,26 @@ function committedMigrationDirectories() {
     .filter((path) => existsSync(join(path, 'migration.sql')))
 }
 
-function assertProductionMigrationsAvailable() {
-  if (!isProductionDeployment()) return
+function assertMigrationsAvailableForDeploy() {
   const migrations = committedMigrationDirectories()
   if (migrations.length > 0) return
 
-  console.error('Refusing production Prisma deploy: prisma/migrations is missing or has no migration.sql files.')
-  console.error('Create and commit a safe Prisma migration baseline before deploying production database changes.')
+  console.error('Refusing Prisma migrate deploy: prisma/migrations is missing or has no migration.sql files.')
+  console.error('Create and commit a safe Prisma migration before deploying database changes.')
   process.exit(1)
+}
+
+function shouldRunMigrateDeploy(args: Set<string>) {
+  if (isProductionDeployment()) return true
+  if (isPreviewDeployment()) {
+    if (isPreviewDatabaseIsolated()) return args.has('--migrate')
+    if (args.has('--migrate')) {
+      console.warn('Skipping Prisma migrate deploy in Vercel Preview because AACT_PREVIEW_DB_ISOLATED is not true.')
+      console.warn('Set AACT_PREVIEW_DB_ISOLATED=true only when Preview DATABASE_URL/DIRECT_URL point to an isolated preview database.')
+    }
+    return false
+  }
+  return args.has('--migrate')
 }
 
 const args = new Set(process.argv.slice(2))
