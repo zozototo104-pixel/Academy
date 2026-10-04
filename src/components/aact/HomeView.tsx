@@ -233,6 +233,16 @@ export function HomeView() {
 
   const visibleProgramCount = programCount ?? programs.length
   const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], financialSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], financialSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], financialSettings.diplomaMinDefault)
 
   // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
   // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
