@@ -122,22 +122,23 @@ const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'الخدمات المهنية',
 }
 const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
-const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v4'
-
 function readCachedPrograms(): ProgramLite[] {
   if (typeof window === 'undefined') return []
   try {
-    const cached = JSON.parse(localStorage.getItem(PROGRAMS_CACHE_KEY) || '[]')
+    const version = localStorage.getItem('aact_programs_summary_version')
+    const cached = version ? JSON.parse(localStorage.getItem(`aact_programs_summary_${version}`) || '[]') : []
     return Array.isArray(cached) ? cached : []
   } catch {
     return []
   }
 }
 
-function cachePrograms(list: ProgramLite[]) {
+function cachePrograms(list: ProgramLite[], catalogVersion?: string | null) {
   if (typeof window === 'undefined' || !Array.isArray(list) || list.length === 0) return
   try {
-    localStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(list.slice(0, 160)))
+    const version = catalogVersion || 'current'
+    localStorage.setItem('aact_programs_summary_version', version)
+    localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 160)))
     localStorage.setItem('aact_program_count', String(list.length))
   } catch {}
 }
