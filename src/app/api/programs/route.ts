@@ -171,9 +171,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (publicOnly && summaryOnly) {
-      const now = Date.now()
-      publicProgramsSummaryCache = { payload, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-      publicProgramsCountCache = { count: payload.programs.length, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+      setPublicProgramsSummaryCache(payload)
+      setPublicProgramsCountCache(payload.programs.length, catalogVersion)
     }
 
     const responsePayload = detailId
