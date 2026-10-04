@@ -367,7 +367,7 @@ async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   return count > WHATSAPP_VOICE_HOURLY_LIMIT
 }
 
-async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string }> {
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string; requestHuman?: boolean; failureReason?: string }> {
   if (message.rawType !== 'audio') return { message }
 
   if (await hasExceededVoiceHourlyLimit(message)) {
