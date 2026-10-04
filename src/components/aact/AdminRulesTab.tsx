@@ -53,6 +53,8 @@ interface AcademicProfileDraft {
   learningOutcomes?: string[]
   skills?: string[]
   studyPlan?: AcademicPlanStage[]
+  termPlans?: AcademicTermPlanDraft[]
+  finalEvaluationFormula?: AcademicEvaluationItemDraft[]
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
