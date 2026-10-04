@@ -543,10 +543,10 @@ export function ProgramDetailsView() {
               <DetailSection title="النظام الأكاديمي ومخرجات التعلم" icon={GraduationCap} accent>
                 {(showAcademicSection('overview') || showAcademicSection('duration')) && (
                 <div className="mb-5 grid gap-3 text-center text-xs font-black sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الدرجة</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.degreeLabel}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">التخصص</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.specialization}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">المدة/المسار</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.durationLabel}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الساعات</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.creditHoursLabel}</span></div>
+                  {showAcademicSection('overview') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الدرجة</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.degreeLabel}</span></div>}
+                  {showAcademicSection('overview') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">التخصص</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.specialization}</span></div>}
+                  {showAcademicSection('duration') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">المدة/المسار</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.durationLabel}</span></div>}
+                  {showAcademicSection('duration') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الساعات</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.creditHoursLabel}</span></div>}
                 </div>
                 )}
 
