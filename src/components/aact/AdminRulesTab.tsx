@@ -195,6 +195,7 @@ export function AdminRulesTab() {
   const selectProgram = useCallback((p: ProgramRules) => {
     setSelectedId(p.id)
     setDraft({ ...p.rules })
+    setProgramDraft(programDraftFromProgram(p))
     setCustom(p.custom)
   }, [])
 
