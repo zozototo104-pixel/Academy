@@ -590,6 +590,24 @@ export function ProgramDetailsView() {
                 </div>
                 )}
 
+                {showAcademicSection('termPlans') && (academicProfile.termPlans?.length || 0) > 0 && (
+                  <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 font-black text-white"><Layers className="h-5 w-5 text-[#d2ad5a]" /> خطط الفصول والمراحل</h3>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {academicProfile.termPlans.map((term: any, i: number) => (
+                        <div key={term.id || term.title || String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <h4 className="font-black text-white">{term.title}</h4>
+                            {term.weight != null && <span className="rounded-full bg-[#b08a38] px-2 py-0.5 text-[10px] font-black text-white">{term.weight}%</span>}
+                          </div>
+                          <p className="text-xs font-bold leading-6 text-white/58">{term.description}</p>
+                          {!!term.finalEvaluation && <p className="mt-2 rounded-xl border border-[#b08a38]/20 bg-[#b08a38]/10 p-2 text-[11px] font-bold leading-6 text-[#d2ad5a]">التقييم: {term.finalEvaluation}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {showAcademicSection('finalEvaluationFormula') && (academicProfile.finalEvaluationFormula?.length || 0) > 0 && (
                   <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 font-black text-white">توزيع الدرجة النهائية</h3>
