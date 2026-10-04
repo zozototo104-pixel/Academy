@@ -127,6 +127,13 @@ export function HomeView() {
         if (!alive) return
         const values = d.values || {}
         setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        setFinancialSettings((prev) => ({
+          applicationFee: Number(values.FEE_APPLICATION || prev.applicationFee),
+          doctorateDefault: Number(values.FEE_DOCTORATE || prev.doctorateDefault),
+          mastersDefault: Number(values.FEE_MASTERS || prev.mastersDefault),
+          diplomaMinDefault: Number(values.FEE_DIPLOMAS_MIN || prev.diplomaMinDefault),
+          diplomaMaxDefault: Number(values.FEE_DIPLOMAS_MAX || prev.diplomaMaxDefault),
+        }))
         try {
           const parsed = JSON.parse(values.HOME_STATS || '{}')
           setHomeStats((prev) => ({
