@@ -72,6 +72,11 @@ export function FloatingActions() {
     if (moved) window.setTimeout(() => { dragRef.current.suppressClick = false }, 160)
   }
 
+  useEffect(() => {
+    if (!open) return
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, loading, error, open])
+
   const visitorId = () => {
     try {
       const key = 'aact_public_whatsapp_visitor'
@@ -82,6 +87,30 @@ export function FloatingActions() {
       return id
     } catch {
       return 'visitor'
+    }
+  }
+
+  const cleanFloatingAssistantReply = (value: unknown) => {
+    return String(value || '')
+      .replace(/^\s*#{1,6}\s*/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^\s*[-*+]\s+/gm, '• ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }
+
+  const typeFloatingAssistantReply = async (reply: string) => {
+    const clean = cleanFloatingAssistantReply(reply) || 'أهلاً بك، كيف أساعدك؟'
+    const assistantIndex = messages.length + 1
+    let visible = ''
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+    const pieces = clean.match(/\s+|[^\s]+\s*/g) || [clean]
+    for (const piece of pieces) {
+      visible += piece
+      setMessages((prev) => prev.map((m, idx) => idx === assistantIndex ? { ...m, content: visible } : m))
+      await new Promise((resolve) => setTimeout(resolve, piece.trim().length > 12 ? 44 : 26))
     }
   }
 
