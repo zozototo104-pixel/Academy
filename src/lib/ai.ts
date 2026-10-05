@@ -421,7 +421,7 @@ function localSupervisorFallback(messages: { role: string; content: string }[], 
   const catalog = runtime?.programCatalog || []
 
   if (isCapabilityIntent(q)) {
-    return `أنا مشرفك الذكي بذاكرة معرفية داخلية تغطي تقريباً ${SMART_SUPERVISOR_MEMORY}% من معلومات المنصة المتاحة، ومؤشر فهم للنية حوالي ${SMART_SUPERVISOR_INTELLIGENCE}%. أستطيع مساعدتك في البرامج، الرسوم، التسجيل، الشهادات، الاعتمادات، تقدمك الدراسي، الكتب، الاختبارات، وبحث التخرج.`
+    return `أنا مشرفك الذكي. ${SMART_SUPERVISOR_PROFILE} أستطيع مساعدتك في البرامج، الرسوم، التسجيل، الشهادات، الاعتمادات، تقدمك الدراسي، الكتب، الاختبارات، وبحث التخرج عند توفر بياناتها في السياق.`
   }
 
   if (isGreeting(q)) {
