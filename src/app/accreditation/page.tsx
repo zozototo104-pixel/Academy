@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Award, Building2, CheckCircle2, FileCheck2, Mail, Phone, ShieldCheck } from 'lucide-react'
+import { Award, Building2, CheckCircle2, ExternalLink, FileCheck2, FileText, Mail, Phone, ShieldCheck } from 'lucide-react'
 import { db } from '@/lib/db'
+import { getAccreditationProfileForPublic } from '@/lib/accreditation'
 import { getOfficialContact, getSettings } from '@/lib/settings'
+import { PublicBackButton } from '@/components/aact/PublicBackButton'
 
 export const metadata: Metadata = {
-  title: 'الاعتماد والتحقق | AACT',
-  description: 'صفحة الاعتماد والتحقق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب، مع روابط التحقق ودليل الجهات والبرامج المنشورة.',
+  title: 'التراخيص والوثائق الرسمية | AACT',
+  description: 'صفحة التراخيص والوثائق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب، مع روابط التحقق ودليل الجهات والبرامج المنشورة.',
 }
 
 type OfficialContact = {
@@ -19,6 +21,50 @@ type OfficialContact = {
   whatsapp?: string
   whatsapps?: string[]
   responsiblePerson?: string
+}
+
+type AccreditationPartner = {
+  name: string
+  type?: string
+  description?: string
+  verifyUrl?: string
+  documentUrl?: string
+}
+
+type AccreditationPageSettings = {
+  licenseNumber?: string
+  licenseVerifyUrl?: string
+  licenseDocumentUrl?: string
+  licensingAuthority?: string
+  trustNote?: string
+  partnerships?: AccreditationPartner[]
+}
+
+function parseAccreditationPageSettings(raw: string | undefined): AccreditationPageSettings {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    const partnerships = Array.isArray(parsed.partnerships)
+      ? parsed.partnerships
+          .map((item: any) => ({
+            name: String(item?.name || '').trim(),
+            type: String(item?.type || '').trim(),
+            description: String(item?.description || '').trim(),
+            verifyUrl: String(item?.verifyUrl || '').trim(),
+            documentUrl: String(item?.documentUrl || '').trim(),
+          }))
+          .filter((item: AccreditationPartner) => item.name)
+      : []
+    return {
+      licenseNumber: String(parsed.licenseNumber || '').trim(),
+      licenseVerifyUrl: String(parsed.licenseVerifyUrl || '').trim(),
+      licenseDocumentUrl: String(parsed.licenseDocumentUrl || '').trim(),
+      licensingAuthority: String(parsed.licensingAuthority || '').trim(),
+      trustNote: String(parsed.trustNote || '').trim(),
+      partnerships,
+    }
+  } catch {
+    return { partnerships: [] }
+  }
 }
 
 function contactList(primary?: unknown, list?: unknown): string[] {
@@ -37,9 +83,17 @@ function priceLabel(programPrice: number | null, settings: Record<string, string
 }
 
 export default async function AccreditationPage() {
-  const [contact, settings, programs] = await Promise.all([
+  const [contact, settings, accreditation, programs] = await Promise.all([
     getOfficialContact().catch(() => ({} as OfficialContact)),
     getSettings().catch(() => ({} as Record<string, string>)),
+    getAccreditationProfileForPublic().catch(() => ({
+      licenseNumber: '',
+      licenseVerifyUrl: '',
+      licensingAuthority: '',
+      trustNote: '',
+      partnerships: [],
+      documents: [],
+    })),
     db.program.findMany({
       where: { active: true, category: 'ACCREDITATION' },
       orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
@@ -49,23 +103,50 @@ export default async function AccreditationPage() {
 
   const phones = contactList((contact as OfficialContact).phone, (contact as OfficialContact).phones)
   const whatsapps = contactList((contact as OfficialContact).whatsapp, (contact as OfficialContact).whatsapps)
+  const partnerships = Array.isArray((accreditation as any).partnerships) ? (accreditation as any).partnerships : []
+  const documents = Array.isArray((accreditation as any).documents) ? (accreditation as any).documents : []
   const applicationFee = Number(settings.FEE_ACC_APPLICATION || 0)
 
   return (
     <main dir="rtl" className="min-h-screen bg-[#f6f0e3] text-[#0f2b46]">
+      <header className="sticky top-0 z-40 border-b border-[#e0b83a]/20 bg-[#0f2b46]/95 text-[#f5f0e1] shadow-xl shadow-slate-900/10 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <Link href="/" className="flex items-center gap-3">
+            <img src="/aact-logo.png" alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب" className="h-11 w-11 shrink-0 object-contain" />
+            <div>
+              <p className="text-sm font-black leading-5">الأكاديمية الأمريكية</p>
+              <p className="text-[11px] font-bold text-[#e0b83a]">للاستشارات والتدريب</p>
+            </div>
+          </Link>
+          <nav className="hidden flex-wrap items-center gap-4 text-xs font-black md:flex">
+            <Link href="/" className="hover:text-[#e0b83a]">الرئيسية</Link>
+            <Link href="/programs" className="hover:text-[#e0b83a]">البرامج والخدمات</Link>
+            <Link href="/verify" className="hover:text-[#e0b83a]">الشهادات والتحقق</Link>
+            <Link href="/apply" className="hover:text-[#e0b83a]">طلب الالتحاق</Link>
+            <Link href="/contact" className="hover:text-[#e0b83a]">تواصل معنا</Link>
+          </nav>
+          <PublicBackButton />
+        </div>
+      </header>
+
       <section className="relative overflow-hidden bg-[#0f2b46] px-4 py-16 text-[#f5f0e1]">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #e0b83a 0, transparent 28%), radial-gradient(circle at 80% 0%, #ffffff 0, transparent 22%)' }} />
         <div className="relative mx-auto max-w-6xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#e0b83a]/30 bg-white/10 px-4 py-2 text-xs font-black text-[#e0b83a]">
             <ShieldCheck className="h-4 w-4" />
-            صفحة الاعتماد والتحقق الرسمية
+            صفحة التراخيص والوثائق الرسمية
           </div>
           <h1 className="mt-5 max-w-3xl text-4xl font-black leading-tight md:text-5xl">
-            الاعتماد المهني، التحقق من الشهادات، ودليل الجهات المعتمدة
+            التراخيص والوثائق الرسمية وروابط التحقق
           </h1>
           <p className="mt-5 max-w-3xl text-sm font-bold leading-8 text-[#f5f0e1]/75 md:text-base">
-            هذه الصفحة تجمع روابط التحقق الرسمية وخيارات الاعتماد المنشورة في المنصة. لا تعرض الصفحة أي أرقام تراخيص أو شراكات غير مدخلة في إعدادات الأكاديمية أو بياناتها الرسمية.
+            هذه الصفحة مخصصة لعرض وثائق الترخيص والشراكات وروابط التحقق الرسمية. لا تعرض الصفحة أي أرقام تراخيص أو شراكات غير مدخلة في إعدادات الأكاديمية أو بياناتها الرسمية.
           </p>
+          {accreditation.trustNote && (
+            <p className="mt-4 max-w-3xl rounded-2xl border border-[#e0b83a]/20 bg-white/10 px-4 py-3 text-xs font-bold leading-6 text-[#f5f0e1]/80">
+              {accreditation.trustNote}
+            </p>
+          )}
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/verify" className="rounded-2xl bg-[#e0b83a] px-5 py-3 text-sm font-black text-[#0f2b46] shadow-lg shadow-black/20">
               تحقق من شهادة
@@ -112,6 +193,28 @@ export default async function AccreditationPage() {
           <div className="mt-5 space-y-3 text-xs font-bold leading-6 text-slate-600">
             <p><span className="font-black text-[#0f2b46]">الكيان:</span> {(contact as OfficialContact).legalEntity || 'غير مضبوط في الإعدادات'}</p>
             {(contact as OfficialContact).registrationNumber && <p><span className="font-black text-[#0f2b46]">رقم التسجيل:</span> {(contact as OfficialContact).registrationNumber}</p>}
+            {accreditation.licenseNumber && <p><span className="font-black text-[#0f2b46]">رقم الترخيص:</span> {accreditation.licenseNumber}</p>}
+            {accreditation.licensingAuthority && <p><span className="font-black text-[#0f2b46]">جهة الترخيص:</span> {accreditation.licensingAuthority}</p>}
+            {accreditation.licenseVerifyUrl && (
+              <a href={accreditation.licenseVerifyUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#0f2b46] hover:text-[#a8841a]">
+                <ExternalLink className="h-4 w-4 text-[#c9a227]" /> رابط التحقق من الترخيص
+              </a>
+            )}
+            {documents.length > 0 && (
+              <div className="space-y-2 rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-3">
+                <p className="font-black text-[#0f2b46]">وثائق الترخيص والاعتماد</p>
+                {documents.map((doc: any) => (
+                  <div key={doc.id} className="space-y-1 rounded-xl bg-white p-2">
+                    <p className="font-black text-[#0f2b46]">{doc.title}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <a href={doc.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5 text-[#c9a227]" /> معاينة</a>
+                      <a href={doc.downloadUrl} className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5 text-[#c9a227]" /> تحميل</a>
+                      {doc.verifyUrl && <a href={doc.verifyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><ExternalLink className="h-3.5 w-3.5 text-[#c9a227]" /> تحقق</a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {(contact as OfficialContact).address && <p><span className="font-black text-[#0f2b46]">العنوان:</span> {(contact as OfficialContact).address}</p>}
             {(contact as OfficialContact).email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-[#c9a227]" /> <span dir="ltr">{(contact as OfficialContact).email}</span></p>}
             {phones.length > 0 && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-[#c9a227]" /> <span dir="ltr">{phones.join(' / ')}</span></p>}
@@ -119,6 +222,48 @@ export default async function AccreditationPage() {
           </div>
         </aside>
       </section>
+
+      {partnerships.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-10">
+          <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-6 shadow-xl shadow-slate-200/70">
+            <div className="flex items-center gap-3">
+              <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]"><Award className="h-6 w-6" /></span>
+              <div>
+                <p className="text-xs font-black text-[#c9a227]">الشراكات والاعتمادات</p>
+                <h2 className="text-2xl font-black text-[#0f2b46]">جهات موثقة من لوحة الإدارة</h2>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {partnerships.map((partner, index) => (
+                <div key={`${partner.name}-${index}`} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="rounded-2xl bg-white p-3 text-[#c9a227]"><Building2 className="h-5 w-5" /></span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-black text-[#0f2b46]">{partner.name}</h3>
+                      {partner.type && <p className="mt-1 text-xs font-black text-[#a8841a]">{partner.type}</p>}
+                      {partner.description && <p className="mt-3 text-xs font-bold leading-6 text-slate-600">{partner.description}</p>}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {partner.verifyUrl && (
+                          <a href={partner.verifyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-[11px] font-black text-[#0f2b46] hover:border-[#c9a227]/50">
+                            <ExternalLink className="h-3.5 w-3.5" /> رابط تحقق
+                          </a>
+                        )}
+                        {Array.isArray(partner.documents) && partner.documents.map((doc: any) => (
+                          <span key={doc.id} className="inline-flex flex-wrap gap-1 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-[11px] font-black text-[#0f2b46]">
+                            <a href={doc.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5" /> {doc.title}</a>
+                            <a href={doc.downloadUrl} className="inline-flex items-center gap-1 hover:text-[#a8841a]">تحميل</a>
+                            {doc.verifyUrl && <a href={doc.verifyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[#a8841a]">تحقق</a>}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl px-4 pb-14">
         <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-6 shadow-xl shadow-slate-200/70">

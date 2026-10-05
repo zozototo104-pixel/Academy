@@ -31,6 +31,21 @@ export const DEFAULT_DISCLOSURE_CONSENT_TEXT = 'أقر بأن البيانات �
 
 export const DEFAULT_TRUST_BANNER_TEXT = 'برامج تدريب مهني تصدر شهاداتها عن الأكاديمية الأمريكية للاستشارات والتدريب، وقبولها يعود لجهة العمل أو الجهة المختصة.'
 
+export const DEFAULT_ACCREDITATION_PAGE = {
+  licenseNumber: '',
+  licenseVerifyUrl: '',
+  licenseDocumentUrl: '',
+  licensingAuthority: '',
+  trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
+  partnerships: [] as Array<{
+    name: string
+    type?: string
+    description?: string
+    verifyUrl?: string
+    documentUrl?: string
+  }>,
+}
+
 export const DEFAULT_SETTINGS: SettingDef[] = [
   // الرسوم العامة: أسعار البرامج الافتراضية فقط، أما سعر كل برنامج فيُعدل من قواعد القبول.
   { key: 'FEE_APPLICATION', value: '30', label: 'رسوم التقديم وحجز المقعد (غير مستردة)', group: 'FEES', suffix: '$', inputType: 'number' },
@@ -61,6 +76,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'DISCLOSURE_CONSENT_TEXT', value: DEFAULT_DISCLOSURE_CONSENT_TEXT, label: 'نص الإقرار العام قبل الدفع', group: 'CONTENT', suffix: '', inputType: 'textarea', help: 'يستخدم إذا لم يحدد البرنامج نص إقرار خاصاً من قواعد القبول.' },
   { key: 'TRUST_BANNER_TEXT', value: DEFAULT_TRUST_BANNER_TEXT, label: 'نص شريط الثقة في الرئيسية', group: 'CONTENT', suffix: '', inputType: 'textarea' },
   { key: 'HOME_STATS', value: JSON.stringify(DEFAULT_HOME_STATS), label: 'إحصائيات الرئيسية', group: 'CONTENT', suffix: '', inputType: 'json', help: 'JSON: graduates, experts, countries' },
+  { key: 'ACCREDITATION_PAGE', value: JSON.stringify(DEFAULT_ACCREDITATION_PAGE), label: 'بيانات صفحة الاعتماد والتحقق', group: 'CONTENT', suffix: '', inputType: 'json', help: 'رقم الترخيص وروابط التحقق والوثائق والشراكات. ضع روابط وثائق Cloudflare فقط، ولا ترفع الملفات داخل المنصة.' },
 
   // بيانات التواصل الرسمية
   { key: 'OFFICIAL_CONTACT', value: JSON.stringify(DEFAULT_OFFICIAL_CONTACT), label: 'بيانات التواصل الرسمية', group: 'CONTACT', suffix: '', inputType: 'json', help: 'JSON: legalEntity, registrationNumber, address, email, phone, phones[], whatsapp, whatsapps[], responsiblePerson' },

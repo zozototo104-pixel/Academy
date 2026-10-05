@@ -19,7 +19,7 @@ import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmou
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
-  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound,
+  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText,
 } from 'lucide-react'
 
 const DefenseRoom = dynamic(
@@ -1152,6 +1152,42 @@ interface SystemAdminAccount {
   updatedAt: string
 }
 
+interface AccreditationAdminDocument {
+  id: string
+  kind: string
+  title: string
+  description: string
+  verifyUrl: string
+  fileName: string
+  mimeType: string
+  fileSize: number
+  active: boolean
+  partnershipId?: string | null
+  previewUrl: string
+  downloadUrl: string
+}
+
+interface AccreditationAdminPartnership {
+  id?: string
+  name: string
+  type?: string
+  description?: string
+  verifyUrl?: string
+  active?: boolean
+  displayOrder?: number
+  documents?: AccreditationAdminDocument[]
+}
+
+interface AccreditationAdminProfile {
+  id?: string
+  licenseNumber: string
+  licenseVerifyUrl: string
+  licensingAuthority: string
+  trustNote: string
+  partnerships: AccreditationAdminPartnership[]
+  documents: AccreditationAdminDocument[]
+}
+
 export function AdminSettingsTab() {
   const { toast } = useToast()
   const [values, setValues] = useState<Record<string, string>>({})
@@ -1161,6 +1197,11 @@ export function AdminSettingsTab() {
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
   const [adminsLoading, setAdminsLoading] = useState(true)
   const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [accreditationProfile, setAccreditationProfile] = useState<AccreditationAdminProfile | null>(null)
+  const [accreditationSaving, setAccreditationSaving] = useState(false)
+  const [accreditationUploadBusy, setAccreditationUploadBusy] = useState(false)
+  const [accreditationUploadFile, setAccreditationUploadFile] = useState<File | null>(null)
+  const [accreditationUpload, setAccreditationUpload] = useState({ title: '', kind: 'LICENSE', description: '', verifyUrl: '', partnershipId: '' })
   const [adminForm, setAdminForm] = useState({
     name: 'QA Admin',
     email: 'qa-admin@aactacademy.com',
@@ -1175,8 +1216,15 @@ export function AdminSettingsTab() {
       .finally(() => setAdminsLoading(false))
   }
 
+  const loadAccreditationProfile = () => {
+    api<{ profile: AccreditationAdminProfile }>('/api/admin/accreditation')
+      .then((d) => setAccreditationProfile(d.profile))
+      .catch((e: any) => toast({ title: 'تعذر تحميل بيانات الاعتماد', description: e.message, variant: 'destructive' }))
+  }
+
   useEffect(() => {
     loadSystemAdmins()
+    loadAccreditationProfile()
     api<{ values: any; defs?: any[] }>('/api/settings')
       .then((d) => {
         setValues(d.values)
@@ -1285,6 +1333,232 @@ export function AdminSettingsTab() {
           <div className="space-y-1.5">
             <Label className="text-[11px] font-bold text-slate-600">عدد الدول / الشراكات</Label>
             <Input dir="ltr" type="number" className="text-left font-black" value={stats.countries || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { countries: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+        </div>
+      )
+    }
+    if (d.key === 'ACCREDITATION_PAGE') {
+      {
+      const emptyProfile: AccreditationAdminProfile = {
+        licenseNumber: '',
+        licenseVerifyUrl: '',
+        licensingAuthority: '',
+        trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
+        partnerships: [],
+        documents: [],
+      }
+      const profile = accreditationProfile || emptyProfile
+      const partnerships = Array.isArray(profile.partnerships) ? profile.partnerships : []
+      const documents = Array.isArray(profile.documents) ? profile.documents : []
+      const updateAccreditationProfile = (patch: Partial<AccreditationAdminProfile>) => setAccreditationProfile((prev) => ({ ...(prev || emptyProfile), ...patch }))
+      const updateAccreditationPartnership = (index: number, patch: Partial<AccreditationAdminPartnership>) => {
+        const next = [...partnerships]
+        next[index] = { ...(next[index] || { name: '' }), ...patch }
+        updateAccreditationProfile({ partnerships: next })
+      }
+      const addAccreditationPartnership = () => updateAccreditationProfile({ partnerships: [...partnerships, { name: '', type: '', description: '', verifyUrl: '', active: true, displayOrder: partnerships.length }] })
+      const removeAccreditationPartnership = (index: number) => updateAccreditationProfile({ partnerships: partnerships.filter((_, i) => i !== index) })
+      const saveAccreditationProfile = async () => {
+        if (!profile) return
+        setAccreditationSaving(true)
+        try {
+          const res = await api<{ profile: AccreditationAdminProfile }>('/api/admin/accreditation', { method: 'PUT', body: JSON.stringify({ profile }) })
+          setAccreditationProfile(res.profile)
+          toast({ title: 'حُفظت صفحة الاعتماد والتحقق', description: 'تظهر البيانات والوثائق على الصفحة العامة بعد الحفظ.' })
+        } catch (e: any) {
+          toast({ title: 'تعذر حفظ بيانات الاعتماد', description: e.message, variant: 'destructive' })
+        } finally {
+          setAccreditationSaving(false)
+        }
+      }
+      const uploadAccreditationDocument = async () => {
+        if (!accreditationUploadFile) {
+          toast({ title: 'اختر ملف الوثيقة أولاً', variant: 'destructive' })
+          return
+        }
+        if (!accreditationUpload.title.trim()) {
+          toast({ title: 'عنوان الوثيقة مطلوب', variant: 'destructive' })
+          return
+        }
+        setAccreditationUploadBusy(true)
+        try {
+          const form = new FormData()
+          form.append('file', accreditationUploadFile)
+          form.append('title', accreditationUpload.title)
+          form.append('kind', accreditationUpload.kind)
+          form.append('description', accreditationUpload.description)
+          form.append('verifyUrl', accreditationUpload.verifyUrl)
+          form.append('partnershipId', accreditationUpload.partnershipId)
+          const res = await api<{ profile: AccreditationAdminProfile }>('/api/admin/accreditation/documents', { method: 'POST', body: form })
+          setAccreditationProfile(res.profile)
+          setAccreditationUploadFile(null)
+          setAccreditationUpload({ title: '', kind: 'LICENSE', description: '', verifyUrl: '', partnershipId: '' })
+          toast({ title: 'تم رفع الوثيقة', description: 'يمكن معاينتها وتحميلها الآن من صفحة الاعتماد.' })
+        } catch (e: any) {
+          toast({ title: 'تعذر رفع الوثيقة', description: e.message, variant: 'destructive' })
+        } finally {
+          setAccreditationUploadBusy(false)
+        }
+      }
+      const deleteAccreditationDocument = async (doc: AccreditationAdminDocument) => {
+        if (!confirm(`حذف الوثيقة «${doc.title}» من صفحة الاعتماد؟`)) return
+        setAccreditationUploadBusy(true)
+        try {
+          const res = await api<{ profile: AccreditationAdminProfile }>(`/api/admin/accreditation/documents/${encodeURIComponent(doc.id)}`, { method: 'DELETE' })
+          setAccreditationProfile(res.profile)
+          toast({ title: 'حُذفت الوثيقة من صفحة الاعتماد' })
+        } catch (e: any) {
+          toast({ title: 'تعذر حذف الوثيقة', description: e.message, variant: 'destructive' })
+        } finally {
+          setAccreditationUploadBusy(false)
+        }
+      }
+      return (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+            الوثائق تُرفع من هنا إلى التخزين الخارجي المضبوط في المشروع. إذا كانت متغيرات Cloudflare/R2 مضبوطة فسيتم الرفع هناك، ثم تظهر روابط معاينة وتحميل في صفحة /accreditation.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5"><Label className="text-[11px] font-bold text-slate-600">رقم الترخيص / التسجيل</Label><Input value={profile.licenseNumber || ''} onChange={(e) => updateAccreditationProfile({ licenseNumber: e.target.value })} className="font-bold" /></div>
+            <div className="space-y-1.5"><Label className="text-[11px] font-bold text-slate-600">جهة الترخيص</Label><Input value={profile.licensingAuthority || ''} onChange={(e) => updateAccreditationProfile({ licensingAuthority: e.target.value })} className="font-bold" /></div>
+            <div className="space-y-1.5 sm:col-span-2"><Label className="text-[11px] font-bold text-slate-600">رابط التحقق الرسمي</Label><Input dir="ltr" value={profile.licenseVerifyUrl || ''} placeholder="https://..." onChange={(e) => updateAccreditationProfile({ licenseVerifyUrl: e.target.value })} className="text-left font-mono text-xs" /></div>
+            <div className="space-y-1.5 sm:col-span-2"><Label className="text-[11px] font-bold text-slate-600">ملاحظة الثقة</Label><Textarea value={profile.trustNote || ''} rows={3} onChange={(e) => updateAccreditationProfile({ trustNote: e.target.value })} className="font-bold leading-7" /></div>
+          </div>
+          <div className="flex justify-end"><Button type="button" onClick={saveAccreditationProfile} disabled={accreditationSaving} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{accreditationSaving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="ml-2 h-4 w-4" />} حفظ بيانات صفحة الاعتماد</Button></div>
+
+          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><Label className="text-sm font-black text-[#0f2b46]">الشراكات والاعتمادات</Label><p className="mt-1 text-[11px] font-bold text-slate-500">قائمة مرنة؛ أضف أي جهة موثقة، ثم ارفع وثائقها أو ضع رابط تحقق رسمي.</p></div><Button type="button" size="sm" variant="outline" onClick={addAccreditationPartnership} className="font-black">+ إضافة شراكة</Button></div>
+            <div className="space-y-3">
+              {partnerships.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-500">لا توجد شراكات بعد.</div>}
+              {partnerships.map((partner, index) => (
+                <div key={partner.id || index} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-2"><p className="text-xs font-black text-[#0f2b46]">شراكة #{index + 1}</p><Button type="button" size="sm" variant="outline" onClick={() => removeAccreditationPartnership(index)} className="text-[10px] font-black text-red-600">حذف</Button></div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5"><Label className="text-[11px] font-bold text-slate-600">اسم الجهة</Label><Input value={partner.name || ''} onChange={(e) => updateAccreditationPartnership(index, { name: e.target.value })} className="font-bold" /></div>
+                    <div className="space-y-1.5"><Label className="text-[11px] font-bold text-slate-600">نوع العلاقة</Label><Input value={partner.type || ''} onChange={(e) => updateAccreditationPartnership(index, { type: e.target.value })} className="font-bold" /></div>
+                    <div className="space-y-1.5 sm:col-span-2"><Label className="text-[11px] font-bold text-slate-600">وصف مختصر</Label><Textarea rows={2} value={partner.description || ''} onChange={(e) => updateAccreditationPartnership(index, { description: e.target.value })} className="font-bold leading-7" /></div>
+                    <div className="space-y-1.5 sm:col-span-2"><Label className="text-[11px] font-bold text-slate-600">رابط تحقق رسمي للشراكة</Label><Input dir="ltr" value={partner.verifyUrl || ''} onChange={(e) => updateAccreditationPartnership(index, { verifyUrl: e.target.value })} className="text-left font-mono text-xs" /></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+            <Label className="text-sm font-black text-[#0f2b46]">رفع وثيقة اعتماد / شراكة</Label>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Input value={accreditationUpload.title} placeholder="عنوان الوثيقة" onChange={(e) => setAccreditationUpload((p) => ({ ...p, title: e.target.value }))} className="font-bold" />
+              <Select value={accreditationUpload.kind} onValueChange={(v) => setAccreditationUpload((p) => ({ ...p, kind: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="LICENSE">وثيقة ترخيص</SelectItem><SelectItem value="PARTNERSHIP">وثيقة شراكة</SelectItem><SelectItem value="OTHER">وثيقة أخرى</SelectItem></SelectContent></Select>
+              <Select value={accreditationUpload.partnershipId || 'none'} onValueChange={(v) => setAccreditationUpload((p) => ({ ...p, partnershipId: v === 'none' ? '' : v }))}><SelectTrigger><SelectValue placeholder="ربط بشراكة" /></SelectTrigger><SelectContent><SelectItem value="none">وثيقة عامة للترخيص</SelectItem>{partnerships.filter((p) => p.id).map((p) => <SelectItem key={p.id} value={p.id!}>{p.name || 'شراكة بدون اسم'}</SelectItem>)}</SelectContent></Select>
+              <Input dir="ltr" value={accreditationUpload.verifyUrl} placeholder="رابط تحقق رسمي اختياري" onChange={(e) => setAccreditationUpload((p) => ({ ...p, verifyUrl: e.target.value }))} className="text-left font-mono text-xs" />
+              <Textarea rows={2} value={accreditationUpload.description} placeholder="وصف الوثيقة" onChange={(e) => setAccreditationUpload((p) => ({ ...p, description: e.target.value }))} className="font-bold leading-7 sm:col-span-2" />
+              <Input type="file" accept="application/pdf,image/*,.docx,.xlsx,.xls,.txt,.csv" onChange={(e) => setAccreditationUploadFile(e.target.files?.[0] || null)} className="sm:col-span-2" />
+            </div>
+            <Button type="button" onClick={uploadAccreditationDocument} disabled={accreditationUploadBusy} className="mt-3 bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">{accreditationUploadBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Upload className="ml-2 h-4 w-4" />} رفع الوثيقة</Button>
+            <div className="mt-4 space-y-2">
+              {documents.length === 0 && partnerships.every((p) => !p.documents?.length) && <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-500">لا توجد وثائق مرفوعة بعد.</div>}
+              {[...documents, ...partnerships.flatMap((p) => p.documents || [])].map((doc) => (
+                <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                  <div><p className="font-black text-[#0f2b46]">{doc.title}</p><p dir="ltr" className="text-[10px] text-slate-400">{doc.fileName}</p></div>
+                  <div className="flex flex-wrap gap-2"><a href={doc.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border bg-white px-2 py-1 text-[#0f2b46]"><Eye className="h-3.5 w-3.5" /> معاينة</a><a href={doc.downloadUrl} className="inline-flex items-center gap-1 rounded-lg border bg-white px-2 py-1 text-[#0f2b46]"><FileDown className="h-3.5 w-3.5" /> تحميل</a><Button type="button" size="sm" variant="outline" onClick={() => deleteAccreditationDocument(doc)} className="h-7 text-[10px] font-black text-red-600"><Trash2 className="ml-1 h-3.5 w-3.5" /> حذف</Button></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+      }
+      const accreditationFallback = {
+        licenseNumber: '',
+        licenseVerifyUrl: '',
+        licenseDocumentUrl: '',
+        licensingAuthority: '',
+        trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
+        partnerships: [] as Array<{ name: string; type?: string; description?: string; verifyUrl?: string; documentUrl?: string }>,
+      }
+      const accreditation = readJsonSetting('ACCREDITATION_PAGE', accreditationFallback)
+      const partnerships = Array.isArray(accreditation.partnerships) ? accreditation.partnerships : []
+      const patchPartnerships = (next: typeof partnerships) => patchJsonSetting('ACCREDITATION_PAGE', { partnerships: next }, accreditationFallback)
+      const updatePartnership = (index: number, patch: Partial<typeof partnerships[number]>) => {
+        const next = partnerships.length ? [...partnerships] : []
+        next[index] = { ...(next[index] || { name: '' }), ...patch }
+        patchPartnerships(next)
+      }
+      const addPartnership = () => patchPartnerships([...partnerships, { name: '', type: '', description: '', verifyUrl: '', documentUrl: '' }])
+      const removePartnership = (index: number) => patchPartnerships(partnerships.filter((_, i) => i !== index))
+      return (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+            ضع روابط الوثائق المستضافة خارج المنصة فقط، مثل روابط Cloudflare R2 أو Cloudflare Images أو أي رابط تحقق رسمي. لا يتم رفع ملفات الاعتماد داخل المنصة من هذا القسم.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رقم الترخيص / التسجيل</Label>
+              <Input value={accreditation.licenseNumber || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseNumber: e.target.value }, accreditationFallback)} className="font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">جهة الترخيص</Label>
+              <Input value={accreditation.licensingAuthority || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licensingAuthority: e.target.value }, accreditationFallback)} className="font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رابط التحقق الرسمي</Label>
+              <Input dir="ltr" value={accreditation.licenseVerifyUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseVerifyUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رابط وثيقة الترخيص على Cloudflare</Label>
+              <Input dir="ltr" value={accreditation.licenseDocumentUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseDocumentUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-bold text-slate-600">ملاحظة الثقة على صفحة الاعتماد</Label>
+              <Textarea value={accreditation.trustNote || ''} rows={3} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { trustNote: e.target.value }, accreditationFallback)} className="font-bold leading-7" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm font-black text-[#0f2b46]">الشراكات والاعتمادات المرتبطة</Label>
+                <p className="mt-1 text-[11px] font-bold text-slate-500">أضف أي شراكة جديدة باسمها وروابط التحقق أو الوثائق. لا توجد أسماء ثابتة في الكود.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={addPartnership} className="font-black">+ إضافة شراكة</Button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {partnerships.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-500">
+                  لا توجد شراكات مدخلة بعد. أضف شراكة فقط إذا كانت لديك وثيقة أو رابط تحقق رسمي.
+                </div>
+              )}
+              {partnerships.map((partner, index) => (
+                <div key={index} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-xs font-black text-[#0f2b46]">شراكة #{index + 1}</p>
+                    <Button type="button" size="sm" variant="outline" onClick={() => removePartnership(index)} className="text-[10px] font-black text-red-600">حذف</Button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">اسم الجهة</Label>
+                      <Input value={partner.name || ''} placeholder="مثال: جامعة القاهرة" onChange={(e) => updatePartnership(index, { name: e.target.value })} className="font-bold" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">نوع العلاقة</Label>
+                      <Input value={partner.type || ''} placeholder="شراكة / اعتماد / تعاون" onChange={(e) => updatePartnership(index, { type: e.target.value })} className="font-bold" />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-[11px] font-bold text-slate-600">وصف مختصر</Label>
+                      <Textarea value={partner.description || ''} rows={2} onChange={(e) => updatePartnership(index, { description: e.target.value })} className="font-bold leading-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">رابط تحقق رسمي</Label>
+                      <Input dir="ltr" value={partner.verifyUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { verifyUrl: e.target.value })} className="text-left font-mono text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">رابط الوثيقة على Cloudflare</Label>
+                      <Input dir="ltr" value={partner.documentUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { documentUrl: e.target.value })} className="text-left font-mono text-xs" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )

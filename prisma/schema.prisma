@@ -482,6 +482,62 @@ model AcademyRepresentativeFile {
   @@index([storageProvider])
 }
 
+model AccreditationProfile {
+  id                String   @id @default(cuid())
+  singletonKey      String   @unique @default("default")
+  licenseNumber     String?
+  licenseVerifyUrl  String?
+  licensingAuthority String?
+  trustNote         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  partnerships      AccreditationPartnership[]
+  documents         AccreditationDocument[]
+}
+
+model AccreditationPartnership {
+  id           String   @id @default(cuid())
+  profileId    String
+  profile      AccreditationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name         String
+  type         String?
+  description  String?
+  verifyUrl    String?
+  active       Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  documents    AccreditationDocument[]
+
+  @@index([profileId, active, displayOrder])
+}
+
+model AccreditationDocument {
+  id              String   @id @default(cuid())
+  profileId       String
+  profile         AccreditationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  partnershipId   String?
+  partnership     AccreditationPartnership? @relation(fields: [partnershipId], references: [id], onDelete: SetNull)
+  kind            String   @default("LICENSE") // LICENSE | PARTNERSHIP | OTHER
+  title           String
+  description     String?
+  verifyUrl       String?
+  fileName        String
+  mimeType        String
+  fileSize        Int
+  storageProvider String
+  storageKey      String
+  fileUrl         String?
+  active          Boolean  @default(true)
+  displayOrder    Int      @default(0)
+  uploadedById    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([profileId, kind, active])
+  @@index([partnershipId])
+}
+
 model MicroCredential {
   id              String   @id @default(cuid())
   programId       String

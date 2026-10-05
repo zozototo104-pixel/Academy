@@ -575,8 +575,8 @@ export function Header() {
     { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
   const academyItems: NavItem[] = [
-    { label: 'الاعتماد والتحقق', target: 'accreditation', path: '/accreditation', desc: 'صفحة الثقة والتحقق وروابط الاعتماد الرسمية' },
-    { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
+    { label: 'التراخيص والوثائق الرسمية', target: 'accreditation', path: '/accreditation', desc: 'وثائق الترخيص والشراكات وروابط التحقق الرسمية' },
+    { label: 'الوكالة والاعتماد', target: 'agent', path: '/agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
   ]
@@ -978,10 +978,10 @@ export function Footer() {
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('programs')}>البرامج والخدمات</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>الشهادات والتحقق</button></li>
-            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>الاعتماد والتحقق</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>التراخيص والوثائق الرسمية</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('about')}>من نحن</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('apply')}>طلب الالتحاق وتتبعه</button></li>
-            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('agent')}>الوكالة الدولية والاعتمادات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/agent')}>الوكالة الدولية والاعتمادات</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('directory')}>دليل المعتمدين والوكلاء</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/representatives')}>ممثلو الأكاديمية في الدول</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>التحقق من صحة الشهادات</button></li>
