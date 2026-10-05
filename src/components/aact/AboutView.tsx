@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
-import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { SERVICE_OFFERINGS } from '@/lib/academyData'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
