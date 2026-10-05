@@ -845,7 +845,7 @@ export function ApplyView() {
                     </div>
                     <div className="grid gap-2">
                       {recentApplications.map((app: any) => {
-                        const status = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+                        const status = statusLabelFor(app.status, app.statusLabel || app.status)
                         return (
                           <div key={app.reference} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
                             <div className="min-w-0">
