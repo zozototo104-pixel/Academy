@@ -1569,6 +1569,34 @@ export function AdminCertificatesTab() {
 
       <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
 
+      <Dialog open={!!templatePendingDelete} onOpenChange={(v) => !v && setTemplatePendingDelete(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border border-red-100 bg-white p-0" dir="rtl">
+          <div className="rounded-t-[2rem] bg-gradient-to-l from-red-700 to-[#0f2b46] px-5 py-5 text-[#f5f0e1]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-black">
+                <Trash2 className="h-5 w-5" /> حذف قالب الشهادة
+              </DialogTitle>
+              <DialogDescription className="text-xs font-bold leading-6 text-[#f5f0e1]/80">
+                سيتم حذف القالب من لوحة القوالب ولن تستخدمه الشهادات الجديدة أو المعاينات القادمة.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold leading-7 text-red-900">
+              هل تريد حذف قالب الشهادة
+              <span className="mx-1 font-black">«{templatePendingDelete?.name || ''}»</span>
+              ؟
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setTemplatePendingDelete(null)} disabled={templateBusy} className="font-black">إلغاء</Button>
+              <Button type="button" onClick={() => templatePendingDelete && deleteCertificateTemplate(templatePendingDelete)} disabled={templateBusy} className="bg-red-700 font-black text-white hover:bg-red-800">
+                {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Trash2 className="ml-2 h-4 w-4" />} نعم، احذف القالب
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
