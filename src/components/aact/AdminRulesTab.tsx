@@ -660,7 +660,10 @@ export function AdminRulesTab() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className={`text-xs font-black ${p.id === selectedId ? 'text-[#e0b83a]' : 'text-[#0f2b46]'}`}>{p.titleAr}</span>
-                      {p.custom && <Badge className="shrink-0 bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+                      <span className="flex shrink-0 gap-1">
+                        {p.active === false && <Badge className="bg-slate-200 text-[10px] text-slate-700 hover:bg-slate-200">مؤرشف</Badge>}
+                        {p.custom && <Badge className="bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+                      </span>
                     </div>
                     <span className={`mt-0.5 block text-[10px] ${p.id === selectedId ? 'text-white/70' : 'text-slate-400'}`}>
                       {CAT_AR[p.category] || p.category}
