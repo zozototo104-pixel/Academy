@@ -33,7 +33,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-unused-vars": "off",
     "no-console": "off",
     "no-debugger": "off",
-    "no-empty": "off",
+    "no-empty": ["warn", { "allowEmptyCatch": false }],
     "no-irregular-whitespace": "off",
     "no-case-declarations": "off",
     "no-fallthrough": "off",
