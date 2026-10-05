@@ -33,7 +33,7 @@ async function makeQr(token?: string | null) {
 
 export default async function RepresentativeProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const { rep, demo } = await loadRepresentative(slug)
+  const rep = await loadRepresentative(slug)
   if (!rep) {
     return <main dir="rtl" className="min-h-screen bg-slate-50 p-8 text-center text-[#0f2b46]"><h1 className="text-3xl font-black">لم يتم العثور على الممثل</h1><Link href="/representatives" className="mt-6 inline-block rounded-full bg-[#0f2b46] px-6 py-3 text-sm font-black text-white">العودة للقائمة</Link></main>
   }
