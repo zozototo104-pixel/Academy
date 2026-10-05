@@ -576,7 +576,7 @@ export function Header() {
   ]
   const academyItems: NavItem[] = [
     { label: 'الاعتماد والتحقق', target: 'accreditation', path: '/accreditation', desc: 'صفحة الثقة والتحقق وروابط الاعتماد الرسمية' },
-    { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
+    { label: 'الوكالة والاعتماد', target: 'agent', path: '/accreditation', desc: 'تمثيل دولي واعتماد مؤسسات عبر صفحة الاعتماد الرسمية' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
   ]
