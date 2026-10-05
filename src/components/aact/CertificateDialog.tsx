@@ -98,16 +98,24 @@ export function CertificateDialog({
             <>
               <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 text-center text-[#0f2b46]">
-                <div className="absolute left-1/2 top-[38%] w-[72%] -translate-x-1/2 text-3xl font-black leading-tight sm:text-5xl">
-                  {certificate.holderName}
-                </div>
-                <div className="absolute left-1/2 top-[52%] w-[76%] -translate-x-1/2 text-base font-extrabold leading-relaxed text-[#a8841a] sm:text-2xl">
-                  {certificate.program}
-                </div>
-                {certificate.grade && <div className="absolute left-1/2 top-[64%] -translate-x-1/2 text-sm font-black sm:text-lg">{certificate.grade}</div>}
-                <div className="absolute bottom-[9%] right-[9%] text-right font-mono text-[10px] font-black sm:text-sm" dir="ltr">{certificate.serial}</div>
-                <div className="absolute bottom-[9%] left-[9%] text-left text-[10px] font-black sm:text-sm">{date}</div>
-                {qr && <img src={qr} alt="رمز التحقق QR" className="absolute bottom-[9%] left-1/2 h-[14%] w-auto -translate-x-1/2 rounded bg-white p-1" />}
+                {layout.holderName?.visible !== false && <div style={fieldStyle(layout.holderName)}>{certificate.holderName}</div>}
+                {layout.program?.visible !== false && <div style={fieldStyle(layout.program)}>{certificate.program}</div>}
+                {certificate.grade && layout.grade?.visible !== false && <div style={fieldStyle(layout.grade)}>{certificate.grade}</div>}
+                {layout.serial?.visible !== false && <div dir="ltr" style={fieldStyle(layout.serial)}>{certificate.serial}</div>}
+                {layout.issuedAt?.visible !== false && <div style={fieldStyle(layout.issuedAt)}>{date}</div>}
+                {qr && layout.qr?.visible !== false && (
+                  <img
+                    src={qr}
+                    alt="رمز التحقق QR"
+                    className="absolute rounded bg-white p-1"
+                    style={{
+                      left: `${Number(layout.qr?.x ?? 50)}%`,
+                      top: `${Number(layout.qr?.y ?? 86)}%`,
+                      width: `${Number(layout.qr?.size ?? 12)}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                )}
               </div>
             </>
           )}
