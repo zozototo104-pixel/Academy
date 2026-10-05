@@ -979,8 +979,8 @@ export async function platformAgentComplete(opts: {
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
