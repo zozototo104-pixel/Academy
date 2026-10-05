@@ -1031,6 +1031,7 @@ interface CertificateTemplateItem {
   fileName: string
   mimeType: string
   fileSize: number
+  layoutJson?: any
   imageUrl: string
   createdAt: string
 }
