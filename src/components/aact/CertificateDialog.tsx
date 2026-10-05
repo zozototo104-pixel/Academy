@@ -24,6 +24,35 @@ const TYPE_LABEL: Record<string, string> = {
   AGENCY: 'شهادة وكالة وتمثيل دولي',
 }
 
+const DEFAULT_TEMPLATE_LAYOUT: any = {
+  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
+  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
+  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
+  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
+  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  qr: { x: 50, y: 86, size: 12, visible: true },
+}
+
+function layoutOf(raw: any) {
+  return { ...DEFAULT_TEMPLATE_LAYOUT, ...(raw && typeof raw === 'object' ? raw : {}) }
+}
+
+function fieldStyle(field: any) {
+  return {
+    position: 'absolute' as const,
+    left: `${Number(field?.x ?? 50)}%`,
+    top: `${Number(field?.y ?? 50)}%`,
+    width: `${Number(field?.width ?? 50)}%`,
+    transform: 'translate(-50%, -50%)',
+    textAlign: field?.align || 'center',
+    color: field?.color || '#0f2b46',
+    fontSize: `clamp(10px, ${Number(field?.fontSize ?? 2)}vw, 58px)`,
+    fontWeight: 900,
+    lineHeight: 1.25,
+    whiteSpace: 'normal' as const,
+  }
+}
+
 // نافذة الشهادة الرقمية بقالب رسمي + QR للتحقق + طباعة PDF
 export function CertificateDialog({
   certificate,
