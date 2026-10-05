@@ -456,10 +456,19 @@ export function AdminRulesTab() {
     })
   }
 
+  const openCreateProgramDialog = () => {
+    setNewProgramTitleAr('')
+    setNewProgramCategory(programCategoryFilter !== 'ALL' ? programCategoryFilter : (programDraft?.category || 'DIPLOMA'))
+    setCreateProgramOpen(true)
+  }
+
   const createProgram = async () => {
-    const titleAr = window.prompt('اكتب اسم البرنامج الجديد بالعربية. سيُنشأ كمسودة غير منشورة حتى تفعّله يدوياً:')?.trim()
-    if (!titleAr) return
-    const category = programCategoryFilter !== 'ALL' ? programCategoryFilter : (programDraft?.category || 'DIPLOMA')
+    const titleAr = newProgramTitleAr.trim()
+    if (!titleAr) {
+      toast({ title: 'اسم البرنامج العربي مطلوب', variant: 'destructive' })
+      return
+    }
+    const category = newProgramCategory || 'DIPLOMA'
     setCreatingProgram(true)
     try {
       const d = await api<{ item: ProgramRules }>('/api/admin/program-rules', {
