@@ -1152,6 +1152,42 @@ interface SystemAdminAccount {
   updatedAt: string
 }
 
+interface AccreditationAdminDocument {
+  id: string
+  kind: string
+  title: string
+  description: string
+  verifyUrl: string
+  fileName: string
+  mimeType: string
+  fileSize: number
+  active: boolean
+  partnershipId?: string | null
+  previewUrl: string
+  downloadUrl: string
+}
+
+interface AccreditationAdminPartnership {
+  id?: string
+  name: string
+  type?: string
+  description?: string
+  verifyUrl?: string
+  active?: boolean
+  displayOrder?: number
+  documents?: AccreditationAdminDocument[]
+}
+
+interface AccreditationAdminProfile {
+  id?: string
+  licenseNumber: string
+  licenseVerifyUrl: string
+  licensingAuthority: string
+  trustNote: string
+  partnerships: AccreditationAdminPartnership[]
+  documents: AccreditationAdminDocument[]
+}
+
 export function AdminSettingsTab() {
   const { toast } = useToast()
   const [values, setValues] = useState<Record<string, string>>({})
