@@ -276,7 +276,7 @@ ${buildSupervisorPersonaBlock(persona)}
 
 معلومات الأكاديمية:
 - الشعار: "${ACADEMY_INFO.taglineAr}" (${ACADEMY_INFO.taglineEn})
-- البريد: ${contactEmail} | واتساب: ${contactWhatsapp}
+- البريد: ${contactEmail} | أرقام التواصل الرسمية: ${contactWhatsapp}
 - البرامج: ${ACADEMY_INFO.programs}
 - الشهادات تُصدر خلال ${runtime?.certificateIssueDays || ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم.
 - الوكلاء الدوليون: نسبة ${runtime?.agentCommissionRate || ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${money(runtime?.committeeMemberFee)} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته.
