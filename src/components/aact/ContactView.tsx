@@ -156,58 +156,57 @@ export function ContactView() {
           <Card className="border-[#c9a227]/40 bg-[#f7edd0]/50">
             <CardContent className="space-y-4 p-5">
               <h3 className="text-sm font-black text-[#0f2b46]">بيانات التواصل الرسمية</h3>
-              <a href={`mailto:${officialContact.email}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
-                <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Mail className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">البريد الرسمي</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.email}</p>
+              {officialContact.legalEntity && (
+                <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
+                  <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><CheckCircle2 className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">الكيان القانوني</p>
+                    <p className="text-xs font-black text-[#0f2b46]">{officialContact.legalEntity}</p>
+                    {officialContact.registrationNumber && <p className="mt-1 text-[10px] font-bold text-slate-400">رقم التسجيل: {officialContact.registrationNumber}</p>}
+                  </div>
                 </div>
-              </a>
-              <a href={ACADEMY_INFO.officialSite} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
-                <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><Globe className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">الموقع الرسمي</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">aactacademy.com/ar</p>
+              )}
+              {officialContact.email && (
+                <a href={`mailto:${officialContact.email}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+                  <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Mail className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">البريد الرسمي</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.email}</p>
+                  </div>
+                </a>
+              )}
+              {officialContact.phone && (
+                <a href={`tel:${officialContact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+                  <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">الهاتف الرسمي</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.phone}</p>
+                  </div>
+                </a>
+              )}
+              {officialContact.whatsapp && (
+                <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+                  <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">واتساب رسمي{officialContact.responsiblePerson ? ` — ${officialContact.responsiblePerson}` : ''}</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.whatsapp}</p>
+                  </div>
+                </a>
+              )}
+              {officialContact.address && (
+                <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
+                  <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><MapPin className="h-4 w-4" /></span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">العنوان الرسمي</p>
+                    <p className="text-xs font-black text-[#0f2b46]">{officialContact.address}</p>
+                  </div>
                 </div>
-              </a>
-              <a href={`tel:${officialContact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
-                <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">الهاتف والواتساب الرسمي</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.phone}</p>
-                </div>
-              </a>
-              <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
-                <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">تواصل سريع — {officialContact.responsiblePerson}</p>
-                  <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.whatsapp}</p>
-                </div>
-              </a>
-              <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
-                <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><MapPin className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">مقر الأكاديمية</p>
-                  <p className="text-xs font-black text-[#0f2b46]">{officialContact.address}</p>
-                  {officialContact.registrationNumber && <p className="mt-1 text-[10px] font-bold text-slate-400">رقم التسجيل: {officialContact.registrationNumber}</p>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-[#0f2b46]/10">
-            <CardContent className="space-y-3 p-5">
-              <div className="flex items-center gap-3">
-                <span className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><Code2 className="h-4 w-4" /></span>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">تعريف بالمبرمج</p>
-                  <h3 className="text-sm font-black text-[#0f2b46]">{ACADEMY_INFO.developer.name} "{ACADEMY_INFO.developer.kunya}"</h3>
-                </div>
-              </div>
-              <p className="text-xs font-bold leading-6 text-slate-600">{ACADEMY_INFO.developer.bio}</p>
-              <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-xs font-black text-[#0f2b46]">
-                <a href={`tel:${ACADEMY_INFO.developer.phone}`} dir="ltr" className="text-right hover:text-[#a8841a]">جوال: {ACADEMY_INFO.developer.phoneDisplay}</a>
-                <a href={`mailto:${ACADEMY_INFO.developer.email}`} dir="ltr" className="text-right hover:text-[#a8841a]">Email: {ACADEMY_INFO.developer.email}</a>
-              </div>
+              )}
+              {!officialContact.email && !officialContact.phone && !officialContact.whatsapp && !officialContact.address && (
+                <p className="rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-slate-500">
+                  لم تُضبط بيانات التواصل الرسمية بعد. يمكن تحديثها من صفحة الرسوم والقواعد ضمن OFFICIAL_CONTACT.
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card className="border-[#0f2b46]/10">
