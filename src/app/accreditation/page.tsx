@@ -134,13 +134,13 @@ export default async function AccreditationPage() {
         <div className="relative mx-auto max-w-6xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#e0b83a]/30 bg-white/10 px-4 py-2 text-xs font-black text-[#e0b83a]">
             <ShieldCheck className="h-4 w-4" />
-            صفحة الاعتماد والتحقق الرسمية
+            صفحة التراخيص والوثائق الرسمية
           </div>
           <h1 className="mt-5 max-w-3xl text-4xl font-black leading-tight md:text-5xl">
-            الاعتماد المهني، التحقق من الشهادات، ودليل الجهات المعتمدة
+            التراخيص والوثائق الرسمية وروابط التحقق
           </h1>
           <p className="mt-5 max-w-3xl text-sm font-bold leading-8 text-[#f5f0e1]/75 md:text-base">
-            هذه الصفحة تجمع روابط التحقق الرسمية وخيارات الاعتماد المنشورة في المنصة. لا تعرض الصفحة أي أرقام تراخيص أو شراكات غير مدخلة في إعدادات الأكاديمية أو بياناتها الرسمية.
+            هذه الصفحة مخصصة لعرض وثائق الترخيص والشراكات وروابط التحقق الرسمية. لا تعرض الصفحة أي أرقام تراخيص أو شراكات غير مدخلة في إعدادات الأكاديمية أو بياناتها الرسمية.
           </p>
           {accreditation.trustNote && (
             <p className="mt-4 max-w-3xl rounded-2xl border border-[#e0b83a]/20 bg-white/10 px-4 py-3 text-xs font-bold leading-6 text-[#f5f0e1]/80">
