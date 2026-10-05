@@ -217,6 +217,14 @@ export function ApplyView() {
   const [replacementLoading, setReplacementLoading] = useState<string | null>(null)
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
+  const statusLabelFor = (statusValue: string, fallbackLabel?: string) => {
+    const base = STATUS_LABEL[statusValue] || { text: fallbackLabel || statusValue, cls: 'bg-slate-100 text-slate-600' }
+    if (statusValue === 'AWAITING_FEE') {
+      return { ...base, text: `بانتظار سداد رسوم التقديم (${applicationFee}$)` }
+    }
+    return base
+  }
+
   useEffect(() => {
     let alive = true
     fetch('/api/settings', { headers: { Accept: 'application/json' } })
