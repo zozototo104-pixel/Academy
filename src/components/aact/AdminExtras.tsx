@@ -1248,6 +1248,34 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const patchTemplateLayout = (template: CertificateTemplateItem, field: string, patch: Record<string, any>) => {
+    const nextLayout = templateLayout(template.layoutJson)
+    const current = nextLayout[field] || {}
+    const updated = { ...current, ...patch }
+    setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, [field]: updated } } : t))
+  }
+
+  const moveTemplateField = (template: CertificateTemplateItem, field: string, clientX: number, clientY: number) => {
+    const rect = templateCanvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.max(2, Math.min(98, ((clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(2, Math.min(98, ((clientY - rect.top) / rect.height) * 100))
+    patchTemplateLayout(template, field, { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) })
+  }
+
+  const saveTemplateLayout = async (template: CertificateTemplateItem) => {
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'PATCH', body: JSON.stringify({ layoutJson: templateLayout(template.layoutJson) }) })
+      toast({ title: 'تم حفظ أماكن حقول القالب', description: 'ستستخدم الشهادات هذا التخطيط في المعاينة والطباعة.' })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ التخطيط', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const filteredCerts = certs
