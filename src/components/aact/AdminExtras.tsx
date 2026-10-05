@@ -1338,6 +1338,7 @@ export function AdminSettingsTab() {
       )
     }
     if (d.key === 'ACCREDITATION_PAGE') {
+      {
       const emptyProfile: AccreditationAdminProfile = {
         licenseNumber: '',
         licenseVerifyUrl: '',
