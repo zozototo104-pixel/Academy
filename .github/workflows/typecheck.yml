@@ -8,6 +8,76 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    name: ESLint warning baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Collect ESLint warning baseline
+        id: eslint-baseline
+        shell: bash
+        run: |
+          set +e
+          bunx eslint . --format json --output-file eslint-report.json --max-warnings=999999
+          status=$?
+          set -e
+          node <<'NODE'
+          const fs = require('fs')
+          const reportPath = 'eslint-report.json'
+          const rows = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : []
+          let warnings = 0
+          let errors = 0
+          const byRule = new Map()
+          for (const file of rows) {
+            warnings += file.warningCount || 0
+            errors += file.errorCount || 0
+            for (const msg of file.messages || []) {
+              if (msg.severity !== 1) continue
+              const rule = msg.ruleId || 'unknown'
+              byRule.set(rule, (byRule.get(rule) || 0) + 1)
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `warnings=${warnings}\nerrors=${errors}\n`)
+          const sorted = [...byRule.entries()].sort((a, b) => b[1] - a[1])
+          const summary = [
+            '## ESLint warning baseline',
+            '',
+            `Total warnings: **${warnings}**`,
+            `Total errors: **${errors}**`,
+            '',
+            '| Rule | Warnings |',
+            '| --- | ---: |',
+            ...(sorted.length ? sorted.map(([rule, count]) => `| \`${rule}\` | ${count} |`) : ['| _none_ | 0 |']),
+            '',
+            'Copy these counts into the PR description before turning the baseline into a fixed max-warnings value.',
+          ].join('\n')
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`)
+          NODE
+          exit "$status"
+
+      - name: Enforce current ESLint warning ceiling
+        shell: bash
+        run: bunx eslint . --max-warnings=${{ steps.eslint-baseline.outputs.warnings }}
+
+      - name: Upload ESLint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.json
+          if-no-files-found: ignore
+
   typecheck:
     name: TypeScript full check
     runs-on: ubuntu-latest
