@@ -87,6 +87,16 @@ export function FloatingActions() {
   }, [])
 
   useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0]?.role !== 'assistant') return prev
+      return [{
+        role: 'assistant',
+        content: `أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. أرقام التواصل الرسمية: ${officialContactText}`,
+      }]
+    })
+  }, [officialContactText])
+
+  useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
