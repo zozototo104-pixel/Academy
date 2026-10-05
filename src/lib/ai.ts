@@ -184,7 +184,11 @@ async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext
     getSettings(),
     loadPublicProgramCatalog(),
   ])
-  const officialContact = parseSettingsJson<Record<string, string>>(settings.OFFICIAL_CONTACT, {})
+  const officialContact = parseSettingsJson<Record<string, unknown>>(settings.OFFICIAL_CONTACT, {})
+  const officialNumbers = Array.from(new Set([
+    ...contactList(officialContact.whatsapp, officialContact.whatsapps),
+    ...contactList(officialContact.phone, officialContact.phones),
+  ]))
   const doctorateDefault = settingNum(settings, 'FEE_DOCTORATE', 0)
   const mastersDefault = settingNum(settings, 'FEE_MASTERS', 0)
   const diplomaDefault = settingNum(settings, 'FEE_DIPLOMAS_MIN', 0)
