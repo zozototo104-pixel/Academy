@@ -243,6 +243,22 @@ export function ApplyView() {
 
   useEffect(() => {
     let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        setGeneralDisclosureConsentText(d.values?.DISCLOSURE_CONSENT_TEXT || '')
+        setApplicationFee(Number(d.values?.FEE_APPLICATION || 30))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
     let hadCache = false
 
     const cached = readCachedPrograms()
