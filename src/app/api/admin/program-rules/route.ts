@@ -119,6 +119,18 @@ function programSnapshot(program: any) {
   }
 }
 
+function revalidatePublicProgramSurfaces(slugs: Array<string | null | undefined> = []) {
+  const paths = new Set(['/', '/programs', '/apply', '/accreditation', '/sitemap.xml'])
+  slugs.map((slug) => String(slug || '').trim()).filter(Boolean).forEach((slug) => paths.add(`/programs/${slug}`))
+  for (const path of paths) {
+    try {
+      revalidatePath(path)
+    } catch (error) {
+      console.warn('program revalidatePath failed:', path, error)
+    }
+  }
+}
+
 // GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها، بما فيها غير النشطة حتى يمكن إعادة تفعيلها
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
