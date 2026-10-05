@@ -209,8 +209,8 @@ async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext
     thesisMaxMonths: settingNum(settings, 'THESIS_MAX_MONTHS', 6),
     agentCommissionRate: settingNum(settings, 'AGENT_COMMISSION_RATE', Number(ACADEMY_INFO.agentCommission || 25)),
     committeeMemberFee: settingNum(settings, 'COMMITTEE_MEMBER_FEE', Number(ACADEMY_INFO.researchFee || 100)),
-    contactEmail: String(officialContact.email || ACADEMY_INFO.email),
-    contactWhatsapp: String(officialContact.whatsapp || ACADEMY_INFO.whatsapp),
+    contactEmail: String(officialContact.email || 'غير مضبوط في الإعدادات'),
+    contactWhatsapp: officialNumbers.length ? officialNumbers.join(' / ') : 'غير مضبوط في الإعدادات',
   }
 }
 
