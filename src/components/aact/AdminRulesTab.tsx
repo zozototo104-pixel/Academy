@@ -489,6 +489,8 @@ export function AdminRulesTab() {
       })
       setPrograms((ps) => [d.item, ...ps])
       selectProgram(d.item)
+      setCreateProgramOpen(false)
+      setNewProgramTitleAr('')
       toast({ title: 'تم إنشاء برنامج جديد كمسودة غير منشورة', description: 'أكمل بياناته ثم فعّله من مفتاح النشر داخل البيانات الأساسية.' })
     } catch (e: any) {
       toast({ title: e?.message || 'تعذر إنشاء البرنامج', variant: 'destructive' })
