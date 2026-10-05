@@ -35,6 +35,7 @@ export function CertificateDialog({
   onClose: () => void
 }) {
   const [qr, setQr] = useState<string | null>(null)
+  const [template, setTemplate] = useState<{ id: string; name: string; imageUrl: string } | null>(null)
 
   useEffect(() => {
     if (!certificate || !open) return
