@@ -6,6 +6,7 @@ function serializeTemplate(t: any) {
     id: t.id,
     name: t.name,
     certificateType: t.certificateType,
+    layoutJson: t.layoutJson || null,
     imageUrl: `/api/certificates/templates/${t.id}/image`,
   } : null
 }
