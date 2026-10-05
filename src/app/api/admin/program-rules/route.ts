@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '@/lib/db'
@@ -52,6 +53,42 @@ function normalizeFeaturesForDb(features?: string[]) {
   return JSON.stringify(features.map((item) => item.trim()).filter(Boolean).slice(0, 12))
 }
 
+function baseSlugFromText(text: string, fallback: string) {
+  const slug = String(text || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70)
+  return slug || fallback
+}
+
+async function uniqueProgramSlug(titleAr: string, titleEn: string | null | undefined, category: string) {
+  const fallback = `${String(category || 'program').toLowerCase()}-${Date.now().toString(36)}`
+  const base = baseSlugFromText(titleEn || titleAr, fallback)
+  let candidate = base
+  let i = 2
+  while (await db.program.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+    candidate = `${base}-${i}`
+    i += 1
+  }
+  return candidate
+}
+
+const programCreateSchema = programPatchSchema.extend({
+  titleAr: z.string().trim().min(1, 'اسم البرنامج العربي مطلوب').max(220),
+  category: z.enum(PROGRAM_CATEGORIES),
+})
+
+function defaultCredentialType(category: string) {
+  if (category === 'MASTERS') return 'PROFESSIONAL_MASTER'
+  if (category === 'DOCTORATE') return 'PROFESSIONAL_DOCTORATE'
+  if (category === 'DIPLOMA') return 'DIPLOMA'
+  if (category === 'SERVICE') return 'SERVICE'
+  return 'PROFESSIONAL_CERTIFICATE'
+}
+
 function parseProgramFeatures(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()).slice(0, 12)
   const text = String(raw || '').trim()
@@ -82,7 +119,19 @@ function programSnapshot(program: any) {
   }
 }
 
-// GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها (المخصصة + المفعّلة فعلياً)
+function revalidatePublicProgramSurfaces(slugs: Array<string | null | undefined> = []) {
+  const paths = new Set(['/', '/programs', '/apply', '/accreditation', '/sitemap.xml'])
+  slugs.map((slug) => String(slug || '').trim()).filter(Boolean).forEach((slug) => paths.add(`/programs/${slug}`))
+  for (const path of paths) {
+    try {
+      revalidatePath(path)
+    } catch (error) {
+      console.warn('program revalidatePath failed:', path, error)
+    }
+  }
+}
+
+// GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها، بما فيها غير النشطة حتى يمكن إعادة تفعيلها
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
 export async function GET() {
@@ -91,7 +140,6 @@ export async function GET() {
     return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
   }
   const programs = await db.program.findMany({
-    where: { active: true },
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
     select: {
       id: true,
@@ -132,6 +180,61 @@ export async function GET() {
   })
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const payload = programCreateSchema.parse(body.program || body)
+    const lastProgram = await db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })
+    const sortOrder = payload.sortOrder ?? Number(lastProgram?.order || 0) + 10
+    const slug = await uniqueProgramSlug(payload.titleAr, payload.titleEn, payload.category)
+    const saved = await db.program.create({
+      data: {
+        slug,
+        titleAr: payload.titleAr,
+        titleEn: payload.titleEn || null,
+        description: payload.description || '',
+        category: payload.category,
+        hours: payload.hours === undefined ? 1 : Number(payload.hours),
+        price: payload.price === undefined ? null : payload.price === null ? null : Number(payload.price),
+        icon: payload.icon || 'graduation-cap',
+        features: normalizeFeaturesForDb(payload.features) || '[]',
+        active: payload.active ?? false,
+        order: sortOrder,
+        credentialType: payload.credentialType || defaultCredentialType(payload.category),
+        trademarkNotice: payload.trademarkNotice || null,
+        disclosureConsentText: payload.disclosureConsentText || null,
+      },
+    })
+
+    clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces([saved.slug])
+    await audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`)
+
+    const flow = getServiceFlow(saved.slug)
+    const isStudyProgram = flow ? flow.isStudyProgram : saved.category !== 'SERVICE'
+    return NextResponse.json({
+      ok: true,
+      program: programSnapshot(saved),
+      item: {
+        ...saved,
+        features: parseProgramFeatures(saved.features),
+        sortOrder: saved.order,
+        program: programSnapshot(saved),
+        rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(saved) : resolveRules(saved.category, saved.admissionRules, isStudyProgram)),
+        custom: false,
+      },
+    }, { status: 201 })
+  } catch (e: any) {
+    console.error('program create error:', e)
+    return NextResponse.json({ error: e?.message || 'تعذر إنشاء البرنامج' }, { status: 500 })
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getCurrentUser()
@@ -162,6 +265,7 @@ export async function PATCH(req: NextRequest) {
       data: { price: payload.price, hours: payload.hours },
     })
     clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces(visiblePrograms.map((p) => p.slug))
 
     const changedSummary = visiblePrograms
       .map((p) => `${p.titleAr}: السعر ${p.price ?? 'فارغ'} ← ${payload.price}، الساعات ${p.hours ?? 'فارغ'} ← ${payload.hours}`)
@@ -189,7 +293,7 @@ export async function PUT(req: NextRequest) {
     }
     const body = await req.json().catch(() => ({}))
     const { programId } = body as { programId?: string }
-    const rules = (body.rules || {}) as (AdmissionRules & { reset?: boolean }) | undefined
+    const rules = body.rules === undefined ? undefined : body.rules as (AdmissionRules & { reset?: boolean }) | undefined
     const programPatchRaw = body.programPatch || body.program || null
     const programPatch: ProgramPatchInput | null = programPatchRaw ? programPatchSchema.parse(programPatchRaw) : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
@@ -224,6 +328,7 @@ export async function PUT(req: NextRequest) {
     if (rules?.reset) {
       await db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } })
       clearPublicProgramsCache()
+      revalidatePublicProgramSurfaces([program.slug])
       const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
       await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
@@ -273,6 +378,7 @@ export async function PUT(req: NextRequest) {
 
     const saved = await db.program.update({ where: { id: programId }, data })
     clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces([program.slug, saved.slug])
     const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
     const after = programSnapshot(saved)
     const changes = pickChangedFields(before, after)

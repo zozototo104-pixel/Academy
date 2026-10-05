@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
+import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
+import { getOfficialContact } from '@/lib/settings'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
@@ -496,6 +498,114 @@ async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reas
   }, conversationKey(message.from))
 }
 
+type WhatsAppContactIntentKind = 'REQUEST_OFFICIAL_CONTACT' | 'PROVIDED_OWN_CONTACT' | 'OTHER'
+
+type WhatsAppContactIntent = {
+  intent: WhatsAppContactIntentKind
+  confidence: number
+  reason?: string
+}
+
+function contactValues(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
+function normalizeIntentText(text: string): string {
+  return String(text || '')
+    .replace(/[\u064b-\u065f\u0670]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .toLowerCase()
+    .trim()
+}
+
+function hasPhoneLikeValue(text: string): boolean {
+  return /(?:\+?\d[\d\s().-]{6,}\d)/.test(text)
+}
+
+function looksLikeContactIntentCandidate(text: string): boolean {
+  const n = normalizeIntentText(text)
+  if (hasPhoneLikeValue(n)) return true
+  return /(?:تواصل|التواصل|واتساب|واتس|رقم|ارقام|نمره|نمرة|هاتف|جوال|موبايل|اتصل|اتصال|كلم|كلمني|احكي|بريد|ايميل|email|phone|whatsapp|call|contact)/i.test(n)
+}
+
+function fallbackContactIntent(text: string): WhatsAppContactIntent {
+  const n = normalizeIntentText(text)
+  const hasPhone = hasPhoneLikeValue(n)
+  const givesOwnContact = /(?:رقمي|نمري|نمرتي|هذا رقمي|هذا الرقم|خد رقمي|خذ رقمي|تواصلوا معي|تواصل معي|اتصلوا علي|اتصل علي|كلمني|كلموني|ابعثولي|راسلوني|على هذا الرقم|ع هذا الرقم)/.test(n)
+  if (hasPhone && givesOwnContact) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.78, reason: 'fallback-own-contact' }
+  if (hasPhone && /^(?:\+?\d[\d\s().-]{6,}\d)\s*$/.test(n)) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.72, reason: 'fallback-phone-only' }
+
+  const asksForOfficialContact = /(?:شو|ما|ما هي|ما هو|وين|كيف|اريد|بدي|ابغي|ابغى|ممكن|اعطيني|ارسل|ارسلوا|زودني|احتاج).{0,40}(?:رقمكم|ارقامكم|رقم التواصل|ارقام التواصل|واتسابكم|واتسكم|هاتفكم|جوالكم|ايميلكم|بريدكم|التواصل معكم|طرق التواصل|احكي معكم|اتصل فيكم|اكلمكم)/.test(n)
+    || /(?:رقم|ارقام|واتساب|واتس|هاتف|جوال|ايميل|بريد).{0,24}(?:الاكاديميه|الاكاديمية|عندكم|رسمي|الرسمية|التواصل)/.test(n)
+  if (asksForOfficialContact) return { intent: 'REQUEST_OFFICIAL_CONTACT', confidence: 0.76, reason: 'fallback-official-contact' }
+
+  return { intent: 'OTHER', confidence: 0.4, reason: 'fallback-other' }
+}
+
+function parseContactIntentJson(raw: string): WhatsAppContactIntent | null {
+  try {
+    const parsed = JSON.parse(String(raw || '').trim())
+    const intent = String(parsed.intent || '').trim() as WhatsAppContactIntentKind
+    if (!['REQUEST_OFFICIAL_CONTACT', 'PROVIDED_OWN_CONTACT', 'OTHER'].includes(intent)) return null
+    const confidence = Number(parsed.confidence)
+    return {
+      intent,
+      confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0,
+      reason: String(parsed.reason || '').slice(0, 200),
+    }
+  } catch {
+    return null
+  }
+}
+
+async function classifyWhatsAppContactIntent(text: string): Promise<WhatsAppContactIntent> {
+  if (!looksLikeContactIntentCandidate(text)) return { intent: 'OTHER', confidence: 0.95, reason: 'not-contact-candidate' }
+
+  const fallback = fallbackContactIntent(text)
+  if (fallback.confidence >= 0.78) return fallback
+
+  try {
+    if (!(await ensureGeminiKey())) return fallback
+    const raw = await withTimeout(geminiCompleteJson({
+      system: `صنّف نية رسالة واتساب واحدة بخصوص أرقام التواصل فقط. أرجع JSON صالحاً فقط بالشكل {"intent":"...","confidence":0..1,"reason":"..."}.
+الأنواع:
+REQUEST_OFFICIAL_CONTACT = المستخدم يسأل عن أرقام/واتساب/هاتف/بريد/طرق التواصل الرسمية للأكاديمية أو يريد أن يعرف كيف يتواصل مع الإدارة.
+PROVIDED_OWN_CONTACT = المستخدم يعطي رقمه أو يقول تواصلوا معي/اتصلوا علي/هذا رقمي أو يريد من الإدارة التواصل معه على رقم يقدمه.
+OTHER = أي شيء آخر، بما فيه سؤال عن سعر أو برنامج أو قبول حتى لو ذُكرت كلمة رقم بمعنى رقم طلب أو رقم برنامج.
+فرّق جيداً بين "شو أرقام التواصل؟" و"خد رقمي". لا تختار REQUEST_OFFICIAL_CONTACT لمجرد وجود رقم إذا كان الرقم يبدو رقم المستخدم نفسه.`,
+      history: [{ role: 'user', text }],
+      temperature: 0,
+      maxOutputTokens: 180,
+    }), 6_000, 'whatsapp_contact_intent')
+    const parsed = parseContactIntentJson(raw)
+    if (parsed && parsed.confidence >= 0.6) return parsed
+  } catch (error: any) {
+    console.warn('WhatsApp contact intent classifier failed:', String(error?.message || error || 'failed').slice(0, 220))
+  }
+  return fallback
+}
+
+async function buildOfficialContactReply(): Promise<string> {
+  const contact: any = await getOfficialContact().catch(() => ({}))
+  const whatsapps = contactValues(contact.whatsapp, contact.whatsapps)
+  const phones = contactValues(contact.phone, contact.phones)
+  const email = String(contact.email || '').trim()
+  const lines = ['بيانات التواصل الرسمية للأكاديمية:']
+  if (whatsapps.length) lines.push(`واتساب: ${whatsapps.join(' / ')}`)
+  if (phones.length) lines.push(`هاتف: ${phones.join(' / ')}`)
+  if (email) lines.push(`البريد الرسمي: ${email}`)
+  if (contact.responsiblePerson) lines.push(`مسؤول التواصل: ${String(contact.responsiblePerson).trim()}`)
+  if (lines.length === 1) return 'بيانات التواصل الرسمية غير مضبوطة حالياً في الإعدادات. يمكنك فتح صفحة التواصل الرسمية من الموقع لمتابعة طلبك.'
+  return `${lines.join('\n')}\n\nإذا أرسلت رقمك للتواصل، سنحوّله للموظف المختص للمتابعة.`
+}
+
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
   const handoffKey = conversationKey(message.from)
   const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
@@ -516,6 +626,35 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
         content: item.text,
       }))
     : []
+
+  const contactIntent = await classifyWhatsAppContactIntent(text)
+  if (contactIntent.intent !== 'OTHER' && contactIntent.confidence >= 0.62) {
+    await auditWhatsAppWebhook('WHATSAPP_CONTACT_INTENT_CLASSIFIED', {
+      from: maskPhone(message.from),
+      text: text.slice(0, 180),
+      decision: contactIntent,
+    }, message.id)
+
+    if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT') {
+      return await buildOfficialContactReply()
+    }
+
+    if (contactIntent.intent === 'PROVIDED_OWN_CONTACT') {
+      if (!handoffOpen) {
+        const handoff = await createHumanHandoffRequest({
+          user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
+          message: text,
+          source: 'WHATSAPP',
+          sourceRef: handoffKey,
+        })
+        await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      }
+      return handoffOpen
+        ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
+        : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
+    }
+  }
+
   const handoffIntent = await analyzeHumanHandoffIntent(text, { promptActive, handoffOpen, recentMessages })
   await auditWhatsAppWebhook('WHATSAPP_HANDOFF_INTENT_ANALYZED', {
     from: maskPhone(message.from),

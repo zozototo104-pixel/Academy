@@ -10,18 +10,39 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Mail, MessageSquareText, Loader2, Send, CheckCircle2, Phone, MapPin } from 'lucide-react'
 
+type OfficialContactState = {
+  legalEntity: string
+  registrationNumber: string
+  address: string
+  email: string
+  phone: string
+  phones: string[]
+  whatsapp: string
+  whatsapps: string[]
+  responsiblePerson: string
+}
+
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
 export function ContactView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' })
-  const [officialContact, setOfficialContact] = useState({
+  const [officialContact, setOfficialContact] = useState<OfficialContactState>({
     legalEntity: '',
     registrationNumber: '',
     address: '',
     email: '',
     phone: '',
+    phones: [],
     whatsapp: '',
+    whatsapps: [],
     responsiblePerson: '',
   })
 
@@ -37,13 +58,17 @@ export function ContactView() {
         try {
           const parsed = JSON.parse(d.values?.OFFICIAL_CONTACT || '{}')
           if (parsed && typeof parsed === 'object') {
+            const phones = contactList(parsed.phone, parsed.phones)
+            const whatsapps = contactList(parsed.whatsapp, parsed.whatsapps)
             setOfficialContact((prev) => ({
               legalEntity: String(parsed.legalEntity || prev.legalEntity),
               registrationNumber: String(parsed.registrationNumber || prev.registrationNumber),
               address: String(parsed.address || prev.address),
               email: String(parsed.email || prev.email),
-              phone: String(parsed.phone || prev.phone),
-              whatsapp: String(parsed.whatsapp || prev.whatsapp),
+              phone: phones[0] || prev.phone,
+              phones,
+              whatsapp: whatsapps[0] || prev.whatsapp,
+              whatsapps,
               responsiblePerson: String(parsed.responsiblePerson || prev.responsiblePerson),
             }))
           }
@@ -175,24 +200,24 @@ export function ContactView() {
                   </div>
                 </a>
               )}
-              {officialContact.phone && (
-                <a href={`tel:${officialContact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              {officialContact.phones.map((phone, index) => (
+                <a key={phone} href={`tel:${phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                   <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400">الهاتف الرسمي</p>
-                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.phone}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{index === 0 ? 'الهاتف الرسمي' : `هاتف رسمي إضافي ${index + 1}`}</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{phone}</p>
                   </div>
                 </a>
-              )}
-              {officialContact.whatsapp && (
-                <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              ))}
+              {officialContact.whatsapps.map((whatsapp, index) => (
+                <a key={whatsapp} href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                   <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400">واتساب رسمي{officialContact.responsiblePerson ? ` — ${officialContact.responsiblePerson}` : ''}</p>
-                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.whatsapp}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{index === 0 ? 'واتساب رسمي' : `واتساب رسمي إضافي ${index + 1}`}{index === 0 && officialContact.responsiblePerson ? ` — ${officialContact.responsiblePerson}` : ''}</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{whatsapp}</p>
                   </div>
                 </a>
-              )}
+              ))}
               {officialContact.address && (
                 <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
                   <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><MapPin className="h-4 w-4" /></span>
@@ -202,7 +227,7 @@ export function ContactView() {
                   </div>
                 </div>
               )}
-              {!officialContact.email && !officialContact.phone && !officialContact.whatsapp && !officialContact.address && (
+              {!officialContact.email && officialContact.phones.length === 0 && officialContact.whatsapps.length === 0 && !officialContact.address && (
                 <p className="rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-slate-500">
                   لم تُضبط بيانات التواصل الرسمية بعد. يمكن تحديثها من صفحة الرسوم والقواعد ضمن OFFICIAL_CONTACT.
                 </p>

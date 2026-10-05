@@ -1,21 +1,21 @@
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
-import { DEMO_REPRESENTATIVES, representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
+import { representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentative(slug: string): Promise<{ rep: RepresentativePublicProfile | null; demo: boolean }> {
+async function loadRepresentative(slug: string): Promise<RepresentativePublicProfile | null> {
   try {
     const row = await db.academyRepresentative.findFirst({
       where: { slug, deletedAt: null, status: 'ACTIVE' },
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
-    if (row) return { rep: serializeRepresentative(row, null, true), demo: false }
-  } catch {}
-  const demo = DEMO_REPRESENTATIVES.find((item) => item.slug === slug) || null
-  return { rep: demo, demo: !!demo }
+    return row ? serializeRepresentative(row, null, true) : null
+  } catch {
+    return null
+  }
 }
 
 function initials(name: string) {
@@ -33,7 +33,7 @@ async function makeQr(token?: string | null) {
 
 export default async function RepresentativeProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const { rep, demo } = await loadRepresentative(slug)
+  const rep = await loadRepresentative(slug)
   if (!rep) {
     return <main dir="rtl" className="min-h-screen bg-slate-50 p-8 text-center text-[#0f2b46]"><h1 className="text-3xl font-black">لم يتم العثور على الممثل</h1><Link href="/representatives" className="mt-6 inline-block rounded-full bg-[#0f2b46] px-6 py-3 text-sm font-black text-white">العودة للقائمة</Link></main>
   }
@@ -49,7 +49,6 @@ export default async function RepresentativeProfilePage({ params }: { params: Pr
             </div>
           </div>
           <div>
-            {demo && <p className="mb-3 inline-flex rounded-full bg-amber-300/15 px-4 py-1 text-xs font-black text-amber-100">بيانات تجريبية للعرض</p>}
             <p className="text-sm font-black text-[#d2ad5a]">{rep.displayTitle || 'ممثل الأكاديمية'}</p>
             <h1 className="mt-3 text-4xl font-black leading-tight sm:text-6xl">{rep.fullName}</h1>
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-black">

@@ -19,6 +19,7 @@ export const PUBLIC_SEO_ROUTES = [
   { path: '/apply', title: 'طلب الالتحاق', description: 'قدّم طلب الالتحاق أو طلب خدمة مهنية عبر منصة AACT.', priority: 0.85 },
   { path: '/verify', title: 'التحقق من الشهادات', description: 'تحقق من صحة شهادات AACT عبر الرقم التسلسلي أو رمز QR وملف JSON قابل للتحقق.', priority: 0.85 },
   { path: '/certificates', title: 'التحقق من الشهادات', description: 'صفحة التحقق العامة من شهادات الأكاديمية الأمريكية للاستشارات والتدريب.', priority: 0.8 },
+  { path: '/accreditation', title: 'الاعتماد والتحقق', description: 'صفحة الاعتماد والتحقق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب وروابط التحقق والدليل العام.', priority: 0.8 },
   { path: '/directory', title: 'دليل الاعتمادات', description: 'دليل الاعتمادات والعضويات والجهات المعتمدة لدى AACT.', priority: 0.7 },
   { path: '/about', title: 'من نحن', description: 'تعرف على الأكاديمية الأمريكية للاستشارات والتدريب ورسالتها وبرامجها.', priority: 0.7 },
   { path: '/contact', title: 'تواصل معنا', description: 'تواصل مع فريق AACT للاستفسارات وطلبات الدعم.', priority: 0.65 },

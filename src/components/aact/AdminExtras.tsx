@@ -1189,7 +1189,8 @@ export function AdminSettingsTab() {
   const save = async () => {
     setSaving(true)
     try {
-      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
+      const res = await api<{ values?: Record<string, string> }>('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
+      if (res.values) setValues((prev) => ({ ...prev, ...res.values }))
       toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
@@ -1289,30 +1290,103 @@ export function AdminSettingsTab() {
       )
     }
     if (d.key === 'OFFICIAL_CONTACT') {
-      const contact = readJsonSetting('OFFICIAL_CONTACT', { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })
-      const fields: Array<[string, string, string]> = [
-        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب'],
-        ['registrationNumber', 'رقم التسجيل', ''],
-        ['address', 'العنوان الرسمي', ''],
-        ['email', 'الإيميل الرسمي', 'info@example.com'],
-        ['phone', 'الهاتف الرسمي', '+1 ...'],
-        ['whatsapp', 'رقم الواتساب', '+1 ...'],
-        ['responsiblePerson', 'الشخص المسؤول', ''],
+      const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
+      const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
+      const contactItems = (primary: string, list: string[]) => {
+        const raw = [primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim())
+        const clean = Array.from(new Set(raw.filter(Boolean)))
+        const hasBlankRow = raw.some((v) => !v)
+        return clean.length ? (hasBlankRow ? [...clean, ''] : clean) : ['']
+      }
+      const patchContactItems = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', items: string[]) => {
+        const raw = items.map((v) => String(v || '').trim())
+        const clean = Array.from(new Set(raw.filter(Boolean)))
+        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: clean[0] || '', [listKey]: raw.length ? raw : [] }, contactFallback)
+      }
+      const updateContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[], index: number, value: string) => {
+        const next = current.length ? [...current] : ['']
+        next[index] = value
+        patchContactItems(listKey, primaryKey, next)
+      }
+      const addContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[]) => {
+        patchContactItems(listKey, primaryKey, [...current, ''])
+      }
+      const removeContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[], index: number) => {
+        patchContactItems(listKey, primaryKey, current.filter((_, i) => i !== index))
+      }
+      const phoneItems = contactItems(contact.phone, contact.phones)
+      const whatsappItems = contactItems(contact.whatsapp, contact.whatsapps)
+      const fields: Array<[string, string, string, 'rtl' | 'ltr']> = [
+        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب', 'rtl'],
+        ['registrationNumber', 'رقم التسجيل', '', 'rtl'],
+        ['address', 'العنوان الرسمي', '', 'rtl'],
+        ['email', 'الإيميل الرسمي', 'info@example.com', 'ltr'],
+        ['responsiblePerson', 'الشخص المسؤول', '', 'rtl'],
       ]
       return (
         <div className="grid gap-3 sm:grid-cols-2">
-          {fields.map(([key, label, placeholder]) => (
+          {fields.map(([key, label, placeholder, dir]) => (
             <div key={key} className="space-y-1.5">
               <Label className="text-[11px] font-bold text-slate-600">{label}</Label>
               <Input
-                dir={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'ltr' : 'rtl'}
-                className={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'text-left font-bold' : 'font-bold'}
+                dir={dir}
+                className={dir === 'ltr' ? 'text-left font-bold' : 'font-bold'}
                 value={contact[key] || ''}
                 placeholder={placeholder}
-                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })}
+                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, contactFallback)}
               />
             </div>
           ))}
+          <div className="space-y-2 sm:col-span-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label className="text-[11px] font-bold text-slate-600">أرقام الهاتف الرسمية</Label>
+                <p className="text-[10px] font-bold text-slate-400">كل رقم في خانة مستقلة. أول رقم يُحفظ أيضاً كالهاتف الأساسي للتوافق.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => addContactItem('phones', 'phone', phoneItems)} className="text-[10px] font-black">
+                + إضافة هاتف
+              </Button>
+            </div>
+            {phoneItems.map((phone, index) => (
+              <div key={`phone-${index}`} className="flex gap-2">
+                <Input
+                  dir="ltr"
+                  className="text-left font-mono text-xs"
+                  value={phone}
+                  placeholder={index === 0 ? '+1 ...' : '+970 ...'}
+                  onChange={(e) => updateContactItem('phones', 'phone', phoneItems, index, e.target.value)}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={phoneItems.length === 1 && !phone} onClick={() => removeContactItem('phones', 'phone', phoneItems, index)} className="text-[10px] font-black text-red-600">
+                  حذف
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label className="text-[11px] font-bold text-slate-600">أرقام الواتساب الرسمية</Label>
+                <p className="text-[10px] font-bold text-slate-400">كل رقم في خانة مستقلة. أول رقم يستخدمه زر الواتساب العائم كرابط مباشر.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => addContactItem('whatsapps', 'whatsapp', whatsappItems)} className="text-[10px] font-black">
+                + إضافة واتساب
+              </Button>
+            </div>
+            {whatsappItems.map((whatsapp, index) => (
+              <div key={`whatsapp-${index}`} className="flex gap-2">
+                <Input
+                  dir="ltr"
+                  className="text-left font-mono text-xs"
+                  value={whatsapp}
+                  placeholder={index === 0 ? '+1 ...' : '+970 ...'}
+                  onChange={(e) => updateContactItem('whatsapps', 'whatsapp', whatsappItems, index, e.target.value)}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={whatsappItems.length === 1 && !whatsapp} onClick={() => removeContactItem('whatsapps', 'whatsapp', whatsappItems, index)} className="text-[10px] font-black text-red-600">
+                  حذف
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )
     }

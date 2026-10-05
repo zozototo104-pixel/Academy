@@ -7,6 +7,7 @@ import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervi
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
+import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
 
 export type PlatformAgentKind =
@@ -32,15 +33,35 @@ const AGENT_AR: Record<PlatformAgentKind, string> = {
   SUPPORT: 'وكيل الدعم العام',
 }
 
-const HUMAN_SUPPORT_REPLY = [
-  'أهلًا وسهلًا بك 🌟',
-  'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام التالية:',
-  '',
-  '📞 +972594403737',
-  '📞 +970 598 400 510',
-  '',
-  'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
-].join('\n')
+function officialContactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
+async function buildOfficialContactLines() {
+  const contact: any = await getOfficialContact().catch(() => ({}))
+  const whatsapps = officialContactList(contact.whatsapp, contact.whatsapps)
+  const phones = officialContactList(contact.phone, contact.phones)
+  const lines: string[] = []
+  if (whatsapps.length) lines.push(`واتساب: ${whatsapps.join(' / ')}`)
+  if (phones.length) lines.push(`هاتف: ${phones.join(' / ')}`)
+  return lines
+}
+
+async function buildHumanSupportReply() {
+  const contacts = await buildOfficialContactLines()
+  return [
+    'أهلًا وسهلًا بك 🌟',
+    contacts.length
+      ? 'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك استخدام بيانات التواصل الرسمية التالية:'
+      : 'يسعدنا خدمتك. بيانات التواصل غير مضبوطة حالياً، استخدم صفحة التواصل الرسمية من الموقع.',
+    ...contacts,
+    '',
+    'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
+  ].join('\n')
+}
 
 function normalizeArabic(text: string): string {
   return String(text || '')
@@ -171,7 +192,12 @@ async function buildDynamicPaymentMethodsReply() {
   }
   if (diag.warnings.length) lines.push('', `تنبيهات إعداد الدفع: ${diag.warnings.join(' ')}`)
   if (diag.errors.length) lines.push('', `ملاحظات مهمة: ${diag.errors.join(' ')}`)
-  lines.push('', 'للمساعدة أو التأكد من السداد يمكنك التواصل مع الإدارة عبر:', '📞 +972594403737', '📞 +970 598 400 510')
+  const contacts = await buildOfficialContactLines()
+  if (contacts.length) {
+    lines.push('', 'للمساعدة أو التأكد من السداد يمكنك التواصل مع الإدارة عبر:', ...contacts)
+  } else {
+    lines.push('', 'للمساعدة أو التأكد من السداد: بيانات التواصل غير مضبوطة حالياً، استخدم صفحة التواصل الرسمية من الموقع.')
+  }
   return lines.join('\n')
 }
 
@@ -762,7 +788,7 @@ function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): st
 - تجيب حسب صلاحية المستخدم: الطالب يرى ملفه فقط، المشرف يرى طلابه فقط، الإدارة ترى المؤشرات العامة والإدارية وتفاصيل البرامج والمناهج.
 - لا تخترع قرارات إدارية أو مالية. إذا احتاج الأمر اعتماداً بشرياً، قل إن القرار النهائي للإدارة.
 - إذا سُئلت عن تنفيذ عملية لم تُعطَ لك أداة مباشرة لها، اشرح الخطوات داخل المنصة ولا تدّعِ أنك نفذتها.
-- إذا طلب المستخدم موظفاً حقيقياً أو الإدارة أو رقماً للتواصل أو واتساب بشري، أعطه مباشرة وبأسلوب ترحيبي الأرقام: +972594403737 و +970 598 400 510، ولا تطلب منه إعادة صياغة الطلب.
+- إذا طلب المستخدم موظفاً حقيقياً أو الإدارة أو رقماً للتواصل أو واتساب بشري، استخدم بيانات التواصل الرسمية من الإعدادات فقط ولا تذكر أي أرقام مكتوبة يدوياً. إن لم تكن بيانات التواصل مضبوطة، وجّهه إلى صفحة التواصل الرسمية.
 
 توجيه الشخصيات وعدم خلط الأدوار:
 - القبول: اشرح حالة الطلب، المرفقات، الرسوم، وخطوة الاستكمال. لا تجب كعضو لجنة مناقشة.
@@ -841,8 +867,8 @@ export async function platformPublicAgentComplete(opts: {
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC' })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const publicScope = resolveAiKnowledgeScope({ channel: opts.channel, role: 'PUBLIC' })
@@ -953,8 +979,8 @@ export async function platformAgentComplete(opts: {
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
@@ -1071,12 +1097,14 @@ export async function platformAgentStream(opts: {
 
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
-    await emit(HUMAN_SUPPORT_REPLY)
-    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
+    const reply = await buildHumanSupportReply()
+    await emit(reply)
+    return { reply, agent: 'SUPPORT', engine: 'GEMINI' }
   }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
-    await emit(HUMAN_SUPPORT_REPLY)
-    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+    const reply = await buildHumanSupportReply()
+    await emit(reply)
+    return { reply, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
     const reply = await buildDynamicPaymentMethodsReply()

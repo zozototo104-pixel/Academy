@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
@@ -66,10 +65,15 @@ export async function POST(req: NextRequest) {
     const rules = app.programRef?.admissionRules
       ? resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef.admissionRules, !isServiceRequest)
       : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest))
+    const defaultDocMap = new Map(REQUIRED_DOCS.map((d) => [d.type, d.label]))
     const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
-    const requiredDocList = isServiceRequest
-      ? (rules.requiredDocuments || []).map((type) => ({ type, label: serviceDocMap.get(type) || type }))
-      : REQUIRED_DOCS
+    const ruleRequiredDocuments = Array.isArray(rules.requiredDocuments) && rules.requiredDocuments.length > 0
+      ? rules.requiredDocuments
+      : REQUIRED_DOCS.map((d) => d.type)
+    const requiredDocList = ruleRequiredDocuments.map((type) => ({
+      type,
+      label: serviceDocMap.get(type) || defaultDocMap.get(type) || type,
+    }))
     const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json({
@@ -133,12 +137,12 @@ export async function POST(req: NextRequest) {
         'ADMISSION',
         isDocumentReplacement
           ? 'تم استلام المرفقات المعدّلة'
-          : isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : 'تم استلام طلب الالتحاق — سدد رسوم التقديم (30$)',
+          : isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : `تم استلام طلب الالتحاق — سدد رسوم التقديم (${appFee}$)`,
         isDocumentReplacement
           ? `تم استلام المرفقات المعدّلة لطلبك (${app.reference}) وإعادته إلى مرحلة المتابعة مع الإدارة.`
           : isServiceRequest
             ? `طلبك (${app.reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${(app.files || []).length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
-            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/4) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة.`,
+            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة.`,
         'apply'
       )
     }
@@ -160,7 +164,7 @@ export async function POST(req: NextRequest) {
         ? `${app.reference} — استبدال مرفقات: ${replacementRequest?.docTypes.join(', ') || '—'} — عادت الحالة إلى ${nextStatus}`
         : isServiceRequest
           ? `${app.reference} — طلب خدمة: ${selectedTitle} — مرفقات: ${(app.files || []).length} + إقرار`
-          : `${app.reference} — ${selectedTitle} — مستندات: ${(app.files || []).length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
+          : `${app.reference} — ${selectedTitle} — مستندات: ${(app.files || []).length}/${requiredDocList.length} + إقرار — فاتورة رسوم تقديم ${appFee}$`
     )
 
     return NextResponse.json({
@@ -168,9 +172,9 @@ export async function POST(req: NextRequest) {
         ? `تم استلام المرفقات المعدّلة لطلبك ${app.reference} وإعادتها للإدارة للمراجعة.`
         : isServiceRequest
           ? `تم استلام طلب الخدمة! كود التتبع: ${app.reference} — ستقوم الإدارة بمراجعة الطلب وتحديد الخطوة التالية`
-          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/4) والإقرار! كود تتبع طلبك: ${app.reference} — سدد رسوم التقديم (${appFee}$) ليُحوَّل ملفك للإدارة`,
+          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار! كود تتبع طلبك: ${app.reference} — سدد رسوم التقديم (${appFee}$) ليُحوَّل ملفك للإدارة`,
       reference: app.reference,
-      applicationFee: isServiceRequest ? 0 : ADMISSION_FEES.applicationFee,
+      applicationFee: appFee,
       documentsCount: (app.files || []).length,
       invoice: feeInvoice ? {
         invoiceNo: feeInvoice.invoiceNo,

@@ -1,18 +1,64 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
-import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useRef, useState } from 'react'
 import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
 
+type ShellOfficialContact = {
+  legalEntity: string
+  registrationNumber: string
+  address: string
+  email: string
+  phones: string[]
+  whatsapps: string[]
+  responsiblePerson: string
+}
+
+const EMPTY_OFFICIAL_CONTACT: ShellOfficialContact = {
+  legalEntity: '',
+  registrationNumber: '',
+  address: '',
+  email: '',
+  phones: [],
+  whatsapps: [],
+  responsiblePerson: '',
+}
+
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
+function parseOfficialContact(raw?: string): ShellOfficialContact {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    const phones = contactList(parsed.phone, parsed.phones)
+    const whatsapps = contactList(parsed.whatsapp, parsed.whatsapps)
+    return {
+      legalEntity: String(parsed.legalEntity || ''),
+      registrationNumber: String(parsed.registrationNumber || ''),
+      address: String(parsed.address || ''),
+      email: String(parsed.email || ''),
+      phones,
+      whatsapps,
+      responsiblePerson: String(parsed.responsiblePerson || ''),
+    }
+  } catch {
+    return EMPTY_OFFICIAL_CONTACT
+  }
+}
+
 // أزرار عائمة: واتساب ذكي + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
-  const { view } = useAppStore()
+  const { view, navigate } = useAppStore()
   const [showTop, setShowTop] = useState(false)
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [officialContact, setOfficialContact] = useState<ShellOfficialContact>(EMPTY_OFFICIAL_CONTACT)
   const [floatPos, setFloatPos] = useState<{ left: number; top: number } | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -20,12 +66,35 @@ export function FloatingActions() {
   const [messages, setMessages] = useState<{ role: 'assistant' | 'user'; content: string }[]>([
     {
       role: 'assistant',
-      content: `أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. رقم واتساب الإدارة: ${ACADEMY_INFO.whatsappDisplay}.`,
+      content: 'أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. أرقام التواصل الرسمية تُقرأ من إعدادات الأكاديمية.',
     },
   ])
   const inChat = view === 'chat'
-  const whatsappNumber = ACADEMY_INFO.whatsapp.replace(/\D/g, '')
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
+  const primaryWhatsapp = officialContact.whatsapps[0] || ''
+  const directContactText = primaryWhatsapp || officialContact.phones[0] || 'صفحة التواصل الرسمية'
+  const officialContactText = [
+    officialContact.whatsapps.length ? `واتساب: ${officialContact.whatsapps.join(' / ')}` : '',
+    officialContact.phones.length ? `هاتف: ${officialContact.phones.join(' / ')}` : '',
+  ].filter(Boolean).join(' — ') || 'لم تُضبط أرقام التواصل الرسمية بعد، ويمكنك استخدام صفحة التواصل الرسمية.'
+  const whatsappUrl = primaryWhatsapp
+    ? `https://wa.me/${primaryWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
+    : '#'
+
+  useEffect(() => {
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((data) => setOfficialContact(parseOfficialContact(data.values?.OFFICIAL_CONTACT)))
+      .catch(() => setOfficialContact(EMPTY_OFFICIAL_CONTACT))
+  }, [])
+
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0]?.role !== 'assistant') return prev
+      return [{
+        role: 'assistant',
+        content: `أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. أرقام التواصل الرسمية: ${officialContactText}`,
+      }]
+    })
+  }, [officialContactText])
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
@@ -135,7 +204,7 @@ export function FloatingActions() {
     } catch (e: any) {
       setError(String(e?.message || 'تعذر تشغيل وكيل واتساب الذكي مؤقتاً'))
       setLoading(false)
-      await typeFloatingAssistantReply(`تعذر الرد الآلي مؤقتاً. يمكنك فتح واتساب المباشر على ${ACADEMY_INFO.whatsappDisplay} وسيتم تحويل استفسارك للإدارة.`)
+      await typeFloatingAssistantReply(`تعذر الرد الآلي مؤقتاً. يمكنك استخدام ${directContactText} وسيتم تحويل استفسارك للإدارة.`)
     } finally {
       setLoading(false)
     }
@@ -193,8 +262,14 @@ export function FloatingActions() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
-            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-1 rounded-2xl border border-[#25d366]/30 px-3 py-2 text-[11px] font-black text-[#128c7e] hover:bg-[#dcf8c6]/40">
-              فتح المحادثة على واتساب الرسمي <ExternalLink className="h-3.5 w-3.5" />
+            <a
+              href={whatsappUrl}
+              target={primaryWhatsapp ? '_blank' : undefined}
+              rel={primaryWhatsapp ? 'noreferrer' : undefined}
+              onClick={(e) => { if (!primaryWhatsapp) { e.preventDefault(); navigate('contact') } }}
+              className="mt-2 flex items-center justify-center gap-1 rounded-2xl border border-[#25d366]/30 px-3 py-2 text-[11px] font-black text-[#128c7e] hover:bg-[#dcf8c6]/40"
+            >
+              {primaryWhatsapp ? 'فتح المحادثة على واتساب الرسمي' : 'فتح صفحة التواصل الرسمية'} <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </div>
@@ -494,11 +569,13 @@ export function Header() {
   const canUseStudentPortal = user?.role === 'STUDENT'
 
   // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
-  const studentItems: { label: string; target: any; desc: string }[] = [
+  type NavItem = { label: string; target: any; desc: string; path?: string }
+  const studentItems: NavItem[] = [
     { label: 'بوابة الطالب', target: 'dashboard', desc: 'برامجك، دفعاتك، بحثك، شهاداتك' },
     { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
-  const academyItems: { label: string; target: any; desc: string }[] = [
+  const academyItems: NavItem[] = [
+    { label: 'الاعتماد والتحقق', target: 'accreditation', path: '/accreditation', desc: 'صفحة الثقة والتحقق وروابط الاعتماد الرسمية' },
     { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
@@ -515,7 +592,7 @@ export function Header() {
     navigate(target)
   }
 
-  const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: { label: string; target: any; desc: string }[]; groupTargets: any[]; gold?: boolean }) => {
+  const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: NavItem[]; groupTargets: any[]; gold?: boolean }) => {
     const [open, setOpen] = useState(false)
     const active = isActiveGroup(groupTargets)
     return (
@@ -535,7 +612,7 @@ export function Header() {
               {items.map((it) => (
                 <button
                   key={it.target}
-                  onClick={() => { setOpen(false); navigate(it.target) }}
+                  onClick={() => { setOpen(false); it.path ? window.location.assign(it.path) : navigate(it.target) }}
                   className={`block w-full border-b border-slate-100 px-4 py-3 text-right transition-colors last:border-0 hover:bg-[#f7edd0]/60 ${view === it.target ? 'bg-[#f7edd0]' : ''}`}
                 >
                   <span className={`block text-sm font-black ${view === it.target || gold ? 'text-[#a8841a]' : 'text-[#0f2b46]'}`}>{it.label}</span>
@@ -806,7 +883,15 @@ export function Header() {
             {academyItems.map((n) => (
               <button
                 key={n.target}
-                onClick={() => goMobile(n.target)}
+                onClick={() => {
+                  if (n.path) {
+                    setMobileMenuOpen(false)
+                    setProfileOpen(false)
+                    window.location.assign(n.path)
+                    return
+                  }
+                  goMobile(n.target)
+                }}
                 className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
                   view === n.target ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
                 }`}
@@ -865,16 +950,26 @@ export function Header() {
 
 export function Footer() {
   const { navigate } = useAppStore()
+  const [officialContact, setOfficialContact] = useState<ShellOfficialContact>(EMPTY_OFFICIAL_CONTACT)
+
+  useEffect(() => {
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((data) => setOfficialContact(parseOfficialContact(data.values?.OFFICIAL_CONTACT)))
+      .catch(() => setOfficialContact(EMPTY_OFFICIAL_CONTACT))
+  }, [])
+
+  const legalEntity = officialContact.legalEntity || 'الأكاديمية الأمريكية للاستشارات والتدريب'
+
   return (
     <footer className="mt-auto border-t border-[#c9a227]/25 bg-[#0a1f36] text-[#f5f0e1]">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <div className="mb-3 flex items-center gap-2">
             <AcademyLogo size={38} />
-            <div className="text-sm font-extrabold">الأكاديمية الأمريكية للاستشارات والتدريب</div>
+            <div className="text-sm font-extrabold">{legalEntity}</div>
           </div>
           <p className="text-xs leading-relaxed text-[#f5f0e1]/70">
-            بناء القيادات، صقل المهارات. أكاديمية رائدة منذ 2016 في الدبلومات المهنية والدرجات
+            بناء القيادات، صقل المهارات. منصة مهنية للدبلومات المهنية والدرجات
             المهنية واعتماد المستشارين والمدربين ومراكز التدريب.
           </p>
         </div>
@@ -883,6 +978,7 @@ export function Footer() {
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('programs')}>البرامج والخدمات</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>الشهادات والتحقق</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>الاعتماد والتحقق</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('about')}>من نحن</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('apply')}>طلب الالتحاق وتتبعه</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('agent')}>الوكالة الدولية والاعتمادات</button></li>
@@ -896,10 +992,18 @@ export function Footer() {
         <div>
           <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">تواصل معنا</h4>
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
-            <li>{ACADEMY_INFO.locationAr}</li>
-            <li dir="ltr" className="text-right">الهاتف الرسمي: {ACADEMY_INFO.officialPhone}</li>
-            <li dir="ltr" className="text-right">البريد الرسمي: {ACADEMY_INFO.officialEmail}</li>
-            <li>مسؤول التواصل: {ACADEMY_INFO.whatsappContactName}</li>
+            {officialContact.address && <li>{officialContact.address}</li>}
+            {officialContact.phones.map((phone, index) => (
+              <li key={`phone-${phone}`} dir="ltr" className="text-right">{index === 0 ? 'الهاتف الرسمي' : `هاتف رسمي إضافي ${index + 1}`}: {phone}</li>
+            ))}
+            {officialContact.whatsapps.map((whatsapp, index) => (
+              <li key={`whatsapp-${whatsapp}`} dir="ltr" className="text-right">{index === 0 ? 'واتساب رسمي' : `واتساب رسمي إضافي ${index + 1}`}: {whatsapp}</li>
+            ))}
+            {officialContact.email && <li dir="ltr" className="text-right">البريد الرسمي: {officialContact.email}</li>}
+            {officialContact.responsiblePerson && <li>مسؤول التواصل: {officialContact.responsiblePerson}</li>}
+            {!officialContact.address && !officialContact.email && officialContact.phones.length === 0 && officialContact.whatsapps.length === 0 && (
+              <li>بيانات التواصل الرسمية تُضبط من إعدادات الأكاديمية.</li>
+            )}
             <li>بناء القيادات، صقل المهارات</li>
             <li>Building Leaders, Refining Skills</li>
           </ul>

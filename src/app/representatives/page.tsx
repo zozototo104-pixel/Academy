@@ -1,21 +1,20 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
-import { DEMO_REPRESENTATIVES, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
+import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentatives(): Promise<{ rows: RepresentativePublicProfile[]; demo: boolean }> {
+async function loadRepresentatives(): Promise<RepresentativePublicProfile[]> {
   try {
     const rows = await db.academyRepresentative.findMany({
       where: { deletedAt: null, status: 'ACTIVE' },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
-    const mapped = rows.map((row) => serializeRepresentative(row, null, false))
-    return { rows: mapped.length ? mapped : DEMO_REPRESENTATIVES, demo: mapped.length === 0 }
+    return rows.map((row) => serializeRepresentative(row, null, false))
   } catch {
-    return { rows: DEMO_REPRESENTATIVES, demo: true }
+    return []
   }
 }
 
@@ -24,7 +23,7 @@ function initials(name: string) {
 }
 
 export default async function RepresentativesPage() {
-  const { rows, demo } = await loadRepresentatives()
+  const rows = await loadRepresentatives()
   const regions = [...new Set(rows.map((r) => r.region).filter(Boolean))]
   return (
     <main dir="rtl" className="min-h-screen overflow-hidden bg-[#f4f7fb] text-[#0f2b46]">
@@ -45,11 +44,6 @@ export default async function RepresentativesPage() {
             <p className="mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base">
               نافذة رسمية للتعرّف إلى ممثلي الأكاديمية الأمريكية للاستشارات والتدريب، نطاقاتهم الجغرافية، سيرهم المهنية، وأعمالهم الموثقة.
             </p>
-            {demo && (
-              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-xs font-bold text-amber-100">
-                البيانات الظاهرة حالياً تجريبية إلى حين إدخال ممثلي الأكاديمية من لوحة الإدارة.
-              </div>
-            )}
           </div>
           <div className="mt-8 flex flex-wrap gap-2">
             {regions.map((region) => <span key={region} className="rounded-full bg-white/10 px-4 py-2 text-xs font-black text-white/90">{region}</span>)}
@@ -59,6 +53,14 @@ export default async function RepresentativesPage() {
 
       <section className="mx-auto max-w-7xl px-4 py-12">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.length === 0 && (
+            <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-8 text-center shadow-xl shadow-slate-200/70 sm:col-span-2 lg:col-span-3">
+              <h2 className="text-2xl font-black text-[#0f2b46]">دليل الممثلين قيد التحديث</h2>
+              <p className="mx-auto mt-3 max-w-2xl text-sm font-bold leading-7 text-slate-600">
+                لا توجد ملفات ممثلين منشورة حالياً. ستظهر هنا الملفات الرسمية بعد اعتمادها من لوحة الإدارة.
+              </p>
+            </div>
+          )}
           {rows.map((rep) => (
             <Link key={rep.id} href={`/representatives/${rep.slug}`} className="group overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-white shadow-xl shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-2xl">
               <div className="relative h-56 bg-gradient-to-br from-[#0f2b46] via-[#173e66] to-[#bf1646]">

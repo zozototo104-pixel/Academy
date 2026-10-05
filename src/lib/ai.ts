@@ -7,8 +7,7 @@ import { getSettings } from '@/lib/settings'
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
-const SMART_SUPERVISOR_INTELLIGENCE = 96
-const SMART_SUPERVISOR_MEMORY = 98
+const SMART_SUPERVISOR_PROFILE = 'مشرف ذكي يعتمد على سياق البرنامج وقواعد القبول والإعدادات الرسمية وملف الطالب عند توفره.'
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
@@ -120,6 +119,13 @@ function settingNum(settings: Record<string, string>, key: string, fallback = 0)
   return Number.isFinite(n) ? n : fallback
 }
 
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
 function money(n: number | null | undefined): string {
   const value = Number(n || 0)
   return Number.isFinite(value) && value > 0 ? String(value) + '$' : 'حسب إعدادات الإدارة'
@@ -177,7 +183,11 @@ async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext
     getSettings(),
     loadPublicProgramCatalog(),
   ])
-  const officialContact = parseSettingsJson<Record<string, string>>(settings.OFFICIAL_CONTACT, {})
+  const officialContact = parseSettingsJson<Record<string, unknown>>(settings.OFFICIAL_CONTACT, {})
+  const officialNumbers = Array.from(new Set([
+    ...contactList(officialContact.whatsapp, officialContact.whatsapps),
+    ...contactList(officialContact.phone, officialContact.phones),
+  ]))
   const doctorateDefault = settingNum(settings, 'FEE_DOCTORATE', 0)
   const mastersDefault = settingNum(settings, 'FEE_MASTERS', 0)
   const diplomaDefault = settingNum(settings, 'FEE_DIPLOMAS_MIN', 0)
@@ -198,8 +208,8 @@ async function buildSupervisorRuntimeContext(): Promise<SupervisorRuntimeContext
     thesisMaxMonths: settingNum(settings, 'THESIS_MAX_MONTHS', 6),
     agentCommissionRate: settingNum(settings, 'AGENT_COMMISSION_RATE', Number(ACADEMY_INFO.agentCommission || 25)),
     committeeMemberFee: settingNum(settings, 'COMMITTEE_MEMBER_FEE', Number(ACADEMY_INFO.researchFee || 100)),
-    contactEmail: String(officialContact.email || ACADEMY_INFO.email),
-    contactWhatsapp: String(officialContact.whatsapp || ACADEMY_INFO.whatsapp),
+    contactEmail: String(officialContact.email || 'غير مضبوط في الإعدادات'),
+    contactWhatsapp: officialNumbers.length ? officialNumbers.join(' / ') : 'غير مضبوط في الإعدادات',
   }
 }
 
@@ -242,8 +252,8 @@ export function buildSupervisorSystemPrompt(
   persona: SupervisorPersona = 'CHAT',
   runtime?: SupervisorRuntimeContext
 ): string {
-  const contactEmail = runtime?.contactEmail || ACADEMY_INFO.email
-  const contactWhatsapp = runtime?.contactWhatsapp || ACADEMY_INFO.whatsapp
+  const contactEmail = runtime?.contactEmail || 'غير مضبوط في الإعدادات'
+  const contactWhatsapp = runtime?.contactWhatsapp || 'غير مضبوط في الإعدادات'
   const programCatalogText = runtime?.programCatalogText || 'لم يتم تحميل كتالوج البرامج من قاعدة البيانات في هذا الاستدعاء.'
 
   return `أنت "المشرف الذكي" — المرشد الأكاديمي المعتمد لطلاب ${ACADEMY_INFO.nameAr} (${ACADEMY_INFO.nameEn})، تأسست ${ACADEMY_INFO.founded}.
@@ -251,9 +261,8 @@ export function buildSupervisorSystemPrompt(
 ${buildSupervisorPersonaBlock(persona)}
 
 ملف الذكاء والذاكرة التشغيلية:
-- مؤشر فهم نية الطالب الداخلي: ${SMART_SUPERVISOR_INTELLIGENCE}%.
-- مؤشر تغطية الذاكرة المعرفية الرسمية: ${SMART_SUPERVISOR_MEMORY}% من معلومات المنصة المتاحة لك.
-- لا تذكر هذه النسب للطالب إلا إذا سألك عن قدراتك مباشرة.
+- ${SMART_SUPERVISOR_PROFILE}
+- لا تذكر أي نسب أو أرقام تقييم للذكاء أو الذاكرة، لأنها مؤشرات داخلية غير موثقة للطالب.
 - ذاكرتك تشمل كتالوج البرامج، شروط القبول، الرسوم، الشهادات، الاعتمادات، ملف الطالب، وحداته، كتبه، تقدمه، محاولات الاختبار، وبحث التخرج عند توفرها في السياق.
 
 هويتك ودورك:
@@ -265,7 +274,7 @@ ${buildSupervisorPersonaBlock(persona)}
 
 معلومات الأكاديمية:
 - الشعار: "${ACADEMY_INFO.taglineAr}" (${ACADEMY_INFO.taglineEn})
-- البريد: ${contactEmail} | واتساب: ${contactWhatsapp}
+- البريد: ${contactEmail} | أرقام التواصل الرسمية: ${contactWhatsapp}
 - البرامج: ${ACADEMY_INFO.programs}
 - الشهادات تُصدر خلال ${runtime?.certificateIssueDays || ACADEMY_INFO.certificateDays} يوماً من استلام كشوف الدرجات والرسوم.
 - الوكلاء الدوليون: نسبة ${runtime?.agentCommissionRate || ACADEMY_INFO.agentCommission} من إيرادات منطقة التمثيل + ${money(runtime?.committeeMemberFee)} عن كل بحث تخرج يشارك الوكيل في لجنة مناقشته.
@@ -412,7 +421,7 @@ function localSupervisorFallback(messages: { role: string; content: string }[], 
   const catalog = runtime?.programCatalog || []
 
   if (isCapabilityIntent(q)) {
-    return `أنا مشرفك الذكي بذاكرة معرفية داخلية تغطي تقريباً ${SMART_SUPERVISOR_MEMORY}% من معلومات المنصة المتاحة، ومؤشر فهم للنية حوالي ${SMART_SUPERVISOR_INTELLIGENCE}%. أستطيع مساعدتك في البرامج، الرسوم، التسجيل، الشهادات، الاعتمادات، تقدمك الدراسي، الكتب، الاختبارات، وبحث التخرج.`
+    return `أنا مشرفك الذكي. ${SMART_SUPERVISOR_PROFILE} أستطيع مساعدتك في البرامج، الرسوم، التسجيل، الشهادات، الاعتمادات، تقدمك الدراسي، الكتب، الاختبارات، وبحث التخرج عند توفر بياناتها في السياق.`
   }
 
   if (isGreeting(q)) {

@@ -154,7 +154,7 @@ function blocksNewApplication(app: any) {
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   UPLOADING_DOCUMENTS: { text: 'جاري رفع المستندات', cls: 'bg-blue-100 text-blue-700' },
-  AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم (30$)', cls: 'bg-amber-100 text-amber-700' },
+  AWAITING_FEE: { text: 'بانتظار سداد رسوم التقديم', cls: 'bg-amber-100 text-amber-700' },
   UNDER_REVIEW: { text: 'قيد دراسة الإدارة', cls: 'bg-blue-100 text-blue-700' },
   DOCUMENTS_NEED_REPLACEMENT: { text: 'مطلوب استبدال مستندات', cls: 'bg-red-100 text-red-700' },
   AWAITING_TUITION: { text: 'مقبول — بانتظار سداد الرسوم الدراسية', cls: 'bg-[#c9a227]/20 text-[#a8841a]' },
@@ -216,6 +216,30 @@ export function ApplyView() {
   const [replacementFiles, setReplacementFiles] = useState<Record<string, File>>({})
   const [replacementLoading, setReplacementLoading] = useState<string | null>(null)
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const statusLabelFor = (statusValue: string, fallbackLabel?: string) => {
+    const base = STATUS_LABEL[statusValue] || { text: fallbackLabel || statusValue, cls: 'bg-slate-100 text-slate-600' }
+    if (statusValue === 'AWAITING_FEE') {
+      return { ...base, text: `بانتظار سداد رسوم التقديم (${applicationFee}$)` }
+    }
+    return base
+  }
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        setGeneralDisclosureConsentText(d.values?.DISCLOSURE_CONSENT_TEXT || '')
+        setApplicationFee(Number(d.values?.FEE_APPLICATION || 30))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -543,7 +567,7 @@ export function ApplyView() {
 
   const renderAdmissionStatusCard = (app: any) => {
     const isStudyApp = app.isStudyProgram !== false
-    const baseStatus = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+    const baseStatus = statusLabelFor(app.status, app.statusLabel || app.status)
     const status = !isStudyApp && app.status === 'RESULT_APPROVED'
       ? { text: 'تم اعتماد الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
       : !isStudyApp && app.status === 'CERTIFIED'
@@ -574,7 +598,7 @@ export function ApplyView() {
         : app.status === 'UNDER_REVIEW'
           ? (isStudyApp ? 'طلبك قيد دراسة الإدارة' : 'طلب الخدمة قيد مراجعة الإدارة')
           : app.status === 'AWAITING_FEE'
-            ? 'تم استلام طلبك — بانتظار رسوم التقديم'
+            ? `تم استلام طلبك — بانتظار رسوم التقديم (${applicationFee}$)`
             : isStudyFinalActive && isStudyApp
               ? 'تم تفعيل قيدك الدراسي'
               : isServiceApproved
@@ -837,7 +861,7 @@ export function ApplyView() {
                     </div>
                     <div className="grid gap-2">
                       {recentApplications.map((app: any) => {
-                        const status = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+                        const status = statusLabelFor(app.status, app.statusLabel || app.status)
                         return (
                           <div key={app.reference} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
                             <div className="min-w-0">
@@ -1092,8 +1116,8 @@ export function ApplyView() {
                         <div className="mt-1 text-base font-black text-[#0f2b46]">{tracked.fullName}</div>
                         <div className="text-xs font-semibold text-slate-600">{tracked.program}</div>
                       </div>
-                      <span className={`rounded-full px-4 py-1.5 text-xs font-black ${STATUS_LABEL[tracked.status]?.cls || 'bg-slate-100 text-slate-600'}`}>
-                        {STATUS_LABEL[tracked.status]?.text || tracked.statusLabel || tracked.status}
+                      <span className={`rounded-full px-4 py-1.5 text-xs font-black ${statusLabelFor(tracked.status, tracked.statusLabel || tracked.status).cls}`}>
+                        {statusLabelFor(tracked.status, tracked.statusLabel || tracked.status).text}
                       </span>
                     </div>
                     {tracked.supervisorName && <p className="mt-2 text-xs font-bold text-purple-600">المشرف الأكاديمي: {tracked.supervisorName}</p>}

@@ -11,7 +11,9 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap, BookOpen, Target, ListChecks, Search } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap, BookOpen, Target, ListChecks, Search, PlusCircle, Archive } from 'lucide-react'
 
 // ===== تبويب قواعد القبول المخصصة لكل برنامج =====
 // الإدارة تضبط لكل برنامج: الحد الأدنى للمؤهل، إلزام الماجستير للدكتوراة، معادلة الخبرات،
@@ -253,6 +255,10 @@ export function AdminRulesTab() {
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [creatingProgram, setCreatingProgram] = useState(false)
+  const [createProgramOpen, setCreateProgramOpen] = useState(false)
+  const [newProgramTitleAr, setNewProgramTitleAr] = useState('')
+  const [newProgramCategory, setNewProgramCategory] = useState('DIPLOMA')
   const [bulkApplyOpen, setBulkApplyOpen] = useState(false)
   const [bulkApplying, setBulkApplying] = useState(false)
 
@@ -451,6 +457,81 @@ export function AdminRulesTab() {
     })
   }
 
+  const openCreateProgramDialog = () => {
+    setNewProgramTitleAr('')
+    setNewProgramCategory(programCategoryFilter !== 'ALL' ? programCategoryFilter : (programDraft?.category || 'DIPLOMA'))
+    setCreateProgramOpen(true)
+  }
+
+  const createProgram = async () => {
+    const titleAr = newProgramTitleAr.trim()
+    if (!titleAr) {
+      toast({ title: 'اسم البرنامج العربي مطلوب', variant: 'destructive' })
+      return
+    }
+    const category = newProgramCategory || 'DIPLOMA'
+    setCreatingProgram(true)
+    try {
+      const d = await api<{ item: ProgramRules }>('/api/admin/program-rules', {
+        method: 'POST',
+        body: JSON.stringify({
+          program: {
+            titleAr,
+            titleEn: '',
+            description: '',
+            category,
+            icon: 'graduation-cap',
+            features: [],
+            active: false,
+            price: null,
+            hours: 1,
+          },
+        }),
+      })
+      setPrograms((ps) => [d.item, ...ps])
+      selectProgram(d.item)
+      setCreateProgramOpen(false)
+      setNewProgramTitleAr('')
+      toast({ title: 'تم إنشاء برنامج جديد كمسودة غير منشورة', description: 'أكمل بياناته ثم فعّله من مفتاح النشر داخل البيانات الأساسية.' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر إنشاء البرنامج', variant: 'destructive' })
+    } finally {
+      setCreatingProgram(false)
+    }
+  }
+
+  const setSelectedProgramActive = async (active: boolean) => {
+    if (!selected || !programDraft) return
+    if (!active) {
+      const confirmed = window.confirm('سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً. هل تريد المتابعة؟')
+      if (!confirmed) return
+    }
+    setSaving(true)
+    try {
+      const d = await api<{ rules: Rules; custom: boolean; program?: ProgramDraft }>('/api/admin/program-rules', {
+        method: 'PUT',
+        body: JSON.stringify({
+          programId: selected.id,
+          programPatch: { active },
+        }),
+      })
+      const nextProgram = d.program || { ...programDraft, active }
+      setProgramDraft(nextProgram)
+      setPrograms((ps) => ps.map((p) => p.id === selected.id ? {
+        ...p,
+        active,
+        program: { ...(p.program || programDraft), active },
+        rules: d.rules || p.rules,
+        custom: d.custom ?? p.custom,
+      } : p))
+      toast({ title: active ? 'تمت إعادة نشر البرنامج' : 'تمت أرشفة البرنامج وإخفاؤه عن الزوار' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تحديث حالة البرنامج', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const save = async (reset = false) => {
     if (!selectedId) return
     setSaving(true)
@@ -536,6 +617,63 @@ export function AdminRulesTab() {
 
   return (
     <div className="mt-4 space-y-4 pb-[45vh] md:pb-6">
+      <Dialog open={createProgramOpen} onOpenChange={(open) => { if (!creatingProgram) setCreateProgramOpen(open) }}>
+        <DialogContent className="max-w-xl rounded-[2rem] border-[#c9a227]/30 bg-[#fffdf7] p-0 text-right" dir="rtl">
+          <div className="rounded-t-[2rem] bg-gradient-to-l from-[#0f2b46] to-[#12365c] p-5 text-[#f5f0e1]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl font-black">
+                <PlusCircle className="h-5 w-5 text-[#e0b83a]" />
+                إضافة برنامج جديد
+              </DialogTitle>
+              <DialogDescription className="pt-2 text-xs font-bold leading-6 text-[#f5f0e1]/75">
+                سينشأ البرنامج كمسودة غير منشورة. بعد الإنشاء أكمل بياناته من محرر قواعد القبول ثم فعّله يدوياً.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-[#0f2b46]">اسم البرنامج بالعربية</Label>
+              <Input
+                autoFocus
+                value={newProgramTitleAr}
+                onChange={(e) => setNewProgramTitleAr(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !creatingProgram) {
+                    e.preventDefault()
+                    createProgram()
+                  }
+                }}
+                placeholder="مثال: دبلوم إدارة المشاريع"
+                className="h-12 rounded-2xl border-[#0f2b46]/10 bg-white font-black"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-[#0f2b46]">التصنيف</Label>
+              <Select value={newProgramCategory} onValueChange={setNewProgramCategory}>
+                <SelectTrigger className="h-12 rounded-2xl border-[#0f2b46]/10 bg-white font-black">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+              البرنامج الجديد لن يظهر للزوار حتى تفعّل خيار النشر داخل قسم البيانات الأساسية. استخدم الأرشفة لإخفاء أي برنامج لاحقاً بدل الحذف النهائي.
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" disabled={creatingProgram} onClick={() => setCreateProgramOpen(false)} className="rounded-2xl font-black">
+                إلغاء
+              </Button>
+              <Button type="button" disabled={creatingProgram || !newProgramTitleAr.trim()} onClick={createProgram} className="rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                {creatingProgram ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlusCircle className="ml-2 h-4 w-4" />}
+                إنشاء المسودة
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card className="border-[#0f2b46]/10">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -549,6 +687,15 @@ export function AdminRulesTab() {
                 يقرأ خبير الذكاء الاصطناعي هذه القواعد ويطبقها آلياً قبل زر الاعتماد.
               </p>
             </div>
+            <Button
+              type="button"
+              onClick={openCreateProgramDialog}
+              disabled={creatingProgram}
+              className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              {creatingProgram ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlusCircle className="ml-2 h-4 w-4" />}
+              إضافة برنامج جديد
+            </Button>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -586,7 +733,10 @@ export function AdminRulesTab() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className={`text-xs font-black ${p.id === selectedId ? 'text-[#e0b83a]' : 'text-[#0f2b46]'}`}>{p.titleAr}</span>
-                      {p.custom && <Badge className="shrink-0 bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+                      <span className="flex shrink-0 gap-1">
+                        {p.active === false && <Badge className="bg-slate-200 text-[10px] text-slate-700 hover:bg-slate-200">مؤرشف</Badge>}
+                        {p.custom && <Badge className="bg-[#c9a227] text-[10px] text-[#0f2b46]">مخصص</Badge>}
+                      </span>
                     </div>
                     <span className={`mt-0.5 block text-[10px] ${p.id === selectedId ? 'text-white/70' : 'text-slate-400'}`}>
                       {CAT_AR[p.category] || p.category}
@@ -615,9 +765,24 @@ export function AdminRulesTab() {
                       معاينة صفحة البرنامج
                     </button>
                   </div>
-                  <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
-                    {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
+                      {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
+                    </Badge>
+                    {programDraft && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() => setSelectedProgramActive(!(programDraft.active !== false))}
+                        className={programDraft.active !== false ? 'border-slate-200 text-slate-600' : 'border-emerald-200 text-emerald-700'}
+                      >
+                        <Archive className="ml-1 h-3.5 w-3.5" />
+                        {programDraft.active !== false ? 'أرشفة / إخفاء' : 'إعادة نشر'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {programDraft && (
