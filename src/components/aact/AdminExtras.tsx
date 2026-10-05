@@ -1289,30 +1289,58 @@ export function AdminSettingsTab() {
       )
     }
     if (d.key === 'OFFICIAL_CONTACT') {
-      const contact = readJsonSetting('OFFICIAL_CONTACT', { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })
-      const fields: Array<[string, string, string]> = [
-        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب'],
-        ['registrationNumber', 'رقم التسجيل', ''],
-        ['address', 'العنوان الرسمي', ''],
-        ['email', 'الإيميل الرسمي', 'info@example.com'],
-        ['phone', 'الهاتف الرسمي', '+1 ...'],
-        ['whatsapp', 'رقم الواتساب', '+1 ...'],
-        ['responsiblePerson', 'الشخص المسؤول', ''],
+      const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
+      const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
+      const contactLines = (primary: string, list: string[]) => Array.from(new Set([primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim()).filter(Boolean))).join('\n')
+      const patchContactLines = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', raw: string) => {
+        const items = raw.split(/\r?\n/).map((v) => v.trim()).filter(Boolean)
+        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: items[0] || '', [listKey]: items }, contactFallback)
+      }
+      const fields: Array<[string, string, string, 'rtl' | 'ltr']> = [
+        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب', 'rtl'],
+        ['registrationNumber', 'رقم التسجيل', '', 'rtl'],
+        ['address', 'العنوان الرسمي', '', 'rtl'],
+        ['email', 'الإيميل الرسمي', 'info@example.com', 'ltr'],
+        ['responsiblePerson', 'الشخص المسؤول', '', 'rtl'],
       ]
       return (
         <div className="grid gap-3 sm:grid-cols-2">
-          {fields.map(([key, label, placeholder]) => (
+          {fields.map(([key, label, placeholder, dir]) => (
             <div key={key} className="space-y-1.5">
               <Label className="text-[11px] font-bold text-slate-600">{label}</Label>
               <Input
-                dir={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'ltr' : 'rtl'}
-                className={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'text-left font-bold' : 'font-bold'}
+                dir={dir}
+                className={dir === 'ltr' ? 'text-left font-bold' : 'font-bold'}
                 value={contact[key] || ''}
                 placeholder={placeholder}
-                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })}
+                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, contactFallback)}
               />
             </div>
           ))}
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-[11px] font-bold text-slate-600">أرقام الهاتف الرسمية</Label>
+            <p className="text-[10px] font-bold text-slate-400">اكتب كل رقم في سطر مستقل. أول رقم يُحفظ أيضاً كالهاتف الأساسي للتوافق.</p>
+            <Textarea
+              dir="ltr"
+              rows={3}
+              className="font-mono text-xs text-left"
+              value={contactLines(contact.phone, contact.phones)}
+              placeholder={'+1 ...\n+970 ...'}
+              onChange={(e) => patchContactLines('phones', 'phone', e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-[11px] font-bold text-slate-600">أرقام الواتساب الرسمية</Label>
+            <p className="text-[10px] font-bold text-slate-400">اكتب كل رقم في سطر مستقل. أول رقم يستخدمه زر الواتساب العائم كرابط مباشر.</p>
+            <Textarea
+              dir="ltr"
+              rows={3}
+              className="font-mono text-xs text-left"
+              value={contactLines(contact.whatsapp, contact.whatsapps)}
+              placeholder={'+1 ...\n+970 ...'}
+              onChange={(e) => patchContactLines('whatsapps', 'whatsapp', e.target.value)}
+            />
+          </div>
         </div>
       )
     }
