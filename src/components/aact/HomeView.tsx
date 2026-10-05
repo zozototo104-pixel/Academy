@@ -166,6 +166,12 @@ export function HomeView() {
         if (!alive) return
         const values = d.values || {}
         setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        try {
+          const contact = JSON.parse(values.OFFICIAL_CONTACT || '{}')
+          if (contact && typeof contact === 'object' && contact.legalEntity) {
+            setHomeLegalEntity(String(contact.legalEntity))
+          }
+        } catch {}
         setGeneralSettings({
           applicationFee: numberSetting(values, 'FEE_APPLICATION', DEFAULT_SETTINGS.applicationFee),
           doctorateDefault: numberSetting(values, 'FEE_DOCTORATE', DEFAULT_SETTINGS.doctorateDefault),
