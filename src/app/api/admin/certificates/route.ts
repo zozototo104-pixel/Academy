@@ -6,6 +6,7 @@ import { audit, notify } from '@/lib/notify'
 import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 import { randomBytes } from 'crypto'
 
 // GET /api/admin/certificates — كل الشهادات الصادرة
