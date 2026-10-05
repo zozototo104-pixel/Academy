@@ -758,39 +758,6 @@ export function AdminFinanceTab() {
     }
   }
 
-  const refreshPaymentAmount = async (payment: PaymentRow) => {
-    setAmountBusy(payment.id)
-    try {
-      const preview = await api<{ changed: boolean; oldAmount: number; newAmount: number; source?: string }>('/api/admin/payments', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: payment.id, action: 'REFRESH_AMOUNT', dryRun: true }),
-      })
-      if (!preview.changed) {
-        toast({ title: 'لا يوجد تغيير', description: 'المبلغ الحالي مطابق للمبلغ المحسوب من الإعدادات الحالية.' })
-        return
-      }
-      const confirmed = window.confirm('سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار. هل تريد المتابعة؟')
-      if (!confirmed) return
-      const reason = window.prompt('اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق:')
-      if (reason === null) return
-      const trimmedReason = reason.trim()
-      if (trimmedReason.length < 6) {
-        toast({ title: 'سبب مطلوب', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف.', variant: 'destructive' })
-        return
-      }
-      await api('/api/admin/payments', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: payment.id, action: 'REFRESH_AMOUNT', reason: trimmedReason }),
-      })
-      toast({ title: 'تم تحديث المبلغ', description: 'تم تحديث الفاتورة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار' })
-      load()
-    } catch (e: any) {
-      toast({ title: 'تعذر تحديث المبلغ', description: e.message, variant: 'destructive' })
-    } finally {
-      setAmountBusy(null)
-    }
-  }
-
   const filteredPayments = payments
   const pagedPayments = payments
   const currentPaymentPage = paymentPage
