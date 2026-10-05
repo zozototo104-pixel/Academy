@@ -967,10 +967,18 @@ export function Footer() {
         <div>
           <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">تواصل معنا</h4>
           <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
-            <li>{ACADEMY_INFO.locationAr}</li>
-            <li dir="ltr" className="text-right">الهاتف الرسمي: {ACADEMY_INFO.officialPhone}</li>
-            <li dir="ltr" className="text-right">البريد الرسمي: {ACADEMY_INFO.officialEmail}</li>
-            <li>مسؤول التواصل: {ACADEMY_INFO.whatsappContactName}</li>
+            {officialContact.address && <li>{officialContact.address}</li>}
+            {officialContact.phones.map((phone, index) => (
+              <li key={`phone-${phone}`} dir="ltr" className="text-right">{index === 0 ? 'الهاتف الرسمي' : `هاتف رسمي إضافي ${index + 1}`}: {phone}</li>
+            ))}
+            {officialContact.whatsapps.map((whatsapp, index) => (
+              <li key={`whatsapp-${whatsapp}`} dir="ltr" className="text-right">{index === 0 ? 'واتساب رسمي' : `واتساب رسمي إضافي ${index + 1}`}: {whatsapp}</li>
+            ))}
+            {officialContact.email && <li dir="ltr" className="text-right">البريد الرسمي: {officialContact.email}</li>}
+            {officialContact.responsiblePerson && <li>مسؤول التواصل: {officialContact.responsiblePerson}</li>}
+            {!officialContact.address && !officialContact.email && officialContact.phones.length === 0 && officialContact.whatsapps.length === 0 && (
+              <li>بيانات التواصل الرسمية تُضبط من إعدادات الأكاديمية.</li>
+            )}
             <li>بناء القيادات، صقل المهارات</li>
             <li>Building Leaders, Refining Skills</li>
           </ul>
