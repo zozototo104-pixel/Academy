@@ -149,10 +149,10 @@ export async function POST(req: NextRequest) {
 
     await audit(
       admin,
-      overrideReason ? 'ISSUE_CERTIFICATE_FINANCIAL_OVERRIDE' : 'ISSUE_CERTIFICATE',
+      financialOverrideUsed ? 'ISSUE_CERTIFICATE_FINANCIAL_OVERRIDE' : 'ISSUE_CERTIFICATE',
       'Certificate',
       cert.id,
-      overrideReason ? `${serial} — ${cert.holderName} (${cert.program}) — تجاوز مالي: ${overrideReason}` : `${serial} — ${cert.holderName} (${cert.program})`
+      financialOverrideUsed ? `${serial} — ${cert.holderName} (${cert.program}) — تجاوز مالي: ${overrideReason}` : `${serial} — ${cert.holderName} (${cert.program})`
     )
     return NextResponse.json({ ok: true, certificate: cert, eligibility })
   } catch (e: any) {
