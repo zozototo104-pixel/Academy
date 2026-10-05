@@ -1292,12 +1292,15 @@ export function AdminSettingsTab() {
       const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
       const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
       const contactItems = (primary: string, list: string[]) => {
-        const items = [primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim()).filter(Boolean)
-        return Array.from(new Set(items)).length ? Array.from(new Set(items)) : ['']
+        const raw = [primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim())
+        const clean = Array.from(new Set(raw.filter(Boolean)))
+        const hasBlankRow = raw.some((v) => !v)
+        return clean.length ? (hasBlankRow ? [...clean, ''] : clean) : ['']
       }
       const patchContactItems = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', items: string[]) => {
-        const clean = items.map((v) => String(v || '').trim()).filter(Boolean)
-        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: clean[0] || '', [listKey]: clean }, contactFallback)
+        const raw = items.map((v) => String(v || '').trim())
+        const clean = Array.from(new Set(raw.filter(Boolean)))
+        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: clean[0] || '', [listKey]: raw.length ? raw : [] }, contactFallback)
       }
       const updateContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[], index: number, value: string) => {
         const next = current.length ? [...current] : ['']
