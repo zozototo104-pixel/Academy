@@ -194,7 +194,7 @@ export default async function AccreditationPage() {
               </div>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {accreditation.partnerships.map((partner, index) => (
+              {partnerships.map((partner, index) => (
                 <div key={`${partner.name}-${index}`} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-5">
                   <div className="flex items-start gap-3">
                     <span className="rounded-2xl bg-white p-3 text-[#c9a227]"><Building2 className="h-5 w-5" /></span>
