@@ -104,7 +104,7 @@ export function AboutView() {
             </Badge>
             <h1 className="text-3xl font-black leading-[1.35] sm:text-4xl lg:text-5xl">من نحن</h1>
             <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-[#f5f0e1]/85">
-              {officialContact.legalEntity || ACADEMY_INFO.nameAr} صرح مهني يربط التدريب والاستشارات والاعتماد بمنصة رقمية واحدة،
+              {officialContact.legalEntity} صرح مهني يربط التدريب والاستشارات والاعتماد بمنصة رقمية واحدة،
               ويحوّل التعلم من محتوى نظري إلى مسار تطبيقي قابل للقياس والتحقق.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
