@@ -5,6 +5,17 @@ import { getCurrentUser } from '@/lib/auth'
 import { DEFAULT_SETTINGS, getSettings } from '@/lib/settings'
 import { audit } from '@/lib/notify'
 
+function revalidatePublicSettingsSurfaces() {
+  const paths = ['/', '/programs', '/apply', '/about', '/contact', '/accreditation', '/sitemap.xml']
+  for (const path of paths) {
+    try {
+      revalidatePath(path)
+    } catch (error) {
+      console.warn('settings revalidatePath failed:', path, error)
+    }
+  }
+}
+
 // GET /api/settings — الإعدادات العامة (عام: القيم فقط | الإدارة: التفاصيل)
 export async function GET() {
   try {
