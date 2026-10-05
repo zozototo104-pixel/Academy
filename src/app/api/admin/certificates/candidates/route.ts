@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       userId: { not: null },
       programId: { not: null },
       certificates: { none: {} },
-      OR: [{ programRef: { is: { category: { not: 'SERVICE' } } } }, { programId: null }],
+      programRef: { is: { category: { not: 'SERVICE' } } },
       ...(search
         ? {
             AND: [
