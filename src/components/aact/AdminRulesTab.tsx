@@ -616,6 +616,63 @@ export function AdminRulesTab() {
 
   return (
     <div className="mt-4 space-y-4 pb-[45vh] md:pb-6">
+      <Dialog open={createProgramOpen} onOpenChange={(open) => { if (!creatingProgram) setCreateProgramOpen(open) }}>
+        <DialogContent className="max-w-xl rounded-[2rem] border-[#c9a227]/30 bg-[#fffdf7] p-0 text-right" dir="rtl">
+          <div className="rounded-t-[2rem] bg-gradient-to-l from-[#0f2b46] to-[#12365c] p-5 text-[#f5f0e1]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl font-black">
+                <PlusCircle className="h-5 w-5 text-[#e0b83a]" />
+                إضافة برنامج جديد
+              </DialogTitle>
+              <DialogDescription className="pt-2 text-xs font-bold leading-6 text-[#f5f0e1]/75">
+                سينشأ البرنامج كمسودة غير منشورة. بعد الإنشاء أكمل بياناته من محرر قواعد القبول ثم فعّله يدوياً.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-[#0f2b46]">اسم البرنامج بالعربية</Label>
+              <Input
+                autoFocus
+                value={newProgramTitleAr}
+                onChange={(e) => setNewProgramTitleAr(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !creatingProgram) {
+                    e.preventDefault()
+                    createProgram()
+                  }
+                }}
+                placeholder="مثال: دبلوم إدارة المشاريع"
+                className="h-12 rounded-2xl border-[#0f2b46]/10 bg-white font-black"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-[#0f2b46]">التصنيف</Label>
+              <Select value={newProgramCategory} onValueChange={setNewProgramCategory}>
+                <SelectTrigger className="h-12 rounded-2xl border-[#0f2b46]/10 bg-white font-black">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+              البرنامج الجديد لن يظهر للزوار حتى تفعّل خيار النشر داخل قسم البيانات الأساسية. استخدم الأرشفة لإخفاء أي برنامج لاحقاً بدل الحذف النهائي.
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" disabled={creatingProgram} onClick={() => setCreateProgramOpen(false)} className="rounded-2xl font-black">
+                إلغاء
+              </Button>
+              <Button type="button" disabled={creatingProgram || !newProgramTitleAr.trim()} onClick={createProgram} className="rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                {creatingProgram ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlusCircle className="ml-2 h-4 w-4" />}
+                إنشاء المسودة
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card className="border-[#0f2b46]/10">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
