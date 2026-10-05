@@ -34,13 +34,15 @@ export function ContactView() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' })
-  const [officialContact, setOfficialContact] = useState({
+  const [officialContact, setOfficialContact] = useState<OfficialContactState>({
     legalEntity: '',
     registrationNumber: '',
     address: '',
     email: '',
     phone: '',
+    phones: [],
     whatsapp: '',
+    whatsapps: [],
     responsiblePerson: '',
   })
 
