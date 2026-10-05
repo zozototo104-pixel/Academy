@@ -93,7 +93,11 @@ export async function POST(req: NextRequest) {
       const tuitionTotal = roundMoney(inferTotalTuition(paymentRows))
       const tuitionPaid = roundMoney(tuitionPaidTotal(paymentRows))
       const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
-      if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
+      const hasFinancialBlock = nonTuitionUnpaid.length > 0 || !tuitionOk
+      if (hasFinancialBlock && overrideReason.length > 0 && overrideReason.length < 6) {
+        return NextResponse.json({ error: 'سبب التجاوز المالي مطلوب ويجب ألا يقل عن 6 أحرف.' }, { status: 400 })
+      }
+      if (hasFinancialBlock && !overrideReason) {
         return NextResponse.json(
           { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${tuitionPaid}$ من ${tuitionTotal}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
           { status: 400 }
