@@ -926,6 +926,16 @@ export function Header() {
 
 export function Footer() {
   const { navigate } = useAppStore()
+  const [officialContact, setOfficialContact] = useState<ShellOfficialContact>(EMPTY_OFFICIAL_CONTACT)
+
+  useEffect(() => {
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((data) => setOfficialContact(parseOfficialContact(data.values?.OFFICIAL_CONTACT)))
+      .catch(() => setOfficialContact(EMPTY_OFFICIAL_CONTACT))
+  }, [])
+
+  const legalEntity = officialContact.legalEntity || 'الأكاديمية الأمريكية للاستشارات والتدريب'
+
   return (
     <footer className="mt-auto border-t border-[#c9a227]/25 bg-[#0a1f36] text-[#f5f0e1]">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
