@@ -1216,8 +1216,15 @@ export function AdminSettingsTab() {
       .finally(() => setAdminsLoading(false))
   }
 
+  const loadAccreditationProfile = () => {
+    api<{ profile: AccreditationAdminProfile }>('/api/admin/accreditation')
+      .then((d) => setAccreditationProfile(d.profile))
+      .catch((e: any) => toast({ title: 'تعذر تحميل بيانات الاعتماد', description: e.message, variant: 'destructive' }))
+  }
+
   useEffect(() => {
     loadSystemAdmins()
+    loadAccreditationProfile()
     api<{ values: any; defs?: any[] }>('/api/settings')
       .then((d) => {
         setValues(d.values)
