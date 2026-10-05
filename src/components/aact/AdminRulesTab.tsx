@@ -253,6 +253,7 @@ export function AdminRulesTab() {
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [creatingProgram, setCreatingProgram] = useState(false)
   const [bulkApplyOpen, setBulkApplyOpen] = useState(false)
   const [bulkApplying, setBulkApplying] = useState(false)
 
