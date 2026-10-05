@@ -94,6 +94,7 @@ export default async function AccreditationPage() {
   const phones = contactList((contact as OfficialContact).phone, (contact as OfficialContact).phones)
   const whatsapps = contactList((contact as OfficialContact).whatsapp, (contact as OfficialContact).whatsapps)
   const accreditation = parseAccreditationPageSettings(settings.ACCREDITATION_PAGE)
+  const partnerships = Array.isArray(accreditation.partnerships) ? accreditation.partnerships : []
   const applicationFee = Number(settings.FEE_ACC_APPLICATION || 0)
 
   return (
