@@ -1102,6 +1102,16 @@ export function AdminCertificatesTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [certSearch, candidateRefresh, certRefresh])
 
+  const loadTemplates = () => {
+    api<{ templates: CertificateTemplateItem[] }>('/api/admin/certificates/templates')
+      .then((d) => setTemplates(Array.isArray(d.templates) ? d.templates : []))
+      .catch(() => setTemplates([]))
+  }
+
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
   const issue = async () => {
     setBusy(true)
     try {
