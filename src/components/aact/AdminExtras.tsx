@@ -1046,6 +1046,7 @@ const TEMPLATE_FIELD_LABELS: Record<string, string> = {
 }
 
 const TEMPLATE_DEFAULT_LAYOUT: any = {
+  orientation: 'landscape',
   holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
   program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
   grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
