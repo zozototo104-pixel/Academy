@@ -1097,12 +1097,14 @@ export async function platformAgentStream(opts: {
 
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
-    await emit(HUMAN_SUPPORT_REPLY)
-    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'GEMINI' }
+    const reply = await buildHumanSupportReply()
+    await emit(reply)
+    return { reply, agent: 'SUPPORT', engine: 'GEMINI' }
   }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
-    await emit(HUMAN_SUPPORT_REPLY)
-    return { reply: HUMAN_SUPPORT_REPLY, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+    const reply = await buildHumanSupportReply()
+    await emit(reply)
+    return { reply, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
     const reply = await buildDynamicPaymentMethodsReply()
