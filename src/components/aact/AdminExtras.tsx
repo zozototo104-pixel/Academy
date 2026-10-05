@@ -1281,6 +1281,38 @@ export function AdminCertificatesTab() {
   const filteredCerts = certs
   const pagedCerts = certs
   const currentCertPage = certPage
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || null
+  const selectedLayout = selectedTemplate ? templateLayout(selectedTemplate.layoutJson) : TEMPLATE_DEFAULT_LAYOUT
+  const sampleValues: Record<string, string> = {
+    holderName: 'محمد أحمد',
+    program: 'الماجستير المهني في إدارة الأعمال',
+    grade: 'امتياز',
+    serial: 'AACT-C-2026-00001',
+    issuedAt: '05/10/2026',
+    qr: 'QR',
+  }
+  const designerFieldStyle = (field: string) => {
+    const cfg = selectedLayout[field] || {}
+    const isQr = field === 'qr'
+    return {
+      position: 'absolute' as const,
+      left: `${Number(cfg.x ?? 50)}%`,
+      top: `${Number(cfg.y ?? 50)}%`,
+      width: isQr ? `${Number(cfg.size ?? 12)}%` : `${Number(cfg.width ?? 50)}%`,
+      minHeight: isQr ? undefined : '22px',
+      transform: 'translate(-50%, -50%)',
+      textAlign: cfg.align || 'center',
+      color: cfg.color || '#0f2b46',
+      fontSize: isQr ? undefined : `clamp(10px, ${Number(cfg.fontSize ?? 2)}vw, 42px)`,
+      lineHeight: 1.2,
+      fontWeight: 900,
+      cursor: 'move',
+      border: selectedTemplateField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
+      background: isQr ? 'white' : 'rgba(255,255,255,.72)',
+      padding: isQr ? '4px' : '4px 8px',
+      borderRadius: '10px',
+    }
+  }
 
   return (
     <div className="mt-4 space-y-4">
