@@ -21,7 +21,9 @@ export const DEFAULT_OFFICIAL_CONTACT = {
   address: 'الولايات المتحدة الأمريكية - ولاية وايومنغ',
   email: 'info@americanacademy.com',
   phone: '+1 (307) 206-5544',
+  phones: ['+1 (307) 206-5544'],
   whatsapp: '+17879684281',
+  whatsapps: ['+17879684281'],
   responsiblePerson: 'د. أحمد معروف "أبو البراء"',
 }
 
