@@ -575,8 +575,8 @@ export function Header() {
     { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
   const academyItems: NavItem[] = [
-    { label: 'الاعتماد والتحقق', target: 'accreditation', path: '/accreditation', desc: 'صفحة الثقة والتحقق وروابط الاعتماد الرسمية' },
-    { label: 'الوكالة والاعتماد', target: 'agent', path: '/accreditation', desc: 'تمثيل دولي واعتماد مؤسسات عبر صفحة الاعتماد الرسمية' },
+    { label: 'التراخيص والوثائق الرسمية', target: 'accreditation', path: '/accreditation', desc: 'وثائق الترخيص والشراكات وروابط التحقق الرسمية' },
+    { label: 'الوكالة والاعتماد', target: 'agent', path: '/agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
   ]
