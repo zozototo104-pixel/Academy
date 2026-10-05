@@ -1036,6 +1036,7 @@ export function AdminCertificatesTab() {
   const [blockedCandidates, setBlockedCandidates] = useState<CertificateCandidate[]>([])
   const [candidatesLoading, setCandidatesLoading] = useState(true)
   const [candidateRefresh, setCandidateRefresh] = useState(0)
+  const [financialOverrideReasons, setFinancialOverrideReasons] = useState<Record<string, string>>({})
   const [form, setForm] = useState({ holderName: '', program: '', grade: '', country: '' })
   const [certSearch, setCertSearch] = useState('')
   const [certPage, setCertPage] = useState(1)
