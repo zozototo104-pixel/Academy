@@ -1063,6 +1063,28 @@ export function AdminCertificatesTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [certSearch, certPage, certPageSize, certRefresh])
 
+  useEffect(() => {
+    let cancelled = false
+    setCandidatesLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ limit: '120' })
+      if (certSearch.trim()) params.set('search', certSearch.trim())
+      api<{ ready: CertificateCandidate[]; blocked: CertificateCandidate[] }>(`/api/admin/certificates/candidates?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setReadyCandidates(Array.isArray(d.ready) ? d.ready : [])
+          setBlockedCandidates(Array.isArray(d.blocked) ? d.blocked : [])
+        })
+        .catch(() => {
+          if (cancelled) return
+          setReadyCandidates([])
+          setBlockedCandidates([])
+        })
+        .finally(() => { if (!cancelled) setCandidatesLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [certSearch, candidateRefresh, certRefresh])
+
   const issue = async () => {
     setBusy(true)
     try {
