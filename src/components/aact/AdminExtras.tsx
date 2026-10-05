@@ -1258,6 +1258,11 @@ export function AdminCertificatesTab() {
     setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, [field]: updated } } : t))
   }
 
+  const setTemplateOrientation = (template: CertificateTemplateItem, orientation: 'landscape' | 'portrait') => {
+    const nextLayout = templateLayout(template.layoutJson)
+    setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, orientation } } : t))
+  }
+
   const moveTemplateField = (template: CertificateTemplateItem, field: string, clientX: number, clientY: number) => {
     const rect = templateCanvasRef.current?.getBoundingClientRect()
     if (!rect) return
