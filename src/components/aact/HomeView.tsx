@@ -562,9 +562,9 @@ export function HomeView() {
             </div>
             <div className="aact-reveal-manual aact-feature-badge absolute right-4 top-24 rounded-3xl border border-slate-100 bg-white px-5 py-4 text-center shadow-2xl sm:right-0">
               <div className="flex items-center gap-4">
-                <span className="text-xs font-black leading-5 text-slate-500">عاماً من<br />التميز</span>
+                <span className="text-xs font-black leading-5 text-slate-500">مسيرة<br />مهنية</span>
                 <span className="h-10 w-px bg-slate-200" />
-                <span className="text-4xl font-black text-[#bf1646]">+15</span>
+                <span className="text-2xl font-black text-[#bf1646]">2016</span>
               </div>
             </div>
           </div>
