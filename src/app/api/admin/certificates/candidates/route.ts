@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     const apps = await db.admissionApplication.findMany({
       where,
       take: limit,
-      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }],
       include: {
         payments: true,
         programRef: { select: { id: true, titleAr: true, titleEn: true, category: true } },
