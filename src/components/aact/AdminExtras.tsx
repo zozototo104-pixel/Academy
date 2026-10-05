@@ -1126,46 +1126,95 @@ export function AdminCertificatesTab() {
   return (
     <div className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-slate-500">كل الشهادات الصادرة — كل شهادة برقم تسلسلي فريد وQR للتحقق العام</p>
-        <Button onClick={() => setIssueOpen(true)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-          <Plus className="ml-1 h-4 w-4" /> إصدار شهادة يدوياً
+        <div>
+          <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
+          <p className="text-xs font-bold text-slate-500">النظام يحدد الجاهزين والممنوعين آلياً، والإدارة تعتمد الإصدار بضغطة زر.</p>
+        </div>
+        <Button onClick={() => setIssueOpen(true)} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a]">
+          <Plus className="ml-1 h-4 w-4" /> إصدار يدوي مقيد
         </Button>
       </div>
+
+      <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-2 sm:grid-cols-3">
+        {[
+          ['READY', 'جاهزة للإصدار', readyCandidates.length, CheckCircle2] as const,
+          ['BLOCKED', 'ممنوعة حالياً', blockedCandidates.length, XCircle] as const,
+          ['ISSUED', 'سجل الصادرة', certTotal, Award] as const,
+        ].map(([key, label, count, Icon]) => (
+          <button key={key} type="button" onClick={() => setSection(key)} className={`rounded-xl px-3 py-3 text-right text-xs font-black transition ${section === key ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-slate-50 text-[#0f2b46] hover:bg-slate-100'}`}>
+            <span className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><Badge className={section === key ? 'bg-white/15 text-white' : 'bg-[#c9a227]/15 text-[#a8841a]'}>{count}</Badge></span>
+          </button>
+        ))}
+      </div>
+
       <AdminListToolbar
         search={certSearch}
         onSearchChange={(v) => { setCertSearch(v); setCertPage(1) }}
         searchPlaceholder="ابحث بالاسم أو الرقم التسلسلي أو البرنامج..."
         pageSize={certPageSize}
         onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
-        total={certTotal}
-        filtered={certTotal}
-        label="شهادة"
+        total={section === 'ISSUED' ? certTotal : (section === 'READY' ? readyCandidates.length : blockedCandidates.length)}
+        filtered={section === 'ISSUED' ? certTotal : (section === 'READY' ? readyCandidates.length : blockedCandidates.length)}
+        label={section === 'ISSUED' ? 'شهادة' : 'طلب'}
       />
-      {certTotal === 0 && !certSearch ? (
-        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات بعد — تُصدر تلقائياً عند إكمال برنامج أو اعتماد طلب اعتماد</CardContent></Card>
-      ) : certs.length === 0 ? (
-        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {pagedCerts.map((c) => (
-            <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <Award className="h-5 w-5 text-[#a8841a]" />
-                  <span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span>
-                </div>
-                <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
-                <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
-                <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]"
-                  onClick={() => { setSelected(c); setOpen(true) }}>
-                  <FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+
+      {section === 'READY' && (
+        candidatesLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div> : readyCandidates.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات جاهزة للإصدار حالياً.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {readyCandidates.map((c) => (
+              <Card key={c.id} className="border-emerald-200 bg-white">
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-emerald-100 text-emerald-700">جاهز</Badge></div>
+                  <div className="grid gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-900 sm:grid-cols-2"><span>النتيجة: {c.eligibility.gradeLabel || 'جاهز أكاديمياً'}</span><span>الرسوم: {c.payments.tuitionPaid}$ / {c.payments.tuitionTotal}$</span></div>
+                  <Button disabled={busy} onClick={() => issueCandidate(c)} className="w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
       )}
-      <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />
+
+      {section === 'BLOCKED' && (
+        candidatesLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div> : blockedCandidates.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات ممنوعة حالياً.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {blockedCandidates.map((c) => (
+              <Card key={c.id} className="border-red-100 bg-white">
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-red-100 text-red-700">ممنوع</Badge></div>
+                  <div className="rounded-xl bg-red-50 p-3 text-xs font-bold leading-6 text-red-900"><p className="mb-1 font-black">سبب المنع:</p><ul className="list-inside list-disc space-y-1">{c.missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}</ul></div>
+                  <p className="text-[11px] font-bold text-slate-500">لا يظهر زر الإصدار هنا. التجاوز المالي سيكون في مرحلة لاحقة وبسبب إلزامي وسجل تدقيق.</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      {section === 'ISSUED' && (
+        certTotal === 0 && !certSearch ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات صادرة بعد — تصدرها الإدارة بعد اكتمال النجاح الأكاديمي وسداد الرسوم.</CardContent></Card>
+        ) : certs.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pagedCerts.map((c) => (
+              <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between"><Award className="h-5 w-5 text-[#a8841a]" /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
+                  <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
+                  <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
+                  <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+      {section === 'ISSUED' && <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />}
 
       <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
 
