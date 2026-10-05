@@ -183,7 +183,7 @@ export default async function AccreditationPage() {
         </aside>
       </section>
 
-      {Array.isArray(accreditation.partnerships) && accreditation.partnerships.length > 0 && (
+      {partnerships.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pb-10">
           <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-6 shadow-xl shadow-slate-200/70">
             <div className="flex items-center gap-3">
