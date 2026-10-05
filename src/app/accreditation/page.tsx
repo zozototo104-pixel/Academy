@@ -82,9 +82,10 @@ function priceLabel(programPrice: number | null, settings: Record<string, string
 }
 
 export default async function AccreditationPage() {
-  const [contact, settings, programs] = await Promise.all([
+  const [contact, settings, accreditation, programs] = await Promise.all([
     getOfficialContact().catch(() => ({} as OfficialContact)),
     getSettings().catch(() => ({} as Record<string, string>)),
+    getAccreditationProfileForPublic().catch(() => ({ partnerships: [], documents: [] })),
     db.program.findMany({
       where: { active: true, category: 'ACCREDITATION' },
       orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
