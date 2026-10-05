@@ -150,6 +150,7 @@ export function HomeView() {
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [trustBannerText, setTrustBannerText] = useState('')
   const [homeStats, setHomeStats] = useState<HomeStats>(DEFAULT_HOME_STATS)
+  const [homeLegalEntity, setHomeLegalEntity] = useState('الأكاديمية')
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>(DEFAULT_SETTINGS)
   const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
