@@ -47,8 +47,8 @@ export function AboutView() {
   const featuredServices = SERVICE_OFFERINGS.slice(0, 4)
   const [homeStats, setHomeStats] = useState({ graduates: 15000, experts: 50, countries: 25 })
   const [officialContact, setOfficialContact] = useState({
-    legalEntity: ACADEMY_INFO.nameAr,
-    address: ACADEMY_INFO.locationAr,
+    legalEntity: 'الأكاديمية',
+    address: '',
   })
 
   useEffect(() => {
