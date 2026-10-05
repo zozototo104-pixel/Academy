@@ -60,7 +60,7 @@ jobs:
             '| --- | ---: |',
             ...(sorted.length ? sorted.map(([rule, count]) => `| \`${rule}\` | ${count} |`) : ['| _none_ | 0 |']),
             '',
-            'Copy these counts into the PR description before turning the baseline into a fixed max-warnings value.',
+            'Use this table as the PR baseline, then reduce one rule at a time in follow-up cleanup PRs.',
           ].join('\n')
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`)
           NODE
