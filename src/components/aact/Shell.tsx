@@ -981,7 +981,7 @@ export function Footer() {
             <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>الاعتماد والتحقق</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('about')}>من نحن</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('apply')}>طلب الالتحاق وتتبعه</button></li>
-            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('agent')}>الوكالة الدولية والاعتمادات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>الوكالة الدولية والاعتمادات</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('directory')}>دليل المعتمدين والوكلاء</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/representatives')}>ممثلو الأكاديمية في الدول</button></li>
             <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>التحقق من صحة الشهادات</button></li>
