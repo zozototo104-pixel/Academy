@@ -1076,6 +1076,7 @@ export function AdminCertificatesTab() {
   const [templateBusy, setTemplateBusy] = useState(false)
   const [templateFile, setTemplateFile] = useState<File | null>(null)
   const [templateForm, setTemplateForm] = useState({ name: '', certificateType: 'PROGRAM_COMPLETION' })
+  const [templatePendingDelete, setTemplatePendingDelete] = useState<CertificateTemplateItem | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [selectedTemplateField, setSelectedTemplateField] = useState('holderName')
   const templateCanvasRef = useRef<HTMLDivElement | null>(null)
