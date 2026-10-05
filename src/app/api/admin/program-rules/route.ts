@@ -378,6 +378,7 @@ export async function PUT(req: NextRequest) {
 
     const saved = await db.program.update({ where: { id: programId }, data })
     clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces([program.slug, saved.slug])
     const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
     const after = programSnapshot(saved)
     const changes = pickChangedFields(before, after)
