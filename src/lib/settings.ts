@@ -31,6 +31,21 @@ export const DEFAULT_DISCLOSURE_CONSENT_TEXT = 'أقر بأن البيانات �
 
 export const DEFAULT_TRUST_BANNER_TEXT = 'برامج تدريب مهني تصدر شهاداتها عن الأكاديمية الأمريكية للاستشارات والتدريب، وقبولها يعود لجهة العمل أو الجهة المختصة.'
 
+export const DEFAULT_ACCREDITATION_PAGE = {
+  licenseNumber: '',
+  licenseVerifyUrl: '',
+  licenseDocumentUrl: '',
+  licensingAuthority: '',
+  trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
+  partnerships: [] as Array<{
+    name: string
+    type?: string
+    description?: string
+    verifyUrl?: string
+    documentUrl?: string
+  }>,
+}
+
 export const DEFAULT_SETTINGS: SettingDef[] = [
   // الرسوم العامة: أسعار البرامج الافتراضية فقط، أما سعر كل برنامج فيُعدل من قواعد القبول.
   { key: 'FEE_APPLICATION', value: '30', label: 'رسوم التقديم وحجز المقعد (غير مستردة)', group: 'FEES', suffix: '$', inputType: 'number' },
