@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
           ? `تم استلام المرفقات المعدّلة لطلبك (${app.reference}) وإعادته إلى مرحلة المتابعة مع الإدارة.`
           : isServiceRequest
             ? `طلبك (${app.reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${(app.files || []).length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
-            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/4) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة.`,
+            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة.`,
         'apply'
       )
     }
