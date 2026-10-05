@@ -612,7 +612,7 @@ export function Header() {
               {items.map((it) => (
                 <button
                   key={it.target}
-                  onClick={() => { setOpen(false); navigate(it.target) }}
+                  onClick={() => { setOpen(false); it.path ? window.location.assign(it.path) : navigate(it.target) }}
                   className={`block w-full border-b border-slate-100 px-4 py-3 text-right transition-colors last:border-0 hover:bg-[#f7edd0]/60 ${view === it.target ? 'bg-[#f7edd0]' : ''}`}
                 >
                   <span className={`block text-sm font-black ${view === it.target || gold ? 'text-[#a8841a]' : 'text-[#0f2b46]'}`}>{it.label}</span>
