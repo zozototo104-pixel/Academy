@@ -452,6 +452,70 @@ export function AdminRulesTab() {
     })
   }
 
+  const createProgram = async () => {
+    const titleAr = window.prompt('اكتب اسم البرنامج الجديد بالعربية. سيُنشأ كمسودة غير منشورة حتى تفعّله يدوياً:')?.trim()
+    if (!titleAr) return
+    const category = programCategoryFilter !== 'ALL' ? programCategoryFilter : (programDraft?.category || 'DIPLOMA')
+    setCreatingProgram(true)
+    try {
+      const d = await api<{ item: ProgramRules }>('/api/admin/program-rules', {
+        method: 'POST',
+        body: JSON.stringify({
+          program: {
+            titleAr,
+            titleEn: '',
+            description: '',
+            category,
+            icon: 'graduation-cap',
+            features: [],
+            active: false,
+            price: null,
+            hours: 1,
+          },
+        }),
+      })
+      setPrograms((ps) => [d.item, ...ps])
+      selectProgram(d.item)
+      toast({ title: 'تم إنشاء برنامج جديد كمسودة غير منشورة', description: 'أكمل بياناته ثم فعّله من مفتاح النشر داخل البيانات الأساسية.' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر إنشاء البرنامج', variant: 'destructive' })
+    } finally {
+      setCreatingProgram(false)
+    }
+  }
+
+  const setSelectedProgramActive = async (active: boolean) => {
+    if (!selected || !programDraft) return
+    if (!active) {
+      const confirmed = window.confirm('سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً. هل تريد المتابعة؟')
+      if (!confirmed) return
+    }
+    setSaving(true)
+    try {
+      const d = await api<{ rules: Rules; custom: boolean; program?: ProgramDraft }>('/api/admin/program-rules', {
+        method: 'PUT',
+        body: JSON.stringify({
+          programId: selected.id,
+          programPatch: { active },
+        }),
+      })
+      const nextProgram = d.program || { ...programDraft, active }
+      setProgramDraft(nextProgram)
+      setPrograms((ps) => ps.map((p) => p.id === selected.id ? {
+        ...p,
+        active,
+        program: { ...(p.program || programDraft), active },
+        rules: d.rules || p.rules,
+        custom: d.custom ?? p.custom,
+      } : p))
+      toast({ title: active ? 'تمت إعادة نشر البرنامج' : 'تمت أرشفة البرنامج وإخفاؤه عن الزوار' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تحديث حالة البرنامج', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const save = async (reset = false) => {
     if (!selectedId) return
     setSaving(true)
