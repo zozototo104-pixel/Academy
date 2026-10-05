@@ -109,6 +109,26 @@ export default async function AccreditationPage() {
 
   return (
     <main dir="rtl" className="min-h-screen bg-[#f6f0e3] text-[#0f2b46]">
+      <header className="sticky top-0 z-40 border-b border-[#e0b83a]/20 bg-[#0f2b46]/95 text-[#f5f0e1] shadow-xl shadow-slate-900/10 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <Link href="/" className="flex items-center gap-3">
+            <img src="/aact-logo.png" alt="شعار الأكاديمية الأمريكية للاستشارات والتدريب" className="h-11 w-11 shrink-0 object-contain" />
+            <div>
+              <p className="text-sm font-black leading-5">الأكاديمية الأمريكية</p>
+              <p className="text-[11px] font-bold text-[#e0b83a]">للاستشارات والتدريب</p>
+            </div>
+          </Link>
+          <nav className="hidden flex-wrap items-center gap-4 text-xs font-black md:flex">
+            <Link href="/" className="hover:text-[#e0b83a]">الرئيسية</Link>
+            <Link href="/programs" className="hover:text-[#e0b83a]">البرامج والخدمات</Link>
+            <Link href="/verify" className="hover:text-[#e0b83a]">الشهادات والتحقق</Link>
+            <Link href="/apply" className="hover:text-[#e0b83a]">طلب الالتحاق</Link>
+            <Link href="/contact" className="hover:text-[#e0b83a]">تواصل معنا</Link>
+          </nav>
+          <PublicBackButton />
+        </div>
+      </header>
+
       <section className="relative overflow-hidden bg-[#0f2b46] px-4 py-16 text-[#f5f0e1]">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #e0b83a 0, transparent 28%), radial-gradient(circle at 80% 0%, #ffffff 0, transparent 22%)' }} />
         <div className="relative mx-auto max-w-6xl">
