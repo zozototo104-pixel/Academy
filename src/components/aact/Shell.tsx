@@ -569,11 +569,13 @@ export function Header() {
   const canUseStudentPortal = user?.role === 'STUDENT'
 
   // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
-  const studentItems: { label: string; target: any; desc: string }[] = [
+  type NavItem = { label: string; target: any; desc: string; path?: string }
+  const studentItems: NavItem[] = [
     { label: 'بوابة الطالب', target: 'dashboard', desc: 'برامجك، دفعاتك، بحثك، شهاداتك' },
     { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
   ]
-  const academyItems: { label: string; target: any; desc: string }[] = [
+  const academyItems: NavItem[] = [
+    { label: 'الاعتماد والتحقق', target: 'accreditation', path: '/accreditation', desc: 'صفحة الثقة والتحقق وروابط الاعتماد الرسمية' },
     { label: 'الوكالة والاعتماد', target: 'agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
     { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
     { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
