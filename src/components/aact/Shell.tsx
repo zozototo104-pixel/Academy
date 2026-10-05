@@ -1,9 +1,54 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
-import { ACADEMY_INFO } from '@/lib/academyData'
 import { useEffect, useRef, useState } from 'react'
 import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
+
+type ShellOfficialContact = {
+  legalEntity: string
+  registrationNumber: string
+  address: string
+  email: string
+  phones: string[]
+  whatsapps: string[]
+  responsiblePerson: string
+}
+
+const EMPTY_OFFICIAL_CONTACT: ShellOfficialContact = {
+  legalEntity: '',
+  registrationNumber: '',
+  address: '',
+  email: '',
+  phones: [],
+  whatsapps: [],
+  responsiblePerson: '',
+}
+
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
+function parseOfficialContact(raw?: string): ShellOfficialContact {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    const phones = contactList(parsed.phone, parsed.phones)
+    const whatsapps = contactList(parsed.whatsapp, parsed.whatsapps)
+    return {
+      legalEntity: String(parsed.legalEntity || ''),
+      registrationNumber: String(parsed.registrationNumber || ''),
+      address: String(parsed.address || ''),
+      email: String(parsed.email || ''),
+      phones,
+      whatsapps,
+      responsiblePerson: String(parsed.responsiblePerson || ''),
+    }
+  } catch {
+    return EMPTY_OFFICIAL_CONTACT
+  }
+}
 
 // أزرار عائمة: واتساب ذكي + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
