@@ -551,7 +551,7 @@ export function ApplyView() {
 
   const renderAdmissionStatusCard = (app: any) => {
     const isStudyApp = app.isStudyProgram !== false
-    const baseStatus = STATUS_LABEL[app.status] || { text: app.statusLabel || app.status, cls: 'bg-slate-100 text-slate-600' }
+    const baseStatus = statusLabelFor(app.status, app.statusLabel || app.status)
     const status = !isStudyApp && app.status === 'RESULT_APPROVED'
       ? { text: 'تم اعتماد الخدمة', cls: 'bg-emerald-100 text-emerald-700' }
       : !isStudyApp && app.status === 'CERTIFIED'
