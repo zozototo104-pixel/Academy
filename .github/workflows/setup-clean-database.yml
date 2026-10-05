@@ -147,6 +147,10 @@ jobs:
               ;;
 
             setup-clean-database)
+              if [ "${AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW:-NO}" != "YES" ]; then
+                echo "Refusing setup. Set GitHub secret AACT_ALLOW_DESTRUCTIVE_DB_WORKFLOW=YES to enable database setup operations."
+                exit 1
+              fi
               if [ "$OPERATION_CONFIRMATION" != "SETUP" ]; then
                 echo "Refusing setup. Type SETUP in the confirm field."
                 exit 1
