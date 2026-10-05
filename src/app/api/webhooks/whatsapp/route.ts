@@ -626,6 +626,35 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
         content: item.text,
       }))
     : []
+
+  const contactIntent = await classifyWhatsAppContactIntent(text)
+  if (contactIntent.intent !== 'OTHER' && contactIntent.confidence >= 0.62) {
+    await auditWhatsAppWebhook('WHATSAPP_CONTACT_INTENT_CLASSIFIED', {
+      from: maskPhone(message.from),
+      text: text.slice(0, 180),
+      decision: contactIntent,
+    }, message.id)
+
+    if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT') {
+      return await buildOfficialContactReply()
+    }
+
+    if (contactIntent.intent === 'PROVIDED_OWN_CONTACT') {
+      if (!handoffOpen) {
+        const handoff = await createHumanHandoffRequest({
+          user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
+          message: text,
+          source: 'WHATSAPP',
+          sourceRef: handoffKey,
+        })
+        await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      }
+      return handoffOpen
+        ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
+        : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
+    }
+  }
+
   const handoffIntent = await analyzeHumanHandoffIntent(text, { promptActive, handoffOpen, recentMessages })
   await auditWhatsAppWebhook('WHATSAPP_HANDOFF_INTENT_ANALYZED', {
     from: maskPhone(message.from),
