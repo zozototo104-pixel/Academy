@@ -44,11 +44,6 @@ export default async function RepresentativesPage() {
             <p className="mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base">
               نافذة رسمية للتعرّف إلى ممثلي الأكاديمية الأمريكية للاستشارات والتدريب، نطاقاتهم الجغرافية، سيرهم المهنية، وأعمالهم الموثقة.
             </p>
-            {demo && (
-              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-xs font-bold text-amber-100">
-                البيانات الظاهرة حالياً تجريبية إلى حين إدخال ممثلي الأكاديمية من لوحة الإدارة.
-              </div>
-            )}
           </div>
           <div className="mt-8 flex flex-wrap gap-2">
             {regions.map((region) => <span key={region} className="rounded-full bg-white/10 px-4 py-2 text-xs font-black text-white/90">{region}</span>)}
