@@ -145,7 +145,13 @@ export async function POST(req: NextRequest) {
     const email = app?.email || linkedUser?.email
     if (email) await emailCertificateIssued(email, linkedUser?.name || cert.holderName, cert.program, serial)
 
-    await audit(admin, 'ISSUE_CERTIFICATE', 'Certificate', cert.id, `${serial} — ${cert.holderName} (${cert.program})`)
+    await audit(
+      admin,
+      overrideReason ? 'ISSUE_CERTIFICATE_FINANCIAL_OVERRIDE' : 'ISSUE_CERTIFICATE',
+      'Certificate',
+      cert.id,
+      overrideReason ? `${serial} — ${cert.holderName} (${cert.program}) — تجاوز مالي: ${overrideReason}` : `${serial} — ${cert.holderName} (${cert.program})`
+    )
     return NextResponse.json({ ok: true, certificate: cert, eligibility })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
