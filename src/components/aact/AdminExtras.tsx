@@ -1505,6 +1505,13 @@ export function AdminCertificatesTab() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">اتجاه الشهادة</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant={isPortraitTemplate ? 'outline' : 'default'} onClick={() => setTemplateOrientation(selectedTemplate, 'landscape')} className={isPortraitTemplate ? 'bg-white font-black' : 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>عرضي</Button>
+                      <Button type="button" variant={isPortraitTemplate ? 'default' : 'outline'} onClick={() => setTemplateOrientation(selectedTemplate, 'portrait')} className={isPortraitTemplate ? 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]' : 'bg-white font-black'}>طولي</Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-[11px] font-black text-slate-600">الحقل المحدد</Label>
                     <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
