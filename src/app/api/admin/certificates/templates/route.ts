@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
         storageProvider: stored.provider,
         storageKey: stored.key,
         fileUrl: stored.url,
+        layoutJson: DEFAULT_CERTIFICATE_TEMPLATE_LAYOUT,
       },
     })
     await audit(admin, 'UPLOAD_CERTIFICATE_TEMPLATE', 'CertificateTemplate', template.id, `${name} — ${certificateType}`)
