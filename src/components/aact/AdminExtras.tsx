@@ -1289,6 +1289,102 @@ export function AdminSettingsTab() {
         </div>
       )
     }
+    if (d.key === 'ACCREDITATION_PAGE') {
+      const accreditationFallback = {
+        licenseNumber: '',
+        licenseVerifyUrl: '',
+        licenseDocumentUrl: '',
+        licensingAuthority: '',
+        trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
+        partnerships: [] as Array<{ name: string; type?: string; description?: string; verifyUrl?: string; documentUrl?: string }>,
+      }
+      const accreditation = readJsonSetting('ACCREDITATION_PAGE', accreditationFallback)
+      const partnerships = Array.isArray(accreditation.partnerships) ? accreditation.partnerships : []
+      const patchPartnerships = (next: typeof partnerships) => patchJsonSetting('ACCREDITATION_PAGE', { partnerships: next }, accreditationFallback)
+      const updatePartnership = (index: number, patch: Partial<typeof partnerships[number]>) => {
+        const next = partnerships.length ? [...partnerships] : []
+        next[index] = { ...(next[index] || { name: '' }), ...patch }
+        patchPartnerships(next)
+      }
+      const addPartnership = () => patchPartnerships([...partnerships, { name: '', type: '', description: '', verifyUrl: '', documentUrl: '' }])
+      const removePartnership = (index: number) => patchPartnerships(partnerships.filter((_, i) => i !== index))
+      return (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+            ضع روابط الوثائق المستضافة خارج المنصة فقط، مثل روابط Cloudflare R2 أو Cloudflare Images أو أي رابط تحقق رسمي. لا يتم رفع ملفات الاعتماد داخل المنصة من هذا القسم.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رقم الترخيص / التسجيل</Label>
+              <Input value={accreditation.licenseNumber || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseNumber: e.target.value }, accreditationFallback)} className="font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">جهة الترخيص</Label>
+              <Input value={accreditation.licensingAuthority || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licensingAuthority: e.target.value }, accreditationFallback)} className="font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رابط التحقق الرسمي</Label>
+              <Input dir="ltr" value={accreditation.licenseVerifyUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseVerifyUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">رابط وثيقة الترخيص على Cloudflare</Label>
+              <Input dir="ltr" value={accreditation.licenseDocumentUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseDocumentUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-bold text-slate-600">ملاحظة الثقة على صفحة الاعتماد</Label>
+              <Textarea value={accreditation.trustNote || ''} rows={3} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { trustNote: e.target.value }, accreditationFallback)} className="font-bold leading-7" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm font-black text-[#0f2b46]">الشراكات والاعتمادات المرتبطة</Label>
+                <p className="mt-1 text-[11px] font-bold text-slate-500">أضف أي شراكة جديدة باسمها وروابط التحقق أو الوثائق. لا توجد أسماء ثابتة في الكود.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={addPartnership} className="font-black">+ إضافة شراكة</Button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {partnerships.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-500">
+                  لا توجد شراكات مدخلة بعد. أضف شراكة فقط إذا كانت لديك وثيقة أو رابط تحقق رسمي.
+                </div>
+              )}
+              {partnerships.map((partner, index) => (
+                <div key={index} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-xs font-black text-[#0f2b46]">شراكة #{index + 1}</p>
+                    <Button type="button" size="sm" variant="outline" onClick={() => removePartnership(index)} className="text-[10px] font-black text-red-600">حذف</Button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">اسم الجهة</Label>
+                      <Input value={partner.name || ''} placeholder="مثال: جامعة القاهرة" onChange={(e) => updatePartnership(index, { name: e.target.value })} className="font-bold" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">نوع العلاقة</Label>
+                      <Input value={partner.type || ''} placeholder="شراكة / اعتماد / تعاون" onChange={(e) => updatePartnership(index, { type: e.target.value })} className="font-bold" />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-[11px] font-bold text-slate-600">وصف مختصر</Label>
+                      <Textarea value={partner.description || ''} rows={2} onChange={(e) => updatePartnership(index, { description: e.target.value })} className="font-bold leading-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">رابط تحقق رسمي</Label>
+                      <Input dir="ltr" value={partner.verifyUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { verifyUrl: e.target.value })} className="text-left font-mono text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold text-slate-600">رابط الوثيقة على Cloudflare</Label>
+                      <Input dir="ltr" value={partner.documentUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { documentUrl: e.target.value })} className="text-left font-mono text-xs" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
     if (d.key === 'OFFICIAL_CONTACT') {
       const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
       const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
