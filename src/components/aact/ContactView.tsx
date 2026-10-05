@@ -209,15 +209,15 @@ export function ContactView() {
                   </div>
                 </a>
               ))}
-              {officialContact.whatsapp && (
-                <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              {officialContact.whatsapps.map((whatsapp, index) => (
+                <a key={whatsapp} href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                   <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400">واتساب رسمي{officialContact.responsiblePerson ? ` — ${officialContact.responsiblePerson}` : ''}</p>
-                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.whatsapp}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{index === 0 ? 'واتساب رسمي' : `واتساب رسمي إضافي ${index + 1}`}{index === 0 && officialContact.responsiblePerson ? ` — ${officialContact.responsiblePerson}` : ''}</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{whatsapp}</p>
                   </div>
                 </a>
-              )}
+              ))}
               {officialContact.address && (
                 <div className="flex items-center gap-3 rounded-xl bg-white/70 p-3">
                   <span className="rounded-lg bg-[#c9a227] p-2 text-[#0f2b46]"><MapPin className="h-4 w-4" /></span>
