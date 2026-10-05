@@ -1333,29 +1333,55 @@ export function AdminSettingsTab() {
               />
             </div>
           ))}
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-[11px] font-bold text-slate-600">أرقام الهاتف الرسمية</Label>
-            <p className="text-[10px] font-bold text-slate-400">اكتب كل رقم في سطر مستقل. أول رقم يُحفظ أيضاً كالهاتف الأساسي للتوافق.</p>
-            <Textarea
-              dir="ltr"
-              rows={3}
-              className="font-mono text-xs text-left"
-              value={contactLines(contact.phone, contact.phones)}
-              placeholder={'+1 ...\n+970 ...'}
-              onChange={(e) => patchContactLines('phones', 'phone', e.target.value)}
-            />
+          <div className="space-y-2 sm:col-span-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label className="text-[11px] font-bold text-slate-600">أرقام الهاتف الرسمية</Label>
+                <p className="text-[10px] font-bold text-slate-400">كل رقم في خانة مستقلة. أول رقم يُحفظ أيضاً كالهاتف الأساسي للتوافق.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => addContactItem('phones', 'phone', phoneItems)} className="text-[10px] font-black">
+                + إضافة هاتف
+              </Button>
+            </div>
+            {phoneItems.map((phone, index) => (
+              <div key={`phone-${index}`} className="flex gap-2">
+                <Input
+                  dir="ltr"
+                  className="text-left font-mono text-xs"
+                  value={phone}
+                  placeholder={index === 0 ? '+1 ...' : '+970 ...'}
+                  onChange={(e) => updateContactItem('phones', 'phone', phoneItems, index, e.target.value)}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={phoneItems.length === 1 && !phone} onClick={() => removeContactItem('phones', 'phone', phoneItems, index)} className="text-[10px] font-black text-red-600">
+                  حذف
+                </Button>
+              </div>
+            ))}
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-[11px] font-bold text-slate-600">أرقام الواتساب الرسمية</Label>
-            <p className="text-[10px] font-bold text-slate-400">اكتب كل رقم في سطر مستقل. أول رقم يستخدمه زر الواتساب العائم كرابط مباشر.</p>
-            <Textarea
-              dir="ltr"
-              rows={3}
-              className="font-mono text-xs text-left"
-              value={contactLines(contact.whatsapp, contact.whatsapps)}
-              placeholder={'+1 ...\n+970 ...'}
-              onChange={(e) => patchContactLines('whatsapps', 'whatsapp', e.target.value)}
-            />
+          <div className="space-y-2 sm:col-span-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label className="text-[11px] font-bold text-slate-600">أرقام الواتساب الرسمية</Label>
+                <p className="text-[10px] font-bold text-slate-400">كل رقم في خانة مستقلة. أول رقم يستخدمه زر الواتساب العائم كرابط مباشر.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => addContactItem('whatsapps', 'whatsapp', whatsappItems)} className="text-[10px] font-black">
+                + إضافة واتساب
+              </Button>
+            </div>
+            {whatsappItems.map((whatsapp, index) => (
+              <div key={`whatsapp-${index}`} className="flex gap-2">
+                <Input
+                  dir="ltr"
+                  className="text-left font-mono text-xs"
+                  value={whatsapp}
+                  placeholder={index === 0 ? '+1 ...' : '+970 ...'}
+                  onChange={(e) => updateContactItem('whatsapps', 'whatsapp', whatsappItems, index, e.target.value)}
+                />
+                <Button type="button" size="sm" variant="outline" disabled={whatsappItems.length === 1 && !whatsapp} onClick={() => removeContactItem('whatsapps', 'whatsapp', whatsappItems, index)} className="text-[10px] font-black text-red-600">
+                  حذف
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
       )
