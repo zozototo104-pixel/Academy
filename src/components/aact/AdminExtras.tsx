@@ -1471,6 +1471,82 @@ export function AdminCertificatesTab() {
               ))}
             </div>
           )}
+
+          {selectedTemplate && (
+            <div className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h5 className="text-sm font-black text-[#0f2b46]">محرر أماكن الحقول على القالب</h5>
+                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب أي حقل فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
+                </div>
+                <Button type="button" onClick={() => saveTemplateLayout(selectedTemplate)} disabled={templateBusy} className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
+                  {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />} حفظ تخطيط القالب
+                </Button>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">القالب الذي يتم ضبطه</Label>
+                    <Select value={selectedTemplate.id} onValueChange={(v) => setSelectedTemplateId(v)}>
+                      <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">الحقل المحدد</Label>
+                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
+                      <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.keys(TEMPLATE_FIELD_LABELS).map((key) => <SelectItem key={key} value={key}>{TEMPLATE_FIELD_LABELS[key]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedTemplateField !== 'qr' ? (
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.8" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="10" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللون</Label><Input type="color" value={selectedLayout[selectedTemplateField]?.color || '#0f2b46'} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { color: e.target.value })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">يمين</SelectItem><SelectItem value="center">وسط</SelectItem><SelectItem value="left">يسار</SelectItem></SelectContent></Select></div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-white p-3"><Label className="text-[10px] font-bold">حجم QR %</Label><Input type="number" min="5" max="30" value={selectedLayout.qr?.size ?? 12} onChange={(e) => patchTemplateLayout(selectedTemplate, 'qr', { size: Number(e.target.value || 12) })} /></div>
+                  )}
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب الحقل من داخل الصورة. القيم تُحفظ كنسب مئوية حتى يبقى التخطيط صحيحاً مهما تغيّر حجم القالب.</div>
+                </div>
+                <div
+                  ref={templateCanvasRef}
+                  className="relative aspect-[1.414/1] overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner"
+                  onPointerMove={(e) => {
+                    if (e.buttons !== 1 || !selectedTemplate) return
+                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                  }}
+                  onPointerDown={(e) => {
+                    if (!selectedTemplate) return
+                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                  }}
+                >
+                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="absolute inset-0 h-full w-full object-cover" />
+                  {Object.keys(TEMPLATE_FIELD_LABELS).map((field) => {
+                    const cfg = selectedLayout[field]
+                    if (cfg?.visible === false) return null
+                    return (
+                      <button
+                        key={field}
+                        type="button"
+                        onPointerDown={(e) => { e.stopPropagation(); setSelectedTemplateField(field); if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY) }}
+                        style={designerFieldStyle(field)}
+                        className="select-none"
+                      >
+                        {field === 'qr' ? 'QR' : sampleValues[field]}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
