@@ -265,6 +265,7 @@ export async function PATCH(req: NextRequest) {
       data: { price: payload.price, hours: payload.hours },
     })
     clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces(visiblePrograms.map((p) => p.slug))
 
     const changedSummary = visiblePrograms
       .map((p) => `${p.titleAr}: السعر ${p.price ?? 'فارغ'} ← ${payload.price}، الساعات ${p.hours ?? 'فارغ'} ← ${payload.hours}`)
