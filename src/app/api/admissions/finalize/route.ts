@@ -338,9 +338,9 @@ export async function POST(req: NextRequest) {
         ? `تم استلام المرفقات المعدّلة لطلبك ${app.reference} وإعادتها للإدارة للمراجعة.`
         : isServiceRequest
           ? `تم استلام طلب الخدمة! كود التتبع: ${app.reference} — ستقوم الإدارة بمراجعة الطلب وتحديد الخطوة التالية`
-          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/4) والإقرار! كود تتبع طلبك: ${app.reference} — سدد رسوم التقديم (${appFee}$) ليُحوَّل ملفك للإدارة`,
+          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار! كود تتبع طلبك: ${app.reference} — سدد رسوم التقديم (${appFee}$) ليُحوَّل ملفك للإدارة`,
       reference: app.reference,
-      applicationFee: isServiceRequest ? 0 : ADMISSION_FEES.applicationFee,
+      applicationFee: appFee,
       documentsCount: (app.files || []).length,
       invoice: feeInvoice ? {
         invoiceNo: feeInvoice.invoiceNo,
