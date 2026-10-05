@@ -1527,7 +1527,7 @@ export function AdminCertificatesTab() {
                 </div>
                 <div
                   ref={templateCanvasRef}
-                  className="relative aspect-[1.414/1] overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner"
+                  className={`relative ${templateAspectClass} overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner`}
                   onPointerMove={(e) => {
                     if (e.buttons !== 1 || !selectedTemplate) return
                     moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
