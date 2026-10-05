@@ -7,6 +7,7 @@ import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervi
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
+import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
 
 export type PlatformAgentKind =
