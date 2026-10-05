@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/lib/store'
-import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { SERVICE_OFFERINGS } from '@/lib/academyData'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
