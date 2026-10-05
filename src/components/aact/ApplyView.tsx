@@ -582,7 +582,7 @@ export function ApplyView() {
         : app.status === 'UNDER_REVIEW'
           ? (isStudyApp ? 'طلبك قيد دراسة الإدارة' : 'طلب الخدمة قيد مراجعة الإدارة')
           : app.status === 'AWAITING_FEE'
-            ? 'تم استلام طلبك — بانتظار رسوم التقديم'
+            ? `تم استلام طلبك — بانتظار رسوم التقديم (${applicationFee}$)`
             : isStudyFinalActive && isStudyApp
               ? 'تم تفعيل قيدك الدراسي'
               : isServiceApproved
