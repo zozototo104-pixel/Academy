@@ -21,6 +21,50 @@ type OfficialContact = {
   responsiblePerson?: string
 }
 
+type AccreditationPartner = {
+  name: string
+  type?: string
+  description?: string
+  verifyUrl?: string
+  documentUrl?: string
+}
+
+type AccreditationPageSettings = {
+  licenseNumber?: string
+  licenseVerifyUrl?: string
+  licenseDocumentUrl?: string
+  licensingAuthority?: string
+  trustNote?: string
+  partnerships?: AccreditationPartner[]
+}
+
+function parseAccreditationPageSettings(raw: string | undefined): AccreditationPageSettings {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    const partnerships = Array.isArray(parsed.partnerships)
+      ? parsed.partnerships
+          .map((item: any) => ({
+            name: String(item?.name || '').trim(),
+            type: String(item?.type || '').trim(),
+            description: String(item?.description || '').trim(),
+            verifyUrl: String(item?.verifyUrl || '').trim(),
+            documentUrl: String(item?.documentUrl || '').trim(),
+          }))
+          .filter((item: AccreditationPartner) => item.name)
+      : []
+    return {
+      licenseNumber: String(parsed.licenseNumber || '').trim(),
+      licenseVerifyUrl: String(parsed.licenseVerifyUrl || '').trim(),
+      licenseDocumentUrl: String(parsed.licenseDocumentUrl || '').trim(),
+      licensingAuthority: String(parsed.licensingAuthority || '').trim(),
+      trustNote: String(parsed.trustNote || '').trim(),
+      partnerships,
+    }
+  } catch {
+    return { partnerships: [] }
+  }
+}
+
 function contactList(primary?: unknown, list?: unknown): string[] {
   const values = [primary, ...(Array.isArray(list) ? list : [])]
     .map((value) => String(value || '').trim())
