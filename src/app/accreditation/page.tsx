@@ -4,6 +4,7 @@ import { Award, Building2, CheckCircle2, ExternalLink, FileCheck2, FileText, Mai
 import { db } from '@/lib/db'
 import { getAccreditationProfileForPublic } from '@/lib/accreditation'
 import { getOfficialContact, getSettings } from '@/lib/settings'
+import { PublicBackButton } from '@/components/aact/PublicBackButton'
 
 export const metadata: Metadata = {
   title: 'الاعتماد والتحقق | AACT',
