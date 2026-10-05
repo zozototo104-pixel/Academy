@@ -652,6 +652,18 @@ export function PaymentsTab() {
               {payConfig?.methods?.find((m) => m.id === method && !m.enabled)?.reason && <p className='rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700'>{payConfig.methods.find((m) => m.id === method)?.reason}</p>}
             </div>
             <div className='rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500'><Info className='mb-1 h-3.5 w-3.5 text-[#c9a227]' /> الدفع اليدوي لا يخصم تلقائياً؛ في USDT أدخل Hash التحويل بعد الدفع ليتم التحقق آلياً إن كانت الشبكة مدعومة، ثم تؤكد الإدارة السداد.</div>
+            {['DIRECT_PAYMENT', 'BANK_TRANSFER'].includes(method) && (
+              <div className='rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-900'>
+                <p className='font-black'>تعليمات الدفع اليدوي</p>
+                <ol className='mt-1 list-decimal space-y-1 pr-4'>
+                  <li>استخدم رقم الفاتورة كمرجع للدفع: <span className='font-mono' dir='ltr'>{payTarget?.invoiceNo}</span></li>
+                  <li>حوّل المبلغ الظاهر في الفاتورة فقط، ثم احتفظ بصورة الإيصال أو رقم العملية.</li>
+                  <li>بعد اختيار الدفع اليدوي ستظهر بطاقة الفاتورة في القائمة وبداخلها خانة رفع إثبات الدفع.</li>
+                  <li>ترفع الإدارة حالة الفاتورة إلى مسددة بعد مراجعة الإيصال ومطابقة المبلغ.</li>
+                </ol>
+                <p className='mt-2 text-[10px] text-amber-800'>إذا احتجت بيانات الحساب أو وسيلة التحويل، تواصل مع الإدارة عبر أرقام التواصل الرسمية قبل الدفع.</p>
+              </div>
+            )}
             {method === 'USDT' && payConfig?.usdt && (
               <div className='space-y-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-relaxed text-blue-950'>
                 <div>
