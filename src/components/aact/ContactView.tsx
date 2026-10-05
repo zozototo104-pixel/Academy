@@ -10,6 +10,25 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Mail, MessageSquareText, Loader2, Send, CheckCircle2, Phone, MapPin } from 'lucide-react'
 
+type OfficialContactState = {
+  legalEntity: string
+  registrationNumber: string
+  address: string
+  email: string
+  phone: string
+  phones: string[]
+  whatsapp: string
+  whatsapps: string[]
+  responsiblePerson: string
+}
+
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
 export function ContactView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
