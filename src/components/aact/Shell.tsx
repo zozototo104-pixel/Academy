@@ -190,7 +190,7 @@ export function FloatingActions() {
     } catch (e: any) {
       setError(String(e?.message || 'تعذر تشغيل وكيل واتساب الذكي مؤقتاً'))
       setLoading(false)
-      await typeFloatingAssistantReply(`تعذر الرد الآلي مؤقتاً. يمكنك فتح واتساب المباشر على ${ACADEMY_INFO.whatsappDisplay} وسيتم تحويل استفسارك للإدارة.`)
+      await typeFloatingAssistantReply(`تعذر الرد الآلي مؤقتاً. يمكنك استخدام ${directContactText} وسيتم تحويل استفسارك للإدارة.`)
     } finally {
       setLoading(false)
     }
