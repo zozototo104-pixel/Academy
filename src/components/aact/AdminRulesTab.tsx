@@ -255,6 +255,9 @@ export function AdminRulesTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [creatingProgram, setCreatingProgram] = useState(false)
+  const [createProgramOpen, setCreateProgramOpen] = useState(false)
+  const [newProgramTitleAr, setNewProgramTitleAr] = useState('')
+  const [newProgramCategory, setNewProgramCategory] = useState('DIPLOMA')
   const [bulkApplyOpen, setBulkApplyOpen] = useState(false)
   const [bulkApplying, setBulkApplying] = useState(false)
 
