@@ -1291,11 +1291,27 @@ export function AdminSettingsTab() {
     if (d.key === 'OFFICIAL_CONTACT') {
       const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
       const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
-      const contactLines = (primary: string, list: string[]) => Array.from(new Set([primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim()).filter(Boolean))).join('\n')
-      const patchContactLines = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', raw: string) => {
-        const items = raw.split(/\r?\n/).map((v) => v.trim()).filter(Boolean)
-        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: items[0] || '', [listKey]: items }, contactFallback)
+      const contactItems = (primary: string, list: string[]) => {
+        const items = [primary, ...(Array.isArray(list) ? list : [])].map((v) => String(v || '').trim()).filter(Boolean)
+        return Array.from(new Set(items)).length ? Array.from(new Set(items)) : ['']
       }
+      const patchContactItems = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', items: string[]) => {
+        const clean = items.map((v) => String(v || '').trim()).filter(Boolean)
+        patchJsonSetting('OFFICIAL_CONTACT', { [primaryKey]: clean[0] || '', [listKey]: clean }, contactFallback)
+      }
+      const updateContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[], index: number, value: string) => {
+        const next = current.length ? [...current] : ['']
+        next[index] = value
+        patchContactItems(listKey, primaryKey, next)
+      }
+      const addContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[]) => {
+        patchContactItems(listKey, primaryKey, [...current, ''])
+      }
+      const removeContactItem = (listKey: 'phones' | 'whatsapps', primaryKey: 'phone' | 'whatsapp', current: string[], index: number) => {
+        patchContactItems(listKey, primaryKey, current.filter((_, i) => i !== index))
+      }
+      const phoneItems = contactItems(contact.phone, contact.phones)
+      const whatsappItems = contactItems(contact.whatsapp, contact.whatsapps)
       const fields: Array<[string, string, string, 'rtl' | 'ltr']> = [
         ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب', 'rtl'],
         ['registrationNumber', 'رقم التسجيل', '', 'rtl'],
