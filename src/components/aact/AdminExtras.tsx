@@ -660,7 +660,6 @@ export function AdminFinanceTab() {
   const [paymentTotal, setPaymentTotal] = useState(0)
   const [paymentRefresh, setPaymentRefresh] = useState(0)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
-  const [amountBusy, setAmountBusy] = useState<string | null>(null)
 
   const load = () => setPaymentRefresh((v) => v + 1)
 
