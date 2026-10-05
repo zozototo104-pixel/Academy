@@ -227,7 +227,7 @@ export function ContactView() {
                   </div>
                 </div>
               )}
-              {!officialContact.email && !officialContact.phone && !officialContact.whatsapp && !officialContact.address && (
+              {!officialContact.email && officialContact.phones.length === 0 && officialContact.whatsapps.length === 0 && !officialContact.address && (
                 <p className="rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-slate-500">
                   لم تُضبط بيانات التواصل الرسمية بعد. يمكن تحديثها من صفحة الرسوم والقواعد ضمن OFFICIAL_CONTACT.
                 </p>
