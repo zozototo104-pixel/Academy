@@ -23,7 +23,7 @@ function initials(name: string) {
 }
 
 export default async function RepresentativesPage() {
-  const { rows, demo } = await loadRepresentatives()
+  const rows = await loadRepresentatives()
   const regions = [...new Set(rows.map((r) => r.region).filter(Boolean))]
   return (
     <main dir="rtl" className="min-h-screen overflow-hidden bg-[#f4f7fb] text-[#0f2b46]">
