@@ -1475,7 +1475,7 @@ export function AdminCertificatesTab() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button asChild type="button" size="sm" variant="outline" className="h-8 text-xs font-bold"><a href={t.imageUrl} target="_blank" rel="noreferrer"><Eye className="ml-1 h-3.5 w-3.5" /> معاينة</a></Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => updateCertificateTemplate(t, { active: !t.active })} disabled={templateBusy} className="h-8 text-xs font-bold">{t.active ? 'تعطيل' : 'تفعيل'}</Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => deleteCertificateTemplate(t)} disabled={templateBusy} className="h-8 text-xs font-bold text-red-600"><Trash2 className="ml-1 h-3.5 w-3.5" /> حذف</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTemplatePendingDelete(t)} disabled={templateBusy} className="h-8 text-xs font-bold text-red-600"><Trash2 className="ml-1 h-3.5 w-3.5" /> حذف</Button>
                   </div>
                 </div>
               ))}
