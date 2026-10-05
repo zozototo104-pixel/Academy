@@ -1197,6 +1197,11 @@ export function AdminSettingsTab() {
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
   const [adminsLoading, setAdminsLoading] = useState(true)
   const [adminBusy, setAdminBusy] = useState<string | null>(null)
+  const [accreditationProfile, setAccreditationProfile] = useState<AccreditationAdminProfile | null>(null)
+  const [accreditationSaving, setAccreditationSaving] = useState(false)
+  const [accreditationUploadBusy, setAccreditationUploadBusy] = useState(false)
+  const [accreditationUploadFile, setAccreditationUploadFile] = useState<File | null>(null)
+  const [accreditationUpload, setAccreditationUpload] = useState({ title: '', kind: 'LICENSE', description: '', verifyUrl: '', partnershipId: '' })
   const [adminForm, setAdminForm] = useState({
     name: 'QA Admin',
     email: 'qa-admin@aactacademy.com',
