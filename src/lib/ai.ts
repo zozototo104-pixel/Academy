@@ -253,8 +253,8 @@ export function buildSupervisorSystemPrompt(
   persona: SupervisorPersona = 'CHAT',
   runtime?: SupervisorRuntimeContext
 ): string {
-  const contactEmail = runtime?.contactEmail || ACADEMY_INFO.email
-  const contactWhatsapp = runtime?.contactWhatsapp || ACADEMY_INFO.whatsapp
+  const contactEmail = runtime?.contactEmail || 'غير مضبوط في الإعدادات'
+  const contactWhatsapp = runtime?.contactWhatsapp || 'غير مضبوط في الإعدادات'
   const programCatalogText = runtime?.programCatalogText || 'لم يتم تحميل كتالوج البرامج من قاعدة البيانات في هذا الاستدعاء.'
 
   return `أنت "المشرف الذكي" — المرشد الأكاديمي المعتمد لطلاب ${ACADEMY_INFO.nameAr} (${ACADEMY_INFO.nameEn})، تأسست ${ACADEMY_INFO.founded}.
