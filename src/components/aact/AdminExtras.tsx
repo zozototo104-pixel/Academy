@@ -2245,7 +2245,7 @@ export function AdminMessagesTab() {
     </div>
   )
 }
-/* DUPLICATED_ADMIN_EXTRAS_TAIL_DISABLED
+/* Disabled duplicate tail kept as inert comment until repository cleanup.
  })
       load()
     } catch (e: any) {
