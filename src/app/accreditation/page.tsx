@@ -220,11 +220,13 @@ export default async function AccreditationPage() {
                             <ExternalLink className="h-3.5 w-3.5" /> رابط تحقق
                           </a>
                         )}
-                        {partner.documentUrl && (
-                          <a href={partner.documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-[11px] font-black text-[#0f2b46] hover:border-[#c9a227]/50">
-                            <FileText className="h-3.5 w-3.5" /> الوثيقة
-                          </a>
-                        )}
+                        {Array.isArray(partner.documents) && partner.documents.map((doc: any) => (
+                          <span key={doc.id} className="inline-flex flex-wrap gap-1 rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-[11px] font-black text-[#0f2b46]">
+                            <a href={doc.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5" /> {doc.title}</a>
+                            <a href={doc.downloadUrl} className="inline-flex items-center gap-1 hover:text-[#a8841a]">تحميل</a>
+                            {doc.verifyUrl && <a href={doc.verifyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-[#a8841a]">تحقق</a>}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
