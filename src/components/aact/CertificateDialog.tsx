@@ -74,7 +74,7 @@ export function CertificateDialog({
     api<{ qr: string }>(`/api/certificates/qr?data=${encodeURIComponent(verifyUrl)}`)
       .then((d) => setQr(d.qr))
       .catch(() => setQr(null))
-    api<{ template: { id: string; name: string; imageUrl: string } | null }>(`/api/certificates/templates/active?type=${encodeURIComponent(certificate.type)}`)
+    api<{ template: { id: string; name: string; imageUrl: string; layoutJson?: any } | null }>(`/api/certificates/templates/active?type=${encodeURIComponent(certificate.type)}`)
       .then((d) => setTemplate(d.template || null))
       .catch(() => setTemplate(null))
   }, [certificate, open])
