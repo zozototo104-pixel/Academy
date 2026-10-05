@@ -7,8 +7,8 @@ import { getOfficialContact, getSettings } from '@/lib/settings'
 import { PublicBackButton } from '@/components/aact/PublicBackButton'
 
 export const metadata: Metadata = {
-  title: 'الاعتماد والتحقق | AACT',
-  description: 'صفحة الاعتماد والتحقق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب، مع روابط التحقق ودليل الجهات والبرامج المنشورة.',
+  title: 'التراخيص والوثائق الرسمية | AACT',
+  description: 'صفحة التراخيص والوثائق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب، مع روابط التحقق ودليل الجهات والبرامج المنشورة.',
 }
 
 type OfficialContact = {
