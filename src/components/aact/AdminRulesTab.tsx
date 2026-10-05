@@ -631,7 +631,7 @@ export function AdminRulesTab() {
             </div>
             <Button
               type="button"
-              onClick={createProgram}
+              onClick={openCreateProgramDialog}
               disabled={creatingProgram}
               className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
             >
