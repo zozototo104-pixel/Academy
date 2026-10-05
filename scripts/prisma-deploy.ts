@@ -56,6 +56,11 @@ function isPreviewDatabaseIsolated() {
   return String(process.env.AACT_PREVIEW_DB_ISOLATED || '').toLowerCase() === 'true'
 }
 
+function isNonVercelCiBuild() {
+  const isCi = String(process.env.CI || '').toLowerCase() === 'true' || String(process.env.GITHUB_ACTIONS || '').toLowerCase() === 'true'
+  return isCi && !process.env.VERCEL
+}
+
 function committedMigrationDirectories() {
   const migrationsPath = 'prisma/migrations'
   if (!existsSync(migrationsPath)) return []
