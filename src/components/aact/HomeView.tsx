@@ -497,8 +497,8 @@ export function HomeView() {
                 <img src={ACADEMY_IMAGES.heroGroup} alt="طلاب وخريجون من الأكاديمية الأمريكية" className="aspect-[5/4] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/3]" loading="eager" decoding="async" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1d2947]/78 via-transparent to-transparent" aria-hidden="true" />
                 <div className="aact-reveal-manual aact-feature-badge absolute bottom-5 right-5 rounded-2xl border border-white/15 bg-[#1d2947]/82 px-4 py-3 text-right backdrop-blur">
-                  <span className="block text-3xl font-black text-white">+15</span>
-                  <span className="text-xs font-black text-white/78">عاماً من التميز</span>
+                  <span className="block text-2xl font-black text-white">منذ 2016</span>
+                  <span className="text-xs font-black text-white/78">مسيرة مهنية موثقة</span>
                 </div>
               </div>
               <div className="absolute -bottom-1 -left-2 w-[48%] overflow-hidden rounded-[1.65rem] border-[6px] border-white bg-white shadow-2xl sm:-left-7 sm:w-[44%]">
