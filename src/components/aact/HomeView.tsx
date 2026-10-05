@@ -533,7 +533,7 @@ export function HomeView() {
             <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">عن الأكاديمية الأمريكية</Badge>
             <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">بناء قادة المستقبل من خلال التعليم المبتكر</h2>
             <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
-              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل، عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+              {homeLegalEntity} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل، عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
