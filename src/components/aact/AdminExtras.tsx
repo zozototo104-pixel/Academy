@@ -1291,6 +1291,8 @@ export function AdminCertificatesTab() {
   const currentCertPage = certPage
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || null
   const selectedLayout = selectedTemplate ? templateLayout(selectedTemplate.layoutJson) : TEMPLATE_DEFAULT_LAYOUT
+  const isPortraitTemplate = selectedLayout.orientation === 'portrait'
+  const templateAspectClass = isPortraitTemplate ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
   const sampleValues: Record<string, string> = {
     holderName: 'محمد أحمد',
     program: 'الماجستير المهني في إدارة الأعمال',
