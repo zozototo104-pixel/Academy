@@ -167,6 +167,60 @@ export async function GET() {
   })
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const payload = programCreateSchema.parse(body.program || body)
+    const lastProgram = await db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })
+    const sortOrder = payload.sortOrder ?? Number(lastProgram?.order || 0) + 10
+    const slug = await uniqueProgramSlug(payload.titleAr, payload.titleEn, payload.category)
+    const saved = await db.program.create({
+      data: {
+        slug,
+        titleAr: payload.titleAr,
+        titleEn: payload.titleEn || null,
+        description: payload.description || '',
+        category: payload.category,
+        hours: payload.hours === undefined ? 1 : Number(payload.hours),
+        price: payload.price === undefined ? null : payload.price === null ? null : Number(payload.price),
+        icon: payload.icon || 'graduation-cap',
+        features: normalizeFeaturesForDb(payload.features) || '[]',
+        active: payload.active ?? false,
+        order: sortOrder,
+        credentialType: payload.credentialType || defaultCredentialType(payload.category),
+        trademarkNotice: payload.trademarkNotice || null,
+        disclosureConsentText: payload.disclosureConsentText || null,
+      },
+    })
+
+    clearPublicProgramsCache()
+    await audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`)
+
+    const flow = getServiceFlow(saved.slug)
+    const isStudyProgram = flow ? flow.isStudyProgram : saved.category !== 'SERVICE'
+    return NextResponse.json({
+      ok: true,
+      program: programSnapshot(saved),
+      item: {
+        ...saved,
+        features: parseProgramFeatures(saved.features),
+        sortOrder: saved.order,
+        program: programSnapshot(saved),
+        rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(saved) : resolveRules(saved.category, saved.admissionRules, isStudyProgram)),
+        custom: false,
+      },
+    }, { status: 201 })
+  } catch (e: any) {
+    console.error('program create error:', e)
+    return NextResponse.json({ error: e?.message || 'تعذر إنشاء البرنامج' }, { status: 500 })
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getCurrentUser()
