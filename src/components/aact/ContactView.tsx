@@ -200,15 +200,15 @@ export function ContactView() {
                   </div>
                 </a>
               )}
-              {officialContact.phone && (
-                <a href={`tel:${officialContact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
+              {officialContact.phones.map((phone, index) => (
+                <a key={phone} href={`tel:${phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                   <span className="rounded-lg bg-emerald-600 p-2 text-white"><Phone className="h-4 w-4" /></span>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400">الهاتف الرسمي</p>
-                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{officialContact.phone}</p>
+                    <p className="text-[10px] font-bold text-slate-400">{index === 0 ? 'الهاتف الرسمي' : `هاتف رسمي إضافي ${index + 1}`}</p>
+                    <p className="text-xs font-black text-[#0f2b46]" dir="ltr">{phone}</p>
                   </div>
                 </a>
-              )}
+              ))}
               {officialContact.whatsapp && (
                 <a href={`https://wa.me/${officialContact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl bg-white/70 p-3 transition-colors hover:bg-white">
                   <span className="rounded-lg bg-[#25d366] p-2 text-white"><MessageSquareText className="h-4 w-4" /></span>
