@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '@/lib/db'
