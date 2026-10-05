@@ -85,6 +85,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا يمكن إصدار شهادة برنامج يدوياً دون ربطها بطالب وبرنامج دراسي للتحقق من النجاح الأكاديمي.' }, { status: 400 })
     }
 
+    if (app?.id) {
+      const allPayments = await db.payment.findMany({ where: { admissionId: app.id } })
+      const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents }))
+      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
+      const tuitionTotal = roundMoney(inferTotalTuition(paymentRows))
+      const tuitionPaid = roundMoney(tuitionPaidTotal(paymentRows))
+      const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
+      if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
+        return NextResponse.json(
+          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${tuitionPaid}$ من ${tuitionTotal}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
+          { status: 400 }
+        )
+      }
+    }
+
     const eligibility = await evaluateProgramCertificateEligibility({
       userId: resolvedUserId,
       programId: resolvedProgram.id,
