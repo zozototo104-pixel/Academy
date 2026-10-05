@@ -1100,8 +1100,8 @@ export function ApplyView() {
                         <div className="mt-1 text-base font-black text-[#0f2b46]">{tracked.fullName}</div>
                         <div className="text-xs font-semibold text-slate-600">{tracked.program}</div>
                       </div>
-                      <span className={`rounded-full px-4 py-1.5 text-xs font-black ${STATUS_LABEL[tracked.status]?.cls || 'bg-slate-100 text-slate-600'}`}>
-                        {STATUS_LABEL[tracked.status]?.text || tracked.statusLabel || tracked.status}
+                      <span className={`rounded-full px-4 py-1.5 text-xs font-black ${statusLabelFor(tracked.status, tracked.statusLabel || tracked.status).cls}`}>
+                        {statusLabelFor(tracked.status, tracked.statusLabel || tracked.status).text}
                       </span>
                     </div>
                     {tracked.supervisorName && <p className="mt-2 text-xs font-bold text-purple-600">المشرف الأكاديمي: {tracked.supervisorName}</p>}
