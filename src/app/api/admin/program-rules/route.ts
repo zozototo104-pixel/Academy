@@ -91,7 +91,6 @@ export async function GET() {
     return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
   }
   const programs = await db.program.findMany({
-    where: { active: true },
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
     select: {
       id: true,
