@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'HOME_STATS', value: JSON.stringify(DEFAULT_HOME_STATS), label: 'إحصائيات الرئيسية', group: 'CONTENT', suffix: '', inputType: 'json', help: 'JSON: graduates, experts, countries' },
 
   // بيانات التواصل الرسمية
-  { key: 'OFFICIAL_CONTACT', value: JSON.stringify(DEFAULT_OFFICIAL_CONTACT), label: 'بيانات التواصل الرسمية', group: 'CONTACT', suffix: '', inputType: 'json', help: 'JSON: legalEntity, registrationNumber, address, email, phone, whatsapp, responsiblePerson' },
+  { key: 'OFFICIAL_CONTACT', value: JSON.stringify(DEFAULT_OFFICIAL_CONTACT), label: 'بيانات التواصل الرسمية', group: 'CONTACT', suffix: '', inputType: 'json', help: 'JSON: legalEntity, registrationNumber, address, email, phone, phones[], whatsapp, whatsapps[], responsiblePerson' },
 ]
 
 export async function getSettings(): Promise<Record<string, string>> {
