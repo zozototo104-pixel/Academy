@@ -85,7 +85,14 @@ export default async function AccreditationPage() {
   const [contact, settings, accreditation, programs] = await Promise.all([
     getOfficialContact().catch(() => ({} as OfficialContact)),
     getSettings().catch(() => ({} as Record<string, string>)),
-    getAccreditationProfileForPublic().catch(() => ({ partnerships: [], documents: [] })),
+    getAccreditationProfileForPublic().catch(() => ({
+      licenseNumber: '',
+      licenseVerifyUrl: '',
+      licensingAuthority: '',
+      trustNote: '',
+      partnerships: [],
+      documents: [],
+    })),
     db.program.findMany({
       where: { active: true, category: 'ACCREDITATION' },
       orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
