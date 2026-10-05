@@ -942,10 +942,10 @@ export function Footer() {
         <div>
           <div className="mb-3 flex items-center gap-2">
             <AcademyLogo size={38} />
-            <div className="text-sm font-extrabold">الأكاديمية الأمريكية للاستشارات والتدريب</div>
+            <div className="text-sm font-extrabold">{legalEntity}</div>
           </div>
           <p className="text-xs leading-relaxed text-[#f5f0e1]/70">
-            بناء القيادات، صقل المهارات. أكاديمية رائدة منذ 2016 في الدبلومات المهنية والدرجات
+            بناء القيادات، صقل المهارات. منصة مهنية للدبلومات المهنية والدرجات
             المهنية واعتماد المستشارين والمدربين ومراكز التدريب.
           </p>
         </div>
