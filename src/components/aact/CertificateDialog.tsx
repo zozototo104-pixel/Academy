@@ -83,6 +83,7 @@ export function CertificateDialog({
   const date = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
+  const layout = layoutOf(template?.layoutJson)
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
