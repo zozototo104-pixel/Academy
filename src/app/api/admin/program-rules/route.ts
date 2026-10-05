@@ -52,6 +52,42 @@ function normalizeFeaturesForDb(features?: string[]) {
   return JSON.stringify(features.map((item) => item.trim()).filter(Boolean).slice(0, 12))
 }
 
+function baseSlugFromText(text: string, fallback: string) {
+  const slug = String(text || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70)
+  return slug || fallback
+}
+
+async function uniqueProgramSlug(titleAr: string, titleEn: string | null | undefined, category: string) {
+  const fallback = `${String(category || 'program').toLowerCase()}-${Date.now().toString(36)}`
+  const base = baseSlugFromText(titleEn || titleAr, fallback)
+  let candidate = base
+  let i = 2
+  while (await db.program.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+    candidate = `${base}-${i}`
+    i += 1
+  }
+  return candidate
+}
+
+const programCreateSchema = programPatchSchema.extend({
+  titleAr: z.string().trim().min(1, 'اسم البرنامج العربي مطلوب').max(220),
+  category: z.enum(PROGRAM_CATEGORIES),
+})
+
+function defaultCredentialType(category: string) {
+  if (category === 'MASTERS') return 'PROFESSIONAL_MASTER'
+  if (category === 'DOCTORATE') return 'PROFESSIONAL_DOCTORATE'
+  if (category === 'DIPLOMA') return 'DIPLOMA'
+  if (category === 'SERVICE') return 'SERVICE'
+  return 'PROFESSIONAL_CERTIFICATE'
+}
+
 function parseProgramFeatures(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()).slice(0, 12)
   const text = String(raw || '').trim()
