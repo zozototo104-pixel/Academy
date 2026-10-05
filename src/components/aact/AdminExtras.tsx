@@ -1009,6 +1009,20 @@ export function AdminFinanceTab() {
 
 // ============ إدارة الشهادات ============
 
+interface CertificateCandidate {
+  id: string
+  reference: string
+  fullName: string
+  email: string
+  country: string
+  program: string
+  status: string
+  ready: boolean
+  missing: string[]
+  eligibility: { ok: boolean; score: number | null; gradeLabel: string | null; error: string; components?: any[] }
+  payments: { tuitionTotal: number; tuitionPaid: number; tuitionOk: boolean; nonTuitionUnpaid: number; missing: string[] }
+}
+
 export function AdminCertificatesTab() {
   const { toast } = useToast()
   const [certs, setCerts] = useState<CertificateData[]>([])
