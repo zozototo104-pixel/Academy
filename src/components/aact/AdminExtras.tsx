@@ -1212,7 +1212,24 @@ export function AdminCertificatesTab() {
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-red-100 text-red-700">ممنوع</Badge></div>
                   <div className="rounded-xl bg-red-50 p-3 text-xs font-bold leading-6 text-red-900"><p className="mb-1 font-black">سبب المنع:</p><ul className="list-inside list-disc space-y-1">{c.missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}</ul></div>
-                  <p className="text-[11px] font-bold text-slate-500">لا يظهر زر الإصدار هنا. التجاوز المالي سيكون في مرحلة لاحقة وبسبب إلزامي وسجل تدقيق.</p>
+                  {c.eligibility?.ok && (!c.payments.tuitionOk || c.payments.nonTuitionUnpaid > 0) ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <Label className="text-[11px] font-black text-amber-900">سبب التجاوز المالي *</Label>
+                      <Textarea
+                        rows={2}
+                        value={financialOverrideReasons[c.id] || ''}
+                        onChange={(e) => setFinancialOverrideReasons((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        placeholder="مثال: منحة إدارية خاصة أو قرار تأجيل سداد موثق"
+                        className="mt-2 bg-white text-xs font-bold leading-6"
+                      />
+                      <Button disabled={busy} onClick={() => issueWithFinancialOverride(c)} className="mt-2 w-full bg-amber-600 font-black text-white hover:bg-amber-700">
+                        {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار بتجاوز مالي
+                      </Button>
+                      <p className="mt-2 text-[10px] font-bold leading-5 text-amber-900">يسمح هذا الزر بتجاوز المنع المالي فقط. لا يسمح بتجاوز الرسوب أو نقص المناقشة أو نقص التقييمات.</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] font-bold text-slate-500">لا يمكن الإصدار هنا لأن شروط النجاح الأكاديمي غير مكتملة. التجاوز المالي لا يتجاوز الرسوب أو نقص التقييمات.</p>
+                  )}
                 </CardContent>
               </Card>
             ))}
