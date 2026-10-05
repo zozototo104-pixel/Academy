@@ -1338,6 +1338,56 @@ export function AdminCertificatesTab() {
       )}
       {section === 'ISSUED' && <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />}
 
+      <Card className="border-[#0f2b46]/10 bg-white">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-black text-[#0f2b46]">قوالب الشهادات الرسمية</h4>
+              <p className="text-xs font-bold text-slate-500">ارفع صورة قالب شهادة فارغ، والنظام يضع الاسم والبرنامج والرقم وQR فوقها في نافذة الشهادة.</p>
+            </div>
+            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{templates.length} قالب</Badge>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 lg:grid-cols-4">
+            <Input value={templateForm.name} placeholder="اسم القالب" onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))} className="font-bold" />
+            <Select value={templateForm.certificateType} onValueChange={(v) => setTemplateForm((p) => ({ ...p, certificateType: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PROGRAM_COMPLETION">شهادات البرامج</SelectItem>
+                <SelectItem value="ACCREDITATION">شهادات الاعتماد</SelectItem>
+                <SelectItem value="AGENCY">شهادات الوكالة</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="file" accept="image/png,image/jpeg" onChange={(e) => setTemplateFile(e.target.files?.[0] || null)} className="lg:col-span-1" />
+            <Button type="button" onClick={uploadCertificateTemplate} disabled={templateBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+              {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Upload className="ml-2 h-4 w-4" />} رفع القالب
+            </Button>
+          </div>
+          {templates.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد قوالب مرفوعة بعد. ستبقى نافذة الشهادة تستخدم القالب الافتراضي.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {templates.map((t) => (
+                <div key={t.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-[#0f2b46]">{t.name}</p>
+                      <p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{t.fileName}</p>
+                      <Badge className={t.active ? 'mt-2 bg-emerald-100 text-emerald-700' : 'mt-2 bg-slate-200 text-slate-600'}>{t.active ? 'نشط' : 'معطل'}</Badge>
+                    </div>
+                    <img src={t.imageUrl} alt={t.name} className="h-16 w-24 rounded-lg border border-slate-200 object-cover" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button asChild type="button" size="sm" variant="outline" className="h-8 text-xs font-bold"><a href={t.imageUrl} target="_blank" rel="noreferrer"><Eye className="ml-1 h-3.5 w-3.5" /> معاينة</a></Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => updateCertificateTemplate(t, { active: !t.active })} disabled={templateBusy} className="h-8 text-xs font-bold">{t.active ? 'تعطيل' : 'تفعيل'}</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => deleteCertificateTemplate(t)} disabled={templateBusy} className="h-8 text-xs font-bold text-red-600"><Trash2 className="ml-1 h-3.5 w-3.5" /> حذف</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
 
       <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
