@@ -120,6 +120,13 @@ function settingNum(settings: Record<string, string>, key: string, fallback = 0)
   return Number.isFinite(n) ? n : fallback
 }
 
+function contactList(primary?: unknown, list?: unknown): string[] {
+  const values = [primary, ...(Array.isArray(list) ? list : [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return Array.from(new Set(values))
+}
+
 function money(n: number | null | undefined): string {
   const value = Number(n || 0)
   return Number.isFinite(value) && value > 0 ? String(value) + '$' : 'حسب إعدادات الإدارة'
