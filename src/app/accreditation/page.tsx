@@ -172,10 +172,20 @@ export default async function AccreditationPage() {
                 <ExternalLink className="h-4 w-4 text-[#c9a227]" /> رابط التحقق من الترخيص
               </a>
             )}
-            {accreditation.licenseDocumentUrl && (
-              <a href={accreditation.licenseDocumentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#0f2b46] hover:text-[#a8841a]">
-                <FileText className="h-4 w-4 text-[#c9a227]" /> وثيقة الترخيص / الاعتماد
-              </a>
+            {documents.length > 0 && (
+              <div className="space-y-2 rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-3">
+                <p className="font-black text-[#0f2b46]">وثائق الترخيص والاعتماد</p>
+                {documents.map((doc: any) => (
+                  <div key={doc.id} className="space-y-1 rounded-xl bg-white p-2">
+                    <p className="font-black text-[#0f2b46]">{doc.title}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <a href={doc.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5 text-[#c9a227]" /> معاينة</a>
+                      <a href={doc.downloadUrl} className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><FileText className="h-3.5 w-3.5 text-[#c9a227]" /> تحميل</a>
+                      {doc.verifyUrl && <a href={doc.verifyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#0f2b46] hover:text-[#a8841a]"><ExternalLink className="h-3.5 w-3.5 text-[#c9a227]" /> تحقق</a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {(contact as OfficialContact).address && <p><span className="font-black text-[#0f2b46]">العنوان:</span> {(contact as OfficialContact).address}</p>}
             {(contact as OfficialContact).email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-[#c9a227]" /> <span dir="ltr">{(contact as OfficialContact).email}</span></p>}
