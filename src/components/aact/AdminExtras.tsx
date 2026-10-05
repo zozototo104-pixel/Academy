@@ -1189,7 +1189,8 @@ export function AdminSettingsTab() {
   const save = async () => {
     setSaving(true)
     try {
-      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
+      const res = await api<{ values?: Record<string, string> }>('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
+      if (res.values) setValues((prev) => ({ ...prev, ...res.values }))
       toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
