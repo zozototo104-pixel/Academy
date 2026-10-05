@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
-import { DEMO_REPRESENTATIVES, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
+import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
