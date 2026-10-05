@@ -27,6 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof body.name === 'string') data.name = body.name.trim().slice(0, 180)
     if (typeof body.certificateType === 'string') data.certificateType = body.certificateType.trim() || 'PROGRAM_COMPLETION'
     if (typeof body.active === 'boolean') data.active = body.active
+    if (body.layoutJson && typeof body.layoutJson === 'object') data.layoutJson = body.layoutJson
     if (Object.keys(data).length === 0) return NextResponse.json({ error: 'لا توجد تغييرات' }, { status: 400 })
     const template = await db.certificateTemplate.update({ where: { id }, data })
     await audit(admin, 'UPDATE_CERTIFICATE_TEMPLATE', 'CertificateTemplate', template.id, `${template.name} — ${template.active ? 'نشط' : 'معطل'}`)
