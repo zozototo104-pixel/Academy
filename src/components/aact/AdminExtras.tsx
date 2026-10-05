@@ -1237,12 +1237,13 @@ export function AdminCertificatesTab() {
   }
 
   const deleteCertificateTemplate = async (template: CertificateTemplateItem) => {
-    if (!confirm(`حذف قالب الشهادة «${template.name}»؟`)) return
     setTemplateBusy(true)
     try {
       await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'DELETE' })
+      setTemplatePendingDelete(null)
+      if (selectedTemplateId === template.id) setSelectedTemplateId(null)
       loadTemplates()
-      toast({ title: 'حُذف قالب الشهادة' })
+      toast({ title: 'حُذف قالب الشهادة', description: `تم حذف قالب «${template.name}» من لوحة القوالب.` })
     } catch (e: any) {
       toast({ title: 'تعذر حذف القالب', description: e.message, variant: 'destructive' })
     } finally {
