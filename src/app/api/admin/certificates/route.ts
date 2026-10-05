@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
+      financialOverrideUsed = hasFinancialBlock && overrideReason.length >= 6
     }
 
     const eligibility = await evaluateProgramCertificateEligibility({
