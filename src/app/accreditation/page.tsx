@@ -111,6 +111,11 @@ export default async function AccreditationPage() {
           <p className="mt-5 max-w-3xl text-sm font-bold leading-8 text-[#f5f0e1]/75 md:text-base">
             هذه الصفحة تجمع روابط التحقق الرسمية وخيارات الاعتماد المنشورة في المنصة. لا تعرض الصفحة أي أرقام تراخيص أو شراكات غير مدخلة في إعدادات الأكاديمية أو بياناتها الرسمية.
           </p>
+          {accreditation.trustNote && (
+            <p className="mt-4 max-w-3xl rounded-2xl border border-[#e0b83a]/20 bg-white/10 px-4 py-3 text-xs font-bold leading-6 text-[#f5f0e1]/80">
+              {accreditation.trustNote}
+            </p>
+          )}
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/verify" className="rounded-2xl bg-[#e0b83a] px-5 py-3 text-sm font-black text-[#0f2b46] shadow-lg shadow-black/20">
               تحقق من شهادة
