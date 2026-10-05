@@ -76,6 +76,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'DISCLOSURE_CONSENT_TEXT', value: DEFAULT_DISCLOSURE_CONSENT_TEXT, label: 'نص الإقرار العام قبل الدفع', group: 'CONTENT', suffix: '', inputType: 'textarea', help: 'يستخدم إذا لم يحدد البرنامج نص إقرار خاصاً من قواعد القبول.' },
   { key: 'TRUST_BANNER_TEXT', value: DEFAULT_TRUST_BANNER_TEXT, label: 'نص شريط الثقة في الرئيسية', group: 'CONTENT', suffix: '', inputType: 'textarea' },
   { key: 'HOME_STATS', value: JSON.stringify(DEFAULT_HOME_STATS), label: 'إحصائيات الرئيسية', group: 'CONTENT', suffix: '', inputType: 'json', help: 'JSON: graduates, experts, countries' },
+  { key: 'ACCREDITATION_PAGE', value: JSON.stringify(DEFAULT_ACCREDITATION_PAGE), label: 'بيانات صفحة الاعتماد والتحقق', group: 'CONTENT', suffix: '', inputType: 'json', help: 'رقم الترخيص وروابط التحقق والوثائق والشراكات. ضع روابط وثائق Cloudflare فقط، ولا ترفع الملفات داخل المنصة.' },
 
   // بيانات التواصل الرسمية
   { key: 'OFFICIAL_CONTACT', value: JSON.stringify(DEFAULT_OFFICIAL_CONTACT), label: 'بيانات التواصل الرسمية', group: 'CONTACT', suffix: '', inputType: 'json', help: 'JSON: legalEntity, registrationNumber, address, email, phone, phones[], whatsapp, whatsapps[], responsiblePerson' },
