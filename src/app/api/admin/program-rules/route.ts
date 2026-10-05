@@ -188,7 +188,7 @@ export async function PUT(req: NextRequest) {
     }
     const body = await req.json().catch(() => ({}))
     const { programId } = body as { programId?: string }
-    const rules = (body.rules || {}) as (AdmissionRules & { reset?: boolean }) | undefined
+    const rules = body.rules === undefined ? undefined : body.rules as (AdmissionRules & { reset?: boolean }) | undefined
     const programPatchRaw = body.programPatch || body.program || null
     const programPatch: ProgramPatchInput | null = programPatchRaw ? programPatchSchema.parse(programPatchRaw) : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
