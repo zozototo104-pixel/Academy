@@ -192,7 +192,12 @@ async function buildDynamicPaymentMethodsReply() {
   }
   if (diag.warnings.length) lines.push('', `تنبيهات إعداد الدفع: ${diag.warnings.join(' ')}`)
   if (diag.errors.length) lines.push('', `ملاحظات مهمة: ${diag.errors.join(' ')}`)
-  lines.push('', 'للمساعدة أو التأكد من السداد يمكنك التواصل مع الإدارة عبر:', '📞 +972594403737', '📞 +970 598 400 510')
+  const contacts = await buildOfficialContactLines()
+  if (contacts.length) {
+    lines.push('', 'للمساعدة أو التأكد من السداد يمكنك التواصل مع الإدارة عبر:', ...contacts)
+  } else {
+    lines.push('', 'للمساعدة أو التأكد من السداد: بيانات التواصل غير مضبوطة حالياً، استخدم صفحة التواصل الرسمية من الموقع.')
+  }
   return lines.join('\n')
 }
 
