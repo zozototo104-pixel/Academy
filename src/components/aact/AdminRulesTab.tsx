@@ -692,9 +692,24 @@ export function AdminRulesTab() {
                       معاينة صفحة البرنامج
                     </button>
                   </div>
-                  <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
-                    {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={custom ? 'bg-[#c9a227]/20 text-[#a8841a]' : 'bg-slate-100 text-slate-500'}>
+                      {custom ? 'قواعد مخصصة مفعلة' : (isStudyProgram ? 'قواعد افتراضية للدرجة' : 'متطلبات خدمة افتراضية')}
+                    </Badge>
+                    {programDraft && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() => setSelectedProgramActive(!(programDraft.active !== false))}
+                        className={programDraft.active !== false ? 'border-slate-200 text-slate-600' : 'border-emerald-200 text-emerald-700'}
+                      >
+                        <Archive className="ml-1 h-3.5 w-3.5" />
+                        {programDraft.active !== false ? 'أرشفة / إخفاء' : 'إعادة نشر'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {programDraft && (
