@@ -1118,6 +1118,31 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const issueWithFinancialOverride = async (candidate: CertificateCandidate) => {
+    const reason = String(financialOverrideReasons[candidate.id] || '').trim()
+    if (!candidate.eligibility?.ok) {
+      toast({ title: 'لا يمكن التجاوز', description: 'التجاوز مسموح مالياً فقط، ولا يسمح بتجاوز شروط النجاح الأكاديمي.', variant: 'destructive' })
+      return
+    }
+    if (reason.length < 6) {
+      toast({ title: 'سبب التجاوز مطلوب', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف قبل الإصدار.', variant: 'destructive' })
+      return
+    }
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify({ admissionId: candidate.id, financialOverrideReason: reason }) })
+      toast({ title: 'تم إصدار الشهادة بتجاوز مالي', description: `أُصدرت شهادة ${candidate.fullName} مع تسجيل سبب التجاوز في سجل التدقيق.` })
+      setFinancialOverrideReasons((prev) => ({ ...prev, [candidate.id]: '' }))
+      load()
+      setCandidateRefresh((v) => v + 1)
+      setSection('ISSUED')
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const filteredCerts = certs
