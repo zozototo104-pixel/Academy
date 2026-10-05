@@ -1093,8 +1093,25 @@ export function AdminCertificatesTab() {
       setIssueOpen(false)
       setForm({ holderName: '', program: '', grade: '', country: '' })
       load()
+      setCandidateRefresh((v) => v + 1)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const issueCandidate = async (candidate: CertificateCandidate) => {
+    if (!candidate.ready) return
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify({ admissionId: candidate.id }) })
+      toast({ title: 'تم إصدار الشهادة', description: `أُصدرت شهادة ${candidate.fullName} وربطت بطلبه وبرنامجه.` })
+      load()
+      setCandidateRefresh((v) => v + 1)
+      setSection('ISSUED')
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
     } finally {
       setBusy(false)
     }
