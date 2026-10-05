@@ -52,12 +52,13 @@ function parseOfficialContact(raw?: string): ShellOfficialContact {
 
 // أزرار عائمة: واتساب ذكي + العودة للأعلى — تختفي عند الطباعة
 export function FloatingActions() {
-  const { view } = useAppStore()
+  const { view, navigate } = useAppStore()
   const [showTop, setShowTop] = useState(false)
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [officialContact, setOfficialContact] = useState<ShellOfficialContact>(EMPTY_OFFICIAL_CONTACT)
   const [floatPos, setFloatPos] = useState<{ left: number; top: number } | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -65,12 +66,15 @@ export function FloatingActions() {
   const [messages, setMessages] = useState<{ role: 'assistant' | 'user'; content: string }[]>([
     {
       role: 'assistant',
-      content: `أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. رقم واتساب الإدارة: ${ACADEMY_INFO.whatsappDisplay}.`,
+      content: 'أهلاً بك في وكيل واتساب الذكي للأكاديمية. اسألني عن البرامج، الرسوم، شروط القبول، الشهادات، الاعتمادات، أو طريقة التسجيل. أرقام التواصل الرسمية تُقرأ من إعدادات الأكاديمية.',
     },
   ])
   const inChat = view === 'chat'
-  const whatsappNumber = ACADEMY_INFO.whatsapp.replace(/\D/g, '')
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
+  const primaryWhatsapp = officialContact.whatsapps[0] || ''
+  const directContactText = primaryWhatsapp || officialContact.phones[0] || 'صفحة التواصل الرسمية'
+  const whatsappUrl = primaryWhatsapp
+    ? `https://wa.me/${primaryWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
+    : '#'
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
