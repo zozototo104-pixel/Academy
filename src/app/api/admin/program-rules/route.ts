@@ -212,6 +212,7 @@ export async function POST(req: NextRequest) {
     })
 
     clearPublicProgramsCache()
+    revalidatePublicProgramSurfaces([saved.slug])
     await audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`)
 
     const flow = getServiceFlow(saved.slug)
