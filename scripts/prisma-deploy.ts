@@ -80,15 +80,22 @@ function assertMigrationsAvailableForDeploy() {
 }
 
 function shouldRunMigrateDeploy(args: Set<string>) {
+  if (isNonVercelCiBuild()) {
+    if (args.has('--migrate')) console.warn('CI build: skipping migrate deploy')
+    return false
+  }
+
   if (isProductionDeployment()) return true
+
   if (isPreviewDeployment()) {
-    if (isPreviewDatabaseIsolated()) return args.has('--migrate')
+    if (isPreviewDatabaseIsolated()) return true
     if (args.has('--migrate')) {
       console.warn('Skipping Prisma migrate deploy in Vercel Preview because AACT_PREVIEW_DB_ISOLATED is not true.')
       console.warn('Set AACT_PREVIEW_DB_ISOLATED=true only when Preview DATABASE_URL/DIRECT_URL point to an isolated preview database.')
     }
     return false
   }
+
   return args.has('--migrate')
 }
 
