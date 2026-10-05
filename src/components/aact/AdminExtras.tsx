@@ -1023,6 +1023,18 @@ interface CertificateCandidate {
   payments: { tuitionTotal: number; tuitionPaid: number; tuitionOk: boolean; nonTuitionUnpaid: number; missing: string[] }
 }
 
+interface CertificateTemplateItem {
+  id: string
+  name: string
+  certificateType: string
+  active: boolean
+  fileName: string
+  mimeType: string
+  fileSize: number
+  imageUrl: string
+  createdAt: string
+}
+
 export function AdminCertificatesTab() {
   const { toast } = useToast()
   const [certs, setCerts] = useState<CertificateData[]>([])
