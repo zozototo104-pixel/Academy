@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا يمكن إصدار شهادة برنامج يدوياً دون ربطها بطالب وبرنامج دراسي للتحقق من النجاح الأكاديمي.' }, { status: 400 })
     }
 
+    let financialOverrideUsed = false
     if (app?.id) {
       const allPayments = await db.payment.findMany({ where: { admissionId: app.id } })
       const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents }))
