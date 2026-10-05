@@ -23,6 +23,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify legacy import confirmation
+        shell: bash
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIRM}" != "IMPORT_LEGACY_ZIP" ]; then
+            echo "Refusing legacy import. Type IMPORT_LEGACY_ZIP in the confirm field."
+            exit 1
+          fi
+
       - name: Create isolated import branch
         shell: bash
         run: |
