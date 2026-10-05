@@ -614,6 +614,15 @@ export function AdminRulesTab() {
                 يقرأ خبير الذكاء الاصطناعي هذه القواعد ويطبقها آلياً قبل زر الاعتماد.
               </p>
             </div>
+            <Button
+              type="button"
+              onClick={createProgram}
+              disabled={creatingProgram}
+              className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]"
+            >
+              {creatingProgram ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlusCircle className="ml-2 h-4 w-4" />}
+              إضافة برنامج جديد
+            </Button>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
