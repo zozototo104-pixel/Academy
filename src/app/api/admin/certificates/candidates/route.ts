@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
           components: eligibility.components,
         },
         payments,
-        updatedAt: app.updatedAt,
+        createdAt: app.createdAt,
       }
     }))
 
