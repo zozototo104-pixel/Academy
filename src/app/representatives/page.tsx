@@ -5,17 +5,16 @@ import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentatives(): Promise<{ rows: RepresentativePublicProfile[]; demo: boolean }> {
+async function loadRepresentatives(): Promise<RepresentativePublicProfile[]> {
   try {
     const rows = await db.academyRepresentative.findMany({
       where: { deletedAt: null, status: 'ACTIVE' },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
-    const mapped = rows.map((row) => serializeRepresentative(row, null, false))
-    return { rows: mapped.length ? mapped : DEMO_REPRESENTATIVES, demo: mapped.length === 0 }
+    return rows.map((row) => serializeRepresentative(row, null, false))
   } catch {
-    return { rows: DEMO_REPRESENTATIVES, demo: true }
+    return []
   }
 }
 
