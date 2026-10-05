@@ -58,13 +58,17 @@ export function ContactView() {
         try {
           const parsed = JSON.parse(d.values?.OFFICIAL_CONTACT || '{}')
           if (parsed && typeof parsed === 'object') {
+            const phones = contactList(parsed.phone, parsed.phones)
+            const whatsapps = contactList(parsed.whatsapp, parsed.whatsapps)
             setOfficialContact((prev) => ({
               legalEntity: String(parsed.legalEntity || prev.legalEntity),
               registrationNumber: String(parsed.registrationNumber || prev.registrationNumber),
               address: String(parsed.address || prev.address),
               email: String(parsed.email || prev.email),
-              phone: String(parsed.phone || prev.phone),
-              whatsapp: String(parsed.whatsapp || prev.whatsapp),
+              phone: phones[0] || prev.phone,
+              phones,
+              whatsapp: whatsapps[0] || prev.whatsapp,
+              whatsapps,
               responsiblePerson: String(parsed.responsiblePerson || prev.responsiblePerson),
             }))
           }
