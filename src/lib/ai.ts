@@ -7,8 +7,7 @@ import { getSettings } from '@/lib/settings'
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
 
-const SMART_SUPERVISOR_INTELLIGENCE = 96
-const SMART_SUPERVISOR_MEMORY = 98
+const SMART_SUPERVISOR_PROFILE = 'مشرف ذكي يعتمد على سياق البرنامج وقواعد القبول والإعدادات الرسمية وملف الطالب عند توفره.'
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
