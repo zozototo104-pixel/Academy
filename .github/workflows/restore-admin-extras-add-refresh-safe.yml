@@ -1,0 +1,12 @@
+name: Disabled temporary AdminExtras workflow
+
+on:
+  push:
+    branches:
+      - disabled-temporary-admin-extras-workflow-never-run
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This temporary workflow is disabled. Do not use it."

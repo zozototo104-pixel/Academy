@@ -5,10 +5,7 @@ import { ensureCoreSeed } from '@/lib/bootstrap'
 import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CATEGORY_AR, programSpecialtyLabel } from '@/lib/program-tracks'
 import { resolveRules } from '@/lib/admission-ai'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
-
-const PUBLIC_PROGRAMS_CACHE_TTL_MS = 5 * 60 * 1000
-let publicProgramsSummaryCache: { expiresAt: number; payload: { programs: any[] } } | null = null
-let publicProgramsCountCache: { expiresAt: number; count: number } | null = null
+import { getPublicProgramsCountCache, getPublicProgramsSummaryCache, setPublicProgramsCountCache, setPublicProgramsSummaryCache } from '@/lib/programs-public-cache'
 
 function publicCacheHeaders() {
   return { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=1800' }
@@ -24,6 +21,35 @@ function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null;
     || titleEn.startsWith('QA Full Journey Program')
 }
 
+function buildCatalogVersion(programs: any[]) {
+  const signature = programs
+    .map((p) => [
+      p.id,
+      p.slug,
+      p.titleAr,
+      p.titleEn,
+      p.description,
+      p.category,
+      p.hours,
+      p.price,
+      p.icon,
+      p.features,
+      p.active,
+      p.order,
+      p.credentialType,
+      p.trademarkNotice,
+      p.disclosureConsentText,
+      JSON.stringify(p.admissionRules || null),
+    ].join('|'))
+    .sort()
+    .join('::')
+  let hash = 0
+  for (let i = 0; i < signature.length; i += 1) {
+    hash = ((hash << 5) - hash + signature.charCodeAt(i)) | 0
+  }
+  return `${programs.length}-${Math.abs(hash).toString(36)}`
+}
+
 export async function GET(req: NextRequest) {
   try {
     const summaryOnly = req.nextUrl.searchParams.get('summary') === '1'
@@ -35,22 +61,47 @@ export async function GET(req: NextRequest) {
 
     if (publicOnly && countOnly) {
       const now = Date.now()
-      if (publicProgramsCountCache && publicProgramsCountCache.expiresAt > now) {
-        return NextResponse.json({ count: publicProgramsCountCache.count }, { headers: publicCacheHeaders() })
+      const countCache = getPublicProgramsCountCache()
+      if (countCache && countCache.expiresAt > now) {
+        return NextResponse.json({ count: countCache.count, catalogVersion: countCache.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
-      if (publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > now) {
-        const count = publicProgramsSummaryCache.payload.programs.length
-        publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-        return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+      const summaryCache = getPublicProgramsSummaryCache()
+      if (summaryCache && summaryCache.expiresAt > now) {
+        const count = summaryCache.payload.programs.length
+        setPublicProgramsCountCache(count, summaryCache.payload.catalogVersion || null)
+        return NextResponse.json({ count, catalogVersion: summaryCache.payload.catalogVersion || null }, { headers: publicCacheHeaders() })
       }
-      const countRows = await db.program.findMany({ where: { active: true }, select: { slug: true, titleAr: true, titleEn: true } })
-      const count = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p)).length
-      publicProgramsCountCache = { count, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-      return NextResponse.json({ count }, { headers: publicCacheHeaders() })
+      const countRows = await db.program.findMany({
+        where: { active: true },
+        select: {
+          id: true,
+          slug: true,
+          titleAr: true,
+          titleEn: true,
+          description: true,
+          category: true,
+          hours: true,
+          price: true,
+          icon: true,
+          features: true,
+          active: true,
+          order: true,
+          credentialType: true,
+          trademarkNotice: true,
+          disclosureConsentText: true,
+          admissionRules: true,
+        },
+      })
+      const visibleCountRows = countRows.filter((p) => !isGenericAllSpecializationsProgram(p) && !isInternalQaProgram(p))
+      const count = visibleCountRows.length
+      const catalogVersion = buildCatalogVersion(visibleCountRows)
+      setPublicProgramsCountCache(count, catalogVersion)
+      return NextResponse.json({ count, catalogVersion }, { headers: publicCacheHeaders() })
     }
 
-    if (publicOnly && summaryOnly && publicProgramsSummaryCache && publicProgramsSummaryCache.expiresAt > Date.now()) {
-      return NextResponse.json(publicProgramsSummaryCache.payload, { headers: publicCacheHeaders() })
+    const summaryCache = getPublicProgramsSummaryCache()
+    if (publicOnly && summaryOnly && summaryCache && summaryCache.expiresAt > Date.now()) {
+      return NextResponse.json(summaryCache.payload, { headers: publicCacheHeaders() })
     }
 
     const programWhere = detailId
@@ -74,6 +125,9 @@ export async function GET(req: NextRequest) {
             features: true,
             order: true,
             active: true,
+            credentialType: true,
+            trademarkNotice: true,
+            disclosureConsentText: true,
             admissionRules: true,
             _count: { select: { units: true } },
           },
@@ -110,7 +164,10 @@ export async function GET(req: NextRequest) {
       enrolledProgramIds = enrolls.map((e) => e.programId)
     }
 
+    const catalogVersion = buildCatalogVersion(programs as any[])
+
     const payload = {
+      catalogVersion,
       programs: programs.map((p) => {
         const row = p as any
         const units = Array.isArray(row.units) ? row.units : []
@@ -130,6 +187,9 @@ export async function GET(req: NextRequest) {
           titleEn: row.titleEn,
           description: row.description,
           category: row.category,
+          credentialType: row.credentialType || null,
+          trademarkNotice: row.trademarkNotice || null,
+          disclosureConsentText: row.disclosureConsentText || null,
           categoryLabel: PROGRAM_CATEGORY_AR[row.category] || row.category,
           specialty: programSpecialtyLabel(row),
           hours: row.hours,
@@ -152,9 +212,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (publicOnly && summaryOnly) {
-      const now = Date.now()
-      publicProgramsSummaryCache = { payload, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
-      publicProgramsCountCache = { count: payload.programs.length, expiresAt: now + PUBLIC_PROGRAMS_CACHE_TTL_MS }
+      setPublicProgramsSummaryCache(payload)
+      setPublicProgramsCountCache(payload.programs.length, catalogVersion)
     }
 
     const responsePayload = detailId

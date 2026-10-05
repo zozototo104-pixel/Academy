@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
-import { ADMISSION_GUIDE, ADMISSION_FEES, ACADEMY_INFO } from '@/lib/academyData'
+import { ADMISSION_GUIDE, ACADEMY_INFO } from '@/lib/academyData'
 import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { SUPPORTED_COUNTRIES, normalizePhone, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
 import { useToast } from '@/hooks/use-toast'
@@ -54,6 +54,7 @@ interface ProgramLite {
     customRules?: string
     displayNote?: string
   } | null
+  disclosureConsentText?: string | null
 }
 
 interface TrackedInvoice {
@@ -121,22 +122,23 @@ const PROGRAM_CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'الخدمات المهنية',
 }
 const PROGRAM_CATEGORY_ORDER = ['MASTERS', 'DOCTORATE', 'DIPLOMA', 'INTL_CERT', 'ACCREDITATION', 'SERVICE']
-const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v4'
-
 function readCachedPrograms(): ProgramLite[] {
   if (typeof window === 'undefined') return []
   try {
-    const cached = JSON.parse(localStorage.getItem(PROGRAMS_CACHE_KEY) || '[]')
+    const version = localStorage.getItem('aact_programs_summary_version')
+    const cached = version ? JSON.parse(localStorage.getItem(`aact_programs_summary_${version}`) || '[]') : []
     return Array.isArray(cached) ? cached : []
   } catch {
     return []
   }
 }
 
-function cachePrograms(list: ProgramLite[]) {
+function cachePrograms(list: ProgramLite[], catalogVersion?: string | null) {
   if (typeof window === 'undefined' || !Array.isArray(list) || list.length === 0) return
   try {
-    localStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(list.slice(0, 160)))
+    const version = catalogVersion || 'current'
+    localStorage.setItem('aact_programs_summary_version', version)
+    localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 160)))
     localStorage.setItem('aact_program_count', String(list.length))
   } catch {}
 }
@@ -180,6 +182,7 @@ export function ApplyView() {
   const { user, applyProgramTitle, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
   const [activeTab, setActiveTab] = useState('apply')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState<{ reference: string; invoice: { invoiceNo: string; amount: number; description: string } | null } | null>(null)
@@ -193,6 +196,7 @@ export function ApplyView() {
   const [myAdmissionLoading, setMyAdmissionLoading] = useState(false)
   const [myAdmission, setMyAdmission] = useState<any | null>(null)
   const [myApplications, setMyApplications] = useState<any[]>([])
+  const [applicationFee, setApplicationFee] = useState(30)
 
   const [form, setForm] = useState({
     fullName: '',
@@ -215,6 +219,22 @@ export function ApplyView() {
 
   useEffect(() => {
     let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        setGeneralDisclosureConsentText(d.values?.DISCLOSURE_CONSENT_TEXT || '')
+        setApplicationFee(Number(d.values?.FEE_APPLICATION || 30))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
     let hadCache = false
 
     const cached = readCachedPrograms()
@@ -226,13 +246,13 @@ export function ApplyView() {
     fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ programs: ProgramLite[] }>
+        return res.json() as Promise<{ programs: ProgramLite[]; catalogVersion?: string | null }>
       })
       .then((d) => {
         if (!alive) return
         const list = Array.isArray(d.programs) ? d.programs : []
         setPrograms(list)
-        cachePrograms(list)
+        cachePrograms(list, d.catalogVersion)
       })
       .catch(() => {
         if (!alive || hadCache) return
@@ -1025,9 +1045,11 @@ export function ApplyView() {
 
                   <section className="rounded-xl border-2 border-[#c9a227]/60 bg-[#f7edd0]/60 p-4">
                     <p className="text-xs leading-relaxed text-[#5c4d1a]">
-                      {isServiceRequest
-                        ? 'أقر بأن بيانات طلب الخدمة صحيحة، وأوافق على أن تقوم الإدارة بدراسة الاحتياج وتحديد المتطلبات أو الرسوم أو موعد الاستشارة قبل اعتماد الطلب النهائي.'
-                        : `أقر بأن البيانات والوثائق المقدمة صحيحة، وأوافق على شروط الأكاديمية وسداد رسوم التقديم وحجز المقعد (${ADMISSION_FEES.applicationFee}$ غير مستردة)، ثم سداد الرسوم الدراسية بعد القبول.`}
+                      {selectedProgram?.disclosureConsentText?.trim()
+                        || generalDisclosureConsentText
+                        || (isServiceRequest
+                          ? 'أقر بأن بيانات طلب الخدمة صحيحة، وأوافق على أن تقوم الإدارة بدراسة الاحتياج وتحديد المتطلبات أو الرسوم أو موعد الاستشارة قبل اعتماد الطلب النهائي.'
+                          : `أقر بأن البيانات والوثائق المقدمة صحيحة، وأوافق على شروط الأكاديمية وسداد رسوم التقديم وحجز المقعد (${applicationFee}$ غير مستردة)، ثم سداد الرسوم الدراسية بعد القبول.`)}
                     </p>
                     <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl bg-white p-3">
                       <Checkbox checked={acknowledged} onCheckedChange={(v) => setAcknowledged(v === true)} className="mt-0.5" />
@@ -1035,7 +1057,7 @@ export function ApplyView() {
                     </label>
                   </section>
 
-                  <Button type="submit" disabled={loading || !canSubmitStudentApplication} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
+                  <Button type="submit" disabled={loading || !canSubmitStudentApplication || !acknowledged} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
                     {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4 rotate-180" />}
                     {canSubmitStudentApplication ? (isServiceRequest ? 'تقديم طلب الخدمة للإدارة' : 'تقديم طلب الالتحاق وإصدار فاتورة رسوم التقديم') : 'يتطلب حساب طالب منفصل للتقديم'}
                   </Button>

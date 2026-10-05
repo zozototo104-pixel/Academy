@@ -48,6 +48,19 @@ function isProductionDeployment() {
   return process.env.VERCEL_ENV === 'production'
 }
 
+function isPreviewDeployment() {
+  return process.env.VERCEL_ENV === 'preview'
+}
+
+function isPreviewDatabaseIsolated() {
+  return String(process.env.AACT_PREVIEW_DB_ISOLATED || '').toLowerCase() === 'true'
+}
+
+function isNonVercelCiBuild() {
+  const isCi = String(process.env.CI || '').toLowerCase() === 'true' || String(process.env.GITHUB_ACTIONS || '').toLowerCase() === 'true'
+  return isCi && !process.env.VERCEL
+}
+
 function committedMigrationDirectories() {
   const migrationsPath = 'prisma/migrations'
   if (!existsSync(migrationsPath)) return []
@@ -57,27 +70,42 @@ function committedMigrationDirectories() {
     .filter((path) => existsSync(join(path, 'migration.sql')))
 }
 
-function assertProductionMigrationsAvailable() {
-  if (!isProductionDeployment()) return
+function assertMigrationsAvailableForDeploy() {
   const migrations = committedMigrationDirectories()
   if (migrations.length > 0) return
 
-  console.error('Refusing production Prisma deploy: prisma/migrations is missing or has no migration.sql files.')
-  console.error('Create and commit a safe Prisma migration baseline before deploying production database changes.')
+  console.error('Refusing Prisma migrate deploy: prisma/migrations is missing or has no migration.sql files.')
+  console.error('Create and commit a safe Prisma migration before deploying database changes.')
   process.exit(1)
+}
+
+function shouldRunMigrateDeploy(args: Set<string>) {
+  if (isNonVercelCiBuild()) {
+    if (args.has('--migrate')) console.warn('CI build: skipping migrate deploy')
+    return false
+  }
+
+  if (isProductionDeployment()) return true
+
+  if (isPreviewDeployment()) {
+    if (isPreviewDatabaseIsolated()) return true
+    if (args.has('--migrate')) {
+      console.warn('Skipping Prisma migrate deploy in Vercel Preview because AACT_PREVIEW_DB_ISOLATED is not true.')
+      console.warn('Set AACT_PREVIEW_DB_ISOLATED=true only when Preview DATABASE_URL/DIRECT_URL point to an isolated preview database.')
+    }
+    return false
+  }
+
+  return args.has('--migrate')
 }
 
 const args = new Set(process.argv.slice(2))
 
-assertProductionMigrationsAvailable()
 run('npx', ['prisma', 'generate'])
 
-const shouldRunMigrateDeploy = args.has('--migrate') || isProductionDeployment()
-if (shouldRunMigrateDeploy) {
-  if (!existsSync('prisma/migrations')) {
-    console.log('No prisma/migrations directory found. Skipping prisma migrate deploy.')
-    process.exit(0)
-  }
+const runMigrateDeploy = shouldRunMigrateDeploy(args)
+if (runMigrateDeploy) {
+  assertMigrationsAvailableForDeploy()
   run('npx', ['prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma'])
   process.exit(0)
 }

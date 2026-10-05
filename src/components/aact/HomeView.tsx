@@ -1,8 +1,7 @@
 'use client'
 
 import { useAppStore } from '@/lib/store'
-import { ACADEMY_INFO, ADMISSION_FEES, SERVICE_OFFERINGS } from '@/lib/academyData'
-import { AcademyLogo } from '@/components/aact/Shell'
+import { SERVICE_OFFERINGS } from '@/lib/academyData'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -31,6 +30,26 @@ interface ProgramLite {
   enrolled: boolean
 }
 
+interface HomeStats {
+  graduates: number
+  experts: number
+  countries: number
+}
+
+interface GeneralSettings {
+  applicationFee: number
+  doctorateDefault: number
+  mastersDefault: number
+  diplomaMinDefault: number
+  diplomaMaxDefault: number
+  serviceDefault: number
+  agentCommissionRate: number
+  committeeMemberFee: number
+  certificateIssueDays: number
+  thesisMinMonths: number
+  thesisMaxMonths: number
+}
+
 const ICONS: Record<string, any> = {
   briefcase: Briefcase, award: Award, 'book-open': BookOpen,
   'shield-check': ShieldCheck, 'building-2': Building2, 'graduation-cap': GraduationCap,
@@ -52,19 +71,31 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
+const DEFAULT_HOME_STATS: HomeStats = { graduates: 20000, experts: 250, countries: 50 }
+const DEFAULT_SETTINGS: GeneralSettings = {
+  applicationFee: 30,
+  doctorateDefault: 1300,
+  mastersDefault: 700,
+  diplomaMinDefault: 100,
+  diplomaMaxDefault: 350,
+  serviceDefault: 50,
+  agentCommissionRate: 25,
+  committeeMemberFee: 100,
+  certificateIssueDays: 30,
+  thesisMinMonths: 3,
+  thesisMaxMonths: 6,
+}
+
 const ACADEMY_IMAGES = {
-  // صور الواجهة الرئيسية تُقدَّم عبر Route داخلي يفضّل Cloudflare/R2،
-  // ويرفعها تلقائياً من الموقع القديم عند أول طلب إذا كانت غير موجودة بعد.
   heroGroup: '/api/site-assets/home/about2',
   heroSolo: '/api/site-assets/home/about1',
   heroBg: '/api/site-assets/home/about2',
 }
 
-// أبرز البرامج والخدمات المميزة — الشريط المتحرك
 const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filter?: string }[] = [
   { icon: GraduationCap, t: 'الدكتوراه المهنية', hint: 'اختر التخصص المناسب', filter: 'DOCTORATE' },
   { icon: GraduationCap, t: 'الماجستير المهني', hint: 'اختر التخصص المناسب', filter: 'MASTERS' },
-  { icon: BookOpen, t: 'الدبلومات المهنية', hint: '32 دبلوماً دولياً', filter: 'DIPLOMA' },
+  { icon: BookOpen, t: 'الدبلومات المهنية', hint: 'مسارات مهنية مرنة', filter: 'DIPLOMA' },
   { icon: ShieldCheck, t: 'الاعتماد والعضوية الأمريكية', hint: 'رخص مهنية ودليل معتمدين', slug: 'accreditation-membership-license' },
   { icon: PackageCheck, t: 'الحقائب التدريبية الجاهزة', hint: 'تعلم ذاتي وملفات قابلة للتعديل', slug: 'ready-packages-self-learning' },
   { icon: MessagesSquare, t: 'قسم الاستشارات المهنية', hint: 'جلسات فيديو وحلول مؤسسية', slug: 'consulting-section' },
@@ -74,7 +105,15 @@ const FEATURED_TICKER: { icon: any; t: string; hint: string; slug?: string; filt
   { icon: Bot, t: 'الشهادة الاحترافية في الذكاء الاصطناعي', hint: 'CPd-AI', slug: 'cert-cpd-ai' },
 ]
 
-/** عداد رقمي متحرك — يبدأ العد عند ظهوره في الشاشة (IntersectionObserver) */
+function numberSetting(values: Record<string, string>, key: string, fallback: number) {
+  const n = Number(values[key])
+  return Number.isFinite(n) ? n : fallback
+}
+
+function currency(value: number) {
+  return `${Number(value || 0).toLocaleString('en-US')}$`
+}
+
 function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: string; duration?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [val, setVal] = useState(0)
@@ -90,7 +129,6 @@ function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: st
           const t0 = performance.now()
           const tick = (t: number) => {
             const p = Math.min(1, (t - t0) / duration)
-            // easeOutCubic — بداية سريعة ثم تباطؤ ناعم
             setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
             if (p < 1) requestAnimationFrame(tick)
           }
@@ -110,16 +148,66 @@ function CountUp({ to, suffix = '', duration = 1400 }: { to: number; suffix?: st
 export function HomeView() {
   const { navigate, user, openPrograms, openProgram, openProgramDetails } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
+  const [trustBannerText, setTrustBannerText] = useState('')
+  const [homeStats, setHomeStats] = useState<HomeStats>(DEFAULT_HOME_STATS)
+  const [homeLegalEntity, setHomeLegalEntity] = useState('الأكاديمية')
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>(DEFAULT_SETTINGS)
   const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        setTrustBannerText(values.TRUST_BANNER_TEXT || '')
+        try {
+          const contact = JSON.parse(values.OFFICIAL_CONTACT || '{}')
+          if (contact && typeof contact === 'object' && contact.legalEntity) {
+            setHomeLegalEntity(String(contact.legalEntity))
+          }
+        } catch {}
+        setGeneralSettings({
+          applicationFee: numberSetting(values, 'FEE_APPLICATION', DEFAULT_SETTINGS.applicationFee),
+          doctorateDefault: numberSetting(values, 'FEE_DOCTORATE', DEFAULT_SETTINGS.doctorateDefault),
+          mastersDefault: numberSetting(values, 'FEE_MASTERS', DEFAULT_SETTINGS.mastersDefault),
+          diplomaMinDefault: numberSetting(values, 'FEE_DIPLOMAS_MIN', DEFAULT_SETTINGS.diplomaMinDefault),
+          diplomaMaxDefault: numberSetting(values, 'FEE_DIPLOMAS_MAX', DEFAULT_SETTINGS.diplomaMaxDefault),
+          serviceDefault: numberSetting(values, 'FEE_SERVICE_DEFAULT', DEFAULT_SETTINGS.serviceDefault),
+          agentCommissionRate: numberSetting(values, 'AGENT_COMMISSION_RATE', DEFAULT_SETTINGS.agentCommissionRate),
+          committeeMemberFee: numberSetting(values, 'COMMITTEE_MEMBER_FEE', DEFAULT_SETTINGS.committeeMemberFee),
+          certificateIssueDays: numberSetting(values, 'CERTIFICATE_ISSUE_DAYS', DEFAULT_SETTINGS.certificateIssueDays),
+          thesisMinMonths: numberSetting(values, 'THESIS_MIN_MONTHS', DEFAULT_SETTINGS.thesisMinMonths),
+          thesisMaxMonths: numberSetting(values, 'THESIS_MAX_MONTHS', DEFAULT_SETTINGS.thesisMaxMonths),
+        })
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats({
+            graduates: Number(parsed.graduates || DEFAULT_HOME_STATS.graduates),
+            experts: Number(parsed.experts || DEFAULT_HOME_STATS.experts),
+            countries: Number(parsed.countries || DEFAULT_HOME_STATS.countries),
+          })
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
     let hasCachedList = false
     let idleId: number | null = null
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+
     try {
-      const cachedList = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      const cachedVersion = localStorage.getItem('aact_programs_summary_version')
+      const cacheKey = cachedVersion ? `aact_programs_summary_${cachedVersion}` : 'aact_programs_summary_v3'
+      const cachedList = JSON.parse(localStorage.getItem(cacheKey) || '[]')
       if (Array.isArray(cachedList) && cachedList.length > 0) {
         hasCachedList = true
         setPrograms(cachedList)
@@ -133,21 +221,23 @@ export function HomeView() {
 
     const controller = new AbortController()
 
-    // رقم البرامج لا يحتاج تحميل قائمة البرامج كاملة؛ نجلبه من endpoint خفيف أولاً ليظهر فوراً تقريباً.
     fetch('/api/programs?count=1&public=1', {
       signal: controller.signal,
-      cache: 'force-cache',
+      cache: 'no-store',
       headers: { Accept: 'application/json' },
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ count: number }>
+        return res.json() as Promise<{ count: number; catalogVersion?: string | null }>
       })
       .then((d) => {
         if (!alive) return
         if (Number.isFinite(d.count) && d.count > 0) {
           setProgramCount(d.count)
-          try { localStorage.setItem('aact_program_count', String(d.count)) } catch {}
+          try {
+            localStorage.setItem('aact_program_count', String(d.count))
+            if (d.catalogVersion) localStorage.setItem('aact_programs_summary_version', d.catalogVersion)
+          } catch {}
         }
       })
       .catch(() => {})
@@ -155,22 +245,25 @@ export function HomeView() {
     const loadSummary = () => {
       fetch('/api/programs?summary=1&public=1', {
         signal: controller.signal,
-        cache: 'force-cache',
+        cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          return res.json() as Promise<{ programs: ProgramLite[] }>
+          return res.json() as Promise<{ programs: ProgramLite[]; catalogVersion?: string | null }>
         })
         .then((d) => {
           if (!alive) return
           const list = Array.isArray(d.programs) ? d.programs : []
+          const version = d.catalogVersion || 'current'
           setPrograms(list)
           if (list.length > 0) {
             setProgramCount(list.length)
             try {
               localStorage.setItem('aact_program_count', String(list.length))
-              localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 120)))
+              localStorage.setItem('aact_programs_summary_version', version)
+              localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
+              localStorage.removeItem('aact_programs_summary_v3')
             } catch {}
           }
         })
@@ -199,11 +292,17 @@ export function HomeView() {
 
   const visibleProgramCount = programCount ?? programs.length
   const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
+  const minProgramPrice = (categories: string[], fallback: number) => {
+    const prices = programs
+      .filter((p) => categories.includes(p.category))
+      .map((p) => Number(p.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+    return prices.length ? Math.min(...prices) : fallback
+  }
+  const doctorateStartsFrom = minProgramPrice(['DOCTORATE'], generalSettings.doctorateDefault)
+  const mastersStartsFrom = minProgramPrice(['MASTERS'], generalSettings.mastersDefault)
+  const diplomaStartsFrom = minProgramPrice(['DIPLOMA', 'INTL_CERT'], generalSettings.diplomaMinDefault)
 
-  // حارس حركة الشريط المتحرك — يعالج تجمّده على بعض الأجهزة (آيفون/أندرويد):
-  // بعض المتصفحات توقف حركات CSS مع إعداد «تقليل الحركة» أو اللمس العالق :hover.
-  // إذا لم يتحرك المسار لمسافتين متتاليتين، نشغّل محركاً يدوياً بـ requestAnimationFrame
-  // بنفس رياضيات الحركة الأصلية (36 ثانية لكل دورة، إزاحة حتى 50%) — نفس الشكل تماماً.
   const trackRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = trackRef.current
@@ -250,14 +349,9 @@ export function HomeView() {
       const hasImage = Boolean(el.querySelector('img'))
       el.classList.add('aact-scroll-reveal')
       if (isMobileReveal) {
-        // على الهاتف لا نستخدم إزاحة يمين/يسار حتى لا يظهر أي عنصر خارج حدود الشاشة أثناء الحركة.
-        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
-          el.classList.add('aact-text-drop')
-        } else if (el.classList.contains('aact-feature-badge')) {
-          el.classList.add('aact-badge-drop')
-        } else if (hasImage || el.classList.contains('aact-card')) {
-          el.classList.add('aact-reveal-clean')
-        }
+        if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) el.classList.add('aact-text-drop')
+        else if (el.classList.contains('aact-feature-badge')) el.classList.add('aact-badge-drop')
+        else if (hasImage || el.classList.contains('aact-card')) el.classList.add('aact-reveal-clean')
         el.classList.add('aact-reveal-from-bottom')
       } else if (['h1', 'h2', 'h3', 'p', 'button'].includes(tag)) {
         el.classList.add('aact-text-drop')
@@ -279,17 +373,14 @@ export function HomeView() {
         if (rect.top < vh * 0.88 && rect.bottom > vh * 0.04) el.classList.add('aact-in-view')
       })
     }
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('aact-in-view')
-            io.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.08, rootMargin: '0px 0px -4% 0px' }
-    )
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('aact-in-view')
+          io.unobserve(entry.target)
+        }
+      })
+    }, { threshold: 0.08, rootMargin: '0px 0px -4% 0px' })
     const onScroll = () => requestAnimationFrame(revealVisible)
     const timer = window.setTimeout(() => {
       nodes.forEach((el) => io.observe(el))
@@ -309,29 +400,23 @@ export function HomeView() {
 
   return (
     <div className="aact-fade-in">
-      {/* بانر لوحة الإدارة — ظاهر ومباشر لمسؤولي الأكاديمية */}
       {user?.role === 'ADMIN' && (
         <div className="border-b-4 border-[#c9a227] bg-[#0f2b46]">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-2.5">
-              <span className="rounded-xl bg-[#c9a227] p-2">
-                <ShieldCheck className="h-5 w-5 text-[#0f2b46]" />
-              </span>
+              <span className="rounded-xl bg-[#c9a227] p-2"><ShieldCheck className="h-5 w-5 text-[#0f2b46]" /></span>
               <div>
                 <p className="text-sm font-black text-[#e0b83a]">أنت مسجّل بحساب إدارة الأكاديمية</p>
-                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق بتقييم خبير الذكاء الاصطناعي · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
+                <p className="text-[11px] text-[#f5f0e1]/70">اعتماد طلبات الالتحاق · الكتب والاختبارات · المالية والشهادات · قواعد القبول</p>
               </div>
             </div>
-            <button
-              onClick={() => navigate('admin')}
-              className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]"
-            >
+            <button onClick={() => navigate('admin')} className="rounded-lg bg-[#c9a227] px-5 py-2.5 text-sm font-black text-[#0f2b46] shadow hover:bg-[#e0b83a]">
               فتح لوحة الإدارة ←
             </button>
           </div>
         </div>
       )}
-      {/* شريط متحرك بأبرز البرامج المميزة — في أعلى الصفحة ليكون ظاهراً فوراً على كل الأجهزة */}
+
       <div className="aact-ticker relative z-20 border-y-2 border-[#bf1646]/70 bg-[#1d2947]">
         <div className="mx-auto flex max-w-7xl items-stretch">
           <div className="z-10 flex shrink-0 items-center gap-1.5 border-l-2 border-[#17223e] bg-[#d2ad5a] px-3 py-2 text-[10px] font-black text-[#1d2947] sm:px-4 sm:text-[11px]">
@@ -345,10 +430,7 @@ export function HomeView() {
                   {FEATURED_TICKER.map((f, i) => (
                     <button
                       key={`${copy}-${i}`}
-                      onClick={() => {
-                        if (f.slug) return openProgramDetails(f.slug)
-                        return openPrograms(f.filter || 'ALL')
-                      }}
+                      onClick={() => (f.slug ? openProgramDetails(f.slug) : openPrograms(f.filter || 'ALL'))}
                       className="group mx-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[#d2ad5a]/25 bg-white/5 px-3.5 py-1.5 text-[10px] font-bold whitespace-nowrap text-white transition hover:border-[#d2ad5a] hover:bg-[#bf1646]/20 sm:text-[11px]"
                     >
                       <f.icon className="h-3.5 w-3.5 shrink-0 text-[#d2ad5a] transition group-hover:scale-110" />
@@ -365,7 +447,6 @@ export function HomeView() {
         </div>
       </div>
 
-      {/* Hero */}
       <section className="aact-hero relative overflow-hidden text-[#f8f8fb]">
         <div className="pointer-events-none absolute inset-0 opacity-[0.16]" aria-hidden="true">
           <img src={ACADEMY_IMAGES.heroBg} alt="" className="h-full w-full object-cover saturate-[0.85]" />
@@ -388,29 +469,20 @@ export function HomeView() {
             <p className="mx-auto mt-5 max-w-2xl text-sm font-bold leading-8 text-white/78 sm:text-base lg:mx-0">
               منصة تعليمية ومهنية متكاملة تجمع البرامج العليا والدبلومات والشهادات والاعتمادات والخدمات المهنية، مع بوابة ذكية للطالب والمشرف والإدارة.
             </p>
+            {trustBannerText && (
+              <p className="mx-auto mt-4 max-w-2xl rounded-2xl border border-[#d2ad5a]/25 bg-[#d2ad5a]/10 p-3 text-xs font-black leading-7 text-[#fff5cf] lg:mx-0">
+                {trustBannerText}
+              </p>
+            )}
             <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <Button
-                size="lg"
-                onClick={() => navigate('programs')}
-                className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]"
-              >
+              <Button size="lg" onClick={() => navigate('programs')} className="rounded-full border-2 border-[#bf1646] bg-[#bf1646] px-8 text-white shadow-lg shadow-[#bf1646]/30 hover:bg-[#a61139]">
                 استكشف برامجنا
                 <ChevronLeft className="mr-1 h-4 w-4" />
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => navigate('apply')}
-                className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white"
-              >
+              <Button size="lg" variant="outline" onClick={() => navigate('apply')} className="rounded-full border-white/35 bg-white/5 px-8 text-white hover:bg-white/10 hover:text-white">
                 قدّم طلب الالتحاق
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => navigate(user ? 'chat' : 'auth')}
-                className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white"
-              >
+              <Button size="lg" variant="outline" onClick={() => navigate(user ? 'chat' : 'auth')} className="rounded-full border-[#b08a38]/55 bg-[#b08a38]/12 px-8 text-white hover:bg-[#b08a38]/20 hover:text-white">
                 <Bot className="ml-2 h-5 w-5 text-[#d2ad5a]" />
                 المشرف الذكي
               </Button>
@@ -435,24 +507,18 @@ export function HomeView() {
             </div>
           </div>
 
-          {/* Stats — عدادات متحركة تبدأ عند الظهور */}
           <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
             {[
-              { v: 20000, s: '+', l: 'خريج ومتدرب', icon: Users },
-              { v: Math.max(100, visibleProgramCount || 100), s: '+', l: 'برنامج مهني', icon: BookOpen },
-              { v: 250, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
-              { v: 50, s: '+', l: 'اعتماد دولي ومحلي', icon: Globe2 },
+              { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
+              { v: Math.max(visibleProgramCount || 0, 0), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
+              { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
             ].map((s) => {
               const Icon = s.icon
               return (
-                <div
-                  key={s.l}
-                  className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur"
-                >
+                <div key={s.l} className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur">
                   <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
-                  <div className="text-4xl font-black text-white sm:text-5xl">
-                    <CountUp to={s.v} suffix={s.s} />
-                  </div>
+                  <div className="text-4xl font-black text-white sm:text-5xl"><CountUp to={s.v} suffix={s.s} /></div>
                   <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
                 </div>
               )
@@ -461,19 +527,13 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* عن الأكاديمية — مقطع مطابق لبنية الموقع الرسمي مع ربطه بقدرات المنصة */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
-              عن الأكاديمية الأمريكية
-            </Badge>
-            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">
-              بناء قادة المستقبل من خلال التعليم المبتكر
-            </h2>
+            <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">عن الأكاديمية الأمريكية</Badge>
+            <h2 className="text-2xl font-black leading-snug text-[#0f2b46] sm:text-3xl">بناء قادة المستقبل من خلال التعليم المبتكر</h2>
             <p className="mt-3 text-sm font-bold leading-8 text-slate-600 sm:text-base">
-              {ACADEMY_INFO.nameAr} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل،
-              عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
+              {homeLegalEntity} صرح مهني يهدف إلى سد الفجوة بين التعليم النظري ومتطلبات سوق العمل، عبر برامج تدريبية ومهنية واستشارات واعتمادات وخدمات رقمية قابلة للتحقق.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
@@ -487,11 +547,7 @@ export function HomeView() {
                 </div>
               ))}
             </div>
-            <Button
-              variant="outline"
-              className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
-              onClick={() => navigate('about')}
-            >
+            <Button variant="outline" className="mt-6 border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]" onClick={() => navigate('about')}>
               اكتشف المزيد عنا
               <ChevronLeft className="mr-1 h-4 w-4" />
             </Button>
@@ -515,16 +571,11 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* الخدمات والبرامج — مطابق لفلسفة الموقع الرسمي: خدمات مهنية + برامج دراسية في مكان واحد */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="mx-auto mb-8 max-w-3xl text-center">
-          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
-            <Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج
-          </Badge>
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15"><Briefcase className="ml-1 h-3.5 w-3.5" /> الخدمات والبرامج</Badge>
           <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">منظومة مهنية متكاملة للأفراد والمؤسسات</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">جمعنا مسارات الموقع الرسمي داخل المنصة: الدراسات المهنية العليا، الدبلومات، الشهادات، الاعتمادات، الحقائب، معادلة الخبرة، والاستشارات.</p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {SERVICE_OFFERINGS.map((s, i) => {
@@ -539,28 +590,18 @@ export function HomeView() {
                 </div>
                 <CardContent className="flex h-full flex-col p-5">
                   <div className="mb-3 flex items-start justify-between gap-3">
-                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">
-                      خدمة مهنية
-                    </Badge>
+                    <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]"><Icon className="h-6 w-6" /></span>
+                    <Badge variant="outline" className="border-[#c9a227]/50 text-[10px] font-black text-[#a8841a]">خدمة مهنية</Badge>
                   </div>
                   <h3 className="text-sm font-black leading-snug text-[#0f2b46]">{s.titleAr}</h3>
                   {s.titleEn && <p className="mt-1 text-[10px] font-bold text-[#a8841a]">{s.titleEn}</p>}
                   <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{s.description}</p>
                   <div className="mt-3 space-y-1.5">
                     {s.highlights.slice(0, 3).map((h) => (
-                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500">
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}
-                      </p>
+                      <p key={h} className="flex items-start gap-1.5 text-[10px] font-bold leading-relaxed text-slate-500"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> {h}</p>
                     ))}
                   </div>
-                  <Button
-                    variant="outline"
-                    className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
-                    onClick={() => openProgramDetails(s.slug)}
-                  >
+                  <Button variant="outline" className="mt-4 w-full border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]" onClick={() => openProgramDetails(s.slug)}>
                     {s.cta}
                     <ChevronLeft className="mr-1 h-3.5 w-3.5" />
                   </Button>
@@ -571,22 +612,12 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* AI Supervisor feature */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="grid items-center gap-8 lg:grid-cols-2">
           <div>
-            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
-              <Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية
-            </Badge>
-            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">
-              مشرف شخصي ذكي لكل طالب
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
-              لأول مرة: مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة على مدار الساعة.
-              اسأله بصوتك أو اكتب سؤالك، وسيرد عليك فوراً بصوت واضح وكتابة، يشرح المفاهيم
-              بأمثلة عملية، يرشدك في رحلتك التدريبية، ويصحح امتحاناتك المقالية بتقييم منصف
-              وتغذية راجعة بنّاءة.
-            </p>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]"><Sparkles className="ml-1 h-3.5 w-3.5" /> تقنية ذكاء اصطناعي حصرية</Badge>
+            <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">مشرف شخصي ذكي لكل طالب</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">مشرف أكاديمي بالذكاء الاصطناعي يرافق كل طالب على حدة، يشرح المفاهيم، يرشد في الرحلة التدريبية، ويصحح الامتحانات المقالية بتغذية راجعة بنّاءة.</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {[
                 { icon: Mic, t: 'أسأل بصوتك', d: 'تقنية التعرف على الكلام العربي' },
@@ -595,103 +626,53 @@ export function HomeView() {
                 { icon: Clock3, t: 'متاح 24/7', d: 'في أي وقت ومن أي جهاز' },
               ].map((f) => (
                 <div key={f.t} className="flex items-start gap-3 rounded-xl border border-[#0f2b46]/10 bg-white p-3.5 shadow-sm">
-                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]">
-                    <f.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div>
-                    <div className="text-xs text-slate-500">{f.d}</div>
-                  </div>
+                  <div className="rounded-lg bg-[#0f2b46] p-2 text-[#e0b83a]"><f.icon className="h-5 w-5" /></div>
+                  <div><div className="text-sm font-extrabold text-[#0f2b46]">{f.t}</div><div className="text-xs text-slate-500">{f.d}</div></div>
                 </div>
               ))}
             </div>
-            <Button
-              className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]"
-              onClick={() => navigate(user ? 'chat' : 'auth')}
-            >
-              جرّب المشرف الذكي الآن
-            </Button>
+            <Button className="mt-6 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => navigate(user ? 'chat' : 'auth')}>جرّب المشرف الذكي الآن</Button>
           </div>
-
-          {/* Chat preview mockup */}
           <div className="relative mx-auto w-full max-w-md">
             <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-[#c9a227]/20 to-[#0f2b46]/10 blur-xl" />
             <div className="relative rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-2xl">
               <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <div className="rounded-full bg-[#0f2b46] p-2 text-[#e0b83a]"><Bot className="h-4 w-4" /></div>
-                <div>
-                  <div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div>
-                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن
-                  </div>
-                </div>
+                <div><div className="text-sm font-extrabold text-[#0f2b46]">المشرف الذكي</div><div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> متصل الآن</div></div>
               </div>
               <div className="space-y-2.5">
-                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">
-                  ما الفرق بين تحليل SWOT وتحليل PESTEL؟
-                </div>
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#0f2b46] px-3.5 py-2.5 text-xs leading-relaxed text-white sm:text-sm">ما الفرق بين تحليل SWOT وتحليل PESTEL؟</div>
                 <div className="ml-auto max-w-[90%] rounded-2xl rounded-tl-sm bg-[#f7edd0] px-3.5 py-2.5 text-xs leading-relaxed text-[#0f2b46] sm:text-sm">
-                  سؤال ممتاز! SWOT يحلل عوامل داخلية (قوة/ضعف) وخارجية مباشرة (فرص/تهديدات) حول
-                  المؤسسة نفسها، أما PESTEL فيمسح البيئة الكلية الخارجية: سياسي، اقتصادي، اجتماعي،
-                  تكنولوجي، بيئي، قانوني. استخدم SWOT لفهم موقعك، وPESTEL لقراءة السوق. هل تريد
-                  مثالاً تطبيقياً؟
-                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]">
-                    <span className="aact-speak-wave text-[#c9a227]">
-                      <span /><span /><span /><span />
-                    </span>
-                    يشغّل الرد صوتياً...
-                  </div>
+                  SWOT يحلل عوامل داخلية وخارجية مباشرة حول المؤسسة، أما PESTEL فيمسح البيئة الكلية الخارجية. استخدم SWOT لفهم موقعك وPESTEL لقراءة السوق.
+                  <div className="mt-2 flex items-center gap-2 border-t border-[#c9a227]/30 pt-2 text-[10px] font-bold text-[#a8841a]"><span className="aact-speak-wave text-[#c9a227]"><span /><span /><span /><span /></span>يشغّل الرد صوتياً...</div>
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400">
-                <MicOff className="h-4 w-4" />
-                اكتب سؤالك أو اضغط على المايكروفون لالتحدث...
-              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-xs text-slate-400"><MicOff className="h-4 w-4" />اكتب سؤالك أو اضغط على المايكروفون للتحدث...</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Featured program */}
       {featured && (
         <section className="bg-[#f7edd0]/40 py-14">
           <div className="mx-auto max-w-7xl px-4">
-            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
-              البرنامج الأبرز هذا الموسم
-            </h2>
+            <h2 className="mb-6 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">البرنامج الأبرز هذا الموسم</h2>
             <Card className="aact-card mx-auto max-w-4xl overflow-hidden border-[#c9a227]/40 bg-white">
               <CardContent className="p-0">
                 <div className="grid md:grid-cols-[1fr_auto]">
                   <div className="p-6 sm:p-8">
-                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
-                      {CATEGORY_LABEL[featured.category]}
-                    </Badge>
+                    <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{CATEGORY_LABEL[featured.category]}</Badge>
                     <h3 className="text-xl font-black text-[#0f2b46] sm:text-2xl">{featured.titleAr}</h3>
                     <p className="mt-1 text-xs font-bold text-[#a8841a]">{featured.titleEn}</p>
-                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">
-                      {featured.description}
-                    </p>
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-600">{featured.description}</p>
                     <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-                      {featured.hours && (
-                        <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
-                          <Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]">
-                        <BookOpen className="h-3.5 w-3.5" /> 5 وحدات متخصصة
-                      </span>
-                      {featured.price != null && (
-                        <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]">
-                          <BadgeCheck className="h-3.5 w-3.5" /> فقط {featured.price}$
-                        </span>
-                      )}
+                      {featured.hours && <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]"><Clock3 className="h-3.5 w-3.5" /> {featured.hours} ساعة تدريبية</span>}
+                      <span className="flex items-center gap-1 rounded-full bg-[#0f2b46]/5 px-3 py-1.5 text-[#0f2b46]"><BookOpen className="h-3.5 w-3.5" /> {featured.unitsCount > 0 ? `${featured.unitsCount} وحدات` : 'مسار مهني'}</span>
+                      {featured.price != null && <span className="flex items-center gap-1 rounded-full bg-[#c9a227]/15 px-3 py-1.5 text-[#a8841a]"><BadgeCheck className="h-3.5 w-3.5" /> فقط {currency(featured.price)}</span>}
                     </div>
                   </div>
                   <div className="flex items-center justify-center bg-[#0f2b46] p-8 md:w-56">
-                    <Button
-                      onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))}
-                      className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
-                    >
+                    <Button onClick={() => (featured.enrolled ? openProgram(featured.id) : openProgramDetails(featured.id))} className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
                       {featured.enrolled ? 'ادرس الآن' : 'تفاصيل البرنامج'}
                     </Button>
                   </div>
@@ -702,50 +683,27 @@ export function HomeView() {
         </section>
       )}
 
-      {/* Programs grid */}
       <section className="mx-auto max-w-7xl px-4 py-14">
-        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
-          أكاديميتنا وبرامجنا
-        </h2>
-        <p className="mb-8 text-center text-sm text-slate-500">
-          {programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية
-        </p>
+        <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">أكاديميتنا وبرامجنا</h2>
+        <p className="mb-8 text-center text-sm text-slate-500">{programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية</p>
         {loading ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />
-            ))}
-          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[...Array(5)].map((_, i) => <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />)}</div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {programs.slice(0, 6).map((p) => {
               const Icon = ICONS[p.icon] || GraduationCap
               return (
-                <Card
-                  key={p.id}
-                  className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white"
-                  onClick={() => openProgramDetails(p.id)}
-                >
+                <Card key={p.id} className="aact-card cursor-pointer border-[#0f2b46]/10 bg-white" onClick={() => openProgramDetails(p.id)}>
                   <CardContent className="flex h-full flex-col p-6">
                     <div className="mb-4 flex items-start justify-between">
-                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]">
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">
-                        {CATEGORY_LABEL[p.category]}
-                      </Badge>
+                      <div className="rounded-xl bg-[#0f2b46] p-3 text-[#e0b83a]"><Icon className="h-6 w-6" /></div>
+                      <Badge variant="outline" className="border-[#c9a227]/50 text-[11px] text-[#a8841a]">{CATEGORY_LABEL[p.category]}</Badge>
                     </div>
                     <h3 className="text-base font-black leading-snug text-[#0f2b46]">{p.titleAr}</h3>
-                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">
-                      {p.description}
-                    </p>
+                    <p className="mt-2 line-clamp-2 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
                     <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                      <span className="text-[11px] font-bold text-slate-400">
-                        {p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}
-                      </span>
-                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">
-                        التفاصيل <ChevronLeft className="h-3.5 w-3.5" />
-                      </span>
+                      <span className="text-[11px] font-bold text-slate-400">{p.unitsCount > 0 ? `${p.unitsCount} وحدات تدريبية` : p.category === 'SERVICE' ? 'خدمة مهنية' : 'اعتماد مباشر'}</span>
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-[#a8841a]">التفاصيل <ChevronLeft className="h-3.5 w-3.5" /></span>
                     </div>
                   </CardContent>
                 </Card>
@@ -754,39 +712,27 @@ export function HomeView() {
           </div>
         )}
         <div className="mt-8 text-center">
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => navigate('programs')}
-            className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]"
-          >
+          <Button size="lg" variant="outline" onClick={() => navigate('programs')} className="border-[#0f2b46]/25 font-extrabold text-[#0f2b46] hover:bg-[#0f2b46] hover:text-[#f5f0e1]">
             عرض جميع الخدمات والبرامج ({programCountLabel})
             <ChevronLeft className="mr-1 h-4 w-4" />
           </Button>
         </div>
       </section>
 
-      {/* Admission guide + fees */}
       <section className="bg-[#f7edd0]/40 py-14">
         <div className="mx-auto max-w-7xl px-4">
-          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">
-            دليل الالتحاق والرسوم
-          </h2>
-          <p className="mb-8 text-center text-sm text-slate-500">
-            وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027
-          </p>
+          <h2 className="mb-2 text-center text-2xl font-black text-[#0f2b46] sm:text-3xl">دليل الالتحاق والرسوم</h2>
+          <p className="mb-8 text-center text-sm text-slate-500">وفق دليل إجراءات وشروط الالتحاق الرسمي للعام 2026-2027</p>
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="border-[#c9a227]/40 bg-white">
               <CardContent className="p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
-                  <Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج
-                </h3>
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]"><Banknote className="h-5 w-5 text-[#a8841a]" /> التكلفة المالية للبرامج</h3>
                 <div className="space-y-3">
                   {[
-                    { p: 'الدكتوراه المهنية (معادلة خبرات)', f: `${ADMISSION_FEES.doctorate}$` },
-                    { p: 'الماجستير المهني (معادلة خبرات)', f: `${ADMISSION_FEES.masters}$` },
-                    { p: 'الدبلومات والبرامج الدولية (حسب البرنامج)', f: `${ADMISSION_FEES.diplomasRange}$` },
-                    { p: 'رسوم تقديم الطلب وحجز المقعد (غير مستردة)', f: `${ADMISSION_FEES.applicationFee}$` },
+                    { p: 'الدكتوراه المهنية (معادلة خبرات)', f: `تبدأ من ${currency(doctorateStartsFrom)}` },
+                    { p: 'الماجستير المهني (معادلة خبرات)', f: `تبدأ من ${currency(mastersStartsFrom)}` },
+                    { p: 'الدبلومات والبرامج الدولية (حسب البرنامج)', f: `تبدأ من ${currency(diplomaStartsFrom)}` },
+                    { p: 'رسوم تقديم الطلب وحجز المقعد (غير مستردة)', f: currency(generalSettings.applicationFee) },
                   ].map((r) => (
                     <div key={r.p} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-4 py-2.5">
                       <span className="text-xs font-bold text-slate-700 sm:text-sm">{r.p}</span>
@@ -794,36 +740,25 @@ export function HomeView() {
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                  التكاليف مقابل الدراسة وشهادة معتمدة من الأكاديمية — والشهادات في مجال التدريب المهني فقط.
-                </p>
+                <p className="mt-3 text-[11px] leading-relaxed text-slate-500">سعر كل برنامج يُدار من تبويب قواعد القبول، وتُستخدم هذه الأرقام الافتراضية فقط إذا لم يحدد البرنامج سعراً خاصاً.</p>
               </CardContent>
             </Card>
             <Card className="border-[#c9a227]/40 bg-white">
               <CardContent className="p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]">
-                  <ClipboardList className="h-5 w-5 text-[#a8841a]" /> خطوات الالتحاق باختصار
-                </h3>
+                <h3 className="mb-4 flex items-center gap-2 text-base font-black text-[#0f2b46]"><ClipboardList className="h-5 w-5 text-[#a8841a]" /> خطوات الالتحاق باختصار</h3>
                 <ol className="space-y-2.5">
                   {[
-                    'قدّم طلب الالتحاق الإلكتروني وأرفق وثائقك (الشهادة، الهوية، صور شخصية، C.V)',
-                    'سدد رسوم التقديم وحجز المقعد (30$ غير مستردة)',
+                    'قدّم طلب الالتحاق الإلكتروني وأرفق وثائقك المطلوبة حسب البرنامج',
+                    `سدد رسوم التقديم وحجز المقعد (${currency(generalSettings.applicationFee)} غير مستردة)`,
                     'يتم دراسة ملفك وتعيين مشرف لك بعد القبول',
                     'سدد رسوم الدراسة وابدأ رحلتك التدريبية',
-                    'قدّم بحث التخرج وناقشه خلال 3-6 شهور كحد أقصى',
+                    `قدّم بحث التخرج وناقشه خلال ${generalSettings.thesisMinMonths}-${generalSettings.thesisMaxMonths} شهور كحد أقصى`,
                   ].map((s, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-xs leading-relaxed text-slate-700 sm:text-sm">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0f2b46] text-[11px] font-black text-[#e0b83a]">{i + 1}</span>
-                      {s}
-                    </li>
+                    <li key={i} className="flex items-start gap-2.5 text-xs leading-relaxed text-slate-700 sm:text-sm"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0f2b46] text-[11px] font-black text-[#e0b83a]">{i + 1}</span>{s}</li>
                   ))}
                 </ol>
-                <Button
-                  className="mt-5 w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]"
-                  onClick={() => navigate('apply')}
-                >
-                  <ClipboardList className="ml-2 h-4 w-4" />
-                  ابدأ إجراءات الالتحاق الآن
+                <Button className="mt-5 w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => navigate('apply')}>
+                  <ClipboardList className="ml-2 h-4 w-4" />ابدأ إجراءات الالتحاق الآن
                 </Button>
               </CardContent>
             </Card>
@@ -831,36 +766,26 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* آراء طلابنا — دليل اجتماعي */}
       <section className="bg-[#f7edd0]/40 py-14">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto mb-8 max-w-2xl text-center">
-            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">
-              <Star className="ml-1 h-3.5 w-3.5" /> آراء طلابنا
-            </Badge>
+            <Badge className="mb-3 bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]"><Star className="ml-1 h-3.5 w-3.5" /> آراء طلابنا</Badge>
             <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">قصص نجاح من مختلف الدول</h2>
             <p className="mt-2 text-sm text-slate-600">خريجون واعتماد منهم قدموا لهم برامج الأكاديمية نقلة مهنية حقيقية</p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { n: 'د. محمد العتيبي', r: 'مستشار إداري معتمد', c: 'السعودية', q: 'الدكتوراه المهنية كانت نقلة حقيقية في مسيرتي — المناقشة عبر الفيديو كونفرنس وفّرت عليّ السفر، والمشرف الذكي كان متاحاً في أي وقت.' },
-              { n: 'م. سارة الحمادي', r: 'مديرة موارد بشرية', c: 'الإمارات', q: 'دبلوم الموارد البشرية عمّق خبرتي العملية، والامتحانات المقالية مع التغذية الراجعة الفورية جعلت كل وحدة درساً حقيقياً لا حفظاً.' },
-              { n: 'أ. خالد منصور', r: 'مدرب دولي معتمد CIT', c: 'مصر', q: 'شهادة المدرب الدولي فتحت لي أبواب التعاون مع مراكز تدريب كبرى — والإجراءات كانت واضحة من أول يوم حتى وصول الشهادة.' },
-              { n: 'د. ليلى بن صالح', r: 'مؤسِّسة مركز تدريب', c: 'الأردن', q: 'اعتماد المركز من الأكاديمية رفع ثقة المتدربين بنا فوراً — والواجهة الإلكترونية والتحقق من الشهادات أضافا مصداقية حقيقية.' },
+              { n: 'د. محمد العتيبي', r: 'مستشار إداري معتمد', c: 'السعودية', q: 'الدكتوراه المهنية كانت نقلة حقيقية في مسيرتي، والمشرف الذكي كان متاحاً في أي وقت.' },
+              { n: 'م. سارة الحمادي', r: 'مديرة موارد بشرية', c: 'الإمارات', q: 'دبلوم الموارد البشرية عمّق خبرتي العملية، والامتحانات المقالية جعلت كل وحدة درساً حقيقياً.' },
+              { n: 'أ. خالد منصور', r: 'مدرب دولي معتمد CIT', c: 'مصر', q: 'شهادة المدرب الدولي فتحت لي أبواب التعاون مع مراكز تدريب كبرى، والإجراءات كانت واضحة.' },
+              { n: 'د. ليلى بن صالح', r: 'مؤسِّسة مركز تدريب', c: 'الأردن', q: 'اعتماد المركز رفع ثقة المتدربين بنا فوراً، والتحقق من الشهادات أضاف مصداقية حقيقية.' },
             ].map((t) => (
               <Card key={t.n} className="aact-card border-[#0f2b46]/10 bg-white">
                 <CardContent className="flex h-full flex-col p-5">
                   <Quote className="h-6 w-6 text-[#c9a227]/60" />
-                  <div className="mt-2 flex gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-3.5 w-3.5 fill-[#c9a227] text-[#c9a227]" />
-                    ))}
-                  </div>
+                  <div className="mt-2 flex gap-0.5">{[...Array(5)].map((_, i) => <Star key={i} className="h-3.5 w-3.5 fill-[#c9a227] text-[#c9a227]" />)}</div>
                   <p className="mt-3 flex-1 text-xs leading-relaxed text-slate-600">{t.q}</p>
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <p className="text-xs font-black text-[#0f2b46]">{t.n}</p>
-                    <p className="mt-0.5 text-[10px] font-bold text-slate-500">{t.r} — {t.c}</p>
-                  </div>
+                  <div className="mt-4 border-t border-slate-100 pt-3"><p className="text-xs font-black text-[#0f2b46]">{t.n}</p><p className="mt-0.5 text-[10px] font-bold text-slate-500">{t.r} — {t.c}</p></div>
                 </CardContent>
               </Card>
             ))}
@@ -868,96 +793,60 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* الأسئلة الشائعة — إجابات مباشرة عن أكثر ما يسأل عنه المتقدمون */}
       <section className="mx-auto max-w-4xl px-4 py-14">
         <div className="mb-8 text-center">
-          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15">
-            <HelpCircle className="ml-1 h-3.5 w-3.5" /> الأسئلة الشائعة
-          </Badge>
+          <Badge className="mb-3 border-[#c9a227]/50 bg-[#c9a227]/15 text-[#a8841a] hover:bg-[#c9a227]/15"><HelpCircle className="ml-1 h-3.5 w-3.5" /> الأسئلة الشائعة</Badge>
           <h2 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">كل ما تريد معرفته قبل الالتحاق</h2>
         </div>
         <Accordion type="single" collapsible className="space-y-3">
           {[
-            { q: 'هل شهادات الأكاديمية معتمدة وقابلة للتحقق؟', a: 'نعم — الأكاديمية الأمريكية للاستشارات والتدريب تعمل منذ 2016، وكل شهادة تصدر برقم تسلسلي فريد يمكن التحقق من صحته إلكترونياً خلال ثوانٍ عبر صفحة «التحقق من الشهادات» في المنصة، ما يجعلها موثقة أمام أصحاب العمل والجهات الرسمية.' },
-            { q: 'ما هي رسوم البرامج وكيف تدفع؟', a: 'رسوم التقديم 30$ وتُسدد إلكترونياً عند التقديم، الماجستير المهني 700$، الدكتوراه المهنية 1300$، الدبلومات المهنية بين 100–350$ حسب البرنامج، والشهادات الدولية من 250$. الدفع يتم عبر البوابات الإلكترونية داخل المنصة (Stripe/PayPal/Paymob) مع إيصال رسمي لكل عملية.' },
-            { q: 'كم تستغرق مدة الدراسة؟', a: 'الدبلومات تشمل أكثر من 60 ساعة تدريبية تدرس بوتيرتك الخاصة، أما الماجستير والدكتوراه المهنية فمسار مرن: تدرس وتجتاز الامتحانات ثم تسلم بحث التخرج خلال مهلة تصل إلى 6 أشهر من القبول، ويمكن تمديدها بطلب من الإدارة.' },
-            { q: 'كيف تتم مناقشة بحث التخرج؟', a: 'عبر قاعة فيديو كونفرنس متكاملة داخل المنصة: تناقش بحثك أمام لجنة متخصصة متصلة من دول مختلفة، ويشارك خبير ذكاء اصطناعي بالأسئلة والتحليل الحي. تُفتح القاعة قبل موعدك بـ15 دقيقة، وتولّد الجلسة محضراً رسمياً وتسجيلاً مؤرشفاً في ملفك.' },
-            { q: 'متى تصدر الشهادة بعد التخرج؟', a: 'وفق اللوائح الرسمية تصدر شهادتك خلال 30 يوماً كحد أقصى من اجتياز المناقشة وسداد الرسوم الدراسية كاملة، وتظهر تلقائياً في تبويب «شهاداتي» في بوابتك مع إمكانية الطباعة والتحقق العام.' },
-            { q: 'من يساعدني أثناء الدراسة؟', a: 'لك مشرف أكاديمي بشري يعينه عليك الإدارة، إضافة إلى مشرف ذكاء اصطناعي متاح 24/7 يجيب أسئلتك صوتاً وكتابة، يشرح مفاهيم دوراتك، يصحح امتحاناتك المقالية بتغذية راجعة تفصيلية، ويرافقك خطوة بخطوة حتى التخرج.' },
+            { q: 'هل شهادات الأكاديمية معتمدة وقابلة للتحقق؟', a: 'كل شهادة تصدر برقم تسلسلي فريد يمكن التحقق من صحته إلكترونياً عبر صفحة التحقق من الشهادات في المنصة.' },
+            { q: 'ما هي رسوم البرامج وكيف تدفع؟', a: `رسوم التقديم ${currency(generalSettings.applicationFee)}، والماجستير المهني يبدأ من ${currency(mastersStartsFrom)}، والدكتوراه المهنية تبدأ من ${currency(doctorateStartsFrom)}، والدبلومات والبرامج الدولية تبدأ من ${currency(diplomaStartsFrom)} حسب البرنامج. الدفع يتم من داخل المنصة مع إيصال رسمي لكل عملية.` },
+            { q: 'كم تستغرق مدة الدراسة؟', a: `تختلف المدة حسب البرنامج وساعاته المعتمدة، ويتم بحث التخرج ضمن مهلة من ${generalSettings.thesisMinMonths} إلى ${generalSettings.thesisMaxMonths} شهور وفق إعدادات الإدارة.` },
+            { q: 'كيف تتم مناقشة بحث التخرج؟', a: 'عبر قاعة فيديو كونفرنس متكاملة داخل المنصة أمام لجنة متخصصة، مع محضر رسمي وأرشفة رقمية للجلسة عند تفعيلها.' },
+            { q: 'متى تصدر الشهادة بعد التخرج؟', a: `وفق الإعدادات الحالية تصدر الشهادة خلال ${generalSettings.certificateIssueDays} يوماً كحد أقصى بعد استكمال المتطلبات والرسوم.` },
+            { q: 'من يساعدني أثناء الدراسة؟', a: 'لك مشرف أكاديمي بشري تعينه الإدارة، إضافة إلى مشرف ذكاء اصطناعي يجيب أسئلتك ويشرح مفاهيم دوراتك.' },
           ].map((f) => (
             <AccordionItem key={f.q} value={f.q} className="rounded-2xl border border-[#0f2b46]/10 bg-white px-5">
-              <AccordionTrigger className="py-4 text-right text-sm font-black text-[#0f2b46] hover:no-underline">
-                {f.q}
-              </AccordionTrigger>
-              <AccordionContent className="pb-4 text-xs leading-relaxed text-slate-600">
-                {f.a}
-              </AccordionContent>
+              <AccordionTrigger className="py-4 text-right text-sm font-black text-[#0f2b46] hover:no-underline">{f.q}</AccordionTrigger>
+              <AccordionContent className="pb-4 text-xs leading-relaxed text-slate-600">{f.a}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
       </section>
 
-      {/* International agents CTA */}
       <section className="bg-[#0f2b46] py-14 text-[#f5f0e1]">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mx-auto max-w-3xl text-center">
             <Globe2 className="mx-auto mb-4 h-10 w-10 text-[#c9a227]" />
-            <h2 className="text-2xl font-black sm:text-3xl">
-              كن الممثل المعتمد للأكاديمية في بلدك
-            </h2>
+            <h2 className="text-2xl font-black sm:text-3xl">كن الممثل المعتمد للأكاديمية في بلدك</h2>
             <p className="mt-3 text-sm leading-relaxed text-[#f5f0e1]/80 sm:text-base">
-              تمنح الأكاديمية حق التمثيل الحصري لتسويق وتقديم برامجها التدريبية المعتمدة، مع
-              نظام عمولات مغرٍ: <strong className="text-[#e0b83a]">25%</strong> من إيرادات منطقة
-              التمثيل، و<strong className="text-[#e0b83a]">100$</strong> عن كل بحث تخرج تشارك
-              في لجنة مناقشته، وإدراج اسمك في قائمة الوكلاء المعتمدين بالموقع الرسمي.
+              تمنح الأكاديمية حق التمثيل الحصري لتسويق وتقديم برامجها التدريبية المعتمدة، مع نظام عمولات مغرٍ: <strong className="text-[#e0b83a]">{generalSettings.agentCommissionRate}%</strong> من إيرادات منطقة التمثيل، و<strong className="text-[#e0b83a]">{currency(generalSettings.committeeMemberFee)}</strong> عن كل بحث تخرج تشارك في لجنة مناقشته.
             </p>
-            <Button
-              size="lg"
-              className="mt-6 bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]"
-              onClick={() => navigate('agent')}
-            >
-              قدّم طلب الوكالة الدولية
-            </Button>
+            <Button size="lg" className="mt-6 bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]" onClick={() => navigate('agent')}>قدّم طلب الوكالة الدولية</Button>
           </div>
         </div>
       </section>
 
-      {/* الثقة: الدليل العام + التحقق من الشهادات */}
       <section className="py-14">
         <div className="mx-auto grid max-w-7xl gap-5 px-4 md:grid-cols-2">
           <Card className="aact-card border-[#0f2b46]/10 bg-white">
             <CardContent className="flex flex-col items-start gap-3 p-6 sm:flex-row">
-              <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]">
-                <Users className="h-6 w-6" />
-              </span>
+              <span className="rounded-2xl bg-[#0f2b46] p-3 text-[#e0b83a]"><Users className="h-6 w-6" /></span>
               <div className="flex-1">
                 <h3 className="text-base font-black text-[#0f2b46]">دليل المعتمدين والوكلاء</h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  استعرض المستشارين والمدربين والهيئات التدريبية المعتمدين، والوكلاء الدوليين
-                  المعتمدين رسمياً — مع تحقق فوري من شهاداتهم.
-                </p>
-                <Button size="sm" variant="outline" className="mt-3 border-[#0f2b46]/20 font-bold text-[#0f2b46]"
-                  onClick={() => navigate('directory')}>
-                  تصفح الدليل
-                </Button>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">استعرض المستشارين والمدربين والهيئات التدريبية المعتمدين، والوكلاء الدوليين المعتمدين رسمياً.</p>
+                <Button size="sm" variant="outline" className="mt-3 border-[#0f2b46]/20 font-bold text-[#0f2b46]" onClick={() => navigate('directory')}>تصفح الدليل</Button>
               </div>
             </CardContent>
           </Card>
           <Card className="aact-card border-[#c9a227]/40 bg-[#f7edd0]/50">
             <CardContent className="flex flex-col items-start gap-3 p-6 sm:flex-row">
-              <span className="rounded-2xl bg-[#c9a227] p-3 text-[#0f2b46]">
-                <ShieldCheck className="h-6 w-6" />
-              </span>
+              <span className="rounded-2xl bg-[#c9a227] p-3 text-[#0f2b46]"><ShieldCheck className="h-6 w-6" /></span>
               <div className="flex-1">
                 <h3 className="text-base font-black text-[#0f2b46]">التحقق من صحة الشهادة</h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  كل شهادة صادرة من الأكاديمية تحمل رقماً تسلسلياً فريداً ورمز QR — تحقق من صحة
-                  أي شهادة فوراً عبر صفحة التحقق الرسمية.
-                </p>
-                <Button size="sm" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]"
-                  onClick={() => navigate('verify')}>
-                  تحقق الآن
-                </Button>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">كل شهادة صادرة من الأكاديمية تحمل رقماً تسلسلياً فريداً ورمز QR للتحقق الفوري من صحتها.</p>
+                <Button size="sm" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => navigate('verify')}>تحقق الآن</Button>
               </div>
             </CardContent>
           </Card>

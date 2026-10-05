@@ -1347,4 +1347,18 @@ ${evidence}
   return { review, cached: false }
 }
 
+export async function clearAdmissionAiReviewCacheForProgram(programId: string) {
+  if (!programId) return { count: 0 }
+  const result = await db.admissionApplication.updateMany({
+    where: { programId },
+    data: {
+      aiReview: null,
+      aiVerdict: null,
+      aiScore: null,
+      aiReviewedAt: null,
+    },
+  })
+  return { count: result.count }
+}
+
 export { VERDICT_AR }

@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
-import { ACADEMY_INFO, SERVICE_OFFERINGS } from '@/lib/academyData'
+import { SERVICE_OFFERINGS } from '@/lib/academyData'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,50 @@ const STATS = [
 export function AboutView() {
   const { navigate, openPrograms } = useAppStore()
   const featuredServices = SERVICE_OFFERINGS.slice(0, 4)
+  const [homeStats, setHomeStats] = useState({ graduates: 15000, experts: 50, countries: 25 })
+  const [officialContact, setOfficialContact] = useState({
+    legalEntity: 'الأكاديمية',
+    address: '',
+  })
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/settings', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json() as Promise<{ values?: Record<string, string> }>
+      })
+      .then((d) => {
+        if (!alive) return
+        const values = d.values || {}
+        try {
+          const parsed = JSON.parse(values.HOME_STATS || '{}')
+          setHomeStats((prev) => ({
+            graduates: Number(parsed.graduates || prev.graduates),
+            experts: Number(parsed.experts || prev.experts),
+            countries: Number(parsed.countries || prev.countries),
+          }))
+        } catch {}
+        try {
+          const parsed = JSON.parse(values.OFFICIAL_CONTACT || '{}')
+          if (parsed && typeof parsed === 'object') {
+            setOfficialContact((prev) => ({
+              legalEntity: String(parsed.legalEntity || prev.legalEntity),
+              address: String(parsed.address || prev.address),
+            }))
+          }
+        } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  const stats = [
+    { value: `+${homeStats.graduates.toLocaleString('en-US')}`, label: 'خريج ومتدرب معتمد' },
+    { value: '+25', label: 'برنامج تدريبي ومهني' },
+    { value: `+${homeStats.experts.toLocaleString('en-US')}`, label: 'خبير ومستشار دولي' },
+    { value: `+${homeStats.countries.toLocaleString('en-US')}`, label: 'دولة وشراكة مهنية' },
+  ]
 
   return (
     <div className="aact-fade-in">
@@ -59,7 +104,7 @@ export function AboutView() {
             </Badge>
             <h1 className="text-3xl font-black leading-[1.35] sm:text-4xl lg:text-5xl">من نحن</h1>
             <p className="mt-4 max-w-3xl text-base font-bold leading-8 text-[#f5f0e1]/85">
-              {ACADEMY_INFO.nameAr} صرح مهني يربط التدريب والاستشارات والاعتماد بمنصة رقمية واحدة،
+              {officialContact.legalEntity} صرح مهني يربط التدريب والاستشارات والاعتماد بمنصة رقمية واحدة،
               ويحوّل التعلم من محتوى نظري إلى مسار تطبيقي قابل للقياس والتحقق.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -77,7 +122,7 @@ export function AboutView() {
             <h2 className="mt-5 text-lg font-black text-[#e0b83a]">American Academy</h2>
             <p className="mt-2 text-sm font-bold text-[#f5f0e1]/75">Leadership in Excellence</p>
             <div className="mt-4 rounded-2xl bg-white/10 p-3 text-xs font-bold leading-6 text-[#f5f0e1]/80">
-              {ACADEMY_INFO.locationAr}<br />تأسست عام {ACADEMY_INFO.founded}
+              {officialContact.address || 'العنوان الرسمي يضبط من إعدادات التواصل'}
             </div>
           </div>
         </div>
@@ -85,7 +130,7 @@ export function AboutView() {
 
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {STATS.map((s) => (
+          {stats.map((s) => (
             <Card key={s.label} className="border-[#c9a227]/30 bg-white text-center shadow-sm">
               <CardContent className="p-5">
                 <p className="text-3xl font-black text-[#a8841a]">{s.value}</p>

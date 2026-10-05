@@ -89,7 +89,8 @@ export function ProgramsView() {
   const load = async () => {
     let hadCache = false
     try {
-      const cached = JSON.parse(localStorage.getItem('aact_programs_summary_v3') || '[]')
+      const cachedVersion = localStorage.getItem('aact_programs_summary_version')
+      const cached = cachedVersion ? JSON.parse(localStorage.getItem(`aact_programs_summary_${cachedVersion}`) || '[]') : []
       if (Array.isArray(cached) && cached.length > 0) {
         hadCache = true
         setPrograms(cached)
@@ -99,17 +100,19 @@ export function ProgramsView() {
 
     try {
       const d = user
-        ? await api<{ programs: Program[] }>('/api/programs?summary=1')
+        ? await api<{ programs: Program[]; catalogVersion?: string | null }>('/api/programs?summary=1')
         : await fetch('/api/programs?summary=1&public=1', { headers: { Accept: 'application/json' } }).then(async (res) => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
-            return res.json() as Promise<{ programs: Program[] }>
+            return res.json() as Promise<{ programs: Program[]; catalogVersion?: string | null }>
           })
       const list = Array.isArray(d.programs) ? d.programs : []
       setPrograms(list)
       if (list.length > 0) {
         try {
+          const version = d.catalogVersion || 'current'
           localStorage.setItem('aact_program_count', String(list.length))
-          localStorage.setItem('aact_programs_summary_v3', JSON.stringify(list.slice(0, 140)))
+          localStorage.setItem('aact_programs_summary_version', version)
+          localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
         } catch {}
       }
     } catch {
@@ -201,8 +204,8 @@ export function ProgramsView() {
             const Icon = ICONS[p.icon] || GraduationCap
             const flow = getServiceFlow(p.slug)
             const serviceLike = flow ? !flow.isStudyProgram : p.category === 'SERVICE'
-            const displayDescription = flow?.summary || p.description
-            const displayFeatures = flow?.highlights?.length ? flow.highlights : p.features
+            const displayDescription = p.description || flow?.summary || ''
+            const displayFeatures = p.features?.length ? p.features : (flow?.highlights || [])
             const displayAction = flow?.cardAction || (serviceLike ? 'اطلب الخدمة الآن' : 'قدّم طلب الالتحاق بالبرنامج')
             return (
               <Card key={p.id} className="aact-card flex flex-col border-[#0f2b46]/10 bg-white">

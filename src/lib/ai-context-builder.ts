@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { formatAiKnowledgePolicyForPrompt, getAiKnowledgePolicy, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { academicProfileFromRules } from '@/lib/program-tracks'
 
 export type AiKnowledgeDiagnostics = {
   source: 'SCOPED_PROGRAM_CATALOG'
@@ -26,6 +27,10 @@ export type ProgramCatalogRecord = {
   hours?: number | string | null
   price?: number | string | null
   description?: string | null
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  admissionRules?: any
+  academicProfile?: any
   books?: Array<{ title?: string | null; titleEn?: string | null; author?: string | null; semester?: string | number | null; description?: string | null }>
   units?: Array<{ title?: string | null; semester?: string | number | null; status?: string | null; summary?: string | null }>
   assignments?: Array<{ title?: string | null; type?: string | null; semester?: string | number | null; points?: number | null }>
@@ -73,6 +78,10 @@ function programHaystack(program: ProgramCatalogRecord): string {
     program.titleEn,
     program.category,
     program.description,
+    program.credentialType,
+    program.trademarkNotice,
+    JSON.stringify(program.admissionRules || ''),
+    JSON.stringify(program.academicProfile || ''),
     ...(program.books || []).flatMap((book) => [book.title, book.titleEn, book.author, book.description]),
     ...(program.units || []).flatMap((unit) => [unit.title, unit.summary, unit.status]),
     ...(program.assignments || []).map((assignment) => assignment.title),
@@ -118,11 +127,15 @@ export function formatProgramCatalogLine(program: ProgramCatalogRecord, index: n
   const counts = program._count
     ? `\nعدادات المحتوى: كتب ${program._count.books ?? 0}، وحدات ${program._count.units ?? 0}، واجبات ${program._count.assignments ?? 0}، امتحانات ${program._count.programExams ?? 0}`
     : ''
-  return `${index + 1}. ${program.titleAr || 'برنامج بلا عنوان'}${program.titleEn ? ` (${program.titleEn})` : ''} — ${program.category || 'تصنيف غير محدد'}${hours}${price}${status}\nالكتب/المراجع المسجلة حرفياً:\n${formatProgramBooks(program)}${units}${counts}`
+  const admission = program.admissionRules ? `\nقواعد القبول: ${compactText(JSON.stringify(program.admissionRules), 900)}` : ''
+  const academic = program.academicProfile ? `\nالملف الأكاديمي: ${compactText(JSON.stringify(program.academicProfile), 1200)}` : ''
+  const credential = program.credentialType ? `\nنوع الشهادة/المسار: ${program.credentialType}` : ''
+  const trademark = program.trademarkNotice ? `\nتنبيه العلامة التجارية: ${compactText(program.trademarkNotice, 500)}` : ''
+  return `${index + 1}. ${program.titleAr || 'برنامج بلا عنوان'}${program.titleEn ? ` (${program.titleEn})` : ''} — ${program.category || 'تصنيف غير محدد'}${hours}${price}${status}${credential}${trademark}${admission}${academic}\nالكتب/المراجع المسجلة حرفياً:\n${formatProgramBooks(program)}${units}${counts}`
 }
 
 async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> {
-  return (await db.program.findMany({
+  const rows = await db.program.findMany({
     where: { active: true },
     orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
     take: limit,
@@ -134,6 +147,9 @@ async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> 
       hours: true,
       price: true,
       description: true,
+      credentialType: true,
+      trademarkNotice: true,
+      admissionRules: true,
       books: {
         orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
         take: 30,
@@ -157,7 +173,12 @@ async function loadProgramCatalog(limit = 140): Promise<ProgramCatalogRecord[]> 
       },
       _count: { select: { books: true, units: true, knowledgeItems: true, questionBankItems: true, assignments: true, programExams: true, enrollments: true } },
     },
-  }).catch(() => [])) as ProgramCatalogRecord[]
+  }).catch(() => [])
+
+  return (rows as any[]).map((row) => ({
+    ...row,
+    academicProfile: academicProfileFromRules(row.admissionRules),
+  })) as ProgramCatalogRecord[]
 }
 
 export function rankProgramCatalog(programs: ProgramCatalogRecord[], query?: string | null): ProgramCatalogRecord[] {

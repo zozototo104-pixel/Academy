@@ -9,11 +9,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
+import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmountButton'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
@@ -756,8 +758,6 @@ export function AdminFinanceTab() {
     }
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
-
   const filteredPayments = payments
   const pagedPayments = payments
   const currentPaymentPage = paymentPage
@@ -917,6 +917,7 @@ export function AdminFinanceTab() {
                     <th className="p-3 font-black">المبلغ</th>
                     <th className="p-3 font-black">الحالة</th>
                     <th className="p-3 font-black">PDF</th>
+                    <th className="p-3 font-black">تحديث المبلغ</th>
                     <th className="p-3 font-black">تأكيد يدوي</th>
                   </tr>
                 </thead>
@@ -980,6 +981,9 @@ export function AdminFinanceTab() {
                           {pdfBusy === p.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <FileDown className="ml-1 h-3 w-3" />}
                           PDF
                         </Button>
+                      </td>
+                      <td className="p-3">
+                        <RefreshPaymentAmountButton payment={p} onDone={load} />
                       </td>
                       <td className="p-3">
                         {p.status === 'UNPAID' ? (
@@ -1151,7 +1155,7 @@ interface SystemAdminAccount {
 export function AdminSettingsTab() {
   const { toast } = useToast()
   const [values, setValues] = useState<Record<string, string>>({})
-  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string }[]>([])
+  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json'; help?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
@@ -1186,7 +1190,7 @@ export function AdminSettingsTab() {
     setSaving(true)
     try {
       await api('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
-      toast({ title: 'حُفظت الرسوم', description: 'تُطبق القيم الجديدة فوراً على كامل المنصة — سُجل الإجراء في سجل التدقيق' })
+      toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
@@ -1236,11 +1240,84 @@ export function AdminSettingsTab() {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
-  const groups: { key: string; label: string }[] = [
-    { key: 'FEES', label: 'جدول الرسوم (دولار أمريكي)' },
+  const groups: { key: string; label: string; note?: string }[] = [
+    { key: 'FEES', label: 'الإعدادات المالية الافتراضية', note: 'سعر كل برنامج يُعدّل من قواعد القبول. هذه القيم تُستخدم فقط عند عدم وجود سعر محدد للبرنامج.' },
     { key: 'AI', label: 'باقات المحادثة الصوتية للمشرف الذكي' },
     { key: 'RULES', label: 'المهل الزمنية والنسب وفق دليل الإجراءات وعقد التمثيل' },
+    { key: 'CONTENT', label: 'نصوص عامة تظهر للطلاب والزوار' },
+    { key: 'CONTACT', label: 'بيانات التواصل الرسمية' },
   ]
+
+  const readJsonSetting = <T extends Record<string, any>>(key: string, fallback: T): T => {
+    try {
+      const parsed = JSON.parse(values[key] || '{}')
+      return { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+    } catch {
+      return fallback
+    }
+  }
+
+  const patchJsonSetting = (key: string, patch: Record<string, any>, fallback: Record<string, any>) => {
+    setValues((prev) => {
+      let current = fallback
+      try {
+        const parsed = JSON.parse(prev[key] || '{}')
+        current = { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+      } catch {}
+      return { ...prev, [key]: JSON.stringify({ ...current, ...patch }) }
+    })
+  }
+
+  const renderStructuredJsonSetting = (d: { key: string }) => {
+    if (d.key === 'HOME_STATS') {
+      const stats = readJsonSetting('HOME_STATS', { graduates: 2000, experts: 120, countries: 18 })
+      return (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخريجين والمتدربين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.graduates || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { graduates: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الخبراء والمستشارين</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.experts || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { experts: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold text-slate-600">عدد الدول / الشراكات</Label>
+            <Input dir="ltr" type="number" className="text-left font-black" value={stats.countries || ''} onChange={(e) => patchJsonSetting('HOME_STATS', { countries: Number(e.target.value || 0) }, { graduates: 2000, experts: 120, countries: 18 })} />
+          </div>
+        </div>
+      )
+    }
+    if (d.key === 'OFFICIAL_CONTACT') {
+      const contact = readJsonSetting('OFFICIAL_CONTACT', { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })
+      const fields: Array<[string, string, string]> = [
+        ['legalEntity', 'الكيان القانوني', 'الأكاديمية الأمريكية للاستشارات والتدريب'],
+        ['registrationNumber', 'رقم التسجيل', ''],
+        ['address', 'العنوان الرسمي', ''],
+        ['email', 'الإيميل الرسمي', 'info@example.com'],
+        ['phone', 'الهاتف الرسمي', '+1 ...'],
+        ['whatsapp', 'رقم الواتساب', '+1 ...'],
+        ['responsiblePerson', 'الشخص المسؤول', ''],
+      ]
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {fields.map(([key, label, placeholder]) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-600">{label}</Label>
+              <Input
+                dir={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'ltr' : 'rtl'}
+                className={key === 'email' || key === 'phone' || key === 'whatsapp' ? 'text-left font-bold' : 'font-bold'}
+                value={contact[key] || ''}
+                placeholder={placeholder}
+                onChange={(e) => patchJsonSetting('OFFICIAL_CONTACT', { [key]: e.target.value }, { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', whatsapp: '', responsiblePerson: '' })}
+              />
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
     <div className="mt-4 space-y-5">
@@ -1353,26 +1430,48 @@ export function AdminSettingsTab() {
       {groups.map((g) => (
         <Card key={g.key} className="border-[#0f2b46]/10">
           <CardContent className="p-5">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
               <Settings2 className="h-4.5 w-4.5 text-[#c9a227]" /> {g.label}
             </h3>
+            {g.note && <p className="mb-4 text-xs font-bold leading-6 text-slate-500">{g.note}</p>}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {defs.filter((d) => d.group === g.key).map((d) => (
-                <div key={d.key} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                  <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id={d.key}
-                      dir="ltr"
-                      type="number"
-                      className="pl-9 text-left font-black"
-                      value={values[d.key] || ''}
-                      onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
+              {defs.filter((d) => d.group === g.key).map((d) => {
+                const inputType = d.inputType || 'number'
+                const wide = inputType === 'textarea' || inputType === 'json'
+                const structuredJsonControl = inputType === 'json' ? renderStructuredJsonSetting(d) : null
+                return (
+                  <div key={d.key} className={`rounded-xl border border-slate-100 bg-slate-50/60 p-3 ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}>
+                    <Label htmlFor={d.key} className="text-[11px] font-bold leading-snug text-slate-600">{d.label}</Label>
+                    {d.help && <p className="mt-1 text-[10px] font-bold leading-5 text-slate-400">{d.help}</p>}
+                    <div className="relative mt-2">
+                      {structuredJsonControl ? (
+                        structuredJsonControl
+                      ) : inputType === 'textarea' || inputType === 'json' ? (
+                        <Textarea
+                          id={d.key}
+                          dir={inputType === 'json' ? 'ltr' : 'rtl'}
+                          rows={inputType === 'json' ? 7 : 4}
+                          className={inputType === 'json' ? 'font-mono text-xs text-left' : 'text-xs font-bold leading-6'}
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      ) : (
+                        <Input
+                          id={d.key}
+                          dir="ltr"
+                          type={inputType === 'number' ? 'number' : 'text'}
+                          className="pl-9 text-left font-black"
+                          value={values[d.key] || ''}
+                          onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
+                        />
+                      )}
+                      {d.suffix && inputType !== 'textarea' && inputType !== 'json' && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>
@@ -2142,6 +2241,7 @@ export function AdminMessagesTab() {
         ))
       )}
       <AdminPager page={currentMsgPage} pageSize={msgPageSize} total={msgTotal} onPageChange={setMsgPage} label="رسالة" />
+      {/* REAL_ADMIN_EXTRAS_END */}
     </div>
   )
 }

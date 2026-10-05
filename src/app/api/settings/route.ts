@@ -34,10 +34,27 @@ export async function PUT(req: NextRequest) {
     for (const [key, val] of Object.entries(values)) {
       const def = DEFAULT_SETTINGS.find((d) => d.key === key)
       if (!def) continue
-      const v = String(val).trim()
-      if (v === '' || isNaN(parseFloat(v))) continue
+      const inputType = def.inputType || 'number'
+      let v = typeof val === 'string' ? val : JSON.stringify(val)
+      if (inputType !== 'textarea') v = v.trim()
+      if (inputType === 'number') {
+        if (v === '' || isNaN(parseFloat(v))) continue
+        v = String(parseFloat(v))
+      }
+      if (inputType === 'json') {
+        try {
+          const parsed = JSON.parse(v)
+          v = JSON.stringify(parsed)
+        } catch {
+          return NextResponse.json({ error: `قيمة ${def.label} يجب أن تكون JSON صالحاً` }, { status: 400 })
+        }
+      }
+      if ((inputType === 'text' || inputType === 'textarea') && v.length > 5000) {
+        return NextResponse.json({ error: `قيمة ${def.label} طويلة جداً` }, { status: 400 })
+      }
+      if (v === '') continue
       const existing = await db.setting.findUnique({ where: { key } })
-      if (!existing || existing.value !== v) changed.push(`${def.label}: ${existing?.value || def.value} ← ${v} ${def.suffix}`)
+      if (!existing || existing.value !== v) changed.push(`${def.label}: ${existing?.value || def.value} ← ${v}${def.suffix ? ` ${def.suffix}` : ''}`)
       await db.setting.upsert({ where: { key }, create: { key, value: v }, update: { value: v } })
     }
     await audit(user, 'UPDATE_SETTINGS', 'Setting', null, changed.join(' | ') || 'لا تغييرات')

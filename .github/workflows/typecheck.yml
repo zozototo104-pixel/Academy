@@ -12,10 +12,25 @@ jobs:
     name: TypeScript full check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # Dummy values only for Prisma client generation/type checking. This workflow does not connect to production DB.
       DATABASE_URL: postgresql://user:password@localhost:5432/aact?schema=public
       DIRECT_URL: postgresql://user:password@localhost:5432/aact?schema=public
+      SHADOW_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/shadow?schema=public
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-only-dummy-secret-change-in-production
@@ -38,6 +53,22 @@ jobs:
 
       - name: Generate Prisma client
         run: bunx prisma generate
+
+      - name: Ensure schema changes have committed migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          bunx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --script > prisma-migration-diff.sql
+          if grep -vE '^[[:space:]]*(-- This is an empty migration\.|--|$)' prisma-migration-diff.sql | grep -q .; then
+            echo "Prisma schema differs from committed migrations. Create and commit a migration for schema.prisma changes." >&2
+            echo "Generated diff:" >&2
+            cat prisma-migration-diff.sql >&2
+            exit 1
+          fi
 
       - name: Run TypeScript check
         shell: bash

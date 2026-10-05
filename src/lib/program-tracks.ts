@@ -221,6 +221,7 @@ export interface AcademicProgramProfile {
   assessmentComponents: string[]
   thesisRequirement: string
   qualityControls: string[]
+  hiddenSections?: string[]
 }
 
 export interface PartialAcademicProgramProfile {
@@ -239,6 +240,7 @@ export interface PartialAcademicProgramProfile {
   assessmentComponents?: string[]
   thesisRequirement?: string
   qualityControls?: string[]
+  hiddenSections?: string[]
 }
 
 function cleanList(list: unknown, max = 12): string[] | undefined {
@@ -262,6 +264,46 @@ function cleanStudyPlan(list: unknown): AcademicPlanStage[] | undefined {
   return rows.length ? rows.slice(0, 6) : undefined
 }
 
+function cleanEvaluationFormula(list: unknown): AcademicEvaluationItem[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list
+    .map((x) => {
+      const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
+      return {
+        label: cleanAcademicText(String(row.label || '')),
+        weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
+        description: cleanAcademicText(String(row.description || '')),
+      }
+    })
+    .filter((x) => x.label && x.weight > 0)
+  return rows.length ? rows.slice(0, 12) : undefined
+}
+
+function cleanTermPlans(list: unknown): AcademicTermPlan[] | undefined {
+  if (!Array.isArray(list)) return undefined
+  const rows = list
+    .map((x, index) => {
+      const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
+      return {
+        id: cleanAcademicText(String(row.id || `term-${index + 1}`)),
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index + 1,
+        title: cleanAcademicText(String(row.title || '')),
+        phase: ['TERM', 'THESIS', 'PROJECT', 'ACCREDITATION'].includes(String(row.phase)) ? String(row.phase) as AcademicTermPlan['phase'] : 'TERM',
+        weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
+        description: cleanAcademicText(String(row.description || '')),
+        learningOutcomes: cleanList(row.learningOutcomes, 10) || [],
+        requiredSkills: cleanList(row.requiredSkills, 10) || [],
+        requiredBooks: [],
+        exams: [],
+        assignments: cleanList(row.assignments, 10) || [],
+        finalEvaluation: cleanAcademicText(String(row.finalEvaluation || '')),
+        statusHint: cleanAcademicText(String(row.statusHint || '')),
+      }
+    })
+    .filter((x) => x.title || x.description)
+  return rows.length ? rows.slice(0, 8) : undefined
+}
+
 export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicProgramProfile | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = raw as Record<string, unknown>
@@ -276,12 +318,18 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   const assessmentComponents = cleanList(r.assessmentComponents, 12)
   const qualityControls = cleanList(r.qualityControls, 12)
   const studyPlan = cleanStudyPlan(r.studyPlan)
+  const termPlans = cleanTermPlans(r.termPlans)
+  const finalEvaluationFormula = cleanEvaluationFormula(r.finalEvaluationFormula)
+  const hiddenSections = cleanList(r.hiddenSections, 40)
+  if (hiddenSections) out.hiddenSections = hiddenSections
   if (learningOutcomes) out.learningOutcomes = learningOutcomes
   if (skills) out.skills = skills
   if (graduationRequirements) out.graduationRequirements = graduationRequirements
   if (assessmentComponents) out.assessmentComponents = assessmentComponents
   if (qualityControls) out.qualityControls = qualityControls
   if (studyPlan) out.studyPlan = studyPlan
+  if (termPlans) out.termPlans = termPlans
+  if (finalEvaluationFormula) out.finalEvaluationFormula = finalEvaluationFormula
   return Object.keys(out).length ? out : null
 }
 
@@ -306,9 +354,12 @@ function applyAcademicOverride(base: AcademicProgramProfile, override?: PartialA
     learningOutcomes: clean.learningOutcomes?.length ? clean.learningOutcomes : base.learningOutcomes,
     skills: clean.skills?.length ? clean.skills : base.skills,
     studyPlan: clean.studyPlan?.length ? clean.studyPlan : base.studyPlan,
+    termPlans: clean.termPlans?.length ? clean.termPlans : base.termPlans,
+    finalEvaluationFormula: clean.finalEvaluationFormula?.length ? clean.finalEvaluationFormula : base.finalEvaluationFormula,
     graduationRequirements: clean.graduationRequirements?.length ? clean.graduationRequirements : base.graduationRequirements,
     assessmentComponents: clean.assessmentComponents?.length ? clean.assessmentComponents : base.assessmentComponents,
     qualityControls: clean.qualityControls?.length ? clean.qualityControls : base.qualityControls,
+    hiddenSections: clean.hiddenSections || [],
   }
 }
 

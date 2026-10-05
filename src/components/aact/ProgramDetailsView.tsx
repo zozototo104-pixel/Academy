@@ -28,6 +28,10 @@ interface Program {
   price?: number | null
   icon: string
   features: string[]
+  credentialType?: string | null
+  trademarkNotice?: string | null
+  disclosureConsentText?: string | null
+  updatedAt?: string | null
   unitsCount: number
   units?: { id?: string; order?: number; title?: string }[]
   books?: { id?: string; title?: string; titleEn?: string | null; semester?: number | null; source?: string | null }[]
@@ -82,22 +86,23 @@ const CATEGORY_LABEL: Record<string, string> = {
   SERVICE: 'خدمة مهنية',
 }
 
-const PROGRAMS_CACHE_KEY = 'aact_programs_summary_v4'
-
 function readCachedPrograms(): Program[] {
   if (typeof window === 'undefined') return []
   try {
-    const cached = JSON.parse(localStorage.getItem(PROGRAMS_CACHE_KEY) || '[]')
+    const version = localStorage.getItem('aact_programs_summary_version')
+    const cached = version ? JSON.parse(localStorage.getItem(`aact_programs_summary_${version}`) || '[]') : []
     return Array.isArray(cached) ? cached : []
   } catch {
     return []
   }
 }
 
-function cachePrograms(list: Program[]) {
+function cachePrograms(list: Program[], catalogVersion?: string | null) {
   if (typeof window === 'undefined' || !Array.isArray(list) || list.length === 0) return
   try {
-    localStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(list.slice(0, 160)))
+    const version = catalogVersion || 'current'
+    localStorage.setItem('aact_programs_summary_version', version)
+    localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 160)))
     localStorage.setItem('aact_program_count', String(list.length))
   } catch {}
 }
@@ -130,6 +135,20 @@ const DOCUMENT_LABEL: Record<string, string> = {
 function listItems(list?: any[]): string[] {
   return Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : []
 }
+
+const ACADEMIC_VISIBLE_SECTIONS = [
+  'overview',
+  'duration',
+  'learningOutcomes',
+  'skills',
+  'studyPlan',
+  'termPlans',
+  'finalEvaluationFormula',
+  'graduationRequirements',
+  'assessmentComponents',
+  'thesisRequirement',
+  'qualityControls',
+]
 
 function documentLabel(doc: string, flow?: ServiceFlow | null): string {
   const serviceDoc = flow ? getServiceDocumentOptions(flow).find((item) => item.value === doc || item.type === doc) : null
@@ -257,7 +276,7 @@ export function ProgramDetailsView() {
     }
 
     const detailUrl = `/api/programs?detail=${encodeURIComponent(programDetailsId)}${user ? '' : '&public=1'}`
-    api<{ program?: Program | null; programs?: Program[] }>(detailUrl)
+    api<{ program?: Program | null; programs?: Program[]; catalogVersion?: string | null }>(detailUrl)
       .then((d) => {
         if (!alive) return
         const detail = d.program || d.programs?.[0]
@@ -268,7 +287,7 @@ export function ProgramDetailsView() {
           const next = exists
             ? base.map((p) => (p.id === detail.id || p.slug === detail.slug || p.id === programDetailsId || p.slug === programDetailsId ? { ...p, ...detail } : p))
             : [detail, ...base]
-          cachePrograms(next)
+          cachePrograms(next, d.catalogVersion)
           return next
         })
       })
@@ -295,6 +314,9 @@ export function ProgramDetailsView() {
   const isService = flow ? !flow.isStudyProgram : program?.category === 'SERVICE'
   const Icon = program ? (ICONS[program.icon] || GraduationCap) : GraduationCap
   const academicProfile = program && !isService ? buildAcademicProgramProfile({ ...program, academicProfile: program.academicProfile || program.admissionRules?.academicProfile }) : null
+  const hiddenAcademicSections = new Set(listItems(academicProfile?.hiddenSections))
+  const showAcademicSection = (key: string) => !hiddenAcademicSections.has(key)
+  const hasVisibleAcademicSections = !!academicProfile && ACADEMIC_VISIBLE_SECTIONS.some((key) => showAcademicSection(key))
   const serviceProfile = isService ? (program?.academicProfile || program?.admissionRules?.academicProfile || null) : null
   const admissionRules = program?.admissionRules || null
   const requiredDocuments = listItems(admissionRules?.requiredDocuments)
@@ -303,9 +325,9 @@ export function ProgramDetailsView() {
   const serviceStepItems = serviceStepsFromProfile(serviceProfile)
   const serviceOutputItems = serviceVisibleOutputs(flow, serviceProfile)
   const serviceOptionItems = serviceVisibleOptions(flow, serviceProfile)
-  const displayTitle = flow?.title || program?.titleAr || ''
-  const displayDescription = flow?.summary || program?.description || ''
-  const displayFeatures = flow?.highlights?.length ? flow.highlights : (program?.features || [])
+  const displayTitle = program?.titleAr || flow?.title || ''
+  const displayDescription = program?.description || flow?.summary || ''
+  const displayFeatures = program?.features?.length ? program.features : (flow?.highlights || [])
   const displayPrimaryAction = flow?.primaryAction || (isService ? 'طلب هذه الخدمة' : 'قدّم طلب الالتحاق بهذا البرنامج')
 
   const startAdmission = () => {
@@ -392,6 +414,11 @@ export function ProgramDetailsView() {
               <p className="mx-auto mt-5 max-w-3xl text-base font-bold leading-9 text-white/64 lg:mx-0">
                 {displayDescription}
               </p>
+              {program.trademarkNotice && (
+                <p className="mx-auto mt-3 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-xs font-bold leading-7 text-white/62 lg:mx-0">
+                  {program.trademarkNotice}
+                </p>
+              )}
               <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
                 <Button onClick={startAdmission} className="rounded-[1.35rem] bg-[#a98a52] px-8 py-6 text-base font-black text-white shadow-xl shadow-black/20 hover:bg-[#b7975d]">
                   {program.enrolled && !isService ? 'الدخول إلى البرنامج' : displayPrimaryAction}
@@ -437,14 +464,14 @@ export function ProgramDetailsView() {
           <div className="sticky top-[5.25rem] z-20 rounded-[1.4rem] border border-white/10 bg-[#111b33]/92 p-2 shadow-2xl shadow-black/20 backdrop-blur">
             <TabsList className="flex h-auto w-full flex-wrap gap-2 bg-transparent p-0">
               <TabsTrigger value="overview" className="rounded-full px-4 py-2 text-[11px] font-black text-white/70 data-[state=active]:bg-[#bf1646] data-[state=active]:text-white sm:text-xs"><ClipboardList className="ml-1 h-3.5 w-3.5" /> {isService ? 'نبذة الخدمة' : 'نبذة البرنامج'}</TabsTrigger>
-              {!isService && <TabsTrigger value="academic" className="rounded-full px-4 py-2 text-[11px] font-black text-white/70 data-[state=active]:bg-[#bf1646] data-[state=active]:text-white sm:text-xs"><Landmark className="ml-1 h-3.5 w-3.5" /> النظام الأكاديمي</TabsTrigger>}
+              {!isService && hasVisibleAcademicSections && <TabsTrigger value="academic" className="rounded-full px-4 py-2 text-[11px] font-black text-white/70 data-[state=active]:bg-[#bf1646] data-[state=active]:text-white sm:text-xs"><Landmark className="ml-1 h-3.5 w-3.5" /> النظام الأكاديمي</TabsTrigger>}
               {!isService && <TabsTrigger value="content" className="rounded-full px-4 py-2 text-[11px] font-black text-white/70 data-[state=active]:bg-[#bf1646] data-[state=active]:text-white sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> المحتوى والكتب</TabsTrigger>}
               <TabsTrigger value="admission" className="rounded-full px-4 py-2 text-[11px] font-black text-white/70 data-[state=active]:bg-[#bf1646] data-[state=active]:text-white sm:text-xs"><ShieldCheck className="ml-1 h-3.5 w-3.5" /> {isService ? 'طلب الخدمة' : 'الالتحاق والرسوم'}</TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="overview" className="mt-0 space-y-5">
-            {academicProfile && (
+            {academicProfile && showAcademicSection('overview') && (
               <DetailSection title="الملف الأكاديمي الرسمي للبرنامج" icon={School} accent>
                 <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
                   <div>
@@ -511,17 +538,20 @@ export function ProgramDetailsView() {
             )}
           </TabsContent>
 
-          {!isService && academicProfile && (
+          {!isService && academicProfile && hasVisibleAcademicSections && (
             <TabsContent value="academic" className="mt-0 space-y-5">
               <DetailSection title="النظام الأكاديمي ومخرجات التعلم" icon={GraduationCap} accent>
+                {(showAcademicSection('overview') || showAcademicSection('duration')) && (
                 <div className="mb-5 grid gap-3 text-center text-xs font-black sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الدرجة</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.degreeLabel}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">التخصص</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.specialization}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">المدة/المسار</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.durationLabel}</span></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الساعات</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.creditHoursLabel}</span></div>
+                  {showAcademicSection('overview') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الدرجة</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.degreeLabel}</span></div>}
+                  {showAcademicSection('overview') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">التخصص</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.specialization}</span></div>}
+                  {showAcademicSection('duration') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">المدة/المسار</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.durationLabel}</span></div>}
+                  {showAcademicSection('duration') && <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><span className="block text-white/45">الساعات</span><span className="mt-1 block text-[#d2ad5a]">{academicProfile.creditHoursLabel}</span></div>}
                 </div>
+                )}
 
                 <div className="grid gap-4 lg:grid-cols-2">
+                  {showAcademicSection('learningOutcomes') && (academicProfile.learningOutcomes?.length || 0) > 0 && (
                   <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><GraduationCap className="h-5 w-5 text-[#d2ad5a]" /> مخرجات التعلم</h3>
                     <ul className="space-y-2 text-sm font-bold leading-7 text-white/62">
@@ -530,7 +560,9 @@ export function ProgramDetailsView() {
                       ))}
                     </ul>
                   </div>
+                  )}
 
+                  {showAcademicSection('skills') && (academicProfile.skills?.length || 0) > 0 && (
                   <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><Briefcase className="h-5 w-5 text-[#d2ad5a]" /> المهارات المهنية المكتسبة</h3>
                     <div className="flex flex-wrap gap-2">
@@ -539,8 +571,10 @@ export function ProgramDetailsView() {
                       ))}
                     </div>
                   </div>
+                  )}
                 </div>
 
+                {showAcademicSection('studyPlan') && (academicProfile.studyPlan?.length || 0) > 0 && (
                 <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                   <h3 className="mb-3 flex items-center gap-2 font-black text-white"><BookOpen className="h-5 w-5 text-[#d2ad5a]" /> الخطة الدراسية المعتمدة</h3>
                   <div className="grid gap-3 md:grid-cols-3">
@@ -554,8 +588,27 @@ export function ProgramDetailsView() {
                     ))}
                   </div>
                 </div>
+                )}
 
-                {(academicProfile.finalEvaluationFormula?.length || 0) > 0 && (
+                {showAcademicSection('termPlans') && (academicProfile.termPlans?.length || 0) > 0 && (
+                  <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 font-black text-white"><Layers className="h-5 w-5 text-[#d2ad5a]" /> خطط الفصول والمراحل</h3>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {academicProfile.termPlans.map((term: any, i: number) => (
+                        <div key={term.id || term.title || String(i)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <h4 className="font-black text-white">{term.title}</h4>
+                            {term.weight != null && <span className="rounded-full bg-[#b08a38] px-2 py-0.5 text-[10px] font-black text-white">{term.weight}%</span>}
+                          </div>
+                          <p className="text-xs font-bold leading-6 text-white/58">{term.description}</p>
+                          {!!term.finalEvaluation && <p className="mt-2 rounded-xl border border-[#b08a38]/20 bg-[#b08a38]/10 p-2 text-[11px] font-bold leading-6 text-[#d2ad5a]">التقييم: {term.finalEvaluation}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {showAcademicSection('finalEvaluationFormula') && (academicProfile.finalEvaluationFormula?.length || 0) > 0 && (
                   <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 font-black text-white">توزيع الدرجة النهائية</h3>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -573,7 +626,7 @@ export function ProgramDetailsView() {
                 )}
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  {(academicProfile.graduationRequirements?.length || 0) > 0 && (
+                  {showAcademicSection('graduationRequirements') && (academicProfile.graduationRequirements?.length || 0) > 0 && (
                     <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                       <h3 className="mb-3 flex items-center gap-2 font-black text-white"><FileCheck2 className="h-5 w-5 text-[#d2ad5a]" /> متطلبات التخرج</h3>
                       <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
@@ -583,7 +636,7 @@ export function ProgramDetailsView() {
                       </ul>
                     </div>
                   )}
-                  {(academicProfile.assessmentComponents?.length || 0) > 0 && (
+                  {showAcademicSection('assessmentComponents') && (academicProfile.assessmentComponents?.length || 0) > 0 && (
                     <div className="rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                       <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ClipboardList className="h-5 w-5 text-[#d2ad5a]" /> نظام التقييم</h3>
                       <ul className="space-y-2 text-xs font-bold leading-7 text-white/62">
@@ -595,14 +648,14 @@ export function ProgramDetailsView() {
                   )}
                 </div>
 
-                {academicProfile.thesisRequirement && (
+                {showAcademicSection('thesisRequirement') && academicProfile.thesisRequirement && (
                   <div className="mt-4 rounded-[1.5rem] border border-[#b08a38]/25 bg-[#b08a38]/10 p-4">
                     <h3 className="mb-2 flex items-center gap-2 font-black text-white"><Presentation className="h-5 w-5 text-[#d2ad5a]" /> البحث/الأطروحة أو المشروع النهائي</h3>
                     <p className="text-xs font-bold leading-7 text-white/62">{academicProfile.thesisRequirement}</p>
                   </div>
                 )}
 
-                {(academicProfile.qualityControls?.length || 0) > 0 && (
+                {showAcademicSection('qualityControls') && (academicProfile.qualityControls?.length || 0) > 0 && (
                   <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[#0b1428]/55 p-4">
                     <h3 className="mb-3 flex items-center gap-2 font-black text-white"><ShieldCheck className="h-5 w-5 text-[#d2ad5a]" /> ضوابط الجودة والاعتماد</h3>
                     <ul className="grid gap-2 text-xs font-bold leading-7 text-white/62 md:grid-cols-2">
