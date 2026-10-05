@@ -72,6 +72,10 @@ export function FloatingActions() {
   const inChat = view === 'chat'
   const primaryWhatsapp = officialContact.whatsapps[0] || ''
   const directContactText = primaryWhatsapp || officialContact.phones[0] || 'صفحة التواصل الرسمية'
+  const officialContactText = [
+    officialContact.whatsapps.length ? `واتساب: ${officialContact.whatsapps.join(' / ')}` : '',
+    officialContact.phones.length ? `هاتف: ${officialContact.phones.join(' / ')}` : '',
+  ].filter(Boolean).join(' — ') || 'لم تُضبط أرقام التواصل الرسمية بعد، ويمكنك استخدام صفحة التواصل الرسمية.'
   const whatsappUrl = primaryWhatsapp
     ? `https://wa.me/${primaryWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('السلام عليكم، أريد التحدث مع الوكيل الذكي الرسمي للأكاديمية والاستفسار عن البرامج والرسوم والتسجيل.')}`
     : '#'
