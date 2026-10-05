@@ -82,7 +82,7 @@ function programSnapshot(program: any) {
   }
 }
 
-// GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها (المخصصة + المفعّلة فعلياً)
+// GET  /api/admin/program-rules — قائمة البرامج بقواعد قبولها، بما فيها غير النشطة حتى يمكن إعادة تفعيلها
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
 export async function GET() {
