@@ -592,7 +592,7 @@ export function Header() {
     navigate(target)
   }
 
-  const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: { label: string; target: any; desc: string }[]; groupTargets: any[]; gold?: boolean }) => {
+  const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: NavItem[]; groupTargets: any[]; gold?: boolean }) => {
     const [open, setOpen] = useState(false)
     const active = isActiveGroup(groupTargets)
     return (
