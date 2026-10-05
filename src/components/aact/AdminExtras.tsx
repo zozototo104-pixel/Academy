@@ -1017,6 +1017,9 @@ export function AdminFinanceTab() {
                         </Button>
                       </td>
                       <td className="p-3">
+                        <RefreshPaymentAmountButton payment={p} onDone={load} />
+                      </td>
+                      <td className="p-3">
                         {p.status === 'UNPAID' ? (
                           <Button size="sm" variant="outline" onClick={() => confirm(p)}
                             className="border-emerald-200 font-bold text-emerald-600">
