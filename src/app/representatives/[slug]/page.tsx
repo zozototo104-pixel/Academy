@@ -6,16 +6,16 @@ import { representativeVerifyUrl, serializeRepresentative, type RepresentativePu
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentative(slug: string): Promise<{ rep: RepresentativePublicProfile | null; demo: boolean }> {
+async function loadRepresentative(slug: string): Promise<RepresentativePublicProfile | null> {
   try {
     const row = await db.academyRepresentative.findFirst({
       where: { slug, deletedAt: null, status: 'ACTIVE' },
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
-    if (row) return { rep: serializeRepresentative(row, null, true), demo: false }
-  } catch {}
-  const demo = DEMO_REPRESENTATIVES.find((item) => item.slug === slug) || null
-  return { rep: demo, demo: !!demo }
+    return row ? serializeRepresentative(row, null, true) : null
+  } catch {
+    return null
+  }
 }
 
 function initials(name: string) {
