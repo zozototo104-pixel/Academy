@@ -36,7 +36,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-empty": ["warn", { "allowEmptyCatch": false }],
     "no-irregular-whitespace": "off",
     "no-case-declarations": "off",
-    "no-fallthrough": "off",
+    "no-fallthrough": "warn",
     "no-mixed-spaces-and-tabs": "off",
     "no-redeclare": "off",
     "no-undef": "off",
