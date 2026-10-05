@@ -248,8 +248,14 @@ export function FloatingActions() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
-            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-1 rounded-2xl border border-[#25d366]/30 px-3 py-2 text-[11px] font-black text-[#128c7e] hover:bg-[#dcf8c6]/40">
-              فتح المحادثة على واتساب الرسمي <ExternalLink className="h-3.5 w-3.5" />
+            <a
+              href={whatsappUrl}
+              target={primaryWhatsapp ? '_blank' : undefined}
+              rel={primaryWhatsapp ? 'noreferrer' : undefined}
+              onClick={(e) => { if (!primaryWhatsapp) { e.preventDefault(); navigate('contact') } }}
+              className="mt-2 flex items-center justify-center gap-1 rounded-2xl border border-[#25d366]/30 px-3 py-2 text-[11px] font-black text-[#128c7e] hover:bg-[#dcf8c6]/40"
+            >
+              {primaryWhatsapp ? 'فتح المحادثة على واتساب الرسمي' : 'فتح صفحة التواصل الرسمية'} <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </div>
