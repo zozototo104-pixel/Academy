@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         'ADMISSION',
         isDocumentReplacement
           ? 'تم استلام المرفقات المعدّلة'
-          : isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : 'تم استلام طلب الالتحاق — سدد رسوم التقديم (30$)',
+          : isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : `تم استلام طلب الالتحاق — سدد رسوم التقديم (${appFee}$)`,
         isDocumentReplacement
           ? `تم استلام المرفقات المعدّلة لطلبك (${app.reference}) وإعادته إلى مرحلة المتابعة مع الإدارة.`
           : isServiceRequest
