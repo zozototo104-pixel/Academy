@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
+import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
+import { getOfficialContact } from '@/lib/settings'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
