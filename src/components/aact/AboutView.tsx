@@ -122,7 +122,7 @@ export function AboutView() {
             <h2 className="mt-5 text-lg font-black text-[#e0b83a]">American Academy</h2>
             <p className="mt-2 text-sm font-bold text-[#f5f0e1]/75">Leadership in Excellence</p>
             <div className="mt-4 rounded-2xl bg-white/10 p-3 text-xs font-bold leading-6 text-[#f5f0e1]/80">
-              {officialContact.address || ACADEMY_INFO.locationAr}<br />تأسست عام {ACADEMY_INFO.founded}
+              {officialContact.address || 'العنوان الرسمي يضبط من إعدادات التواصل'}
             </div>
           </div>
         </div>
