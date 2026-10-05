@@ -85,6 +85,7 @@ export function CertificateDialog({
     year: 'numeric', month: 'long', day: 'numeric',
   })
   const layout = layoutOf(template?.layoutJson)
+  const templateAspectClass = layout.orientation === 'portrait' ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
