@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
           hours: row.hours,
           price: row.price,
           icon: row.icon,
-          features: JSON.parse(row.features || '[]'),
+          features: safeParseProgramFeatures(row.features),
           unitsCount: liteOnly ? Number(row._count?.units || 0) : units.length,
           units,
           books,
