@@ -11,7 +11,14 @@ function safeDownloadName(value: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const doc = await db.accreditationDocument.findFirst({
-    where: { id, active: true },
+    where: {
+      id,
+      active: true,
+      OR: [
+        { partnershipId: null },
+        { partnership: { active: true } },
+      ],
+    },
     select: {
       title: true,
       fileName: true,
