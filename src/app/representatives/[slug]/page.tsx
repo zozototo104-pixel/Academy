@@ -49,7 +49,6 @@ export default async function RepresentativeProfilePage({ params }: { params: Pr
             </div>
           </div>
           <div>
-            {demo && <p className="mb-3 inline-flex rounded-full bg-amber-300/15 px-4 py-1 text-xs font-black text-amber-100">بيانات تجريبية للعرض</p>}
             <p className="text-sm font-black text-[#d2ad5a]">{rep.displayTitle || 'ممثل الأكاديمية'}</p>
             <h1 className="mt-3 text-4xl font-black leading-tight sm:text-6xl">{rep.fullName}</h1>
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-black">
