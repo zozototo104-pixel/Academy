@@ -16,13 +16,13 @@ export function ContactView() {
   const [done, setDone] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' })
   const [officialContact, setOfficialContact] = useState({
-    legalEntity: ACADEMY_INFO.nameAr,
+    legalEntity: '',
     registrationNumber: '',
-    address: ACADEMY_INFO.locationAr,
-    email: ACADEMY_INFO.officialEmail,
-    phone: ACADEMY_INFO.officialPhone,
-    whatsapp: ACADEMY_INFO.whatsapp,
-    responsiblePerson: ACADEMY_INFO.whatsappContactName,
+    address: '',
+    email: '',
+    phone: '',
+    whatsapp: '',
+    responsiblePerson: '',
   })
 
   useEffect(() => {
