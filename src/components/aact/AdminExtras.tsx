@@ -1169,6 +1169,59 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const uploadCertificateTemplate = async () => {
+    if (!templateFile) {
+      toast({ title: 'اختر صورة القالب أولاً', variant: 'destructive' })
+      return
+    }
+    if (!templateForm.name.trim()) {
+      toast({ title: 'اسم القالب مطلوب', variant: 'destructive' })
+      return
+    }
+    setTemplateBusy(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', templateFile)
+      formData.append('name', templateForm.name)
+      formData.append('certificateType', templateForm.certificateType)
+      await api('/api/admin/certificates/templates', { method: 'POST', body: formData })
+      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب في نافذة الشهادة ويضع النظام البيانات فوقه تلقائياً.' })
+      setTemplateFile(null)
+      setTemplateForm({ name: '', certificateType: 'PROGRAM_COMPLETION' })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر رفع القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  const updateCertificateTemplate = async (template: CertificateTemplateItem, patch: Partial<CertificateTemplateItem>) => {
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  const deleteCertificateTemplate = async (template: CertificateTemplateItem) => {
+    if (!confirm(`حذف قالب الشهادة «${template.name}»؟`)) return
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'DELETE' })
+      loadTemplates()
+      toast({ title: 'حُذف قالب الشهادة' })
+    } catch (e: any) {
+      toast({ title: 'تعذر حذف القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
 
   const filteredCerts = certs
