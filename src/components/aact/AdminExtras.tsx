@@ -1467,6 +1467,7 @@ export function AdminSettingsTab() {
           </div>
         </div>
       )
+      }
       const accreditationFallback = {
         licenseNumber: '',
         licenseVerifyUrl: '',
