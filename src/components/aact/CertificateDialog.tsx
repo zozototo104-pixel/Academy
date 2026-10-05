@@ -95,7 +95,7 @@ export function CertificateDialog({
           {TYPE_LABEL[certificate.type] || 'شهادة رسمية'} برقم {certificate.serial}
         </DialogDescription>
         {/* قالب الشهادة الرسمي */}
-        <div id="aact-certificate" className={template ? 'relative aspect-[1.414/1] overflow-hidden bg-white' : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
+        <div id="aact-certificate" className={template ? `relative ${templateAspectClass} overflow-hidden bg-white` : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
           {template && (
             <>
               <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
