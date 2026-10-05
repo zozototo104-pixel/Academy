@@ -63,12 +63,29 @@ export function CertificateDialog({
           {TYPE_LABEL[certificate.type] || 'شهادة رسمية'} برقم {certificate.serial}
         </DialogDescription>
         {/* قالب الشهادة الرسمي */}
-        <div id="aact-certificate" className="relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10">
+        <div id="aact-certificate" className={template ? 'relative aspect-[1.414/1] overflow-hidden bg-white' : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
+          {template && (
+            <>
+              <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 text-center text-[#0f2b46]">
+                <div className="absolute left-1/2 top-[38%] w-[72%] -translate-x-1/2 text-3xl font-black leading-tight sm:text-5xl">
+                  {certificate.holderName}
+                </div>
+                <div className="absolute left-1/2 top-[52%] w-[76%] -translate-x-1/2 text-base font-extrabold leading-relaxed text-[#a8841a] sm:text-2xl">
+                  {certificate.program}
+                </div>
+                {certificate.grade && <div className="absolute left-1/2 top-[64%] -translate-x-1/2 text-sm font-black sm:text-lg">{certificate.grade}</div>}
+                <div className="absolute bottom-[9%] right-[9%] text-right font-mono text-[10px] font-black sm:text-sm" dir="ltr">{certificate.serial}</div>
+                <div className="absolute bottom-[9%] left-[9%] text-left text-[10px] font-black sm:text-sm">{date}</div>
+                {qr && <img src={qr} alt="رمز التحقق QR" className="absolute bottom-[9%] left-1/2 h-[14%] w-auto -translate-x-1/2 rounded bg-white p-1" />}
+              </div>
+            </>
+          )}
           {/* إطار مزدوج */}
-          <div className="pointer-events-none absolute inset-3 rounded-lg border-4 border-[#c9a227]" />
-          <div className="pointer-events-none absolute inset-5 rounded border border-[#0f2b46]/40" />
+          <div className={template ? 'hidden' : 'pointer-events-none absolute inset-3 rounded-lg border-4 border-[#c9a227]'} />
+          <div className={template ? 'hidden' : 'pointer-events-none absolute inset-5 rounded border border-[#0f2b46]/40'} />
 
-          <div className="relative px-2 pb-4 pt-6 text-center sm:px-8">
+          <div className={template ? 'hidden' : 'relative px-2 pb-4 pt-6 text-center sm:px-8'}>
             {/* الشعار */}
             <div className="flex justify-center">
               <AcademyLogo size={84} />
