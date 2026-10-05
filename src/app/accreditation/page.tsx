@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Award, Building2, CheckCircle2, FileCheck2, Mail, Phone, ShieldCheck } from 'lucide-react'
+import { Award, Building2, CheckCircle2, ExternalLink, FileCheck2, FileText, Mail, Phone, ShieldCheck } from 'lucide-react'
 import { db } from '@/lib/db'
 import { getOfficialContact, getSettings } from '@/lib/settings'
 
