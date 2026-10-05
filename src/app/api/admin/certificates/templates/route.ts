@@ -22,6 +22,7 @@ function serializeTemplate(t: any) {
     fileName: t.fileName,
     mimeType: t.mimeType,
     fileSize: t.fileSize,
+    layoutJson: t.layoutJson || DEFAULT_CERTIFICATE_TEMPLATE_LAYOUT,
     imageUrl: `/api/certificates/templates/${t.id}/image`,
     createdAt: t.createdAt,
   }
