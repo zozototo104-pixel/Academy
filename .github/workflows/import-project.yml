@@ -7,6 +7,10 @@ on:
         description: "ZIP file path already committed to the repository"
         required: true
         default: "AACT-Platform-v1.3.zip"
+      confirm:
+        description: "Type IMPORT_LEGACY_ZIP to run this legacy importer"
+        required: true
+        default: "NO"
 
 permissions:
   contents: write
