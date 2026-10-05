@@ -77,6 +77,12 @@ export function FloatingActions() {
     : '#'
 
   useEffect(() => {
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((data) => setOfficialContact(parseOfficialContact(data.values?.OFFICIAL_CONTACT)))
+      .catch(() => setOfficialContact(EMPTY_OFFICIAL_CONTACT))
+  }, [])
+
+  useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 420)
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
