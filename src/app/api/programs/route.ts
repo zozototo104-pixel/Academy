@@ -21,6 +21,21 @@ function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null;
     || titleEn.startsWith('QA Full Journey Program')
 }
 
+function safeParseProgramFeatures(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map((item) => String(item).trim()).filter(Boolean).slice(0, 12)
+  const value = String(raw || '').trim()
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean).slice(0, 12)
+  } catch {}
+  return value
+    .split(/\r?\n|[،,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12)
+}
+
 function buildCatalogVersion(programs: any[]) {
   const signature = programs
     .map((p) => [
