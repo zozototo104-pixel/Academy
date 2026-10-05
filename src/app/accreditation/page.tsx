@@ -157,6 +157,18 @@ export default async function AccreditationPage() {
           <div className="mt-5 space-y-3 text-xs font-bold leading-6 text-slate-600">
             <p><span className="font-black text-[#0f2b46]">الكيان:</span> {(contact as OfficialContact).legalEntity || 'غير مضبوط في الإعدادات'}</p>
             {(contact as OfficialContact).registrationNumber && <p><span className="font-black text-[#0f2b46]">رقم التسجيل:</span> {(contact as OfficialContact).registrationNumber}</p>}
+            {accreditation.licenseNumber && <p><span className="font-black text-[#0f2b46]">رقم الترخيص:</span> {accreditation.licenseNumber}</p>}
+            {accreditation.licensingAuthority && <p><span className="font-black text-[#0f2b46]">جهة الترخيص:</span> {accreditation.licensingAuthority}</p>}
+            {accreditation.licenseVerifyUrl && (
+              <a href={accreditation.licenseVerifyUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#0f2b46] hover:text-[#a8841a]">
+                <ExternalLink className="h-4 w-4 text-[#c9a227]" /> رابط التحقق من الترخيص
+              </a>
+            )}
+            {accreditation.licenseDocumentUrl && (
+              <a href={accreditation.licenseDocumentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#0f2b46] hover:text-[#a8841a]">
+                <FileText className="h-4 w-4 text-[#c9a227]" /> وثيقة الترخيص / الاعتماد
+              </a>
+            )}
             {(contact as OfficialContact).address && <p><span className="font-black text-[#0f2b46]">العنوان:</span> {(contact as OfficialContact).address}</p>}
             {(contact as OfficialContact).email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-[#c9a227]" /> <span dir="ltr">{(contact as OfficialContact).email}</span></p>}
             {phones.length > 0 && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-[#c9a227]" /> <span dir="ltr">{phones.join(' / ')}</span></p>}
