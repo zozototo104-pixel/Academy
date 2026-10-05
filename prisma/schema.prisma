@@ -406,6 +406,7 @@ model CertificateTemplate {
   storageProvider String
   storageKey      String
   fileUrl         String?
+  layoutJson      Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
