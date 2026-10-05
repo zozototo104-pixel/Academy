@@ -57,7 +57,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { admissionId, holderName, program, country, userId } = await req.json()
+    const { admissionId, holderName, program, country, userId, financialOverrideReason } = await req.json()
+    const overrideReason = String(financialOverrideReason || '').trim()
 
     const app = admissionId
       ? await db.admissionApplication.findUnique({ where: { id: admissionId } })
