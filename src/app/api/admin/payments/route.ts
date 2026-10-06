@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
     const status = cleanAdminQuery(sp.get('status'))
     const method = cleanAdminQuery(sp.get('method'))
 
-    const knownStatuses = new Set(['PAID', 'UNPAID'])
+    const knownStatuses = new Set(['PAID', 'UNPAID', 'WAIVED'])
     const knownPurposes = new Set(['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT', 'ACCREDITATION_APP', 'ACCREDITATION_FEE', 'ACCREDITATION', 'SERVICE_FEE', 'AI_LIVE_CREDIT', 'OTHER'])
     const manualPendingWhere = {
       status: 'UNPAID',
@@ -146,6 +146,11 @@ export async function GET(req: NextRequest) {
               uploadedBy: { select: { id: true, name: true, email: true } },
               reviewedBy: { select: { id: true, name: true, email: true } },
             },
+          },
+          waiverCodes: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, reason: true, status: true, expiresAt: true, verifiedAt: true, approvedAt: true, createdAt: true },
           },
         },
       }),

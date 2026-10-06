@@ -633,6 +633,19 @@ interface PaymentProofRow {
   reviewedBy?: { id: string; name: string; email: string } | null
 }
 
+interface PaymentWaiverCodeRow {
+  id: string
+  codePreview: string
+  waiverType: string
+  requestedAmount?: number | null
+  reason?: string | null
+  status: string
+  expiresAt?: string | null
+  verifiedAt?: string | null
+  approvedAt?: string | null
+  createdAt: string
+}
+
 interface PaymentRow {
   id: string
   invoiceNo: string
@@ -640,6 +653,12 @@ interface PaymentRow {
   description: string
   amount: number
   status: string
+  waiverType?: string | null
+  waiverStatus?: string | null
+  waiverReason?: string | null
+  waivedAmount?: number | null
+  originalAmount?: number | null
+  waiverCodes?: PaymentWaiverCodeRow[]
   method?: string | null
   provider?: string | null
   cryptoNetwork?: string | null
@@ -667,7 +686,7 @@ interface Report {
 
 export function AdminFinanceTab() {
   const { toast } = useToast()
-  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
   const [report, setReport] = useState<Report | null>(null)
@@ -747,6 +766,82 @@ export function AdminFinanceTab() {
       load()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const waiverLabel = (type?: string | null) => type === 'APPLICATION_FEE'
+    ? 'إعفاء رسوم التقديم'
+    : type === 'PARTIAL_TUITION'
+      ? 'إعفاء جزئي'
+      : type === 'FULL_SCHOLARSHIP'
+        ? 'منحة كاملة'
+        : 'إعفاء'
+
+  const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
+    if (payment.status !== 'UNPAID') {
+      toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
+      return
+    }
+    let requestedAmount: number | null = null
+    if (waiverType === 'PARTIAL_TUITION') {
+      const amountText = await promptAction({
+        title: 'مبلغ الإعفاء الجزئي',
+        description: `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        fieldLabel: 'مبلغ الإعفاء بالدولار',
+        placeholder: 'مثال: 100',
+        required: true,
+        minLength: 1,
+        confirmLabel: 'متابعة',
+        tone: 'warning',
+      })
+      if (amountText === null) return
+      requestedAmount = Number(amountText)
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount >= Number(payment.amount || 0)) {
+        toast({ title: 'مبلغ غير صالح', description: 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.', variant: 'destructive' })
+        return
+      }
+    }
+    const reason = await promptAction({
+      title: `توليد كود ${waiverLabel(waiverType)}`,
+      description: 'اكتب سبباً إدارياً واضحاً. سيظهر السبب في سجل التدقيق ولا يعتبر دفعاً فعلياً.',
+      fieldLabel: 'سبب الإعفاء',
+      placeholder: 'مثال: حالة إنسانية / قرار لجنة / منحة ممثل معتمدة',
+      required: true,
+      minLength: 6,
+      multiline: true,
+      confirmLabel: 'توليد الكود',
+      tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
+    })
+    if (reason === null) return
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
+      })
+      try { await navigator.clipboard?.writeText(result.code) } catch (error) { console.warn('Failed to copy waiver code automatically.', error) }
+      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.` })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const approveWaiver = async (payment: PaymentRow) => {
+    const waiver = payment.waiverCodes?.find((w) => w.status === 'VERIFIED') || payment.waiverCodes?.[0]
+    if (!waiver) return
+    const ok = await confirmAction({
+      title: `اعتماد ${waiverLabel(waiver.waiverType)}`,
+      description: 'سيتم تطبيق الإعفاء مالياً. الإعفاء الكامل يحول الفاتورة إلى معفاة وليس مدفوعة، والإعفاء الجزئي يخفض المبلغ المتبقي فقط.',
+      confirmLabel: 'اعتماد الإعفاء',
+      tone: 'success',
+    })
+    if (!ok) return
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })
+      toast({ title: 'تم اعتماد الإعفاء', description: 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد الإعفاء', description: e.message, variant: 'destructive' })
     }
   }
 
@@ -918,6 +1013,7 @@ export function AdminFinanceTab() {
             { value: 'ALL', label: 'كل الفواتير' },
             { value: 'UNPAID', label: 'غير مسددة' },
             { value: 'PAID', label: 'مسددة' },
+            { value: 'WAIVED', label: 'معفاة' },
             { value: 'MANUAL_PENDING', label: 'دفع مباشر بانتظار التأكيد' },
             { value: 'APPLICATION_FEE', label: 'رسوم تقديم' },
             { value: 'TUITION', label: 'رسوم دراسية' },
@@ -969,7 +1065,16 @@ export function AdminFinanceTab() {
                           {p.purpose === 'AI_LIVE_CREDIT' && (
                             <Badge className="bg-indigo-100 text-[9px] font-black text-indigo-700 hover:bg-indigo-100">خدمة إضافية — لا تخصم من الرسوم الدراسية</Badge>
                           )}
+                          {p.waiverStatus && (
+                            <Badge className="bg-blue-100 text-[9px] font-black text-blue-700 hover:bg-blue-100">{waiverLabel(p.waiverType)} — {p.waiverStatus}</Badge>
+                          )}
                         </div>
+                        {p.waiverCodes?.length ? (
+                          <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-bold text-blue-900">
+                            آخر كود: {p.waiverCodes[0].codePreview} — {waiverLabel(p.waiverCodes[0].waiverType)} — {p.waiverCodes[0].status}
+                            {p.waivedAmount ? <span> — المعفى: {p.waivedAmount}$</span> : null}
+                          </div>
+                        ) : null}
                         {(p.method === 'USDT' || p.provider === 'USDT') && (
                           <div className="mt-1 space-y-0.5 rounded-lg bg-slate-50 p-2 text-[10px] font-bold text-slate-500">
                             <div>USDT: {p.cryptoNetwork || '—'} · {p.cryptoVerificationStatus || 'WAITING_TX'}</div>
@@ -990,10 +1095,15 @@ export function AdminFinanceTab() {
                           </div>
                         ) : null}
                       </td>
-                      <td className="p-3 font-black text-[#0f2b46]">{p.amount}$</td>
+                      <td className="p-3 font-black text-[#0f2b46]">
+                        <div>{p.amount}$</div>
+                        {p.waivedAmount ? <div className="text-[10px] font-bold text-blue-600">معفى: {p.waivedAmount}$ من أصل {p.originalAmount || p.amount + p.waivedAmount}$</div> : null}
+                      </td>
                       <td className="p-3">
                         {p.status === 'PAID' ? (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسددة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
+                        ) : p.status === 'WAIVED' ? (
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة — ليست دفعاً</Badge>
                         ) : ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) ? (
                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع مباشر بانتظار التأكيد</Badge>
                         ) : (
@@ -1018,11 +1128,24 @@ export function AdminFinanceTab() {
                       </td>
                       <td className="p-3">
                         {p.status === 'UNPAID' ? (
-                          <Button size="sm" variant="outline" onClick={() => confirm(p)}
-                            className="border-emerald-200 font-bold text-emerald-600">
-                            <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
-                          </Button>
-                        ) : '—'}
+                          <div className="flex flex-col gap-1">
+                            <Button size="sm" variant="outline" onClick={() => confirm(p)}
+                              className="border-emerald-200 font-bold text-emerald-600">
+                              <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
+                            </Button>
+                            {p.waiverCodes?.some((w) => w.status === 'VERIFIED') ? (
+                              <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                                <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
+                              </Button>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
+                                {['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
+                                {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
+                              </div>
+                            )}
+                          </div>
+                        ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
                       </td>
                     </tr>
                   ))}

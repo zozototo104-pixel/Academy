@@ -79,6 +79,12 @@ interface Payment {
   currency: string
   method?: string | null
   status: string
+  waiverType?: string | null
+  waiverStatus?: string | null
+  waiverReason?: string | null
+  waivedAmount?: number | null
+  originalAmount?: number | null
+  waiverCodes?: Array<{ id: string; codePreview: string; waiverType: string; requestedAmount?: number | null; status: string; expiresAt?: string | null; verifiedAt?: string | null; approvedAt?: string | null }>
   receiptNo?: string | null
   paidAt?: string | null
   createdAt: string
@@ -196,6 +202,8 @@ export function PaymentsTab() {
   const [appealSchedule, setAppealSchedule] = useState('')
   const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
+  const [waiverCodes, setWaiverCodes] = useState<Record<string, string>>({})
+  const [verifyingWaiver, setVerifyingWaiver] = useState<string | null>(null)
   const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
   const [uploadingProof, setUploadingProof] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
@@ -393,6 +401,28 @@ export function PaymentsTab() {
     }
   }
 
+  const submitWaiverCode = async (payment: Payment) => {
+    const code = (waiverCodes[payment.id] || '').trim().toUpperCase()
+    if (!code) {
+      toast({ title: 'أدخل كود الإعفاء', description: 'اكتب الكود الذي زودتك به الإدارة.', variant: 'destructive' })
+      return
+    }
+    setVerifyingWaiver(payment.id)
+    try {
+      const res = await api<{ message: string }>('/api/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, code }),
+      })
+      toast({ title: 'تم التحقق من الكود', description: res.message || 'بانتظار اعتماد الإدارة النهائي.' })
+      setWaiverCodes((prev) => ({ ...prev, [payment.id]: '' }))
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر التحقق من كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setVerifyingWaiver(null)
+    }
+  }
+
   const pay = async () => {
     if (!payTarget) return
     const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
@@ -558,7 +588,7 @@ export function PaymentsTab() {
                   <div className='flex flex-wrap items-center gap-2'>
                     <span className='rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]' dir='ltr'>{p.invoiceNo}</span>
                     <h4 className='text-sm font-black text-[#0f2b46]'>{p.description}</h4>
-                    {p.status === 'PAID' ? <Badge className='bg-emerald-100 text-emerald-700 hover:bg-emerald-100'><CheckCircle2 className='ml-1 h-3 w-3' /> مسددة</Badge> : <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار السداد</Badge>}
+                    {p.status === 'PAID' ? <Badge className='bg-emerald-100 text-emerald-700 hover:bg-emerald-100'><CheckCircle2 className='ml-1 h-3 w-3' /> مسددة</Badge> : p.status === 'WAIVED' ? <Badge className='bg-blue-100 text-blue-700 hover:bg-blue-100'><CheckCircle2 className='ml-1 h-3 w-3' /> معفاة</Badge> : <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار السداد</Badge>}
                   </div>
                   <p className='mt-1 text-[11px] text-slate-500'>{PURPOSE_LABEL[p.purpose] || p.purpose}{p.reference ? ` — طلب ${p.reference}` : ''}{p.method ? ` — عبر ${METHOD_LABEL[p.method] || p.method}` : ''}{p.receiptNo ? ` — إيصال ${p.receiptNo}` : ''}</p>
                   {p.status === 'UNPAID' && p.method === 'USDT' && (
@@ -601,6 +631,22 @@ export function PaymentsTab() {
                       </div>
                     </div>
                   )}
+                  {p.status === 'UNPAID' && (
+                    <div className='mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold text-blue-950'>
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <span>لديك كود إعفاء من الإدارة؟</span>
+                        {p.waiverCodes?.[0] ? <Badge className='bg-white text-blue-700 hover:bg-white'>{p.waiverCodes[0].status === 'VERIFIED' ? 'تم التحقق — بانتظار الاعتماد' : p.waiverCodes[0].status}</Badge> : null}
+                      </div>
+                      <div className='mt-2 flex flex-col gap-2 sm:flex-row'>
+                        <Input dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
+                        <Button size='sm' disabled={verifyingWaiver === p.id} onClick={() => submitWaiverCode(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
+                          {verifyingWaiver === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
+                          تحقق من الكود
+                        </Button>
+                      </div>
+                      {p.waiverStatus === 'VERIFIED' ? <p className='mt-1 text-blue-800'>تم التحقق من الكود. بانتظار اعتماد الإدارة النهائي.</p> : null}
+                    </div>
+                  )}
                 </div>
                 <div className='flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end'>
                   <span className='text-lg font-black text-[#0f2b46]'><Money value={p.amount} /></span>
@@ -610,6 +656,8 @@ export function PaymentsTab() {
                   </Button>
                   {p.status === 'PAID' ? (
                     <Button size='sm' variant='outline' onClick={() => setReceipt({ payment: p })} className='border-emerald-200 font-bold text-emerald-700'><ReceiptText className='ml-1 h-3.5 w-3.5' /> الإيصال</Button>
+                  ) : p.status === 'WAIVED' ? (
+                    <Badge className='bg-blue-100 text-blue-700 hover:bg-blue-100'><CheckCircle2 className='ml-1 h-3 w-3' /> معفاة من الإدارة</Badge>
                   ) : p.method === 'DIRECT_PAYMENT' ? (
                     <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار تأكيد الإدارة</Badge>
                   ) : p.method === 'USDT' ? (

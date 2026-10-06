@@ -339,12 +339,46 @@ model Payment {
   cryptoVerificationRaw    Json?
   manualApprovalReference String?
   manualApprovalNote      String?
+  waiverType              String?   // APPLICATION_FEE | PARTIAL_TUITION | FULL_SCHOLARSHIP
+  waiverStatus            String?   // REQUESTED | VERIFIED | APPROVED | REJECTED | CANCELLED
+  waiverReason            String?
+  waivedAmount            Float     @default(0)
+  waivedAmountCents       Int       @default(0)
+  originalAmount          Float?
+  originalAmountCents     Int?
+  waiverApprovedById      String?
+  waiverApprovedAt        DateTime?
+  waiverCodes             PaymentWaiverCode[]
   proofs       PaymentProof[]
   paidAt      DateTime?
   payerName   String?
   payerEmail  String?
   payerCountry String?
   createdAt   DateTime @default(now())
+}
+
+model PaymentWaiverCode {
+  id              String   @id @default(cuid())
+  paymentId       String
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  codeHash        String   @unique
+  codePreview     String
+  waiverType      String   // APPLICATION_FEE | PARTIAL_TUITION | FULL_SCHOLARSHIP
+  requestedAmount Float?
+  requestedAmountCents Int?
+  reason          String
+  status          String   @default("ISSUED") // ISSUED | VERIFIED | APPROVED | REJECTED | CANCELLED | EXPIRED
+  issuedById      String?
+  verifiedById    String?
+  approvedById    String?
+  verifiedAt      DateTime?
+  approvedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([paymentId, status])
+  @@index([expiresAt])
 }
 
 model PaymentProof {
