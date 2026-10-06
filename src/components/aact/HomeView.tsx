@@ -194,9 +194,11 @@ export function HomeView() {
             experts: Number(parsed.experts || DEFAULT_HOME_STATS.experts),
             countries: Number(parsed.countries || DEFAULT_HOME_STATS.countries),
           })
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse home stats settings.', error)
+        }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load home settings.', error) })
     return () => { alive = false }
   }, [])
 
