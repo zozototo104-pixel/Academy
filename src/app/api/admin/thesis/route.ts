@@ -154,7 +154,8 @@ export async function PATCH(req: NextRequest) {
       )
       await saveReviewHistory('FINAL', 'REQUEST_FINAL_REVISION', safeReviewNote || 'البحث النهائي يحتاج تعديلًا')
       if (thesis.user?.email) {
-        emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null).catch(() => {})
+        emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null)
+          .catch((error) => { console.warn('Failed to send thesis final revision email.', error) })
       }
       await audit(admin, 'REQUEST_THESIS_FINAL_REVISION', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
