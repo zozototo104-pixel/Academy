@@ -505,7 +505,7 @@ export function PaymentsTab() {
               <div className='flex flex-wrap items-start justify-between gap-3'>
                 <div>
                   <p className='text-sm font-black text-[#0f2b46]'>خطة الرسوم الدراسية — {plan.program}</p>
-                  <p className='mt-1 text-xs font-bold text-slate-600'>المسدد <Money value={plan.paidTuition} /> من أصل <Money value={plan.totalTuition} /> — المتبقي <Money value={plan.remainingTuition} /></p>
+                  <p className='mt-1 text-xs font-bold text-slate-600'>المسدد/المعفى <Money value={plan.paidTuition} /> من أصل <Money value={plan.totalTuition} /> — المتبقي <Money value={plan.remainingTuition} /></p>
                 </div>
                 <Badge className={plan.appealStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : plan.appealStatus === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
                   {plan.appealStatus === 'APPROVED' ? 'تقسيط معتمد' : plan.appealStatus === 'PENDING' ? 'التماس قيد الدراسة' : 'بدون تقسيط'}
