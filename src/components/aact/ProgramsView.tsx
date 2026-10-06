@@ -115,9 +115,12 @@ export function ProgramsView() {
           localStorage.setItem('aact_program_count', String(list.length))
           localStorage.setItem('aact_programs_summary_version', version)
           localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to cache programs summary.', error)
+        }
       }
-    } catch {
+    } catch (error) {
+      console.warn('Failed to load programs list.', error)
       if (!hadCache) toast({ title: 'خطأ', description: 'تعذر تحميل البرامج', variant: 'destructive' })
     } finally {
       if (!hadCache) setLoading(false)
