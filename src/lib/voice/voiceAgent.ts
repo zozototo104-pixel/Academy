@@ -120,7 +120,7 @@ export class VoiceAgent {
   setMuted(m: boolean) {
     this.muted = m
     if (m) {
-      try { this.rec?.abort() } catch {}
+      try { this.rec?.abort() } catch (error) { console.warn('Failed to abort speech recognition while muting voice agent.', error) }
       this.player.stop(20)
       if (this.fsm.is('AI_SPEAKING', 'USER_SPEAKING')) this.fsm.to('LISTENING')
     } else if (this.active) {
