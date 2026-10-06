@@ -292,11 +292,12 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
   const originalCents = payment.originalAmountCents ?? currentCents
 
   if (purpose === 'APPLICATION_FEE') {
+    const applicationFeeCents = Math.max(originalCents, currentCents)
     const requestedCents = waiver.waiverType === 'PARTIAL_TUITION'
       ? Number(waiver.requestedAmountCents || 0)
-      : currentCents
-    const waiveApplicationCents = currentCents
-    const tuitionCreditCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(0, requestedCents - currentCents) : 0
+      : applicationFeeCents
+    const waiveApplicationCents = applicationFeeCents
+    const tuitionCreditCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(0, requestedCents - applicationFeeCents) : 0
     const fullScholarship = waiver.waiverType === 'FULL_SCHOLARSHIP'
     const updatedPayment = await db.payment.update({
       where: { id: payment.id },
