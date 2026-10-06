@@ -138,8 +138,8 @@ export async function createPaymentWaiverCode(params: {
   if (params.waiverType === 'APPLICATION_FEE' && purpose !== 'APPLICATION_FEE') {
     throw new Error('إعفاء رسوم التقديم مسموح لفاتورة رسوم التقديم فقط')
   }
-  if (params.waiverType === 'PARTIAL_TUITION' && !['TUITION', 'TUITION_INSTALLMENT'].includes(purpose)) {
-    throw new Error('الإعفاء الجزئي مسموح لفواتير الرسوم الدراسية فقط')
+  if (params.waiverType === 'PARTIAL_TUITION' && !['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(purpose)) {
+    throw new Error('الإعفاء الجزئي مسموح لفواتير رسوم التقديم أو الرسوم الدراسية فقط')
   }
   if (params.waiverType === 'FULL_SCHOLARSHIP' && !['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(purpose)) {
     throw new Error('المنحة الكاملة مسموحة لفواتير التقديم أو الرسوم الدراسية فقط')
