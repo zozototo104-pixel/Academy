@@ -180,7 +180,7 @@ export default function Home() {
     const oauthToken = q.get('authToken')
     if (oauthToken) {
       saveToken(oauthToken)
-      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
+      try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist OAuth startup skip flag.', error) }
       q.delete('authToken')
       q.delete('oauth')
       const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
