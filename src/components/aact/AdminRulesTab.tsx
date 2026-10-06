@@ -465,6 +465,15 @@ export function AdminRulesTab() {
     setCreateProgramOpen(true)
   }
 
+  const isTransientCreateProgramError = (error: any) => {
+    const message = String(error?.message || error || '').toLowerCase()
+    return message.includes('load failed')
+      || message.includes('failed to fetch')
+      || message.includes('networkerror')
+      || message.includes('network request failed')
+      || message.includes('fetch failed')
+  }
+
   const createProgram = async () => {
     const titleAr = newProgramTitleAr.trim()
     if (!titleAr) {
@@ -496,7 +505,26 @@ export function AdminRulesTab() {
       setNewProgramTitleAr('')
       toast({ title: 'تم إنشاء برنامج جديد كمسودة غير منشورة', description: 'أكمل بياناته ثم فعّله من مفتاح النشر داخل البيانات الأساسية.' })
     } catch (e: any) {
-      toast({ title: e?.message || 'تعذر إنشاء البرنامج', variant: 'destructive' })
+      if (isTransientCreateProgramError(e)) {
+        try {
+          const fresh = await api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
+          setPrograms(fresh.programs)
+          const recovered = fresh.programs.find((p) => p.titleAr.trim() === titleAr && p.category === category && p.active === false)
+          if (recovered) {
+            selectProgram(recovered)
+            setCreateProgramOpen(false)
+            setNewProgramTitleAr('')
+            toast({ title: 'تم إنشاء برنامج جديد كمسودة غير منشورة', description: 'تم حفظ البرنامج رغم انقطاع رد الشبكة. يمكنك الآن إكمال بياناته.' })
+            return
+          }
+        } catch (reloadError) {
+          console.warn('Failed to reload programs after draft creation network error.', reloadError)
+        }
+      }
+      const friendly = isTransientCreateProgramError(e)
+        ? 'تعذر تأكيد إنشاء البرنامج بسبب اتصال الشبكة. حدّث الصفحة وتحقق من ظهور المسودة قبل إعادة المحاولة.'
+        : String(e?.message || 'تعذر إنشاء البرنامج')
+      toast({ title: 'تعذر إنشاء البرنامج', description: friendly, variant: 'destructive' })
     } finally {
       setCreatingProgram(false)
     }

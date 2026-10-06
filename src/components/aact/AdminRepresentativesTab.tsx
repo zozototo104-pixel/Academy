@@ -300,8 +300,11 @@ export default function AdminRepresentativesTab() {
             <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               {!form.id && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-900">
-                  احفظ بيانات الممثل أولاً ليتم إنشاء ملفه، ثم ستتفعّل أزرار رفع الصورة والسيرة والكتب والأعمال والملفات.
+                <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                  <span>احفظ بيانات الممثل أولاً ليتم إنشاء ملفه، ثم ستتفعّل أزرار رفع الصورة والكُرنيه والسيرة والكتب والأعمال والملفات.</span>
+                  <Button type="button" onClick={save} disabled={saving || !form.fullName.trim()} size="sm" className="shrink-0 bg-[#0f2b46] text-white hover:bg-[#12365c]">
+                    <Save className="ml-1 h-4 w-4" /> {saving ? 'جاري الحفظ...' : 'حفظ الممثل وتفعيل الرفع'}
+                  </Button>
                 </div>
               )}
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
