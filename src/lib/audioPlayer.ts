@@ -35,8 +35,10 @@ export function unlockAudioOnFirstGesture(): void {
       const a = getSharedAudio()
       a.src = SILENT_WAV
       const p = a.play()
-      if (p && typeof p.catch === 'function') p.catch(() => {})
-    } catch {}
+      if (p && typeof p.catch === 'function') p.catch((error) => { console.warn('Silent audio unlock playback was blocked.', error) })
+    } catch (error) {
+      console.warn('Failed to unlock shared audio on first gesture.', error)
+    }
     window.removeEventListener('pointerdown', unlock)
     window.removeEventListener('touchend', unlock)
     window.removeEventListener('keydown', unlock)
