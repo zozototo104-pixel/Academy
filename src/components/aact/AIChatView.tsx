@@ -500,7 +500,9 @@ export function AIChatView() {
     try {
       shouldOpen = sessionStorage.getItem('aact_open_voice_agent') === '1'
       if (shouldOpen) sessionStorage.removeItem('aact_open_voice_agent')
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read pending AI voice agent startup flag.', error)
+    }
     if (!shouldOpen) return
     const t = setTimeout(() => {
       if (!voiceModeRef.current) toggleVoiceMode()
