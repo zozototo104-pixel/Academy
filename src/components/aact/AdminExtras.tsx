@@ -2412,7 +2412,13 @@ export function AdminAdminsTab() {
   }
 
   const disableSystemAdmin = async (admin: SystemAdminAccount) => {
-    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    const ok = await confirmAction({
+      title: 'تعطيل حساب إدارة',
+      description: `سيتم تعطيل حساب ${admin.email}، حذف جلساته، ومنعه من تسجيل الدخول مع الحفاظ على سجل التدقيق.`,
+      confirmLabel: 'تعطيل الحساب',
+      tone: 'danger',
+    })
+    if (!ok) return
     setAdminBusy(admin.id)
     try {
       await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
