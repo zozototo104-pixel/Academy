@@ -808,6 +808,7 @@ export function AdminFinanceTab() {
 
   return (
     <div className="mt-4 space-y-5">
+      {actionDialog}
       {/* KPIs المالية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center">
