@@ -329,7 +329,7 @@ export function ExamView() {
         setResult(d)
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
-        api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch(() => {})
+        api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
