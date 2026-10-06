@@ -97,6 +97,7 @@ function formatArabicDate(value?: string | null): string {
 
 export function AdminThesisTab() {
   const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [theses, setTheses] = useState<Thesis[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
