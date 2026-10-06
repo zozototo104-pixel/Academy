@@ -786,7 +786,9 @@ export function AdminFinanceTab() {
     if (waiverType === 'PARTIAL_TUITION') {
       const amountText = await promptAction({
         title: 'مبلغ الإعفاء الجزئي',
-        description: `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        description: payment.purpose === 'APPLICATION_FEE'
+          ? `اكتب مبلغ الإعفاء الإجمالي. سيتم احتساب ${payment.amount}$ لرسوم التقديم، وأي مبلغ زائد سيخصم من رسوم البرنامج.`
+          : `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
         fieldLabel: 'مبلغ الإعفاء بالدولار',
         placeholder: 'مثال: 100',
         required: true,
@@ -796,8 +798,13 @@ export function AdminFinanceTab() {
       })
       if (amountText === null) return
       requestedAmount = Number(amountText)
-      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount >= Number(payment.amount || 0)) {
-        toast({ title: 'مبلغ غير صالح', description: 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.', variant: 'destructive' })
+      const isApplicationFee = payment.purpose === 'APPLICATION_FEE'
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount >= Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
+        toast({
+          title: 'مبلغ غير صالح',
+          description: isApplicationFee ? 'في فاتورة التقديم، اكتب مبلغاً أكبر من 30$ حتى يخصم 30$ للتقديم والباقي من رسوم البرنامج.' : 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.',
+          variant: 'destructive',
+        })
         return
       }
     }
@@ -1140,11 +1147,15 @@ export function AdminFinanceTab() {
                             ) : (
                               <div className="flex flex-wrap gap-1">
                                 {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
-                                {['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
+                                {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
                                 {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
                               </div>
                             )}
                           </div>
+                        ) : p.status === 'WAIVED' && p.purpose === 'APPLICATION_FEE' && p.waiverCodes?.length ? (
+                          <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                            <ShieldCheck className="ml-1 h-3 w-3" /> تطبيق الإعفاء على البرنامج
+                          </Button>
                         ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
                       </td>
                     </tr>

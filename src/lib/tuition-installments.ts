@@ -3,10 +3,30 @@ import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
 
-type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null }
+type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
 
 function amountOf(payment: TuitionPayment): number {
   return paymentAmountDollars(payment)
+}
+
+function originalAmountOf(payment: TuitionPayment): number {
+  const originalCents = Number(payment.originalAmountCents || 0)
+  if (originalCents > 0) return roundMoney(originalCents / 100)
+  const original = Number(payment.originalAmount || 0)
+  if (original > 0) return roundMoney(original)
+  return roundMoney(amountOf(payment) + waivedAmountOf(payment))
+}
+
+function waivedAmountOf(payment: TuitionPayment): number {
+  const waivedCents = Number(payment.waivedAmountCents || 0)
+  if (waivedCents > 0) return roundMoney(waivedCents / 100)
+  return roundMoney(Number(payment.waivedAmount || 0))
+}
+
+function settledAmountOf(payment: TuitionPayment): number {
+  if (payment.status === 'PAID') return amountOf(payment)
+  if (payment.status === 'WAIVED') return originalAmountOf(payment)
+  return waivedAmountOf(payment)
 }
 
 export interface TuitionPlanSummary {
@@ -38,7 +58,7 @@ export function roundMoney(n: number): number {
 const INSTALLMENT_APPEAL_ALLOWED_STATUSES = new Set(['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'])
 
 function applicationFeePaid(payments: TuitionPayment[]): boolean {
-  return payments.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
+  return payments.some((p) => p.purpose === 'APPLICATION_FEE' && (p.status === 'PAID' || p.status === 'WAIVED'))
 }
 
 function installmentAppealEligibility(args: {
@@ -56,26 +76,26 @@ function installmentAppealEligibility(args: {
 }
 
 export function tuitionPaidTotal(payments: TuitionPayment[]): number {
-  const paidFullTuition = Math.max(
+  const settledFullTuition = Math.max(
     0,
     ...payments
-      .filter((p) => p.purpose === 'TUITION' && p.status === 'PAID')
-      .map(amountOf)
+      .filter((p) => p.purpose === 'TUITION' && (p.status === 'PAID' || p.status === 'WAIVED'))
+      .map(settledAmountOf)
   )
-  const paidInstallments = payments
-    .filter((p) => p.purpose === 'TUITION_INSTALLMENT' && p.status === 'PAID')
-    .reduce((sum, p) => sum + amountOf(p), 0)
-  const paidOtherTuition = payments
-    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose) && p.status === 'PAID')
-    .reduce((sum, p) => sum + amountOf(p), 0)
+  const settledInstallments = payments
+    .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
+    .reduce((sum, p) => sum + settledAmountOf(p), 0)
+  const settledOtherTuition = payments
+    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose))
+    .reduce((sum, p) => sum + settledAmountOf(p), 0)
 
-  // إذا وُجدت فاتورة رسوم كاملة مدفوعة فلا نضيف فوقها أقساطاً مدفوعة لنفس الرسوم.
-  return roundMoney(Math.max(paidFullTuition, paidInstallments + paidOtherTuition))
+  // إذا وُجدت فاتورة رسوم كاملة مسددة أو معفاة فلا نضيف فوقها أقساطاً لنفس الرسوم.
+  return roundMoney(Math.max(settledFullTuition, settledInstallments + settledOtherTuition))
 }
 
 export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): number {
   const fallbackTuition = Number(fallback) || 0
-  const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map(amountOf)
+  const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map(originalAmountOf)
   const maxFull = Math.max(0, ...fullTuition)
 
   // لا نجمع فاتورة الرسوم الكاملة مع فواتير التقسيط، لأن التقسيط يمثل
@@ -109,7 +129,7 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
       programRef: { select: { price: true } },
     },
   })
@@ -156,7 +176,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     where: { userId, programId },
     orderBy: { createdAt: 'desc' },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
       programRef: { select: { price: true } },
     },
   })
