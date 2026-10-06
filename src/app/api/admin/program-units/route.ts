@@ -28,7 +28,9 @@ function parseContent(value: unknown) {
     try {
       const parsed = JSON.parse(value)
       if (Array.isArray(parsed)) return parseContent(parsed)
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to parse unit content JSON; falling back to plain text.', error)
+    }
     return [{ heading: 'محتوى الوحدة', body: cleanText(value, 1200) }]
   }
   return []
