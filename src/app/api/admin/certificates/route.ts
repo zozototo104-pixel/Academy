@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
     let financialOverrideUsed = false
     if (app?.id) {
       const allPayments = await db.payment.findMany({ where: { admissionId: app.id } })
-      const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents }))
-      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
+      const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents, waivedAmount: p.waivedAmount, waivedAmountCents: p.waivedAmountCents, originalAmount: p.originalAmount, originalAmountCents: p.originalAmountCents }))
+      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
       const tuitionTotal = roundMoney(inferTotalTuition(paymentRows))
       const tuitionPaid = roundMoney(tuitionPaidTotal(paymentRows))
       const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
