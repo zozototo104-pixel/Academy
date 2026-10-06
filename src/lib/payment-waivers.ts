@@ -260,7 +260,7 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
       await notify(admin.id, 'ADMISSION', 'طلب التحاق بانتظار الدراسة بعد إعفاء الرسوم', `تم اعتماد إعفاء رسوم التقديم للمتقدم ${app.fullName} (${app.reference}) — برنامج: ${app.program}.`, 'admin')
     }
     if (linkedUserId) {
-      await notify(linkedUserId, 'PAYMENT', 'تم اعتماد إعفاء رسوم التقديم', `تم إعفاؤك من رسوم التقديم لطلب ${app.reference}. أصبح ملفك بانتظار دراسة الإدارة.`, 'dashboard')
+      await notify(linkedUserId, 'PAYMENT', 'تم اعتماد إعفاء رسوم التقديم', `تم إعفاؤك من رسوم التقديم لطلب ${app.reference}. يمكنك الآن متابعة الرسوم الدراسية أو طلب التقسيط من بوابة الدفعات.`, 'dashboard')
     }
     await audit(actor, 'APPLICATION_FEE_WAIVED', 'AdmissionApplication', app.id, `${app.reference} — ${payment.invoiceNo}`)
   }
