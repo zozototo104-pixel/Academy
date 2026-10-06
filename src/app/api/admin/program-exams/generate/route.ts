@@ -174,7 +174,9 @@ async function existingOptionTexts(examId: string): Promise<Set<string>> {
           if (n) out.add(n)
         }
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to parse existing exam option texts JSON.', error)
+    }
   }
   return out
 }
