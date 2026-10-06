@@ -278,7 +278,7 @@ export async function PATCH(req: NextRequest) {
     if (status === 'AWAITING_TUITION' || status === 'SUPERVISOR_ASSIGNED') {
       // قاعدة إلزامية: لا إقرار بالقبول قبل سداد الطالب رسوم التقديم (30$)
       const feePaid = await db.payment.findFirst({
-        where: { admissionId: id, purpose: 'APPLICATION_FEE', status: 'PAID' },
+        where: { admissionId: id, purpose: 'APPLICATION_FEE', status: { in: ['PAID', 'WAIVED'] } },
       })
       if (!feePaid) {
         return NextResponse.json(
