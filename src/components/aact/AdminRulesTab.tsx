@@ -505,7 +505,12 @@ export function AdminRulesTab() {
   const setSelectedProgramActive = async (active: boolean) => {
     if (!selected || !programDraft) return
     if (!active) {
-      const confirmed = window.confirm('سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً. هل تريد المتابعة؟')
+      const confirmed = await confirmAction({
+        title: 'إخفاء برنامج من الموقع العام',
+        description: 'سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً.',
+        confirmLabel: 'إخفاء البرنامج',
+        tone: 'warning',
+      })
       if (!confirmed) return
     }
     setSaving(true)
