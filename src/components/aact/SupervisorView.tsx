@@ -249,7 +249,7 @@ export function SupervisorView() {
 
   const stopRecording = () => {
     setRecording(false)
-    try { mediaRecorderRef.current?.stop() } catch {}
+    try { mediaRecorderRef.current?.stop() } catch (error) { console.warn('Failed to stop supervisor recording.', error) }
   }
 
   const createAssessment = async () => {
