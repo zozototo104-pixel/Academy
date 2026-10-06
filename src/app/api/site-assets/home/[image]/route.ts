@@ -48,7 +48,9 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ image:
     try {
       const existing = await fetch(publicUrl, { method: 'HEAD', cache: 'no-store' })
       if (existing.ok) return cachedRedirect(publicUrl, 24 * 60 * 60, 'r2-public')
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to verify public home image URL before redirect.', error)
+    }
   }
 
   try {
