@@ -2001,6 +2001,7 @@ export function AdminSettingsTab() {
         </div>
       )
       }
+    }
     if (d.key === 'OFFICIAL_CONTACT') {
       const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
       const contact = readJsonSetting('OFFICIAL_CONTACT', contactFallback)
