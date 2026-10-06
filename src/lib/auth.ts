@@ -36,7 +36,9 @@ async function getSessionToken(): Promise<string | null> {
       const t = auth.slice(7).trim()
       if (t) return t
     }
-  } catch {}
+  } catch {
+    // قد لا تكون ترويسات الطلب متاحة في بعض سياقات الخادم؛ نكمل للكوكيز كاحتياط.
+  }
   try {
     const store = await cookies()
     return store.get(SESSION_COOKIE)?.value ?? null
