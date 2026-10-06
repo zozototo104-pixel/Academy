@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
               const json = JSON.parse(payload)
               const b64 = json?.choices?.[0]?.delta?.content
               if (b64) controller.enqueue(sse({ type: 'audio', b64 }))
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to parse TTS stream payload chunk.', error)
+            }
           }
         }
         controller.enqueue(sse({ type: 'done' }))
