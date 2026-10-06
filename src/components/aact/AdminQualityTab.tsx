@@ -2588,7 +2588,7 @@ export function AdminQualityTab() {
                 <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد. استخدم زر توليد أسئلة للبنك من لوحة تجهيز المنهج.</p>
               ) : questionBankItems.map((question) => {
                 let options: string[] = []
-                try { options = question.options ? JSON.parse(question.options) : [] } catch {}
+                try { options = question.options ? JSON.parse(question.options) : [] } catch (error) { console.warn('Failed to parse quality tab question options for display.', error) }
                 return (
                   <article key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
