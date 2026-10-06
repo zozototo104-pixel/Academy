@@ -382,7 +382,9 @@ export function ExamView() {
                 cx.drawImage(proctorVideoRef.current, 0, 0, 320, 240)
                 snapshotRef.current = cv.toDataURL('image/jpeg', 0.55)
               }
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to capture initial proctoring snapshot.', error)
+            }
           }
         }, 300)
       } catch {
