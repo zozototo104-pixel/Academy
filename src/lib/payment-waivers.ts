@@ -54,7 +54,7 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   if (!payment) return null
   const email = payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email || ''
   if (!email || !email.includes('@')) return null
-  const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.fullName || 'الطالب'
+  const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.repName || payment.agent?.orgName || 'الطالب'
   return { email, name, invoiceNo: payment.invoiceNo, description: payment.description }
 }
 
