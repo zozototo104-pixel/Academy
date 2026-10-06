@@ -225,7 +225,7 @@ export function AIChatView() {
       audioRef.current.pause()
       audioRef.current = null
     }
-    try { window.speechSynthesis?.cancel() } catch {}
+    try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before playing AI audio.', error) }
     speechUtteranceRef.current = null
     const audio = getSharedAudio()
     audioRef.current = audio
