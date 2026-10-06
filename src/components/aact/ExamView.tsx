@@ -299,7 +299,9 @@ export function ExamView() {
               cx.drawImage(proctorVideoRef.current, 0, 0, 320, 240)
               snap = cv.toDataURL('image/jpeg', 0.55)
             }
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to capture proctoring snapshot before exam submit.', error)
+          }
         }
         const answers = data.questions.map((q) => ({
           questionId: q.id,
