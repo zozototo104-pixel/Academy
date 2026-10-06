@@ -53,7 +53,9 @@ export function PerformanceMonitor() {
         const po = new PerformanceObserver((list) => cb(list.getEntries()))
         po.observe({ type, buffered: true } as PerformanceObserverInit)
         observers.push(po)
-      } catch {}
+      } catch (error) {
+        console.warn(`Failed to observe performance entry type ${type}.`, error)
+      }
     }
 
     observe('paint', (entries) => {
