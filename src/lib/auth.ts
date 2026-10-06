@@ -55,7 +55,9 @@ export async function destroySession() {
   try {
     const store = await cookies()
     store.delete(SESSION_COOKIE)
-  } catch {}
+  } catch {
+    // قد يفشل حذف الكوكي خارج سياق استجابة صالح؛ حذف الجلسة من قاعدة البيانات يكفي كإبطال.
+  }
 }
 
 export async function getCurrentUser() {
