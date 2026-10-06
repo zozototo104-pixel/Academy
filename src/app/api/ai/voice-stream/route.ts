@@ -134,7 +134,9 @@ export async function POST(req: NextRequest) {
                 full += delta
                 controller.enqueue(sse({ type: 'delta', text: delta }))
               }
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to parse voice stream payload chunk.', error)
+            }
           }
         }
         if (!full.trim()) throw new Error('EMPTY_AI_RESPONSE')
