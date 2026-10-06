@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
   let body: { text?: string; speed?: number } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse TTS stream request body JSON.', error)
+  }
   const text = (body.text || '').trim()
   const speed = Math.min(1.3, Math.max(0.8, Number(body.speed) || 1.0))
   if (!text) {
