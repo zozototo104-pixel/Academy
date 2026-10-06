@@ -38,7 +38,7 @@ async function openDashboardPdf(path: string, filename: string) {
   const popup = window.open('', '_blank')
   if (popup) {
     popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
-    try { popup.opener = null } catch {}
+    try { popup.opener = null } catch (error) { console.warn('Unable to detach dashboard PDF popup opener.', error) }
   }
   try {
     const token = getToken()
