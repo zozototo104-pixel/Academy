@@ -190,8 +190,8 @@ export function AIChatView() {
     return () => {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
-      try { agentRef.current?.stop() } catch {}
+      try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis during AI chat cleanup.', error) }
+      try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop voice agent during AI chat cleanup.', error) }
       agentRef.current = null
       voiceModeRef.current = false
       speechUtteranceRef.current = null
