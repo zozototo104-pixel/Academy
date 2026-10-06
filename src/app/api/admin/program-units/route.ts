@@ -12,7 +12,9 @@ function parseObjectives(value: unknown) {
     try {
       const parsed = JSON.parse(value)
       if (Array.isArray(parsed)) return parsed.map((x) => cleanText(x, 240)).filter((x) => x.length > 3).slice(0, 12)
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to parse unit objectives JSON; falling back to delimited text.', error)
+    }
     return value.split(/\n|،|,/).map((x) => cleanText(x, 240)).filter((x) => x.length > 3).slice(0, 12)
   }
   return []
