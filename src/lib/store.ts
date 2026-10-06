@@ -277,7 +277,7 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
       // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
       if (res.status === 401 && token) {
         clearToken()
-        try { useAppStore.setState({ user: null }) } catch {}
+        try { useAppStore.setState({ user: null }) } catch (error) { console.warn('Failed to clear app user after unauthorized API response.', error) }
       }
       if (!res.ok) {
         const fallbackMessage = res.status === 403
