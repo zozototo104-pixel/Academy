@@ -256,6 +256,7 @@ export function AdminThesisTab() {
 
   return (
     <div className="mt-4 space-y-4">
+      {actionDialog}
       <div className="flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
