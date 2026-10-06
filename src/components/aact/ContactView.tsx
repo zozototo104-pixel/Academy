@@ -72,9 +72,11 @@ export function ContactView() {
               responsiblePerson: String(parsed.responsiblePerson || prev.responsiblePerson),
             }))
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to normalize official contact settings.', error)
+        }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load public contact settings.', error) })
     return () => { alive = false }
   }, [])
 
