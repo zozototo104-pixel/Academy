@@ -482,7 +482,7 @@ export function AIChatView() {
       else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
-      try { agent.stop() } catch {}
+      try { agent.stop() } catch (error) { console.warn('Failed to stop voice agent after start failure.', error) }
       agentRef.current = null
     })
   }
