@@ -1149,7 +1149,9 @@ export async function analyzeAdmission(
   if (!opts?.force && app.aiReview && app.aiReviewedAt && Date.now() - new Date(app.aiReviewedAt).getTime() < CACHE_TTL_MS) {
     try {
       return { review: JSON.parse(app.aiReview) as AdmissionAIReview, cached: true }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to parse cached admission AI review; regenerating review.', error)
+    }
   }
 
   const flow = getServiceFlow(app.programRef?.slug)
