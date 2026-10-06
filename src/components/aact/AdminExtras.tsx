@@ -1145,7 +1145,7 @@ export function AdminFinanceTab() {
                             ) : (
                               <div className="flex flex-wrap gap-1">
                                 {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
-                                {['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
+                                {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
                                 {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
                               </div>
                             )}
