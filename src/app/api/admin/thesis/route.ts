@@ -164,7 +164,7 @@ export async function PATCH(req: NextRequest) {
     // جدولة المناقشة أمام لجنة متخصصة
     if (action === 'SCHEDULE') {
       let committeeList: string[] = []
-      try { committeeList = JSON.parse(committee || '[]') } catch {}
+      try { committeeList = JSON.parse(committee || '[]') } catch (error) { console.warn('Failed to parse thesis defense committee JSON.', error) }
       committeeList = committeeList.filter((s: string) => s.trim()).slice(0, 6)
       if (committeeList.length === 0 || !defenseDate) {
         return NextResponse.json({ error: 'تاريخ المناقشة وأعضاء اللجنة مطلوبون' }, { status: 400 })
