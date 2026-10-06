@@ -1837,7 +1837,9 @@ export function AdminSettingsTab() {
       try {
         const parsed = JSON.parse(prev[key] || '{}')
         current = { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
-      } catch {}
+      } catch (error) {
+        console.warn(`Failed to parse structured setting ${key} before patching; using fallback.`, error)
+      }
       return { ...prev, [key]: JSON.stringify({ ...current, ...patch }) }
     })
   }
