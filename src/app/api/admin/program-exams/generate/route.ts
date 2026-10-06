@@ -513,7 +513,9 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
       try {
         const opts = JSON.parse(q.options || '[]')
         if (Array.isArray(opts) && opts.length) optionsText = ` | خيارات سابقة: ${opts.join(' / ')}`
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to parse previous exam question options JSON.', error)
+      }
       return `${q.text}${optionsText}`
     })
     const existingKeys = await existingQuestionKeys(examId)
