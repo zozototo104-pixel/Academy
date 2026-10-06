@@ -754,7 +754,7 @@ export function AdminFinanceTab() {
     const popup = window.open('', '_blank')
     if (popup) {
       popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing invoice PDF...</p>')
-      try { popup.opener = null } catch {}
+      try { popup.opener = null } catch (error) { console.warn('Unable to detach invoice PDF popup opener.', error) }
     }
     setPdfBusy(id)
     try {
