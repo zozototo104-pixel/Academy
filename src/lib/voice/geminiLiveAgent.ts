@@ -505,7 +505,9 @@ export class GeminiLiveAgent {
         headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
         body: JSON.stringify({ ...(this.cb.logExtra || {}), userText, aiText, model: this.model }),
       })
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to log Gemini live voice turn.', error)
+    }
   }
 
   interrupt() {
