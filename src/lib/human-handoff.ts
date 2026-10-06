@@ -170,10 +170,10 @@ type HumanHandoffIntentDecision = {
 function parseJsonObject(text: string): any | null {
   const raw = String(text || '').trim()
   if (!raw) return null
-  try { return JSON.parse(raw) } catch {}
+  try { return JSON.parse(raw) } catch (error) { console.warn('Failed to parse human handoff JSON directly; trying extracted object.', error) }
   const match = raw.match(/\{[\s\S]*\}/)
   if (!match) return null
-  try { return JSON.parse(match[0]) } catch { return null }
+  try { return JSON.parse(match[0]) } catch (error) { console.warn('Failed to parse extracted human handoff JSON object.', error); return null }
 }
 
 function normalizeConfidence(value: unknown) {
