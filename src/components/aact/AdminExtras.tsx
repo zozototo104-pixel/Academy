@@ -719,7 +719,18 @@ export function AdminFinanceTab() {
     let approvalReference = ''
     let approvalNote = ''
     if (!hasProof && method !== 'USDT') {
-      const value = window.prompt('اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد:', payment.manualApprovalReference || payment.manualApprovalNote || '')
+      const value = await promptAction({
+        title: 'تأكيد سداد بدون إثبات مرفوع',
+        description: 'اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد حتى يظهر السبب في السجل.',
+        fieldLabel: 'رقم الحوالة أو ملاحظة الاعتماد',
+        defaultValue: payment.manualApprovalReference || payment.manualApprovalNote || '',
+        placeholder: 'مثال: حوالة ويسترن رقم 123 أو اعتماد إداري موثق',
+        required: true,
+        minLength: 3,
+        multiline: true,
+        confirmLabel: 'تأكيد السداد',
+        tone: 'warning',
+      })
       if (value === null) return
       const trimmed = value.trim()
       if (trimmed.length < 3) {
