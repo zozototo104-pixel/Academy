@@ -3,10 +3,30 @@ import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
 
-type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null }
+type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
 
 function amountOf(payment: TuitionPayment): number {
   return paymentAmountDollars(payment)
+}
+
+function originalAmountOf(payment: TuitionPayment): number {
+  const originalCents = Number(payment.originalAmountCents || 0)
+  if (originalCents > 0) return roundMoney(originalCents / 100)
+  const original = Number(payment.originalAmount || 0)
+  if (original > 0) return roundMoney(original)
+  return roundMoney(amountOf(payment) + waivedAmountOf(payment))
+}
+
+function waivedAmountOf(payment: TuitionPayment): number {
+  const waivedCents = Number(payment.waivedAmountCents || 0)
+  if (waivedCents > 0) return roundMoney(waivedCents / 100)
+  return roundMoney(Number(payment.waivedAmount || 0))
+}
+
+function settledAmountOf(payment: TuitionPayment): number {
+  if (payment.status === 'PAID') return amountOf(payment)
+  if (payment.status === 'WAIVED') return originalAmountOf(payment)
+  return waivedAmountOf(payment)
 }
 
 export interface TuitionPlanSummary {
