@@ -1095,7 +1095,10 @@ export function AdminFinanceTab() {
                           </div>
                         ) : null}
                       </td>
-                      <td className="p-3 font-black text-[#0f2b46]">{p.amount}$</td>
+                      <td className="p-3 font-black text-[#0f2b46]">
+                        <div>{p.amount}$</div>
+                        {p.waivedAmount ? <div className="text-[10px] font-bold text-blue-600">معفى: {p.waivedAmount}$ من أصل {p.originalAmount || p.amount + p.waivedAmount}$</div> : null}
+                      </td>
                       <td className="p-3">
                         {p.status === 'PAID' ? (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسددة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
