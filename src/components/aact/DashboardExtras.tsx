@@ -79,6 +79,12 @@ interface Payment {
   currency: string
   method?: string | null
   status: string
+  waiverType?: string | null
+  waiverStatus?: string | null
+  waiverReason?: string | null
+  waivedAmount?: number | null
+  originalAmount?: number | null
+  waiverCodes?: Array<{ id: string; codePreview: string; waiverType: string; requestedAmount?: number | null; status: string; expiresAt?: string | null; verifiedAt?: string | null; approvedAt?: string | null }>
   receiptNo?: string | null
   paidAt?: string | null
   createdAt: string
