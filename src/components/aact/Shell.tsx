@@ -495,9 +495,9 @@ function NotificationBell() {
     if (!n.read) {
       setUnread((v) => Math.max(0, v - 1))
       setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item))
-      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch(() => {})
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
     }
-    try { routeNotificationLink(n) } catch {}
+    try { routeNotificationLink(n) } catch (error) { console.warn('Failed to route notification link.', error) }
   }
 
   return (
