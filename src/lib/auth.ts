@@ -50,7 +50,7 @@ async function getSessionToken(): Promise<string | null> {
 export async function destroySession() {
   const token = await getSessionToken()
   if (token) {
-    await db.session.deleteMany({ where: { token } }).catch(() => {})
+    await db.session.deleteMany({ where: { token } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
   }
   try {
     const store = await cookies()
