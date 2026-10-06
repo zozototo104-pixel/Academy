@@ -108,7 +108,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
     pcRef.current = null
     if (stopMedia) stopLocalMedia()
     if (remoteAudioRef.current) {
-      try { remoteAudioRef.current.pause() } catch {}
+      try { remoteAudioRef.current.pause() } catch (error) { console.warn('Failed to pause supervisor live remote audio.', error) }
       remoteAudioRef.current.srcObject = null
     }
   }, [stopLocalMedia])
