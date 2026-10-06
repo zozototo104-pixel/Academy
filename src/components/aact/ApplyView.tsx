@@ -128,7 +128,8 @@ function readCachedPrograms(): ProgramLite[] {
     const version = localStorage.getItem('aact_programs_summary_version')
     const cached = version ? JSON.parse(localStorage.getItem(`aact_programs_summary_${version}`) || '[]') : []
     return Array.isArray(cached) ? cached : []
-  } catch {
+  } catch (error) {
+    console.warn('Failed to read cached apply programs summary.', error)
     return []
   }
 }
