@@ -221,7 +221,9 @@ export function HomeView() {
         const cached = Number(localStorage.getItem('aact_program_count') || '')
         if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read cached home programs summary.', error)
+    }
 
     const controller = new AbortController()
 
