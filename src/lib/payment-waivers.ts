@@ -113,7 +113,7 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   const ownsPayment = payment.userId === params.user.id
     || payment.enrollment?.userId === params.user.id
     || payment.admission?.userId === params.user.id
-    || (!!payment.admission?.email && payment.admission.email.trim().toLowerCase() === String(params.user.email || '').trim().toLowerCase())
+    || (!!params.user.emailVerifiedAt && !!payment.admission?.email && payment.admission.email.trim().toLowerCase() === String(params.user.email || '').trim().toLowerCase())
   if (!ownsPayment) throw new Error('هذا الكود لا يخص هذه الفاتورة')
   if (payment.status === 'PAID') throw new Error('الفاتورة مسددة مسبقاً')
   if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
