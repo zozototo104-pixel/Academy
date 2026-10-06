@@ -14,7 +14,9 @@ function postMetric(metric: { name: string; value: number; id?: string; rating?:
       const ok = navigator.sendBeacon('/api/monitoring/web-vitals', new Blob([body], { type: 'application/json' }))
       if (ok) return
     }
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to send web vital with sendBeacon; falling back to fetch.', error)
+  }
 
   fetch('/api/monitoring/web-vitals', {
     method: 'POST',
