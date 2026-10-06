@@ -1094,7 +1094,7 @@ export function AdminBooksTab() {
 
   const openEditBankQuestion = (q: QuestionBankItemRow) => {
     let options: string[] = []
-    try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+    try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options before editing.', error) }
     setEditingBankQuestion(q)
     setEditingBankQuestionForm({
       type: q.type || 'MCQ',
