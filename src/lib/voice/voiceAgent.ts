@@ -201,7 +201,7 @@ export class VoiceAgent {
         this.restartTimer = setTimeout(() => this.startRecognition(), 250)
       }
     }
-    try { rec.start(); this.recActive = true } catch {}
+    try { rec.start(); this.recActive = true } catch (error) { console.warn('Failed to start speech recognition in voice agent.', error) }
   }
 
   /** بديل خادمي: تسجيل مقاطع VAD → ASR (لمتصفحات بلا Web Speech) */
