@@ -202,6 +202,8 @@ export function PaymentsTab() {
   const [appealSchedule, setAppealSchedule] = useState('')
   const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
+  const [waiverCodes, setWaiverCodes] = useState<Record<string, string>>({})
+  const [verifyingWaiver, setVerifyingWaiver] = useState<string | null>(null)
   const [verifyingUsdt, setVerifyingUsdt] = useState<string | null>(null)
   const [uploadingProof, setUploadingProof] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
