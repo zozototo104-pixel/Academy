@@ -33,6 +33,94 @@ function cleanReason(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 700)
 }
 
+function addMonths(date: Date, months: number) {
+  const next = new Date(date)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+
+async function resolveAdmissionTuitionCents(app: any) {
+  const program = app.programId
+    ? await db.program.findUnique({ where: { id: app.programId }, select: { price: true, category: true } })
+    : await db.program.findFirst({ where: { titleAr: { contains: String(app.program || '').split(' — ')[0] } }, select: { price: true, category: true } })
+  if (program?.category === 'SERVICE') return 0
+  let tuition = Number(program?.price || 0)
+  if (!tuition) {
+    const settings = await getSettings()
+    if (String(app.program || '').includes('دكتوراة') || String(app.program || '').includes('دكتوراه')) tuition = parseFloat(settings.FEE_DOCTORATE || '1300')
+    else if (app.education === 'MASTER') tuition = parseFloat(settings.FEE_MASTERS || '700')
+    else tuition = parseFloat(settings.FEE_DIPLOMAS_MAX || '350')
+  }
+  return dollarsToCents(tuition || 0)
+}
+
+async function ensureTuitionInvoiceWithWaiverCredit(params: {
+  app: any
+  creditCents: number
+  fullScholarship: boolean
+  waiverType: PaymentWaiverType
+  reason: string
+  actor: { id?: string | null; name: string }
+}) {
+  const tuitionCents = await resolveAdmissionTuitionCents(params.app)
+  if (tuitionCents <= 0) return null
+  const existing = await db.payment.findFirst({ where: { admissionId: params.app.id, purpose: 'TUITION' }, orderBy: { createdAt: 'asc' } })
+  const existingOriginalCents = existing?.originalAmountCents || existing?.amountCents || tuitionCents
+  const originalCents = Math.max(existingOriginalCents, tuitionCents)
+  const alreadyWaivedCents = existing?.waivedAmountCents || 0
+  const currentRemainingCents = existing ? paymentAmountCents(existing) : originalCents
+  const creditCents = params.fullScholarship ? currentRemainingCents : Math.max(0, Math.min(params.creditCents, currentRemainingCents))
+  const nextWaivedCents = alreadyWaivedCents + creditCents
+  const nextRemainingCents = Math.max(0, currentRemainingCents - creditCents)
+  const data = {
+    userId: params.app.userId || null,
+    purpose: 'TUITION',
+    description: `الرسوم الدراسية الكاملة للدخول للبرنامج — ${params.app.program}`,
+    amount: centsToDollars(nextRemainingCents),
+    amountCents: nextRemainingCents,
+    status: nextRemainingCents === 0 ? 'WAIVED' : 'UNPAID',
+    waiverType: params.waiverType,
+    waiverStatus: 'APPROVED',
+    waiverReason: params.reason,
+    waivedAmount: centsToDollars(nextWaivedCents),
+    waivedAmountCents: nextWaivedCents,
+    originalAmount: centsToDollars(originalCents),
+    originalAmountCents: originalCents,
+    waiverApprovedById: params.actor.id || null,
+    waiverApprovedAt: new Date(),
+    payerName: params.app.fullName,
+    payerEmail: params.app.email,
+    payerCountry: params.app.country,
+  }
+  if (existing) {
+    return db.payment.update({ where: { id: existing.id }, data })
+  }
+  return db.payment.create({
+    data: {
+      admissionId: params.app.id,
+      invoiceNo: await nextInvoiceNo(),
+      ...data,
+    },
+  })
+}
+
+async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null; name: string }) {
+  if (!app.approvedAt) {
+    const settings = await getSettings()
+    await db.admissionApplication.update({
+      where: { id: app.id },
+      data: {
+        status: 'AWAITING_TUITION',
+        approvedAt: new Date(),
+        thesisDeadline: addMonths(new Date(), parseInt(settings.THESIS_MAX_MONTHS || '6')),
+      },
+    })
+  } else if (!['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(app.status || ''))) {
+    await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
+  }
+  await audit(actor, 'ADMISSION_TUITION_STAGE_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — أُتيحت متابعة الرسوم بعد الإعفاء`)
+}
+
 export async function createPaymentWaiverCode(params: {
   paymentId: string
   waiverType: PaymentWaiverType
