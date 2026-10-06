@@ -1923,7 +1923,13 @@ export function AdminSettingsTab() {
         }
       }
       const deleteAccreditationDocument = async (doc: AccreditationAdminDocument) => {
-        if (!confirm(`حذف الوثيقة «${doc.title}» من صفحة الاعتماد؟`)) return
+        const ok = await confirmAction({
+          title: 'حذف وثيقة رسمية',
+          description: `سيتم حذف الوثيقة «${doc.title}» من صفحة التراخيص والوثائق الرسمية.`,
+          confirmLabel: 'حذف الوثيقة',
+          tone: 'danger',
+        })
+        if (!ok) return
         setAccreditationUploadBusy(true)
         try {
           const res = await api<{ profile: AccreditationAdminProfile }>(`/api/admin/accreditation/documents/${encodeURIComponent(doc.id)}`, { method: 'DELETE' })
