@@ -2357,6 +2357,7 @@ export function AdminSettingsTab() {
 
 export function AdminAdminsTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
   const [adminsLoading, setAdminsLoading] = useState(true)
   const [adminBusy, setAdminBusy] = useState<string | null>(null)
