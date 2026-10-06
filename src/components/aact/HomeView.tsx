@@ -171,7 +171,9 @@ export function HomeView() {
           if (contact && typeof contact === 'object' && contact.legalEntity) {
             setHomeLegalEntity(String(contact.legalEntity))
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse official contact settings for home page.', error)
+        }
         setGeneralSettings({
           applicationFee: numberSetting(values, 'FEE_APPLICATION', DEFAULT_SETTINGS.applicationFee),
           doctorateDefault: numberSetting(values, 'FEE_DOCTORATE', DEFAULT_SETTINGS.doctorateDefault),
