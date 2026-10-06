@@ -58,7 +58,7 @@ export function roundMoney(n: number): number {
 const INSTALLMENT_APPEAL_ALLOWED_STATUSES = new Set(['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'])
 
 function applicationFeePaid(payments: TuitionPayment[]): boolean {
-  return payments.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
+  return payments.some((p) => p.purpose === 'APPLICATION_FEE' && (p.status === 'PAID' || p.status === 'WAIVED'))
 }
 
 function installmentAppealEligibility(args: {
