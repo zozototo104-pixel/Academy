@@ -786,7 +786,9 @@ export function AdminFinanceTab() {
     if (waiverType === 'PARTIAL_TUITION') {
       const amountText = await promptAction({
         title: 'مبلغ الإعفاء الجزئي',
-        description: `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        description: payment.purpose === 'APPLICATION_FEE'
+          ? `اكتب مبلغ الإعفاء الإجمالي. سيتم احتساب ${payment.amount}$ لرسوم التقديم، وأي مبلغ زائد سيخصم من رسوم البرنامج.`
+          : `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
         fieldLabel: 'مبلغ الإعفاء بالدولار',
         placeholder: 'مثال: 100',
         required: true,
