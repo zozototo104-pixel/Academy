@@ -17,7 +17,8 @@ function safeJson(value: unknown, fallback: any = null) {
   try {
     if (typeof value === 'string') return JSON.parse(value)
     return value ?? fallback
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse question bank JSON value; using fallback.', error)
     return fallback
   }
 }
