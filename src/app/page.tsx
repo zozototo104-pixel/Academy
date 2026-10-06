@@ -36,7 +36,9 @@ function markStartupSeen() {
   try {
     localStorage.setItem(STARTUP_SEEN_KEY, '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to persist academy startup seen flags.', error)
+  }
 }
 
 function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, durationMs = 1180 }: { label?: string; onDone?: () => void; durationMs?: number }) {
