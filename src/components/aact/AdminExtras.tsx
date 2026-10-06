@@ -1099,6 +1099,8 @@ export function AdminFinanceTab() {
                       <td className="p-3">
                         {p.status === 'PAID' ? (
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسددة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
+                        ) : p.status === 'WAIVED' ? (
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة — ليست دفعاً</Badge>
                         ) : ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) ? (
                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع مباشر بانتظار التأكيد</Badge>
                         ) : (
