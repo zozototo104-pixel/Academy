@@ -276,7 +276,9 @@ export default function Home() {
           studentPreviewId: next.studentPreviewId || null,
           agentPreviewId: next.agentPreviewId || null,
         })
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to apply browser route state after popstate.', error)
+      }
     }
     window.addEventListener('popstate', applyBrowserRoute)
     return () => window.removeEventListener('popstate', applyBrowserRoute)
