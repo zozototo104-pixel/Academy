@@ -247,6 +247,7 @@ function stageAt(profile: AcademicProfileDraft | null | undefined, index: number
 }
 
 export function AdminRulesTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramRules[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [programSearch, setProgramSearch] = useState('')
