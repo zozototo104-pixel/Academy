@@ -59,7 +59,7 @@ export function AuthView() {
         body: JSON.stringify(loginData),
       })
       if (d.token) saveToken(d.token)
-      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
+      try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after login.', error) }
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
       navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
