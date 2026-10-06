@@ -281,7 +281,9 @@ export class VoiceAgent {
             } else if (ev.type === 'error') {
               errored = ev.error || 'خطأ'
             }
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to parse voice agent stream event.', error)
+          }
         }
       }
       if (errored) throw new Error(errored)
