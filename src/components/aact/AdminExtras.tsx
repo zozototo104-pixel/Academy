@@ -1152,6 +1152,10 @@ export function AdminFinanceTab() {
                               </div>
                             )}
                           </div>
+                        ) : p.status === 'WAIVED' && p.purpose === 'APPLICATION_FEE' && p.waiverCodes?.length ? (
+                          <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                            <ShieldCheck className="ml-1 h-3 w-3" /> تطبيق الإعفاء على البرنامج
+                          </Button>
                         ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
                       </td>
                     </tr>
