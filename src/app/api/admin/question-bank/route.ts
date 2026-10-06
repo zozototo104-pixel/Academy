@@ -60,7 +60,9 @@ function parseImportedQuestions(value: unknown) {
     const parsed = JSON.parse(text)
     if (Array.isArray(parsed)) return parsed
     if (Array.isArray(parsed?.questions)) return parsed.questions
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse imported questions JSON; falling back to delimited rows.', error)
+  }
 
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   if (!lines.length) return []
