@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
 
   // سياق RAG: ملف المستخدم + المنهج/الكتب حسب نطاق الصلاحية الحالي.
   const voiceScope = resolveAiKnowledgeScope({ role: user.role, mode: 'VOICE' })
-  const diagnosticResult = await buildScopedDirectProgramBooksResult(message, voiceScope).catch(() => null)
+  const diagnosticResult = await buildScopedDirectProgramBooksResult(message, voiceScope).catch((error) => {
+    console.warn('Failed to build voice stream program book diagnostics.', error)
+    return null
+  })
   if (diagnosticResult?.diagnostics && diagnosticResult.diagnostics.reason !== 'query_not_program_books') {
     await auditVoiceKnowledgeDiagnostics({ userId: user.id, role: user.role, scope: voiceScope, diagnostics: diagnosticResult.diagnostics })
   }
