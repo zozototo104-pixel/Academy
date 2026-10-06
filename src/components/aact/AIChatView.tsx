@@ -521,7 +521,7 @@ export function AIChatView() {
     }
     if (speakingId) {
       audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
+      try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before microphone input.', error) }
       speechUtteranceRef.current = null
       setSpeakingId(null)
     }
