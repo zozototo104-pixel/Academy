@@ -83,8 +83,8 @@ export async function GET() {
     const admissionIds = admissions.map((a) => a.id)
     const tuitionPlans = (await Promise.all(admissionIds.map((id) => getAdmissionTuitionPlan(id).catch(() => null)))).filter(Boolean) as any[]
     const approvedPlanIds = new Set(tuitionPlans.filter((p) => p?.appealStatus === 'APPROVED').map((p) => p.admissionId))
-    const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status !== 'PAID' && p.admissionId && approvedPlanIds.has(p.admissionId)))
-    const unpaidPayments = visiblePayments.filter((p) => p.status !== 'PAID')
+    const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedPlanIds.has(p.admissionId)))
+    const unpaidPayments = visiblePayments.filter((p) => p.status === 'UNPAID')
     const paidPayments = visiblePayments.filter((p) => p.status === 'PAID')
     const tuitionPlanPaymentNeededCount = tuitionPlans.filter((p) => p?.appealStatus === 'APPROVED' && Number(p?.remainingTuition || 0) > 0).length
     const activeEnrollment = enrollments.find((e) => e.status === 'ACTIVE') || enrollments[0] || null
