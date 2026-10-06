@@ -524,8 +524,8 @@ export class GeminiLiveAgent {
   private closeConnectionOnly() {
     this.setupReady = false
     this.usingSdk = false
-    try { this.sdkSession?.close?.() } catch {}
-    try { this.ws?.close() } catch {}
+    try { this.sdkSession?.close?.() } catch (error) { console.warn('Failed to close Gemini Live SDK session.', error) }
+    try { this.ws?.close() } catch (error) { console.warn('Failed to close Gemini Live websocket.', error) }
     this.sdkSession = null
     this.ws = null
   }
