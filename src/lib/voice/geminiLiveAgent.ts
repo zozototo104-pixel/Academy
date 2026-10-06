@@ -155,7 +155,7 @@ class Pcm24Player {
     this.nextTime = 0
     this.onOutputStream?.(null)
     this.recorderDest = null
-    try { this.ctx?.close() } catch {}
+    try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini PCM player audio context.', error) }
     this.ctx = null
   }
 }
