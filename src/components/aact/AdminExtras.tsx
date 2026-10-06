@@ -781,7 +781,7 @@ export function AdminFinanceTab() {
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e: any) {
-      try { popup?.close() } catch {}
+      try { popup?.close() } catch (closeError) { console.warn('Unable to close invoice PDF popup after failure.', closeError) }
       toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
     } finally {
       setPdfBusy(null)
