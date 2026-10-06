@@ -70,8 +70,9 @@ export async function markInvoicePaid(
       }
 
       const all = await db.payment.findMany({ where: { admissionId: app.id } })
-      const allPaid = all.every((p) => p.status === 'PAID')
-      const feePaid = all.some((p) => p.purpose === 'APPLICATION_FEE' && p.status === 'PAID')
+      const isSettled = (status?: string | null) => status === 'PAID' || status === 'WAIVED'
+      const allPaid = all.every((p) => isSettled(p.status))
+      const feePaid = all.some((p) => p.purpose === 'APPLICATION_FEE' && isSettled(p.status))
       const tuitionPlan = await getAdmissionTuitionPlan(app.id)
       const installmentActivationReady =
         tuitionPlan?.appealStatus === 'APPROVED' &&
