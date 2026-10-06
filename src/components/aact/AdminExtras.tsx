@@ -1065,7 +1065,16 @@ export function AdminFinanceTab() {
                           {p.purpose === 'AI_LIVE_CREDIT' && (
                             <Badge className="bg-indigo-100 text-[9px] font-black text-indigo-700 hover:bg-indigo-100">خدمة إضافية — لا تخصم من الرسوم الدراسية</Badge>
                           )}
+                          {p.waiverStatus && (
+                            <Badge className="bg-blue-100 text-[9px] font-black text-blue-700 hover:bg-blue-100">{waiverLabel(p.waiverType)} — {p.waiverStatus}</Badge>
+                          )}
                         </div>
+                        {p.waiverCodes?.length ? (
+                          <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-bold text-blue-900">
+                            آخر كود: {p.waiverCodes[0].codePreview} — {waiverLabel(p.waiverCodes[0].waiverType)} — {p.waiverCodes[0].status}
+                            {p.waivedAmount ? <span> — المعفى: {p.waivedAmount}$</span> : null}
+                          </div>
+                        ) : null}
                         {(p.method === 'USDT' || p.provider === 'USDT') && (
                           <div className="mt-1 space-y-0.5 rounded-lg bg-slate-50 p-2 text-[10px] font-bold text-slate-500">
                             <div>USDT: {p.cryptoNetwork || '—'} · {p.cryptoVerificationStatus || 'WAITING_TX'}</div>
