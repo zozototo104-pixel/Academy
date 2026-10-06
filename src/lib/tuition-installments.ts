@@ -129,7 +129,7 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
       programRef: { select: { price: true } },
     },
   })
