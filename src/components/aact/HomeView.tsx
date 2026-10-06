@@ -243,10 +243,12 @@ export function HomeView() {
           try {
             localStorage.setItem('aact_program_count', String(d.count))
             if (d.catalogVersion) localStorage.setItem('aact_programs_summary_version', d.catalogVersion)
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to cache home program count.', error)
+          }
         }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load public program count.', error) })
 
     const loadSummary = () => {
       fetch('/api/programs?summary=1&public=1', {
