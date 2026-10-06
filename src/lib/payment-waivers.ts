@@ -34,6 +34,30 @@ function cleanReason(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 700)
 }
 
+function waiverTypeLabel(type: string) {
+  if (type === 'APPLICATION_FEE') return 'إعفاء رسوم التقديم'
+  if (type === 'PARTIAL_TUITION') return 'إعفاء جزئي من الرسوم'
+  if (type === 'FULL_SCHOLARSHIP') return 'منحة كاملة'
+  return 'إعفاء مالي'
+}
+
+async function resolveWaiverEmailRecipient(paymentId: string) {
+  const payment = await db.payment.findUnique({
+    where: { id: paymentId },
+    include: {
+      user: { select: { email: true, name: true } },
+      admission: { select: { email: true, fullName: true } },
+      enrollment: { include: { user: { select: { email: true, name: true } } } },
+      agent: { select: { email: true, fullName: true } },
+    },
+  })
+  if (!payment) return null
+  const email = payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email || ''
+  if (!email || !email.includes('@')) return null
+  const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.fullName || 'الطالب'
+  return { email, name, invoiceNo: payment.invoiceNo, description: payment.description }
+}
+
 function addMonths(date: Date, months: number) {
   const next = new Date(date)
   next.setMonth(next.getMonth() + months)
