@@ -624,6 +624,7 @@ export function AdminRulesTab() {
 
   return (
     <div className="mt-4 space-y-4 pb-[45vh] md:pb-6">
+      {actionDialog}
       <Dialog open={createProgramOpen} onOpenChange={(open) => { if (!creatingProgram) setCreateProgramOpen(open) }}>
         <DialogContent className="max-w-xl rounded-[2rem] border-[#c9a227]/30 bg-[#fffdf7] p-0 text-right" dir="rtl">
           <div className="rounded-t-[2rem] bg-gradient-to-l from-[#0f2b46] to-[#12365c] p-5 text-[#f5f0e1]">
