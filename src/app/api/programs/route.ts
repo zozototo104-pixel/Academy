@@ -28,7 +28,9 @@ function safeParseProgramFeatures(raw: unknown): string[] {
   try {
     const parsed = JSON.parse(value)
     if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean).slice(0, 12)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse public program features JSON; falling back to delimited text.', error)
+  }
   return value
     .split(/\r?\n|[،,]/)
     .map((item) => item.trim())
