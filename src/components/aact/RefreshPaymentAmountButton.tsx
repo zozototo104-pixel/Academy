@@ -35,12 +35,25 @@ export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAm
         return
       }
 
-      const confirmed = window.confirm(
-        'سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار. هل تريد المتابعة؟'
-      )
+      const confirmed = await confirmAction({
+        title: 'تحديث مبلغ فاتورة غير مدفوعة',
+        description: 'سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار.',
+        confirmLabel: 'متابعة التحديث',
+        tone: 'warning',
+      })
       if (!confirmed) return
 
-      const reason = window.prompt('اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق:')
+      const reason = await promptAction({
+        title: 'سبب تحديث مبلغ الفاتورة',
+        description: 'اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق.',
+        fieldLabel: 'سبب التحديث',
+        placeholder: 'مثال: تعديل سعر البرنامج من قواعد القبول',
+        required: true,
+        minLength: 6,
+        multiline: true,
+        confirmLabel: 'تحديث المبلغ',
+        tone: 'warning',
+      })
       if (reason === null) return
 
       const trimmedReason = reason.trim()
