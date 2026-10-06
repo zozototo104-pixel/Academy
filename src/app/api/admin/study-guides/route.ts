@@ -364,14 +364,14 @@ function jsonArray(value: unknown, fallback: any[] = []) {
 
 function parseJsonObject(raw: string): any | null {
   const body = String(raw || '').trim()
-  try { return JSON.parse(body) } catch {}
+  try { return JSON.parse(body) } catch (error) { console.warn('Failed to parse study guide AI JSON directly.', error) }
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
   if (fenced) {
-    try { return JSON.parse(fenced) } catch {}
+    try { return JSON.parse(fenced) } catch (error) { console.warn('Failed to parse fenced study guide AI JSON.', error) }
   }
   const obj = body.match(/\{[\s\S]*\}/)?.[0]
   if (obj) {
-    try { return JSON.parse(obj) } catch {}
+    try { return JSON.parse(obj) } catch (error) { console.warn('Failed to parse extracted study guide AI JSON object.', error) }
   }
   return null
 }
