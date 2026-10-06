@@ -14,7 +14,7 @@ function cleanText(value: unknown, max = 1200) {
 
 function parseJsonObject(raw: string) {
   const text = String(raw || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
-  try { return JSON.parse(text) } catch {}
+  try { return JSON.parse(text) } catch (error) { console.warn('Failed to parse curriculum AI object JSON directly; trying fenced extraction.', error) }
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1))
