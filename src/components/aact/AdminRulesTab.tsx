@@ -463,6 +463,15 @@ export function AdminRulesTab() {
     setCreateProgramOpen(true)
   }
 
+  const isTransientCreateProgramError = (error: any) => {
+    const message = String(error?.message || error || '').toLowerCase()
+    return message.includes('load failed')
+      || message.includes('failed to fetch')
+      || message.includes('networkerror')
+      || message.includes('network request failed')
+      || message.includes('fetch failed')
+  }
+
   const createProgram = async () => {
     const titleAr = newProgramTitleAr.trim()
     if (!titleAr) {
