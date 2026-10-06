@@ -343,7 +343,7 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
       data: {
         status: 'WAIVED',
         waiverType: waiver.waiverType,
-        waiverStatus: 'APPROVED',
+        waiverStatus: 'PROGRAM_APPLIED',
         waiverReason: waiver.reason,
         waivedAmount: centsToDollars(Math.max(payment.waivedAmountCents || 0, waiveApplicationCents)),
         waivedAmountCents: Math.max(payment.waivedAmountCents || 0, waiveApplicationCents),
