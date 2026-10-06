@@ -37,6 +37,11 @@ export async function GET() {
             reviewedAt: true,
           },
         },
+        waiverCodes: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, status: true, expiresAt: true, verifiedAt: true, approvedAt: true },
+        },
       },
     })
     // إثراء البيانات بمرجع الطلب وخطط التقسيط الدراسية
