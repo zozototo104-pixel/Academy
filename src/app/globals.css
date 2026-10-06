@@ -669,9 +669,6 @@ main,
 }
 
 @media (max-width: 640px) {
-  body {
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
-  }
   [data-slot="tabs-list"] {
     scrollbar-width: none;
   }
