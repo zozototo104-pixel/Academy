@@ -354,7 +354,8 @@ function jsonArray(value: unknown, fallback: any[] = []) {
     try {
       const parsed = JSON.parse(value)
       return Array.isArray(parsed) ? parsed : fallback
-    } catch {
+    } catch (error) {
+      console.warn('Failed to parse study guide JSON array value; using fallback.', error)
       return fallback
     }
   }
