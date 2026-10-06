@@ -17,6 +17,7 @@ interface RefreshPaymentAmountButtonProps {
 
 export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAmountButtonProps) {
   const { toast } = useToast()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [busy, setBusy] = useState(false)
 
   if (payment.status !== 'UNPAID') return <span>—</span>
