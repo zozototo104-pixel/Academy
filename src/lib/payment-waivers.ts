@@ -219,6 +219,17 @@ export async function createPaymentWaiverCode(params: {
   })
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
+  const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code email recipient.', error); return null })
+  if (recipient) {
+    await emailPaymentWaiverCode(recipient.email, {
+      name: recipient.name,
+      invoiceNo: recipient.invoiceNo,
+      description: recipient.description,
+      code,
+      waiverLabel: waiverTypeLabel(params.waiverType),
+      reason,
+    }).catch((error) => { console.warn('Failed to send payment waiver code email.', error) })
+  }
   return { code, waiver }
 }
 
