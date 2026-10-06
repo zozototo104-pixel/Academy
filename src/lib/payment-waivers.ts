@@ -104,7 +104,7 @@ export async function createPaymentWaiverCode(params: {
   return { code, waiver }
 }
 
-export async function verifyPaymentWaiverCode(params: { paymentId: string; code: string; user: { id: string; email?: string | null; name?: string | null } }) {
+export async function verifyPaymentWaiverCode(params: { paymentId: string; code: string; user: { id: string; email?: string | null; name?: string | null; emailVerifiedAt?: Date | string | null } }) {
   const payment = await db.payment.findUnique({
     where: { id: params.paymentId },
     include: { admission: { select: { id: true, userId: true, email: true, fullName: true, reference: true } }, enrollment: { select: { userId: true } } },
