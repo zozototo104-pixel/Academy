@@ -5,8 +5,8 @@ import { cleanAdminQuery } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
-function paymentSummary(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null }>) {
-  const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
+function paymentSummary(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>) {
+  const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
   const tuitionTotal = roundMoney(inferTotalTuition(payments))
   const tuitionPaid = roundMoney(tuitionPaidTotal(payments))
   const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     const candidates = await Promise.all(apps.map(async (app) => {
       const eligibility = await evaluateProgramCertificateEligibility({ userId: app.userId, programId: app.programId, admissionId: app.id })
-      const payments = paymentSummary(app.payments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
+      const payments = paymentSummary(app.payments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents, waiverType: p.waiverType, waivedAmount: p.waivedAmount, waivedAmountCents: p.waivedAmountCents, originalAmount: p.originalAmount, originalAmountCents: p.originalAmountCents })))
       const missing = [...payments.missing, ...(eligibility.ok ? [] : (eligibility.missing.length ? eligibility.missing : [eligibility.error || 'شروط النجاح الأكاديمي غير مكتملة']))]
       const ready = eligibility.ok && payments.tuitionOk && payments.nonTuitionUnpaid === 0
       return {

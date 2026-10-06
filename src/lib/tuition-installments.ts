@@ -3,7 +3,7 @@ import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
 
-type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
+type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
 
 function amountOf(payment: TuitionPayment): number {
   return paymentAmountDollars(payment)
@@ -25,6 +25,7 @@ function waivedAmountOf(payment: TuitionPayment): number {
 
 function settledAmountOf(payment: TuitionPayment): number {
   if (payment.status === 'PAID') return amountOf(payment)
+  if (payment.waiverType === 'PARTIAL_TUITION') return waivedAmountOf(payment)
   if (payment.status === 'WAIVED') return originalAmountOf(payment)
   return waivedAmountOf(payment)
 }
@@ -129,7 +130,7 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
       programRef: { select: { price: true } },
     },
   })
@@ -176,7 +177,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     where: { userId, programId },
     orderBy: { createdAt: 'desc' },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
+      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
       programRef: { select: { price: true } },
     },
   })
