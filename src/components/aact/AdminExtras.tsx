@@ -161,14 +161,19 @@ export function AdminThesisTab() {
   }
 
   const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION' | 'REQUEST_FINAL_REVISION') => {
-    const reviewNote = window.prompt(
-      action === 'APPROVE_PLAN'
-        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة:'
+    const reviewNote = await promptAction({
+      title: action === 'APPROVE_PLAN' ? 'اعتماد خطة البحث' : action === 'REQUEST_FINAL_REVISION' ? 'طلب تعديل البحث النهائي' : 'طلب تعديل خطة البحث',
+      description: action === 'APPROVE_PLAN'
+        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة.'
         : action === 'REQUEST_FINAL_REVISION'
-          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب:'
-          : 'اكتب ملاحظة التعديل التي ستظهر للطالب:',
-      thesis.reviewNote || ''
-    )
+          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب.'
+          : 'اكتب ملاحظة التعديل التي ستظهر للطالب.',
+      fieldLabel: 'ملاحظة للطالب',
+      defaultValue: thesis.reviewNote || '',
+      multiline: true,
+      confirmLabel: 'متابعة',
+      tone: action === 'APPROVE_PLAN' ? 'success' : 'warning',
+    })
     if (reviewNote === null) return
     setBusy(true)
     try {
