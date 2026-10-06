@@ -574,7 +574,8 @@ export function AdminRulesTab() {
         custom: d.custom,
       } : p)))
       toast({ title: reset ? 'أُعيدت القواعد والملف الأكاديمي للافتراضي' : 'حُفظت بيانات البرنامج وقواعد القبول والملف الأكاديمي' })
-    } catch {
+    } catch (error) {
+      console.warn('Failed to save program admission rules.', error)
       toast({ title: 'تعذر الحفظ', variant: 'destructive' })
     } finally {
       setSaving(false)
