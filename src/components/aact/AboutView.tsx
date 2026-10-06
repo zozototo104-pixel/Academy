@@ -79,9 +79,11 @@ export function AboutView() {
               address: String(parsed.address || prev.address),
             }))
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse about page official contact settings.', error)
+        }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load about page public settings.', error) })
     return () => { alive = false }
   }, [])
 
