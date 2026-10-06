@@ -95,7 +95,7 @@ export function tuitionPaidTotal(payments: TuitionPayment[]): number {
 
 export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): number {
   const fallbackTuition = Number(fallback) || 0
-  const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map(amountOf)
+  const fullTuition = payments.filter((p) => p.purpose === 'TUITION').map(originalAmountOf)
   const maxFull = Math.max(0, ...fullTuition)
 
   // لا نجمع فاتورة الرسوم الكاملة مع فواتير التقسيط، لأن التقسيط يمثل
