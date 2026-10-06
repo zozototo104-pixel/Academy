@@ -25,6 +25,7 @@ function waivedAmountOf(payment: TuitionPayment): number {
 
 function settledAmountOf(payment: TuitionPayment): number {
   if (payment.status === 'PAID') return amountOf(payment)
+  if (payment.waiverType === 'PARTIAL_TUITION') return waivedAmountOf(payment)
   if (payment.status === 'WAIVED') return originalAmountOf(payment)
   return waivedAmountOf(payment)
 }
