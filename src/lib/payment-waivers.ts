@@ -265,7 +265,7 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
     await audit(actor, 'APPLICATION_FEE_WAIVED', 'AdmissionApplication', app.id, `${app.reference} — ${payment.invoiceNo}`)
   }
 
-  if (allSettled && app.status === 'AWAITING_TUITION') {
+  if (tuitionSettled && allSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(app.status)) {
     const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
     await db.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
     if (app.programId && linkedUserId) {
