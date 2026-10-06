@@ -535,10 +535,10 @@ export class GeminiLiveAgent {
     this.lastUserSpeechAt = 0
     this.closeConnectionOnly()
     this.player.stop()
-    try { this.processor?.disconnect() } catch {}
-    try { this.source?.disconnect() } catch {}
-    try { this.ctx?.close() } catch {}
-    try { this.stream?.getTracks().forEach((t) => t.stop()) } catch {}
+    try { this.processor?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live processor.', error) }
+    try { this.source?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live audio source.', error) }
+    try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini Live audio context.', error) }
+    try { this.stream?.getTracks().forEach((t) => t.stop()) } catch (error) { console.warn('Failed to stop Gemini Live media tracks.', error) }
     this.stream = null
     this.ctx = null
     this.processor = null
