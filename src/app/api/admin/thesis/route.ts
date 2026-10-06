@@ -205,7 +205,7 @@ export async function PATCH(req: NextRequest) {
         await db.admissionApplication.update({
           where: { id: thesis.admissionId },
           data: { status: 'SCHEDULED' },
-        }).catch(() => {})
+        }).catch((error) => { console.warn('Failed to update admission status after defense scheduling.', error) })
       }
       await notify(
         thesis.userId,
