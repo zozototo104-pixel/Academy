@@ -633,6 +633,19 @@ interface PaymentProofRow {
   reviewedBy?: { id: string; name: string; email: string } | null
 }
 
+interface PaymentWaiverCodeRow {
+  id: string
+  codePreview: string
+  waiverType: string
+  requestedAmount?: number | null
+  reason?: string | null
+  status: string
+  expiresAt?: string | null
+  verifiedAt?: string | null
+  approvedAt?: string | null
+  createdAt: string
+}
+
 interface PaymentRow {
   id: string
   invoiceNo: string
@@ -640,6 +653,12 @@ interface PaymentRow {
   description: string
   amount: number
   status: string
+  waiverType?: string | null
+  waiverStatus?: string | null
+  waiverReason?: string | null
+  waivedAmount?: number | null
+  originalAmount?: number | null
+  waiverCodes?: PaymentWaiverCodeRow[]
   method?: string | null
   provider?: string | null
   cryptoNetwork?: string | null
