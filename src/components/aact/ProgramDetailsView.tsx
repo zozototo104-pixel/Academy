@@ -105,7 +105,9 @@ function cachePrograms(list: Program[], catalogVersion?: string | null) {
     localStorage.setItem('aact_programs_summary_version', version)
     localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 160)))
     localStorage.setItem('aact_program_count', String(list.length))
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to cache program details summary.', error)
+  }
 }
 
 function semesterLabel(value?: number | null) {
