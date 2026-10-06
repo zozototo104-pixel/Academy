@@ -835,7 +835,9 @@ export function AdminQualityTab() {
           const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
           unitId = units[Number(choice || 0) - 1]?.id || null
         }
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to load program units for exam generation picker.', error)
+      }
     }
     const payloadBase = { programId: program.id, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
     const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
