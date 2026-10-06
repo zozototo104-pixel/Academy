@@ -2603,7 +2603,8 @@ function parseAuditDetails(details?: string | null): any | null {
   if (!details) return null
   try {
     return JSON.parse(details)
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse audit details JSON.', error)
     return null
   }
 }
