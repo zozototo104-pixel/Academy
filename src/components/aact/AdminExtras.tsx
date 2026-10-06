@@ -1128,11 +1128,24 @@ export function AdminFinanceTab() {
                       </td>
                       <td className="p-3">
                         {p.status === 'UNPAID' ? (
-                          <Button size="sm" variant="outline" onClick={() => confirm(p)}
-                            className="border-emerald-200 font-bold text-emerald-600">
-                            <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
-                          </Button>
-                        ) : '—'}
+                          <div className="flex flex-col gap-1">
+                            <Button size="sm" variant="outline" onClick={() => confirm(p)}
+                              className="border-emerald-200 font-bold text-emerald-600">
+                              <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
+                            </Button>
+                            {p.waiverCodes?.some((w) => w.status === 'VERIFIED') ? (
+                              <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                                <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
+                              </Button>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
+                                {['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
+                                {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
+                              </div>
+                            )}
+                          </div>
+                        ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
                       </td>
                     </tr>
                   ))}
