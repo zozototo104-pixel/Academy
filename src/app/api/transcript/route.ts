@@ -134,8 +134,8 @@ export async function GET() {
       })
 
       let completedUnits = 0
-      try { completedUnits = JSON.parse(en.completedUnits || '[]').length } catch {}
-      const finalGrade = await calculateFinalGrade({ userId: user.id, programId: en.programId, admissionId: programAdmission?.id || null }).catch(() => null)
+      try { completedUnits = JSON.parse(en.completedUnits || '[]').length } catch (error) { console.warn('Failed to parse transcript completed units JSON.', error) }
+      const finalGrade = await calculateFinalGrade({ userId: user.id, programId: en.programId, admissionId: programAdmission?.id || null }).catch((error) => { console.warn('Failed to calculate transcript final grade.', error); return null })
 
       programs.push({
         enrollmentId: en.id,
