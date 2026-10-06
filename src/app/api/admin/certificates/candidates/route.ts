@@ -5,7 +5,7 @@ import { cleanAdminQuery } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
-function paymentSummary(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>) {
+function paymentSummary(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>) {
   const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
   const tuitionTotal = roundMoney(inferTotalTuition(payments))
   const tuitionPaid = roundMoney(tuitionPaidTotal(payments))
