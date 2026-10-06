@@ -541,7 +541,9 @@ export function ApplyView() {
         document.documentElement.scrollTop = 0
         document.body.scrollTop = 0
         requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to scroll after application submission.', error)
+      }
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)
