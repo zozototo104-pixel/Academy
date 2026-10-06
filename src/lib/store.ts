@@ -200,13 +200,17 @@ function storageGet(storage: Storage | undefined, key: string): string | null {
 function storageSet(storage: Storage | undefined, key: string, value: string) {
   try {
     storage?.setItem(key, value)
-  } catch {}
+  } catch (error) {
+    console.warn(`Failed to write ${key} to browser storage.`, error)
+  }
 }
 
 function storageRemove(storage: Storage | undefined, key: string) {
   try {
     storage?.removeItem(key)
-  } catch {}
+  } catch (error) {
+    console.warn(`Failed to remove ${key} from browser storage.`, error)
+  }
 }
 
 export function getToken(): string | null {
