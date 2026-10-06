@@ -153,7 +153,8 @@ export async function createPaymentWaiverCode(params: {
   if (params.waiverType === 'PARTIAL_TUITION') {
     requestedAmountCents = dollarsToCents(params.requestedAmount ?? 0)
     if (requestedAmountCents <= 0) throw new Error('مبلغ الإعفاء الجزئي يجب أن يكون أكبر من صفر')
-    if (requestedAmountCents >= currentCents) throw new Error('الإعفاء الجزئي يجب أن يكون أقل من المبلغ المتبقي. استخدم منحة كاملة للإعفاء الكامل.')
+    if (purpose !== 'APPLICATION_FEE' && requestedAmountCents >= currentCents) throw new Error('الإعفاء الجزئي يجب أن يكون أقل من المبلغ المتبقي. استخدم منحة كاملة للإعفاء الكامل.')
+    if (purpose === 'APPLICATION_FEE' && requestedAmountCents <= currentCents) throw new Error('للإعفاء الجزئي من فاتورة التقديم أدخل مبلغاً أكبر من رسوم التقديم حتى يخصم الباقي من الرسوم الدراسية.')
   }
 
   await db.paymentWaiverCode.updateMany({
