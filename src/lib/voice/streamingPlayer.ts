@@ -145,7 +145,7 @@ export class StreamingTtsPlayer {
     if (this.ctx && Math.abs(this.ctx.sampleRate - this.sampleRate) > 1) {
       // sampleRate مختلف عن المتوقع — أنشئ سياقاً مطابقاً
       const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
-      try { await this.ctx.close() } catch {}
+      try { await this.ctx.close() } catch (error) { console.warn('Failed to close mismatched streaming player audio context.', error) }
       const ctx2: AudioContext = new Ctx({ sampleRate: this.sampleRate })
       this.ctx = ctx2
       this.gain = ctx2.createGain()
