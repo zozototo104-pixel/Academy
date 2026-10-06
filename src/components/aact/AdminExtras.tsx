@@ -686,7 +686,7 @@ interface Report {
 
 export function AdminFinanceTab() {
   const { toast } = useToast()
-  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
   const [report, setReport] = useState<Report | null>(null)
