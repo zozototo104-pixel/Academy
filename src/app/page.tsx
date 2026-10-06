@@ -163,7 +163,9 @@ export default function Home() {
       if (q.has('authToken') || hasSeenStartup() || Boolean(getToken())) {
         setStartupDone(true)
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to inspect startup route state.', error)
+    }
   }, [])
 
   // Load current user on mount
