@@ -167,7 +167,9 @@ export async function POST(req: NextRequest) {
   let body: { model?: string; voice?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse Gemini live session request body JSON.', error)
+  }
 
   const purpose = cleanPurpose(body.purpose)
   const allowance = body.testOnly
