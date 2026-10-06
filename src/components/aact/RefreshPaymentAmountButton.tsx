@@ -5,6 +5,7 @@ import { RefreshCw, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 
 interface RefreshPaymentAmountButtonProps {
   payment: {
