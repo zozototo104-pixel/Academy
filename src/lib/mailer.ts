@@ -157,13 +157,15 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
       if (sentByResend) {
         await db.emailLog.create({
           data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'SMTP failed; sent by RESEND' },
-        }).catch(() => {})
+        }).catch((error) => { console.warn('Failed to log Resend fallback email success.', error) })
         return true
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Resend fallback email delivery failed after SMTP failure.', error)
+    }
     await db.emailLog.create({
       data: { to: input.to, subject: input.subject, event: input.event, status: 'FAILED', error: String(e?.message || e).slice(0, 400) },
-    }).catch(() => {})
+    }).catch((error) => { console.warn('Failed to log email delivery failure.', error) })
     return false
   }
 }
