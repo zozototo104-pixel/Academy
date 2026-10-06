@@ -2191,6 +2191,7 @@ export function AdminSettingsTab() {
 
   return (
     <div className="mt-4 space-y-5">
+      {actionDialog}
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
