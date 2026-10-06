@@ -819,7 +819,7 @@ export function AdminFinanceTab() {
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
       try { await navigator.clipboard?.writeText(result.code) } catch (error) { console.warn('Failed to copy waiver code automatically.', error) }
-      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.`, duration: 12000 })
+      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.` })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
