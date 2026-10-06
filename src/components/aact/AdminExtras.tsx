@@ -769,6 +769,82 @@ export function AdminFinanceTab() {
     }
   }
 
+  const waiverLabel = (type?: string | null) => type === 'APPLICATION_FEE'
+    ? 'إعفاء رسوم التقديم'
+    : type === 'PARTIAL_TUITION'
+      ? 'إعفاء جزئي'
+      : type === 'FULL_SCHOLARSHIP'
+        ? 'منحة كاملة'
+        : 'إعفاء'
+
+  const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
+    if (payment.status !== 'UNPAID') {
+      toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
+      return
+    }
+    let requestedAmount: number | null = null
+    if (waiverType === 'PARTIAL_TUITION') {
+      const amountText = await promptAction({
+        title: 'مبلغ الإعفاء الجزئي',
+        description: `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        fieldLabel: 'مبلغ الإعفاء بالدولار',
+        placeholder: 'مثال: 100',
+        required: true,
+        minLength: 1,
+        confirmLabel: 'متابعة',
+        tone: 'warning',
+      })
+      if (amountText === null) return
+      requestedAmount = Number(amountText)
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount >= Number(payment.amount || 0)) {
+        toast({ title: 'مبلغ غير صالح', description: 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.', variant: 'destructive' })
+        return
+      }
+    }
+    const reason = await promptAction({
+      title: `توليد كود ${waiverLabel(waiverType)}`,
+      description: 'اكتب سبباً إدارياً واضحاً. سيظهر السبب في سجل التدقيق ولا يعتبر دفعاً فعلياً.',
+      fieldLabel: 'سبب الإعفاء',
+      placeholder: 'مثال: حالة إنسانية / قرار لجنة / منحة ممثل معتمدة',
+      required: true,
+      minLength: 6,
+      multiline: true,
+      confirmLabel: 'توليد الكود',
+      tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
+    })
+    if (reason === null) return
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
+      })
+      try { await navigator.clipboard?.writeText(result.code) } catch (error) { console.warn('Failed to copy waiver code automatically.', error) }
+      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.`, duration: 12000 })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const approveWaiver = async (payment: PaymentRow) => {
+    const waiver = payment.waiverCodes?.find((w) => w.status === 'VERIFIED') || payment.waiverCodes?.[0]
+    if (!waiver) return
+    const ok = await confirmAction({
+      title: `اعتماد ${waiverLabel(waiver.waiverType)}`,
+      description: 'سيتم تطبيق الإعفاء مالياً. الإعفاء الكامل يحول الفاتورة إلى معفاة وليس مدفوعة، والإعفاء الجزئي يخفض المبلغ المتبقي فقط.',
+      confirmLabel: 'اعتماد الإعفاء',
+      tone: 'success',
+    })
+    if (!ok) return
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })
+      toast({ title: 'تم اعتماد الإعفاء', description: 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد الإعفاء', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const openInvoicePdf = async (id: string) => {
     const popup = window.open('', '_blank')
     if (popup) {
