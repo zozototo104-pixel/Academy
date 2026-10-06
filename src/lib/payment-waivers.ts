@@ -249,11 +249,12 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
   }
 
   const all = await db.payment.findMany({ where: { admissionId: app.id } })
-  const allSettled = all.every((p) => isSettledPayment(p.status))
+  const allSettled = all.length > 0 && all.every((p) => isSettledPayment(p.status))
   const applicationFeeSettled = all.some((p) => p.purpose === 'APPLICATION_FEE' && isSettledPayment(p.status))
+  const tuitionSettled = all.some((p) => ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && isSettledPayment(p.status))
 
-  if (applicationFeeSettled && app.status === 'AWAITING_FEE') {
-    await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'UNDER_REVIEW' } })
+  if (applicationFeeSettled && app.status === 'AWAITING_FEE' && !tuitionSettled) {
+    await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
     for (const admin of admins) {
       await notify(admin.id, 'ADMISSION', 'طلب التحاق بانتظار الدراسة بعد إعفاء الرسوم', `تم اعتماد إعفاء رسوم التقديم للمتقدم ${app.fullName} (${app.reference}) — برنامج: ${app.program}.`, 'admin')
