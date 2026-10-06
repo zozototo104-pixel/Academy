@@ -61,7 +61,7 @@ async function openDashboardPdf(path: string, filename: string) {
     }
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   } catch (e: any) {
-    try { popup?.close() } catch {}
+    try { popup?.close() } catch (closeError) { console.warn('Unable to close dashboard PDF popup after failure.', closeError) }
     toast({ title: 'تعذر فتح PDF', description: e.message || 'حدث خطأ أثناء تجهيز الملف', variant: 'destructive' })
   }
 }
