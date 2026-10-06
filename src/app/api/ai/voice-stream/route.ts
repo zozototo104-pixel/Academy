@@ -47,7 +47,9 @@ export async function POST(req: NextRequest) {
   let body: { message?: string; interruptNote?: string } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse voice stream request body JSON.', error)
+  }
   const message = (body.message || '').trim()
   const interruptNote = (body.interruptNote || '').trim()
   if (!message) {
