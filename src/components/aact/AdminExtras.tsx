@@ -796,8 +796,13 @@ export function AdminFinanceTab() {
       })
       if (amountText === null) return
       requestedAmount = Number(amountText)
-      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount >= Number(payment.amount || 0)) {
-        toast({ title: 'مبلغ غير صالح', description: 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.', variant: 'destructive' })
+      const isApplicationFee = payment.purpose === 'APPLICATION_FEE'
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount >= Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
+        toast({
+          title: 'مبلغ غير صالح',
+          description: isApplicationFee ? 'في فاتورة التقديم، اكتب مبلغاً أكبر من 30$ حتى يخصم 30$ للتقديم والباقي من رسوم البرنامج.' : 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.',
+          variant: 'destructive',
+        })
         return
       }
     }
