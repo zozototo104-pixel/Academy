@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         controller.enqueue(sse({ type: 'done' }))
       } catch (e: any) {
         console.error('tts-stream error:', e?.message?.slice(0, 160))
-        try { controller.enqueue(sse({ type: 'error', error: 'فشل توليد الصوت' })) } catch {}
+        try { controller.enqueue(sse({ type: 'error', error: 'فشل توليد الصوت' })) } catch (error) { console.warn('Failed to enqueue TTS stream error event.', error) }
       } finally {
         controller.close()
       }
