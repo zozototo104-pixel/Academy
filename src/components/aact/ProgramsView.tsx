@@ -96,7 +96,9 @@ export function ProgramsView() {
         setPrograms(cached)
         setLoading(false)
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read cached programs summary.', error)
+    }
 
     try {
       const d = user
