@@ -2730,7 +2730,7 @@ function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
 function parseAuditJson(details?: string | null): any | null {
   const raw = String(details || '').trim()
   if (!raw || !raw.startsWith('{')) return null
-  try { return JSON.parse(raw) } catch { return null }
+  try { return JSON.parse(raw) } catch (error) { console.warn('Failed to parse AI knowledge audit JSON.', error); return null }
 }
 
 function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {
