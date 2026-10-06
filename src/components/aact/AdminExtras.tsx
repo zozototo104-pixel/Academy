@@ -1013,6 +1013,7 @@ export function AdminFinanceTab() {
             { value: 'ALL', label: 'كل الفواتير' },
             { value: 'UNPAID', label: 'غير مسددة' },
             { value: 'PAID', label: 'مسددة' },
+            { value: 'WAIVED', label: 'معفاة' },
             { value: 'MANUAL_PENDING', label: 'دفع مباشر بانتظار التأكيد' },
             { value: 'APPLICATION_FEE', label: 'رسوم تقديم' },
             { value: 'TUITION', label: 'رسوم دراسية' },
