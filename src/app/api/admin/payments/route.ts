@@ -147,6 +147,11 @@ export async function GET(req: NextRequest) {
               reviewedBy: { select: { id: true, name: true, email: true } },
             },
           },
+          waiverCodes: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, reason: true, status: true, expiresAt: true, verifiedAt: true, approvedAt: true, createdAt: true },
+          },
         },
       }),
       db.payment.count({ where }),
