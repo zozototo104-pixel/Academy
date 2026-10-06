@@ -388,9 +388,20 @@ export async function PATCH(req: NextRequest) {
     // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
-      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
-      const tuitionTotal = inferTotalTuition(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
-      const tuitionPaid = tuitionPaidTotal(allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
+      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
+      const paymentRows = allPayments.map((p) => ({
+        purpose: p.purpose,
+        status: p.status,
+        amount: p.amount,
+        amountCents: p.amountCents,
+        waiverType: p.waiverType,
+        waivedAmount: p.waivedAmount,
+        waivedAmountCents: p.waivedAmountCents,
+        originalAmount: p.originalAmount,
+        originalAmountCents: p.originalAmountCents,
+      }))
+      const tuitionTotal = inferTotalTuition(paymentRows)
+      const tuitionPaid = tuitionPaidTotal(paymentRows)
       const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
       if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
         return NextResponse.json(
