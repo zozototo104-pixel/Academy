@@ -108,12 +108,12 @@ export class VoiceAgent {
     this.fsm.to('IDLE')
     if (this.evaluator) { clearInterval(this.evaluator); this.evaluator = null }
     if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = null }
-    try { this.rec?.abort() } catch {}
+    try { this.rec?.abort() } catch (error) { console.warn('Failed to abort speech recognition while stopping voice agent.', error) }
     this.rec = null
     this.streamAbort?.abort()
     this.streamAbort = null
     this.player.destroy()
-    try { await this.vad?.destroy() } catch {}
+    try { await this.vad?.destroy() } catch (error) { console.warn('Failed to destroy VAD while stopping voice agent.', error) }
     this.vad = null
   }
 
