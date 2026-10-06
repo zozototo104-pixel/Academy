@@ -314,7 +314,7 @@ export class StreamingTtsPlayer {
   /** إغلاق كامل عند مغادرة الوضع الصوتي */
   destroy() {
     this.stop(10)
-    setTimeout(() => { try { this.ctx?.close() } catch {} }, 150)
+    setTimeout(() => { try { this.ctx?.close() } catch (error) { console.warn('Failed to close streaming player audio context during destroy.', error) } }, 150)
     this.ctx = null
   }
 }
