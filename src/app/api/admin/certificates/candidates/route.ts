@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     const candidates = await Promise.all(apps.map(async (app) => {
       const eligibility = await evaluateProgramCertificateEligibility({ userId: app.userId, programId: app.programId, admissionId: app.id })
-      const payments = paymentSummary(app.payments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents })))
+      const payments = paymentSummary(app.payments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents, waivedAmount: p.waivedAmount, waivedAmountCents: p.waivedAmountCents, originalAmount: p.originalAmount, originalAmountCents: p.originalAmountCents })))
       const missing = [...payments.missing, ...(eligibility.ok ? [] : (eligibility.missing.length ? eligibility.missing : [eligibility.error || 'شروط النجاح الأكاديمي غير مكتملة']))]
       const ready = eligibility.ok && payments.tuitionOk && payments.nonTuitionUnpaid === 0
       return {
