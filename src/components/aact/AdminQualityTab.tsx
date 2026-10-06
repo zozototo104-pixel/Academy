@@ -2669,7 +2669,7 @@ export function AdminQualityTab() {
                 {(selectedExam?.questions || []).map((q) => {
                   const checked = selectedExamQuestionIds.includes(q.id)
                   let options: string[] = []
-                  try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+                  try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse selected exam question options for display.', error) }
                   return (
                     <label key={q.id} className={`block cursor-pointer rounded-2xl border p-3 text-xs ${checked ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-200 bg-white'}`}>
                       <div className="flex items-start gap-2">
