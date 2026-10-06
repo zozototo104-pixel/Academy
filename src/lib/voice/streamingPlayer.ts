@@ -282,7 +282,7 @@ export class StreamingTtsPlayer {
       }
       if (this.node) {
         this.node.port.postMessage({ type: 'stop' })
-        setTimeout(() => { try { this.node?.disconnect() } catch {} }, fadeMs + 10)
+        setTimeout(() => { try { this.node?.disconnect() } catch (error) { console.warn('Failed to disconnect voice worklet node after fade out.', error) } }, fadeMs + 10)
         this.node = null
       }
       if (this.spNode) {
