@@ -1225,6 +1225,8 @@ export function AdminView() {
                                     <div className="flex items-center gap-1.5">
                                       {p.status === 'PAID' ? (
                                         <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مدفوعة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
+                                      ) : p.status === 'WAIVED' ? (
+                                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة من الدفع</Badge>
                                       ) : (
                                         <>
                                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الدفع</Badge>
