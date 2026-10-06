@@ -172,7 +172,7 @@ async function openAuthenticatedPdf(path: string, filename: string, onError: (me
     }
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   } catch (e: any) {
-    try { popup?.close() } catch {}
+    try { popup?.close() } catch (closeError) { console.warn('Unable to close authenticated PDF popup after failure.', closeError) }
     onError(e.message || 'تعذر فتح ملف PDF')
   }
 }
