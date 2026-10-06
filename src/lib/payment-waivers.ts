@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { audit, notify } from '@/lib/notify'
 import { dollarsToCents, paymentAmountCents, centsToDollars } from '@/lib/money'
 import { getSettings, nextInvoiceNo } from '@/lib/settings'
+import { emailPaymentWaiverCode } from '@/lib/mailer'
 
 export const PAYMENT_WAIVER_TYPES = ['APPLICATION_FEE', 'PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] as const
 export type PaymentWaiverType = typeof PAYMENT_WAIVER_TYPES[number]
