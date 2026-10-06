@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
     const status = cleanAdminQuery(sp.get('status'))
     const method = cleanAdminQuery(sp.get('method'))
 
-    const knownStatuses = new Set(['PAID', 'UNPAID'])
+    const knownStatuses = new Set(['PAID', 'UNPAID', 'WAIVED'])
     const knownPurposes = new Set(['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT', 'ACCREDITATION_APP', 'ACCREDITATION_FEE', 'ACCREDITATION', 'SERVICE_FEE', 'AI_LIVE_CREDIT', 'OTHER'])
     const manualPendingWhere = {
       status: 'UNPAID',
