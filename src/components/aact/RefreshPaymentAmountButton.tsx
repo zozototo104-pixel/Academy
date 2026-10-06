@@ -77,15 +77,18 @@ export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAm
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={busy}
-      onClick={refreshAmount}
-      className="border-[#c9a227]/40 font-bold text-[#a8841a]"
-    >
-      {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
-      تحديث المبلغ
-    </Button>
+    <>
+      {actionDialog}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        onClick={refreshAmount}
+        className="border-[#c9a227]/40 font-bold text-[#a8841a]"
+      >
+        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
+        تحديث المبلغ
+      </Button>
+    </>
   )
 }
