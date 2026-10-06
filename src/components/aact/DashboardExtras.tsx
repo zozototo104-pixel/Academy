@@ -146,7 +146,7 @@ async function openAuthenticatedPdf(path: string, filename: string, onError: (me
   const popup = window.open('', '_blank')
   if (popup) {
     popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
-    try { popup.opener = null } catch {}
+    try { popup.opener = null } catch (error) { console.warn('Unable to detach authenticated PDF popup opener.', error) }
   }
   try {
     const token = getToken()
