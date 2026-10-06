@@ -96,7 +96,9 @@ function parseProgramFeatures(raw: unknown): string[] {
   try {
     const parsed = JSON.parse(text)
     if (Array.isArray(parsed)) return parsed.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()).slice(0, 12)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse program features JSON; falling back to delimited text.', error)
+  }
   return text.split(/\r?\n|،|,/).map((item) => item.trim()).filter(Boolean).slice(0, 12)
 }
 
