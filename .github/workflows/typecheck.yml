@@ -68,7 +68,7 @@ jobs:
 
       - name: Enforce current ESLint warning ceiling
         shell: bash
-        run: bunx eslint . --max-warnings=${{ steps.eslint-baseline.outputs.warnings }}
+        run: bunx eslint . --max-warnings=177
 
       - name: Upload ESLint report
         if: always()
