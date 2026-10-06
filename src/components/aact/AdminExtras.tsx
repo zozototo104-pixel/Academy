@@ -84,7 +84,9 @@ function parseCommitteeNames(raw?: string | null): string[] {
     if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 8)
     if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
     if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 8)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse thesis committee names; falling back to plain text split.', error)
+  }
   return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
 }
 
