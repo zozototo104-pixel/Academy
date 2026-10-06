@@ -339,6 +339,16 @@ model Payment {
   cryptoVerificationRaw    Json?
   manualApprovalReference String?
   manualApprovalNote      String?
+  waiverType              String?   // APPLICATION_FEE | PARTIAL_TUITION | FULL_SCHOLARSHIP
+  waiverStatus            String?   // REQUESTED | VERIFIED | APPROVED | REJECTED | CANCELLED
+  waiverReason            String?
+  waivedAmount            Float     @default(0)
+  waivedAmountCents       Int       @default(0)
+  originalAmount          Float?
+  originalAmountCents     Int?
+  waiverApprovedById      String?
+  waiverApprovedAt        DateTime?
+  waiverCodes             PaymentWaiverCode[]
   proofs       PaymentProof[]
   paidAt      DateTime?
   payerName   String?
