@@ -401,6 +401,28 @@ export function PaymentsTab() {
     }
   }
 
+  const submitWaiverCode = async (payment: Payment) => {
+    const code = (waiverCodes[payment.id] || '').trim().toUpperCase()
+    if (!code) {
+      toast({ title: 'أدخل كود الإعفاء', description: 'اكتب الكود الذي زودتك به الإدارة.', variant: 'destructive' })
+      return
+    }
+    setVerifyingWaiver(payment.id)
+    try {
+      const res = await api<{ message: string }>('/api/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, code }),
+      })
+      toast({ title: 'تم التحقق من الكود', description: res.message || 'بانتظار اعتماد الإدارة النهائي.' })
+      setWaiverCodes((prev) => ({ ...prev, [payment.id]: '' }))
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر التحقق من كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setVerifyingWaiver(null)
+    }
+  }
+
   const pay = async () => {
     if (!payTarget) return
     const selectedMethod = payConfig?.methods?.find((m) => m.id === method)
