@@ -45,7 +45,9 @@ function updateBrowserRoute(view: View, params: Record<string, string | null | u
     const next = pathForView(view, params)
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
     if (next !== current) window.history.pushState(null, '', next)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to update browser route for application navigation.', error)
+  }
   scrollPageToTopSoon()
 }
 
