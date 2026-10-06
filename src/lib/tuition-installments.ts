@@ -3,7 +3,7 @@ import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
 
-type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
+type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
 
 function amountOf(payment: TuitionPayment): number {
   return paymentAmountDollars(payment)
