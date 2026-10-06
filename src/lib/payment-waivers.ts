@@ -282,15 +282,16 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
 export async function approvePaymentWaiver(params: { waiverId: string; actor: { id?: string | null; name: string } }) {
   const waiver = await db.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
   if (!waiver) throw new Error('كود الإعفاء غير موجود')
-  if (!['VERIFIED', 'ISSUED'].includes(waiver.status)) throw new Error('لا يمكن اعتماد هذا الكود بحالته الحالية')
+  if (!['VERIFIED', 'ISSUED', 'APPROVED'].includes(waiver.status)) throw new Error('لا يمكن اعتماد هذا الكود بحالته الحالية')
   const payment = waiver.payment
+  const purpose = String(payment.purpose || '').toUpperCase()
   if (payment.status === 'PAID') throw new Error('لا يمكن إعفاء فاتورة مسددة فعلياً')
-  if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
+  if (payment.status === 'WAIVED' && purpose !== 'APPLICATION_FEE') throw new Error('الفاتورة معفاة مسبقاً')
 
   const currentCents = paymentAmountCents(payment)
   const originalCents = payment.originalAmountCents ?? currentCents
 
-  if (String(payment.purpose || '').toUpperCase() === 'APPLICATION_FEE') {
+  if (purpose === 'APPLICATION_FEE') {
     const requestedCents = waiver.waiverType === 'PARTIAL_TUITION'
       ? Number(waiver.requestedAmountCents || 0)
       : currentCents
