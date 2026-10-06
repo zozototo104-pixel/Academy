@@ -291,7 +291,9 @@ export class StreamingTtsPlayer {
         this.spNode = null
       }
       this.workletReady = null
-    } catch {}
+    } catch (error) {
+      console.warn('Failed while stopping streaming voice player.', error)
+    }
     this.playing = false
   }
 
