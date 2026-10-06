@@ -631,7 +631,7 @@ export function PaymentsTab() {
                       </div>
                     </div>
                   )}
-                  {p.status === 'UNPAID' && (
+                  {p.status === 'UNPAID' && p.waiverCodes?.[0] && (
                     <div className='mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold text-blue-950'>
                       <div className='flex flex-wrap items-center justify-between gap-2'>
                         <span>لديك كود إعفاء من الإدارة؟</span>

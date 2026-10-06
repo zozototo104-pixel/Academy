@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { audit, notify } from '@/lib/notify'
 import { dollarsToCents, paymentAmountCents, centsToDollars } from '@/lib/money'
 import { getSettings, nextInvoiceNo } from '@/lib/settings'
+import { emailPaymentWaiverCode } from '@/lib/mailer'
 
 export const PAYMENT_WAIVER_TYPES = ['APPLICATION_FEE', 'PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] as const
 export type PaymentWaiverType = typeof PAYMENT_WAIVER_TYPES[number]
@@ -31,6 +32,30 @@ export function isSettledPayment(status?: string | null) {
 
 function cleanReason(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 700)
+}
+
+function waiverTypeLabel(type: string) {
+  if (type === 'APPLICATION_FEE') return 'إعفاء رسوم التقديم'
+  if (type === 'PARTIAL_TUITION') return 'إعفاء جزئي من الرسوم'
+  if (type === 'FULL_SCHOLARSHIP') return 'منحة كاملة'
+  return 'إعفاء مالي'
+}
+
+async function resolveWaiverEmailRecipient(paymentId: string) {
+  const payment = await db.payment.findUnique({
+    where: { id: paymentId },
+    include: {
+      user: { select: { email: true, name: true } },
+      admission: { select: { email: true, fullName: true } },
+      enrollment: { include: { user: { select: { email: true, name: true } } } },
+      agent: { select: { email: true, repName: true, orgName: true } },
+    },
+  })
+  if (!payment) return null
+  const email = payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email || ''
+  if (!email || !email.includes('@')) return null
+  const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.repName || payment.agent?.orgName || 'الطالب'
+  return { email, name, invoiceNo: payment.invoiceNo, description: payment.description }
 }
 
 function addMonths(date: Date, months: number) {
@@ -194,6 +219,17 @@ export async function createPaymentWaiverCode(params: {
   })
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
+  const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code email recipient.', error); return null })
+  if (recipient) {
+    await emailPaymentWaiverCode(recipient.email, {
+      name: recipient.name,
+      invoiceNo: recipient.invoiceNo,
+      description: recipient.description,
+      code,
+      waiverLabel: waiverTypeLabel(params.waiverType),
+      reason,
+    }).catch((error) => { console.warn('Failed to send payment waiver code email.', error) })
+  }
   return { code, waiver }
 }
 

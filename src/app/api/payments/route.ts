@@ -38,6 +38,7 @@ export async function GET() {
           },
         },
         waiverCodes: {
+          where: { status: { in: ['ISSUED', 'VERIFIED'] } },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, status: true, expiresAt: true, verifiedAt: true, approvedAt: true },
