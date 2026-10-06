@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap, BookOpen, Target, ListChecks, Search, PlusCircle, Archive } from 'lucide-react'
 
 // ===== تبويب قواعد القبول المخصصة لكل برنامج =====
