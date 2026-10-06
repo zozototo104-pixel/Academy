@@ -272,7 +272,9 @@ export function HomeView() {
               localStorage.setItem('aact_programs_summary_version', version)
               localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
               localStorage.removeItem('aact_programs_summary_v3')
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to cache home programs summary.', error)
+            }
           }
         })
         .catch(() => {
