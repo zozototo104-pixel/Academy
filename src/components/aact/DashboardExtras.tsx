@@ -588,7 +588,7 @@ export function PaymentsTab() {
                   <div className='flex flex-wrap items-center gap-2'>
                     <span className='rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]' dir='ltr'>{p.invoiceNo}</span>
                     <h4 className='text-sm font-black text-[#0f2b46]'>{p.description}</h4>
-                    {p.status === 'PAID' ? <Badge className='bg-emerald-100 text-emerald-700 hover:bg-emerald-100'><CheckCircle2 className='ml-1 h-3 w-3' /> مسددة</Badge> : <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار السداد</Badge>}
+                    {p.status === 'PAID' ? <Badge className='bg-emerald-100 text-emerald-700 hover:bg-emerald-100'><CheckCircle2 className='ml-1 h-3 w-3' /> مسددة</Badge> : p.status === 'WAIVED' ? <Badge className='bg-blue-100 text-blue-700 hover:bg-blue-100'><CheckCircle2 className='ml-1 h-3 w-3' /> معفاة</Badge> : <Badge className='bg-amber-100 text-amber-700 hover:bg-amber-100'><Clock3 className='ml-1 h-3 w-3' /> بانتظار السداد</Badge>}
                   </div>
                   <p className='mt-1 text-[11px] text-slate-500'>{PURPOSE_LABEL[p.purpose] || p.purpose}{p.reference ? ` — طلب ${p.reference}` : ''}{p.method ? ` — عبر ${METHOD_LABEL[p.method] || p.method}` : ''}{p.receiptNo ? ` — إيصال ${p.receiptNo}` : ''}</p>
                   {p.status === 'UNPAID' && p.method === 'USDT' && (
