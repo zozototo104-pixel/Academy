@@ -287,7 +287,7 @@ export class StreamingTtsPlayer {
       }
       if (this.spNode) {
         (this as any)._sp?.setPlaying(false)
-        setTimeout(() => { try { this.spNode?.disconnect() } catch {} }, fadeMs + 10)
+        setTimeout(() => { try { this.spNode?.disconnect() } catch (error) { console.warn('Failed to disconnect script processor fallback after fade out.', error) } }, fadeMs + 10)
         this.spNode = null
       }
       this.workletReady = null
