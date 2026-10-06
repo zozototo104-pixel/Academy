@@ -631,6 +631,22 @@ export function PaymentsTab() {
                       </div>
                     </div>
                   )}
+                  {p.status === 'UNPAID' && (
+                    <div className='mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold text-blue-950'>
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <span>لديك كود إعفاء من الإدارة؟</span>
+                        {p.waiverCodes?.[0] ? <Badge className='bg-white text-blue-700 hover:bg-white'>{p.waiverCodes[0].status === 'VERIFIED' ? 'تم التحقق — بانتظار الاعتماد' : p.waiverCodes[0].status}</Badge> : null}
+                      </div>
+                      <div className='mt-2 flex flex-col gap-2 sm:flex-row'>
+                        <Input dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
+                        <Button size='sm' disabled={verifyingWaiver === p.id} onClick={() => submitWaiverCode(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
+                          {verifyingWaiver === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
+                          تحقق من الكود
+                        </Button>
+                      </div>
+                      {p.waiverStatus === 'VERIFIED' ? <p className='mt-1 text-blue-800'>تم التحقق من الكود. بانتظار اعتماد الإدارة النهائي.</p> : null}
+                    </div>
+                  )}
                 </div>
                 <div className='flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end'>
                   <span className='text-lg font-black text-[#0f2b46]'><Money value={p.amount} /></span>
