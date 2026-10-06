@@ -371,7 +371,7 @@ export function ExamView() {
         setTimeout(() => {
           if (proctorVideoRef.current) {
             proctorVideoRef.current.srcObject = stream
-            proctorVideoRef.current.play().catch(() => {})
+            proctorVideoRef.current.play().catch((error) => { console.warn('Failed to start proctoring video playback.', error) })
             // لقطة أولى لتوثيق هوية الممتحن
             try {
               const cv = document.createElement('canvas')
