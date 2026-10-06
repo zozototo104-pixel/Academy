@@ -224,8 +224,11 @@ export async function PATCH(req: NextRequest) {
             tzNote = new Intl.DateTimeFormat('ar-EG', {
               weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
             }).format(new Date(defenseDate)) + ' (بتوقيت UTC — ستظهر موعدك المحلي داخل القاعة)'
-          } catch {}
-          emailDefenseScheduled(student.email, student.name, thesis.title, new Date(defenseDate), committeeList, tzNote).catch(() => {})
+          } catch (error) {
+            console.warn('Failed to format thesis defense time note.', error)
+          }
+          emailDefenseScheduled(student.email, student.name, thesis.title, new Date(defenseDate), committeeList, tzNote)
+            .catch((error) => { console.warn('Failed to send defense scheduled email.', error) })
         }
       }
       return NextResponse.json({ ok: true, thesis: updated })
