@@ -117,8 +117,8 @@ export class VoiceActivityDetector {
 
   destroy() {
     cancelAnimationFrame(this.raf)
-    try { this.source?.disconnect() } catch {}
-    try { await0(this.ctx) } catch {}
+    try { this.source?.disconnect() } catch (error) { console.warn('Failed to disconnect VAD audio source.', error) }
+    try { await0(this.ctx) } catch (error) { console.warn('Failed to close VAD audio context.', error) }
     this.stream?.getTracks().forEach((t) => t.stop())
     this.ctx = null
     this.analyser = null
