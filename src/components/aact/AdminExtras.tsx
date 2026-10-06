@@ -16,6 +16,7 @@ import { CertificateDialog, CertificateData } from '@/components/aact/Certificat
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
 import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmountButton'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
