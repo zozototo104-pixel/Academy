@@ -76,21 +76,21 @@ function installmentAppealEligibility(args: {
 }
 
 export function tuitionPaidTotal(payments: TuitionPayment[]): number {
-  const paidFullTuition = Math.max(
+  const settledFullTuition = Math.max(
     0,
     ...payments
-      .filter((p) => p.purpose === 'TUITION' && p.status === 'PAID')
-      .map(amountOf)
+      .filter((p) => p.purpose === 'TUITION' && (p.status === 'PAID' || p.status === 'WAIVED'))
+      .map(settledAmountOf)
   )
-  const paidInstallments = payments
-    .filter((p) => p.purpose === 'TUITION_INSTALLMENT' && p.status === 'PAID')
-    .reduce((sum, p) => sum + amountOf(p), 0)
-  const paidOtherTuition = payments
-    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose) && p.status === 'PAID')
-    .reduce((sum, p) => sum + amountOf(p), 0)
+  const settledInstallments = payments
+    .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
+    .reduce((sum, p) => sum + settledAmountOf(p), 0)
+  const settledOtherTuition = payments
+    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose))
+    .reduce((sum, p) => sum + settledAmountOf(p), 0)
 
-  // إذا وُجدت فاتورة رسوم كاملة مدفوعة فلا نضيف فوقها أقساطاً مدفوعة لنفس الرسوم.
-  return roundMoney(Math.max(paidFullTuition, paidInstallments + paidOtherTuition))
+  // إذا وُجدت فاتورة رسوم كاملة مسددة أو معفاة فلا نضيف فوقها أقساطاً لنفس الرسوم.
+  return roundMoney(Math.max(settledFullTuition, settledInstallments + settledOtherTuition))
 }
 
 export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): number {
