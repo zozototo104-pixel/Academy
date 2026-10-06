@@ -1100,7 +1100,9 @@ function knowledgeTopicTokens(row: { title?: string | null; keywords?: string | 
   try {
     const parsed = typeof row.keywords === 'string' ? JSON.parse(row.keywords) : row.keywords
     keywordText = Array.isArray(parsed) ? parsed.join(' ') : ''
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse knowledge topic keywords JSON.', error)
+  }
   const tokens = `${row.title || ''} ${keywordText}`
     .split(/\s+/)
     .map(canonicalKnowledgeToken)
