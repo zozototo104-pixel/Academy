@@ -48,7 +48,7 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
       user: { select: { email: true, name: true } },
       admission: { select: { email: true, fullName: true } },
       enrollment: { include: { user: { select: { email: true, name: true } } } },
-      agent: { select: { email: true, fullName: true } },
+      agent: { select: { email: true, repName: true, orgName: true } },
     },
   })
   if (!payment) return null
