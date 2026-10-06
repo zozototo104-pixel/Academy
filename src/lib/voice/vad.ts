@@ -126,5 +126,5 @@ export class VoiceActivityDetector {
 }
 
 async function await0(ctx: AudioContext | null) {
-  try { await ctx?.close() } catch {}
+  try { await ctx?.close() } catch (error) { console.warn('Failed to close VAD audio context helper.', error) }
 }
