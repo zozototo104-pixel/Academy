@@ -104,11 +104,11 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
   }, [])
 
   const closePeer = useCallback((stopMedia = true) => {
-    try { pcRef.current?.close() } catch {}
+    try { pcRef.current?.close() } catch (error) { console.warn('Failed to close supervisor live peer connection.', error) }
     pcRef.current = null
     if (stopMedia) stopLocalMedia()
     if (remoteAudioRef.current) {
-      try { remoteAudioRef.current.pause() } catch {}
+      try { remoteAudioRef.current.pause() } catch (error) { console.warn('Failed to pause supervisor live remote audio.', error) }
       remoteAudioRef.current.srcObject = null
     }
   }, [stopLocalMedia])

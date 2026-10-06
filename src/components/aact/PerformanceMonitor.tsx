@@ -14,7 +14,9 @@ function postMetric(metric: { name: string; value: number; id?: string; rating?:
       const ok = navigator.sendBeacon('/api/monitoring/web-vitals', new Blob([body], { type: 'application/json' }))
       if (ok) return
     }
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to send web vital with sendBeacon; falling back to fetch.', error)
+  }
 
   fetch('/api/monitoring/web-vitals', {
     method: 'POST',
@@ -51,7 +53,9 @@ export function PerformanceMonitor() {
         const po = new PerformanceObserver((list) => cb(list.getEntries()))
         po.observe({ type, buffered: true } as PerformanceObserverInit)
         observers.push(po)
-      } catch {}
+      } catch (error) {
+        console.warn(`Failed to observe performance entry type ${type}.`, error)
+      }
     }
 
     observe('paint', (entries) => {

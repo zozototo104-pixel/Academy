@@ -17,14 +17,15 @@ function safeJson(value: unknown, fallback: any = null) {
   try {
     if (typeof value === 'string') return JSON.parse(value)
     return value ?? fallback
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse question bank JSON value; using fallback.', error)
     return fallback
   }
 }
 
 function parseJsonObject(raw: string) {
   const text = String(raw || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
-  try { return JSON.parse(text) } catch {}
+  try { return JSON.parse(text) } catch (error) { console.warn('Failed to parse question bank AI JSON directly; trying fenced extraction.', error) }
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1))
@@ -59,7 +60,9 @@ function parseImportedQuestions(value: unknown) {
     const parsed = JSON.parse(text)
     if (Array.isArray(parsed)) return parsed
     if (Array.isArray(parsed?.questions)) return parsed.questions
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse imported questions JSON; falling back to delimited rows.', error)
+  }
 
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   if (!lines.length) return []

@@ -395,6 +395,24 @@ model Certificate {
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
 }
 
+model CertificateTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  certificateType String   @default("PROGRAM_COMPLETION")
+  active          Boolean  @default(true)
+  fileName        String
+  mimeType        String
+  fileSize        Int
+  storageProvider String
+  storageKey      String
+  fileUrl         String?
+  layoutJson      Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([certificateType, active])
+}
+
 model AcademyRepresentative {
   id                 String   @id @default(cuid())
   slug               String   @unique

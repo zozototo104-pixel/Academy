@@ -24,6 +24,36 @@ const TYPE_LABEL: Record<string, string> = {
   AGENCY: 'شهادة وكالة وتمثيل دولي',
 }
 
+const DEFAULT_TEMPLATE_LAYOUT: any = {
+  orientation: 'landscape',
+  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
+  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
+  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
+  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
+  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  qr: { x: 50, y: 86, size: 12, visible: true },
+}
+
+function layoutOf(raw: any) {
+  return { ...DEFAULT_TEMPLATE_LAYOUT, ...(raw && typeof raw === 'object' ? raw : {}) }
+}
+
+function fieldStyle(field: any) {
+  return {
+    position: 'absolute' as const,
+    left: `${Number(field?.x ?? 50)}%`,
+    top: `${Number(field?.y ?? 50)}%`,
+    width: `${Number(field?.width ?? 50)}%`,
+    transform: 'translate(-50%, -50%)',
+    textAlign: field?.align || 'center',
+    color: field?.color || '#0f2b46',
+    fontSize: `clamp(10px, ${Number(field?.fontSize ?? 2)}vw, 58px)`,
+    fontWeight: 900,
+    lineHeight: 1.25,
+    whiteSpace: 'normal' as const,
+  }
+}
+
 // نافذة الشهادة الرقمية بقالب رسمي + QR للتحقق + طباعة PDF
 export function CertificateDialog({
   certificate,
@@ -35,6 +65,7 @@ export function CertificateDialog({
   onClose: () => void
 }) {
   const [qr, setQr] = useState<string | null>(null)
+  const [template, setTemplate] = useState<{ id: string; name: string; imageUrl: string; layoutJson?: any } | null>(null)
 
   useEffect(() => {
     if (!certificate || !open) return
@@ -44,12 +75,17 @@ export function CertificateDialog({
     api<{ qr: string }>(`/api/certificates/qr?data=${encodeURIComponent(verifyUrl)}`)
       .then((d) => setQr(d.qr))
       .catch(() => setQr(null))
+    api<{ template: { id: string; name: string; imageUrl: string; layoutJson?: any } | null }>(`/api/certificates/templates/active?type=${encodeURIComponent(certificate.type)}`)
+      .then((d) => setTemplate(d.template || null))
+      .catch(() => setTemplate(null))
   }, [certificate, open])
 
   if (!certificate) return null
   const date = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
+  const layout = layoutOf(template?.layoutJson)
+  const templateAspectClass = layout.orientation === 'portrait' ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -59,12 +95,37 @@ export function CertificateDialog({
           {TYPE_LABEL[certificate.type] || 'شهادة رسمية'} برقم {certificate.serial}
         </DialogDescription>
         {/* قالب الشهادة الرسمي */}
-        <div id="aact-certificate" className="relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10">
+        <div id="aact-certificate" className={template ? `relative ${templateAspectClass} overflow-hidden bg-white` : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
+          {template && (
+            <>
+              <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 text-center text-[#0f2b46]">
+                {layout.holderName?.visible !== false && <div style={fieldStyle(layout.holderName)}>{certificate.holderName}</div>}
+                {layout.program?.visible !== false && <div style={fieldStyle(layout.program)}>{certificate.program}</div>}
+                {certificate.grade && layout.grade?.visible !== false && <div style={fieldStyle(layout.grade)}>{certificate.grade}</div>}
+                {layout.serial?.visible !== false && <div dir="ltr" style={fieldStyle(layout.serial)}>{certificate.serial}</div>}
+                {layout.issuedAt?.visible !== false && <div style={fieldStyle(layout.issuedAt)}>{date}</div>}
+                {qr && layout.qr?.visible !== false && (
+                  <img
+                    src={qr}
+                    alt="رمز التحقق QR"
+                    className="absolute rounded bg-white p-1"
+                    style={{
+                      left: `${Number(layout.qr?.x ?? 50)}%`,
+                      top: `${Number(layout.qr?.y ?? 86)}%`,
+                      width: `${Number(layout.qr?.size ?? 12)}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
           {/* إطار مزدوج */}
-          <div className="pointer-events-none absolute inset-3 rounded-lg border-4 border-[#c9a227]" />
-          <div className="pointer-events-none absolute inset-5 rounded border border-[#0f2b46]/40" />
+          <div className={template ? 'hidden' : 'pointer-events-none absolute inset-3 rounded-lg border-4 border-[#c9a227]'} />
+          <div className={template ? 'hidden' : 'pointer-events-none absolute inset-5 rounded border border-[#0f2b46]/40'} />
 
-          <div className="relative px-2 pb-4 pt-6 text-center sm:px-8">
+          <div className={template ? 'hidden' : 'relative px-2 pb-4 pt-6 text-center sm:px-8'}>
             {/* الشعار */}
             <div className="flex justify-center">
               <AcademyLogo size={84} />

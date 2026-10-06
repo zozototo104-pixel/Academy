@@ -145,7 +145,7 @@ export class StreamingTtsPlayer {
     if (this.ctx && Math.abs(this.ctx.sampleRate - this.sampleRate) > 1) {
       // sampleRate مختلف عن المتوقع — أنشئ سياقاً مطابقاً
       const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
-      try { await this.ctx.close() } catch {}
+      try { await this.ctx.close() } catch (error) { console.warn('Failed to close mismatched streaming player audio context.', error) }
       const ctx2: AudioContext = new Ctx({ sampleRate: this.sampleRate })
       this.ctx = ctx2
       this.gain = ctx2.createGain()
@@ -282,16 +282,18 @@ export class StreamingTtsPlayer {
       }
       if (this.node) {
         this.node.port.postMessage({ type: 'stop' })
-        setTimeout(() => { try { this.node?.disconnect() } catch {} }, fadeMs + 10)
+        setTimeout(() => { try { this.node?.disconnect() } catch (error) { console.warn('Failed to disconnect voice worklet node after fade out.', error) } }, fadeMs + 10)
         this.node = null
       }
       if (this.spNode) {
         (this as any)._sp?.setPlaying(false)
-        setTimeout(() => { try { this.spNode?.disconnect() } catch {} }, fadeMs + 10)
+        setTimeout(() => { try { this.spNode?.disconnect() } catch (error) { console.warn('Failed to disconnect script processor fallback after fade out.', error) } }, fadeMs + 10)
         this.spNode = null
       }
       this.workletReady = null
-    } catch {}
+    } catch (error) {
+      console.warn('Failed while stopping streaming voice player.', error)
+    }
     this.playing = false
   }
 
@@ -312,7 +314,7 @@ export class StreamingTtsPlayer {
   /** إغلاق كامل عند مغادرة الوضع الصوتي */
   destroy() {
     this.stop(10)
-    setTimeout(() => { try { this.ctx?.close() } catch {} }, 150)
+    setTimeout(() => { try { this.ctx?.close() } catch (error) { console.warn('Failed to close streaming player audio context during destroy.', error) } }, 150)
     this.ctx = null
   }
 }

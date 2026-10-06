@@ -190,8 +190,8 @@ export function AIChatView() {
     return () => {
       recognitionRef.current?.abort()
       audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
-      try { agentRef.current?.stop() } catch {}
+      try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis during AI chat cleanup.', error) }
+      try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop voice agent during AI chat cleanup.', error) }
       agentRef.current = null
       voiceModeRef.current = false
       speechUtteranceRef.current = null
@@ -225,7 +225,7 @@ export function AIChatView() {
       audioRef.current.pause()
       audioRef.current = null
     }
-    try { window.speechSynthesis?.cancel() } catch {}
+    try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before playing AI audio.', error) }
     speechUtteranceRef.current = null
     const audio = getSharedAudio()
     audioRef.current = audio
@@ -445,8 +445,8 @@ export function AIChatView() {
       return
     }
     audioRef.current?.pause()
-    try { window.speechSynthesis?.cancel() } catch {}
-    try { agentRef.current?.stop() } catch {}
+    try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before starting voice mode.', error) }
+    try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop previous voice agent before restart.', error) }
     agentRef.current = null
     speechUtteranceRef.current = null
     setSpeakingId(null)
@@ -482,7 +482,7 @@ export function AIChatView() {
       else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
-      try { agent.stop() } catch {}
+      try { agent.stop() } catch (error) { console.warn('Failed to stop voice agent after start failure.', error) }
       agentRef.current = null
     })
   }
@@ -500,7 +500,9 @@ export function AIChatView() {
     try {
       shouldOpen = sessionStorage.getItem('aact_open_voice_agent') === '1'
       if (shouldOpen) sessionStorage.removeItem('aact_open_voice_agent')
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read pending AI voice agent startup flag.', error)
+    }
     if (!shouldOpen) return
     const t = setTimeout(() => {
       if (!voiceModeRef.current) toggleVoiceMode()
@@ -519,7 +521,7 @@ export function AIChatView() {
     }
     if (speakingId) {
       audioRef.current?.pause()
-      try { window.speechSynthesis?.cancel() } catch {}
+      try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before microphone input.', error) }
       speechUtteranceRef.current = null
       setSpeakingId(null)
     }
@@ -813,7 +815,7 @@ export function AIChatView() {
                 <div className="whitespace-pre-wrap">{m.content}</div>
                 <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${m.role === 'user' ? 'text-white/50' : 'text-[#a8841a]/70'}`}>
                   <span className="flex items-center gap-1.5">{m.time}{m.mode === 'VOICE' && <span className="flex items-center gap-0.5 font-bold"><Mic className="h-2.5 w-2.5" /> صوتي</span>}</span>
-                  {m.role === 'assistant' && <div className="flex items-center gap-1"><button onClick={() => submitMessageFeedback(m, 'HELPFUL')} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد مفيد"><ThumbsUp className="h-3.5 w-3.5" /></button><button onClick={() => { setFeedbackReason('TOO_GENERAL'); setFeedbackNote(''); setFeedbackDialog({ open: true, message: m }) }} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد يحتاج مراجعة"><ThumbsDown className="h-3.5 w-3.5" /></button><button onClick={() => { if (speakingId === m.id) { audioRef.current?.pause(); try { window.speechSynthesis?.cancel() } catch {}; speechUtteranceRef.current = null; setSpeakingId(null) } else speak(m.content, m.id) }} className="opacity-60 transition-opacity hover:opacity-100" title="استمع للرد">{speakingId === m.id ? <span className="flex items-center gap-1 font-bold"><span className="aact-speak-wave"><span /><span /><span /><span /></span>يتحدث</span> : <Volume2 className="h-3.5 w-3.5" />}</button></div>}
+                  {m.role === 'assistant' && <div className="flex items-center gap-1"><button onClick={() => submitMessageFeedback(m, 'HELPFUL')} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد مفيد"><ThumbsUp className="h-3.5 w-3.5" /></button><button onClick={() => { setFeedbackReason('TOO_GENERAL'); setFeedbackNote(''); setFeedbackDialog({ open: true, message: m }) }} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد يحتاج مراجعة"><ThumbsDown className="h-3.5 w-3.5" /></button><button onClick={() => { if (speakingId === m.id) { audioRef.current?.pause(); try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis from AI response playback button.', error) }; speechUtteranceRef.current = null; setSpeakingId(null) } else speak(m.content, m.id) }} className="opacity-60 transition-opacity hover:opacity-100" title="استمع للرد">{speakingId === m.id ? <span className="flex items-center gap-1 font-bold"><span className="aact-speak-wave"><span /><span /><span /><span /></span>يتحدث</span> : <Volume2 className="h-3.5 w-3.5" />}</button></div>}
                 </div>
               </div>
             </div>

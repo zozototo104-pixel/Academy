@@ -835,7 +835,9 @@ export function AdminQualityTab() {
           const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
           unitId = units[Number(choice || 0) - 1]?.id || null
         }
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to load program units for exam generation picker.', error)
+      }
     }
     const payloadBase = { programId: program.id, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
     const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
@@ -2586,7 +2588,7 @@ export function AdminQualityTab() {
                 <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد. استخدم زر توليد أسئلة للبنك من لوحة تجهيز المنهج.</p>
               ) : questionBankItems.map((question) => {
                 let options: string[] = []
-                try { options = question.options ? JSON.parse(question.options) : [] } catch {}
+                try { options = question.options ? JSON.parse(question.options) : [] } catch (error) { console.warn('Failed to parse quality tab question options for display.', error) }
                 return (
                   <article key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -2667,7 +2669,7 @@ export function AdminQualityTab() {
                 {(selectedExam?.questions || []).map((q) => {
                   const checked = selectedExamQuestionIds.includes(q.id)
                   let options: string[] = []
-                  try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+                  try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse selected exam question options for display.', error) }
                   return (
                     <label key={q.id} className={`block cursor-pointer rounded-2xl border p-3 text-xs ${checked ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-200 bg-white'}`}>
                       <div className="flex items-start gap-2">

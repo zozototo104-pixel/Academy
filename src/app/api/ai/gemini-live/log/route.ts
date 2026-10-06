@@ -15,7 +15,9 @@ export async function POST(req: NextRequest) {
   let body: { userText?: string; aiText?: string; model?: string } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse Gemini live log request body JSON.', error)
+  }
 
   const userText = String(body.userText || '').replace(/\s+/g, ' ').trim()
   const aiText = String(body.aiText || '').replace(/\s+/g, ' ').trim()

@@ -38,7 +38,7 @@ async function openDashboardPdf(path: string, filename: string) {
   const popup = window.open('', '_blank')
   if (popup) {
     popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing PDF...</p>')
-    try { popup.opener = null } catch {}
+    try { popup.opener = null } catch (error) { console.warn('Unable to detach dashboard PDF popup opener.', error) }
   }
   try {
     const token = getToken()
@@ -61,7 +61,7 @@ async function openDashboardPdf(path: string, filename: string) {
     }
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   } catch (e: any) {
-    try { popup?.close() } catch {}
+    try { popup?.close() } catch (closeError) { console.warn('Unable to close dashboard PDF popup after failure.', closeError) }
     toast({ title: 'تعذر فتح PDF', description: e.message || 'حدث خطأ أثناء تجهيز الملف', variant: 'destructive' })
   }
 }

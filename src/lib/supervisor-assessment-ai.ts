@@ -19,10 +19,10 @@ type GeneratedQuestion = {
 
 function safeJson(text: string): any {
   const raw = String(text || '').trim()
-  try { return JSON.parse(raw) } catch {}
+  try { return JSON.parse(raw) } catch (error) { console.warn('Failed to parse supervisor assessment AI JSON directly; trying extracted JSON.', error) }
   const match = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
   if (match) {
-    try { return JSON.parse(match[0]) } catch {}
+    try { return JSON.parse(match[0]) } catch (error) { console.warn('Failed to parse extracted supervisor assessment AI JSON.', error) }
   }
   return null
 }

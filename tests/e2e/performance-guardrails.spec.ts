@@ -26,7 +26,9 @@ async function installLongTaskCollector(page: Page) {
       })
       observer.observe({ type: 'longtask', buffered: true } as any)
       ;(window as any).__aactLongTaskObserver = observer
-    } catch {}
+    } catch (error) {
+      console.warn('PerformanceObserver longtask setup is not available in this browser.', error)
+    }
   })
 }
 

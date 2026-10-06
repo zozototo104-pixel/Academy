@@ -5,6 +5,7 @@ import { RefreshCw, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 
 interface RefreshPaymentAmountButtonProps {
   payment: {
@@ -16,6 +17,7 @@ interface RefreshPaymentAmountButtonProps {
 
 export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAmountButtonProps) {
   const { toast } = useToast()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [busy, setBusy] = useState(false)
 
   if (payment.status !== 'UNPAID') return <span>—</span>
@@ -33,12 +35,25 @@ export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAm
         return
       }
 
-      const confirmed = window.confirm(
-        'سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار. هل تريد المتابعة؟'
-      )
+      const confirmed = await confirmAction({
+        title: 'تحديث مبلغ فاتورة غير مدفوعة',
+        description: 'سيتم تحديث مبلغ الفاتورة غير المدفوعة من ' + preview.oldAmount + ' دولار إلى ' + preview.newAmount + ' دولار.',
+        confirmLabel: 'متابعة التحديث',
+        tone: 'warning',
+      })
       if (!confirmed) return
 
-      const reason = window.prompt('اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق:')
+      const reason = await promptAction({
+        title: 'سبب تحديث مبلغ الفاتورة',
+        description: 'اكتب سبب تحديث مبلغ الفاتورة ليظهر في سجل التدقيق.',
+        fieldLabel: 'سبب التحديث',
+        placeholder: 'مثال: تعديل سعر البرنامج من قواعد القبول',
+        required: true,
+        minLength: 6,
+        multiline: true,
+        confirmLabel: 'تحديث المبلغ',
+        tone: 'warning',
+      })
       if (reason === null) return
 
       const trimmedReason = reason.trim()
@@ -62,15 +77,18 @@ export function RefreshPaymentAmountButton({ payment, onDone }: RefreshPaymentAm
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={busy}
-      onClick={refreshAmount}
-      className="border-[#c9a227]/40 font-bold text-[#a8841a]"
-    >
-      {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
-      تحديث المبلغ
-    </Button>
+    <>
+      {actionDialog}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        onClick={refreshAmount}
+        className="border-[#c9a227]/40 font-bold text-[#a8841a]"
+      >
+        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
+        تحديث المبلغ
+      </Button>
+    </>
   )
 }

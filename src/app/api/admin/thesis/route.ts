@@ -154,7 +154,8 @@ export async function PATCH(req: NextRequest) {
       )
       await saveReviewHistory('FINAL', 'REQUEST_FINAL_REVISION', safeReviewNote || 'البحث النهائي يحتاج تعديلًا')
       if (thesis.user?.email) {
-        emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null).catch(() => {})
+        emailThesisFinalRevision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, safeReviewNote || null)
+          .catch((error) => { console.warn('Failed to send thesis final revision email.', error) })
       }
       await audit(admin, 'REQUEST_THESIS_FINAL_REVISION', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
@@ -163,7 +164,7 @@ export async function PATCH(req: NextRequest) {
     // جدولة المناقشة أمام لجنة متخصصة
     if (action === 'SCHEDULE') {
       let committeeList: string[] = []
-      try { committeeList = JSON.parse(committee || '[]') } catch {}
+      try { committeeList = JSON.parse(committee || '[]') } catch (error) { console.warn('Failed to parse thesis defense committee JSON.', error) }
       committeeList = committeeList.filter((s: string) => s.trim()).slice(0, 6)
       if (committeeList.length === 0 || !defenseDate) {
         return NextResponse.json({ error: 'تاريخ المناقشة وأعضاء اللجنة مطلوبون' }, { status: 400 })
@@ -204,7 +205,7 @@ export async function PATCH(req: NextRequest) {
         await db.admissionApplication.update({
           where: { id: thesis.admissionId },
           data: { status: 'SCHEDULED' },
-        }).catch(() => {})
+        }).catch((error) => { console.warn('Failed to update admission status after defense scheduling.', error) })
       }
       await notify(
         thesis.userId,
@@ -223,8 +224,11 @@ export async function PATCH(req: NextRequest) {
             tzNote = new Intl.DateTimeFormat('ar-EG', {
               weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
             }).format(new Date(defenseDate)) + ' (بتوقيت UTC — ستظهر موعدك المحلي داخل القاعة)'
-          } catch {}
-          emailDefenseScheduled(student.email, student.name, thesis.title, new Date(defenseDate), committeeList, tzNote).catch(() => {})
+          } catch (error) {
+            console.warn('Failed to format thesis defense time note.', error)
+          }
+          emailDefenseScheduled(student.email, student.name, thesis.title, new Date(defenseDate), committeeList, tzNote)
+            .catch((error) => { console.warn('Failed to send defense scheduled email.', error) })
         }
       }
       return NextResponse.json({ ok: true, thesis: updated })

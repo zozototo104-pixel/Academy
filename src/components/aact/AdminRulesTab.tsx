@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { Loader2, Save, RotateCcw, Sparkles, ClipboardCheck, FileText, IdCard, Camera, ScrollText, Users, GraduationCap, BookOpen, Target, ListChecks, Search, PlusCircle, Archive } from 'lucide-react'
 
 // ===== تبويب قواعد القبول المخصصة لكل برنامج =====
@@ -246,6 +247,7 @@ function stageAt(profile: AcademicProfileDraft | null | undefined, index: number
 }
 
 export function AdminRulesTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramRules[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [programSearch, setProgramSearch] = useState('')
@@ -531,7 +533,12 @@ export function AdminRulesTab() {
   const setSelectedProgramActive = async (active: boolean) => {
     if (!selected || !programDraft) return
     if (!active) {
-      const confirmed = window.confirm('سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً. هل تريد المتابعة؟')
+      const confirmed = await confirmAction({
+        title: 'إخفاء برنامج من الموقع العام',
+        description: 'سيتم إخفاء البرنامج من الموقع العام، لكنه سيبقى ظاهراً في محرر قواعد القبول ويمكن إعادة نشره لاحقاً.',
+        confirmLabel: 'إخفاء البرنامج',
+        tone: 'warning',
+      })
       if (!confirmed) return
     }
     setSaving(true)
@@ -595,7 +602,8 @@ export function AdminRulesTab() {
         custom: d.custom,
       } : p)))
       toast({ title: reset ? 'أُعيدت القواعد والملف الأكاديمي للافتراضي' : 'حُفظت بيانات البرنامج وقواعد القبول والملف الأكاديمي' })
-    } catch {
+    } catch (error) {
+      console.warn('Failed to save program admission rules.', error)
       toast({ title: 'تعذر الحفظ', variant: 'destructive' })
     } finally {
       setSaving(false)
@@ -645,6 +653,7 @@ export function AdminRulesTab() {
 
   return (
     <div className="mt-4 space-y-4 pb-[45vh] md:pb-6">
+      {actionDialog}
       <Dialog open={createProgramOpen} onOpenChange={(open) => { if (!creatingProgram) setCreateProgramOpen(open) }}>
         <DialogContent className="max-w-xl rounded-[2rem] border-[#c9a227]/30 bg-[#fffdf7] p-0 text-right" dir="rtl">
           <div className="rounded-t-[2rem] bg-gradient-to-l from-[#0f2b46] to-[#12365c] p-5 text-[#f5f0e1]">

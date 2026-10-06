@@ -171,7 +171,9 @@ export function HomeView() {
           if (contact && typeof contact === 'object' && contact.legalEntity) {
             setHomeLegalEntity(String(contact.legalEntity))
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse official contact settings for home page.', error)
+        }
         setGeneralSettings({
           applicationFee: numberSetting(values, 'FEE_APPLICATION', DEFAULT_SETTINGS.applicationFee),
           doctorateDefault: numberSetting(values, 'FEE_DOCTORATE', DEFAULT_SETTINGS.doctorateDefault),
@@ -192,9 +194,11 @@ export function HomeView() {
             experts: Number(parsed.experts || DEFAULT_HOME_STATS.experts),
             countries: Number(parsed.countries || DEFAULT_HOME_STATS.countries),
           })
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse home stats settings.', error)
+        }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load home settings.', error) })
     return () => { alive = false }
   }, [])
 
@@ -217,7 +221,9 @@ export function HomeView() {
         const cached = Number(localStorage.getItem('aact_program_count') || '')
         if (Number.isFinite(cached) && cached > 0) setProgramCount(cached)
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read cached home programs summary.', error)
+    }
 
     const controller = new AbortController()
 
@@ -237,10 +243,12 @@ export function HomeView() {
           try {
             localStorage.setItem('aact_program_count', String(d.count))
             if (d.catalogVersion) localStorage.setItem('aact_programs_summary_version', d.catalogVersion)
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to cache home program count.', error)
+          }
         }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load public program count.', error) })
 
     const loadSummary = () => {
       fetch('/api/programs?summary=1&public=1', {
@@ -264,7 +272,9 @@ export function HomeView() {
               localStorage.setItem('aact_programs_summary_version', version)
               localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 140)))
               localStorage.removeItem('aact_programs_summary_v3')
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to cache home programs summary.', error)
+            }
           }
         })
         .catch(() => {

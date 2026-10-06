@@ -30,7 +30,9 @@ function scrollPageToTopSoon() {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
       document.documentElement.scrollTop = 0
       document.body.scrollTop = 0
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to scroll application page to top.', error)
+    }
   }
   run()
   window.requestAnimationFrame(run)
@@ -43,7 +45,9 @@ function updateBrowserRoute(view: View, params: Record<string, string | null | u
     const next = pathForView(view, params)
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
     if (next !== current) window.history.pushState(null, '', next)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to update browser route for application navigation.', error)
+  }
   scrollPageToTopSoon()
 }
 
@@ -196,13 +200,17 @@ function storageGet(storage: Storage | undefined, key: string): string | null {
 function storageSet(storage: Storage | undefined, key: string, value: string) {
   try {
     storage?.setItem(key, value)
-  } catch {}
+  } catch (error) {
+    console.warn(`Failed to write ${key} to browser storage.`, error)
+  }
 }
 
 function storageRemove(storage: Storage | undefined, key: string) {
   try {
     storage?.removeItem(key)
-  } catch {}
+  } catch (error) {
+    console.warn(`Failed to remove ${key} from browser storage.`, error)
+  }
 }
 
 export function getToken(): string | null {
@@ -269,7 +277,7 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
       // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
       if (res.status === 401 && token) {
         clearToken()
-        try { useAppStore.setState({ user: null }) } catch {}
+        try { useAppStore.setState({ user: null }) } catch (error) { console.warn('Failed to clear app user after unauthorized API response.', error) }
       }
       if (!res.ok) {
         const fallbackMessage = res.status === 403

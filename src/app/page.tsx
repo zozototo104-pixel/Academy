@@ -36,7 +36,9 @@ function markStartupSeen() {
   try {
     localStorage.setItem(STARTUP_SEEN_KEY, '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to persist academy startup seen flags.', error)
+  }
 }
 
 function AcademyStartupScreen({ label = 'SYSTEM INITIALIZATION', onDone, durationMs = 1180 }: { label?: string; onDone?: () => void; durationMs?: number }) {
@@ -161,7 +163,9 @@ export default function Home() {
       if (q.has('authToken') || hasSeenStartup() || Boolean(getToken())) {
         setStartupDone(true)
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to inspect startup route state.', error)
+    }
   }, [])
 
   // Load current user on mount
@@ -176,7 +180,7 @@ export default function Home() {
     const oauthToken = q.get('authToken')
     if (oauthToken) {
       saveToken(oauthToken)
-      try { sessionStorage.setItem('aact_skip_startup', '1') } catch {}
+      try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist OAuth startup skip flag.', error) }
       q.delete('authToken')
       q.delete('oauth')
       const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
@@ -272,7 +276,9 @@ export default function Home() {
           studentPreviewId: next.studentPreviewId || null,
           agentPreviewId: next.agentPreviewId || null,
         })
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to apply browser route state after popstate.', error)
+      }
     }
     window.addEventListener('popstate', applyBrowserRoute)
     return () => window.removeEventListener('popstate', applyBrowserRoute)

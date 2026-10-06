@@ -771,10 +771,14 @@ function tryParseJsonObject(t: string): any | null {
   if (!s.startsWith('{')) return null
   try {
     return JSON.parse(s)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse book AI object JSON directly; trying quote repair.', error)
+  }
   try {
     return JSON.parse(repairJsonQuotes(s))
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse repaired book AI object JSON.', error)
+  }
   return null
 }
 

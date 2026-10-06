@@ -188,7 +188,9 @@ function parseGeminiBookJson(raw: string): { text: string; note: string } {
         text: repairExtractedAcademicText(String(parsed.textContent || parsed.summary || parsed.outline || ''), MAX_BOOK_CONTEXT_CHARS),
         note: normalizeExtractedText(String(parsed.note || parsed.qualityNote || 'تم تلخيص المستند بواسطة Gemini'), 500),
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to parse Gemini document extraction JSON; using raw response text.', error)
+    }
   }
   return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة Gemini غير JSON لكنها تحتوي نصاً قابلاً للاستخدام' }
 }

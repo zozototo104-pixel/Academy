@@ -355,18 +355,20 @@ function extractJsonArray(raw: string): any[] {
   const body = String(raw || '').trim()
   try {
     return arrayFromParsedJson(JSON.parse(body))
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse knowledge bank JSON array directly; trying extracted JSON.', error)
+  }
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
   if (fenced) {
-    try { return arrayFromParsedJson(JSON.parse(fenced)) } catch {}
+    try { return arrayFromParsedJson(JSON.parse(fenced)) } catch (error) { console.warn('Failed to parse fenced knowledge bank JSON array.', error) }
   }
   const arr = body.match(/\[[\s\S]*\]/)?.[0]
   if (arr) {
-    try { return arrayFromParsedJson(JSON.parse(arr)) } catch {}
+    try { return arrayFromParsedJson(JSON.parse(arr)) } catch (error) { console.warn('Failed to parse extracted knowledge bank JSON array.', error) }
   }
   const obj = body.match(/\{[\s\S]*\}/)?.[0]
   if (obj) {
-    try { return arrayFromParsedJson(JSON.parse(obj)) } catch {}
+    try { return arrayFromParsedJson(JSON.parse(obj)) } catch (error) { console.warn('Failed to parse extracted knowledge bank JSON object.', error) }
   }
   return []
 }
@@ -1098,7 +1100,9 @@ function knowledgeTopicTokens(row: { title?: string | null; keywords?: string | 
   try {
     const parsed = typeof row.keywords === 'string' ? JSON.parse(row.keywords) : row.keywords
     keywordText = Array.isArray(parsed) ? parsed.join(' ') : ''
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse knowledge topic keywords JSON.', error)
+  }
   const tokens = `${row.title || ''} ${keywordText}`
     .split(/\s+/)
     .map(canonicalKnowledgeToken)

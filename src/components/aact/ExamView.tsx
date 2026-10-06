@@ -299,7 +299,9 @@ export function ExamView() {
               cx.drawImage(proctorVideoRef.current, 0, 0, 320, 240)
               snap = cv.toDataURL('image/jpeg', 0.55)
             }
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to capture proctoring snapshot before exam submit.', error)
+          }
         }
         const answers = data.questions.map((q) => ({
           questionId: q.id,
@@ -327,7 +329,7 @@ export function ExamView() {
         setResult(d)
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
-        api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch(() => {})
+        api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
@@ -369,7 +371,7 @@ export function ExamView() {
         setTimeout(() => {
           if (proctorVideoRef.current) {
             proctorVideoRef.current.srcObject = stream
-            proctorVideoRef.current.play().catch(() => {})
+            proctorVideoRef.current.play().catch((error) => { console.warn('Failed to start proctoring video playback.', error) })
             // لقطة أولى لتوثيق هوية الممتحن
             try {
               const cv = document.createElement('canvas')
@@ -380,7 +382,9 @@ export function ExamView() {
                 cx.drawImage(proctorVideoRef.current, 0, 0, 320, 240)
                 snapshotRef.current = cv.toDataURL('image/jpeg', 0.55)
               }
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to capture initial proctoring snapshot.', error)
+            }
           }
         }, 300)
       } catch {

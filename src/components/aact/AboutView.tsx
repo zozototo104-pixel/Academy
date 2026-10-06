@@ -68,7 +68,9 @@ export function AboutView() {
             experts: Number(parsed.experts || prev.experts),
             countries: Number(parsed.countries || prev.countries),
           }))
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse about page stats settings.', error)
+        }
         try {
           const parsed = JSON.parse(values.OFFICIAL_CONTACT || '{}')
           if (parsed && typeof parsed === 'object') {
@@ -77,9 +79,11 @@ export function AboutView() {
               address: String(parsed.address || prev.address),
             }))
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to parse about page official contact settings.', error)
+        }
       })
-      .catch(() => {})
+      .catch((error) => { console.warn('Failed to load about page public settings.', error) })
     return () => { alive = false }
   }, [])
 

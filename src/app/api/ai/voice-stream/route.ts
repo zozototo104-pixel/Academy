@@ -47,7 +47,9 @@ export async function POST(req: NextRequest) {
   let body: { message?: string; interruptNote?: string } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse voice stream request body JSON.', error)
+  }
   const message = (body.message || '').trim()
   const interruptNote = (body.interruptNote || '').trim()
   if (!message) {
@@ -59,7 +61,10 @@ export async function POST(req: NextRequest) {
 
   // سياق RAG: ملف المستخدم + المنهج/الكتب حسب نطاق الصلاحية الحالي.
   const voiceScope = resolveAiKnowledgeScope({ role: user.role, mode: 'VOICE' })
-  const diagnosticResult = await buildScopedDirectProgramBooksResult(message, voiceScope).catch(() => null)
+  const diagnosticResult = await buildScopedDirectProgramBooksResult(message, voiceScope).catch((error) => {
+    console.warn('Failed to build voice stream program book diagnostics.', error)
+    return null
+  })
   if (diagnosticResult?.diagnostics && diagnosticResult.diagnostics.reason !== 'query_not_program_books') {
     await auditVoiceKnowledgeDiagnostics({ userId: user.id, role: user.role, scope: voiceScope, diagnostics: diagnosticResult.diagnostics })
   }
@@ -129,7 +134,9 @@ export async function POST(req: NextRequest) {
                 full += delta
                 controller.enqueue(sse({ type: 'delta', text: delta }))
               }
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to parse voice stream payload chunk.', error)
+            }
           }
         }
         if (!full.trim()) throw new Error('EMPTY_AI_RESPONSE')

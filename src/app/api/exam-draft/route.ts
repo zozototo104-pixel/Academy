@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     if (!draft) return NextResponse.json({ draft: null })
 
     let answers: any[] = []
-    try { answers = JSON.parse(draft.answersJson || '[]') } catch {}
+    try { answers = JSON.parse(draft.answersJson || '[]') } catch (error) { console.warn('Failed to parse saved exam draft answers JSON.', error) }
     return NextResponse.json({
       draft: {
         examId: draft.examId,

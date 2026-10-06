@@ -155,7 +155,7 @@ class Pcm24Player {
     this.nextTime = 0
     this.onOutputStream?.(null)
     this.recorderDest = null
-    try { this.ctx?.close() } catch {}
+    try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini PCM player audio context.', error) }
     this.ctx = null
   }
 }
@@ -505,7 +505,9 @@ export class GeminiLiveAgent {
         headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
         body: JSON.stringify({ ...(this.cb.logExtra || {}), userText, aiText, model: this.model }),
       })
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to log Gemini live voice turn.', error)
+    }
   }
 
   interrupt() {
@@ -522,8 +524,8 @@ export class GeminiLiveAgent {
   private closeConnectionOnly() {
     this.setupReady = false
     this.usingSdk = false
-    try { this.sdkSession?.close?.() } catch {}
-    try { this.ws?.close() } catch {}
+    try { this.sdkSession?.close?.() } catch (error) { console.warn('Failed to close Gemini Live SDK session.', error) }
+    try { this.ws?.close() } catch (error) { console.warn('Failed to close Gemini Live websocket.', error) }
     this.sdkSession = null
     this.ws = null
   }
@@ -533,10 +535,10 @@ export class GeminiLiveAgent {
     this.lastUserSpeechAt = 0
     this.closeConnectionOnly()
     this.player.stop()
-    try { this.processor?.disconnect() } catch {}
-    try { this.source?.disconnect() } catch {}
-    try { this.ctx?.close() } catch {}
-    try { this.stream?.getTracks().forEach((t) => t.stop()) } catch {}
+    try { this.processor?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live processor.', error) }
+    try { this.source?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live audio source.', error) }
+    try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini Live audio context.', error) }
+    try { this.stream?.getTracks().forEach((t) => t.stop()) } catch (error) { console.warn('Failed to stop Gemini Live media tracks.', error) }
     this.stream = null
     this.ctx = null
     this.processor = null

@@ -14,10 +14,10 @@ function clean(value: unknown, max = 3000) {
 
 function parseAiJson(text: string) {
   const raw = String(text || '').trim()
-  try { return JSON.parse(raw) } catch {}
+  try { return JSON.parse(raw) } catch (error) { console.warn('Failed to parse thesis topic AI JSON directly; trying extracted JSON.', error) }
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/i) || raw.match(/(\{[\s\S]*\}|\[[\s\S]*\])/)
   if (!match) return null
-  try { return JSON.parse(match[1]) } catch { return null }
+  try { return JSON.parse(match[1]) } catch (error) { console.warn('Failed to parse extracted thesis topic AI JSON.', error); return null }
 }
 
 async function serializeProgram(programId: string) {

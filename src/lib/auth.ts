@@ -36,7 +36,9 @@ async function getSessionToken(): Promise<string | null> {
       const t = auth.slice(7).trim()
       if (t) return t
     }
-  } catch {}
+  } catch {
+    // قد لا تكون ترويسات الطلب متاحة في بعض سياقات الخادم؛ نكمل للكوكيز كاحتياط.
+  }
   try {
     const store = await cookies()
     return store.get(SESSION_COOKIE)?.value ?? null
@@ -48,12 +50,14 @@ async function getSessionToken(): Promise<string | null> {
 export async function destroySession() {
   const token = await getSessionToken()
   if (token) {
-    await db.session.deleteMany({ where: { token } }).catch(() => {})
+    await db.session.deleteMany({ where: { token } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
   }
   try {
     const store = await cookies()
     store.delete(SESSION_COOKIE)
-  } catch {}
+  } catch {
+    // قد يفشل حذف الكوكي خارج سياق استجابة صالح؛ حذف الجلسة من قاعدة البيانات يكفي كإبطال.
+  }
 }
 
 export async function getCurrentUser() {

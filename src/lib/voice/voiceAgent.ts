@@ -108,19 +108,19 @@ export class VoiceAgent {
     this.fsm.to('IDLE')
     if (this.evaluator) { clearInterval(this.evaluator); this.evaluator = null }
     if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = null }
-    try { this.rec?.abort() } catch {}
+    try { this.rec?.abort() } catch (error) { console.warn('Failed to abort speech recognition while stopping voice agent.', error) }
     this.rec = null
     this.streamAbort?.abort()
     this.streamAbort = null
     this.player.destroy()
-    try { await this.vad?.destroy() } catch {}
+    try { await this.vad?.destroy() } catch (error) { console.warn('Failed to destroy VAD while stopping voice agent.', error) }
     this.vad = null
   }
 
   setMuted(m: boolean) {
     this.muted = m
     if (m) {
-      try { this.rec?.abort() } catch {}
+      try { this.rec?.abort() } catch (error) { console.warn('Failed to abort speech recognition while muting voice agent.', error) }
       this.player.stop(20)
       if (this.fsm.is('AI_SPEAKING', 'USER_SPEAKING')) this.fsm.to('LISTENING')
     } else if (this.active) {
@@ -201,7 +201,7 @@ export class VoiceAgent {
         this.restartTimer = setTimeout(() => this.startRecognition(), 250)
       }
     }
-    try { rec.start(); this.recActive = true } catch {}
+    try { rec.start(); this.recActive = true } catch (error) { console.warn('Failed to start speech recognition in voice agent.', error) }
   }
 
   /** بديل خادمي: تسجيل مقاطع VAD → ASR (لمتصفحات بلا Web Speech) */
@@ -281,7 +281,9 @@ export class VoiceAgent {
             } else if (ev.type === 'error') {
               errored = ev.error || 'خطأ'
             }
-          } catch {}
+          } catch (error) {
+            console.warn('Failed to parse voice agent stream event.', error)
+          }
         }
       }
       if (errored) throw new Error(errored)

@@ -6,6 +6,7 @@ import { audit, notify } from '@/lib/notify'
 import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 import { randomBytes } from 'crypto'
 
 // GET /api/admin/certificates — كل الشهادات الصادرة
@@ -56,7 +57,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { admissionId, holderName, program, country, userId } = await req.json()
+    const { admissionId, holderName, program, country, userId, financialOverrideReason } = await req.json()
+    const overrideReason = String(financialOverrideReason || '').trim()
 
     const app = admissionId
       ? await db.admissionApplication.findUnique({ where: { id: admissionId } })
@@ -82,6 +84,27 @@ export async function POST(req: NextRequest) {
     }
     if (!resolvedUserId || !resolvedProgram?.id) {
       return NextResponse.json({ error: 'لا يمكن إصدار شهادة برنامج يدوياً دون ربطها بطالب وبرنامج دراسي للتحقق من النجاح الأكاديمي.' }, { status: 400 })
+    }
+
+    let financialOverrideUsed = false
+    if (app?.id) {
+      const allPayments = await db.payment.findMany({ where: { admissionId: app.id } })
+      const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents }))
+      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && p.status !== 'PAID')
+      const tuitionTotal = roundMoney(inferTotalTuition(paymentRows))
+      const tuitionPaid = roundMoney(tuitionPaidTotal(paymentRows))
+      const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
+      const hasFinancialBlock = nonTuitionUnpaid.length > 0 || !tuitionOk
+      if (hasFinancialBlock && overrideReason.length > 0 && overrideReason.length < 6) {
+        return NextResponse.json({ error: 'سبب التجاوز المالي مطلوب ويجب ألا يقل عن 6 أحرف.' }, { status: 400 })
+      }
+      if (hasFinancialBlock && !overrideReason) {
+        return NextResponse.json(
+          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${tuitionPaid}$ من ${tuitionTotal}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
+          { status: 400 }
+        )
+      }
+      financialOverrideUsed = hasFinancialBlock && overrideReason.length >= 6
     }
 
     const eligibility = await evaluateProgramCertificateEligibility({
@@ -124,7 +147,13 @@ export async function POST(req: NextRequest) {
     const email = app?.email || linkedUser?.email
     if (email) await emailCertificateIssued(email, linkedUser?.name || cert.holderName, cert.program, serial)
 
-    await audit(admin, 'ISSUE_CERTIFICATE', 'Certificate', cert.id, `${serial} — ${cert.holderName} (${cert.program})`)
+    await audit(
+      admin,
+      financialOverrideUsed ? 'ISSUE_CERTIFICATE_FINANCIAL_OVERRIDE' : 'ISSUE_CERTIFICATE',
+      'Certificate',
+      cert.id,
+      financialOverrideUsed ? `${serial} — ${cert.holderName} (${cert.program}) — تجاوز مالي: ${overrideReason}` : `${serial} — ${cert.holderName} (${cert.program})`
+    )
     return NextResponse.json({ ok: true, certificate: cert, eligibility })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {

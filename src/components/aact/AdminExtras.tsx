@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { api, getToken } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
@@ -16,6 +16,7 @@ import { CertificateDialog, CertificateData } from '@/components/aact/Certificat
 import { AdminAITab } from '@/components/aact/AdminAITab'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
 import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmountButton'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
@@ -83,7 +84,9 @@ function parseCommitteeNames(raw?: string | null): string[] {
     if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 8)
     if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
     if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 8)
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse thesis committee names; falling back to plain text split.', error)
+  }
   return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
 }
 
@@ -96,6 +99,7 @@ function formatArabicDate(value?: string | null): string {
 
 export function AdminThesisTab() {
   const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [theses, setTheses] = useState<Thesis[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -159,14 +163,19 @@ export function AdminThesisTab() {
   }
 
   const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION' | 'REQUEST_FINAL_REVISION') => {
-    const reviewNote = window.prompt(
-      action === 'APPROVE_PLAN'
-        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة:'
+    const reviewNote = await promptAction({
+      title: action === 'APPROVE_PLAN' ? 'اعتماد خطة البحث' : action === 'REQUEST_FINAL_REVISION' ? 'طلب تعديل البحث النهائي' : 'طلب تعديل خطة البحث',
+      description: action === 'APPROVE_PLAN'
+        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة.'
         : action === 'REQUEST_FINAL_REVISION'
-          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب:'
-          : 'اكتب ملاحظة التعديل التي ستظهر للطالب:',
-      thesis.reviewNote || ''
-    )
+          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب.'
+          : 'اكتب ملاحظة التعديل التي ستظهر للطالب.',
+      fieldLabel: 'ملاحظة للطالب',
+      defaultValue: thesis.reviewNote || '',
+      multiline: true,
+      confirmLabel: 'متابعة',
+      tone: action === 'APPROVE_PLAN' ? 'success' : 'warning',
+    })
     if (reviewNote === null) return
     setBusy(true)
     try {
@@ -192,7 +201,15 @@ export function AdminThesisTab() {
 
   const recordResult = async () => {
     if (!resulting) return
-    const reviewNote = window.prompt('اكتب ملاحظة اختيارية على نتيجة المناقشة تظهر في سجل الطالب:', resulting.reviewNote || '')
+    const reviewNote = await promptAction({
+      title: 'اعتماد نتيجة المناقشة',
+      description: 'اكتب ملاحظة اختيارية على نتيجة المناقشة تظهر في سجل الطالب.',
+      fieldLabel: 'ملاحظة النتيجة',
+      defaultValue: resulting.reviewNote || '',
+      multiline: true,
+      confirmLabel: 'اعتماد النتيجة',
+      tone: 'success',
+    })
     if (reviewNote === null) return
     setBusy(true)
     try {
@@ -241,6 +258,7 @@ export function AdminThesisTab() {
 
   return (
     <div className="mt-4 space-y-4">
+      {actionDialog}
       <div className="flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
@@ -649,6 +667,7 @@ interface Report {
 
 export function AdminFinanceTab() {
   const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
   const [report, setReport] = useState<Report | null>(null)
@@ -702,7 +721,18 @@ export function AdminFinanceTab() {
     let approvalReference = ''
     let approvalNote = ''
     if (!hasProof && method !== 'USDT') {
-      const value = window.prompt('اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد:', payment.manualApprovalReference || payment.manualApprovalNote || '')
+      const value = await promptAction({
+        title: 'تأكيد سداد بدون إثبات مرفوع',
+        description: 'اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد حتى يظهر السبب في السجل.',
+        fieldLabel: 'رقم الحوالة أو ملاحظة الاعتماد',
+        defaultValue: payment.manualApprovalReference || payment.manualApprovalNote || '',
+        placeholder: 'مثال: حوالة ويسترن رقم 123 أو اعتماد إداري موثق',
+        required: true,
+        minLength: 3,
+        multiline: true,
+        confirmLabel: 'تأكيد السداد',
+        tone: 'warning',
+      })
       if (value === null) return
       const trimmed = value.trim()
       if (trimmed.length < 3) {
@@ -724,7 +754,7 @@ export function AdminFinanceTab() {
     const popup = window.open('', '_blank')
     if (popup) {
       popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing invoice PDF...</p>')
-      try { popup.opener = null } catch {}
+      try { popup.opener = null } catch (error) { console.warn('Unable to detach invoice PDF popup opener.', error) }
     }
     setPdfBusy(id)
     try {
@@ -751,7 +781,7 @@ export function AdminFinanceTab() {
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e: any) {
-      try { popup?.close() } catch {}
+      try { popup?.close() } catch (closeError) { console.warn('Unable to close invoice PDF popup after failure.', closeError) }
       toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
     } finally {
       setPdfBusy(null)
@@ -780,6 +810,7 @@ export function AdminFinanceTab() {
 
   return (
     <div className="mt-4 space-y-5">
+      {actionDialog}
       {/* KPIs المالية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center">
@@ -1009,6 +1040,56 @@ export function AdminFinanceTab() {
 
 // ============ إدارة الشهادات ============
 
+interface CertificateCandidate {
+  id: string
+  reference: string
+  fullName: string
+  email: string
+  country: string
+  program: string
+  status: string
+  ready: boolean
+  missing: string[]
+  eligibility: { ok: boolean; score: number | null; gradeLabel: string | null; error: string; components?: any[] }
+  payments: { tuitionTotal: number; tuitionPaid: number; tuitionOk: boolean; nonTuitionUnpaid: number; missing: string[] }
+}
+
+interface CertificateTemplateItem {
+  id: string
+  name: string
+  certificateType: string
+  active: boolean
+  fileName: string
+  mimeType: string
+  fileSize: number
+  layoutJson?: any
+  imageUrl: string
+  createdAt: string
+}
+
+const TEMPLATE_FIELD_LABELS: Record<string, string> = {
+  holderName: 'اسم الطالب',
+  program: 'اسم البرنامج',
+  grade: 'التقدير',
+  serial: 'الرقم التسلسلي',
+  issuedAt: 'تاريخ الإصدار',
+  qr: 'رمز QR',
+}
+
+const TEMPLATE_DEFAULT_LAYOUT: any = {
+  orientation: 'landscape',
+  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
+  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
+  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
+  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
+  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  qr: { x: 50, y: 86, size: 12, visible: true },
+}
+
+function templateLayout(raw: any) {
+  return { ...TEMPLATE_DEFAULT_LAYOUT, ...(raw && typeof raw === 'object' ? raw : {}) }
+}
+
 export function AdminCertificatesTab() {
   const { toast } = useToast()
   const [certs, setCerts] = useState<CertificateData[]>([])
@@ -1017,6 +1098,20 @@ export function AdminCertificatesTab() {
   const [open, setOpen] = useState(false)
   const [issueOpen, setIssueOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [section, setSection] = useState<'READY' | 'BLOCKED' | 'ISSUED'>('READY')
+  const [readyCandidates, setReadyCandidates] = useState<CertificateCandidate[]>([])
+  const [blockedCandidates, setBlockedCandidates] = useState<CertificateCandidate[]>([])
+  const [candidatesLoading, setCandidatesLoading] = useState(true)
+  const [candidateRefresh, setCandidateRefresh] = useState(0)
+  const [financialOverrideReasons, setFinancialOverrideReasons] = useState<Record<string, string>>({})
+  const [templates, setTemplates] = useState<CertificateTemplateItem[]>([])
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const [templateFile, setTemplateFile] = useState<File | null>(null)
+  const [templateForm, setTemplateForm] = useState({ name: '', certificateType: 'PROGRAM_COMPLETION' })
+  const [templatePendingDelete, setTemplatePendingDelete] = useState<CertificateTemplateItem | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [selectedTemplateField, setSelectedTemplateField] = useState('holderName')
+  const templateCanvasRef = useRef<HTMLDivElement | null>(null)
   const [form, setForm] = useState({ holderName: '', program: '', grade: '', country: '' })
   const [certSearch, setCertSearch] = useState('')
   const [certPage, setCertPage] = useState(1)
@@ -1044,6 +1139,38 @@ export function AdminCertificatesTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [certSearch, certPage, certPageSize, certRefresh])
 
+  useEffect(() => {
+    let cancelled = false
+    setCandidatesLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ limit: '120' })
+      if (certSearch.trim()) params.set('search', certSearch.trim())
+      api<{ ready: CertificateCandidate[]; blocked: CertificateCandidate[] }>(`/api/admin/certificates/candidates?${params.toString()}`)
+        .then((d) => {
+          if (cancelled) return
+          setReadyCandidates(Array.isArray(d.ready) ? d.ready : [])
+          setBlockedCandidates(Array.isArray(d.blocked) ? d.blocked : [])
+        })
+        .catch(() => {
+          if (cancelled) return
+          setReadyCandidates([])
+          setBlockedCandidates([])
+        })
+        .finally(() => { if (!cancelled) setCandidatesLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [certSearch, candidateRefresh, certRefresh])
+
+  const loadTemplates = () => {
+    api<{ templates: CertificateTemplateItem[] }>('/api/admin/certificates/templates')
+      .then((d) => setTemplates(Array.isArray(d.templates) ? d.templates : []))
+      .catch(() => setTemplates([]))
+  }
+
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
   const issue = async () => {
     setBusy(true)
     try {
@@ -1052,10 +1179,139 @@ export function AdminCertificatesTab() {
       setIssueOpen(false)
       setForm({ holderName: '', program: '', grade: '', country: '' })
       load()
+      setCandidateRefresh((v) => v + 1)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
       setBusy(false)
+    }
+  }
+
+  const issueCandidate = async (candidate: CertificateCandidate) => {
+    if (!candidate.ready) return
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify({ admissionId: candidate.id }) })
+      toast({ title: 'تم إصدار الشهادة', description: `أُصدرت شهادة ${candidate.fullName} وربطت بطلبه وبرنامجه.` })
+      load()
+      setCandidateRefresh((v) => v + 1)
+      setSection('ISSUED')
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const issueWithFinancialOverride = async (candidate: CertificateCandidate) => {
+    const reason = String(financialOverrideReasons[candidate.id] || '').trim()
+    if (!candidate.eligibility?.ok) {
+      toast({ title: 'لا يمكن التجاوز', description: 'التجاوز مسموح مالياً فقط، ولا يسمح بتجاوز شروط النجاح الأكاديمي.', variant: 'destructive' })
+      return
+    }
+    if (reason.length < 6) {
+      toast({ title: 'سبب التجاوز مطلوب', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف قبل الإصدار.', variant: 'destructive' })
+      return
+    }
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify({ admissionId: candidate.id, financialOverrideReason: reason }) })
+      toast({ title: 'تم إصدار الشهادة بتجاوز مالي', description: `أُصدرت شهادة ${candidate.fullName} مع تسجيل سبب التجاوز في سجل التدقيق.` })
+      setFinancialOverrideReasons((prev) => ({ ...prev, [candidate.id]: '' }))
+      load()
+      setCandidateRefresh((v) => v + 1)
+      setSection('ISSUED')
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const uploadCertificateTemplate = async () => {
+    if (!templateFile) {
+      toast({ title: 'اختر صورة القالب أولاً', variant: 'destructive' })
+      return
+    }
+    if (!templateForm.name.trim()) {
+      toast({ title: 'اسم القالب مطلوب', variant: 'destructive' })
+      return
+    }
+    setTemplateBusy(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', templateFile)
+      formData.append('name', templateForm.name)
+      formData.append('certificateType', templateForm.certificateType)
+      await api('/api/admin/certificates/templates', { method: 'POST', body: formData })
+      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب في نافذة الشهادة ويضع النظام البيانات فوقه تلقائياً.' })
+      setTemplateFile(null)
+      setTemplateForm({ name: '', certificateType: 'PROGRAM_COMPLETION' })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر رفع القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  const updateCertificateTemplate = async (template: CertificateTemplateItem, patch: Partial<CertificateTemplateItem>) => {
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  const deleteCertificateTemplate = async (template: CertificateTemplateItem) => {
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'DELETE' })
+      setTemplatePendingDelete(null)
+      if (selectedTemplateId === template.id) setSelectedTemplateId(null)
+      loadTemplates()
+      toast({ title: 'حُذف قالب الشهادة', description: `تم حذف قالب «${template.name}» من لوحة القوالب.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر حذف القالب', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  const patchTemplateLayout = (template: CertificateTemplateItem, field: string, patch: Record<string, any>) => {
+    const nextLayout = templateLayout(template.layoutJson)
+    const current = nextLayout[field] || {}
+    const updated = { ...current, ...patch }
+    setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, [field]: updated } } : t))
+  }
+
+  const setTemplateOrientation = (template: CertificateTemplateItem, orientation: 'landscape' | 'portrait') => {
+    const nextLayout = templateLayout(template.layoutJson)
+    setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, orientation } } : t))
+  }
+
+  const moveTemplateField = (template: CertificateTemplateItem, field: string, clientX: number, clientY: number) => {
+    const rect = templateCanvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.max(2, Math.min(98, ((clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(2, Math.min(98, ((clientY - rect.top) / rect.height) * 100))
+    patchTemplateLayout(template, field, { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) })
+  }
+
+  const saveTemplateLayout = async (template: CertificateTemplateItem) => {
+    setTemplateBusy(true)
+    try {
+      await api(`/api/admin/certificates/templates/${encodeURIComponent(template.id)}`, { method: 'PATCH', body: JSON.stringify({ layoutJson: templateLayout(template.layoutJson) }) })
+      toast({ title: 'تم حفظ أماكن حقول القالب', description: 'ستستخدم الشهادات هذا التخطيط في المعاينة والطباعة.' })
+      loadTemplates()
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ التخطيط', description: e.message, variant: 'destructive' })
+    } finally {
+      setTemplateBusy(false)
     }
   }
 
@@ -1064,52 +1320,313 @@ export function AdminCertificatesTab() {
   const filteredCerts = certs
   const pagedCerts = certs
   const currentCertPage = certPage
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || null
+  const selectedLayout = selectedTemplate ? templateLayout(selectedTemplate.layoutJson) : TEMPLATE_DEFAULT_LAYOUT
+  const isPortraitTemplate = selectedLayout.orientation === 'portrait'
+  const templateAspectClass = isPortraitTemplate ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
+  const sampleValues: Record<string, string> = {
+    holderName: 'محمد أحمد',
+    program: 'الماجستير المهني في إدارة الأعمال',
+    grade: 'امتياز',
+    serial: 'AACT-C-2026-00001',
+    issuedAt: '05/10/2026',
+    qr: 'QR',
+  }
+  const designerFieldStyle = (field: string) => {
+    const cfg = selectedLayout[field] || {}
+    const isQr = field === 'qr'
+    return {
+      position: 'absolute' as const,
+      left: `${Number(cfg.x ?? 50)}%`,
+      top: `${Number(cfg.y ?? 50)}%`,
+      width: isQr ? `${Number(cfg.size ?? 12)}%` : `${Number(cfg.width ?? 50)}%`,
+      minHeight: isQr ? undefined : '22px',
+      transform: 'translate(-50%, -50%)',
+      textAlign: cfg.align || 'center',
+      color: cfg.color || '#0f2b46',
+      fontSize: isQr ? undefined : `clamp(10px, ${Number(cfg.fontSize ?? 2)}vw, 42px)`,
+      lineHeight: 1.2,
+      fontWeight: 900,
+      cursor: 'move',
+      border: selectedTemplateField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
+      background: isQr ? 'white' : 'rgba(255,255,255,.72)',
+      padding: isQr ? '4px' : '4px 8px',
+      borderRadius: '10px',
+    }
+  }
 
   return (
     <div className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-slate-500">كل الشهادات الصادرة — كل شهادة برقم تسلسلي فريد وQR للتحقق العام</p>
-        <Button onClick={() => setIssueOpen(true)} className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
-          <Plus className="ml-1 h-4 w-4" /> إصدار شهادة يدوياً
+        <div>
+          <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
+          <p className="text-xs font-bold text-slate-500">النظام يحدد الجاهزين والممنوعين آلياً، والإدارة تعتمد الإصدار بضغطة زر.</p>
+        </div>
+        <Button onClick={() => setIssueOpen(true)} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a]">
+          <Plus className="ml-1 h-4 w-4" /> إصدار يدوي مقيد
         </Button>
       </div>
+
+      <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-2 sm:grid-cols-3">
+        {[
+          ['READY', 'جاهزة للإصدار', readyCandidates.length, CheckCircle2] as const,
+          ['BLOCKED', 'ممنوعة حالياً', blockedCandidates.length, XCircle] as const,
+          ['ISSUED', 'سجل الصادرة', certTotal, Award] as const,
+        ].map(([key, label, count, Icon]) => (
+          <button key={key} type="button" onClick={() => setSection(key)} className={`rounded-xl px-3 py-3 text-right text-xs font-black transition ${section === key ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-slate-50 text-[#0f2b46] hover:bg-slate-100'}`}>
+            <span className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><Badge className={section === key ? 'bg-white/15 text-white' : 'bg-[#c9a227]/15 text-[#a8841a]'}>{count}</Badge></span>
+          </button>
+        ))}
+      </div>
+
       <AdminListToolbar
         search={certSearch}
         onSearchChange={(v) => { setCertSearch(v); setCertPage(1) }}
         searchPlaceholder="ابحث بالاسم أو الرقم التسلسلي أو البرنامج..."
         pageSize={certPageSize}
         onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
-        total={certTotal}
-        filtered={certTotal}
-        label="شهادة"
+        total={section === 'ISSUED' ? certTotal : (section === 'READY' ? readyCandidates.length : blockedCandidates.length)}
+        filtered={section === 'ISSUED' ? certTotal : (section === 'READY' ? readyCandidates.length : blockedCandidates.length)}
+        label={section === 'ISSUED' ? 'شهادة' : 'طلب'}
       />
-      {certTotal === 0 && !certSearch ? (
-        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات بعد — تُصدر تلقائياً عند إكمال برنامج أو اعتماد طلب اعتماد</CardContent></Card>
-      ) : certs.length === 0 ? (
-        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {pagedCerts.map((c) => (
-            <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <Award className="h-5 w-5 text-[#a8841a]" />
-                  <span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span>
-                </div>
-                <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
-                <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
-                <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]"
-                  onClick={() => { setSelected(c); setOpen(true) }}>
-                  <FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+
+      {section === 'READY' && (
+        candidatesLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div> : readyCandidates.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات جاهزة للإصدار حالياً.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {readyCandidates.map((c) => (
+              <Card key={c.id} className="border-emerald-200 bg-white">
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-emerald-100 text-emerald-700">جاهز</Badge></div>
+                  <div className="grid gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-900 sm:grid-cols-2"><span>النتيجة: {c.eligibility.gradeLabel || 'جاهز أكاديمياً'}</span><span>الرسوم: {c.payments.tuitionPaid}$ / {c.payments.tuitionTotal}$</span></div>
+                  <Button disabled={busy} onClick={() => issueCandidate(c)} className="w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
       )}
-      <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />
+
+      {section === 'BLOCKED' && (
+        candidatesLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div> : blockedCandidates.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد طلبات ممنوعة حالياً.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {blockedCandidates.map((c) => (
+              <Card key={c.id} className="border-red-100 bg-white">
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-red-100 text-red-700">ممنوع</Badge></div>
+                  <div className="rounded-xl bg-red-50 p-3 text-xs font-bold leading-6 text-red-900"><p className="mb-1 font-black">سبب المنع:</p><ul className="list-inside list-disc space-y-1">{c.missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}</ul></div>
+                  {c.eligibility?.ok && (!c.payments.tuitionOk || c.payments.nonTuitionUnpaid > 0) ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <Label className="text-[11px] font-black text-amber-900">سبب التجاوز المالي *</Label>
+                      <Textarea
+                        rows={2}
+                        value={financialOverrideReasons[c.id] || ''}
+                        onChange={(e) => setFinancialOverrideReasons((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        placeholder="مثال: منحة إدارية خاصة أو قرار تأجيل سداد موثق"
+                        className="mt-2 bg-white text-xs font-bold leading-6"
+                      />
+                      <Button disabled={busy} onClick={() => issueWithFinancialOverride(c)} className="mt-2 w-full bg-amber-600 font-black text-white hover:bg-amber-700">
+                        {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار بتجاوز مالي
+                      </Button>
+                      <p className="mt-2 text-[10px] font-bold leading-5 text-amber-900">يسمح هذا الزر بتجاوز المنع المالي فقط. لا يسمح بتجاوز الرسوب أو نقص المناقشة أو نقص التقييمات.</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] font-bold text-slate-500">لا يمكن الإصدار هنا لأن شروط النجاح الأكاديمي غير مكتملة. التجاوز المالي لا يتجاوز الرسوب أو نقص التقييمات.</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      {section === 'ISSUED' && (
+        certTotal === 0 && !certSearch ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات صادرة بعد — تصدرها الإدارة بعد اكتمال النجاح الأكاديمي وسداد الرسوم.</CardContent></Card>
+        ) : certs.length === 0 ? (
+          <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات مطابقة للبحث الحالي.</CardContent></Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pagedCerts.map((c) => (
+              <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between"><Award className="h-5 w-5 text-[#a8841a]" /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
+                  <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
+                  <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
+                  <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+      {section === 'ISSUED' && <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />}
+
+      <Card className="border-[#0f2b46]/10 bg-white">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-black text-[#0f2b46]">قوالب الشهادات الرسمية</h4>
+              <p className="text-xs font-bold text-slate-500">ارفع صورة قالب شهادة فارغ، والنظام يضع الاسم والبرنامج والرقم وQR فوقها في نافذة الشهادة.</p>
+            </div>
+            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{templates.length} قالب</Badge>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 lg:grid-cols-4">
+            <Input value={templateForm.name} placeholder="اسم القالب" onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))} className="font-bold" />
+            <Select value={templateForm.certificateType} onValueChange={(v) => setTemplateForm((p) => ({ ...p, certificateType: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PROGRAM_COMPLETION">شهادات البرامج</SelectItem>
+                <SelectItem value="ACCREDITATION">شهادات الاعتماد</SelectItem>
+                <SelectItem value="AGENCY">شهادات الوكالة</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="file" accept="image/png,image/jpeg" onChange={(e) => setTemplateFile(e.target.files?.[0] || null)} className="lg:col-span-1" />
+            <Button type="button" onClick={uploadCertificateTemplate} disabled={templateBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+              {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Upload className="ml-2 h-4 w-4" />} رفع القالب
+            </Button>
+          </div>
+          {templates.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد قوالب مرفوعة بعد. ستبقى نافذة الشهادة تستخدم القالب الافتراضي.</div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {templates.map((t) => (
+                <div key={t.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-[#0f2b46]">{t.name}</p>
+                      <p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{t.fileName}</p>
+                      <Badge className={t.active ? 'mt-2 bg-emerald-100 text-emerald-700' : 'mt-2 bg-slate-200 text-slate-600'}>{t.active ? 'نشط' : 'معطل'}</Badge>
+                    </div>
+                    <img src={t.imageUrl} alt={t.name} className="h-16 w-24 rounded-lg border border-slate-200 object-cover" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button asChild type="button" size="sm" variant="outline" className="h-8 text-xs font-bold"><a href={t.imageUrl} target="_blank" rel="noreferrer"><Eye className="ml-1 h-3.5 w-3.5" /> معاينة</a></Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => updateCertificateTemplate(t, { active: !t.active })} disabled={templateBusy} className="h-8 text-xs font-bold">{t.active ? 'تعطيل' : 'تفعيل'}</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTemplatePendingDelete(t)} disabled={templateBusy} className="h-8 text-xs font-bold text-red-600"><Trash2 className="ml-1 h-3.5 w-3.5" /> حذف</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedTemplate && (
+            <div className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8f5ed] p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h5 className="text-sm font-black text-[#0f2b46]">محرر أماكن الحقول على القالب</h5>
+                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب أي حقل فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
+                </div>
+                <Button type="button" onClick={() => saveTemplateLayout(selectedTemplate)} disabled={templateBusy} className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
+                  {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />} حفظ تخطيط القالب
+                </Button>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">القالب الذي يتم ضبطه</Label>
+                    <Select value={selectedTemplate.id} onValueChange={(v) => setSelectedTemplateId(v)}>
+                      <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">اتجاه الشهادة</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant={isPortraitTemplate ? 'outline' : 'default'} onClick={() => setTemplateOrientation(selectedTemplate, 'landscape')} className={isPortraitTemplate ? 'bg-white font-black' : 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>عرضي</Button>
+                      <Button type="button" variant={isPortraitTemplate ? 'default' : 'outline'} onClick={() => setTemplateOrientation(selectedTemplate, 'portrait')} className={isPortraitTemplate ? 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]' : 'bg-white font-black'}>طولي</Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-black text-slate-600">الحقل المحدد</Label>
+                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
+                      <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.keys(TEMPLATE_FIELD_LABELS).map((key) => <SelectItem key={key} value={key}>{TEMPLATE_FIELD_LABELS[key]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedTemplateField !== 'qr' ? (
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.8" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="10" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللون</Label><Input type="color" value={selectedLayout[selectedTemplateField]?.color || '#0f2b46'} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { color: e.target.value })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">يمين</SelectItem><SelectItem value="center">وسط</SelectItem><SelectItem value="left">يسار</SelectItem></SelectContent></Select></div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-white p-3"><Label className="text-[10px] font-bold">حجم QR %</Label><Input type="number" min="5" max="30" value={selectedLayout.qr?.size ?? 12} onChange={(e) => patchTemplateLayout(selectedTemplate, 'qr', { size: Number(e.target.value || 12) })} /></div>
+                  )}
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب الحقل من داخل الصورة. القيم تُحفظ كنسب مئوية حتى يبقى التخطيط صحيحاً مهما تغيّر حجم القالب.</div>
+                </div>
+                <div
+                  ref={templateCanvasRef}
+                  className={`relative ${templateAspectClass} overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner`}
+                  onPointerMove={(e) => {
+                    if (e.buttons !== 1 || !selectedTemplate) return
+                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                  }}
+                  onPointerDown={(e) => {
+                    if (!selectedTemplate) return
+                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                  }}
+                >
+                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="absolute inset-0 h-full w-full object-cover" />
+                  {Object.keys(TEMPLATE_FIELD_LABELS).map((field) => {
+                    const cfg = selectedLayout[field]
+                    if (cfg?.visible === false) return null
+                    return (
+                      <button
+                        key={field}
+                        type="button"
+                        onPointerDown={(e) => { e.stopPropagation(); setSelectedTemplateField(field); if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY) }}
+                        style={designerFieldStyle(field)}
+                        className="select-none"
+                      >
+                        {field === 'qr' ? 'QR' : sampleValues[field]}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <CertificateDialog certificate={selected} open={open} onClose={() => setOpen(false)} />
+
+      <Dialog open={!!templatePendingDelete} onOpenChange={(v) => !v && setTemplatePendingDelete(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border border-red-100 bg-white p-0" dir="rtl">
+          <div className="rounded-t-[2rem] bg-gradient-to-l from-red-700 to-[#0f2b46] px-5 py-5 text-[#f5f0e1]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-black">
+                <Trash2 className="h-5 w-5" /> حذف قالب الشهادة
+              </DialogTitle>
+              <DialogDescription className="text-xs font-bold leading-6 text-[#f5f0e1]/80">
+                سيتم حذف القالب من لوحة القوالب ولن تستخدمه الشهادات الجديدة أو المعاينات القادمة.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold leading-7 text-red-900">
+              هل تريد حذف قالب الشهادة
+              <span className="mx-1 font-black">«{templatePendingDelete?.name || ''}»</span>
+              ؟
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setTemplatePendingDelete(null)} disabled={templateBusy} className="font-black">إلغاء</Button>
+              <Button type="button" onClick={() => templatePendingDelete && deleteCertificateTemplate(templatePendingDelete)} disabled={templateBusy} className="bg-red-700 font-black text-white hover:bg-red-800">
+                {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Trash2 className="ml-2 h-4 w-4" />} نعم، احذف القالب
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
         <DialogContent className="max-w-md" dir="rtl">
@@ -1190,6 +1707,7 @@ interface AccreditationAdminProfile {
 
 export function AdminSettingsTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [values, setValues] = useState<Record<string, string>>({})
   const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json'; help?: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -1274,7 +1792,13 @@ export function AdminSettingsTab() {
   }
 
   const disableSystemAdmin = async (admin: SystemAdminAccount) => {
-    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    const ok = await confirmAction({
+      title: 'تعطيل حساب إدارة',
+      description: `سيتم تعطيل حساب ${admin.email}، حذف جلساته، ومنعه من تسجيل الدخول مع الحفاظ على سجل التدقيق.`,
+      confirmLabel: 'تعطيل الحساب',
+      tone: 'danger',
+    })
+    if (!ok) return
     setAdminBusy(admin.id)
     try {
       await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
@@ -1301,7 +1825,8 @@ export function AdminSettingsTab() {
     try {
       const parsed = JSON.parse(values[key] || '{}')
       return { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
-    } catch {
+    } catch (error) {
+      console.warn(`Failed to parse structured setting ${key}; using fallback.`, error)
       return fallback
     }
   }
@@ -1312,7 +1837,9 @@ export function AdminSettingsTab() {
       try {
         const parsed = JSON.parse(prev[key] || '{}')
         current = { ...fallback, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
-      } catch {}
+      } catch (error) {
+        console.warn(`Failed to parse structured setting ${key} before patching; using fallback.`, error)
+      }
       return { ...prev, [key]: JSON.stringify({ ...current, ...patch }) }
     })
   }
@@ -1401,7 +1928,13 @@ export function AdminSettingsTab() {
         }
       }
       const deleteAccreditationDocument = async (doc: AccreditationAdminDocument) => {
-        if (!confirm(`حذف الوثيقة «${doc.title}» من صفحة الاعتماد؟`)) return
+        const ok = await confirmAction({
+          title: 'حذف وثيقة رسمية',
+          description: `سيتم حذف الوثيقة «${doc.title}» من صفحة التراخيص والوثائق الرسمية.`,
+          confirmLabel: 'حذف الوثيقة',
+          tone: 'danger',
+        })
+        if (!ok) return
         setAccreditationUploadBusy(true)
         try {
           const res = await api<{ profile: AccreditationAdminProfile }>(`/api/admin/accreditation/documents/${encodeURIComponent(doc.id)}`, { method: 'DELETE' })
@@ -1468,100 +2001,6 @@ export function AdminSettingsTab() {
         </div>
       )
       }
-      const accreditationFallback = {
-        licenseNumber: '',
-        licenseVerifyUrl: '',
-        licenseDocumentUrl: '',
-        licensingAuthority: '',
-        trustNote: 'تُعرض هنا فقط بيانات الاعتماد والشراكات التي أدخلتها الإدارة وتملك لها رابط تحقق أو وثيقة منشورة.',
-        partnerships: [] as Array<{ name: string; type?: string; description?: string; verifyUrl?: string; documentUrl?: string }>,
-      }
-      const accreditation = readJsonSetting('ACCREDITATION_PAGE', accreditationFallback)
-      const partnerships = Array.isArray(accreditation.partnerships) ? accreditation.partnerships : []
-      const patchPartnerships = (next: typeof partnerships) => patchJsonSetting('ACCREDITATION_PAGE', { partnerships: next }, accreditationFallback)
-      const updatePartnership = (index: number, patch: Partial<typeof partnerships[number]>) => {
-        const next = partnerships.length ? [...partnerships] : []
-        next[index] = { ...(next[index] || { name: '' }), ...patch }
-        patchPartnerships(next)
-      }
-      const addPartnership = () => patchPartnerships([...partnerships, { name: '', type: '', description: '', verifyUrl: '', documentUrl: '' }])
-      const removePartnership = (index: number) => patchPartnerships(partnerships.filter((_, i) => i !== index))
-      return (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
-            ضع روابط الوثائق المستضافة خارج المنصة فقط، مثل روابط Cloudflare R2 أو Cloudflare Images أو أي رابط تحقق رسمي. لا يتم رفع ملفات الاعتماد داخل المنصة من هذا القسم.
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-bold text-slate-600">رقم الترخيص / التسجيل</Label>
-              <Input value={accreditation.licenseNumber || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseNumber: e.target.value }, accreditationFallback)} className="font-bold" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-bold text-slate-600">جهة الترخيص</Label>
-              <Input value={accreditation.licensingAuthority || ''} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licensingAuthority: e.target.value }, accreditationFallback)} className="font-bold" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-bold text-slate-600">رابط التحقق الرسمي</Label>
-              <Input dir="ltr" value={accreditation.licenseVerifyUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseVerifyUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-bold text-slate-600">رابط وثيقة الترخيص على Cloudflare</Label>
-              <Input dir="ltr" value={accreditation.licenseDocumentUrl || ''} placeholder="https://..." onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { licenseDocumentUrl: e.target.value }, accreditationFallback)} className="text-left font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[11px] font-bold text-slate-600">ملاحظة الثقة على صفحة الاعتماد</Label>
-              <Textarea value={accreditation.trustNote || ''} rows={3} onChange={(e) => patchJsonSetting('ACCREDITATION_PAGE', { trustNote: e.target.value }, accreditationFallback)} className="font-bold leading-7" />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <Label className="text-sm font-black text-[#0f2b46]">الشراكات والاعتمادات المرتبطة</Label>
-                <p className="mt-1 text-[11px] font-bold text-slate-500">أضف أي شراكة جديدة باسمها وروابط التحقق أو الوثائق. لا توجد أسماء ثابتة في الكود.</p>
-              </div>
-              <Button type="button" size="sm" variant="outline" onClick={addPartnership} className="font-black">+ إضافة شراكة</Button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {partnerships.length === 0 && (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-500">
-                  لا توجد شراكات مدخلة بعد. أضف شراكة فقط إذا كانت لديك وثيقة أو رابط تحقق رسمي.
-                </div>
-              )}
-              {partnerships.map((partner, index) => (
-                <div key={index} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <p className="text-xs font-black text-[#0f2b46]">شراكة #{index + 1}</p>
-                    <Button type="button" size="sm" variant="outline" onClick={() => removePartnership(index)} className="text-[10px] font-black text-red-600">حذف</Button>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-bold text-slate-600">اسم الجهة</Label>
-                      <Input value={partner.name || ''} placeholder="مثال: جامعة القاهرة" onChange={(e) => updatePartnership(index, { name: e.target.value })} className="font-bold" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-bold text-slate-600">نوع العلاقة</Label>
-                      <Input value={partner.type || ''} placeholder="شراكة / اعتماد / تعاون" onChange={(e) => updatePartnership(index, { type: e.target.value })} className="font-bold" />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-[11px] font-bold text-slate-600">وصف مختصر</Label>
-                      <Textarea value={partner.description || ''} rows={2} onChange={(e) => updatePartnership(index, { description: e.target.value })} className="font-bold leading-7" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-bold text-slate-600">رابط تحقق رسمي</Label>
-                      <Input dir="ltr" value={partner.verifyUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { verifyUrl: e.target.value })} className="text-left font-mono text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-bold text-slate-600">رابط الوثيقة على Cloudflare</Label>
-                      <Input dir="ltr" value={partner.documentUrl || ''} placeholder="https://..." onChange={(e) => updatePartnership(index, { documentUrl: e.target.value })} className="text-left font-mono text-xs" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
     }
     if (d.key === 'OFFICIAL_CONTACT') {
       const contactFallback = { legalEntity: '', registrationNumber: '', address: '', email: '', phone: '', phones: [] as string[], whatsapp: '', whatsapps: [] as string[], responsiblePerson: '' }
@@ -1669,6 +2108,7 @@ export function AdminSettingsTab() {
 
   return (
     <div className="mt-4 space-y-5">
+      {actionDialog}
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1834,6 +2274,7 @@ export function AdminSettingsTab() {
 
 export function AdminAdminsTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
   const [adminsLoading, setAdminsLoading] = useState(true)
   const [adminBusy, setAdminBusy] = useState<string | null>(null)
@@ -1882,7 +2323,13 @@ export function AdminAdminsTab() {
   }
 
   const disableSystemAdmin = async (admin: SystemAdminAccount) => {
-    if (!confirm(`تعطيل حساب الإدارة ${admin.email}؟ سيتم حذف جلساته ومنعه من تسجيل الدخول.`)) return
+    const ok = await confirmAction({
+      title: 'تعطيل حساب إدارة',
+      description: `سيتم تعطيل حساب ${admin.email}، حذف جلساته، ومنعه من تسجيل الدخول مع الحفاظ على سجل التدقيق.`,
+      confirmLabel: 'تعطيل الحساب',
+      tone: 'danger',
+    })
+    if (!ok) return
     setAdminBusy(admin.id)
     try {
       await api(`/api/admin/system-admins?id=${encodeURIComponent(admin.id)}`, { method: 'DELETE' })
@@ -1897,6 +2344,7 @@ export function AdminAdminsTab() {
 
   return (
     <div className="mt-4 space-y-5">
+      {actionDialog}
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -2061,7 +2509,8 @@ function parseAuditDetails(details?: string | null): any | null {
   if (!details) return null
   try {
     return JSON.parse(details)
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse audit details JSON.', error)
     return null
   }
 }
@@ -2187,7 +2636,7 @@ function WhatsAppAuditDisplay({ log }: { log: AuditRow }) {
 function parseAuditJson(details?: string | null): any | null {
   const raw = String(details || '').trim()
   if (!raw || !raw.startsWith('{')) return null
-  try { return JSON.parse(raw) } catch { return null }
+  try { return JSON.parse(raw) } catch (error) { console.warn('Failed to parse AI knowledge audit JSON.', error); return null }
 }
 
 function AiKnowledgeAuditDisplay({ log }: { log: AuditRow }) {

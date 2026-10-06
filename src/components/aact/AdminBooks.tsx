@@ -1094,7 +1094,7 @@ export function AdminBooksTab() {
 
   const openEditBankQuestion = (q: QuestionBankItemRow) => {
     let options: string[] = []
-    try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+    try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options before editing.', error) }
     setEditingBankQuestion(q)
     setEditingBankQuestionForm({
       type: q.type || 'MCQ',
@@ -3008,7 +3008,7 @@ export function AdminBooksTab() {
             <p className="text-[11px] font-bold text-slate-400">المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال</p>
             {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : filteredQuestionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة مطابقة للفلترة.</p> : filteredQuestionBankItems.map((q) => {
               let options: string[] = []
-              try { options = q.options ? JSON.parse(q.options) : [] } catch {}
+              try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options for display.', error) }
               return (
                 <article key={q.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

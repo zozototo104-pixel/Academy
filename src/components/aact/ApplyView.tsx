@@ -128,7 +128,8 @@ function readCachedPrograms(): ProgramLite[] {
     const version = localStorage.getItem('aact_programs_summary_version')
     const cached = version ? JSON.parse(localStorage.getItem(`aact_programs_summary_${version}`) || '[]') : []
     return Array.isArray(cached) ? cached : []
-  } catch {
+  } catch (error) {
+    console.warn('Failed to read cached apply programs summary.', error)
     return []
   }
 }
@@ -140,7 +141,9 @@ function cachePrograms(list: ProgramLite[], catalogVersion?: string | null) {
     localStorage.setItem('aact_programs_summary_version', version)
     localStorage.setItem(`aact_programs_summary_${version}`, JSON.stringify(list.slice(0, 160)))
     localStorage.setItem('aact_program_count', String(list.length))
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to cache apply programs summary.', error)
+  }
 }
 
 const TERMINAL_APPLICATION_STATUSES = ['CERTIFIED', 'REJECTED', 'WITHDRAWN', 'CANCELLED']
@@ -538,7 +541,9 @@ export function ApplyView() {
         document.documentElement.scrollTop = 0
         document.body.scrollTop = 0
         requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
-      } catch {}
+      } catch (error) {
+        console.warn('Failed to scroll after application submission.', error)
+      }
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)

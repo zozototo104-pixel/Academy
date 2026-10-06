@@ -143,7 +143,7 @@ export function StudentSupervisionTab() {
 
   const stopRecording = () => {
     setRecording(false)
-    try { recorderRef.current?.stop() } catch {}
+    try { recorderRef.current?.stop() } catch (error) { console.warn('Failed to stop student supervision recorder.', error) }
   }
 
   const setAnswer = (assessmentId: string, questionId: string, value: any) => {

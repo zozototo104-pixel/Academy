@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
   let body: { text?: string; speed?: number } = {}
   try {
     body = await req.json()
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to parse TTS stream request body JSON.', error)
+  }
   const text = (body.text || '').trim()
   const speed = Math.min(1.3, Math.max(0.8, Number(body.speed) || 1.0))
   if (!text) {
@@ -72,13 +74,15 @@ export async function POST(req: NextRequest) {
               const json = JSON.parse(payload)
               const b64 = json?.choices?.[0]?.delta?.content
               if (b64) controller.enqueue(sse({ type: 'audio', b64 }))
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to parse TTS stream payload chunk.', error)
+            }
           }
         }
         controller.enqueue(sse({ type: 'done' }))
       } catch (e: any) {
         console.error('tts-stream error:', e?.message?.slice(0, 160))
-        try { controller.enqueue(sse({ type: 'error', error: 'فشل توليد الصوت' })) } catch {}
+        try { controller.enqueue(sse({ type: 'error', error: 'فشل توليد الصوت' })) } catch (error) { console.warn('Failed to enqueue TTS stream error event.', error) }
       } finally {
         controller.close()
       }
