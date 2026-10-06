@@ -445,8 +445,8 @@ export function AIChatView() {
       return
     }
     audioRef.current?.pause()
-    try { window.speechSynthesis?.cancel() } catch {}
-    try { agentRef.current?.stop() } catch {}
+    try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before starting voice mode.', error) }
+    try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop previous voice agent before restart.', error) }
     agentRef.current = null
     speechUtteranceRef.current = null
     setSpeakingId(null)
