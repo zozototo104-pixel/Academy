@@ -254,10 +254,11 @@ export function QuestionReviewDialog({
     if (!confirm(`هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي. متابعة؟`)) return
     setBusy(true)
     try {
-      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'kick' }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر استكمال التوليد')
       toast({
         title: 'تم تحريك استكمال الامتحان',
         description: `أصبح العدد ${d.questionCount || questions.length} سؤالاً، وستكمل صفحة الكتب بقية الدفعات إذا بقيت مفتوحة`,
