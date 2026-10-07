@@ -80,6 +80,13 @@ function shouldAutoRewriteAfterUpload(assetType: string, extras?: Record<string,
   return ['CV', 'WORK', 'ACHIEVEMENT', 'BOOK'].includes(String(extras?.kind || '').toUpperCase())
 }
 
+function representativeAssetPreviewUrl(rep: Representative | null | undefined, asset: 'profilePhoto' | 'officialCard') {
+  if (!rep?.id) return ''
+  if (asset === 'profilePhoto' && !rep.profilePhotoUrl) return ''
+  if (asset === 'officialCard' && !rep.officialCardUrl) return ''
+  return `/api/admin/representatives/${encodeURIComponent(rep.id)}/asset-preview/${asset}`
+}
+
 export default function AdminRepresentativesTab() {
   const [rows, setRows] = useState<Representative[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
