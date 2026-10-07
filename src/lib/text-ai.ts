@@ -849,12 +849,26 @@ function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
   return available.length ? available : keys
 }
 
+function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const activeCooldowns = [...cooldowns.values()].filter((item) => item.until > Date.now())
+  const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+  err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
+  err.retryAt = activeCooldowns.length ? new Date(Math.min(...activeCooldowns.map((item) => item.until))).toISOString() : null
+  err.attempts = attempts
+  return err
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
-  const providers = providerOrder(s)
-  if (!providers.length) throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+  const taskLevel = opts.taskLevel || 'GENERAL'
+  const providers = providerOrder(s, taskLevel)
+  if (!providers.length) {
+    if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
+    throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+  }
   const errors: string[] = []
+  const attempts: TextAiAttemptDiagnostics[] = []
 
   for (const provider of providers) {
     for (const model of await modelFallbacks(s, provider)) {
