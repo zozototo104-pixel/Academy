@@ -1748,6 +1748,174 @@ function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boo
   return evidenceSupportedByBooks(evidence, books)
 }
 
+type ExamGenerationProviderContext = { provider?: string; model?: string }
+
+const sourceIndexSchema = z.union([z.number().int().positive(), z.string().regex(/^\d+$/u)])
+
+const generatedExamQuestionSchema = z.object({
+  type: z.enum(['MCQ', 'CASE_MCQ', 'TF', 'SHORT', 'ESSAY']),
+  text: z.string().min(8),
+  options: z.array(z.string()).optional(),
+  correctAnswer: z.union([z.string(), z.number()]).optional(),
+  correct: z.union([z.string(), z.number()]).optional(),
+  sourceIndex: sourceIndexSchema,
+  sourceEvidence: z.string().min(40),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']).optional(),
+  cognitiveSkill: z.enum(['UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE']).optional(),
+  rationale: z.string().optional(),
+  correctRationale: z.string().optional(),
+  modelAnswer: z.string().optional(),
+  sourceChapter: z.string().optional(),
+  sourceLocator: z.string().optional(),
+  points: z.union([z.number(), z.string()]).optional(),
+}).passthrough()
+
+type GeneratedExamQuestionInput = z.infer<typeof generatedExamQuestionSchema>
+
+function validationRejected(message: string): never {
+  const error = new Error(message) as Error & { code?: string; reason?: string }
+  error.code = 'VALIDATION_REJECTED'
+  error.reason = message
+  throw error
+}
+
+function examSourceTextsFromBooks(books: ExamSourceBook[]): ExamSourceText[] {
+  return books.map((book, index) => ({
+    bookId: cleanText(book.id || '', 120) || `book-${index + 1}`,
+    bookTitle: cleanText(book.title, 220) || `كتاب ${index + 1}`,
+    text: sanitizeExamText(book.textContent || '', EXAM_BOOK_MAX_CHARS),
+    contentQuality: cleanText(book.contentQuality, 80),
+    sourceNote: book.sourceNote || null,
+    linkReadStatus: book.linkReadStatus || null,
+  }))
+}
+
+function buildSelectedExamSourceChunks(books: ExamSourceBook[]): ExamSourceChunk[] {
+  return selectExamSourceChunks(buildExamSourceChunks(examSourceTextsFromBooks(books), 1800), { maxChunks: 12, maxTotalChars: 18000 })
+}
+
+function formatSelectedExamSourceChunksForPrompt(chunks: readonly ExamSourceChunk[]): string {
+  return chunks.map((chunk) => [
+    `[${chunk.sourceIndex}] الكتاب: «${cleanText(chunk.bookTitle, 220)}»`,
+    'نص المصدر (اقتبس منه حرفياً):',
+    chunk.text,
+  ].join('\n')).join('\n\n---\n\n')
+}
+
+function selectedChunkAt(chunks: readonly ExamSourceChunk[], sourceIndex: number | string): ExamSourceChunk | null {
+  const index = typeof sourceIndex === 'string' ? Number(sourceIndex.trim()) : sourceIndex
+  if (!Number.isInteger(index) || index < 1 || index > chunks.length) return null
+  return chunks[index - 1] || null
+}
+
+function correctionIndexFromAnswer(options: string[], correctAnswer: unknown): string | null {
+  const answer = cleanText(correctAnswer, 260)
+  if (!answer) return null
+  const index = options.findIndex((option) => norm(option) === norm(answer))
+  return index >= 0 ? String(index) : null
+}
+
+function parseModelQuestionForSelectedChunks(
+  raw: unknown,
+  selectedChunks: readonly ExamSourceChunk[],
+  specKind: string,
+  context: ExamGenerationProviderContext = {}
+): GeneratedQuestion | null {
+  const parsed = generatedExamQuestionSchema.safeParse(raw)
+  if (!parsed.success) return null
+  const item: GeneratedExamQuestionInput = parsed.data
+  const chunk = selectedChunkAt(selectedChunks, item.sourceIndex)
+  if (!chunk) return null
+
+  const rawType = item.type === 'CASE_MCQ' ? 'MCQ' : item.type
+  const text = stripExamKnowledgeMeta(item.text, 2000)
+  const sourceEvidence = cleanText(item.sourceEvidence, 900)
+  const rationale = stripExamKnowledgeMeta(item.rationale || item.correctRationale || '', 900)
+  const modelAnswerBase = stripExamKnowledgeMeta(item.modelAnswer || '', 3000)
+  if (!text || !sourceEvidence || hasForbiddenExamMetadata(text) || hasForbiddenExamMetadata(sourceEvidence) || isBrokenAcademicExamText(text) || isBrokenAcademicExamText(sourceEvidence)) return null
+
+  const common = {
+    text: text.slice(0, 2000),
+    modelAnswer: modelAnswerBase.includes('مرجع التصحيح')
+      ? modelAnswerBase
+      : `مرجع التصحيح: ${sourceEvidence}${modelAnswerBase ? ` — ${modelAnswerBase}` : rationale ? ` — ${rationale}` : ''}`,
+    bookEvidence: sourceEvidence,
+    sourceEvidence,
+    sourceIndex: item.sourceIndex,
+    sourceBookId: chunk.bookId,
+    sourceBookTitle: chunk.bookTitle,
+    sourceLocator: stripExamKnowledgeMeta(item.sourceLocator || '', 320) || `المصدر [${item.sourceIndex}] من كتاب «${chunk.bookTitle}»`,
+    sourceChapter: stripExamKnowledgeMeta(item.sourceChapter || '', 160) || undefined,
+    sourceProvider: context.provider,
+    sourceModel: context.model,
+    cognitiveSkill: item.cognitiveSkill,
+    difficulty: item.difficulty,
+    correctRationale: rationale || undefined,
+    qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW'],
+  }
+
+  let question: GeneratedQuestion | null = null
+  if (rawType === 'MCQ') {
+    const options = (item.options || []).map((option) => stripExamKnowledgeMeta(option, 260)).filter(Boolean).slice(0, 4)
+    const correct = correctionIndexFromAnswer(options, item.correctAnswer)
+    if (options.length !== 4 || new Set(options.map((option) => norm(option))).size !== 4 || correct == null) return null
+    question = { ...common, type: 'MCQ', options, correct, points: 2 }
+  } else if (rawType === 'TF') {
+    const correct = correctionIndexFromAnswer(['صح', 'خطأ'], item.correctAnswer)
+    if (correct == null) return null
+    question = { ...common, type: 'TF', options: ['صح', 'خطأ'], correct, points: 2 }
+  } else if (rawType === 'SHORT' || rawType === 'ESSAY') {
+    question = { ...common, type: rawType, points: Number(item.points) || (rawType === 'ESSAY' ? 10 : 5) }
+  }
+
+  if (!question) return null
+  const enriched = enrichQuestionMetadata(question, [{ title: chunk.bookTitle, textContent: chunk.text }], specKind)
+  return {
+    ...enriched,
+    bookEvidence: sourceEvidence,
+    sourceEvidence,
+    sourceIndex: item.sourceIndex,
+    sourceBookId: chunk.bookId,
+    sourceBookTitle: chunk.bookTitle,
+    sourceProvider: context.provider,
+    sourceModel: context.model,
+    qualityFlags: uniqueStrings(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', ...(enriched.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')], 16, 90),
+  }
+}
+
+export function validateGeneratedExamQuestionsAgainstSelectedChunks(
+  raw: string | unknown[],
+  selectedChunks: readonly ExamSourceChunk[],
+  specKind = 'MIX_CORE',
+  context: ExamGenerationProviderContext = {}
+): GeneratedQuestion[] {
+  if (!selectedChunks.length) validationRejected('NO_SELECTED_SOURCE_CHUNKS')
+  let rawItems: unknown[]
+  try {
+    rawItems = Array.isArray(raw) ? raw : extractJsonArray(String(raw || ''))
+  } catch {
+    validationRejected('INVALID_JSON')
+  }
+
+  const parsedQuestions: GeneratedQuestion[] = []
+  let rejectedByShape = 0
+  for (const item of rawItems) {
+    const question = parseModelQuestionForSelectedChunks(item, selectedChunks, specKind, context)
+    if (question) parsedQuestions.push(question)
+    else rejectedByShape++
+  }
+
+  const validationItems = parsedQuestions.map((question) => ({
+    question,
+    sourceIndex: question.sourceIndex ?? '',
+    sourceEvidence: question.sourceEvidence || question.bookEvidence || '',
+  }))
+  const validated = validateQuestionBatchAgainstKnowledge(validationItems, selectedChunks, context)
+  const rejectedTotal = rejectedByShape + validated.rejected.length
+  assertQuestionBatchAcceptable(rawItems.length, rejectedTotal, validated.accepted.length)
+  return validated.accepted.map((item) => item.question)
+}
+
 function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }, books: ExamSourceBook[] = [], category = 'MASTERS', planOverride?: PlannedQuestionKind[]): GeneratedQuestion[] {
   const plan = planOverride && planOverride.length ? planOverride : batchQuestionPlan(spec.kind, spec.count, category)
   const usedTexts = new Set<string>()
