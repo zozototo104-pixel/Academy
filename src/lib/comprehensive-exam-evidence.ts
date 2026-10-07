@@ -21,6 +21,35 @@ export type ComprehensiveExamValidationError = Error & {
   rejected?: ComprehensiveExamRejection[]
 }
 
+export type ComprehensiveExamInsufficientSourceDetails = {
+  availableChunks: number
+  requestedQuestions: number
+  acceptedQuestions: number
+}
+
+export type ComprehensiveExamInsufficientSourceError = Error & ComprehensiveExamInsufficientSourceDetails & {
+  code: 'INSUFFICIENT_SOURCE'
+}
+
+export function formatComprehensiveExamInsufficientSourceMessage(details: ComprehensiveExamInsufficientSourceDetails): string {
+  return `مصادر الكتاب غير كافية لتوليد ${details.requestedQuestions} سؤالًا موثّقًا (المتاح: ${details.availableChunks} مقطعًا، المقبول: ${details.acceptedQuestions})`
+}
+
+export function throwComprehensiveExamInsufficientSource(details: ComprehensiveExamInsufficientSourceDetails): never {
+  const error = new Error(formatComprehensiveExamInsufficientSourceMessage(details)) as ComprehensiveExamInsufficientSourceError
+  error.code = 'INSUFFICIENT_SOURCE'
+  error.availableChunks = details.availableChunks
+  error.requestedQuestions = details.requestedQuestions
+  error.acceptedQuestions = details.acceptedQuestions
+  throw error
+}
+
+export function assertComprehensiveExamSourceSufficient(details: ComprehensiveExamInsufficientSourceDetails): void {
+  if (details.availableChunks < details.requestedQuestions || details.acceptedQuestions < details.requestedQuestions) {
+    throwComprehensiveExamInsufficientSource(details)
+  }
+}
+
 export interface GeneratedComprehensiveExamQuestion {
   type: 'MCQ' | 'TF' | 'SHORT' | 'ESSAY'
   text: string
