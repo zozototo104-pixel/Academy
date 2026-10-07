@@ -85,6 +85,7 @@ ${fileEvidence || 'لا توجد ملفات مستخرجة.'}
       where: { id },
       data: {
         shortBio: compact(parsed.shortBio, 900) || rep.shortBio,
+        rawBio: compact(rep.rawBio, 12000) || cvExtractedText || rep.rawBio,
         professionalBio: compact(parsed.professionalBio, 12000) || rep.professionalBio,
         worksSummary: compact(parsed.worksSummary, 6000) || rep.worksSummary,
         achievements: compact(parsed.achievements, 6000) || rep.achievements,
