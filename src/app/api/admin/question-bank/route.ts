@@ -5,6 +5,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { geminiCompleteJson } from '@/lib/gemini'
 import { assertQuestionBatchAcceptable, buildQuestionBankRecord, knowledgeEvidenceText, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { audit } from '@/lib/notify'
+import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { z } from 'zod'
 
 const STATUSES = new Set(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'])
