@@ -307,7 +307,7 @@ async function settings() {
     togetherKeys: parseKeys(env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS')),
     togetherModel: normalizeModel(rows.TOGETHER_TEXT_MODEL || env('TOGETHER_TEXT_MODEL'), TOGETHER_TEXT_MODELS),
     togetherBaseUrl: (rows.TOGETHER_BASE_URL || env('TOGETHER_BASE_URL') || 'https://api.together.ai/v1').replace(/\/$/, ''),
-    unorouterKeys: parseKeys(rows.UNOROUTER_API_KEY, rows.UNOROUTER_API_KEYS, env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS')),
+    unorouterKeys: parseKeys(env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS')),
     unorouterModel: normalizeModel(rows.UNOROUTER_TEXT_MODEL || env('UNOROUTER_TEXT_MODEL'), UNOROUTER_TEXT_MODELS),
     unorouterBaseUrl: (rows.UNOROUTER_BASE_URL || env('UNOROUTER_BASE_URL') || 'https://api.unorouter.com/v1').replace(/\/$/, ''),
     relayrouterKeys: parseKeys(rows.RELAYROUTER_API_KEY, rows.RELAYROUTER_API_KEYS, env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS')),
