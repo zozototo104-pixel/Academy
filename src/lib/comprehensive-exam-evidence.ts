@@ -76,6 +76,7 @@ export interface GeneratedComprehensiveExamQuestion {
   sourceLocator?: string
   sourceProvider?: string
   sourceModel?: string
+  textProvenance?: TextProvenance
   cognitiveSkill?: CognitiveSkill
   difficulty?: QuestionDifficulty
   correctRationale?: string
