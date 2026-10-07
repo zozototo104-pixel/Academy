@@ -283,6 +283,7 @@ async function runCase(name: string, test: () => Promise<void> | void) {
 async function main() {
   await runCase('modelFamilyClassifiesRealNames', modelFamilyClassifiesRealNames)
   await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
+  await runCase('generatorModelUnknownFailsClosed', generatorModelUnknownFailsClosed)
   await runCase('generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly)
   await runCase('verifierRejectionKeepsHumanReview', verifierRejectionKeepsHumanReview)
   await runCase('verifierAcceptsButLiteralFailDoesNotGround', verifierAcceptsButLiteralFailDoesNotGround)
