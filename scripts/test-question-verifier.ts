@@ -162,14 +162,13 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
 async function unknownFamilyVerifierFromDifferentProviderCanGround() {
   process.env.GEMINI_API_KEY = 'mock-gemini-key'
   process.env.UNOROUTER_API_KEY = 'mock-uno-key'
-  process.env.UNOROUTER_TEXT_MODEL = 'agnes-2.0-flash:free'
-  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,UNOROUTER:agnes-2.0-flash:free'
   await withMockFetch(
     (call) => {
-      if (call.url.includes('/api/pricing/catalog')) {
-        return new Response(JSON.stringify({ data: [{ id: 'agnes-2.0-flash', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) {
+        return new Response(JSON.stringify({ data: [{ id: 'agnes-2.0-flash:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult())
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult([0]))
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async () => {
