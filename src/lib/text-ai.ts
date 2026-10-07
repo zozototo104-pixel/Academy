@@ -871,7 +871,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const attempts: TextAiAttemptDiagnostics[] = []
 
   for (const provider of providers) {
-    for (const model of await modelFallbacks(s, provider)) {
+    for (const model of await modelFallbacks(s, provider, taskLevel)) {
       for (const key of candidateKeys(provider, s)) {
         if (isCooling(provider, key)) continue
         const started = Date.now()
