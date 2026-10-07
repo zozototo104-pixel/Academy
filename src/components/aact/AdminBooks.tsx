@@ -2915,7 +2915,7 @@ export function AdminBooksTab() {
                               {e.status === 'REVIEW' ? 'مراجعة الأسئلة واعتمادها' : 'عرض الأسئلة المعتمدة'}
                             </Button>
                           )}
-                          {e.status === 'FAILED' && (
+                          {(e.status === 'FAILED' || e.status === 'PAUSED') && (
                             <Button
                               size="sm"
                               variant="ghost"
