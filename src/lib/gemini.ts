@@ -169,17 +169,19 @@ export function hasGemini(): boolean {
   return resolvedKey().length > 0
 }
 
-export function geminiKeySource(): 'env' | 'none' {
-  return process.env.GEMINI_API_KEY?.trim() ? 'env' : 'none'
+export function geminiKeySource(): 'env' | 'db' | 'none' {
+  if (process.env.GEMINI_API_KEY?.trim()) return 'env'
+  if (dbKeyCache) return 'db'
+  return 'none'
 }
 
-export async function geminiKeyDiagnostics(): Promise<{ source: 'env' | 'none'; adminKeySet: boolean; envKeySet: boolean; activeMask: string }> {
+export async function geminiKeyDiagnostics(): Promise<{ source: 'env' | 'db' | 'none'; adminKeySet: boolean; envKeySet: boolean; activeMask: string }> {
   await refreshFromDb(true)
   const key = resolvedKey()
   const maskKey = (v: string) => v ? `${v.slice(0, 4)}••••${v.slice(-4)}` : ''
   return {
     source: geminiKeySource(),
-    adminKeySet: false,
+    adminKeySet: !!dbKeyCache,
     envKeySet: !!process.env.GEMINI_API_KEY?.trim(),
     activeMask: maskKey(key),
   }
