@@ -1,3 +1,5 @@
+import { inferTextProvenance, isEvidenceAllowedByProvenance, type TextProvenance } from './text-provenance'
+
 export type ExamSourceText = {
   bookId: string
   bookTitle: string
@@ -5,6 +7,7 @@ export type ExamSourceText = {
   contentQuality: string
   sourceNote?: string | null
   linkReadStatus?: string | null
+  textProvenance?: TextProvenance | null
 }
 
 export type ExamSourceChunk = {
@@ -12,6 +15,7 @@ export type ExamSourceChunk = {
   bookId: string
   bookTitle: string
   text: string
+  textProvenance: TextProvenance
 }
 
 function isOriginalSource(source: ExamSourceText): boolean {
