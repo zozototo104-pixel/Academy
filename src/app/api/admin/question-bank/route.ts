@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { geminiCompleteJson } from '@/lib/gemini'
-import { assertQuestionBatchAcceptable, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
+import { assertQuestionBatchAcceptable, buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { audit } from '@/lib/notify'
 import { z } from 'zod'
 
