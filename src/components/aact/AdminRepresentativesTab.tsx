@@ -280,7 +280,7 @@ export default function AdminRepresentativesTab() {
             <button key={rep.id} onClick={() => choose(rep)} className={`w-full rounded-2xl border p-3 text-right transition ${selectedId === rep.id ? 'border-[#c9a227] bg-amber-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 overflow-hidden rounded-2xl bg-[#0f2b46] text-center text-sm font-black leading-[3rem] text-white">
-                  {rep.profilePhotoUrl ? <img src={rep.profilePhotoUrl} alt="" className="h-full w-full object-cover" /> : rep.fullName.slice(0, 2)}
+                  {rep.profilePhotoUrl ? <img src={representativeAssetPreviewUrl(rep, 'profilePhoto')} alt="" className="h-full w-full object-cover" /> : rep.fullName.slice(0, 2)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-black text-[#0f2b46]">{rep.fullName}</p>
