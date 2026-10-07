@@ -577,7 +577,6 @@ export async function gradeEssayAnswer(
   maxPoints: number,
   studentAcademicContext?: string
 ): Promise<GradedAnswer> {
-  const zai = await getZAI()
   const prompt = `${buildSupervisorPersonaBlock('EXAM')}
 
 ${studentAcademicContext ? `سياق ملف الطالب للقياس العادل لا للمجاملة:\n${studentAcademicContext.slice(0, 6000)}\n` : ''}
