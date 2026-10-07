@@ -249,7 +249,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
+    let gradedEssayResults: GradedResult[]
+    try {
+      gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
       const graded = await gradeEssayAnswer(q.text, q.modelAnswer || '', text, q.points, examAcademicContext)
       await db.programAnswer.create({
         data: {
