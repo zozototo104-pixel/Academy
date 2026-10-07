@@ -100,6 +100,7 @@ async function invalidAcademicAllowlistIsRejected() {
 
 async function validationRejectionFallsThroughToNextModel() {
   process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash'
   process.env.GEMINI_TEXT_MODEL = 'gemini-3.8-flash'
 
   await withMockFetch(
