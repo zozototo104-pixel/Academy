@@ -264,6 +264,7 @@ ${knowledgeText}
         temperature: 0.25,
         thinkingBudget: 256,
         maxOutputTokens: 6000,
+        taskLevel: 'ACADEMIC_CRITICAL',
       })
       const parsed = parseJsonObject(raw)
       generated = Array.isArray(parsed?.questions) ? parsed.questions : []
