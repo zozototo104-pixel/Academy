@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import QRCode from 'qrcode'
+import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
 import { representativeLookupCandidates, representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
