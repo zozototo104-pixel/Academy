@@ -438,13 +438,11 @@ async function aiEvaluate(
   studentAcademicContext?: string
 ): Promise<DefenseEvaluation> {
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}بحث: «${title}»
+    const raw = await textAiCompleteJson({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}بحث: «${title}»
 الملخص: ${abstract.slice(0, 1000)}
 السؤال المطروح: ${question}
 إجابة الطالب: ${answer.slice(0, 2500)}
@@ -454,11 +452,11 @@ async function aiEvaluate(
 
 أجب بصيغة JSON فقط:
 {"score": <0-10>, "feedback": "<تعليق تفاعلي من جملتين إلى ثلاث على إجابة الطالب>", "nextQuestion": "<السؤال التالي مسبوق بـ: السؤال ${qNum + 1}: >"}`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.15,
+      maxOutputTokens: 1400,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    const raw = completion.choices[0]?.message?.content || ''
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('NO_JSON')
     const parsed = JSON.parse(match[0])
