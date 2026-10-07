@@ -159,6 +159,50 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
   )
 }
 
+async function unknownFamilyVerifierFromDifferentProviderCanGround() {
+  process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.UNOROUTER_API_KEY = 'mock-uno-key'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash'
+  await withMockFetch(
+    (call) => {
+      if (call.url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'agnes-2.0-flash', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult())
+      return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+    },
+    async () => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
+      assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+      assert.equal(result[0].verifierModel, 'agnes-2.0-flash:free')
+    }
+  )
+}
+
+async function gemmaVerifierIsBlockedAsGeminiFamily() {
+  process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.OPENROUTER_API_KEY = 'mock-openrouter-key'
+  process.env.AI_TEXT_PROVIDER = 'OPENROUTER'
+  process.env.AI_ROUTER_POLICY = 'fallback_only'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash'
+  await withMockFetch(
+    (call) => {
+      if (call.url.includes('openrouter.ai') && /\/models(?:\?|$)/.test(call.url)) {
+        return new Response(JSON.stringify({ data: [{ id: 'google/gemma-3-27b:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (call.url.includes('/chat/completions')) return response(validResult())
+      return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+    },
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
+      assert.equal(calls.some((call) => call.url.includes('/chat/completions')), false, 'Gemma/Gemini-family verifier models must be excluded before chat completion')
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
+      assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+    }
+  )
+}
+
 async function verifierRejectionKeepsHumanReview() {
   configureProviders()
   await withMockFetch(
