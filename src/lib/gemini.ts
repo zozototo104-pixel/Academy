@@ -155,9 +155,9 @@ export function isValidGeminiLiveModel(value: unknown): boolean {
 }
 
 function resolvedKey(): string {
-  // بعد حادثة تسريب الإعدادات، مفاتيح Gemini تُقرأ من Vercel Environment Variables فقط.
+  // الأولوية: Vercel Environment Variables أولاً، ثم إعدادات المنصة كخيار احتياطي.
   // مفاتيح Gemini المتعددة تُدار في text-ai router عبر GEMINI_API_KEYS.
-  return process.env.GEMINI_API_KEY?.trim() || ''
+  return process.env.GEMINI_API_KEY?.trim() || dbKeyCache || ''
 }
 
 export async function ensureGeminiKey(): Promise<boolean> {
