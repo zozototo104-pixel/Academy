@@ -1747,37 +1747,6 @@ function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boo
   return evidenceSupportedByBooks(evidence, books)
 }
 
-type ExamGenerationProviderContext = { provider?: string; model?: string }
-
-const sourceIndexSchema = z.union([z.number().int().positive(), z.string().regex(/^\d+$/u)])
-
-const generatedExamQuestionSchema = z.object({
-  type: z.enum(['MCQ', 'CASE_MCQ', 'TF', 'SHORT', 'ESSAY']),
-  text: z.string().min(8),
-  options: z.array(z.string()).optional(),
-  correctAnswer: z.union([z.string(), z.number()]).optional(),
-  correct: z.union([z.string(), z.number()]).optional(),
-  sourceIndex: sourceIndexSchema,
-  sourceEvidence: z.string().min(40),
-  difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']).optional(),
-  cognitiveSkill: z.enum(['UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE']).optional(),
-  rationale: z.string().optional(),
-  correctRationale: z.string().optional(),
-  modelAnswer: z.string().optional(),
-  sourceChapter: z.string().optional(),
-  sourceLocator: z.string().optional(),
-  points: z.union([z.number(), z.string()]).optional(),
-}).passthrough()
-
-type GeneratedExamQuestionInput = z.infer<typeof generatedExamQuestionSchema>
-
-function validationRejected(message: string): never {
-  const error = new Error(message) as Error & { code?: string; reason?: string }
-  error.code = 'VALIDATION_REJECTED'
-  error.reason = message
-  throw error
-}
-
 function examSourceTextsFromBooks(books: ExamSourceBook[]): ExamSourceText[] {
   return books.map((book, index) => ({
     bookId: cleanText(book.id || '', 120) || `book-${index + 1}`,
