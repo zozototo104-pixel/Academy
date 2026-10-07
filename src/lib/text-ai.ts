@@ -897,6 +897,21 @@ function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Erro
   return err
 }
 
+function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const err: any = new Error('AI_VERIFIER_UNAVAILABLE')
+  err.code = 'AI_VERIFIER_UNAVAILABLE'
+  err.attempts = attempts
+  return err
+}
+
+function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
+  return new Set((excludeProviders || []).filter((provider): provider is ConcreteProvider => provider !== 'AUTO'))
+}
+
+function isVerifierCall(opts: TextAiCallOpts): boolean {
+  return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
