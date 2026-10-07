@@ -551,10 +551,12 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
     provider === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
-  const discoveredFree = taskLevel === 'GENERAL' ? await liveFreeModels(provider, s) : []
+  const discoveredFree = await liveFreeModels(provider, s)
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
-  return [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
+  const models = [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
+  if (taskLevel === 'GENERAL') return models
+  return models.filter((model) => academicModelAllowed(provider, model)).sort((a, b) => academicModelRank(a) - academicModelRank(b))
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
