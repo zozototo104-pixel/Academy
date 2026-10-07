@@ -130,7 +130,11 @@ export async function POST(req: NextRequest) {
       }
       await db.auditLog.create({ data: { actorId: admin.id, actorName: admin.name, action: 'WHATSAPP_HUMAN_REPLY_SENT', entity: 'WhatsAppConversation', entityId: id, details: JSON.stringify({ to: conversation.phoneMasked, chars: text.length }) } }).catch(() => {})
       const refreshed = await db.whatsAppConversation.findUnique({ where: { id }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 120 } } })
-      return NextResponse.json({ ok: true, conversation: refreshed ? { ...refreshed, messages: [...refreshed.messages].reverse() } : null })
+      return NextResponse.json({
+        ok: true,
+        conversation: refreshed ? { ...refreshed, messages: [...refreshed.messages].reverse() } : null,
+        templateSent: !freeformWindowOpen,
+      })
     }
 
     return NextResponse.json({ ok: false, error: 'إجراء غير معروف' }, { status: 400 })
