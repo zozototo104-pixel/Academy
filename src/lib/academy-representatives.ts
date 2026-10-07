@@ -186,7 +186,7 @@ function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officia
   const storageProvider = asset === 'profilePhoto' ? row.profilePhotoStorageProvider : row.officialCardStorageProvider
   const storageKey = asset === 'profilePhoto' ? row.profilePhotoStorageKey : row.officialCardStorageKey
   if (!storageProvider || !storageKey) return null
-  return `/api/representatives/${encodeURIComponent(row.id)}/asset/${asset}`
+  return `/api/representatives/${encodeURIComponent(row.slug || row.id)}/asset/${asset}`
 }
 
 export function serializeRepresentative(row: any, origin?: string | null, includeToken = false): RepresentativePublicProfile {
