@@ -72,6 +72,7 @@ interface AppState {
   studentPreviewId: string | null
   agentPreviewId: string | null
   applyProgramTitle: string | null // برنامج محدد مسبقاً لنموذج طلب الالتحاق
+  applyProgramId: string | null // المعرّف الحقيقي للبرنامج لمنع الالتباس بين العناوين المتشابهة
   mobileMenuOpen: boolean
   setUser: (u: AppUser | null) => void
   setAuthChecked: (v: boolean) => void
