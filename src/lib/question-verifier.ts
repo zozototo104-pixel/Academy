@@ -13,6 +13,7 @@ export type QuestionVerifierResult = {
 
 export type VerifiableQuestion = {
   type?: string
+  textProvenance?: TextProvenance | null
   text?: string
   options?: string[] | null
   correct?: string | number | null
