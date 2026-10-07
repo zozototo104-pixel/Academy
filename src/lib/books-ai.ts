@@ -1861,8 +1861,6 @@ export async function generateExamQuestionBatch(
   const specialty = specialtyName(program)
   void knowledgeContext
   const selectedSourceChunks = buildSelectedExamSourceChunks(books)
-  if (!selectedSourceChunks.length) throw new Error('لا توجد مقاطع مصدر أصلية كافية لبناء الامتحان الشامل.')
-  const sourceChunksSection = formatSelectedExamSourceChunksForPrompt(selectedSourceChunks)
   // في الامتحان الشامل الحالي، المقاطع المختارة وحدها هي مصدر البرومبت والتحقق والحفظ.
   const evidenceBooks: ExamSourceBook[] = books
   const booksWithStrongContent = new Set(selectedSourceChunks.map((chunk) => chunk.bookId)).size
@@ -1871,6 +1869,12 @@ export async function generateExamQuestionBatch(
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
   const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
+  assertComprehensiveExamSourceSufficient({
+    availableChunks: selectedSourceChunks.length,
+    requestedQuestions: requestedPlan.length,
+    acceptedQuestions: 0,
+  })
+  const sourceChunksSection = formatSelectedExamSourceChunksForPrompt(selectedSourceChunks)
   const typeLabel = (t: PlannedQuestionKind) => t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t
   const planCounts = requestedPlan.reduce<Record<string, number>>((acc, t) => {
     const label = typeLabel(t)
