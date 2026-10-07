@@ -1462,7 +1462,12 @@ ${unitText}
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ROUTER_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
     ])
     const normalized = normalizeUnitItems(raw)
-    if (normalized.length) return normalized
+    if (!normalized.length) {
+      const err: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+      err.code = 'VALIDATION_REJECTED'
+      throw err
+    }
+    return normalized
   } catch (e: any) {
     console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
     if (e?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
