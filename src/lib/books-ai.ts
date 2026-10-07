@@ -1869,7 +1869,8 @@ export async function generateExamQuestionBatch(
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
   const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
-  if (selectedSourceChunks.length < requestedPlan.length) {
+  const minimumRequiredSourceChunks = minimumSourceChunksForComprehensiveExam(requestedPlan.length)
+  if (selectedSourceChunks.length < minimumRequiredSourceChunks) {
     throwComprehensiveExamInsufficientSource({
       availableChunks: selectedSourceChunks.length,
       requestedQuestions: requestedPlan.length,
