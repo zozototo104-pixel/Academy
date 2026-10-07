@@ -75,6 +75,11 @@ function formFromRepresentative(rep: Representative): FormState {
   return { ...EMPTY_FORM, ...rep, featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
 }
 
+function shouldAutoRewriteAfterUpload(assetType: string, extras?: Record<string, string>) {
+  if (assetType !== 'file') return false
+  return ['CV', 'WORK', 'ACHIEVEMENT', 'BOOK'].includes(String(extras?.kind || '').toUpperCase())
+}
+
 export default function AdminRepresentativesTab() {
   const [rows, setRows] = useState<Representative[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
