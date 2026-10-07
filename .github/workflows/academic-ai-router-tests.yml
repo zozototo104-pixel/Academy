@@ -38,3 +38,4 @@ jobs:
       - run: bunx tsx scripts/test-question-bank-evidence.ts
       - run: bunx tsx scripts/test-exam-source-chunks.ts
       - run: bunx tsx scripts/test-comprehensive-exam-source-validation.ts
+      - run: bunx tsx scripts/test-comprehensive-exam-insufficient-source.ts
