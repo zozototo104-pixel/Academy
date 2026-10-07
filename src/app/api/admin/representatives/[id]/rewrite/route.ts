@@ -37,6 +37,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .slice(0, 12)
     .map((f) => `ملف: ${f.title} [${f.kind}]\nوصف: ${compact(f.description, 700)}\nنص مستخرج: ${compact(f.extractedText, 2500)}\nرابط: ${f.externalUrl || f.fileUrl || ''}`)
     .join('\n\n---\n\n')
+  const cvExtractedText = compact(rep.files.find((f) => String(f.kind || '').toUpperCase() === 'CV' && f.extractedText)?.extractedText, 12000)
 
   const system = `أنت محرر سيرة مهنية رسمي للأكاديمية الأمريكية للاستشارات والتدريب.
 المطلوب إعادة صياغة ملف ممثل أكاديمي ليظهر داخل منصة رسمية عامة.
