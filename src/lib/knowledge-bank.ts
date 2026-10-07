@@ -1457,6 +1457,7 @@ ${unitText}
         history: [{ role: 'user', text: prompt }],
         temperature: 0.05,
         maxOutputTokens: 8192,
+        taskLevel: 'ACADEMIC_CRITICAL',
       }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ROUTER_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
     ])
