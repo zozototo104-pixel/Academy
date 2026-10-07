@@ -31,6 +31,7 @@ export interface TextAiCallOpts {
   maxOutputTokens?: number
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
+  taskLevel?: TextAiTaskLevel
 }
 
 export interface TextAiAttemptDiagnostics {
