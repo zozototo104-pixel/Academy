@@ -20,7 +20,7 @@ export const DEFAULT_OFFICIAL_CONTACT = {
   legalEntity: 'الأكاديمية الأمريكية للاستشارات والتدريب',
   registrationNumber: '',
   address: 'الولايات المتحدة الأمريكية - ولاية وايومنغ',
-  email: 'info@americanacademy.com',
+  email: 'info@aactacademy.com',
   phone: '+1 (307) 206-5544',
   phones: ['+1 (307) 206-5544'],
   whatsapp: '+17879684281',
