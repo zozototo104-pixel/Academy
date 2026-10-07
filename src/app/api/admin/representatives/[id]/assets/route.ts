@@ -7,6 +7,8 @@ import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const MAX_FILE_SIZE = 4 * 1024 * 1024 // Keep admin uploads within the same safe per-file limit as admissions.
+
 function text(value: unknown, max = 1000) {
   return String(value ?? '').trim().slice(0, max) || null
 }
