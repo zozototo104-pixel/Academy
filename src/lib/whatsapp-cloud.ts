@@ -33,6 +33,20 @@ function compactText(value: unknown, max = 1200) {
   return trim(value).replace(/\s+/g, ' ').slice(0, max)
 }
 
+const WHATSAPP_CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+async function assertWhatsAppFreeformWindowOpen(to: string) {
+  const waIdHash = hashWhatsAppId(to)
+  const conversation = await db.whatsAppConversation.findUnique({
+    where: { waIdHash },
+    select: { lastInboundAt: true },
+  })
+  const lastInboundAt = conversation?.lastInboundAt?.getTime() || 0
+  if (!lastInboundAt || Date.now() - lastInboundAt > WHATSAPP_CUSTOMER_CARE_WINDOW_MS) {
+    throw new Error('WHATSAPP_24H_WINDOW_CLOSED: free-form messages require a customer message within the last 24 hours; use an approved template message instead.')
+  }
+}
+
 export function officialWhatsAppConfigured() {
   return Boolean(
     process.env.WHATSAPP_ACCESS_TOKEN?.trim() &&
