@@ -140,9 +140,10 @@ function applyPending<T extends VerifiableQuestion>(question: T, reason: string)
 }
 
 function applyRejected<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult | null, reason: string): T {
+  const verifierReason = reason === 'VERIFIER_REJECTED' ? (result?.reason || reason) : reason
   return {
     ...question,
-    verifierReason: result?.reason || reason,
+    verifierReason,
     qualityFlags: uniqueFlags(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', ...(question.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')]),
   }
 }
