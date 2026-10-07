@@ -12,12 +12,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: route.priority,
   }))
 
-  const programs = await db.program.findMany({
-    where: { active: true },
-    select: { slug: true, id: true, order: true },
-    orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
-    take: 500,
-  }).catch(() => [])
+  let programs: Array<{ slug: string | null; id: string }> = []
+  try {
+    const { db } = await import('@/lib/db')
+    programs = await db.program.findMany({
+      where: { active: true },
+      select: { slug: true, id: true },
+      orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
+      take: 500,
+    })
+  } catch (error) {
+    console.warn('Sitemap program route lookup failed; returning static public routes only.', error)
+  }
 
   const programRoutes: MetadataRoute.Sitemap = programs.map((program) => ({
     url: absoluteUrl(`/programs/${program.slug || program.id}`),
