@@ -259,8 +259,8 @@ export default function AdminRepresentativesTab() {
   }
 
   return (
-    <div className="mt-4 grid gap-5 lg:grid-cols-[360px_1fr]" dir="rtl">
-      <Card className="border-[#0f2b46]/10">
+    <div className="mt-4 grid min-w-0 gap-5 overflow-hidden lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]" dir="rtl">
+      <Card className="min-w-0 overflow-hidden border-[#0f2b46]/10">
         <CardHeader className="space-y-3">
           <CardTitle className="flex items-center justify-between text-lg font-black text-[#0f2b46]">
             ممثلو الأكاديمية
