@@ -102,7 +102,7 @@ test.describe('AACT launch quality suite', () => {
     const body = await response.json().catch(() => ({}))
     expect(response.ok(), `Public settings request failed with ${response.status()}: ${JSON.stringify(body).slice(0, 800)}`).toBeTruthy()
 
-    const keys = Object.keys(body?.settings || {})
+    const keys = Object.keys(body?.values || {})
     const leakedKeys = keys.filter((key) => /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i.test(key))
     expect(leakedKeys, `Public /api/settings exposed secret-looking keys: ${leakedKeys.join(', ')}`).toEqual([])
   })
