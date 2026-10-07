@@ -251,9 +251,24 @@ function aiDiscoveryTimeoutMs(): number {
   return 5000
 }
 
-async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs()): Promise<Response> {
+function deadlineExceeded(): Error {
+  const err: any = new Error('AI_DEADLINE_EXCEEDED')
+  err.code = 'AI_DEADLINE_EXCEEDED'
+  err.status = 504
+  return err
+}
+
+function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTimeoutMs()): number {
+  if (!Number.isFinite(deadlineMs || NaN)) return defaultTimeoutMs
+  const remaining = Math.floor(Number(deadlineMs) - Date.now())
+  if (remaining <= 0) throw deadlineExceeded()
+  return Math.max(1, Math.min(defaultTimeoutMs, remaining))
+}
+
+async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
+  const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e: any) {
