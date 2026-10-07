@@ -344,7 +344,7 @@ ${knowledgeText}
         ? knowledge[requestedSourceIndex - 1]
         : null
       if (!source) continue
-      const q = sanitizeQuestion(generated[i], { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote })
+      const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote })
       if (!q.text || q.text.length < 12) continue
       const key = norm(q.text)
       if (seen.has(key)) continue
