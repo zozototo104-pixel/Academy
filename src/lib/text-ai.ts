@@ -40,7 +40,7 @@ export interface TextAiCallOpts {
 
 export interface TextAiCompletionResult {
   text: string
-  provider: ConcreteProvider
+  provider: Exclude<TextAiProvider, 'AUTO'>
   model: string
 }
 
