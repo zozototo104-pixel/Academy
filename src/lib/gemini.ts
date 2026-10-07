@@ -152,9 +152,9 @@ export function isValidGeminiLiveModel(value: unknown): boolean {
 }
 
 function resolvedKey(): string {
-  // الأولوية المطلوبة: مفتاح Gemini المضبوط في Vercel أولاً، ثم مفتاح لوحة الإدارة كبديل خارجي.
+  // بعد حادثة تسريب الإعدادات، مفاتيح Gemini تُقرأ من Vercel Environment Variables فقط.
   // مفاتيح Gemini المتعددة تُدار في text-ai router عبر GEMINI_API_KEYS.
-  return process.env.GEMINI_API_KEY?.trim() || dbKeyCache || ''
+  return process.env.GEMINI_API_KEY?.trim() || ''
 }
 
 export async function ensureGeminiKey(): Promise<boolean> {
