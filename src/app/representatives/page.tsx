@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
 import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
@@ -62,13 +63,9 @@ export default async function RepresentativesPage() {
             </div>
           )}
           {rows.map((rep) => (
-            <Link key={rep.id} href={`/representatives/${rep.slug}`} className="group overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-white shadow-xl shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-2xl">
+            <Link key={rep.id} href={`/representatives/${encodeURIComponent(rep.slug || rep.id)}`} className="group overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-white shadow-xl shadow-slate-200/70 transition hover:-translate-y-1 hover:shadow-2xl">
               <div className="relative h-56 bg-gradient-to-br from-[#0f2b46] via-[#173e66] to-[#bf1646]">
-                {rep.profilePhotoUrl ? (
-                  <img src={rep.profilePhotoUrl} alt={rep.fullName} className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-6xl font-black text-[#f5f0e1]">{initials(rep.fullName)}</div>
-                )}
+                <RepresentativePhoto src={rep.profilePhotoUrl} alt={rep.fullName} fallback={initials(rep.fullName)} imgClassName="h-full w-full object-cover opacity-90 transition group-hover:scale-105" />
                 <div className="absolute bottom-4 right-4 rounded-2xl bg-white/92 px-4 py-2 text-xs font-black text-[#0f2b46] shadow-lg">
                   {rep.country} — {rep.region}
                 </div>

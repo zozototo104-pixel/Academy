@@ -119,6 +119,18 @@ export function normalizeRepresentativeSlug(value: string, fallback = 'represent
   return slug || fallback
 }
 
+export function representativeLookupCandidates(value: string) {
+  const raw = String(value || '').trim()
+  let decoded = raw
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    decoded = raw
+  }
+  const normalized = normalizeRepresentativeSlug(decoded, '')
+  return Array.from(new Set([raw, decoded, normalized].filter(Boolean)))
+}
+
 export function createRepresentativeQrToken() {
   return `rep_${randomBytes(24).toString('base64url')}`
 }
@@ -169,6 +181,14 @@ export async function representativeQrDataUrl(token: string, origin?: string | n
   })
 }
 
+function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officialCard') {
+  if (!row?.id) return null
+  const storageProvider = asset === 'profilePhoto' ? row.profilePhotoStorageProvider : row.officialCardStorageProvider
+  const storageKey = asset === 'profilePhoto' ? row.profilePhotoStorageKey : row.officialCardStorageKey
+  if (!storageProvider || !storageKey) return null
+  return `/api/representatives/${encodeURIComponent(row.id)}/asset/${asset}`
+}
+
 export function serializeRepresentative(row: any, origin?: string | null, includeToken = false): RepresentativePublicProfile {
   const token = row.qrToken || null
   return {
@@ -194,12 +214,8 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
     email: row.email,
     whatsapp: row.whatsapp,
     website: row.website,
-    profilePhotoUrl: row.profilePhotoStorageKey || row.profilePhotoUrl
-      ? `/api/representatives/${encodeURIComponent(row.id)}/asset/profilePhoto`
-      : null,
-    officialCardUrl: row.officialCardStorageKey || row.officialCardUrl
-      ? `/api/representatives/${encodeURIComponent(row.id)}/asset/officialCard`
-      : null,
+    profilePhotoUrl: representativePublicAssetUrl(row, 'profilePhoto') || row.profilePhotoUrl,
+    officialCardUrl: representativePublicAssetUrl(row, 'officialCard') || row.officialCardUrl,
     qrToken: includeToken ? token : null,
     verifyUrl: includeToken && token ? representativeVerifyUrl(token, origin) : null,
     featured: row.featured,

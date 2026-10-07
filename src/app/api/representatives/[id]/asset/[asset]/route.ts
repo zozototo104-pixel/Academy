@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readStoredFile } from '@/lib/storage'
 
@@ -24,18 +24,18 @@ function assetFields(rep: any, asset: AssetKind) {
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string; asset: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string; asset: string }> }) {
   const { id, asset } = await params
   if (!['profilePhoto', 'officialCard'].includes(asset)) {
     return NextResponse.json({ error: 'INVALID_ASSET' }, { status: 400 })
   }
 
-  const rep = await db.academyRepresentative.findFirst({
+  const representative = await db.academyRepresentative.findFirst({
     where: { id, deletedAt: null, status: 'ACTIVE' },
   })
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  if (!representative) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  const fields = assetFields(rep, asset as AssetKind)
+  const fields = assetFields(representative, asset as AssetKind)
   if (!fields.key && !fields.url) return NextResponse.json({ error: 'NO_FILE' }, { status: 404 })
 
   const stored = await readStoredFile(fields)
@@ -44,7 +44,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return new NextResponse(new Uint8Array(stored.buffer), {
     headers: {
       'Content-Type': stored.mimeType || fields.mimeType,
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+      'Cache-Control': 'public, max-age=300, s-maxage=3600',
+      'Content-Disposition': 'inline',
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 }
