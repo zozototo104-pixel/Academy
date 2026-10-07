@@ -177,6 +177,41 @@ function applyAccepted<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
+function familyAliases(family: string): string[] {
+  const aliases: Record<string, string[]> = {
+    gemini: ['gemini', 'gemma', 'google'],
+    gpt: ['gpt', 'gpt-oss', 'chatgpt', 'openai'],
+    claude: ['claude', 'anthropic'],
+    llama: ['llama', 'meta-llama'],
+    qwen: ['qwen'],
+    deepseek: ['deepseek'],
+    mistral: ['mistral', 'mixtral'],
+    glm: ['glm'],
+    nemotron: ['nemotron'],
+    minimax: ['minimax'],
+    kimi: ['kimi', 'moonshot'],
+    grok: ['grok'],
+    phi: ['phi'],
+    cohere: ['cohere', 'command'],
+    yi: ['yi'],
+    ernie: ['ernie'],
+    hunyuan: ['hunyuan'],
+    ling: ['ling'],
+  }
+  return aliases[family] || [family]
+}
+
+function verifierFamilyAllowed(context: { provider?: string; model?: string }, generatorProvider: string, generatorFamily: string): { ok: true } | { ok: false; reason: string } {
+  if (!context.model) return { ok: false, reason: 'VERIFIER_MODEL_UNKNOWN' }
+  const verifierFamily = modelFamily(context.model)
+  if (verifierFamily === generatorFamily) return { ok: false, reason: 'VERIFIER_SAME_FAMILY' }
+  if (verifierFamily !== 'unknown') return { ok: true }
+  if (!context.provider || context.provider === generatorProvider) return { ok: false, reason: 'VERIFIER_SAME_FAMILY_OR_UNKNOWN' }
+  const lower = String(context.model || '').toLowerCase()
+  if (familyAliases(generatorFamily).some((alias) => lower.includes(alias))) return { ok: false, reason: 'VERIFIER_SAME_FAMILY' }
+  return { ok: true }
+}
+
 export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuestion>(opts: {
   questions: readonly T[]
   sources: readonly VerificationSource[]
