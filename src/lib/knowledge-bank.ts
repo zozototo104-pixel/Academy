@@ -1538,7 +1538,7 @@ async function rebuildKnowledgeForBookByUnits(
     inserted,
     deleted,
     usedAi: true,
-    sourceNote: `${sourceNote || 'تمت قراءة الكتاب'} — تم تقسيم الكتاب إلى ${units.length} وحدة/باب، ودُمجت عناصر ${successfulUnits} وحدة بنجاح (${inserted} جديد، ${updated} محسّن)، وتم تجاوز ${skippedUnits} وحدة غير صالحة أو مكررة دون حذف البنك السابق.`,
+    sourceNote: `${sourceNote || 'تمت قراءة الكتاب'} — تم تقسيم الكتاب إلى ${units.length} وحدة/باب، وتم تجاوز ${resumedUnits} وحدة محفوظة سابقاً، ودُمجت عناصر ${successfulUnits} وحدة جديدة بنجاح (${inserted} جديد، ${updated} محسّن)، وتم تجاوز ${skippedUnits} وحدة غير صالحة أو فشل تحليلها دون حذف البنك السابق.`,
   }
 }
 
