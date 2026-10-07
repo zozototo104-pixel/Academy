@@ -51,7 +51,10 @@ export function throwComprehensiveExamInsufficientSource(details: ComprehensiveE
 }
 
 export function assertComprehensiveExamSourceSufficient(details: ComprehensiveExamInsufficientSourceDetails): void {
-  if (details.availableChunks < details.requestedQuestions || details.acceptedQuestions < details.requestedQuestions) {
+  if (
+    details.availableChunks < minimumSourceChunksForComprehensiveExam(details.requestedQuestions) ||
+    details.acceptedQuestions < details.requestedQuestions
+  ) {
     throwComprehensiveExamInsufficientSource(details)
   }
 }
