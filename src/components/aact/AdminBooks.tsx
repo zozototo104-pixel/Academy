@@ -1541,10 +1541,11 @@ export function AdminBooksTab() {
     if (!(await askAdminConfirm({ title: `استكمال توليد ${semLabel}`, description: `سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً.`, confirmLabel: 'استكمال التوليد' }))) return
     setGenerating(true)
     try {
-      const d = await api<{ examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId: exam.id }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
       toast({
         title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
         description: `سيكمل من السؤال ${(d.existingQuestions || exam.questionCount) + 1} دون حذف الأسئلة السابقة — تابع الحالة بالأسفل`,
