@@ -639,9 +639,10 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
 
     return { ok: true, status: done ? 'REVIEW' : 'GENERATING', inserted: batch.length, done, batchIndex, ...totals }
   } catch (e: any) {
-    const message = String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
+    const insufficient = insufficientSourcePayload(e)
+    const message = String(insufficient?.error || e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
-    if (totals.questionCount >= totalRequiredQuestions()) {
+    if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
       const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
     }
@@ -649,11 +650,29 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
       where: { id: examId },
       data: {
         status: 'PAUSED',
-        errorNote: JSON.stringify({ code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: message, retryAt: e?.retryAt || null, savedQuestions: totals.questionCount }),
+        errorNote: JSON.stringify({
+          code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+          reason: message,
+          retryAt: e?.retryAt || null,
+          savedQuestions: totals.questionCount,
+          ...(insufficient ? {
+            availableChunks: insufficient.availableChunks,
+            requestedQuestions: insufficient.requestedQuestions,
+            acceptedQuestions: insufficient.acceptedQuestions,
+          } : {}),
+        }),
         totalPoints: totals.totalPoints,
       },
     }).catch(() => {})
-    return { ok: false, status: 'PAUSED', inserted: 0, done: false, error: message, ...totals }
+    return {
+      ok: false,
+      status: 'PAUSED',
+      inserted: 0,
+      done: false,
+      error: message,
+      ...(insufficient || {}),
+      ...totals,
+    }
   }
 }
 
