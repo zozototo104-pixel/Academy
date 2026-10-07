@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assertQuestionBatchAcceptable, buildQuestionBankRecord, validateQuestionAgainstKnowledge, validateQuestionBatchAgainstKnowledge } from '../src/lib/question-bank-evidence'
+import { assertQuestionBatchAcceptable, buildQuestionBankRecord, knowledgeEvidenceText, validateQuestionAgainstKnowledge, validateQuestionBatchAgainstKnowledge } from '../src/lib/question-bank-evidence'
 
 const first = 'الإدارة الفعالة تعتمد على التخطيط والتنظيم والمتابعة المستمرة لتحقيق الأهداف المؤسسية بكفاءة عالية ومستدامة.'
 const second = 'التسويق الاستراتيجي يبدأ بتحليل السوق والعملاء والمنافسين ثم اختيار القيمة المناسبة وبناء خطة قابلة للقياس والمتابعة.'
