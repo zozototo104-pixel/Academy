@@ -994,6 +994,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     for (const model of models) {
       for (const key of candidateKeys(provider, s)) {
         if (isCooling(provider, key)) continue
+        if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         try {
