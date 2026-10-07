@@ -88,12 +88,29 @@ export function buildQuestionBankRecord<T extends Record<string, unknown>>(
     model?: string
   }
 ) {
+  const {
+    qualityFlags,
+    verifierProvider,
+    verifierModel,
+    verifiedAt,
+    verifierReason,
+    verificationPending,
+    verificationReason,
+    ...persistableQuestion
+  } = question
+  void qualityFlags
+  void verifierProvider
+  void verifierModel
+  void verifiedAt
+  void verifierReason
+  void verificationPending
+  void verificationReason
   return {
     programId: context.programId,
     knowledgeItemId: context.knowledgeItemId,
     bookId: context.bookId || null,
     semester: context.semester || null,
-    ...question,
+    ...persistableQuestion,
     qualityFlags: JSON.stringify(questionQualityFlags(question)),
     reviewNotes: questionReviewNotes(question, context),
     status: 'PENDING_REVIEW',
