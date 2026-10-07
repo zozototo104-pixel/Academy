@@ -681,6 +681,7 @@ async function completeJsonWithFallback(args: {
   maxOutputTokens?: number
   retries?: number
   timeoutMs?: number
+  taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 }): Promise<string> {
   const errors: string[] = []
   const timeoutMs = args.timeoutMs ?? 45000
