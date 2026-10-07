@@ -32,4 +32,5 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
+      - run: bunx prisma generate
       - run: bunx tsx scripts/test-academic-ai-router.ts
