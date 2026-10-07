@@ -3,6 +3,60 @@ import { NextRequest, NextResponse } from 'next/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+type LoginUser = {
+  id: string
+  email: string
+  name: string
+  password: string
+  role: string
+  status?: string | null
+  emailVerifiedAt?: Date | string | null
+  emailVerificationSentAt?: Date | string | null
+  emailVerificationExpiresAt?: Date | string | null
+}
+
+function isMissingLoginColumnError(error: any) {
+  const message = `${error?.code || ''} ${error?.message || ''}`
+  return /P2022|column .*does not exist|emailVerified|emailVerification|\bstatus\b/i.test(message)
+}
+
+async function loadLoginUser(db: any, normalizedEmail: string): Promise<LoginUser | null> {
+  try {
+    return await db.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        role: true,
+        status: true,
+        emailVerifiedAt: true,
+        emailVerificationSentAt: true,
+        emailVerificationExpiresAt: true,
+      },
+    })
+  } catch (error) {
+    if (!isMissingLoginColumnError(error)) throw error
+    console.warn('Login user query fell back to legacy User columns. Run Prisma migrations on production database.', error)
+    const rows = await db.$queryRaw`
+      SELECT id, email, name, password, role
+      FROM "User"
+      WHERE lower(email) = lower(${normalizedEmail})
+      LIMIT 1
+    ` as Array<Pick<LoginUser, 'id' | 'email' | 'name' | 'password' | 'role'>>
+    const user = Array.isArray(rows) ? rows[0] : null
+    if (!user) return null
+    return {
+      ...user,
+      status: 'ACTIVE',
+      emailVerifiedAt: new Date(0),
+      emailVerificationSentAt: null,
+      emailVerificationExpiresAt: null,
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json()
