@@ -301,7 +301,7 @@ async function settings() {
     openrouterKeys: parseKeys(env('OPENROUTER_API_KEY'), env('OPENROUTER_API_KEYS')),
     openrouterModel: normalizeModel(rows.OPENROUTER_TEXT_MODEL || env('OPENROUTER_TEXT_MODEL'), OPENROUTER_TEXT_MODELS),
     openrouterBaseUrl: (rows.OPENROUTER_BASE_URL || env('OPENROUTER_BASE_URL') || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
-    deepinfraKeys: parseKeys(rows.DEEPINFRA_API_KEY, rows.DEEPINFRA_API_KEYS, env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS')),
+    deepinfraKeys: parseKeys(env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS')),
     deepinfraModel: normalizeModel(rows.DEEPINFRA_TEXT_MODEL || env('DEEPINFRA_TEXT_MODEL'), DEEPINFRA_TEXT_MODELS),
     deepinfraBaseUrl: (rows.DEEPINFRA_BASE_URL || env('DEEPINFRA_BASE_URL') || 'https://api.deepinfra.com/v1').replace(/\/$/, ''),
     togetherKeys: parseKeys(rows.TOGETHER_API_KEY, rows.TOGETHER_API_KEYS, env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS')),
