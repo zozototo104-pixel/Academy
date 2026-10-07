@@ -864,7 +864,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Anthropic', response.status, data)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
