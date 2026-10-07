@@ -39,8 +39,21 @@ function main() {
   assert.doesNotThrow(() => assertQuestionBatchAcceptable(4, 1))
   assert.equal(mostlyAccepted.rejected[0]?.reason, 'NOT_FOUND')
 
-  console.log('▶ question bank evidence: accepted questions carry no SOURCE_GROUNDED state')
-  assert.equal('qualityFlags' in mostlyAccepted.accepted[0], false)
+  console.log('▶ question bank evidence: empty batches trigger router fallback')
+  assert.throws(() => assertQuestionBatchAcceptable(0, 0), (error: any) => error?.code === 'VALIDATION_REJECTED' && error?.reason === 'EMPTY_BATCH')
+  assert.throws(() => assertQuestionBatchAcceptable(4, 4, 0), (error: any) => error?.code === 'VALIDATION_REJECTED' && error?.reason === 'EMPTY_BATCH')
+
+  console.log('▶ question bank evidence: persisted record is source-linked, reviewable, and auditable')
+  const record = buildQuestionBankRecord({ text: 'validated question' }, {
+    programId: 'program-1', knowledgeItemId: 'knowledge-1', provider: 'UNOROUTER', model: 'free-model',
+  })
+  const flags = JSON.parse(record.qualityFlags)
+  const notes = JSON.parse(record.reviewNotes)
+  assert.equal(flags.includes('SOURCE_GROUNDED'), false)
+  assert.equal(flags.includes('SOURCE_LINKED'), true)
+  assert.equal(flags.includes('NEEDS_HUMAN_REVIEW'), true)
+  assert.equal(notes.aiProvenance.provider, 'UNOROUTER')
+  assert.equal(notes.aiProvenance.model, 'free-model')
 
   console.log('question bank evidence guardrails: ok')
 }
