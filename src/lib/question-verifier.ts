@@ -169,13 +169,16 @@ function applyRejected<T extends VerifiableQuestion>(question: T, result: Questi
 }
 
 function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string }): T {
+  const provenance = question.textProvenance || null
   return {
     ...question,
     verifierProvider: context.provider,
     verifierModel: context.model,
     verifiedAt: new Date().toISOString(),
     verifierReason: result.reason,
-    qualityFlags: uniqueFlags(['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(question.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')]),
+    qualityFlags: provenance === 'VISION_OCR'
+      ? applyOcrDerivedFlags(question.qualityFlags || ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW'], provenance)
+      : uniqueFlags(['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(question.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')]),
   }
 }
 
