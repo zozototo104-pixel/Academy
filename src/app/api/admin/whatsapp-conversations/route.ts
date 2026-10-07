@@ -102,11 +102,21 @@ export async function POST(req: NextRequest) {
       if (conversation.status !== 'HUMAN_ACTIVE') {
         return NextResponse.json({ ok: false, error: 'يجب استلام المحادثة أولاً قبل الرد من لوحة الإدارة' }, { status: 409 })
       }
-      const result = await sendOfficialWhatsAppText(conversation.waId, text, { phoneNumberId: conversation.phoneNumberId || undefined })
+      const freeformWindowOpen = Boolean(
+        conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() <= 24 * 60 * 60 * 1000,
+      )
+      const sentText = freeformWindowOpen
+        ? text
+        : `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${conversation.displayName || 'العميل'}. أرسل الرد المكتوب بعد أن يرد العميل.`
+      const result = freeformWindowOpen
+        ? await sendOfficialWhatsAppText(conversation.waId, text, { phoneNumberId: conversation.phoneNumberId || undefined })
+        : await sendOfficialWhatsAppHumanFollowup(conversation.waId, conversation.displayName || 'عميلنا الكريم', {
+            phoneNumberId: conversation.phoneNumberId || undefined,
+          })
       await recordWhatsAppOutboundMessage({
         waId: conversation.waId,
         phoneNumberId: conversation.phoneNumberId || null,
-        text,
+        text: sentText,
         sender: 'HUMAN',
         whatsappMessageId: result?.messages?.[0]?.id || null,
         sentById: admin.id,
