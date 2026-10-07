@@ -16,6 +16,7 @@ export function normalizeArabic(text: unknown): string {
     .replace(/[٠-٩]/g, (digit) => String(ARABIC_INDIC_DIGITS.indexOf(digit)))
     .replace(/[۰-۹]/g, (digit) => String(EASTERN_ARABIC_INDIC_DIGITS.indexOf(digit)))
     .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+    .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
