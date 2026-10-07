@@ -133,9 +133,13 @@ async function validationRejectionFallsThroughToNextModel() {
 }
 
 async function main() {
+  console.log('▶ criticalGeminiFailureFallsThroughToUnoRouter')
   await criticalGeminiFailureFallsThroughToUnoRouter()
+  console.log('▶ generalKeepsExistingGatewayBehavior')
   await generalKeepsExistingGatewayBehavior()
+  console.log('▶ invalidAcademicAllowlistIsRejected')
   await invalidAcademicAllowlistIsRejected()
+  console.log('▶ validationRejectionFallsThroughToNextModel')
   await validationRejectionFallsThroughToNextModel()
   console.log('academic AI router guardrails: ok')
 }
