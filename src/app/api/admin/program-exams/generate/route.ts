@@ -725,10 +725,15 @@ async function runGeneration(examId: string) {
       let batch: GeneratedQuestion[] = []
       try {
         batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
-      } catch (err) {
-        console.warn('exam background AI batch failed; using fallback and continuing:', i + 1, String((err as any)?.message || err).slice(0, 180))
+      } catch (err: any) {
+        const retryAt = err?.retryAt || null
+        const reason = String(err?.message || err).slice(0, 500)
+        await db.programExam.update({
+          where: { id: examId },
+          data: { status: 'PAUSED', errorNote: JSON.stringify({ code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }) },
+        }).catch(() => {})
+        return
       }
-      if (batch.length === 0) batch = fallbackExamQuestionBatch(exam.program, examSourceBooks, i)
       if (batch.length === 0) {
         await db.programExam.update({
           where: { id: examId },
