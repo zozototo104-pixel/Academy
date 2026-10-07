@@ -1,5 +1,9 @@
 import { sourceTextAtOneBasedIndex, validateLiteralEvidence } from './evidence-validator'
 
+export function knowledgeEvidenceText(item: { excerpt?: unknown }): string {
+  return String(item.excerpt ?? '')
+}
+
 export type QuestionEvidenceRejectionReason = 'TOO_SHORT' | 'NOT_FOUND' | 'EMPTY' | 'BAD_INDEX'
 
 export type QuestionEvidenceRejection = {
