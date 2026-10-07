@@ -31,6 +31,12 @@ export type ComprehensiveExamInsufficientSourceError = Error & ComprehensiveExam
   code: 'INSUFFICIENT_SOURCE'
 }
 
+export const MAX_QUESTIONS_PER_SOURCE_CHUNK = 3
+
+export function minimumSourceChunksForComprehensiveExam(requestedQuestions: number): number {
+  return Math.max(1, Math.ceil(Math.max(1, Math.floor(requestedQuestions || 0)) / MAX_QUESTIONS_PER_SOURCE_CHUNK))
+}
+
 export function formatComprehensiveExamInsufficientSourceMessage(details: ComprehensiveExamInsufficientSourceDetails): string {
   return `مصادر الكتاب غير كافية لتوليد ${details.requestedQuestions} سؤالًا موثّقًا (المتاح: ${details.availableChunks} مقطعًا، المقبول: ${details.acceptedQuestions})`
 }
