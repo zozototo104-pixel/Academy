@@ -299,11 +299,16 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
   }
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
+    const ocr = await transcribeScannedDocumentWithVision(buffer, effectiveMime, book)
+    if (isUsableBookText(ocr.text, MIN_USABLE_TEXT)) {
+      return { text: repairExtractedAcademicText(ocr.text, MAX_BOOK_CONTEXT_CHARS), note: ocr.note, quality: 'UPLOADED_FILE' }
+    }
+
     const visual = await readVisualDocumentWithGemini(buffer, effectiveMime, book)
     if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
       return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: appendTextProvenanceNote(visual.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
     }
-    return { text: '', note: appendTextProvenanceNote(visual.note || extracted.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
+    return { text: '', note: appendTextProvenanceNote(`${ocr.note || extracted.note}; ${visual.note || ''}`.trim(), 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
   }
 
   return { text: '', note: extracted.note, quality: 'UPLOADED_FILE' }
