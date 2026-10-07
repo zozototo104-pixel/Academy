@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { DEMO_REPRESENTATIVES, serializeRepresentative } from '@/lib/academy-representatives'
+import { serializeRepresentative } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
