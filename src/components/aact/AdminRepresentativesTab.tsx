@@ -365,8 +365,8 @@ export default function AdminRepresentativesTab() {
               <GeneralFileUploader onUpload={(file, extras) => upload('file', file, extras)} uploading={uploading || !form.id} />
               <ExternalLinkUploader onUpload={(extras) => upload('file', null, extras)} uploading={uploading || !form.id} />
               <div className="grid gap-4 md:grid-cols-2">
-                <PreviewBox title="الصورة الحالية" url={selected?.profilePhotoUrl} />
-                <PreviewBox title="الكرنيه الحالي" url={selected?.officialCardUrl} />
+                <PreviewBox title="الصورة الحالية" url={representativeAssetPreviewUrl(selected, 'profilePhoto')} originalUrl={selected?.profilePhotoUrl} />
+                <PreviewBox title="الكرنيه الحالي" url={representativeAssetPreviewUrl(selected, 'officialCard')} originalUrl={selected?.officialCardUrl} />
               </div>
               <div className="rounded-2xl border border-[#c9a227]/20 bg-amber-50 p-4">
                 <div className="flex flex-wrap items-center gap-3">
