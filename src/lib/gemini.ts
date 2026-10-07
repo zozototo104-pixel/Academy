@@ -93,8 +93,7 @@ async function refreshFromDb(force = false): Promise<void> {
   if (dbInflight) return dbInflight
   dbInflight = (async () => {
     try {
-      const [key, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
-        readSetting('GEMINI_API_KEY'),
+      const [voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
         readSetting('GEMINI_TTS_VOICE'),
         readSetting('GEMINI_TEXT_MODEL'),
         readSetting('GEMINI_TTS_MODEL'),
@@ -103,7 +102,6 @@ async function refreshFromDb(force = false): Promise<void> {
         readSetting('GEMINI_DISCUSSION_LIVE_MODEL'),
         readSetting('GEMINI_DISCUSSION_THINKING_LEVEL'),
       ])
-      dbKeyCache = key
       dbVoiceCache = voice
       dbTextModelCache = normalizeGeminiModelName(textModel)
       dbTtsModelCache = normalizeGeminiModelName(ttsModel)
