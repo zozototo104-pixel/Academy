@@ -164,6 +164,7 @@ function createProgramQuestionData(examId: string, order: number, q: GeneratedQu
     correctRationale: q.correctRationale || null,
     distractorRationales: stringifyJsonField(q.distractorRationales),
     qualityFlags: stringifyJsonField(q.qualityFlags),
+    reviewNotes: questionReviewNotes(q),
     points: q.points || 2,
     status: 'PENDING_REVIEW',
   }
