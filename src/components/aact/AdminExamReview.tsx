@@ -365,6 +365,7 @@ export function QuestionReviewDialog({
                       {q.cognitiveSkill && <Badge variant="outline" className="border-blue-200 text-[9px] text-blue-700">{SKILL_AR[q.cognitiveSkill] || q.cognitiveSkill}</Badge>}
                       {q.difficulty && <Badge variant="outline" className="border-purple-200 text-[9px] text-purple-700">{DIFFICULTY_AR[q.difficulty] || q.difficulty}</Badge>}
                       {q.sourceBookTitle && <Badge variant="outline" className="border-emerald-200 text-[9px] text-emerald-700">موثق بمصدر</Badge>}
+                      {q.qualityFlags?.includes('OCR_DERIVED_SOURCE') && <Badge variant="outline" className="border-orange-200 bg-orange-50 text-[9px] text-orange-700">مصدر OCR – يحتاج مراجعة</Badge>}
                       <Badge className={`text-[9px] ${q.status === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-600 hover:bg-red-100' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'}`}>
                         {q.status === 'PENDING_REVIEW' ? 'بانتظار المراجعة' : q.status === 'REJECTED' ? 'مرفوض' : 'معتمد'}
                       </Badge>
