@@ -4,7 +4,7 @@ import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 import { conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { buildExamSourceChunks, selectExamSourceChunks, type ExamSourceChunk, type ExamSourceText } from '@/lib/exam-source-chunks'
-import { validateGeneratedExamQuestionsAgainstSelectedChunks } from '@/lib/comprehensive-exam-evidence'
+import { validateGeneratedExamQuestionsAgainstSelectedChunks, type ExamGenerationProviderContext } from '@/lib/comprehensive-exam-evidence'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
 
