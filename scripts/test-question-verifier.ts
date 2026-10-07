@@ -112,6 +112,21 @@ async function generatorModelUnknownFailsClosed() {
   )
 }
 
+async function generatorFamilyUnknownFailsClosed() {
+  configureProviders()
+  await withMockFetch(
+    () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'weird-model-x' })
+      assert.equal(calls.length, 0, 'unknown generator family must not call verifier')
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'GENERATOR_FAMILY_UNKNOWN')
+      assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
+      assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+    }
+  )
+}
+
 async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
   configureProviders()
   await withMockFetch(
