@@ -345,7 +345,7 @@ export default function AdminRepresentativesTab() {
                   </Button>
                 </div>
               )}
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
+              <div className="min-w-0 break-words rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
                 يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
