@@ -182,7 +182,7 @@ const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$
 
 export function ApplyView() {
   const { toast } = useToast()
-  const { user, applyProgramTitle, navigate } = useAppStore()
+  const { user, applyProgramTitle, applyProgramId, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
   const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
