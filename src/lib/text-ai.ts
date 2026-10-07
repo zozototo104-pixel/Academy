@@ -908,8 +908,39 @@ function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
   return err
 }
 
+export function modelFamily(model: string): string {
+  const raw = String(model || '').trim().toLowerCase()
+  const normalized = raw
+    .replace(/^models\//, '')
+    .replace(/^google\//, '')
+    .replace(/^anthropic\//, '')
+    .replace(/^openai\//, '')
+    .replace(/^meta-llama\//, '')
+    .replace(/^qwen\//, '')
+    .replace(/^deepseek\//, '')
+    .replace(/^mistralai\//, '')
+  if (/gemini/.test(normalized)) return 'gemini'
+  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/claude/.test(normalized)) return 'claude'
+  if (/llama|codellama/.test(normalized)) return 'llama'
+  if (/qwen/.test(normalized)) return 'qwen'
+  if (/deepseek/.test(normalized)) return 'deepseek'
+  if (/mistral|mixtral/.test(normalized)) return 'mistral'
+  if (/gemma/.test(normalized)) return 'gemma'
+  if (/phi[-_]?/.test(normalized)) return 'phi'
+  return normalized.split(/[/:@\s._-]+/).filter(Boolean)[0] || normalized || 'unknown'
+}
+
 function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
   return new Set((excludeProviders || []).filter((provider): provider is ConcreteProvider => provider !== 'AUTO'))
+}
+
+function excludedModelFamilies(excludeModelFamilies?: readonly string[]): Set<string> {
+  return new Set((excludeModelFamilies || []).map(modelFamily).filter(Boolean))
+}
+
+function modelFamilyAllowed(model: string, excludedFamilies: Set<string>): boolean {
+  return !excludedFamilies.has(modelFamily(model))
 }
 
 function isVerifierCall(opts: TextAiCallOpts): boolean {
