@@ -247,6 +247,7 @@ ${knowledgeText}
       "sourceLocator": "عنوان العنصر أو المحور",
       "cognitiveSkill": "UNDERSTAND | APPLY | ANALYZE | EVALUATE",
       "difficulty": "EASY | MEDIUM | ADVANCED",
+      "sourceIndex": 1,
       "correctRationale": "سبب صحة الإجابة",
       "distractorRationales": ["سبب خطأ الخيار 1"]
     }
