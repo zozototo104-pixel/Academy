@@ -194,8 +194,12 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
     email: row.email,
     whatsapp: row.whatsapp,
     website: row.website,
-    profilePhotoUrl: row.profilePhotoUrl,
-    officialCardUrl: row.officialCardUrl,
+    profilePhotoUrl: row.profilePhotoStorageKey || row.profilePhotoUrl
+      ? `/api/representatives/${encodeURIComponent(row.id)}/asset/profilePhoto`
+      : null,
+    officialCardUrl: row.officialCardStorageKey || row.officialCardUrl
+      ? `/api/representatives/${encodeURIComponent(row.id)}/asset/officialCard`
+      : null,
     qrToken: includeToken ? token : null,
     verifyUrl: includeToken && token ? representativeVerifyUrl(token, origin) : null,
     featured: row.featured,
