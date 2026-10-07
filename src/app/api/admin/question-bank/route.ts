@@ -137,9 +137,9 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
   const text = cleanText(raw?.text || raw?.question || fallback.title, 1200)
   const options = safeOptions(raw?.options, type)
   let correctAnswer = raw?.correctAnswer != null ? String(raw.correctAnswer) : null
-  if ((type === 'MCQ' || type === 'TF') && (correctAnswer == null || Number.isNaN(Number(correctAnswer)))) correctAnswer = '0'
-  if (type === 'MCQ') correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer || 0))))
-  if (type === 'TF') correctAnswer = String(Number(correctAnswer || 0) === 1 ? 1 : 0)
+  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
+  if (type === 'MCQ' && correctAnswer != null) correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer))))
+  if (type === 'TF' && correctAnswer != null) correctAnswer = ['0', '1'].includes(correctAnswer) ? correctAnswer : null
   return {
     type,
     text,
