@@ -352,8 +352,8 @@ export function ApplyView() {
   )
 
   const selectedProgram = useMemo(
-    () => programs.find((p) => p.titleAr === form.program) || null,
-    [programs, form.program]
+    () => programs.find((p) => (applyProgramId && p.id === applyProgramId) || (!applyProgramId && p.titleAr === form.program)) || null,
+    [programs, form.program, applyProgramId]
   )
   const selectedFlow = getServiceFlow(selectedProgram?.slug)
   const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'
