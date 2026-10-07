@@ -952,6 +952,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
   const taskLevel = opts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(opts.excludeProviders)
+  const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
   const providers = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
   if (!providers.length) {
     if (isVerifierCall(opts)) throw verifierUnavailable([])
