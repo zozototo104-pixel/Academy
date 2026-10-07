@@ -178,9 +178,14 @@ export const useAppStore = create<AppState>((set) => ({
       activeExamId: null,
     })
   },
-  openApply: (programTitle) => {
+  openApply: (programTitle, programId) => {
     updateBrowserRoute('apply')
-    set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false })
+    set({
+      applyProgramTitle: programTitle || null,
+      applyProgramId: programId || null,
+      view: 'apply',
+      mobileMenuOpen: false,
+    })
   },
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
 }))
