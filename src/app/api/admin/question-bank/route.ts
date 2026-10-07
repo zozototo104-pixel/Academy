@@ -265,7 +265,11 @@ export async function POST(req: NextRequest) {
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
-    const evidenceKnowledge = knowledge.filter((item) => knowledgeEvidenceText(item).trim().length >= 40)
+    const knowledgeTextProvenance = (item: { sourceNote?: string | null }) => inferTextProvenance({ sourceNote: item.sourceNote })
+    const evidenceKnowledge = knowledge.filter((item) => {
+      const text = knowledgeEvidenceText(item).trim()
+      return text.length >= 40 && isEvidenceAllowedByProvenance(knowledgeTextProvenance(item))
+    })
     if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
 
     const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
