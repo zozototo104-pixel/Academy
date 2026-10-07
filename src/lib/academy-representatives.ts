@@ -231,7 +231,7 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
       title: file.title,
       description: file.description,
       externalUrl: file.externalUrl,
-      fileUrl: file.fileUrl,
+      fileUrl: representativePublicFileUrl(row, file) || file.fileUrl,
     })) : [],
   }
 }
