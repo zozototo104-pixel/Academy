@@ -190,8 +190,12 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   if (!String(opts.generatorProvider || '').trim()) {
     return output.map((question) => applyPending(question, 'GENERATOR_PROVIDER_UNKNOWN')) as T[]
   }
+  if (!String(opts.generatorModel || '').trim()) {
+    return output.map((question) => applyPending(question, 'GENERATOR_MODEL_UNKNOWN')) as T[]
+  }
+  const generatorFamily = modelFamily(opts.generatorModel || '')
   const excludeProviders = [opts.generatorProvider as TextAiProvider]
-  const excludeModelFamilies = opts.generatorModel ? [modelFamily(opts.generatorModel)] : []
+  const excludeModelFamilies = [generatorFamily]
   const budget = opts.timeBudgetMs == null ? QUESTION_VERIFIER_TIME_BUDGET_MS : Math.max(0, Math.floor(opts.timeBudgetMs))
   const deadline = Date.now() + budget
 
