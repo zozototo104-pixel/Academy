@@ -172,6 +172,7 @@ async function unknownFamilyVerifierFromDifferentProviderCanGround() {
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async () => {
+      assert.equal(modelFamily('agnes-2.0-flash:free'), 'unknown')
       const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.equal(result[0].verifierModel, 'agnes-2.0-flash:free')
