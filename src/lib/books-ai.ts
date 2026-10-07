@@ -2113,6 +2113,7 @@ ${plannedTypes}
 ]`
 
   let raw = ''
+  let generationContext: ExamGenerationProviderContext = {}
   try {
     raw = await completeJsonWithFallback({
       label: `exam question batch ${batchIndex + 1}`,
@@ -2123,102 +2124,22 @@ ${plannedTypes}
       retries: 1,
       timeoutMs: 32000,
       taskLevel: 'ACADEMIC_CRITICAL',
+      validate: (text, context) => {
+        generationContext = context || {}
+        validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)
+      },
     })
   } catch (e: any) {
     const reason = String(e?.message || e).slice(0, 600)
-    console.error('generateExamQuestionBatch AI failed; using book-grounded professional fallback:', reason)
-    const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
-    const targetSpec = { ...spec, count: requestedPlan.length }
-    const balancedFallback = enforceExamQuestionPlan([], fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
-    if (!balancedFallback.length) {
-      throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من نص الكتاب: ${reason}`)
-    }
-    return balancedFallback.slice(0, requestedPlan.length)
+    console.error('generateExamQuestionBatch AI failed source-chunk validation:', reason)
+    throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من مقاطع المصدر المختارة: ${reason}`)
   }
 
-  let arr: any[] = []
-  try {
-    arr = extractJsonArray(raw)
-  } catch {
-    arr = parseLoose(raw)
-  }
-
-  const cleaned: GeneratedQuestion[] = []
-  for (const q of arr) {
-    const rawType = String(q.type || '').toUpperCase()
-    const type = rawType === 'CASE_MCQ' ? 'MCQ' : rawType
-    const text = stripExamKnowledgeMeta(q.text || '', 2000)
-    const bookEvidence = stripExamKnowledgeMeta(q.bookEvidence || q.evidence || q.sourceEvidence || q.referenceEvidence || '', 700)
-    const modelAnswerBase = stripExamKnowledgeMeta(q.modelAnswer || '', 3000)
-    if (!text || !bookEvidence || bookEvidence.length < 18 || hasForbiddenExamMetadata(text) || hasForbiddenExamMetadata(bookEvidence) || isBrokenAcademicExamText(text) || isBrokenAcademicExamText(bookEvidence) || (modelAnswerBase && isBrokenAcademicExamText(modelAnswerBase)) || mentionsUnsupportedExternalReference(`${text} ${modelAnswerBase}`, evidenceBooks) || !evidenceGroundedInBooks(bookEvidence, evidenceBooks)) continue
-    const modelAnswer = modelAnswerBase.includes('مرجع التصحيح')
-      ? modelAnswerBase
-      : `مرجع التصحيح: ${bookEvidence}${modelAnswerBase ? ` — ${modelAnswerBase}` : ''}`
-    if (type === 'MCQ') {
-      const options = Array.isArray(q.options) ? q.options.map((o: any) => stripExamKnowledgeMeta(o, 240)).filter((o: string) => o && !isBrokenAcademicExamText(o, true)).slice(0, 4) : null
-      const correctNum = Number(q.correct ?? '')
-      const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
-      if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
-      cleaned.push(enrichQuestionMetadata({
-        type: 'MCQ',
-        text: text.slice(0, 2000),
-        options,
-        correct: String(correctNum),
-        modelAnswer,
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: 2,
-      }, evidenceBooks, spec.kind))
-    } else if (type === 'TF') {
-      const correctNum = Number(q.correct ?? '')
-      if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
-      cleaned.push(enrichQuestionMetadata({
-        type: 'TF',
-        text: text.slice(0, 2000),
-        options: ['صح', 'خطأ'],
-        correct: String(correctNum),
-        modelAnswer,
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: 2,
-      }, evidenceBooks, spec.kind))
-    } else if (type === 'SHORT' || type === 'ESSAY') {
-      cleaned.push(enrichQuestionMetadata({
-        type,
-        text: text.slice(0, 2000),
-        modelAnswer: modelAnswer.slice(0, 3000),
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: Number(q.points) || (type === 'ESSAY' ? 10 : 5),
-      }, evidenceBooks, spec.kind))
-    }
-  }
-
-  const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
+  const validated = validateGeneratedExamQuestionsAgainstSelectedChunks(raw, selectedSourceChunks, spec.kind, generationContext)
   const targetSpec = { ...spec, count: requestedPlan.length }
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
+  const balanced = enforceExamQuestionPlan(validated, [], targetSpec, [], program.category, requestedPlan)
   if (!balanced.length) {
-    throw new Error('تعذر بناء أسئلة امتحانية مؤصلة من نص الكتاب بعد التحليل والتنظيف.')
+    throw new Error('تعذر بناء أسئلة امتحانية مؤصلة من مقاطع المصدر المختارة بعد إعادة التحقق قبل الحفظ.')
   }
   return balanced.slice(0, requestedPlan.length)
 }
