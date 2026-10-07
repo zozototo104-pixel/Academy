@@ -351,15 +351,14 @@ ${knowledgeText}
       const key = norm(q.text)
       if (seen.has(key)) continue
       seen.add(key)
-      rows.push({
+      rows.push(buildQuestionBankRecord(q, {
         programId,
         knowledgeItemId: source.id,
         bookId: source.bookId || null,
         semester: source.semester || null,
-        ...q,
-        status: 'PENDING_REVIEW',
-        generatedBy: 'AI',
-      })
+        provider: generationContext.provider,
+        model: generationContext.model,
+      }))
       if (rows.length >= count) break
     }
 
