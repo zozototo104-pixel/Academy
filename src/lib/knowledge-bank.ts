@@ -1451,34 +1451,21 @@ ${unitText}
 
   try {
     const raw = await Promise.race([
-      geminiCompleteJson({
-        system: 'أنت محلل كتب جامعية. أرجع JSON صالحاً فقط، ولا تؤلف أي عنصر غير موجود في نص الوحدة.',
+      textAiCompleteJson({
+        system: 'أنت محلل كتب جامعية. أرجع JSON صالحاً فقط، ولا تؤلف أي عنصر غير موجود في نص الوحدة. إذا كان جزء داخل الوحدة غير مفهوم فتجاوزه وأكمل بقية الوحدة.',
         history: [{ role: 'user', text: prompt }],
         temperature: 0.05,
         maxOutputTokens: 8192,
       }),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_GEMINI_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ROUTER_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
     ])
     const normalized = normalizeUnitItems(raw)
     if (normalized.length) return normalized
   } catch (e: any) {
-    console.error(`knowledge unit ${unit.index + 1} Gemini failed:`, String(e?.message || e).slice(0, 240))
+    console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
   }
 
-  try {
-    const zai = await getZAI()
-    const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت محلل كتب جامعية يرجع JSON صالحاً فقط ولا يؤلف خارج النص.' },
-        { role: 'user', content: prompt },
-      ], 1),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ZAI_TIMEOUT')), 30000)),
-    ])
-    return normalizeUnitItems(raw)
-  } catch (e: any) {
-    console.error(`knowledge unit ${unit.index + 1} fallback failed:`, String(e?.message || e).slice(0, 240))
-    return []
-  }
+  return []
 }
 
 async function rebuildKnowledgeForBookByUnits(
