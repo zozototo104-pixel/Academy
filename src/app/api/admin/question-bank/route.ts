@@ -276,7 +276,6 @@ export async function POST(req: NextRequest) {
         sourceNote: item.sourceNote,
         linkReadNote: book?.linkReadNote,
         linkReadStatus: book?.linkReadStatus,
-        contentQuality: book?.contentQuality,
         textContent: book?.textContent,
       })
     }
