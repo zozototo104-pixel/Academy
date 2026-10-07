@@ -266,6 +266,7 @@ export async function POST(req: NextRequest) {
     const knowledgeText = knowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\n${String(k.summary || '').slice(0, 650)}\nدليل: ${String(k.excerpt || k.sourceNote || '').slice(0, 360)}`).join('\n\n')
 
     let generated: any[] = []
+    let generationContext: { provider?: string; model?: string } = {}
     try {
       const raw = await geminiCompleteJson({
         system: 'أنت مصمم أسئلة جامعية. أرجع JSON صالحاً فقط دون أي شرح خارج JSON.',
