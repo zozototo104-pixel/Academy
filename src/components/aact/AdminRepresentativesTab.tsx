@@ -205,10 +205,11 @@ export default function AdminRepresentativesTab() {
         const rewriteRes = await fetch(`/api/admin/representatives/${form.id}/rewrite`, { method: 'POST' })
         const rewriteData = await rewriteRes.json().catch(() => ({}))
         if (rewriteRes.ok && rewriteData.representative) {
-          nextRepresentative = rewriteData.representative
-          setRows((prev) => prev.map((row) => row.id === nextRepresentative!.id ? nextRepresentative! : row))
-          setSelectedId(nextRepresentative.id)
-          setForm(formFromRepresentative(nextRepresentative))
+          const rewritten = rewriteData.representative as Representative
+          nextRepresentative = rewritten
+          setRows((prev) => prev.map((row) => row.id === rewritten.id ? rewritten : row))
+          setSelectedId(rewritten.id)
+          setForm(formFromRepresentative(rewritten))
           rewriteApplied = true
         } else {
           toast({ title: 'تم الرفع ولم تكتمل الصياغة', description: rewriteData.message || 'حُفظ الملف، لكن لم يستطع الذكاء تفريغ محتواه الآن. يمكنك الضغط على إعادة صياغة بالذكاء لاحقاً.', variant: 'destructive' })
