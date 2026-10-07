@@ -66,6 +66,7 @@ function questionQualityFlags(question: Record<string, unknown>): string[] {
 function questionReviewNotes(question: Record<string, unknown>, context: { provider?: string; model?: string }): string {
   return JSON.stringify({
     aiProvenance: { provider: context.provider || null, model: context.model || null },
+    source: { textProvenance: question.textProvenance || null },
     verifier: {
       provider: question.verifierProvider || null,
       model: question.verifierModel || null,
