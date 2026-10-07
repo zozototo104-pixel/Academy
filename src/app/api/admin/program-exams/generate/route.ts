@@ -72,6 +72,17 @@ function insufficientSourcePayload(error: any) {
   return { code: 'INSUFFICIENT_SOURCE', error: message, availableChunks, requestedQuestions, acceptedQuestions }
 }
 
+function generationFailureDetails(step: GenerationStepResult) {
+  if (!step.error && !step.code) return {}
+  return {
+    error: step.error,
+    code: step.code,
+    availableChunks: step.availableChunks,
+    requestedQuestions: step.requestedQuestions,
+    acceptedQuestions: step.acceptedQuestions,
+  }
+}
+
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
   return row?.status === 'GENERATING'
