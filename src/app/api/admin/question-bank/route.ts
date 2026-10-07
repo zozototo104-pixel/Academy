@@ -349,6 +349,7 @@ ${knowledgeText}
       questions: finalValidation.accepted,
       sources: evidenceSources,
       generatorProvider: generationContext.provider,
+      generatorModel: generationContext.model,
     })
 
     const rows: any[] = []
