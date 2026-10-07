@@ -282,6 +282,7 @@ ${knowledgeText}
         sourceLocator: k.title,
         difficulty: i % 4 === 0 ? 'ADVANCED' : 'MEDIUM',
         cognitiveSkill: i % 4 === 0 ? 'ANALYZE' : 'UNDERSTAND',
+        sourceIndex: i + 1,
         correctRationale: 'الإجابة مستندة إلى عنصر بنك المعرفة المحدد.',
       }))
     }
