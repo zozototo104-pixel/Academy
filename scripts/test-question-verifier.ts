@@ -389,6 +389,7 @@ async function main() {
   await runCase('excludedModelFamilyCanExhaustVerifierModels', excludedModelFamilyCanExhaustVerifierModels)
   await runCase('missingIndexFromAllProvidersDoesNotPartiallyGround', missingIndexFromAllProvidersDoesNotPartiallyGround)
   await runCase('missingIndexFallsThroughToNextProvider', missingIndexFallsThroughToNextProvider)
+  await runCase('routerDeadlineStopsBeforeSecondVerifierModel', routerDeadlineStopsBeforeSecondVerifierModel)
   await runCase('timeBudgetMarksRemainingPending', timeBudgetMarksRemainingPending)
   console.log('question verifier guardrails: ok')
 }
