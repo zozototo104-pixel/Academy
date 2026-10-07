@@ -8,8 +8,13 @@ export const dynamic = 'force-dynamic'
 
 async function loadRepresentative(slug: string): Promise<RepresentativePublicProfile | null> {
   try {
+    const candidates = representativeLookupCandidates(slug)
     const row = await db.academyRepresentative.findFirst({
-      where: { slug, deletedAt: null, status: 'ACTIVE' },
+      where: {
+        deletedAt: null,
+        status: 'ACTIVE',
+        OR: [{ slug: { in: candidates } }, { id: { in: candidates } }],
+      },
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
     return row ? serializeRepresentative(row, null, true) : null
