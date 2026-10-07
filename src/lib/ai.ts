@@ -1,7 +1,7 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ACADEMY_INFO, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
 import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
-import { textAiComplete, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { textAiComplete, textAiCompleteJson, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { getSettings } from '@/lib/settings'
 
