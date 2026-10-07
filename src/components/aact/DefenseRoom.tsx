@@ -203,6 +203,7 @@ export function DefenseRoom({
   const myPeerId = useRef<string>('')
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  const processedSignalIdsRef = useRef<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const thesisIdRef = useRef(thesis.id)
   const wakeLockRef = useRef<any>(null)
