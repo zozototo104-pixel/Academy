@@ -287,7 +287,7 @@ async function settings() {
     // بعد حادثة تسريب الإعدادات، جميع مفاتيح مزودي الذكاء الاصطناعي تُقرأ من Vercel Environment Variables فقط.
     geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS')),
     geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
-    openaiKeys: parseKeys(rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS, env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
+    openaiKeys: parseKeys(env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
     openaiBaseUrl: (rows.OPENAI_BASE_URL || env('OPENAI_BASE_URL') || 'https://api.openai.com/v1').replace(/\/$/, ''),
     anthropicKeys: parseKeys(rows.ANTHROPIC_API_KEY, rows.ANTHROPIC_API_KEYS, env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS')),
