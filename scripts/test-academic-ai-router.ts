@@ -133,15 +133,27 @@ async function validationRejectionFallsThroughToNextModel() {
   )
 }
 
+async function runCase(name: string, test: () => Promise<void>) {
+  console.log(`▶ ${name}`)
+  try {
+    await test()
+  } catch (error) {
+    console.error(`✖ ${name}`)
+    try {
+      const diagnostics = await textAiDiagnostics()
+      console.error('recentAttempts:', JSON.stringify(diagnostics.recentAttempts, null, 2))
+    } catch (diagnosticsError) {
+      console.error('diagnostics unavailable:', diagnosticsError)
+    }
+    throw error
+  }
+}
+
 async function main() {
-  console.log('▶ criticalGeminiFailureFallsThroughToUnoRouter')
-  await criticalGeminiFailureFallsThroughToUnoRouter()
-  console.log('▶ generalKeepsExistingGatewayBehavior')
-  await generalKeepsExistingGatewayBehavior()
-  console.log('▶ invalidAcademicAllowlistIsRejected')
-  await invalidAcademicAllowlistIsRejected()
-  console.log('▶ validationRejectionFallsThroughToNextModel')
-  await validationRejectionFallsThroughToNextModel()
+  await runCase('criticalGeminiFailureFallsThroughToUnoRouter', criticalGeminiFailureFallsThroughToUnoRouter)
+  await runCase('generalKeepsExistingGatewayBehavior', generalKeepsExistingGatewayBehavior)
+  await runCase('invalidAcademicAllowlistIsRejected', invalidAcademicAllowlistIsRejected)
+  await runCase('validationRejectionFallsThroughToNextModel', validationRejectionFallsThroughToNextModel)
   console.log('academic AI router guardrails: ok')
 }
 
