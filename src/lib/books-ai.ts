@@ -686,7 +686,7 @@ async function completeJsonWithFallback(args: {
   const errors: string[] = []
   const timeoutMs = args.timeoutMs ?? 45000
 
-  if (await ensureGeminiKey().catch(() => false)) {
+  if (args.taskLevel === 'ACADEMIC_CRITICAL' || await ensureGeminiKey().catch(() => false)) {
     try {
       return await withTimeout(geminiCompleteJson({
         system: args.system,
