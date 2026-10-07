@@ -30,7 +30,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const user = await db.user.findUnique({ where: { email: normalizedEmail } })
+    const user = await db.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        role: true,
+        status: true,
+        emailVerifiedAt: true,
+        emailVerificationSentAt: true,
+        emailVerificationExpiresAt: true,
+      },
+    })
     if (!user || !verifyPassword(password, user.password)) {
       return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
     }
