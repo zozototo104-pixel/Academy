@@ -660,7 +660,7 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
 async function runGenerationSteps(
   examId: string,
   maxSteps = 1
-): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+): Promise<GenerationStepResult> {
   let totalInserted = 0
   let last: Awaited<ReturnType<typeof runGenerationStep>> | null = null
   for (let i = 0; i < maxSteps; i++) {
