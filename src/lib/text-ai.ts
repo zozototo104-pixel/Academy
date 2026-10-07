@@ -1025,6 +1025,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
+  if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
   if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
   if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable(attempts)
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
