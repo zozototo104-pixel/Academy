@@ -279,7 +279,7 @@ async function excludedModelFamilyCanExhaustVerifierModels() {
       const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'google/gemini-3.8-flash' })
       assert.equal(calls.some((call) => call.url.includes('/chat/completions')), false, 'OpenRouter should not be called when it only has excluded Gemini-family models')
       assert.equal(result[0].verificationPending, true)
-      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
+      assert.equal(result[0].verificationReason, 'VERIFIER_SAME_FAMILY')
     }
   )
 }
