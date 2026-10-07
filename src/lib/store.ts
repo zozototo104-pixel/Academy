@@ -102,6 +102,7 @@ export const useAppStore = create<AppState>((set) => ({
   agentPreviewId: null,
   mobileMenuOpen: false,
   applyProgramTitle: null,
+  applyProgramId: null,
   setUser: (u) => set({ user: u }),
   setAuthChecked: (v) => set({ authChecked: v }),
   navigate: (view, params = {}) => {
