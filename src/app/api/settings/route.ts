@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest) {
     await audit(user, 'UPDATE_SETTINGS', 'Setting', null, changed.join(' | ') || 'لا تغييرات')
     revalidatePublicSettingsSurfaces()
     const updated = await getSettings()
-    return NextResponse.json({ ok: true, values: updated }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } })
+    return NextResponse.json({ ok: true, values: maskSettingsForAdmin(updated) }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } })
   } catch (e) {
     console.error('settings PUT error:', e)
     return NextResponse.json({ error: 'تعذر حفظ الإعدادات' }, { status: 500 })
