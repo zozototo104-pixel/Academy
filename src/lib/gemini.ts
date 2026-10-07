@@ -14,6 +14,7 @@ interface GeminiCallOpts {
   thinkingBudget?: number
   thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
+  taskLevel?: TextAiTaskLevel
 }
 
 const TEXT_MODELS = [
