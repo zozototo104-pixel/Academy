@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { sourceTextAtOneBasedIndex, validateLiteralEvidence } from './evidence-validator'
+import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
 import { modelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
 
 export type QuestionVerifierResult = {
