@@ -509,6 +509,7 @@ ${context}
         history: [{ role: 'user', text: guidePrompt }],
         temperature: 0.12,
         maxOutputTokens: 8192,
+        taskLevel: 'ACADEMIC_DRAFT',
       }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('STUDY_GUIDE_GEMINI_TIMEOUT')), 38000)),
     ])
