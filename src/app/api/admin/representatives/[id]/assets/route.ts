@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         extractedText: extracted?.readable ? extracted.text : null,
       },
     })
-    let updatedRepresentative = null
+    let updatedRepresentative: typeof representative | null = null
     if (extracted?.readable && kind.toUpperCase() === 'CV') {
       const rawText = extracted.text.trim().slice(0, 12000)
       if (rawText) {
