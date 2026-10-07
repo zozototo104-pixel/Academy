@@ -5,6 +5,7 @@ import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib
 import { conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { buildExamSourceChunks, selectExamSourceChunks, type ExamSourceChunk, type ExamSourceText } from '@/lib/exam-source-chunks'
 import { assertComprehensiveExamSourceSufficient, MAX_QUESTIONS_PER_SOURCE_CHUNK, minimumSourceChunksForComprehensiveExam, throwComprehensiveExamInsufficientSource, validateGeneratedExamQuestionsAgainstSelectedChunks, type ExamGenerationProviderContext } from '@/lib/comprehensive-exam-evidence'
+import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
 
