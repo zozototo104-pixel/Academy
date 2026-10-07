@@ -21,11 +21,20 @@ function main() {
   const split = buildExamSourceChunks([{ bookId: 'long', bookTitle: 'طويل', text: longText, contentQuality: 'UPLOADED_FILE' }], 1800)
   assert.ok(split.length >= 2)
   assert.ok(split.some((chunk) => chunk.text.includes(sentence)), 'A complete source sentence must remain wholly inside one chunk')
-  for (let i = 0; i < split.length - 1; i++) {
-    const left = split[i].text.at(-1) || ''
-    const right = split[i + 1].text.at(0) || ''
-    assert.ok(/[.!؟!؛\n\s]/u.test(left) || /\s/u.test(right), 'Chunks must not split inside a word')
-  }
+  const originalTokens = longText.trim().split(/\s+/)
+  const chunkTokens = split.map((c) => c.text).join(' ').trim().split(/\s+/)
+  assert.deepEqual(chunkTokens, originalTokens, 'Chunks must preserve every word intact and in order')
+
+  console.log('▶ comprehensive exam chunks: whitespace-only boundaries preserve every token')
+  const wordsOnly = Array.from({ length: 700 }, (_, i) => `كلمة${i + 1}`).join(' ')
+  const whitespaceSplit = buildExamSourceChunks([{ bookId: 'spaces', bookTitle: 'مسافات فقط', text: wordsOnly, contentQuality: 'UPLOADED_FILE' }], 1800)
+  assert.ok(wordsOnly.length > 4000)
+  assert.ok(whitespaceSplit.length >= 2)
+  assert.deepEqual(
+    whitespaceSplit.map((c) => c.text).join(' ').trim().split(/\s+/),
+    wordsOnly.trim().split(/\s+/),
+    'Whitespace fallback must preserve every word intact and in order'
+  )
 
   console.log('▶ comprehensive exam chunks: selected sample is capped, distributed, and renumbered')
   const hundred = Array.from({ length: 100 }, (_, i) => ({ sourceIndex: i + 1, bookId: 'all', bookTitle: 'كامل', text: `مقطع ${i + 1} ${'محتوى أصلي موثوق '.repeat(8)}` }))
