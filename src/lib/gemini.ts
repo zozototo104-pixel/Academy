@@ -64,7 +64,6 @@ export const GEMINI_DISCUSSION_LIVE_MODEL_FALLBACKS = DISCUSSION_LIVE_MODELS
 
 let dbFetchedAt = 0
 let dbInflight: Promise<void> | null = null
-let dbKeyCache = ''
 let dbVoiceCache = ''
 let dbTextModelCache = ''
 let dbTtsModelCache = ''
