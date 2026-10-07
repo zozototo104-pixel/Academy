@@ -33,7 +33,7 @@ export default function ContactPage() {
           </div>
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-[#d8b45c]">WhatsApp</div>
-            <a dir="ltr" className="mt-2 inline-block text-xl font-black text-white underline decoration-[#c9a227]/60" href={ACADEMY_INFO.whatsappUrl}>
+            <a dir="ltr" className="mt-2 inline-block text-xl font-black text-white underline decoration-[#c9a227]/60" href={whatsappUrl}>
               {ACADEMY_INFO.whatsappDisplay}
             </a>
           </div>
