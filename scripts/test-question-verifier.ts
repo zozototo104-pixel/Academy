@@ -186,7 +186,7 @@ async function excludedModelFamilyCanExhaustVerifierModels() {
   await withMockFetch(
     () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
     async (calls) => {
-      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'google/gemini-3.8-flash' })
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'openai/gpt-4o' })
       assert.equal(calls.length, 0, 'verifier should not call a model whose family is excluded')
       assert.equal(result[0].verificationPending, true)
       assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
