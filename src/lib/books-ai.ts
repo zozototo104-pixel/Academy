@@ -1461,7 +1461,7 @@ function normalizeDistractorRationales(value: unknown, q: GeneratedQuestion): Di
 
 function academicQualityFlags(q: GeneratedQuestion): string[] {
   return uniqueStrings([
-    q.bookEvidence ? 'SOURCE_GROUNDED' : '',
+    q.bookEvidence ? 'SOURCE_LINKED' : '',
     q.sourceBookTitle ? 'HAS_SOURCE_BOOK' : '',
     q.sourceLocator ? 'HAS_SOURCE_LOCATOR' : '',
     q.cognitiveSkill ? `SKILL_${q.cognitiveSkill}` : '',
