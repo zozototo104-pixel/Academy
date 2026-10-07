@@ -8,12 +8,13 @@ const originalEnv = { ...process.env }
 
 function resetEnv() {
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith('AI_') || key.endsWith('_API_KEY') || key.endsWith('_API_KEYS')) delete process.env[key]
+    if (!(key in originalEnv)) delete process.env[key]
   }
   Object.assign(process.env, originalEnv)
 }
 
 async function withMockFetch(handler: (call: FetchCall) => Response | Promise<Response>, run: (calls: FetchCall[]) => Promise<void>) {
+  __resetTextAiStateForTests()
   const calls: FetchCall[] = []
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const call = { url: String(input), init }
