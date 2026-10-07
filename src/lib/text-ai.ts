@@ -286,6 +286,9 @@ function isAuthLike(e: any): boolean {
 }
 
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
+  if (!String(process.env.DATABASE_URL || '').trim()) {
+    return Object.fromEntries(keys.map((k) => [k, '']))
+  }
   try {
     const rows = await db.setting.findMany({ where: { key: { in: keys } } })
     const out: Record<string, string> = {}
