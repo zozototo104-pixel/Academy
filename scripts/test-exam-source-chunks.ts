@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildExamSourceChunks } from '../src/lib/exam-source-chunks'
+import { buildExamSourceChunks, selectExamSourceChunks } from '../src/lib/exam-source-chunks'
 
 const original = 'هذا نص أصلي طويل من الكتاب يستخدم كدليل حرفي موثوق لبناء سؤال الامتحان الشامل، ويجب أن يبقى مرتبطًا بالمصدر الحقيقي.'
 const second = 'وهذا مقطع أصلي ثانٍ من كتاب آخر، طوله كافٍ للاقتباس الحرفي والتحقق من ترقيم المصادر بعد استبعاد المحتوى غير الموثوق.'
@@ -12,22 +12,35 @@ function main() {
     { bookId: 'short', bookTitle: 'قصير', text: 'نص قصير', contentQuality: 'LINK_TEXT' },
     { bookId: 'b2', bookTitle: 'الثاني', text: second, contentQuality: 'LINK_TEXT' },
   ])
-  assert.equal(chunks.length, 2)
   assert.deepEqual(chunks.map((chunk) => chunk.sourceIndex), [1, 2])
   assert.deepEqual(chunks.map((chunk) => chunk.bookId), ['b1', 'b2'])
-  assert.equal(chunks[0]?.text, original)
 
-  console.log('▶ comprehensive exam chunks: generated stored knowledge is excluded')
-  assert.equal(buildExamSourceChunks([
-    { bookId: 'derived', bookTitle: 'مشتق', text: original, contentQuality: 'STORED_TEXT', sourceNote: 'خريطة معرفة مولدة من المحتوى المحفوظ' },
-  ]).length, 0)
+  console.log('▶ comprehensive exam chunks: long paragraphs split on safe boundaries')
+  const sentence = 'هذه جملة كاملة يجب أن تبقى داخل مقطع واحد حتى يظل الاقتباس الحرفي قابلًا للتحقق دون كسر الكلمات أو الجمل.'
+  const longText = `${'مقدمة مفيدة '.repeat(140)}. ${sentence} ${'تفصيل إضافي '.repeat(180)}. ${'خاتمة واضحة '.repeat(80)}`
+  const split = buildExamSourceChunks([{ bookId: 'long', bookTitle: 'طويل', text: longText, contentQuality: 'UPLOADED_FILE' }], 1800)
+  assert.ok(split.length >= 2)
+  assert.ok(split.some((chunk) => chunk.text.includes(sentence)), 'A complete source sentence must remain wholly inside one chunk')
+  for (let i = 0; i < split.length - 1; i++) {
+    const left = split[i].text.at(-1) || ''
+    const right = split[i + 1].text.at(0) || ''
+    assert.ok(/[.!؟!؛\n\s]/u.test(left) || /\s/u.test(right), 'Chunks must not split inside a word')
+  }
 
-  console.log('▶ comprehensive exam chunks: extracted stored text remains eligible')
-  const stored = buildExamSourceChunks([
-    { bookId: 'stored', bookTitle: 'مخزن', text: original, contentQuality: 'STORED_TEXT', sourceNote: 'النص المحفوظ المستخرج سابقًا' },
-  ])
+  console.log('▶ comprehensive exam chunks: selected sample is capped, distributed, and renumbered')
+  const hundred = Array.from({ length: 100 }, (_, i) => ({ sourceIndex: i + 1, bookId: 'all', bookTitle: 'كامل', text: `مقطع ${i + 1} ${'محتوى أصلي موثوق '.repeat(8)}` }))
+  const selected = selectExamSourceChunks(hundred, { maxChunks: 12, maxTotalChars: 18000 })
+  assert.equal(selected.length, 12)
+  assert.deepEqual(selected.map((chunk) => chunk.sourceIndex), Array.from({ length: 12 }, (_, i) => i + 1))
+  assert.equal(selected[0].text, hundred[0].text)
+  assert.equal(selected.at(-1)?.text, hundred.at(-1)?.text)
+  assert.ok(selected.some((chunk) => chunk.text === hundred[45].text || chunk.text === hundred[54].text), 'Selection must cover the middle of the source set')
+
+  console.log('▶ comprehensive exam chunks: STORED_TEXT requires explicit extraction provenance')
+  assert.equal(buildExamSourceChunks([{ bookId: 'unknown', bookTitle: 'غير مثبت', text: original, contentQuality: 'STORED_TEXT' }]).length, 0)
+  assert.equal(buildExamSourceChunks([{ bookId: 'generated', bookTitle: 'مولد', text: original, contentQuality: 'STORED_TEXT', sourceNote: 'النص المحفوظ المستخرج سابقًا' }]).length, 0)
+  const stored = buildExamSourceChunks([{ bookId: 'stored', bookTitle: 'مخزن', text: original, contentQuality: 'STORED_TEXT', linkReadStatus: 'FILE_EXTRACTED' }])
   assert.equal(stored.length, 1)
-  assert.equal(stored[0]?.sourceIndex, 1)
 
   console.log('comprehensive exam source chunks: ok')
 }
