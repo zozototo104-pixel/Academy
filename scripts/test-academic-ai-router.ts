@@ -92,7 +92,8 @@ async function invalidAcademicAllowlistIsRejected() {
         () => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'test' }], taskLevel: 'ACADEMIC_CRITICAL' }),
         (error: any) => error?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
       )
-      assert.equal(calls.length, 0, 'Invalid auto/free allowlist entries must not be called')
+      assert.ok(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), 'Invalid allowlist entries must not disable the academic fallback chain')
+      assert.equal(calls.filter((call) => call.url.includes('openrouter.ai') && String(call.init?.body || '').includes('"model":"auto"')).length, 0, 'Academic routing must never call OpenRouter with model auto')
     }
   )
 }
