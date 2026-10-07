@@ -51,7 +51,7 @@ export default async function RepresentativeProfilePage({ params }: { params: Pr
         <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[360px_1fr] lg:items-center">
           <div className="overflow-hidden rounded-[2.5rem] border border-white/15 bg-white/10 p-3 shadow-2xl">
             <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#12365c] to-[#bf1646]">
-              {rep.profilePhotoUrl ? <img src={rep.profilePhotoUrl} alt={rep.fullName} className="h-full w-full object-cover" /> : <span className="text-7xl font-black text-[#f5f0e1]">{initials(rep.fullName)}</span>}
+              <RepresentativePhoto src={rep.profilePhotoUrl} alt={rep.fullName} fallback={initials(rep.fullName)} fallbackClassName="flex h-full w-full items-center justify-center text-7xl font-black text-[#f5f0e1]" />
             </div>
           </div>
           <div>
