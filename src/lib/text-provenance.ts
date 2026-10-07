@@ -86,6 +86,12 @@ export function isEvidenceAllowedByProvenance(provenance: TextProvenance): boole
   return provenance !== 'VISION_DESCRIPTION'
 }
 
+export function textContainsEvidenceAfterNormalization(text: unknown, evidence: unknown): boolean {
+  const source = normalized(text)
+  const quote = normalized(evidence)
+  return quote.length >= 40 && source.includes(quote)
+}
+
 export function applyOcrDerivedFlags(flags: readonly string[] = [], provenance?: TextProvenance): string[] {
   const out = new Set<string>()
   const source = flags.length ? flags : ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']
