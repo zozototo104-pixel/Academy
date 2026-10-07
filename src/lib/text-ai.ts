@@ -310,7 +310,7 @@ async function settings() {
     unorouterKeys: parseKeys(env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS')),
     unorouterModel: normalizeModel(rows.UNOROUTER_TEXT_MODEL || env('UNOROUTER_TEXT_MODEL'), UNOROUTER_TEXT_MODELS),
     unorouterBaseUrl: (rows.UNOROUTER_BASE_URL || env('UNOROUTER_BASE_URL') || 'https://api.unorouter.com/v1').replace(/\/$/, ''),
-    relayrouterKeys: parseKeys(rows.RELAYROUTER_API_KEY, rows.RELAYROUTER_API_KEYS, env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS')),
+    relayrouterKeys: parseKeys(env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS')),
     relayrouterModel: normalizeModel(rows.RELAYROUTER_TEXT_MODEL || env('RELAYROUTER_TEXT_MODEL'), RELAYROUTER_TEXT_MODELS),
     relayrouterBaseUrl: (rows.RELAYROUTER_BASE_URL || env('RELAYROUTER_BASE_URL') || 'https://relayrouter.io/v1').replace(/\/$/, ''),
     topToolsKeys: parseKeys(rows.TOPTOOLS_API_KEY, rows.TOPTOOLS_API_KEYS, env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
