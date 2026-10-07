@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { __resetTextAiStateForTests } from '../src/lib/text-ai'
+import { __resetTextAiStateForTests, modelFamily } from '../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
 
 const originalFetch = globalThis.fetch
@@ -63,7 +63,33 @@ function configureProviders() {
   process.env.GEMINI_API_KEY = 'mock-gemini-key'
   process.env.UNOROUTER_API_KEY = 'mock-uno-key'
   process.env.OPENROUTER_API_KEY = 'mock-openrouter-key'
-  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,UNOROUTER:gpt-oss-120b:free,OPENROUTER:meta-llama/llama-3.1-8b-instruct:free'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,UNOROUTER:gpt-oss-120b:free,OPENROUTER:meta-llama/llama-3.1-70b-instruct:free'
+}
+
+function modelFamilyClassifiesRealNames() {
+  assert.equal(modelFamily('google/gemini-3.8-flash'), 'gemini')
+  assert.equal(modelFamily('gemini-2.5-flash'), 'gemini')
+  assert.equal(modelFamily('openai/gpt-4o-mini'), 'gpt')
+  assert.equal(modelFamily('anthropic/claude-sonnet-4-5-20250929'), 'claude')
+  assert.equal(modelFamily('meta-llama/llama-3.1-70b-instruct'), 'llama')
+  assert.equal(modelFamily('qwen/qwen3-72b'), 'qwen')
+  assert.equal(modelFamily('deepseek/deepseek-v3.2'), 'deepseek')
+  assert.equal(modelFamily('mistralai/mistral-large'), 'mistral')
+}
+
+async function generatorProviderUnknownFailsClosed() {
+  configureProviders()
+  await withMockFetch(
+    () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }] })
+      assert.equal(calls.length, 0, 'unknown generator provider must not call verifier')
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'GENERATOR_PROVIDER_UNKNOWN')
+      assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
+      assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+    }
+  )
 }
 
 async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
@@ -81,9 +107,10 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
     },
     async (calls) => {
       const result = await verifyQuestionsWithCrossProvider({
-        questions: [baseQuestion()],
+        questions: [baseQuestion(), baseQuestion()],
         sources: [{ text: sourceOne }, { text: sourceTwo }],
         generatorProvider: 'GEMINI',
+        generatorModel: 'gemini-3.8-flash',
       })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), false, 'verifier must never call excluded Gemini')
@@ -91,6 +118,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
       const body = String(completion?.init?.body || '')
       assert.ok(body.includes(sourceTwo), 'verifier prompt must include the selected source text')
       assert.equal(body.includes(sourceOne), false, 'verifier prompt must not include other source chunks')
+      assert.equal((body.match(new RegExp(sourceTwo, 'g')) || []).length, 1, 'shared source text should appear once per verifier batch')
     }
   )
 }
@@ -104,7 +132,7 @@ async function verifierRejectionKeepsHumanReview() {
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async () => {
-      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI' })
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
       assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
       assert.equal(result[0].verifierReason, 'الإجابة لا يدعمها النص مباشرة.')
@@ -125,6 +153,7 @@ async function verifierAcceptsButLiteralFailDoesNotGround() {
         questions: [baseQuestion({ sourceEvidence: 'هذا دليل غير موجود حرفياً في نص المصدر المحدد رغم أنه طويل بما يكفي لاختبار الفشل الحرفي' })],
         sources: [{ text: sourceOne }, { text: sourceTwo }],
         generatorProvider: 'GEMINI',
+        generatorModel: 'gemini-3.8-flash',
       })
       assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
@@ -139,11 +168,28 @@ async function unavailableVerifierKeepsGenerationPending() {
   await withMockFetch(
     () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
     async (calls) => {
-      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI' })
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
       assert.equal(calls.length, 0, 'no provider should be called when only the excluded generator exists')
       assert.equal(result[0].verificationPending, true)
       assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
       assert.ok(result[0].qualityFlags?.includes('NEEDS_HUMAN_REVIEW'))
+    }
+  )
+}
+
+async function excludedModelFamilyCanExhaustVerifierModels() {
+  process.env.OPENAI_COMPAT_API_KEY = 'mock-compat-key'
+  process.env.OPENAI_COMPAT_BASE_URL = 'https://compat.example/v1'
+  process.env.AI_TEXT_PROVIDER = 'OPENAI_COMPAT'
+  process.env.AI_ROUTER_POLICY = 'fallback_only'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENAI_COMPAT:gpt-oss-120b:free'
+  await withMockFetch(
+    () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'google/gemini-3.8-flash' })
+      assert.equal(calls.length, 0, 'verifier should not call a model whose family is excluded')
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
     }
   )
 }
@@ -161,7 +207,7 @@ async function missingIndexFallsThroughToNextProvider() {
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async (calls) => {
-      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI' })
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.ok(calls.some((call) => call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')), 'first verifier provider should be attempted')
       assert.ok(calls.some((call) => call.url.includes('openrouter.ai') && call.url.includes('/chat/completions')), 'VALIDATION_REJECTED should fall through to the next provider')
@@ -169,17 +215,40 @@ async function missingIndexFallsThroughToNextProvider() {
   )
 }
 
-async function runCase(name: string, test: () => Promise<void>) {
+async function timeBudgetMarksRemainingPending() {
+  configureProviders()
+  await withMockFetch(
+    () => response(validResult()),
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({
+        questions: [baseQuestion()],
+        sources: [{ text: sourceOne }, { text: sourceTwo }],
+        generatorProvider: 'GEMINI',
+        generatorModel: 'gemini-3.8-flash',
+        timeBudgetMs: 0,
+      })
+      assert.equal(calls.length, 0)
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+    }
+  )
+}
+
+async function runCase(name: string, test: () => Promise<void> | void) {
   console.log(`▶ ${name}`)
   await test()
 }
 
 async function main() {
+  await runCase('modelFamilyClassifiesRealNames', modelFamilyClassifiesRealNames)
+  await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
   await runCase('generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly', generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly)
   await runCase('verifierRejectionKeepsHumanReview', verifierRejectionKeepsHumanReview)
   await runCase('verifierAcceptsButLiteralFailDoesNotGround', verifierAcceptsButLiteralFailDoesNotGround)
   await runCase('unavailableVerifierKeepsGenerationPending', unavailableVerifierKeepsGenerationPending)
+  await runCase('excludedModelFamilyCanExhaustVerifierModels', excludedModelFamilyCanExhaustVerifierModels)
   await runCase('missingIndexFallsThroughToNextProvider', missingIndexFallsThroughToNextProvider)
+  await runCase('timeBudgetMarksRemainingPending', timeBudgetMarksRemainingPending)
   console.log('question verifier guardrails: ok')
 }
 
