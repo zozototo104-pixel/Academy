@@ -165,6 +165,22 @@ function normalizeModel(value: unknown, defaults: string[]): string {
   return /^[a-z0-9][a-z0-9_./:-]{1,160}$/i.test(v) ? v : defaults[0]
 }
 
+const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
+
+function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+  const out: Array<{ provider: ConcreteProvider; model: string }> = []
+  for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
+    const item = raw.trim()
+    const separator = item.indexOf(':')
+    if (separator <= 0) continue
+    const provider = normalizeProvider(item.slice(0, separator))
+    const model = clean(item.slice(separator + 1))
+    if (provider === 'AUTO' || !validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model) || model.endsWith(':free')) continue
+    out.push({ provider: provider as ConcreteProvider, model })
+  }
+  return out
+}
+
 function parseKeys(...values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
