@@ -931,6 +931,7 @@ export async function suggestBooksForProgram(program: {
       temperature: 0.25,
       maxOutputTokens: 4096,
       retries: 3,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
     const cleaned = extractJsonArray(raw)
       .map((item) => normalizeSuggestion(item, policy))
