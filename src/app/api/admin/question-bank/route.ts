@@ -374,6 +374,7 @@ ${knowledgeText}
         verifierReason: item.verifierReason,
         verificationPending: item.verificationPending,
         verificationReason: item.verificationReason,
+        textProvenance: item.textProvenance,
       }
       if (!q.text || q.text.length < 12) continue
       const key = norm(q.text)
