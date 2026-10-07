@@ -39,7 +39,7 @@ export default function ContactPage() {
           </div>
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-[#d8b45c]">Address</div>
-            <p className="mt-2 text-sm font-bold leading-8 text-white/70">{ACADEMY_INFO.address}</p>
+            <p className="mt-2 text-sm font-bold leading-8 text-white/70">{ACADEMY_INFO.locationAr}</p>
           </div>
           <div className="pt-3">
             <Link href="/?view=contact" className="inline-flex rounded-full bg-[#c9a227] px-5 py-3 text-sm font-black text-[#0f1c35] hover:bg-[#d8b45c]">
