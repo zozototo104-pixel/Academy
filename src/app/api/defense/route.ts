@@ -486,25 +486,24 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
           ? 'توصية بالقبول مع ملاحظات'
           : 'توصية بمراجعة البحث وإعادة المناقشة'
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
 - التقييم العام عبر الأسئلة: ${scoreLabel(aiScore)} (${answered} أسئلة ذات تقييم صالح)
 - آخر ملاحظة: ${lastFeedback}
 - الحكم العام: ${verdict}
 
 ابدأ بعبارة «توصية خبير الذكاء الاصطناعي للجنة:». بدون Markdown.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    return (completion.choices[0]?.message?.content || `${verdict} — التقييم ${scoreLabel(aiScore)}`).trim().slice(0, 1500)
+    return text.trim().slice(0, 1500)
   } catch {
-    return `توصية خبير الذكاء الاصطناعي للجنة: ${verdict} — التقييم العام عبر أسئلة المناقشة ${scoreLabel(aiScore)}.`
+    return 'تعذر إصدار توصية آلية موثوقة. يجب أن تصدر التوصية من اللجنة البشرية بعد مراجعة تسجيل الجلسة وإجابات الطالب.'
   }
 }
 
