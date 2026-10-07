@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
+import { parseScannedTranscriptionJson, visionExtractionFailedNote } from '../src/lib/book-content'
 import { buildExamSourceChunks, selectExamSourceChunks } from '../src/lib/exam-source-chunks'
 import { __resetTextAiStateForTests } from '../src/lib/text-ai'
-import { inferTextProvenance } from '../src/lib/text-provenance'
+import { inferTextProvenance, textContainsEvidenceAfterNormalization } from '../src/lib/text-provenance'
 import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
 
 const originalFetch = globalThis.fetch
