@@ -133,6 +133,39 @@ async function validationRejectionFallsThroughToNextModel() {
   )
 }
 
+async function draftValidationRejectionFallsThroughToNextModel() {
+  process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash'
+  process.env.GEMINI_TEXT_MODEL = 'gemini-3.8-flash'
+
+  await withMockFetch(
+    (call) => {
+      if (!call.url.includes('generativelanguage.googleapis.com')) {
+        return new Response(JSON.stringify({ error: { message: 'unexpected provider call' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+      }
+      const model = decodeURIComponent(call.url.match(/\/models\/([^:]+):generateContent/)?.[1] || '')
+      const content = model === 'gemini-3.8-flash' ? 'draft-rejected' : 'draft-validated'
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    },
+    async (calls) => {
+      const result = await textAiComplete({
+        system: 'test',
+        history: [{ role: 'user', text: 'test' }],
+        taskLevel: 'ACADEMIC_DRAFT',
+        validate: (text) => {
+          if (text === 'draft-rejected') {
+            const error: any = new Error('VALIDATION_REJECTED')
+            error.code = 'VALIDATION_REJECTED'
+            throw error
+          }
+        },
+      })
+      assert.equal(result, 'draft-validated')
+      assert.ok(calls.filter((call) => call.url.includes('generativelanguage.googleapis.com')).length >= 2, 'Draft validation rejection must try the next model')
+    }
+  )
+}
+
 async function runCase(name: string, test: () => Promise<void>) {
   console.log(`▶ ${name}`)
   try {
