@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
 import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
