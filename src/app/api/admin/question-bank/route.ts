@@ -333,9 +333,13 @@ ${knowledgeText}
 
     if (!generated.length) return NextResponse.json({ error: 'لم يُرجع المزود أسئلة أكاديمية صالحة.', status: 'PAUSED' }, { status: 503 })
 
+    const finalValidation = validateQuestionBatchAgainstKnowledge(generated, knowledge)
+    for (const rejection of finalValidation.rejected) console.warn('question bank evidence rejected before save:', rejection)
+
     const rows: any[] = []
-    for (let i = 0; i < generated.length; i++) {
-      const requestedSourceIndex = Number(generated[i]?.sourceIndex)
+    for (let i = 0; i < finalValidation.accepted.length; i++) {
+      const item = finalValidation.accepted[i]
+      const requestedSourceIndex = Number(item.sourceIndex)
       const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= knowledge.length
         ? knowledge[requestedSourceIndex - 1]
         : null
