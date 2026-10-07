@@ -196,6 +196,63 @@ function parseGeminiBookJson(raw: string): { text: string; note: string } {
   return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة Gemini غير JSON لكنها تحتوي نصاً قابلاً للاستخدام' }
 }
 
+export function parseScannedTranscriptionJson(raw: string): { text: string; note: string; pagesTranscribed: number | null; pagesTotal: number | null } {
+  const body = String(raw || '').trim()
+  const json = body.match(/\{[\s\S]*\}/)?.[0]
+  if (json) {
+    try {
+      const parsed = JSON.parse(json)
+      const text = repairExtractedAcademicText(String(parsed.textContent || parsed.transcription || parsed.text || ''), MAX_BOOK_CONTEXT_CHARS)
+      return {
+        text,
+        note: normalizeExtractedText(String(parsed.note || 'نسخ بصري حرفي للمستند'), 700),
+        pagesTranscribed: Number.isFinite(Number(parsed.pagesTranscribed)) ? Number(parsed.pagesTranscribed) : null,
+        pagesTotal: Number.isFinite(Number(parsed.pagesTotal)) ? Number(parsed.pagesTotal) : null,
+      }
+    } catch (error) {
+      console.warn('Failed to parse scanned transcription JSON; using raw response text.', error)
+    }
+  }
+  return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة OCR غير JSON لكنها تحتوي نصاً قابلاً للاستخدام', pagesTranscribed: null, pagesTotal: null }
+}
+
+export async function transcribeScannedDocumentWithVision(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
+  const hasKey = await ensureGeminiKey().catch(() => false)
+  if (!hasKey) return { text: '', note: 'Gemini غير مفعّل لنسخ المستند الممسوح بصرياً' }
+
+  const prompt = `أنت ناسخ OCR حرفي للمستندات الأكاديمية.
+
+بيانات الكتاب:
+- العنوان: ${book.title}
+- المؤلف: ${book.author || '-'}
+
+المطلوب:
+- انسخ نص الصفحات كما هو حرفياً قدر الإمكان.
+- لا تلخص، لا تعيد الصياغة، لا تصحح، لا تترجم، ولا تضف شرحاً.
+- ضع [غير مقروء] مكان أي كلمة أو مقطع لا يُقرأ بوضوح.
+- افصل الصفحات بصيغة [صفحة N].
+- إذا كان الملف كبيراً ولم تستطع تغطية كل الصفحات، انسخ النطاق الذي استطعت قراءته واذكر التغطية في note.
+
+أجب JSON فقط:
+{"textContent":"[صفحة 1]\n<النص الحرفي>\n\n[صفحة 2]\n<النص الحرفي>","note":"<تغطية النسخ وحدوده>","pagesTranscribed":null,"pagesTotal":null}`
+
+  try {
+    const raw = await geminiVisionJson({
+      prompt,
+      images: [{ mimeType: inferMime(book.fileName, mimeType), dataBase64: buffer.toString('base64') }],
+      temperature: 0,
+      maxOutputTokens: 12288,
+    })
+    const parsed = parseScannedTranscriptionJson(raw)
+    const coverage = parsed.pagesTranscribed || parsed.pagesTotal
+      ? ` pagesTranscribed=${parsed.pagesTranscribed ?? 'unknown'} pagesTotal=${parsed.pagesTotal ?? 'unknown'}`
+      : ' pagesTranscribed=unknown pagesTotal=unknown'
+    return { text: parsed.text, note: appendTextProvenanceNote(`${parsed.note}${coverage}`, 'VISION_OCR') }
+  } catch (e: any) {
+    return { text: '', note: `تعذر النسخ الحرفي عبر Gemini Vision/OCR: ${String(e?.message || e).slice(0, 180)}` }
+  }
+}
+
 async function readVisualDocumentWithGemini(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
   const hasKey = await ensureGeminiKey().catch(() => false)
   if (!hasKey) return { text: '', note: 'Gemini غير مفعّل لقراءة المستند بصرياً' }
