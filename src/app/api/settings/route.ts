@@ -68,7 +68,11 @@ export async function PUT(req: NextRequest) {
       }
       if (v === '') continue
       const existing = await db.setting.findUnique({ where: { key } })
-      if (!existing || existing.value !== v) changed.push(`${def.label}: ${existing?.value || def.value} ← ${v}${def.suffix ? ` ${def.suffix}` : ''}`)
+      if (!existing || existing.value !== v) {
+        const before = isSecretSettingKey(key) ? '••••' : (existing?.value || def.value)
+        const after = isSecretSettingKey(key) ? '••••' : v
+        changed.push(`${def.label}: ${before} ← ${after}${def.suffix ? ` ${def.suffix}` : ''}`)
+      }
       await db.setting.upsert({ where: { key }, create: { key, value: v }, update: { value: v } })
     }
     await audit(user, 'UPDATE_SETTINGS', 'Setting', null, changed.join(' | ') || 'لا تغييرات')
