@@ -168,7 +168,12 @@ async function unknownFamilyVerifierFromDifferentProviderCanGround() {
       if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) {
         return new Response(JSON.stringify({ data: [{ id: 'agnes-2.0-flash:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult([0]))
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) {
+        const model = JSON.parse(String(call.init?.body || '{}')).model
+        return model === 'agnes-2.0-flash:free'
+          ? response(validResult([0]))
+          : new Response(JSON.stringify({ error: { message: 'only agnes should pass this test' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+      }
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async () => {
