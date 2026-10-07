@@ -11,6 +11,7 @@ export interface SettingDef {
   suffix: string // $ | يوم | شهر | % | دقيقة
   inputType?: 'number' | 'text' | 'textarea' | 'json'
   help?: string
+  secret?: boolean
 }
 
 export const DEFAULT_HOME_STATS = { graduates: 2000, experts: 120, countries: 18 }
