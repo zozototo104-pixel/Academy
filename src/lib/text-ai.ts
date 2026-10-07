@@ -18,6 +18,8 @@ export type TextAiProvider =
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+export type TextAiProviderTier = 'FREE' | 'PAID'
+export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 
 export interface TextAiTurn {
   role: 'user' | 'model'
