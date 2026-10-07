@@ -187,6 +187,7 @@ async function main() {
   await runCase('generalKeepsExistingGatewayBehavior', generalKeepsExistingGatewayBehavior)
   await runCase('invalidAcademicAllowlistIsRejected', invalidAcademicAllowlistIsRejected)
   await runCase('validationRejectionFallsThroughToNextModel', validationRejectionFallsThroughToNextModel)
+  await runCase('draftValidationRejectionFallsThroughToNextModel', draftValidationRejectionFallsThroughToNextModel)
   console.log('academic AI router guardrails: ok')
 }
 
