@@ -313,7 +313,7 @@ async function settings() {
     relayrouterKeys: parseKeys(env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS')),
     relayrouterModel: normalizeModel(rows.RELAYROUTER_TEXT_MODEL || env('RELAYROUTER_TEXT_MODEL'), RELAYROUTER_TEXT_MODELS),
     relayrouterBaseUrl: (rows.RELAYROUTER_BASE_URL || env('RELAYROUTER_BASE_URL') || 'https://relayrouter.io/v1').replace(/\/$/, ''),
-    topToolsKeys: parseKeys(rows.TOPTOOLS_API_KEY, rows.TOPTOOLS_API_KEYS, env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
+    topToolsKeys: parseKeys(env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
     topToolsModel: normalizeModel(rows.TOPTOOLS_TEXT_MODEL || env('TOPTOOLS_TEXT_MODEL'), TOPTOOLS_TEXT_MODELS),
     topToolsBaseUrl: (rows.TOPTOOLS_BASE_URL || env('TOPTOOLS_BASE_URL') || 'https://top-tools-ai.com/v1').replace(/\/$/, ''),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
