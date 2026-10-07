@@ -102,7 +102,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
       if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) {
         return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult())
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) return response(validResult([0, 1]))
       return new Response(JSON.stringify({ error: { message: 'unexpected provider call' } }), { status: 500, headers: { 'content-type': 'application/json' } })
     },
     async (calls) => {
