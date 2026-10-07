@@ -261,9 +261,13 @@ export async function POST(req: NextRequest) {
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
+    const evidenceKnowledge = knowledge.filter((item) => knowledgeEvidenceText(item).trim().length >= 40)
+    if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
+
     const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
     const seen = new Set(existing.map((q) => norm(q.text)))
-    const knowledgeText = knowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\n${String(k.summary || '').slice(0, 650)}\nدليل: ${String(k.excerpt || k.sourceNote || '').slice(0, 360)}`).join('\n\n')
+    const knowledgeText = evidenceKnowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\nملخص للسياق فقط: ${String(k.summary || '').slice(0, 650)}\nنص المصدر (اقتبس منه حرفيًا): ${knowledgeEvidenceText(k).slice(0, 1800)}`).join('\n\n')
+    const evidenceSources = evidenceKnowledge.map((item) => ({ text: knowledgeEvidenceText(item) }))
 
     let generated: any[] = []
     let generationContext: { provider?: string; model?: string } = {}
