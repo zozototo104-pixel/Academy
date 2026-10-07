@@ -320,6 +320,37 @@ async function missingIndexFallsThroughToNextProvider() {
   )
 }
 
+async function routerDeadlineStopsBeforeSecondVerifierModel() {
+  process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.UNOROUTER_API_KEY = 'mock-uno-key'
+  process.env.OPENROUTER_API_KEY = 'mock-openrouter-key'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,UNOROUTER:gpt-oss-120b:free,OPENROUTER:meta-llama/llama-3.1-70b-instruct:free'
+  await withMockFetch(
+    (call) => {
+      if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) {
+        return new Promise<Response>((resolve, reject) => {
+          const signal = call.init?.signal as AbortSignal | undefined
+          const timer = setTimeout(() => resolve(response(rejectedResult())), 100)
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(new DOMException('aborted', 'AbortError'))
+          }, { once: true })
+        })
+      }
+      if (call.url.includes('openrouter.ai') && call.url.includes('/chat/completions')) return response(validResult())
+      return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+    },
+    async (calls) => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash', timeBudgetMs: 50 })
+      assert.equal(calls.filter((call) => call.url.includes('/chat/completions')).length, 1, 'deadline must prevent a second verifier model attempt')
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[0].verificationReason, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+      assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+    }
+  )
+}
+
 async function timeBudgetMarksRemainingPending() {
   configureProviders()
   await withMockFetch(
