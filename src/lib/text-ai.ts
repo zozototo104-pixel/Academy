@@ -910,7 +910,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         try {
           const text = await callProvider(provider, s, key, model, opts)
-          opts.validate?.(text)
+          opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
           lastResult = { provider, model, ok: true, at }
