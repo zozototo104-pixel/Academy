@@ -309,6 +309,14 @@ ${knowledgeText}
         thinkingBudget: 256,
         maxOutputTokens: 6000,
         taskLevel: 'ACADEMIC_CRITICAL',
+        validate: (text, context) => {
+          const parsed = generatedQuestionsSchema.parse(parseJsonObject(text))
+          const validation = validateQuestionBatchAgainstKnowledge(parsed.questions, knowledge, context)
+          for (const rejection of validation.rejected) {
+            console.warn('question bank evidence rejected:', rejection)
+          }
+          assertQuestionBatchAcceptable(parsed.questions.length, validation.rejected.length)
+        },
       })
       const parsed = generatedQuestionsSchema.parse(parseJsonObject(raw))
       generated = parsed.questions
