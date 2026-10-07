@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
 
     const sourceBooks = await db.book.findMany({
       where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
-      select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true, contentQuality: true },
+      select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true },
     })
     const bookById = new Map(sourceBooks.map((book) => [book.id, book]))
     const knowledgeTextProvenance = (item: { sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }) => {
