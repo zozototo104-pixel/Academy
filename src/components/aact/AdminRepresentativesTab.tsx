@@ -445,7 +445,7 @@ function GeneralFileUploader({ onUpload, uploading }: { onUpload: (file: File, e
 function ExternalLinkUploader({ onUpload, uploading }: { onUpload: (extras: Record<string, string>) => void; uploading: boolean }) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('رابط أعمال')
-  return <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[1fr_2fr_auto]"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الرابط" className="rounded-xl" /><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="rounded-xl" /><Button disabled={uploading || !url.trim()} onClick={() => { onUpload({ kind: 'LINK', title, externalUrl: url }); setUrl('') }} variant="outline" className="gap-2"><ExternalLink className="h-4 w-4" /> إضافة رابط</Button></div>
+  return <div className="grid min-w-0 gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الرابط" className="rounded-xl" /><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="rounded-xl" /><Button disabled={uploading || !url.trim()} onClick={() => { onUpload({ kind: 'LINK', title, externalUrl: url }); setUrl('') }} variant="outline" className="gap-2"><ExternalLink className="h-4 w-4" /> إضافة رابط</Button></div>
 }
 
 function PreviewBox({ title, url }: { title: string; url?: string | null }) {
