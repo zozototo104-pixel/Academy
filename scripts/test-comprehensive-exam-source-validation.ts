@@ -60,6 +60,14 @@ function main() {
   assert.equal(singleAccepted[0].sourceBookId, 'uploaded-book')
   assert.equal(singleAccepted[0].sourceEvidence, validEvidence)
 
+  const sourceLimitAccepted = validateGeneratedExamQuestionsAgainstSelectedChunks([
+    validQuestion(),
+    validQuestion(),
+    validQuestion(),
+    validQuestion(),
+  ], selected, 'MIX_CORE', { provider: 'TEST', model: 'mock-model' })
+  assert.equal(sourceLimitAccepted.length, 3, 'a single sourceIndex may support at most three questions per batch')
+
   const accepted = validateGeneratedExamQuestionsAgainstSelectedChunks([
     validQuestion(),
     visionQuestion(),
