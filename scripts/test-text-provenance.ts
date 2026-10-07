@@ -65,6 +65,8 @@ async function main() {
   const chunks = buildExamSourceChunks([
     { bookId: 'native', bookTitle: 'Native', text: nativeText, contentQuality: 'UPLOADED_FILE', textProvenance: 'NATIVE_TEXT' },
     { bookId: 'ocr', bookTitle: 'OCR', text: ocrText, contentQuality: 'STORED_TEXT', linkReadStatus: 'VISION_OCR' },
+    { bookId: 'legacy-scaffold', bookTitle: 'Legacy Scaffold', text: legacyScaffoldText, contentQuality: 'STORED_TEXT' },
+    { bookId: 'legacy-note', bookTitle: 'Legacy Note', text: nativeText, contentQuality: 'STORED_TEXT', sourceNote: 'ملخص Gemini وخريطة معرفية قديمة' },
     { bookId: 'vision-description', bookTitle: 'Vision', text: visionDescriptionText, contentQuality: 'GEMINI_DOCUMENT', sourceNote: '[textProvenance:VISION_DESCRIPTION]' },
   ])
   assert.equal(chunks.some((chunk) => chunk.bookId === 'vision-description'), false, 'VISION_DESCRIPTION must not be numbered as exam evidence')
