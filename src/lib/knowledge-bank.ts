@@ -991,7 +991,10 @@ async function aiKnowledgeItemsFromUploadedFile(
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_FILE_AI_TIMEOUT')), 52000)),
     ])
     const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, [], semester)
+    const normalized = normalizeDrafts(arr, [], semester).map((item) => ({
+      ...item,
+      sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
+    }))
     return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
