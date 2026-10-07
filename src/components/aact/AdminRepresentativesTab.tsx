@@ -96,19 +96,26 @@ export default function AdminRepresentativesTab() {
     return rows.filter((row) => [row.fullName, row.country, row.region, row.specialization, row.displayTitle].join(' ').toLowerCase().includes(q))
   }, [rows, query])
 
-  async function load() {
+  async function load(focusId = selectedId) {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/representatives', { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر تحميل ممثلي الأكاديمية')
-      setRows(data.representatives || [])
-      if (!selectedId && data.representatives?.[0]) {
-        setSelectedId(data.representatives[0].id)
-        setForm(formFromRepresentative(data.representatives[0]))
+      const nextRows: Representative[] = data.representatives || []
+      setRows(nextRows)
+      const active = nextRows.find((row) => row.id === focusId) || (!focusId ? nextRows[0] : null)
+      if (active) {
+        setSelectedId(active.id)
+        setForm(formFromRepresentative(active))
+      } else if (!nextRows.length) {
+        setSelectedId('')
+        setForm(EMPTY_FORM)
       }
+      return nextRows
     } catch (e: any) {
       toast({ title: 'تعذر التحميل', description: String(e?.message || e), variant: 'destructive' })
+      return []
     } finally {
       setLoading(false)
     }
