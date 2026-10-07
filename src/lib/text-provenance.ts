@@ -2,6 +2,29 @@ export type TextProvenance = 'NATIVE_TEXT' | 'VISION_OCR' | 'VISION_DESCRIPTION'
 
 export const TEXT_PROVENANCE_MARKER = 'textProvenance'
 
+function normalized(value: unknown): string {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+export function looksLikeGeneratedStudyScaffold(text: unknown): boolean {
+  const n = normalized(String(text || '').slice(0, 12000))
+  const markers = [
+    'خريطه امتحانيه', 'خريطه معرفيه', 'ملخص معرفي طويل', 'بناء الامتحان والمشرف الذكي',
+    'صالح لبناء الامتحان', 'بذور اسئله', 'نقاط قابله للسؤال', 'خطة معرفة منهجية', 'خطة معرفه منهجيه',
+    'لا تعامل كاقتباس حرفي', 'لا تعامل كاقتباس', 'توصيف الكتاب والبرنامج', 'عند غياب النص المباشر',
+    'محور دراسي منظم', 'محور اكاديمي منظم', 'خريطة اولية لاستخدام كتاب', 'الفكرة المحورية هي تحويل موضوع الكتاب',
+  ].map(normalized)
+  return markers.filter((marker) => n.includes(marker)).length >= 2
+}
+
 function upper(value: unknown): string {
   return String(value || '').trim().toUpperCase()
 }
