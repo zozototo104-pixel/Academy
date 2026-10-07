@@ -617,13 +617,12 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
       maxPoints,
       feedback: String(parsed.feedback || '').slice(0, 1500),
     }
-  } catch {
-    return {
-      index: -1,
-      points: 0,
-      maxPoints,
-      feedback: 'تعذر تقييم الإجابة آلياً — سيراجعها المشرف الأكاديمي يدوياً.',
-    }
+  } catch (e: any) {
+    const err: any = new Error('ESSAY_GRADING_NEEDS_REVIEW')
+    err.code = e?.code || 'ESSAY_GRADING_NEEDS_REVIEW'
+    err.retryAt = e?.retryAt || null
+    err.cause = e
+    throw err
   }
 }
 
