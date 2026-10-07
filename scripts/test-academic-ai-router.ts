@@ -97,7 +97,7 @@ async function invalidAcademicAllowlistIsRejected() {
 }
 
 async function main() {
-  await criticalFailureDoesNotFallThrough()
+  await criticalGeminiFailureFallsThroughToUnoRouter()
   await generalKeepsExistingGatewayBehavior()
   await invalidAcademicAllowlistIsRejected()
   console.log('academic AI router guardrails: ok')
