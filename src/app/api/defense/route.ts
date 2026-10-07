@@ -589,13 +589,11 @@ async function aiMinutes(thesisId: string, title: string, studentName: string, d
       })
       .join('\n')
 
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: 'أنت كاتب محاضر أكاديمي محترف. تصوغ محضر جلسة مناقشة بحث تخرج بصيغة رسمية موجزة بالعربية. بدون Markdown أو جداول.' },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 5500)}\n\n` : ''}صُغ محضر جلسة مناقشة بحث التخرج التالي:
+    const text = await textAiComplete({
+      system: 'أنت كاتب محاضر أكاديمي محترف. تصوغ محضر جلسة مناقشة بحث تخرج بصيغة رسمية موجزة بالعربية. بدون Markdown أو جداول.',
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 5500)}\n\n` : ''}صُغ محضر جلسة مناقشة بحث التخرج التالي:
 عنوان البحث: «${title}»
 الباحث: ${studentName}
 تاريخ الجلسة: ${defenseDate ? new Date(defenseDate).toLocaleDateString('ar-EG') : 'الجلسة الحالية'}
@@ -612,14 +610,16 @@ ${dialog.slice(0, 8000)}
 4) أبرز نقاط القوة والضعف
 5) القرار: القرار النهائي يُصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة
 اجعله في حدود 12 سطراً.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    const minutes = (completion.choices[0]?.message?.content || '').trim()
-    return minutes.length > 60 ? minutes.slice(0, 4000) : `محضر جلسة مناقشة «${title}» — الباحث: ${studentName} — حضر الطالب وأعضاء اللجنة والمستشار الذكي، ونوقشت الأسئلة الموثقة في سجل الجلسة. القرار النهائي يصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة.`
+    const minutes = text.trim()
+    if (minutes.length <= 60) throw new Error('DEFENSE_MINUTES_TOO_SHORT')
+    return minutes.slice(0, 4000)
   } catch (e) {
     console.error('aiMinutes error:', e)
-    return `محضر جلسة مناقشة «${title}» — الباحث: ${studentName} — نوقش البحث أمام لجنة متخصصة بحضور المستشار الذكي، والقرار النهائي يصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة.`
+    return `تعذر توليد محضر آلي موثوق لجلسة «${title}» — الباحث: ${studentName}. يجب إعداد المحضر من سجل الجلسة والتسجيل واعتماده من اللجنة البشرية.`
   }
 }
