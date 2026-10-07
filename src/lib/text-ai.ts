@@ -544,9 +544,6 @@ function academicModelRank(model: string): number {
 }
 
 async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
-  if (taskLevel === 'ACADEMIC_CRITICAL') {
-    return s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
-  }
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
