@@ -18,10 +18,21 @@ export type ExamSourceChunk = {
   textProvenance: TextProvenance
 }
 
+function sourceProvenance(source: ExamSourceText): TextProvenance {
+  return inferTextProvenance({
+    explicit: source.textProvenance,
+    sourceNote: source.sourceNote,
+    linkReadStatus: source.linkReadStatus,
+    contentQuality: source.contentQuality,
+  })
+}
+
 function isOriginalSource(source: ExamSourceText): boolean {
+  const provenance = sourceProvenance(source)
+  if (!isEvidenceAllowedByProvenance(provenance)) return false
   if (source.contentQuality === 'UPLOADED_FILE' || source.contentQuality === 'LINK_TEXT') return true
   if (source.contentQuality !== 'STORED_TEXT') return false
-  return ['TEXT_EXTRACTED', 'FILE_EXTRACTED'].includes(String(source.linkReadStatus || '').toUpperCase())
+  return ['TEXT_EXTRACTED', 'FILE_EXTRACTED'].includes(String(source.linkReadStatus || '').toUpperCase()) || provenance === 'VISION_OCR'
 }
 
 function findSafeCut(text: string, maxChars: number): number {
