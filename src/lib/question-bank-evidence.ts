@@ -97,6 +97,7 @@ export function buildQuestionBankRecord<T extends Record<string, unknown>>(
     verifierReason,
     verificationPending,
     verificationReason,
+    textProvenance,
     ...persistableQuestion
   } = question
   void qualityFlags
