@@ -162,6 +162,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
 async function unknownFamilyVerifierFromDifferentProviderCanGround() {
   process.env.GEMINI_API_KEY = 'mock-gemini-key'
   process.env.UNOROUTER_API_KEY = 'mock-uno-key'
+  process.env.UNOROUTER_TEXT_MODEL = 'agnes-2.0-flash:free'
   process.env.AI_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash'
   await withMockFetch(
     (call) => {
