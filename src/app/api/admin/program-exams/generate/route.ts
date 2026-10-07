@@ -48,6 +48,30 @@ function prioritizeUnfilledCandidates<T>(questions: T[], offset: number): T[] {
 
 const MANUAL_CONTINUE_STEPS = 3
 
+type GenerationStepResult = {
+  ok: boolean
+  status: string
+  inserted: number
+  questionCount: number
+  totalPoints: number
+  done: boolean
+  batchIndex?: number
+  error?: string
+  code?: string
+  availableChunks?: number
+  requestedQuestions?: number
+  acceptedQuestions?: number
+}
+
+function insufficientSourcePayload(error: any) {
+  if (error?.code !== 'INSUFFICIENT_SOURCE') return null
+  const availableChunks = Number(error.availableChunks || 0)
+  const requestedQuestions = Number(error.requestedQuestions || 0)
+  const acceptedQuestions = Number(error.acceptedQuestions || 0)
+  const message = formatComprehensiveExamInsufficientSourceMessage({ availableChunks, requestedQuestions, acceptedQuestions })
+  return { code: 'INSUFFICIENT_SOURCE', error: message, availableChunks, requestedQuestions, acceptedQuestions }
+}
+
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
   return row?.status === 'GENERATING'
