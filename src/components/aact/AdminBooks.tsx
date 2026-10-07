@@ -2786,6 +2786,9 @@ export function AdminBooksTab() {
                             {e.status === 'FAILED' && (
                               <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> فشل</Badge>
                             )}
+                            {e.status === 'PAUSED' && (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><AlertTriangle className="ml-1 h-3 w-3" /> متوقف: المزود الأكاديمي غير متاح</Badge>
+                            )}
                           </div>
                           {e.status === 'FAILED' && e.errorNote && (
                             <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-red-500">
