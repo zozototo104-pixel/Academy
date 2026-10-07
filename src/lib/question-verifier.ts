@@ -181,13 +181,24 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   questions: readonly T[]
   sources: readonly VerificationSource[]
   generatorProvider?: string | null
+  generatorModel?: string | null
   batchSize?: number
+  timeBudgetMs?: number
 }): Promise<T[]> {
   const batchSize = Math.max(1, Math.min(10, Math.floor(opts.batchSize || 10)))
-  const excludeProviders = opts.generatorProvider ? [opts.generatorProvider as TextAiProvider] : []
   const output = opts.questions.map((question) => ({ ...question })) as T[]
+  if (!String(opts.generatorProvider || '').trim()) {
+    return output.map((question) => applyPending(question, 'GENERATOR_PROVIDER_UNKNOWN')) as T[]
+  }
+  const excludeProviders = [opts.generatorProvider as TextAiProvider]
+  const excludeModelFamilies = opts.generatorModel ? [modelFamily(opts.generatorModel)] : []
+  const deadline = Date.now() + Math.max(1, Math.floor(opts.timeBudgetMs ?? QUESTION_VERIFIER_TIME_BUDGET_MS))
 
   for (let start = 0; start < output.length; start += batchSize) {
+    if (Date.now() >= deadline) {
+      for (let index = start; index < output.length; index++) output[index] = applyPending(output[index], 'VERIFIER_TIME_BUDGET_EXCEEDED')
+      break
+    }
     const batch = output.slice(start, start + batchSize)
     const prepared: { index: number; question: T; sourceText: string; literalPass: boolean }[] = []
     batch.forEach((question, localIndex) => {
