@@ -2,6 +2,7 @@ import { extractDocumentText, normalizeExtractedText } from '@/lib/document-extr
 import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
 import { normalizeAcademic, cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { appendTextProvenanceNote } from '@/lib/text-provenance'
 
 // ===== قراءة محتوى الكتب للامتحانات =====
 // لا نعتمد على textContent فقط. إذا كان النص غير مستخرج، نحاول قراءة الملف المخزن، ثم الرابط،
