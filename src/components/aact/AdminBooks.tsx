@@ -1496,7 +1496,7 @@ export function AdminBooksTab() {
     const sem = genSemester === '2' ? 2 : 1
     const semLabel = sem === 2 ? 'الفصل الثاني' : 'الفصل الأول'
     const generatingExam = exams.find((e) => e.semester === sem && e.status === 'GENERATING') || exams.find((e) => e.status === 'GENERATING')
-    const failedExam = exams.find((e) => e.semester === sem && e.status === 'FAILED')
+    const failedExam = exams.find((e) => e.semester === sem && (e.status === 'FAILED' || e.status === 'PAUSED'))
     const confirmText = generatingExam
       ? `يوجد امتحان عالق حالياً وفيه ${generatingExam.questionCount} سؤالاً. سأحرك التوليد الآن، وإذا كان صفر أسئلة سيتم إنشاء دفعة أولية فوراً ثم يكمل من حيث توقف. متابعة؟`
       : failedExam
