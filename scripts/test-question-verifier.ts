@@ -113,6 +113,7 @@ async function generatorGeminiIsExcludedAndPromptUsesSelectedSourceOnly() {
         generatorModel: 'gemini-3.8-flash',
       })
       assert.ok(result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+      assert.ok(result[1].qualityFlags?.includes('SOURCE_GROUNDED'))
       assert.equal(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), false, 'verifier must never call excluded Gemini')
       const completion = calls.find((call) => call.url.includes('/chat/completions'))
       const body = String(completion?.init?.body || '')
