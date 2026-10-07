@@ -49,7 +49,7 @@ export const ACADEMY_INFO = {
   founded: 2016,
   taglineAr: 'بناء القيادات، صقل المهارات',
   taglineEn: 'Building Leaders, Refining Skills',
-  email: 'aact.academy2@gmail.com',
+  email: 'info@aactacademy.com',
   whatsapp: '+17879684281',
   whatsappDisplay: '+1 (787) 968-4281',
   whatsappContactName: 'د. أحمد معروف "أبو البراء"',
