@@ -690,6 +690,7 @@ async function completeJsonWithFallback(args: {
   retries?: number
   timeoutMs?: number
   taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+  validate?: (text: string, context?: { provider: string; model: string }) => void
 }): Promise<string> {
   const errors: string[] = []
   const timeoutMs = args.timeoutMs ?? 45000
