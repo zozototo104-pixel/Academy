@@ -74,8 +74,11 @@ export function inferTextProvenance(input: {
   // otherwise previously extracted stored text remains native unless explicitly marked.
   if (/VISION|OCR|SCANNED|IMAGE/.test(status)) return 'VISION_OCR'
   if (/VISION|OCR|SCANNED|IMAGE/.test(reader)) return 'VISION_OCR'
+  const note = normalized(`${input.linkReadNote || ''} ${input.sourceNote || ''}`)
+  if (quality === 'STORED_TEXT' && /(gemini|تلخيص|خريطه|خريطة|ملخص|vision)/i.test(note)) return 'VISION_DESCRIPTION'
   if (quality === 'GEMINI_DOCUMENT') return 'VISION_DESCRIPTION'
   if (quality === 'METADATA_ONLY' || quality === 'NO_CONTENT') return 'VISION_DESCRIPTION'
+  if (looksLikeGeneratedStudyScaffold(input.textContent)) return 'VISION_DESCRIPTION'
   return 'NATIVE_TEXT'
 }
 
