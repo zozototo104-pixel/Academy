@@ -216,6 +216,10 @@ export function parseScannedTranscriptionJson(raw: string): { text: string; note
   return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة OCR غير JSON لكنها تحتوي نصاً قابلاً للاستخدام', pagesTranscribed: null, pagesTotal: null }
 }
 
+export function visionExtractionFailedNote(ocrNote: string, visualNote: string, extractedNote = ''): string {
+  return appendTextProvenanceNote(`تعذر استخراج نص حرفي أو ملخص بصري صالح من المستند. OCR: ${ocrNote || 'غير متاح'}; Summary: ${visualNote || 'غير متاح'}; Extracted: ${extractedNote || 'غير متاح'}`.slice(0, 900), 'VISION_DESCRIPTION')
+}
+
 export async function transcribeScannedDocumentWithVision(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
   const hasKey = await ensureGeminiKey().catch(() => false)
   if (!hasKey) return { text: '', note: 'Gemini غير مفعّل لنسخ المستند الممسوح بصرياً' }
