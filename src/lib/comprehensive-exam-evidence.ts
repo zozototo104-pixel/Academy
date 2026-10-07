@@ -291,6 +291,7 @@ function parseModelQuestionForSelectedChunks(
     sourceChapter: sanitizeQuestionText(item.sourceChapter || '', 160) || undefined,
     sourceProvider: context.provider,
     sourceModel: context.model,
+    textProvenance: chunk.textProvenance,
     cognitiveSkill: item.cognitiveSkill,
     difficulty: item.difficulty,
     correctRationale: rationale,
