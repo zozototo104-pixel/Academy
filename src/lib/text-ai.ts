@@ -518,10 +518,25 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   return models
 }
 
+function academicModelAllowed(provider: ConcreteProvider, model: string): boolean {
+  const id = model.toLowerCase()
+  if (!id || /(^|\/|-)auto$/i.test(id) || id === 'auto') return false
+  if (/dall-e|image|embedding|rerank|whisper|tts|stt|audio|moderation/.test(id)) return false
+  if (/\b(?:7b|8b|9b|11b|13b|14b|20b|22b|24b|27b)\b/i.test(id)) return false
+  if (/gpt-3\.5/.test(id)) return false
+  if (provider === 'TOPTOOLS' && topToolsModelRank(model) > 2) return false
+  return true
+}
+
+function academicModelRank(model: string): number {
+  const id = model.toLowerCase()
+  if (/gemini-(?:3\.8|3\.5)-flash/.test(id)) return 1
+  if (/gpt-oss-120b|deepseek.*v3\.2|glm-5|llama-4-maverick|nemotron.*120b/.test(id)) return 2
+  if (/claude-(?:opus|sonnet)|gpt-[45]|gemini-2\.5|qwen.*(?:32b|70b|72b)|llama.*70b|mistral.*large/.test(id)) return 3
+  return 9
+}
+
 async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
-  if (taskLevel === 'ACADEMIC_CRITICAL') {
-    return s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
-  }
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
