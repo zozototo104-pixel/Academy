@@ -891,7 +891,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const msg = String(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
+          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
+          attempts.push(attempt)
+          recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
           if (isQuotaLike(e)) markCooldown(provider, key, msg)
@@ -901,6 +903,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
+  if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable(attempts)
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
 }
 
