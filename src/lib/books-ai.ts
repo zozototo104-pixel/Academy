@@ -1945,6 +1945,7 @@ ${plannedTypes}
       maxOutputTokens: 8192,
       retries: 1,
       timeoutMs: 32000,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
   } catch (e: any) {
     const reason = String(e?.message || e).slice(0, 600)
