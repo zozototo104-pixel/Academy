@@ -292,7 +292,7 @@ async function settings() {
     openaiBaseUrl: (rows.OPENAI_BASE_URL || env('OPENAI_BASE_URL') || 'https://api.openai.com/v1').replace(/\/$/, ''),
     anthropicKeys: parseKeys(env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS')),
     anthropicModel: normalizeModel(rows.ANTHROPIC_TEXT_MODEL || env('ANTHROPIC_TEXT_MODEL'), ANTHROPIC_TEXT_MODELS),
-    zaiKeys: parseKeys(rows.ZAI_API_KEY, rows.ZAI_API_KEYS, env('ZAI_API_KEY'), env('ZAI_API_KEYS')),
+    zaiKeys: parseKeys(env('ZAI_API_KEY'), env('ZAI_API_KEYS')),
     zaiModel: normalizeModel(rows.ZAI_TEXT_MODEL || env('ZAI_TEXT_MODEL'), ZAI_TEXT_MODELS),
     zaiBaseUrl: (rows.ZAI_API_BASE || env('ZAI_API_BASE') || 'https://api.z.ai/api/paas/v4').replace(/\/$/, ''),
     groqKeys: parseKeys(rows.GROQ_API_KEY, rows.GROQ_API_KEYS, env('GROQ_API_KEY'), env('GROQ_API_KEYS')),
