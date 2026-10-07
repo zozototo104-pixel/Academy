@@ -2004,15 +2004,14 @@ export async function generateExamQuestionBatch(
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
   const policy = academicPolicyForCategory(program.category)
   const specialty = specialtyName(program)
-  const domain = detectProgramDomain(program)
-  const booksSection = buildBooksKnowledgeSection(books, domain, batchIndex)
-  const knowledgePrompt = sanitizeKnowledgeContextForExamPrompt(knowledgeContext)
-  // بنك المعرفة مرشد تنظيمي فقط. لا يدخل ضمن مصادر الدليل حتى لا تظهر عبارات مثل
-  // «بنك المعرفة الأكاديمي المنظم للبرنامج» أو ملاحظات تقنية داخل السؤال أو مرجع التصحيح.
+  void knowledgeContext
+  const selectedSourceChunks = buildSelectedExamSourceChunks(books)
+  if (!selectedSourceChunks.length) throw new Error('لا توجد مقاطع مصدر أصلية كافية لبناء الامتحان الشامل.')
+  const sourceChunksSection = formatSelectedExamSourceChunksForPrompt(selectedSourceChunks)
+  // في الامتحان الشامل الحالي، المقاطع المختارة وحدها هي مصدر البرومبت والتحقق والحفظ.
   const evidenceBooks: ExamSourceBook[] = books
-  const contentConcepts = contentConceptsFromBooks(evidenceBooks, domain, 32).join('\n- ')
-  const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
-  const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
+  const booksWithStrongContent = new Set(selectedSourceChunks.map((chunk) => chunk.bookId)).size
+  const totalBookChars = selectedSourceChunks.reduce((sum, chunk) => sum + chunk.text.length, 0)
   const fullPlan = batchQuestionPlan(spec.kind, spec.count, program.category)
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
   const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
