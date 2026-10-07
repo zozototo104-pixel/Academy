@@ -924,6 +924,13 @@ function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
   return err
 }
 
+function verifierSameFamilyUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const err: any = new Error('AI_VERIFIER_SAME_FAMILY')
+  err.code = 'AI_VERIFIER_SAME_FAMILY'
+  err.attempts = attempts
+  return err
+}
+
 export function modelFamily(model: string): string {
   const raw = String(model || '').trim().toLowerCase()
   const normalized = raw
