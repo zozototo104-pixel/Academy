@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { adminSettingDefs, getSettings, isMaskedSecretValue, isSecretSettingKey, maskSettingsForAdmin, sanitizePublicSettings } from '@/lib/settings'
+import { DEFAULT_SETTINGS, adminSettingDefs, getSettings, isMaskedSecretValue, isSecretSettingKey, maskSettingsForAdmin, sanitizePublicSettings } from '@/lib/settings'
 import { audit } from '@/lib/notify'
 
 function revalidatePublicSettingsSurfaces() {
