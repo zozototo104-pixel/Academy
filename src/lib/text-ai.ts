@@ -34,6 +34,7 @@ export interface TextAiCallOpts {
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
+  validate?: (text: string) => void
 }
 
 export interface TextAiAttemptDiagnostics {
