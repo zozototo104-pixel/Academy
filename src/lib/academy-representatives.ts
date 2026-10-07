@@ -182,11 +182,16 @@ export async function representativeQrDataUrl(token: string, origin?: string | n
 }
 
 function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officialCard') {
-  if (!row?.id) return null
+  if (!row?.slug) return null
   const storageProvider = asset === 'profilePhoto' ? row.profilePhotoStorageProvider : row.officialCardStorageProvider
   const storageKey = asset === 'profilePhoto' ? row.profilePhotoStorageKey : row.officialCardStorageKey
   if (!storageProvider || !storageKey) return null
-  return `/api/representatives/${encodeURIComponent(row.slug || row.id)}/asset/${asset}`
+  return `/api/representatives/${encodeURIComponent(row.slug)}/asset/${asset}`
+}
+
+function representativePublicFileUrl(row: any, file: any) {
+  if (!row?.slug || !file?.id || !file.storageProvider || !file.storageKey) return null
+  return `/api/representatives/${encodeURIComponent(row.slug)}/files/${encodeURIComponent(file.id)}`
 }
 
 export function serializeRepresentative(row: any, origin?: string | null, includeToken = false): RepresentativePublicProfile {
