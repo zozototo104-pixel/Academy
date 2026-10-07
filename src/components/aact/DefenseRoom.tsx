@@ -561,6 +561,7 @@ ${recent || 'بدأت الجلسة للتو.'}
   const processSignals = useCallback(
     async (signals: { id: string; from: string; to?: string | null; type: string; payload: any }[]) => {
       for (const sig of signals) {
+        if (processedSignalIdsRef.current.has(sig.id)) continue
         try {
           if (sig.type === 'OFFER') {
             const pc = await getOrCreatePeer(sig.from, false)
