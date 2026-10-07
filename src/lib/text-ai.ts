@@ -298,7 +298,7 @@ async function settings() {
     groqKeys: parseKeys(env('GROQ_API_KEY'), env('GROQ_API_KEYS')),
     groqModel: normalizeModel(rows.GROQ_TEXT_MODEL || env('GROQ_TEXT_MODEL'), GROQ_TEXT_MODELS),
     groqBaseUrl: (rows.GROQ_API_BASE || env('GROQ_API_BASE') || 'https://api.groq.com/openai/v1').replace(/\/$/, ''),
-    openrouterKeys: parseKeys(rows.OPENROUTER_API_KEY, rows.OPENROUTER_API_KEYS, env('OPENROUTER_API_KEY'), env('OPENROUTER_API_KEYS')),
+    openrouterKeys: parseKeys(env('OPENROUTER_API_KEY'), env('OPENROUTER_API_KEYS')),
     openrouterModel: normalizeModel(rows.OPENROUTER_TEXT_MODEL || env('OPENROUTER_TEXT_MODEL'), OPENROUTER_TEXT_MODELS),
     openrouterBaseUrl: (rows.OPENROUTER_BASE_URL || env('OPENROUTER_BASE_URL') || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
     deepinfraKeys: parseKeys(rows.DEEPINFRA_API_KEY, rows.DEEPINFRA_API_KEYS, env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS')),
