@@ -16,6 +16,7 @@ interface GeminiCallOpts {
   maxOutputTokens?: number
   taskLevel?: TextAiTaskLevel
   excludeProviders?: TextAiProvider[]
+  excludeModelFamilies?: string[]
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
