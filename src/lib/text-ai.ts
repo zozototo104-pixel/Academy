@@ -35,6 +35,7 @@ export interface TextAiCallOpts {
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
   excludeProviders?: TextAiProvider[]
+  excludeModelFamilies?: string[]
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
