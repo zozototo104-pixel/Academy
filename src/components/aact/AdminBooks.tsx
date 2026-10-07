@@ -670,10 +670,11 @@ export function AdminBooksTab() {
       if (advanceRef.current) return
       advanceRef.current = true
       try {
-        const d = await api<{ status?: string; questionCount?: number; inserted?: number; done?: boolean }>('/api/admin/program-exams/generate', {
+        const d = await api<{ ok?: boolean; error?: string; status?: string; questionCount?: number; inserted?: number; done?: boolean }>('/api/admin/program-exams/generate', {
           method: 'POST',
           body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
         })
+        if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
         await loadProgramData(programId, true)
         if (d.done || d.status === 'REVIEW') {
           toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
