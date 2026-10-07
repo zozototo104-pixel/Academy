@@ -887,7 +887,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
