@@ -162,6 +162,8 @@ async function draftValidationRejectionFallsThroughToNextModel() {
       })
       assert.equal(result, 'draft-validated')
       assert.ok(calls.filter((call) => call.url.includes('generativelanguage.googleapis.com')).length >= 2, 'Draft validation rejection must try the next model')
+      const diagnostics = await textAiDiagnostics()
+      assert.equal(diagnostics.cooldowns.some((item) => item.provider === 'GEMINI'), false, 'Validation rejection must not place a healthy Gemini key into cooldown')
     }
   )
 }
