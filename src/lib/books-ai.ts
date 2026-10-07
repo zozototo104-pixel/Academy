@@ -1985,21 +1985,34 @@ ${plannedTypes}
       taskLevel: 'ACADEMIC_CRITICAL',
       validate: (text, context) => {
         generationContext = context || {}
-        validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)
+        const accepted = validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)
+        assertComprehensiveExamSourceSufficient({
+          availableChunks: selectedSourceChunks.length,
+          requestedQuestions: requestedPlan.length,
+          acceptedQuestions: accepted.length,
+        })
       },
     })
   } catch (e: any) {
+    if (e?.code === 'INSUFFICIENT_SOURCE') throw e
     const reason = String(e?.message || e).slice(0, 600)
     console.error('generateExamQuestionBatch AI failed source-chunk validation:', reason)
     throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من مقاطع المصدر المختارة: ${reason}`)
   }
 
   const validated = validateGeneratedExamQuestionsAgainstSelectedChunks(raw, selectedSourceChunks, spec.kind, generationContext)
+  assertComprehensiveExamSourceSufficient({
+    availableChunks: selectedSourceChunks.length,
+    requestedQuestions: requestedPlan.length,
+    acceptedQuestions: validated.length,
+  })
   const targetSpec = { ...spec, count: requestedPlan.length }
   const balanced = enforceExamQuestionPlan(validated, [], targetSpec, [], program.category, requestedPlan)
-  if (!balanced.length) {
-    throw new Error('تعذر بناء أسئلة امتحانية مؤصلة من مقاطع المصدر المختارة بعد إعادة التحقق قبل الحفظ.')
-  }
+  assertComprehensiveExamSourceSufficient({
+    availableChunks: selectedSourceChunks.length,
+    requestedQuestions: requestedPlan.length,
+    acceptedQuestions: balanced.length,
+  })
   return balanced.slice(0, requestedPlan.length)
 }
 
