@@ -37,3 +37,4 @@ jobs:
       - run: bunx tsx scripts/test-evidence-validator.ts
       - run: bunx tsx scripts/test-question-bank-evidence.ts
       - run: bunx tsx scripts/test-exam-source-chunks.ts
+      - run: bunx tsx scripts/test-comprehensive-exam-source-validation.ts
