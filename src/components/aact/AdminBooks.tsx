@@ -1118,7 +1118,7 @@ export function AdminBooksTab() {
       type: q.type || 'MCQ',
       text: q.text || '',
       options: options.join('\n'),
-      correctAnswer: q.correctAnswer || '0',
+      correctAnswer: q.correctAnswer || '',
       modelAnswer: q.modelAnswer || '',
       sourceEvidence: q.sourceEvidence || '',
       difficulty: q.difficulty || 'MEDIUM',
