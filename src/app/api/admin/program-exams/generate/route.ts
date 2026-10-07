@@ -175,10 +175,17 @@ function questionReviewNotes(q: GeneratedQuestion): string | null {
   const model = q.sourceModel || null
   const bookId = q.sourceBookId || null
   const sourceIndex = q.sourceIndex ?? null
-  if (!provider && !model && !bookId && sourceIndex == null) return null
+  const verifierProvider = q.verifierProvider || null
+  const verifierModel = q.verifierModel || null
+  const verifiedAt = q.verifiedAt || null
+  const verifierReason = q.verifierReason || null
+  const verificationPending = q.verificationPending || false
+  const verificationReason = q.verificationReason || null
+  if (!provider && !model && !bookId && sourceIndex == null && !verifierProvider && !verificationPending) return null
   return stringifyJsonField({
     aiProvenance: { provider, model },
     source: { bookId, sourceIndex },
+    verifier: { provider: verifierProvider, model: verifierModel, verifiedAt, reason: verifierReason, pending: verificationPending, pendingReason: verificationReason },
   })
 }
 
