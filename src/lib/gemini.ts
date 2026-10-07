@@ -390,6 +390,10 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
+    for await (const chunk of textAiStreamText(opts)) yield chunk
+    return
+  }
   if (await hasExternalTextAi()) {
     try {
       for await (const chunk of textAiStreamText(opts)) yield chunk
