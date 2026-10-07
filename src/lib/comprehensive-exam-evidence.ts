@@ -319,6 +319,7 @@ function parseModelQuestionForSelectedChunks(
   question.qualityFlags = uniqueStrings([
     'SOURCE_LINKED',
     'NEEDS_HUMAN_REVIEW',
+    ...applyOcrDerivedFlags([], question.textProvenance).filter((flag) => flag === 'OCR_DERIVED_SOURCE'),
     question.sourceBookTitle ? 'HAS_SOURCE_BOOK' : '',
     question.sourceLocator ? 'HAS_SOURCE_LOCATOR' : '',
     question.difficulty ? `DIFFICULTY_${question.difficulty}` : '',
