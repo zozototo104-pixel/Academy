@@ -546,16 +546,10 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
         batch = [...batch, ...filtered].slice(0, window.needed)
       } catch (err: any) {
         generationNotes.push(`AI:${seedBatchIndex + 1}:${String(err?.message || err).slice(0, 120)}`)
+        throw err
       }
 
       if (batch.length >= window.needed) break
-
-      // إذا فشل الذكاء الاصطناعي أو أعاد أسئلة مكررة، ننتقل إلى محور/دفعة تالية ونبني أسئلة مهنية من نص الكتاب نفسه.
-      // لا نوقف الامتحان عند نقطة واحدة؛ المهم حفظ أسئلة صالحة ومراجعتها قبل النشر.
-      const fallbackCandidates = fallbackExamQuestionBatch(exam.program, examSourceBooks, seedBatchIndex)
-      let fallback = filterNewQuestions(fallbackCandidates, existingKeys, existingOptions, existingOptionWords)
-      if (!fallback.length && fallbackCandidates.length) fallback = filterNewQuestions(fallbackCandidates, existingKeys)
-      batch = [...batch, ...fallback].slice(0, window.needed)
     }
 
     if (batch.length === 0) {
