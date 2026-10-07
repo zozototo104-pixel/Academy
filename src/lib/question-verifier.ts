@@ -278,9 +278,11 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     } catch (error: any) {
       const reason = error?.code === 'AI_VERIFIER_UNAVAILABLE'
         ? 'AI_VERIFIER_UNAVAILABLE'
-        : error?.code === 'AI_DEADLINE_EXCEEDED'
-          ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
-          : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
+        : error?.code === 'AI_VERIFIER_SAME_FAMILY'
+          ? 'VERIFIER_SAME_FAMILY'
+          : error?.code === 'AI_DEADLINE_EXCEEDED'
+            ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
+            : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
       for (const item of prepared) output[item.index] = applyPending(item.question, reason)
       continue
     }
