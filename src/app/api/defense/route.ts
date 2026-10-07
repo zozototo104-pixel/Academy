@@ -539,13 +539,11 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
     if (`${dialog} ${latest}`.length < 45) return null
 
     const rag = await buildSupervisorContext(userId, { scope: 'DEFENSE_EXAMINER', query: `${title} ${latest}` })
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.` },
-        {
-          role: 'user',
-          content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.`,
+      history: [{
+        role: 'user',
+        text: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
 
 آخر كلام مباشر قاله الطالب الآن:
 ${latest || 'غير متوفر'}
@@ -562,11 +560,12 @@ ${dialog.slice(0, 4500)}
 - لا تذكر أنك مجرد نموذج أو خدمة.
 
 ابدأ بعبارة «مداخلة المستشار الذكي:».`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
-    const note = (completion.choices[0]?.message?.content || '').trim()
+    const note = text.trim()
     return note && note.length > 30 ? note.slice(0, 900) : null
   } catch (e) {
     console.error('aiLiveNote error:', e)
