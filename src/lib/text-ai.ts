@@ -290,7 +290,7 @@ async function settings() {
     openaiKeys: parseKeys(env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
     openaiBaseUrl: (rows.OPENAI_BASE_URL || env('OPENAI_BASE_URL') || 'https://api.openai.com/v1').replace(/\/$/, ''),
-    anthropicKeys: parseKeys(rows.ANTHROPIC_API_KEY, rows.ANTHROPIC_API_KEYS, env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS')),
+    anthropicKeys: parseKeys(env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS')),
     anthropicModel: normalizeModel(rows.ANTHROPIC_TEXT_MODEL || env('ANTHROPIC_TEXT_MODEL'), ANTHROPIC_TEXT_MODELS),
     zaiKeys: parseKeys(rows.ZAI_API_KEY, rows.ZAI_API_KEYS, env('ZAI_API_KEY'), env('ZAI_API_KEYS')),
     zaiModel: normalizeModel(rows.ZAI_TEXT_MODEL || env('ZAI_TEXT_MODEL'), ZAI_TEXT_MODELS),
