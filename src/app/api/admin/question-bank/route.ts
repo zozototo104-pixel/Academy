@@ -333,6 +333,7 @@ ${knowledgeText}
 
     if (!rows.length) return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.' }, { status: 409 })
     await db.questionBankItem.createMany({ data: rows })
+    await db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${rows.length} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
     return NextResponse.json({ ok: true, inserted: rows.length, stats: await questionStats(programId), items: await listQuestions(programId) })
   } catch (e: any) {
