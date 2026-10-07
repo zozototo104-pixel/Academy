@@ -292,8 +292,8 @@ ${knowledgeText}
         maxOutputTokens: 6000,
         taskLevel: 'ACADEMIC_CRITICAL',
       })
-      const parsed = parseJsonObject(raw)
-      generated = Array.isArray(parsed?.questions) ? parsed.questions : []
+      const parsed = generatedQuestionsSchema.parse(parseJsonObject(raw))
+      generated = parsed.questions
     } catch (e) {
       console.error('question bank AI failed:', e)
     }
