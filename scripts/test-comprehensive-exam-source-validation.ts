@@ -40,10 +40,10 @@ function main() {
       text: 'أي خيار يعتمد على محتوى Vision غير المقبول كمصدر أصلي؟',
       options: ['قبول نص الرؤية كمصدر', 'رفض نص الرؤية كمصدر', 'تجاهل المصدر', 'اعتماد ملخص عام'],
       correctAnswer: 'رفض نص الرؤية كمصدر',
-      sourceIndex: 2,
+      sourceIndex: 1,
       sourceEvidence: invalidVisionEvidence,
       difficulty: 'MEDIUM',
-      rationale: 'هذا السؤال يجب أن يرفض لأن sourceIndex يشير إلى مصدر غير موجود بعد استبعاد GEMINI_DOCUMENT.',
+      rationale: 'هذا السؤال يجب أن يرفض لأن اقتباس GEMINI_DOCUMENT لا يوجد حرفياً داخل نص الكتاب المرفوع.',
     },
   ], selected, 'MIX_CORE', { provider: 'TEST', model: 'mock-model' })
 
