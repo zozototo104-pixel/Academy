@@ -134,6 +134,14 @@ let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
 const freeModelsCache = new Map<string, { at: number; models: string[] }>()
 
+export function __resetTextAiStateForTests() {
+  cooldowns.clear()
+  roundRobin = 0
+  lastResult = null
+  recentAttempts = []
+  freeModelsCache.clear()
+}
+
 function env(name: string): string {
   try {
     return process.env[name]?.trim() || ''
