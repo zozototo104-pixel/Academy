@@ -39,6 +39,13 @@ function main() {
   assert.doesNotThrow(() => assertQuestionBatchAcceptable(4, 1))
   assert.equal(mostlyAccepted.rejected[0]?.reason, 'NOT_FOUND')
 
+  console.log('▶ question bank evidence: AI summary is never accepted as original-book evidence')
+  const derived = { summary: second, excerpt: first }
+  assert.deepEqual(
+    validateQuestionAgainstKnowledge(question(1, second), [{ text: knowledgeEvidenceText(derived) }]),
+    { ok: false, reason: 'NOT_FOUND' }
+  )
+
   console.log('▶ question bank evidence: empty batches trigger router fallback')
   assert.throws(() => assertQuestionBatchAcceptable(0, 0), (error: any) => error?.code === 'VALIDATION_REJECTED' && error?.reason === 'EMPTY_BATCH')
   assert.throws(() => assertQuestionBatchAcceptable(4, 4, 0), (error: any) => error?.code === 'VALIDATION_REJECTED' && error?.reason === 'EMPTY_BATCH')
