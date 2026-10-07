@@ -316,7 +316,7 @@ async function settings() {
     topToolsKeys: parseKeys(env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
     topToolsModel: normalizeModel(rows.TOPTOOLS_TEXT_MODEL || env('TOPTOOLS_TEXT_MODEL'), TOPTOOLS_TEXT_MODELS),
     topToolsBaseUrl: (rows.TOPTOOLS_BASE_URL || env('TOPTOOLS_BASE_URL') || 'https://top-tools-ai.com/v1').replace(/\/$/, ''),
-    openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
+    openaiCompatKeys: parseKeys(env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), OPENAI_COMPAT_TEXT_MODELS),
     openaiCompatBaseUrl: (rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '').replace(/\/$/, ''),
   }
