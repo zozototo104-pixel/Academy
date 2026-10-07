@@ -465,7 +465,7 @@ function PreviewBox({ title, url, originalUrl }: { title: string; url?: string |
       {safeUrl ? (
         <div className="space-y-2">
           {!failed && <a href={safeUrl} target="_blank" rel="noopener noreferrer"><img src={safeUrl} alt={title} onError={() => setFailed(true)} className="max-h-48 w-full rounded-xl bg-white object-contain" /></a>}
-          {failed && <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="block break-all rounded-xl border border-blue-100 bg-white p-3 text-xs font-black text-blue-700">فتح الملف المرفوع</a>}
+          {failed && linkUrl && <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="block break-all rounded-xl border border-blue-100 bg-white p-3 text-xs font-black text-blue-700">فتح الملف المرفوع</a>}
         </div>
       ) : <p className="text-xs font-bold text-slate-400">لا يوجد ملف مرفوع.</p>}
     </div>
