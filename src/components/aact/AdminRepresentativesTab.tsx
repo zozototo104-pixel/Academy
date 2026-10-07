@@ -449,5 +449,17 @@ function ExternalLinkUploader({ onUpload, uploading }: { onUpload: (extras: Reco
 }
 
 function PreviewBox({ title, url }: { title: string; url?: string | null }) {
-  return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="mb-3 text-sm font-black text-[#0f2b46]">{title}</p>{url ? <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={title} className="max-h-48 w-full rounded-xl object-contain bg-white" /></a> : <p className="text-xs font-bold text-slate-400">لا يوجد ملف مرفوع.</p>}</div>
+  const [failed, setFailed] = useState(false)
+  const safeUrl = String(url || '').trim()
+  return (
+    <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-3 text-sm font-black text-[#0f2b46]">{title}</p>
+      {safeUrl ? (
+        <div className="space-y-2">
+          {!failed && <a href={safeUrl} target="_blank" rel="noopener noreferrer"><img src={safeUrl} alt={title} onError={() => setFailed(true)} className="max-h-48 w-full rounded-xl bg-white object-contain" /></a>}
+          {failed && <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="block break-all rounded-xl border border-blue-100 bg-white p-3 text-xs font-black text-blue-700">فتح الملف المرفوع</a>}
+        </div>
+      ) : <p className="text-xs font-bold text-slate-400">لا يوجد ملف مرفوع.</p>}
+    </div>
+  )
 }
