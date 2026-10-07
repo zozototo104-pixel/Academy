@@ -4,6 +4,8 @@ const EASTERN_ARABIC_INDIC_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
 export function normalizeArabic(text: unknown): string {
   return String(text ?? '')
     .normalize('NFKC')
+    .replace(/[-‐‑]\s*\n\s*/g, '')
+    .replace(/[\u200B\u200C\u200D\u00AD\uFEFF]/g, '')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/\u0640/g, '')
     .replace(/[أإآٱ]/g, 'ا')
