@@ -699,6 +699,7 @@ async function completeJsonWithFallback(args: {
       const msg = String(e?.message || e).slice(0, 220)
       errors.push(`Gemini: ${msg}`)
       console.error(`${args.label} Gemini failed:`, msg)
+      if (args.taskLevel === 'ACADEMIC_CRITICAL') throw e
     }
   } else {
     errors.push('Gemini: GEMINI_NOT_CONFIGURED')
