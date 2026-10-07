@@ -81,6 +81,14 @@ async function main() {
   const selected = selectExamSourceChunks(chunks, { maxChunks: 2 })
   assert.equal(selected.some((chunk) => chunk.bookId === 'vision-description'), false)
 
+  const transcribed = parseScannedTranscriptionJson(JSON.stringify({ textContent: '[صفحة 1]\nهذا نص OCR مستخرج من صفحة ممسوحة يشرح أن القرار المهني الموثق يعتمد على الدليل والسياق المؤسسي قبل التنفيذ والمراجعة.', note: 'نسخ أول صفحة', pagesTranscribed: 1, pagesTotal: 3 }))
+  assert.ok(transcribed.text.includes('[صفحة 1]'))
+  assert.equal(transcribed.pagesTranscribed, 1)
+  assert.equal(transcribed.pagesTotal, 3)
+  const failureNote = visionExtractionFailedNote('OCR failed', 'summary failed', 'extract failed')
+  assert.ok(failureNote.includes('تعذر استخراج نص حرفي أو ملخص بصري صالح'))
+  assert.ok(failureNote.includes('[textProvenance:VISION_DESCRIPTION]'))
+
   await withMockFetch(async () => {
     const native = await verifyQuestionsWithCrossProvider({
       questions: [question('يشرح أن القرار المهني الموثق يعتمد على الدليل والسياق المؤسسي قبل التنفيذ والمراجعة')],
