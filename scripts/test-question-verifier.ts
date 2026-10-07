@@ -214,6 +214,27 @@ async function excludedModelFamilyCanExhaustVerifierModels() {
   )
 }
 
+async function missingIndexFromAllProvidersDoesNotPartiallyGround() {
+  configureProviders()
+  await withMockFetch(
+    (call) => {
+      if (call.url.includes('openrouter.ai') && /\/models(?:\?|$)/.test(call.url)) {
+        return new Response(JSON.stringify({ data: [{ id: 'meta-llama/llama-3.1-70b-instruct:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (call.url.includes('/api/pricing/catalog') || /\/models(?:\?|$)/.test(call.url)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (call.url.includes('/chat/completions')) return response(validResult([0]))
+      return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+    },
+    async () => {
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion(), baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
+      assert.equal(result[0].verificationPending, true)
+      assert.equal(result[1].verificationPending, true)
+      assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
+      assert.ok(!result[1].qualityFlags?.includes('SOURCE_GROUNDED'))
+    }
+  )
+}
+
 async function missingIndexFallsThroughToNextProvider() {
   configureProviders()
   await withMockFetch(
