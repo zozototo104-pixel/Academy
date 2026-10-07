@@ -703,6 +703,7 @@ async function completeJsonWithFallback(args: {
         temperature: args.temperature ?? 0.25,
         maxOutputTokens: args.maxOutputTokens ?? 4096,
         taskLevel: args.taskLevel,
+        validate: args.validate,
       }), timeoutMs, `${args.label}_Gemini`)
     } catch (e: any) {
       const msg = String(e?.message || e).slice(0, 220)
