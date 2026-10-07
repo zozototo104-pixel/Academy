@@ -1503,7 +1503,8 @@ async function rebuildKnowledgeForBookByUnits(
   const seen = new Set<string>()
 
   for (const unit of units) {
-    if (completedUnitNumbers.has(unit.index + 1)) {
+    const unitKey = unitFingerprint(unit)
+    if (completedUnitKeys.has(unitKey)) {
       resumedUnits++
       continue
     }
