@@ -28,7 +28,7 @@ async function withMockFetch(handler: (call: FetchCall) => Response | Promise<Re
   }
 }
 
-async function criticalFailureDoesNotFallThrough() {
+async function criticalGeminiFailureFallsThroughToUnoRouter() {
   process.env.GEMINI_API_KEY = 'mock-gemini-key'
   process.env.UNOROUTER_API_KEY = 'mock-uno-key'
   process.env.OPENROUTER_API_KEY = 'mock-openrouter-key'
@@ -36,15 +36,26 @@ async function criticalFailureDoesNotFallThrough() {
   process.env.RELAYROUTER_API_KEY = 'mock-relay-key'
 
   await withMockFetch(
-    () => new Response(JSON.stringify({ error: { message: 'quota exhausted' } }), { status: 429, headers: { 'content-type': 'application/json' } }),
+    (call) => {
+      if (call.url.includes('generativelanguage.googleapis.com')) {
+        return new Response(JSON.stringify({ error: { message: 'quota exhausted' } }), { status: 429, headers: { 'content-type': 'application/json' } })
+      }
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'gpt-oss-120b', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'academic-ok' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: { message: 'unexpected provider call' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+    },
     async (calls) => {
-      await assert.rejects(
-        () => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'test' }], taskLevel: 'ACADEMIC_CRITICAL' }),
-        (error: any) => error?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE' && Array.isArray(error?.attempts)
-      )
-      assert.ok(calls.length >= 1, 'Gemini should have been attempted')
-      assert.ok(calls.every((call) => call.url.includes('generativelanguage.googleapis.com')), 'Critical task must not call public/free gateways')
-      assert.equal(calls.filter((call) => /\/models(?:\?|$)/.test(call.url)).length, 0, 'Critical task must not discover free models')
+      const result = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'test' }], taskLevel: 'ACADEMIC_CRITICAL' })
+      assert.equal(result, 'academic-ok')
+      assert.ok(calls.some((call) => call.url.includes('generativelanguage.googleapis.com')), 'Critical routing should try Gemini first')
+      assert.ok(calls.some((call) => call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')), 'Critical routing should fall through to UnoRouter after Gemini quota failure')
+      assert.equal(calls.filter((call) => call.url.includes('openrouter.ai') && call.url.includes('/chat/completions')).length, 0, 'Routing should stop once UnoRouter succeeds')
+      assert.equal(calls.filter((call) => call.url.includes('top-tools-ai.com') && call.url.includes('/chat/completions')).length, 0, 'Routing should stop once UnoRouter succeeds')
+      assert.equal(calls.filter((call) => call.url.includes('relayrouter.io') && call.url.includes('/chat/completions')).length, 0, 'Routing should stop once UnoRouter succeeds')
     }
   )
 }
