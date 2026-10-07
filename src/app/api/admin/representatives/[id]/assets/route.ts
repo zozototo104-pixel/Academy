@@ -49,6 +49,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const uploaded = await fileFromForm(form)
   if (!uploaded) return NextResponse.json({ error: 'NO_FILE', message: 'يرجى رفع ملف أو وضع رابط خارجي.' }, { status: 400 })
+  if (uploaded.file.size > MAX_FILE_SIZE) {
+    return NextResponse.json({ error: 'FILE_TOO_LARGE', message: 'حجم الملف يتجاوز الحد المسموح (4 MB).' }, { status: 413 })
+  }
 
   try {
     const stored = await storeFileBuffer({
