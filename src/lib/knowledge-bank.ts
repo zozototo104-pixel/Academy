@@ -1517,7 +1517,7 @@ async function rebuildKnowledgeForBookByUnits(
       uniqueItems.push({
         ...item,
         semester: item.semester ?? semester ?? null,
-        sourceNote: item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`,
+        sourceNote: `${item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`} [unitKey:${unitKey}]`,
       })
     }
     if (!uniqueItems.length) {
