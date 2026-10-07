@@ -1465,9 +1465,13 @@ ${unitText}
     if (normalized.length) return normalized
   } catch (e: any) {
     console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
+    if (e?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
+    const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+    err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
+    err.retryAt = e?.retryAt || null
+    err.cause = e
+    throw err
   }
-
-  return []
 }
 
 async function rebuildKnowledgeForBookByUnits(
