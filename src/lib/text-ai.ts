@@ -34,7 +34,14 @@ export interface TextAiCallOpts {
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
+  excludeProviders?: TextAiProvider[]
   validate?: (text: string, context?: { provider: string; model: string }) => void
+}
+
+export interface TextAiCompletionResult {
+  text: string
+  provider: ConcreteProvider
+  model: string
 }
 
 export interface TextAiAttemptDiagnostics {
