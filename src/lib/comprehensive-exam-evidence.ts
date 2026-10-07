@@ -290,7 +290,9 @@ function extractJsonArray(raw: string): unknown[] {
   try {
     const direct = JSON.parse(trimmed)
     if (Array.isArray(direct)) return direct
-  } catch {}
+  } catch {
+    // Fall through to extracting the first JSON array from provider text.
+  }
   const start = trimmed.indexOf('[')
   const end = trimmed.lastIndexOf(']')
   if (start >= 0 && end > start) {
