@@ -135,14 +135,17 @@ export function AdminWhatsAppInboxTab() {
     if (!activeConversation || !reply.trim()) return
     setSending(true)
     try {
-      const data = await api<{ conversation: WaConversation }>('/api/admin/whatsapp-conversations', {
+      const data = await api<{ conversation: WaConversation; templateSent?: boolean }>('/api/admin/whatsapp-conversations', {
         method: 'POST',
         body: JSON.stringify({ id: activeConversation.id, action: 'send', text: reply.trim() }),
       })
       setSelected(data.conversation)
-      setReply('')
+      if (!data.templateSent) setReply('')
       await loadList()
-      toast({ title: 'تم إرسال الرد من رقم الأكاديمية' })
+      toast({
+        title: data.templateSent ? 'تم إرسال قالب المتابعة المعتمد' : 'تم إرسال الرد من رقم الأكاديمية',
+        description: data.templateSent ? 'احتفظنا بردك المكتوب. بعد أن يرد العميل يمكنك إرساله كرسالة حرة.' : undefined,
+      })
     } catch (e: any) {
       toast({ title: 'تعذر إرسال الرد', description: e?.message, variant: 'destructive' })
     } finally {
