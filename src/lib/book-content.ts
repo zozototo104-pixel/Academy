@@ -246,7 +246,7 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
     if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
       return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: appendTextProvenanceNote(visual.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
     }
-    return { text: '', note: visual.note || extracted.note, quality: 'GEMINI_DOCUMENT' }
+    return { text: '', note: appendTextProvenanceNote(visual.note || extracted.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
   }
 
   return { text: '', note: extracted.note, quality: 'UPLOADED_FILE' }
