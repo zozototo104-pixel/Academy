@@ -128,8 +128,24 @@ export function buildVerifierPrompt(question: VerifiableQuestion & { index?: num
   return `تحقق من السؤال التالي اعتماداً على نص المصدر الأصلي المرفق فقط.\n\nindex: ${question.index ?? 0}\nنوع السؤال: ${clean(question.type, 40)}\nالسؤال: ${clean(question.text, 1600)}\nالخيارات:\n${options}\nالإجابة الصحيحة أو النموذجية: ${correctAnswerForPrompt(question)}\nsourceEvidence: ${sourceEvidence(question)}\n\nنص المصدر الأصلي المحدد فقط:\n"""\n${clean(sourceText, 12000)}\n"""`
 }
 
+function buildQuestionPrompt(question: VerifiableQuestion & { index?: number }, sourceRef: number): string {
+  const options = Array.isArray(question.options) && question.options.length
+    ? question.options.map((option, i) => `${i}. ${clean(option, 400)}`).join('\n')
+    : 'لا توجد خيارات.'
+  return `index: ${question.index ?? 0}\nsourceRef: ${sourceRef}\nنوع السؤال: ${clean(question.type, 40)}\nالسؤال: ${clean(question.text, 1600)}\nالخيارات:\n${options}\nالإجابة الصحيحة أو النموذجية: ${correctAnswerForPrompt(question)}\nsourceEvidence: ${sourceEvidence(question)}`
+}
+
 function buildBatchPrompt(items: { index: number; question: VerifiableQuestion; sourceText: string }[]): string {
-  return `أنت محقق أكاديمي مستقل. تحقق فقط من العلاقة بين السؤال والدليل ونص المصدر الأصلي المحدد لكل سؤال. لا تستخدم معرفة عامة ولا أي مصدر خارج النص المرفق.\n\nأرجع JSON صالحاً فقط بهذا الشكل:\n{\n  "results": [\n    { "index": 0, "valid": true, "answerSupported": true, "evidenceSupportsQuestion": true, "reason": "سبب موجز" }\n  ]\n}\n\nالقواعد:\n- غطِّ كل index مرسل مرة واحدة بالضبط.\n- valid=true فقط إذا كانت answerSupported و evidenceSupportsQuestion كلتاهما true.\n- إذا كان الدليل لا يدعم السؤال أو الإجابة الصحيحة مباشرةً، اجعل valid=false.\n\nالأسئلة:\n${items.map((item) => buildVerifierPrompt({ ...item.question, index: item.index }, item.sourceText)).join('\n\n---\n\n')}`
+  const sourceRefs = new Map<string, number>()
+  const sources: { ref: number; text: string }[] = []
+  for (const item of items) {
+    if (!sourceRefs.has(item.sourceText)) {
+      const ref = sourceRefs.size + 1
+      sourceRefs.set(item.sourceText, ref)
+      sources.push({ ref, text: item.sourceText })
+    }
+  }
+  return `أنت محقق أكاديمي مستقل. تحقق فقط من العلاقة بين السؤال والدليل ونص المصدر الأصلي المحدد لكل سؤال. لا تستخدم معرفة عامة ولا أي مصدر خارج النص المرفق.\n\nأرجع JSON صالحاً فقط بهذا الشكل:\n{\n  "results": [\n    { "index": 0, "valid": true, "answerSupported": true, "evidenceSupportsQuestion": true, "reason": "سبب موجز" }\n  ]\n}\n\nالقواعد:\n- غطِّ كل index مرسل مرة واحدة بالضبط.\n- valid=true فقط إذا كانت answerSupported و evidenceSupportsQuestion كلتاهما true.\n- إذا كان الدليل لا يدعم السؤال أو الإجابة الصحيحة مباشرةً، اجعل valid=false.\n- استخدم فقط النص الموجود في sourceRef الخاص بكل سؤال.\n\nالمصادر الأصلية المرسلة لهذه الدفعة فقط:\n${sources.map((source) => `[sourceRef ${source.ref}]\n"""\n${clean(source.text, 12000)}\n"""`).join('\n\n')}\n\nالأسئلة:\n${items.map((item) => buildQuestionPrompt({ ...item.question, index: item.index }, sourceRefs.get(item.sourceText) || 0)).join('\n\n---\n\n')}`
 }
 
 function applyPending<T extends VerifiableQuestion>(question: T, reason: string): T {
