@@ -150,6 +150,16 @@ interface ExamRow {
   createdAt: string
 }
 
+function examErrorMessage(errorNote?: string | null): string {
+  if (!errorNote) return ''
+  try {
+    const parsed = JSON.parse(errorNote) as { reason?: string; error?: string; message?: string }
+    return parsed.reason || parsed.error || parsed.message || errorNote
+  } catch {
+    return errorNote
+  }
+}
+
 interface AssignmentSubmissionRow {
   id: string
   studentName?: string
