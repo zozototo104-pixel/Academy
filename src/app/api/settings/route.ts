@@ -23,9 +23,9 @@ export async function GET() {
     const user = await getCurrentUser()
     const headers = { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
     if (user?.role === 'ADMIN') {
-      return NextResponse.json({ values, defs: DEFAULT_SETTINGS }, { headers })
+      return NextResponse.json({ values: maskSettingsForAdmin(values), defs: adminSettingDefs() }, { headers })
     }
-    return NextResponse.json({ values }, { headers })
+    return NextResponse.json({ values: sanitizePublicSettings(values) }, { headers })
   } catch (e) {
     console.error('settings GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل الإعدادات' }, { status: 500 })
