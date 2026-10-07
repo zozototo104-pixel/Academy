@@ -72,6 +72,7 @@ interface AppState {
   studentPreviewId: string | null
   agentPreviewId: string | null
   applyProgramTitle: string | null // برنامج محدد مسبقاً لنموذج طلب الالتحاق
+  applyProgramId: string | null // المعرّف الحقيقي للبرنامج لمنع الالتباس بين العناوين المتشابهة
   mobileMenuOpen: boolean
   setUser: (u: AppUser | null) => void
   setAuthChecked: (v: boolean) => void
@@ -83,7 +84,7 @@ interface AppState {
   openExam: (id: string, kind?: 'unit' | 'final') => void
   openStudentPreview: (studentId: string) => void
   openAgentPreview: (agentId: string) => void
-  openApply: (programTitle?: string) => void
+  openApply: (programTitle?: string, programId?: string) => void
   setMobileMenuOpen: (v: boolean) => void
 }
 
@@ -101,6 +102,7 @@ export const useAppStore = create<AppState>((set) => ({
   agentPreviewId: null,
   mobileMenuOpen: false,
   applyProgramTitle: null,
+  applyProgramId: null,
   setUser: (u) => set({ user: u }),
   setAuthChecked: (v) => set({ authChecked: v }),
   navigate: (view, params = {}) => {
@@ -176,9 +178,14 @@ export const useAppStore = create<AppState>((set) => ({
       activeExamId: null,
     })
   },
-  openApply: (programTitle) => {
+  openApply: (programTitle, programId) => {
     updateBrowserRoute('apply')
-    set({ applyProgramTitle: programTitle || null, view: 'apply', mobileMenuOpen: false })
+    set({
+      applyProgramTitle: programTitle || null,
+      applyProgramId: programId || null,
+      view: 'apply',
+      mobileMenuOpen: false,
+    })
   },
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
 }))

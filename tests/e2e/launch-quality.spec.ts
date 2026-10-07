@@ -97,6 +97,16 @@ function markdownReport(report: any) {
 test.describe('AACT launch quality suite', () => {
   test.setTimeout(240_000)
 
+  test('public settings never expose secret-looking keys', async ({ request }) => {
+    const response = await request.get('/api/settings')
+    const body = await response.json().catch(() => ({}))
+    expect(response.ok(), `Public settings request failed with ${response.status()}: ${JSON.stringify(body).slice(0, 800)}`).toBeTruthy()
+
+    const keys = Object.keys(body?.values || {})
+    const leakedKeys = keys.filter((key) => /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i.test(key))
+    expect(leakedKeys, `Public /api/settings exposed secret-looking keys: ${leakedKeys.join(', ')}`).toEqual([])
+  })
+
   test('pages are fast and AI knows student context, curriculum, thesis, and voice config', async ({ page }, testInfo: TestInfo) => {
     const token = await loginAsAdmin(page)
     const routesToMeasure = ['/', '/programs', '/apply', '/verify', '/admin', '/dashboard']

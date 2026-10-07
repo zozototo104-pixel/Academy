@@ -33,6 +33,20 @@ function compactText(value: unknown, max = 1200) {
   return trim(value).replace(/\s+/g, ' ').slice(0, max)
 }
 
+const WHATSAPP_CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+async function assertWhatsAppFreeformWindowOpen(to: string) {
+  const waIdHash = hashWhatsAppId(to)
+  const conversation = await db.whatsAppConversation.findUnique({
+    where: { waIdHash },
+    select: { lastInboundAt: true },
+  })
+  const lastInboundAt = conversation?.lastInboundAt?.getTime() || 0
+  if (!lastInboundAt || Date.now() - lastInboundAt > WHATSAPP_CUSTOMER_CARE_WINDOW_MS) {
+    throw new Error('WHATSAPP_24H_WINDOW_CLOSED: free-form messages require a customer message within the last 24 hours; use an approved template message instead.')
+  }
+}
+
 export function officialWhatsAppConfigured() {
   return Boolean(
     process.env.WHATSAPP_ACCESS_TOKEN?.trim() &&
@@ -236,6 +250,7 @@ export function splitOfficialWhatsAppText(text: string, maxLength = 3600): strin
 }
 
 export async function sendOfficialWhatsAppText(to: string, text: string, options?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  await assertWhatsAppFreeformWindowOpen(to)
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
     throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
@@ -281,4 +296,53 @@ export async function sendOfficialWhatsAppText(to: string, text: string, options
   }
 
   return { ...(lastData || {}), messages: sentMessages.length ? sentMessages : lastData?.messages }
+}
+
+export async function sendOfficialWhatsAppHumanFollowup(
+  to: string,
+  customerName: string,
+  options?: { phoneNumberId?: string; imageUrl?: string },
+) {
+  const config = getWhatsAppCloudConfig(options?.phoneNumberId)
+  if (!config) {
+    throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
+  }
+
+  const normalizedName = compactText(customerName, 120) || 'عميلنا الكريم'
+  const appUrl = trim(process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/$/, '')
+  const imageUrl = trim(options?.imageUrl) || `${appUrl}/logo.png`
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: 'human_followup_ar',
+      language: { code: 'ar' },
+      components: [
+        {
+          type: 'header',
+          parameters: [{ type: 'image', image: { link: imageUrl } }],
+        },
+        {
+          type: 'body',
+          parameters: [{ type: 'text', parameter_name: 'customer_name', text: normalizedName }],
+        },
+      ],
+    },
+  }
+
+  const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = data?.error?.message || data?.error?.code || `WhatsApp template send failed with status ${response.status}`
+    throw new Error(String(message).slice(0, 500))
+  }
+  return data
 }

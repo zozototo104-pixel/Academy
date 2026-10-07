@@ -182,7 +182,7 @@ const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$
 
 export function ApplyView() {
   const { toast } = useToast()
-  const { user, applyProgramTitle, navigate } = useAppStore()
+  const { user, applyProgramTitle, applyProgramId, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
   const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
@@ -352,8 +352,8 @@ export function ApplyView() {
   )
 
   const selectedProgram = useMemo(
-    () => programs.find((p) => p.titleAr === form.program) || null,
-    [programs, form.program]
+    () => programs.find((p) => (applyProgramId && p.id === applyProgramId) || (!applyProgramId && p.titleAr === form.program)) || null,
+    [programs, form.program, applyProgramId]
   )
   const selectedFlow = getServiceFlow(selectedProgram?.slug)
   const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'

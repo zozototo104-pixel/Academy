@@ -222,10 +222,15 @@ export async function POST(req: NextRequest) {
     }
 
     // البحث عن البرنامج/الخدمة قبل فحص الهوية والمستندات حتى نفرق بين طلب الدراسة وطلب الخدمة المهنية.
+    // لا نستخدم contains هنا؛ المطابقة الجزئية قد تربط الطلب بأول برنامج يشترك بجزء من الاسم.
+    const requestedProgramTitle = program.trim().split(' — ')[0].trim()
     const programRec = programId
-      ? await db.program.findUnique({ where: { id: programId } })
-      : await db.program.findFirst({ where: { titleAr: { contains: program.trim().split(' — ')[0] } } })
-    const serviceFlow = getServiceFlow(programRec?.slug)
+      ? await db.program.findFirst({ where: { id: programId, active: true } })
+      : await db.program.findFirst({ where: { titleAr: requestedProgramTitle, active: true } })
+    if (!programRec) {
+      return NextResponse.json({ error: 'البرنامج أو الخدمة المحددة غير موجودة أو غير متاحة حالياً. يرجى العودة إلى قائمة البرامج واختيارها من جديد.' }, { status: 400 })
+    }
+    const serviceFlow = getServiceFlow(programRec.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : programRec?.category === 'SERVICE'
     const programRules = programRec?.admissionRules
       ? resolveRules(programRec?.category || 'DIPLOMA', programRec.admissionRules, !isServiceRequest)

@@ -257,6 +257,7 @@ export function AdminRulesTab() {
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [renumberingUnits, setRenumberingUnits] = useState(false)
   const [creatingProgram, setCreatingProgram] = useState(false)
   const [createProgramOpen, setCreateProgramOpen] = useState(false)
   const [newProgramTitleAr, setNewProgramTitleAr] = useState('')
@@ -564,6 +565,29 @@ export function AdminRulesTab() {
       toast({ title: e?.message || 'تعذر تحديث حالة البرنامج', variant: 'destructive' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const renumberUnits = async () => {
+    if (!selectedId || !selected) return
+    const confirmed = await confirmAction({
+      title: 'إعادة ترقيم وحدات البرنامج',
+      description: `سيتم ترتيب وحدات «${selected.titleAr}» إلى 1، 2، 3... داخل كل فصل حسب ترتيبها الحالي. لن يتم حذف أو تعديل محتوى أي وحدة.`,
+      confirmLabel: 'إعادة الترقيم',
+      tone: 'warning',
+    })
+    if (!confirmed) return
+    setRenumberingUnits(true)
+    try {
+      const result = await api<{ changed: number }>('/api/admin/program-rules', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'renumber-units', programId: selectedId }),
+      })
+      toast({ title: result.changed ? `تمت إعادة ترقيم ${result.changed} وحدة` : 'ترقيم الوحدات صحيح بالفعل' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر إعادة ترقيم الوحدات', variant: 'destructive' })
+    } finally {
+      setRenumberingUnits(false)
     }
   }
 
@@ -1305,9 +1329,13 @@ export function AdminRulesTab() {
                 )}
 
                 <div className="flex flex-wrap gap-2 border-t pt-3">
-                  <Button onClick={() => save(false)} disabled={saving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
+                  <Button onClick={() => save(false)} disabled={saving || renumberingUnits} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
                     {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
                     حفظ القواعد والملف الأكاديمي
+                  </Button>
+                  <Button onClick={renumberUnits} disabled={saving || renumberingUnits} variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                    {renumberingUnits ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RotateCcw className="ml-1 h-4 w-4" />}
+                    إعادة ترقيم الوحدات
                   </Button>
                   {custom && (
                     <Button onClick={() => save(true)} disabled={saving} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">

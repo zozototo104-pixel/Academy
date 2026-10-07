@@ -7,6 +7,8 @@ import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const MAX_FILE_SIZE = 4 * 1024 * 1024 // Keep admin uploads within the same safe per-file limit as admissions.
+
 function text(value: unknown, max = 1000) {
   return String(value ?? '').trim().slice(0, max) || null
 }
@@ -47,6 +49,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const uploaded = await fileFromForm(form)
   if (!uploaded) return NextResponse.json({ error: 'NO_FILE', message: 'يرجى رفع ملف أو وضع رابط خارجي.' }, { status: 400 })
+  if (uploaded.file.size > MAX_FILE_SIZE) {
+    return NextResponse.json({ error: 'FILE_TOO_LARGE', message: 'حجم الملف يتجاوز الحد المسموح (4 MB).' }, { status: 413 })
+  }
 
   try {
     const stored = await storeFileBuffer({
@@ -106,7 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         extractedText: extracted?.readable ? extracted.text : null,
       },
     })
-    let updatedRepresentative = null
+    let updatedRepresentative: typeof representative | null = null
     if (extracted?.readable && kind.toUpperCase() === 'CV') {
       const rawText = extracted.text.trim().slice(0, 12000)
       if (rawText) {

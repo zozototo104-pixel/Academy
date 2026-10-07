@@ -148,7 +148,7 @@ export function ProgramsView() {
       navigate('auth')
       return
     }
-    openApply(p.titleAr)
+    openApply(p.titleAr, p.id)
   }
 
   const searchWords = search.trim().split(/\s+/).filter(Boolean)

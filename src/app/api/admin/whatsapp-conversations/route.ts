@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
+import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { recordWhatsAppOutboundMessage, setWhatsAppConversationStatus } from '@/lib/whatsapp-conversations'
 
 export const runtime = 'nodejs'
@@ -102,11 +102,21 @@ export async function POST(req: NextRequest) {
       if (conversation.status !== 'HUMAN_ACTIVE') {
         return NextResponse.json({ ok: false, error: 'يجب استلام المحادثة أولاً قبل الرد من لوحة الإدارة' }, { status: 409 })
       }
-      const result = await sendOfficialWhatsAppText(conversation.waId, text, { phoneNumberId: conversation.phoneNumberId || undefined })
+      const freeformWindowOpen = Boolean(
+        conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() <= 24 * 60 * 60 * 1000,
+      )
+      const sentText = freeformWindowOpen
+        ? text
+        : `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${conversation.displayName || 'العميل'}. أرسل الرد المكتوب بعد أن يرد العميل.`
+      const result = freeformWindowOpen
+        ? await sendOfficialWhatsAppText(conversation.waId, text, { phoneNumberId: conversation.phoneNumberId || undefined })
+        : await sendOfficialWhatsAppHumanFollowup(conversation.waId, conversation.displayName || 'عميلنا الكريم', {
+            phoneNumberId: conversation.phoneNumberId || undefined,
+          })
       await recordWhatsAppOutboundMessage({
         waId: conversation.waId,
         phoneNumberId: conversation.phoneNumberId || null,
-        text,
+        text: sentText,
         sender: 'HUMAN',
         whatsappMessageId: result?.messages?.[0]?.id || null,
         sentById: admin.id,
@@ -120,7 +130,11 @@ export async function POST(req: NextRequest) {
       }
       await db.auditLog.create({ data: { actorId: admin.id, actorName: admin.name, action: 'WHATSAPP_HUMAN_REPLY_SENT', entity: 'WhatsAppConversation', entityId: id, details: JSON.stringify({ to: conversation.phoneMasked, chars: text.length }) } }).catch(() => {})
       const refreshed = await db.whatsAppConversation.findUnique({ where: { id }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 120 } } })
-      return NextResponse.json({ ok: true, conversation: refreshed ? { ...refreshed, messages: [...refreshed.messages].reverse() } : null })
+      return NextResponse.json({
+        ok: true,
+        conversation: refreshed ? { ...refreshed, messages: [...refreshed.messages].reverse() } : null,
+        templateSent: !freeformWindowOpen,
+      })
     }
 
     return NextResponse.json({ ok: false, error: 'إجراء غير معروف' }, { status: 400 })

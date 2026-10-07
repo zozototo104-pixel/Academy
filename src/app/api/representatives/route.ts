@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { DEMO_REPRESENTATIVES, serializeRepresentative } from '@/lib/academy-representatives'
+import { serializeRepresentative } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,8 +17,11 @@ export async function GET(req: NextRequest) {
       include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
     })
     const representatives = rows.map((row) => serializeRepresentative(row, originFrom(req), false))
-    return NextResponse.json({ representatives: representatives.length ? representatives : DEMO_REPRESENTATIVES, demo: representatives.length === 0 })
+    return NextResponse.json({ representatives, demo: false })
   } catch {
-    return NextResponse.json({ representatives: DEMO_REPRESENTATIVES, demo: true, note: 'تم عرض بيانات تجريبية لأن جدول ممثلي الأكاديمية غير محدث بعد.' })
+    return NextResponse.json(
+      { representatives: [], demo: false, error: 'تعذر تحميل ممثلي الأكاديمية حالياً.' },
+      { status: 500 },
+    )
   }
 }

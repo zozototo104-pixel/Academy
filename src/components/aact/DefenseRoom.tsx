@@ -203,6 +203,7 @@ export function DefenseRoom({
   const myPeerId = useRef<string>('')
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  const processedSignalIdsRef = useRef<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const thesisIdRef = useRef(thesis.id)
   const wakeLockRef = useRef<any>(null)
@@ -560,6 +561,7 @@ ${recent || 'بدأت الجلسة للتو.'}
   const processSignals = useCallback(
     async (signals: { id: string; from: string; to?: string | null; type: string; payload: any }[]) => {
       for (const sig of signals) {
+        if (processedSignalIdsRef.current.has(sig.id)) continue
         try {
           if (sig.type === 'OFFER') {
             const pc = await getOrCreatePeer(sig.from, false)
@@ -593,6 +595,7 @@ ${recent || 'بدأت الجلسة للتو.'}
               return n
             })
           }
+          processedSignalIdsRef.current.add(sig.id)
         } catch {}
       }
     },
