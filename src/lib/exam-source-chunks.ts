@@ -24,6 +24,7 @@ function sourceProvenance(source: ExamSourceText): TextProvenance {
     sourceNote: source.sourceNote,
     linkReadStatus: source.linkReadStatus,
     contentQuality: source.contentQuality,
+    textContent: source.text,
   })
 }
 
