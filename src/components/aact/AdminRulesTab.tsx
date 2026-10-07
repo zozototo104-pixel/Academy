@@ -1329,9 +1329,13 @@ export function AdminRulesTab() {
                 )}
 
                 <div className="flex flex-wrap gap-2 border-t pt-3">
-                  <Button onClick={() => save(false)} disabled={saving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
+                  <Button onClick={() => save(false)} disabled={saving || renumberingUnits} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
                     {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
                     حفظ القواعد والملف الأكاديمي
+                  </Button>
+                  <Button onClick={renumberUnits} disabled={saving || renumberingUnits} variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                    {renumberingUnits ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RotateCcw className="ml-1 h-4 w-4" />}
+                    إعادة ترقيم الوحدات
                   </Button>
                   {custom && (
                     <Button onClick={() => save(true)} disabled={saving} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
