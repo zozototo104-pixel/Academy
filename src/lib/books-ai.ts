@@ -2086,7 +2086,7 @@ ${plannedTypes}
 - كل سؤال يجب أن يحتوي difficulty واحدة من: EASY أو MEDIUM أو ADVANCED.
 - كل سؤال يجب أن يحتوي correctRationale يشرح لماذا الإجابة صحيحة أو معيار قبول الإجابة النموذجية.
 - أسئلة MCQ وTF يجب أن تحتوي distractorRationales كمصفوفة لأسباب خطأ الخيارات الأخرى، بعناصر فيها optionIndex وoption وreason.
-- كل سؤال يجب أن يحتوي qualityFlags كمصفوفة قصيرة مثل SOURCE_GROUNDED وHAS_SOURCE_BOOK وHAS_CORRECT_RATIONALE.
+- كل سؤال يجب أن يحتوي qualityFlags كمصفوفة قصيرة تبدأ بـ SOURCE_LINKED وNEEDS_HUMAN_REVIEW، ولا تستخدم SOURCE_GROUNDED قبل تحقق المزود الثاني لاحقاً.
 - عند السؤال التطبيقي أو المقالي، اذكر حالة واقعية أو سيناريو مهني من مجال ${specialty.ar} مرتبطاً بالدليل النصي من الكتاب.
 - في modelAnswer اذكر عبارة قصيرة تبدأ بـ «مرجع التصحيح:» توضّح الفكرة أو الكتاب/المحور الذي يعتمد عليه السؤال.
 - لا تضع أسئلة عن إدارة أو قيادة عامة إلا إذا كانت واردة في محتوى الكتاب نفسه ومرتبطة صراحة بتخصص ${specialty.ar}.
