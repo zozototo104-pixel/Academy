@@ -287,7 +287,7 @@ export async function POST(req: NextRequest) {
       if (!book?.textContent) return false
       const bookProvenance = inferTextProvenance({ linkReadNote: book.linkReadNote, linkReadStatus: book.linkReadStatus, contentQuality: book.contentQuality, textContent: book.textContent })
       if (!['NATIVE_TEXT', 'VISION_OCR'].includes(bookProvenance)) return false
-      return norm(book.textContent).includes(norm(excerpt))
+      return textContainsEvidenceAfterNormalization(book.textContent, excerpt)
     }
     const evidenceKnowledge = knowledge.filter((item) => {
       const text = knowledgeEvidenceText(item).trim()
