@@ -239,8 +239,14 @@ export default function AdminRepresentativesTab() {
       const res = await fetch(`/api/admin/representatives/${form.id}/rewrite`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر إعادة الصياغة')
-      await load()
-      toast({ title: 'تمت إعادة الصياغة', description: 'راجع السيرة قبل اعتماد العرض النهائي.' })
+      if (data.representative) {
+        const rep = data.representative as Representative
+        setRows((prev) => prev.map((row) => row.id === rep.id ? rep : row))
+        setSelectedId(rep.id)
+        setForm(formFromRepresentative(rep))
+      }
+      await load(data.representative?.id || form.id)
+      toast({ title: 'تمت إعادة الصياغة', description: 'تم تفريغ التحليل في خانات السيرة والأعمال والإنجازات. راجع النص قبل اعتماد العرض النهائي.' })
     } catch (e: any) {
       toast({ title: 'فشل الذكاء', description: String(e?.message || e), variant: 'destructive' })
     } finally {
