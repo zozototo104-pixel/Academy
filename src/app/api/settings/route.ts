@@ -47,6 +47,7 @@ export async function PUT(req: NextRequest) {
     for (const [key, val] of Object.entries(values)) {
       const def = DEFAULT_SETTINGS.find((d) => d.key === key)
       if (!def) continue
+      if (isSecretSettingKey(key) && isMaskedSecretValue(val)) continue
       const inputType = def.inputType || 'number'
       let v = typeof val === 'string' ? val : JSON.stringify(val)
       if (inputType !== 'textarea') v = v.trim()
