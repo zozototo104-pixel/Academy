@@ -33,7 +33,7 @@ export type VerifiableQuestion = {
   verificationReason?: string
 }
 
-export type VerificationSource = { text: string }
+export type VerificationSource = { text: string; textProvenance?: TextProvenance | null }
 
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
