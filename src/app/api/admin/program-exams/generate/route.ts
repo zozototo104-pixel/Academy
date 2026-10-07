@@ -184,7 +184,7 @@ function questionReviewNotes(q: GeneratedQuestion): string | null {
   if (!provider && !model && !bookId && sourceIndex == null && !verifierProvider && !verificationPending) return null
   return stringifyJsonField({
     aiProvenance: { provider, model },
-    source: { bookId, sourceIndex },
+    source: { bookId, sourceIndex, textProvenance: q.textProvenance || null },
     verifier: { provider: verifierProvider, model: verifierModel, verifiedAt, reason: verifierReason, pending: verificationPending, pendingReason: verificationReason },
   })
 }
