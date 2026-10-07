@@ -184,6 +184,43 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json().catch(() => ({}))
+    if (body?.action === 'renumber-units') {
+      const admin = await requireAdmin()
+      const programId = String(body?.programId || '').trim()
+      if (!programId) return NextResponse.json({ error: 'معرّف البرنامج مطلوب' }, { status: 400 })
+
+      const program = await db.program.findUnique({
+        where: { id: programId },
+        select: { id: true, titleAr: true, units: { select: { id: true, order: true, semester: true }, orderBy: [{ semester: 'asc' }, { order: 'asc' }, { id: 'asc' }] } },
+      })
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+
+      const bySemester = new Map<number, typeof program.units>()
+      for (const unit of program.units) {
+        const list = bySemester.get(unit.semester) || []
+        list.push(unit)
+        bySemester.set(unit.semester, list)
+      }
+      const changes = [...bySemester.entries()].flatMap(([semester, units]) =>
+        units.map((unit, index) => ({ id: unit.id, semester, from: unit.order, to: index + 1 })).filter((change) => change.from !== change.to),
+      )
+      if (changes.length) {
+        await db.$transaction(changes.map((change) => db.unit.update({ where: { id: change.id }, data: { order: change.to } })))
+      }
+      await db.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorName: admin.name,
+          action: 'PROGRAM_UNITS_RENUMBERED',
+          entity: 'Program',
+          entityId: program.id,
+          details: JSON.stringify({ titleAr: program.titleAr, changes }),
+        },
+      })
+      return NextResponse.json({ ok: true, changed: changes.length, changes })
+    }
+
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
