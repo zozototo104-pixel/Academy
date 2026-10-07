@@ -312,6 +312,7 @@ ${knowledgeText}
         taskLevel: 'ACADEMIC_CRITICAL',
         validate: (text, context) => {
           const parsed = generatedQuestionsSchema.parse(parseJsonObject(text))
+          generationContext = context || {}
           const validation = validateQuestionBatchAgainstKnowledge(parsed.questions, knowledge, context)
           for (const rejection of validation.rejected) {
             console.warn('question bank evidence rejected:', rejection)
