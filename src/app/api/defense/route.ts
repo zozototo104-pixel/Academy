@@ -396,22 +396,21 @@ export async function POST(req: NextRequest) {
 
 async function aiOpening(title: string, abstract: string, studentAcademicContext?: string): Promise<string> {
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
 السؤال الأول يجب أن يكون عن دوافع اختيار الموضوع وأهميته العملية، ويراعي تخصص الطالب وكتبه ونتائجه إن ظهرت في السياق.
 ملخص البحث: ${abstract.slice(0, 1200)}
 
 اكتب: ترحيب من سطرين + "السؤال الأول:" ثم السؤال. بدون أي تنسيق Markdown.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
-    return (completion.choices[0]?.message?.content || '').trim() || defaultQuestion(1)
+    return text.trim() || defaultQuestion(1)
   } catch {
     return defaultQuestion(1)
   }
