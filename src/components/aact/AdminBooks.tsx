@@ -2802,7 +2802,7 @@ export function AdminBooksTab() {
                           </div>
                           {(e.status === 'FAILED' || e.status === 'PAUSED') && e.errorNote && (
                             <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-bold ${e.status === 'PAUSED' ? 'text-amber-600' : 'text-red-500'}`}>
-                              <AlertTriangle className="h-3 w-3" /> {e.status === 'PAUSED' ? 'المهمة محفوظة ويمكن استئنافها عند توفر المزود.' : e.errorNote} — تم حفظ {e.questionCount} سؤالاً
+                              <AlertTriangle className="h-3 w-3" /> {examErrorMessage(e.errorNote)} — تم حفظ {e.questionCount} سؤالاً
                             </p>
                           )}
                           {e.status === 'REVIEW' && e.questionCount < FULL_EXAM_TARGET && (
