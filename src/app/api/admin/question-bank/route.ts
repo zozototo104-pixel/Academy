@@ -265,10 +265,34 @@ export async function POST(req: NextRequest) {
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
-    const knowledgeTextProvenance = (item: { sourceNote?: string | null }) => inferTextProvenance({ sourceNote: item.sourceNote })
+    const sourceBooks = await db.book.findMany({
+      where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
+      select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true, contentQuality: true },
+    })
+    const bookById = new Map(sourceBooks.map((book) => [book.id, book]))
+    const knowledgeTextProvenance = (item: { sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }) => {
+      const book = item.bookId ? bookById.get(item.bookId) : null
+      return inferTextProvenance({
+        sourceNote: item.sourceNote,
+        linkReadNote: book?.linkReadNote,
+        linkReadStatus: book?.linkReadStatus,
+        contentQuality: book?.contentQuality,
+        textContent: book?.textContent,
+      })
+    }
+    const excerptMatchesNativeOrOcrBook = (item: { bookId?: string | null; excerpt?: string | null }) => {
+      const excerpt = knowledgeEvidenceText(item).trim()
+      if (!excerpt) return false
+      const book = item.bookId ? bookById.get(item.bookId) : null
+      if (!book?.textContent) return false
+      const bookProvenance = inferTextProvenance({ linkReadNote: book.linkReadNote, linkReadStatus: book.linkReadStatus, contentQuality: book.contentQuality, textContent: book.textContent })
+      if (!['NATIVE_TEXT', 'VISION_OCR'].includes(bookProvenance)) return false
+      return norm(book.textContent).includes(norm(excerpt))
+    }
     const evidenceKnowledge = knowledge.filter((item) => {
       const text = knowledgeEvidenceText(item).trim()
-      return text.length >= 40 && isEvidenceAllowedByProvenance(knowledgeTextProvenance(item))
+      const provenance = knowledgeTextProvenance(item)
+      return text.length >= 40 && isEvidenceAllowedByProvenance(provenance) && excerptMatchesNativeOrOcrBook(item)
     })
     if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
 
