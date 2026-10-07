@@ -287,8 +287,8 @@ export default function AdminRepresentativesTab() {
         </CardContent>
       </Card>
 
-      <div className="space-y-5">
-        <Card className="border-[#0f2b46]/10">
+      <div className="min-w-0 space-y-5 overflow-hidden">
+        <Card className="min-w-0 overflow-hidden border-[#0f2b46]/10">
           <CardHeader>
             <CardTitle className="text-xl font-black text-[#0f2b46]">{form.id ? 'تعديل ممثل الأكاديمية' : 'إضافة ممثل جديد'}</CardTitle>
           </CardHeader>
