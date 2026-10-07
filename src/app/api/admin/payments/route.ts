@@ -268,7 +268,7 @@ export async function PATCH(req: NextRequest) {
     const hasReviewableProof = reviewableProofs.length > 0
     const effectiveApprovalReference = approvalReference || payment.manualApprovalReference || ''
     const effectiveApprovalNote = approvalNote || payment.manualApprovalNote || ''
-    const hasAdminEvidence = effectiveApprovalReference.length >= 3 || effectiveApprovalNote.length >= 6
+    const hasAdminEvidence = effectiveApprovalReference.length >= 3
     const hasCryptoReference = payment.method === 'USDT' && !!payment.cryptoTxHash
 
     if (payment.method === 'DIRECT_PAYMENT' && effectiveApprovalNote.length < 6) {
