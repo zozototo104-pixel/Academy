@@ -17,6 +17,7 @@ export type TextAiProvider =
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
+export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 
 export interface TextAiTurn {
   role: 'user' | 'model'
