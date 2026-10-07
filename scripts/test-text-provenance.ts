@@ -70,8 +70,14 @@ async function main() {
     { bookId: 'vision-description', bookTitle: 'Vision', text: visionDescriptionText, contentQuality: 'GEMINI_DOCUMENT', sourceNote: '[textProvenance:VISION_DESCRIPTION]' },
   ])
   assert.equal(chunks.some((chunk) => chunk.bookId === 'vision-description'), false, 'VISION_DESCRIPTION must not be numbered as exam evidence')
+  assert.equal(chunks.some((chunk) => chunk.bookId === 'legacy-scaffold'), false, 'legacy Gemini scaffold text must be treated as VISION_DESCRIPTION')
+  assert.equal(chunks.some((chunk) => chunk.bookId === 'legacy-note'), false, 'legacy Gemini summary notes must be treated as VISION_DESCRIPTION')
   assert.equal(chunks.some((chunk) => chunk.bookId === 'ocr'), true, 'legacy Vision/OCR status should remain usable as OCR evidence')
   assert.equal(inferTextProvenance({ linkReadStatus: 'VISION_OCR' }), 'VISION_OCR')
+  assert.equal(inferTextProvenance({ contentQuality: 'STORED_TEXT', textContent: legacyScaffoldText }), 'VISION_DESCRIPTION')
+  assert.equal(inferTextProvenance({ contentQuality: 'STORED_TEXT', linkReadNote: 'Gemini تلخيص وخريطة معرفية' }), 'VISION_DESCRIPTION')
+  assert.equal(textContainsEvidenceAfterNormalization(nativeText, 'هذا excerpt غير موجود داخل نص الكتاب الأصلي ويجب أن يستبعد من بنك الأسئلة'), false)
+  assert.equal(textContainsEvidenceAfterNormalization(nativeText, 'يشرح أن القرار المهني الموثق يعتمد على الدليل والسياق المؤسسي قبل التنفيذ والمراجعة'), true)
   const selected = selectExamSourceChunks(chunks, { maxChunks: 2 })
   assert.equal(selected.some((chunk) => chunk.bookId === 'vision-description'), false)
 
