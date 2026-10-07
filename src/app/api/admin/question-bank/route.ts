@@ -343,10 +343,15 @@ ${knowledgeText}
 
     const finalValidation = validateQuestionBatchAgainstKnowledge(generated, evidenceSources)
     for (const rejection of finalValidation.rejected) console.warn('question bank evidence rejected before save:', rejection)
+    const verifiedQuestions = await verifyQuestionsWithCrossProvider({
+      questions: finalValidation.accepted,
+      sources: evidenceSources,
+      generatorProvider: generationContext.provider,
+    })
 
     const rows: any[] = []
-    for (let i = 0; i < finalValidation.accepted.length; i++) {
-      const item = finalValidation.accepted[i]
+    for (let i = 0; i < verifiedQuestions.length; i++) {
+      const item = verifiedQuestions[i]
       const requestedSourceIndex = Number(item.sourceIndex)
       const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= evidenceKnowledge.length
         ? evidenceKnowledge[requestedSourceIndex - 1]
