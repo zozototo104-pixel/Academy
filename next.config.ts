@@ -36,9 +36,8 @@ const securityHeaders = [
     ].join(", "),
   },
   {
-    // Report-only by design: this lets us observe CSP issues without blocking AI, camera/WebRTC,
-    // certificate verification, Stripe/PayPal redirects, Vercel assets, or media/blob streams.
-    key: "Content-Security-Policy-Report-Only",
+    // Enforced CSP. Keep sources broad enough for current AI, camera/WebRTC, payments, Vercel assets, and blob media.
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self' https: data: blob:",
       "base-uri 'self'",
