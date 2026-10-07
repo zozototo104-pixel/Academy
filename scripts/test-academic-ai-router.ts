@@ -96,6 +96,40 @@ async function invalidAcademicAllowlistIsRejected() {
   )
 }
 
+async function validationRejectionFallsThroughToNextModel() {
+  process.env.GEMINI_API_KEY = 'mock-gemini-key'
+  process.env.GEMINI_TEXT_MODEL = 'gemini-3.8-flash'
+
+  await withMockFetch(
+    (call) => {
+      if (!call.url.includes('generativelanguage.googleapis.com')) {
+        return new Response(JSON.stringify({ error: { message: 'unexpected provider call' } }), { status: 500, headers: { 'content-type': 'application/json' } })
+      }
+      const model = decodeURIComponent(call.url.match(/\/models\/([^:]+):generateContent/)?.[1] || '')
+      const content = model === 'gemini-3.8-flash' ? 'weak-output' : 'validated-output'
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    },
+    async (calls) => {
+      const result = await textAiComplete({
+        system: 'test',
+        history: [{ role: 'user', text: 'test' }],
+        taskLevel: 'ACADEMIC_CRITICAL',
+        validate: (text) => {
+          if (text === 'weak-output') {
+            const error: any = new Error('VALIDATION_REJECTED')
+            error.code = 'VALIDATION_REJECTED'
+            throw error
+          }
+        },
+      })
+      assert.equal(result, 'validated-output')
+      const geminiCalls = calls.filter((call) => call.url.includes('generativelanguage.googleapis.com'))
+      assert.ok(geminiCalls.length >= 2, 'Validation rejection must make the router try another model')
+      assert.ok(geminiCalls.some((call) => !call.url.includes('gemini-3.8-flash')), 'A different Gemini model should be attempted after validation rejection')
+    }
+  )
+}
+
 async function main() {
   await criticalGeminiFailureFallsThroughToUnoRouter()
   await generalKeepsExistingGatewayBehavior()
