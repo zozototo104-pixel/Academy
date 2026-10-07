@@ -363,7 +363,8 @@ export function validateGeneratedExamQuestionsAgainstSelectedChunks(
     else rejected.push(result.rejection)
   })
 
-  const validationItems = parsedEntries.map(({ question }) => ({
+  const validationItems = parsedEntries.map(({ rawIndex, question }) => ({
+    rawIndex,
     question,
     sourceIndex: question.sourceIndex ?? '',
     sourceEvidence: question.sourceEvidence || question.bookEvidence || '',
@@ -371,18 +372,35 @@ export function validateGeneratedExamQuestionsAgainstSelectedChunks(
   const validated = validateQuestionBatchAgainstKnowledge(validationItems, selectedChunks, context)
   for (const item of validated.rejected) {
     rejected.push({
-      index: parsedEntries[item.index]?.rawIndex ?? item.index,
+      index: validationItems[item.index]?.rawIndex ?? item.index,
       stage: 'EVIDENCE',
       reason: item.reason,
     })
   }
 
-  if (rawItems.length === 0 || validated.accepted.length === 0) {
+  const acceptedWithinSourceLimit: typeof validated.accepted = []
+  const sourceUseCounts = new Map<string, number>()
+  for (const item of validated.accepted) {
+    const key = String(item.sourceIndex ?? '').trim()
+    const current = sourceUseCounts.get(key) || 0
+    if (current >= MAX_QUESTIONS_PER_SOURCE_CHUNK) {
+      rejected.push({
+        index: item.rawIndex,
+        stage: 'EVIDENCE',
+        reason: 'SOURCE_INDEX_OVERUSED',
+      })
+      continue
+    }
+    sourceUseCounts.set(key, current + 1)
+    acceptedWithinSourceLimit.push(item)
+  }
+
+  if (rawItems.length === 0 || acceptedWithinSourceLimit.length === 0) {
     validationRejected('EMPTY_BATCH', rejected)
   }
   if (rejected.length / rawItems.length > 0.5) {
     validationRejected('TOO_MANY_REJECTIONS', rejected)
   }
 
-  return validated.accepted.map((item) => item.question)
+  return acceptedWithinSourceLimit.map((item) => item.question)
 }
