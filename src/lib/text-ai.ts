@@ -304,7 +304,7 @@ async function settings() {
     deepinfraKeys: parseKeys(env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS')),
     deepinfraModel: normalizeModel(rows.DEEPINFRA_TEXT_MODEL || env('DEEPINFRA_TEXT_MODEL'), DEEPINFRA_TEXT_MODELS),
     deepinfraBaseUrl: (rows.DEEPINFRA_BASE_URL || env('DEEPINFRA_BASE_URL') || 'https://api.deepinfra.com/v1').replace(/\/$/, ''),
-    togetherKeys: parseKeys(rows.TOGETHER_API_KEY, rows.TOGETHER_API_KEYS, env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS')),
+    togetherKeys: parseKeys(env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS')),
     togetherModel: normalizeModel(rows.TOGETHER_TEXT_MODEL || env('TOGETHER_TEXT_MODEL'), TOGETHER_TEXT_MODELS),
     togetherBaseUrl: (rows.TOGETHER_BASE_URL || env('TOGETHER_BASE_URL') || 'https://api.together.ai/v1').replace(/\/$/, ''),
     unorouterKeys: parseKeys(rows.UNOROUTER_API_KEY, rows.UNOROUTER_API_KEYS, env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS')),
