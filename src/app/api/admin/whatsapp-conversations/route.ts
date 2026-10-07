@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
+import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { recordWhatsAppOutboundMessage, setWhatsAppConversationStatus } from '@/lib/whatsapp-conversations'
 
 export const runtime = 'nodejs'
