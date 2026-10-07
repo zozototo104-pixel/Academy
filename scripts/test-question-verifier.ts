@@ -35,8 +35,8 @@ function response(content: string) {
   return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
 
-function validResult(index = 0) {
-  return JSON.stringify({ results: [{ index, valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'مدعوم من نص المصدر المحدد.' }] })
+function validResult(indices: number[] = [0]) {
+  return JSON.stringify({ results: indices.map((index) => ({ index, valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'مدعوم من نص المصدر المحدد.' })) })
 }
 
 function rejectedResult(index = 0) {
