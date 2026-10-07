@@ -229,6 +229,9 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     return output.map((question) => applyPending(question, 'GENERATOR_MODEL_UNKNOWN')) as T[]
   }
   const generatorFamily = modelFamily(opts.generatorModel || '')
+  if (generatorFamily === 'unknown') {
+    return output.map((question) => applyPending(question, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
+  }
   const excludeProviders = [opts.generatorProvider as TextAiProvider]
   const excludeModelFamilies = [generatorFamily]
   const budget = opts.timeBudgetMs == null ? QUESTION_VERIFIER_TIME_BUDGET_MS : Math.max(0, Math.floor(opts.timeBudgetMs))
