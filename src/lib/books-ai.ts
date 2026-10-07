@@ -3,7 +3,7 @@ import { ACADEMY_INFO } from '@/lib/academyData'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 import { conciseAcademicLabel } from '@/lib/academic-output-quality'
-import { buildExamSourceChunks, selectExamSourceChunks } from '@/lib/exam-source-chunks'
+import { buildExamSourceChunks, selectExamSourceChunks, type ExamSourceChunk, type ExamSourceText } from '@/lib/exam-source-chunks'
 import { assertQuestionBatchAcceptable, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { z } from 'zod'
 
