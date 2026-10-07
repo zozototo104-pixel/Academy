@@ -250,6 +250,7 @@ export function splitOfficialWhatsAppText(text: string, maxLength = 3600): strin
 }
 
 export async function sendOfficialWhatsAppText(to: string, text: string, options?: { phoneNumberId?: string; replyToMessageId?: string }) {
+  await assertWhatsAppFreeformWindowOpen(to)
   const config = getWhatsAppCloudConfig(options?.phoneNumberId)
   if (!config) {
     throw new Error('WhatsApp Cloud API is not configured. Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID.')
