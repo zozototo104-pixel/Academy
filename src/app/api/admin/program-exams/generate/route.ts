@@ -452,7 +452,7 @@ async function exposeExamForReview(examId: string, note?: string) {
   return { ok: status === 'REVIEW', status, inserted: 0, done: status === 'REVIEW', ...totals }
 }
 
-async function runGenerationStep(examId: string): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+async function runGenerationStep(examId: string): Promise<GenerationStepResult> {
   try {
     const exam = await db.programExam.findUnique({
       where: { id: examId },
