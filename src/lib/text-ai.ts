@@ -920,16 +920,27 @@ export function modelFamily(model: string): string {
     .replace(/^qwen\//, '')
     .replace(/^deepseek\//, '')
     .replace(/^mistralai\//, '')
-  if (/gemini/.test(normalized)) return 'gemini'
-  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+    .replace(/^moonshotai\//, '')
+    .replace(/^cohere\//, '')
+  if (/gemini|gemma/.test(normalized)) return 'gemini'
+  if (/gpt[-_]?oss|\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
   if (/claude/.test(normalized)) return 'claude'
   if (/llama|codellama/.test(normalized)) return 'llama'
   if (/qwen/.test(normalized)) return 'qwen'
   if (/deepseek/.test(normalized)) return 'deepseek'
   if (/mistral|mixtral/.test(normalized)) return 'mistral'
-  if (/gemma/.test(normalized)) return 'gemma'
-  if (/phi[-_]?/.test(normalized)) return 'phi'
-  return normalized.split(/[/:@\s._-]+/).filter(Boolean)[0] || normalized || 'unknown'
+  if (/glm/.test(normalized)) return 'glm'
+  if (/nemotron/.test(normalized)) return 'nemotron'
+  if (/minimax/.test(normalized)) return 'minimax'
+  if (/kimi|moonshot/.test(normalized)) return 'kimi'
+  if (/grok/.test(normalized)) return 'grok'
+  if (/phi(?:[-_\d]|$)/.test(normalized)) return 'phi'
+  if (/command|cohere/.test(normalized)) return 'cohere'
+  if (/\byi(?:[-_\d]|$)/.test(normalized)) return 'yi'
+  if (/ernie/.test(normalized)) return 'ernie'
+  if (/hunyuan/.test(normalized)) return 'hunyuan'
+  if (/\bling(?:[-_\d.]|$)/.test(normalized)) return 'ling'
+  return 'unknown'
 }
 
 function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
