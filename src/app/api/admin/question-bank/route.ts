@@ -8,6 +8,8 @@ import { audit } from '@/lib/notify'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { z } from 'zod'
 
+export const maxDuration = 300
+
 const STATUSES = new Set(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'])
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
