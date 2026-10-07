@@ -334,7 +334,7 @@ export default function AdminRepresentativesTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-[#0f2b46]/10">
+        <Card className="min-w-0 overflow-hidden border-[#0f2b46]/10">
             <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               {!form.id && (
