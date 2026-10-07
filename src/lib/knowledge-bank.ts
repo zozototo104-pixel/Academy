@@ -1482,11 +1482,16 @@ async function rebuildKnowledgeForBookByUnits(
     where: { bookId: book.id },
     select: { sourceNote: true },
   })
-  const completedUnitNumbers = new Set<number>()
+  const completedUnitKeys = new Set<string>()
   for (const row of existingUnitNotes) {
-    const match = String(row.sourceNote || '').match(/الوحدة\s+(\d+)/u)
-    const unitNo = match ? Number(match[1]) : 0
-    if (Number.isFinite(unitNo) && unitNo > 0) completedUnitNumbers.add(unitNo)
+    const match = String(row.sourceNote || '').match(/\[unitKey:([a-f0-9]{64})\]/i)
+    if (match?.[1]) completedUnitKeys.add(match[1].toLowerCase())
+  }
+
+  const unitFingerprint = (unit: (typeof units)[number]) => {
+    const normalizedTitle = norm(String(unit.title || ''))
+    const normalizedText = norm(String(unit.text || ''))
+    return createHash('sha256').update(`${normalizedTitle}\n${normalizedText}`, 'utf8').digest('hex')
   }
 
   let inserted = 0
