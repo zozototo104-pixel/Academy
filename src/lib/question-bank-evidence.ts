@@ -38,10 +38,41 @@ export function validateQuestionBatchAgainstKnowledge<T extends { sourceIndex: n
   return { accepted, rejected }
 }
 
-export function assertQuestionBatchAcceptable(total: number, rejected: number) {
-  if (total > 0 && rejected / total > 0.5) {
-    const error = new Error(`Question evidence rejected ${rejected}/${total}`) as Error & { code?: string }
+export function assertQuestionBatchAcceptable(total: number, rejected: number, accepted = total - rejected) {
+  if (total === 0 || accepted === 0) {
+    const error = new Error('Question evidence rejected: EMPTY_BATCH') as Error & { code?: string; reason?: string }
     error.code = 'VALIDATION_REJECTED'
+    error.reason = 'EMPTY_BATCH'
     throw error
+  }
+  if (rejected / total > 0.5) {
+    const error = new Error(`Question evidence rejected ${rejected}/${total}`) as Error & { code?: string; reason?: string }
+    error.code = 'VALIDATION_REJECTED'
+    error.reason = 'TOO_MANY_REJECTIONS'
+    throw error
+  }
+}
+
+export function buildQuestionBankRecord<T extends Record<string, unknown>>(
+  question: T,
+  context: {
+    programId: string
+    knowledgeItemId: string
+    bookId?: string | null
+    semester?: number | null
+    provider?: string
+    model?: string
+  }
+) {
+  return {
+    programId: context.programId,
+    knowledgeItemId: context.knowledgeItemId,
+    bookId: context.bookId || null,
+    semester: context.semester || null,
+    ...question,
+    qualityFlags: JSON.stringify(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']),
+    reviewNotes: JSON.stringify({ aiProvenance: { provider: context.provider || null, model: context.model || null } }),
+    status: 'PENDING_REVIEW',
+    generatedBy: 'AI',
   }
 }
