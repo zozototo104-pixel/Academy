@@ -289,9 +289,9 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
       continue
     }
-    const verifierFamily = verifierContext.model ? modelFamily(verifierContext.model) : 'unknown'
-    if (!verifierContext.model || verifierFamily === 'unknown' || verifierFamily === generatorFamily) {
-      for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_SAME_FAMILY_OR_UNKNOWN')
+    const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
+    if (!familyCheck.ok) {
+      for (const item of prepared) output[item.index] = applyPending(item.question, familyCheck.reason)
       continue
     }
 
