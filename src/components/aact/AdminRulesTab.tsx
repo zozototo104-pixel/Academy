@@ -568,6 +568,29 @@ export function AdminRulesTab() {
     }
   }
 
+  const renumberUnits = async () => {
+    if (!selectedId || !selected) return
+    const confirmed = await confirmAction({
+      title: 'إعادة ترقيم وحدات البرنامج',
+      description: `سيتم ترتيب وحدات «${selected.titleAr}» إلى 1، 2، 3... داخل كل فصل حسب ترتيبها الحالي. لن يتم حذف أو تعديل محتوى أي وحدة.`,
+      confirmLabel: 'إعادة الترقيم',
+      tone: 'warning',
+    })
+    if (!confirmed) return
+    setRenumberingUnits(true)
+    try {
+      const result = await api<{ changed: number }>('/api/admin/program-rules', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'renumber-units', programId: selectedId }),
+      })
+      toast({ title: result.changed ? `تمت إعادة ترقيم ${result.changed} وحدة` : 'ترقيم الوحدات صحيح بالفعل' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر إعادة ترقيم الوحدات', variant: 'destructive' })
+    } finally {
+      setRenumberingUnits(false)
+    }
+  }
+
   const save = async (reset = false) => {
     if (!selectedId) return
     setSaving(true)
