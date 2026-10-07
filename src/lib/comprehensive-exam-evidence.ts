@@ -220,7 +220,7 @@ function parseModelQuestionForSelectedChunks(
   context: ExamGenerationProviderContext = {}
 ): ParseResult {
   const parsed = generatedExamQuestionSchema.safeParse(normalizeRawQuestion(raw))
-  if (!parsed.success) return { ok: false, rejection: firstZodRejection(rawIndex, parsed) }
+  if (!parsed.success) return { ok: false, rejection: firstZodRejection(rawIndex, parsed.error) }
 
   const item: GeneratedExamQuestionInput = parsed.data
   const chunk = selectedChunkAt(selectedChunks, item.sourceIndex)
