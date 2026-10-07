@@ -1477,14 +1477,30 @@ async function rebuildKnowledgeForBookByUnits(
   const units = splitBookIntoKnowledgeUnits(sourceText)
   if (!units.length) throw new Error('لم يتم العثور على وحدات نصية صالحة داخل الكتاب المرفوع بعد التنظيف.')
 
+  const existingUnitNotes = await db.bookKnowledgeItem.findMany({
+    where: { bookId: book.id },
+    select: { sourceNote: true },
+  })
+  const completedUnitNumbers = new Set<number>()
+  for (const row of existingUnitNotes) {
+    const match = String(row.sourceNote || '').match(/الوحدة\s+(\d+)/u)
+    const unitNo = match ? Number(match[1]) : 0
+    if (Number.isFinite(unitNo) && unitNo > 0) completedUnitNumbers.add(unitNo)
+  }
+
   let inserted = 0
   let updated = 0
   let deleted = 0
   let successfulUnits = 0
+  let resumedUnits = 0
   let skippedUnits = 0
   const seen = new Set<string>()
 
   for (const unit of units) {
+    if (completedUnitNumbers.has(unit.index + 1)) {
+      resumedUnits++
+      continue
+    }
     const rawItems = await aiKnowledgeItemsFromUnit(book.program, book, unit, semester)
     const uniqueItems: KnowledgeItemDraft[] = []
     for (const item of rawItems) {
