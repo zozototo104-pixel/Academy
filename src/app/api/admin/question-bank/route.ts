@@ -340,7 +340,7 @@ ${knowledgeText}
 
     if (!generated.length) return NextResponse.json({ error: 'لم يُرجع المزود أسئلة أكاديمية صالحة.', status: 'PAUSED' }, { status: 503 })
 
-    const finalValidation = validateQuestionBatchAgainstKnowledge(generated, knowledge)
+    const finalValidation = validateQuestionBatchAgainstKnowledge(generated, evidenceSources)
     for (const rejection of finalValidation.rejected) console.warn('question bank evidence rejected before save:', rejection)
 
     const rows: any[] = []
