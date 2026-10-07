@@ -1,5 +1,4 @@
 import type { MetadataRoute } from 'next'
-import { db } from '@/lib/db'
 import { PUBLIC_SEO_ROUTES, absoluteUrl } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
