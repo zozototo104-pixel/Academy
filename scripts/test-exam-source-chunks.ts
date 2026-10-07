@@ -35,7 +35,7 @@ function main() {
   assert.deepEqual(whitespaceChunkTokens, whitespaceOriginalTokens, 'Whitespace fallback must preserve every word intact and in order')
 
   console.log('▶ comprehensive exam chunks: selected sample is capped, distributed, and renumbered')
-  const hundred = Array.from({ length: 100 }, (_, i) => ({ sourceIndex: i + 1, bookId: 'all', bookTitle: 'كامل', text: `مقطع ${i + 1} ${'محتوى أصلي موثوق '.repeat(8)}` }))
+  const hundred = Array.from({ length: 100 }, (_, i) => ({ sourceIndex: i + 1, bookId: 'all', bookTitle: 'كامل', text: `مقطع ${i + 1} ${'محتوى أصلي موثوق '.repeat(8)}`, textProvenance: 'NATIVE_TEXT' as const }))
   const selected = selectExamSourceChunks(hundred, { maxChunks: 12, maxTotalChars: 18000 })
   assert.equal(selected.length, 12)
   assert.deepEqual(selected.map((chunk) => chunk.sourceIndex), Array.from({ length: 12 }, (_, i) => i + 1))
