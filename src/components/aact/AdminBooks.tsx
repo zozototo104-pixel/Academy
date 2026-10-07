@@ -2790,9 +2790,9 @@ export function AdminBooksTab() {
                               <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><AlertTriangle className="ml-1 h-3 w-3" /> متوقف: المزود الأكاديمي غير متاح</Badge>
                             )}
                           </div>
-                          {e.status === 'FAILED' && e.errorNote && (
-                            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-red-500">
-                              <AlertTriangle className="h-3 w-3" /> {e.errorNote} — تم حفظ {e.questionCount} سؤالاً، اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
+                          {(e.status === 'FAILED' || e.status === 'PAUSED') && e.errorNote && (
+                            <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-bold ${e.status === 'PAUSED' ? 'text-amber-600' : 'text-red-500'}`}>
+                              <AlertTriangle className="h-3 w-3" /> {e.status === 'PAUSED' ? 'المهمة محفوظة ويمكن استئنافها عند توفر المزود.' : e.errorNote} — تم حفظ {e.questionCount} سؤالاً
                             </p>
                           )}
                           {e.status === 'REVIEW' && e.questionCount < FULL_EXAM_TARGET && (
