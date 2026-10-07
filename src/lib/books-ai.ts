@@ -960,6 +960,7 @@ export async function suggestBooksForProgram(program: {
 }
 
 export interface ExamSourceBook {
+  id?: string | null
   title: string
   titleEn?: string | null
   author?: string | null
