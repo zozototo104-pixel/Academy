@@ -3,17 +3,35 @@ import { buildExamSourceChunks, selectExamSourceChunks } from '../src/lib/exam-s
 import {
   assertComprehensiveExamSourceSufficient,
   formatComprehensiveExamInsufficientSourceMessage,
+  minimumSourceChunksForComprehensiveExam,
   type ComprehensiveExamInsufficientSourceError,
 } from '../src/lib/comprehensive-exam-evidence'
 
 const sourceText = 'هذا مقطع أصلي طويل بما يكفي من كتاب مرفوع عن إدارة المخاطر، يشرح أن القرار المهني الجيد يعتمد على الدليل والسياق المؤسسي والتحقق قبل التنفيذ، وأن تجاهل المصدر يؤدي إلى نتائج ضعيفة في التقييم الأكاديمي والمهني.'
 
+function selectedChunks(count: number) {
+  return selectExamSourceChunks(buildExamSourceChunks(Array.from({ length: count }, (_, index) => ({
+    bookId: `book-${index + 1}`,
+    bookTitle: `كتاب ${index + 1}`,
+    text: `${sourceText} رقم المقطع الأصلي ${index + 1} يضيف زاوية مستقلة حتى يبقى المصدر قابلاً للتمييز في الاختبار.`,
+    contentQuality: 'UPLOADED_FILE',
+  }))))
+}
+
 function main() {
   console.log('▶ comprehensive exam insufficient source: one chunk cannot generate ten grounded questions')
 
-  const selected = selectExamSourceChunks(buildExamSourceChunks([
-    { bookId: 'book-1', bookTitle: 'كتاب واحد', text: sourceText, contentQuality: 'UPLOADED_FILE' },
-  ]))
+  assert.equal(minimumSourceChunksForComprehensiveExam(10), 4)
+
+  const fourSelected = selectedChunks(4)
+  assert.equal(fourSelected.length, 4)
+  assert.doesNotThrow(() => assertComprehensiveExamSourceSufficient({
+    availableChunks: fourSelected.length,
+    requestedQuestions: 10,
+    acceptedQuestions: 10,
+  }), 'four source chunks may support ten grounded questions when each chunk is used at most three times')
+
+  const selected = selectedChunks(1)
   assert.equal(selected.length, 1)
 
   let generatedQuestions: unknown[] | null = null
