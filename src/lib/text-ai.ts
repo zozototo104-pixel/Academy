@@ -591,14 +591,6 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 }
 
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
-  if (taskLevel === 'ACADEMIC_CRITICAL') {
-    return [...new Set(s.academicAllowlist.map((item) => item.provider))]
-      .filter((provider) => providerKeys(s, provider).length > 0)
-  }
-  if (taskLevel === 'ACADEMIC_DRAFT') {
-    const trusted = new Set<ConcreteProvider>(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER'])
-    return baseOrder(s).filter((provider) => trusted.has(provider) && providerKeys(s, provider).length > 0)
-  }
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
   const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
   return baseOrder(s).filter((provider) => {
