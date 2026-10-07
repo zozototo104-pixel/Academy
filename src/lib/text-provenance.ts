@@ -61,6 +61,7 @@ export function inferTextProvenance(input: {
   linkReadStatus?: unknown
   contentQuality?: unknown
   reader?: unknown
+  textContent?: unknown
 } = {}): TextProvenance {
   const explicit = parseTextProvenance(input.explicit) || parseTextProvenance(input.sourceNote) || parseTextProvenance(input.linkReadNote)
   if (explicit) return explicit
