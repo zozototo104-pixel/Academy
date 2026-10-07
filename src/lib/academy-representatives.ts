@@ -169,6 +169,15 @@ export async function representativeQrDataUrl(token: string, origin?: string | n
   })
 }
 
+function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officialCard') {
+  if (!row?.id) return null
+  const hasAsset = asset === 'profilePhoto'
+    ? Boolean(row.profilePhotoStorageKey || row.profilePhotoUrl)
+    : Boolean(row.officialCardStorageKey || row.officialCardUrl)
+  if (!hasAsset) return null
+  return `/api/representatives/${encodeURIComponent(row.id)}/asset/${asset}`
+}
+
 export function serializeRepresentative(row: any, origin?: string | null, includeToken = false): RepresentativePublicProfile {
   const token = row.qrToken || null
   return {
