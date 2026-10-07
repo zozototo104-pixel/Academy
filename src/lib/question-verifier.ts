@@ -83,8 +83,20 @@ function parseVerifierJson(raw: string): { results: QuestionVerifierResult[] } {
   }
 }
 
+function validationRejected(reason: string): never {
+  const error: any = new Error(reason)
+  error.code = 'VALIDATION_REJECTED'
+  error.reason = reason
+  throw error
+}
+
 function assertVerifierCoverage(raw: string, expectedIndices: readonly number[]): { results: QuestionVerifierResult[] } {
-  const parsed = parseVerifierJson(raw)
+  let parsed: { results: QuestionVerifierResult[] }
+  try {
+    parsed = parseVerifierJson(raw)
+  } catch {
+    validationRejected('INVALID_VERIFIER_RESPONSE')
+  }
   const expected = [...expectedIndices].sort((a, b) => a - b)
   const actual = parsed.results.map((item) => item.index).sort((a, b) => a - b)
   const same = expected.length === actual.length && expected.every((index, i) => index === actual[i])
