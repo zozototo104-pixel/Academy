@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 }
 
 export default function ContactPage() {
+  const whatsappUrl = `https://wa.me/${ACADEMY_INFO.whatsapp.replace(/\D/g, '')}`
   return (
     <main className="min-h-screen bg-[#0f1c35] text-white" dir="rtl">
       <div className="mx-auto max-w-4xl px-5 py-12 sm:px-8">
