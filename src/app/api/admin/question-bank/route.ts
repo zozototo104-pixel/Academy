@@ -294,25 +294,18 @@ ${knowledgeText}
       })
       const parsed = generatedQuestionsSchema.parse(parseJsonObject(raw))
       generated = parsed.questions
-    } catch (e) {
+    } catch (e: any) {
       console.error('question bank AI failed:', e)
+      const paused = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
+      await db.setting.upsert({
+        where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` },
+        create: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}`, value: JSON.stringify(paused) },
+        update: { value: JSON.stringify(paused) },
+      }).catch(() => {})
+      return NextResponse.json({ error: 'توقف توليد بنك الأسئلة مؤقتاً لأن المزود الأكاديمي غير متاح.', status: 'PAUSED', ...paused }, { status: 503 })
     }
 
-    if (!generated.length) {
-      generated = knowledge.slice(0, count).map((k, i) => ({
-        type: i % 3 === 0 ? 'SHORT' : 'MCQ',
-        text: `اشرح بإيجاز: ${k.title}`,
-        options: [`${k.title}`, 'خيار غير مرتبط', 'مصطلح عام', 'لا شيء مما سبق'],
-        correctAnswer: '0',
-        modelAnswer: k.summary,
-        sourceEvidence: k.summary,
-        sourceLocator: k.title,
-        difficulty: i % 4 === 0 ? 'ADVANCED' : 'MEDIUM',
-        cognitiveSkill: i % 4 === 0 ? 'ANALYZE' : 'UNDERSTAND',
-        sourceIndex: i + 1,
-        correctRationale: 'الإجابة مستندة إلى عنصر بنك المعرفة المحدد.',
-      }))
-    }
+    if (!generated.length) return NextResponse.json({ error: 'لم يُرجع المزود أسئلة أكاديمية صالحة.', status: 'PAUSED' }, { status: 503 })
 
     const rows: any[] = []
     for (let i = 0; i < generated.length; i++) {
