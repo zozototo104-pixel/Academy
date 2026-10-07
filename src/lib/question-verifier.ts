@@ -244,6 +244,16 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       continue
     }
 
+    if (Date.now() >= deadline) {
+      for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+      continue
+    }
+    const verifierFamily = verifierContext.model ? modelFamily(verifierContext.model) : 'unknown'
+    if (!verifierContext.model || verifierFamily === 'unknown' || verifierFamily === generatorFamily) {
+      for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_SAME_FAMILY_OR_UNKNOWN')
+      continue
+    }
+
     const byIndex = new Map(parsed.results.map((result) => [result.index, result]))
     for (const item of prepared) {
       const result = byIndex.get(item.index) || null
