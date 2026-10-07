@@ -107,6 +107,7 @@ export function buildQuestionBankRecord<T extends Record<string, unknown>>(
   void verifierReason
   void verificationPending
   void verificationReason
+  void textProvenance
   return {
     programId: context.programId,
     knowledgeItemId: context.knowledgeItemId,
