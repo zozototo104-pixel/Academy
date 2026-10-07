@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
-import { representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
+import { representativeLookupCandidates, representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
