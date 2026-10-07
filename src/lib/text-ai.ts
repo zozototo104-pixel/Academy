@@ -960,8 +960,26 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
+  if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
   if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable(attempts)
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
+}
+
+export async function textAiCompleteWithMetadata(opts: TextAiCallOpts): Promise<TextAiCompletionResult> {
+  let context: { provider?: string; model?: string } = {}
+  const text = await textAiComplete({
+    ...opts,
+    validate: (output, providerContext) => {
+      opts.validate?.(output, providerContext)
+      context = providerContext || {}
+    },
+  })
+  if (!context.provider || !context.model) throw new Error('TEXT_AI_ROUTER_MISSING_PROVIDER_METADATA')
+  return { text, provider: context.provider as ConcreteProvider, model: context.model }
+}
+
+export async function textAiCompleteJsonWithMetadata(opts: Omit<TextAiCallOpts, 'json'>): Promise<TextAiCompletionResult> {
+  return textAiCompleteWithMetadata({ ...opts, json: true })
 }
 
 export async function textAiCompleteJson(opts: Omit<TextAiCallOpts, 'json'>): Promise<string> {
