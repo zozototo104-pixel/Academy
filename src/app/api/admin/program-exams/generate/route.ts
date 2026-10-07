@@ -134,6 +134,18 @@ function stringifyJsonField(value: unknown): string | null {
   }
 }
 
+function questionReviewNotes(q: GeneratedQuestion): string | null {
+  const provider = q.sourceProvider || null
+  const model = q.sourceModel || null
+  const bookId = q.sourceBookId || null
+  const sourceIndex = q.sourceIndex ?? null
+  if (!provider && !model && !bookId && sourceIndex == null) return null
+  return stringifyJsonField({
+    aiProvenance: { provider, model },
+    source: { bookId, sourceIndex },
+  })
+}
+
 function createProgramQuestionData(examId: string, order: number, q: GeneratedQuestion) {
   return {
     examId,
