@@ -187,8 +187,28 @@ export default function AdminRepresentativesTab() {
       const res = await fetch(`/api/admin/representatives/${form.id}/assets`, { method: 'POST', body })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر رفع الملف')
-      await load()
-      toast({ title: 'تم الرفع', description: assetType === 'profilePhoto' ? 'تم تحديث صورة الممثل.' : assetType === 'officialCard' ? 'تم تحديث الكرنيه الرسمي.' : 'تم إضافة الملف/الرابط.' })
+      let nextRepresentative = data.representative as Representative | undefined
+      let rewriteApplied = false
+      if (nextRepresentative) {
+        setRows((prev) => prev.map((row) => row.id === nextRepresentative!.id ? nextRepresentative! : row))
+        setSelectedId(nextRepresentative.id)
+        setForm(formFromRepresentative(nextRepresentative))
+      }
+      if (shouldAutoRewriteAfterUpload(assetType, extras)) {
+        const rewriteRes = await fetch(`/api/admin/representatives/${form.id}/rewrite`, { method: 'POST' })
+        const rewriteData = await rewriteRes.json().catch(() => ({}))
+        if (rewriteRes.ok && rewriteData.representative) {
+          nextRepresentative = rewriteData.representative
+          setRows((prev) => prev.map((row) => row.id === nextRepresentative!.id ? nextRepresentative! : row))
+          setSelectedId(nextRepresentative.id)
+          setForm(formFromRepresentative(nextRepresentative))
+          rewriteApplied = true
+        } else {
+          toast({ title: 'تم الرفع ولم تكتمل الصياغة', description: rewriteData.message || 'حُفظ الملف، لكن لم يستطع الذكاء تفريغ محتواه الآن. يمكنك الضغط على إعادة صياغة بالذكاء لاحقاً.', variant: 'destructive' })
+        }
+      }
+      await load(nextRepresentative?.id || form.id)
+      toast({ title: 'تم الرفع', description: assetType === 'profilePhoto' ? 'تم تحديث صورة الممثل.' : assetType === 'officialCard' ? 'تم تحديث الكرنيه الرسمي.' : rewriteApplied ? 'تم إضافة الملف وتفريغ تحليله في خانات السيرة.' : 'تم إضافة الملف/الرابط.' })
     } catch (e: any) {
       toast({ title: 'فشل الرفع', description: String(e?.message || e), variant: 'destructive' })
     } finally {
