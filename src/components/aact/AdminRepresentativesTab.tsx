@@ -425,7 +425,7 @@ function AssetUploader({ label, hint, icon, accept, onUpload, uploading }: { lab
 
 function PresetFileUploader({ preset, onUpload, uploading }: { preset: { kind: string; title: string; label: string; hint: string }; onUpload: (file: File, extras: Record<string, string>) => void; uploading: boolean }) {
   return (
-    <label className="flex cursor-pointer flex-col justify-between gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-right hover:border-[#c9a227] hover:bg-amber-50/40">
+    <label className="flex min-w-0 cursor-pointer flex-col justify-between gap-3 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-right hover:border-[#c9a227] hover:bg-amber-50/40">
       <input type="file" className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file, { kind: preset.kind, title: preset.title, description: preset.hint }); e.currentTarget.value = '' }} />
       <div>
         <div className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><FileText className="h-4 w-4 text-[#c9a227]" /> {preset.label}</div>
