@@ -19,7 +19,9 @@ export function parseTextProvenance(value: unknown): TextProvenance | null {
     const raw = parsed?.textProvenance || parsed?.provenance?.textProvenance || parsed?.source?.textProvenance
     const normalized = upper(raw)
     if (normalized === 'NATIVE_TEXT' || normalized === 'VISION_OCR' || normalized === 'VISION_DESCRIPTION') return normalized
-  } catch {}
+  } catch {
+    // Non-JSON notes are allowed; fall back to marker/status inference.
+  }
   return null
 }
 
