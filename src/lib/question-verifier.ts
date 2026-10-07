@@ -251,7 +251,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     const prepared: { index: number; question: T; sourceText: string; literalPass: boolean }[] = []
     batch.forEach((question, localIndex) => {
       const index = start + localIndex
-      const source = sourceTextAtOneBasedIndex(opts.sources, question.sourceIndex ?? '', (item) => item)
+      const sourceNumber = typeof question.sourceIndex === 'string' ? Number(question.sourceIndex.trim()) : question.sourceIndex
+      const source = Number.isInteger(sourceNumber) && Number(sourceNumber) >= 1 && Number(sourceNumber) <= opts.sources.length
+        ? opts.sources[Number(sourceNumber) - 1]
+        : null
       const sourceText = source?.text
       const textProvenance = question.textProvenance || source?.textProvenance || null
       const questionWithProvenance = { ...question, textProvenance } as T
