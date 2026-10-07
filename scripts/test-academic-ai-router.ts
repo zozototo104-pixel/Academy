@@ -134,6 +134,7 @@ async function main() {
   await criticalGeminiFailureFallsThroughToUnoRouter()
   await generalKeepsExistingGatewayBehavior()
   await invalidAcademicAllowlistIsRejected()
+  await validationRejectionFallsThroughToNextModel()
   console.log('academic AI router guardrails: ok')
 }
 
