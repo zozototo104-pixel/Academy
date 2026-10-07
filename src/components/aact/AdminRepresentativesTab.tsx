@@ -455,9 +455,10 @@ function ExternalLinkUploader({ onUpload, uploading }: { onUpload: (extras: Reco
   return <div className="grid min-w-0 gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الرابط" className="rounded-xl" /><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="rounded-xl" /><Button disabled={uploading || !url.trim()} onClick={() => { onUpload({ kind: 'LINK', title, externalUrl: url }); setUrl('') }} variant="outline" className="gap-2"><ExternalLink className="h-4 w-4" /> إضافة رابط</Button></div>
 }
 
-function PreviewBox({ title, url }: { title: string; url?: string | null }) {
+function PreviewBox({ title, url, originalUrl }: { title: string; url?: string | null; originalUrl?: string | null }) {
   const [failed, setFailed] = useState(false)
   const safeUrl = String(url || '').trim()
+  const linkUrl = String(originalUrl || url || '').trim()
   return (
     <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-4">
       <p className="mb-3 text-sm font-black text-[#0f2b46]">{title}</p>
