@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { getZAI } from '@/lib/ai'
 import { textAiComplete, textAiCompleteJson } from '@/lib/text-ai'
 import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
