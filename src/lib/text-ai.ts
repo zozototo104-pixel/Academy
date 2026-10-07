@@ -995,9 +995,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   }
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
+  let onlySameFamilyModelsExcluded = false
 
   for (const provider of providers) {
-    const models = (await modelFallbacks(s, provider, taskLevel)).filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    const candidateModels = await modelFallbacks(s, provider, taskLevel)
+    const models = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       for (const key of candidateKeys(provider, s)) {
         if (isCooling(provider, key)) continue
