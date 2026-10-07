@@ -691,14 +691,16 @@ async function runGenerationSteps(
   return { ...last, inserted: totalInserted }
 }
 
-async function ensureStarterQuestions(examId: string): Promise<{ inserted: number; questionCount: number }> {
+async function ensureStarterQuestions(examId: string): Promise<GenerationStepResult> {
   const existingCount = await db.programQuestion.count({ where: { examId } })
-  if (existingCount > 0) return { inserted: 0, questionCount: existingCount }
+  if (existingCount > 0) {
+    const totals = await examTotals(examId)
+    return { ok: true, status: 'GENERATING', inserted: 0, done: false, ...totals }
+  }
 
   // لا نضع أسئلة احتياطية قبل قراءة الكتاب. الدفعة الأولى نفسها تُبنى عبر runGenerationStep
-  // من محتوى الملف/الرابط، وإذا تعطل مزود الذكاء فقط نستخدم fallback مرتبطاً بالمحتوى.
-  const step = await runGenerationSteps(examId, 1)
-  return { inserted: step.inserted, questionCount: step.questionCount }
+  // من محتوى الملف/الرابط، وإذا نقص المصدر نعيد INSUFFICIENT_SOURCE بدلاً من أي أسئلة عامة.
+  return runGenerationSteps(examId, 1)
 }
 
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
