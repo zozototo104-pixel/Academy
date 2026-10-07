@@ -916,8 +916,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
   const taskLevel = opts.taskLevel || 'GENERAL'
-  const providers = providerOrder(s, taskLevel)
+  const excluded = excludedConcreteProviders(opts.excludeProviders)
+  const providers = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
   if (!providers.length) {
+    if (isVerifierCall(opts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
     throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
   }
