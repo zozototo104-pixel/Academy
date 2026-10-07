@@ -187,7 +187,7 @@ type ParseResult =
   | { ok: true; question: GeneratedComprehensiveExamQuestion }
   | { ok: false; rejection: ComprehensiveExamRejection }
 
-function firstZodRejection(index: number, result: z.SafeParseError<GeneratedExamQuestionInput>): ComprehensiveExamRejection {
+function firstZodRejection(index: number, result: { error: { issues: { message?: string; code?: string; path?: Array<string | number> }[] } }): ComprehensiveExamRejection {
   const issue = result.error.issues[0]
   return {
     index,
