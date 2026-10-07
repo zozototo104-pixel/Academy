@@ -231,10 +231,11 @@ export function QuestionReviewDialog({
     if (!confirm('سيتم حذف كل الأسئلة الحالية وإعادة بناء الامتحان من الكتب المقررة وفق المنطق الجديد المتنوع. متابعة؟')) return
     setBusy(true)
     try {
-      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'rebuild' }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر إعادة بناء الامتحان')
       toast({
         title: 'بدأت إعادة بناء الامتحان من الكتب',
         description: `تم إنشاء ${d.questionCount || d.inserted || 0} سؤالاً أولياً، وسيكمل النظام الدفعات التالية من صفحة الكتب`,
