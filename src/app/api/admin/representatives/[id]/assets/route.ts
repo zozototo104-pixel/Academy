@@ -106,8 +106,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         extractedText: extracted?.readable ? extracted.text : null,
       },
     })
+    let updatedRepresentative = null
+    if (extracted?.readable && kind.toUpperCase() === 'CV') {
+      const rawText = extracted.text.trim().slice(0, 12000)
+      if (rawText) {
+        updatedRepresentative = await db.academyRepresentative.update({
+          where: { id },
+          data: { rawBio: rawText, aiRewriteNote: 'تم استخراج نص السيرة الذاتية من الملف المرفوع.', updatedById: user.id },
+          include: { files: true },
+        })
+      }
+    }
     await audit(user.id, 'UPLOAD_REPRESENTATIVE_FILE', id, `${representative.fullName} — ${title} — ${uploaded.name}`)
-    return NextResponse.json({ file: created, extraction: extracted ? { readable: extracted.readable, reader: extracted.reader, note: extracted.note } : null })
+    return NextResponse.json({ file: created, representative: updatedRepresentative, extraction: extracted ? { readable: extracted.readable, reader: extracted.reader, note: extracted.note } : null })
   } catch (error) {
     return NextResponse.json({ error: 'UPLOAD_FAILED', message: storageErrorMessage(error) }, { status: 500 })
   }
