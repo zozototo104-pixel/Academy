@@ -93,8 +93,9 @@ export function buildExamSourceChunks(sources: readonly ExamSourceText[], maxCha
   const chunks: Omit<ExamSourceChunk, 'sourceIndex'>[] = []
   for (const source of sources) {
     if (!isOriginalSource(source)) continue
+    const textProvenance = sourceProvenance(source)
     for (const text of splitSourceText(source.text, maxChars)) {
-      chunks.push({ bookId: source.bookId, bookTitle: source.bookTitle, text })
+      chunks.push({ bookId: source.bookId, bookTitle: source.bookTitle, text, textProvenance })
     }
   }
   return chunks.map((chunk, index) => ({ sourceIndex: index + 1, ...chunk }))
