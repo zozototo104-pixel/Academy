@@ -178,16 +178,20 @@ async function unavailableVerifierKeepsGenerationPending() {
 }
 
 async function excludedModelFamilyCanExhaustVerifierModels() {
-  process.env.OPENAI_COMPAT_API_KEY = 'mock-compat-key'
-  process.env.OPENAI_COMPAT_BASE_URL = 'https://compat.example/v1'
-  process.env.AI_TEXT_PROVIDER = 'OPENAI_COMPAT'
+  process.env.OPENROUTER_API_KEY = 'mock-openrouter-key'
+  process.env.AI_TEXT_PROVIDER = 'OPENROUTER'
   process.env.AI_ROUTER_POLICY = 'fallback_only'
-  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENAI_COMPAT:gpt-oss-120b:free'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENROUTER:google/gemini-3.8-flash'
   await withMockFetch(
-    () => new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } }),
+    (call) => {
+      if (call.url.includes('openrouter.ai') && /\/models(?:\?|$)/.test(call.url)) {
+        return new Response(JSON.stringify({ data: [{ id: 'google/gemini-3.8-flash', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+    },
     async (calls) => {
-      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'openai/gpt-4o' })
-      assert.equal(calls.length, 0, 'verifier should not call a model whose family is excluded')
+      const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'google/gemini-3.8-flash' })
+      assert.equal(calls.some((call) => call.url.includes('/chat/completions')), false, 'OpenRouter should not be called when it only has excluded Gemini-family models')
       assert.equal(result[0].verificationPending, true)
       assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
     }
