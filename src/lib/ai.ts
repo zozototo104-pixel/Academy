@@ -598,10 +598,13 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
 أجب بصيغة JSON فقط بدون أي نص إضافي:
 {"points": <رقم من 0 إلى ${maxPoints}>, "feedback": "<التغذية الراجعة بالعربية>"}`
 
-  const raw = await chatWithRetry(zai, [
-    { role: 'assistant', content: 'أنت مصحح أكاديمي دقيق يرجع بـ JSON فقط.' },
-    { role: 'user', content: prompt },
-  ])
+  const raw = await textAiCompleteJson({
+    system: 'أنت مصحح أكاديمي دقيق يرجع بـ JSON فقط.',
+    history: [{ role: 'user', text: prompt }],
+    temperature: 0.1,
+    maxOutputTokens: 1200,
+    taskLevel: 'ACADEMIC_CRITICAL',
+  })
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
