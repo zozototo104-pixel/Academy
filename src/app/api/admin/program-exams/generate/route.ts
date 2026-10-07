@@ -965,6 +965,7 @@ export async function POST(req: NextRequest) {
         inserted: step.inserted,
         status: step.status,
         done: step.done,
+        ...generationFailureDetails(step),
         requiredQuestions: totalRequiredQuestions(),
       })
     }
