@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { __resetTextAiStateForTests, textAiComplete } from '../src/lib/text-ai'
+import { __resetTextAiStateForTests, textAiComplete, textAiDiagnostics } from '../src/lib/text-ai'
 
 type FetchCall = { url: string; init?: RequestInit }
 
