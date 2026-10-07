@@ -228,6 +228,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
+    if (source === 'REVIEW_LEGACY_GROUNDING') {
+      const legacy = await db.questionBankItem.findMany({
+        where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
+        select: { id: true },
+      })
+      if (legacy.length) {
+        await db.questionBankItem.updateMany({
+          where: { id: { in: legacy.map((item) => item.id) } },
+          data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) },
+        })
+      }
+      await audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`)
+      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
+    }
+
     if (source === 'IMPORT') {
       const imported = parseImportedQuestions(body?.questions || body?.text || body?.csv)
       const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
