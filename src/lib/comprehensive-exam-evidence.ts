@@ -187,13 +187,13 @@ type ParseResult =
   | { ok: true; question: GeneratedComprehensiveExamQuestion }
   | { ok: false; rejection: ComprehensiveExamRejection }
 
-function firstZodRejection(index: number, result: { error: { issues: { message?: string; code?: string; path?: Array<string | number> }[] } }): ComprehensiveExamRejection {
+function firstZodRejection(index: number, result: { error: { issues: { message?: string; code?: string; path?: PropertyKey[] }[] } }): ComprehensiveExamRejection {
   const issue = result.error.issues[0]
   return {
     index,
     stage: 'ZOD',
     reason: issue?.message || issue?.code || 'INVALID_QUESTION_SHAPE',
-    zodPath: issue?.path?.length ? issue.path.join('.') : undefined,
+    zodPath: issue?.path?.length ? issue.path.map(String).join('.') : undefined,
   }
 }
 
