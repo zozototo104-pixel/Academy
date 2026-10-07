@@ -57,6 +57,26 @@ export function assertQuestionBatchAcceptable(total: number, rejected: number, a
   }
 }
 
+function questionQualityFlags(question: Record<string, unknown>): string[] {
+  return Array.isArray(question.qualityFlags) && question.qualityFlags.length
+    ? question.qualityFlags.map(String).filter(Boolean)
+    : ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']
+}
+
+function questionReviewNotes(question: Record<string, unknown>, context: { provider?: string; model?: string }): string {
+  return JSON.stringify({
+    aiProvenance: { provider: context.provider || null, model: context.model || null },
+    verifier: {
+      provider: question.verifierProvider || null,
+      model: question.verifierModel || null,
+      verifiedAt: question.verifiedAt || null,
+      reason: question.verifierReason || null,
+      pending: question.verificationPending || false,
+      pendingReason: question.verificationReason || null,
+    },
+  })
+}
+
 export function buildQuestionBankRecord<T extends Record<string, unknown>>(
   question: T,
   context: {
@@ -74,8 +94,8 @@ export function buildQuestionBankRecord<T extends Record<string, unknown>>(
     bookId: context.bookId || null,
     semester: context.semester || null,
     ...question,
-    qualityFlags: JSON.stringify(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']),
-    reviewNotes: JSON.stringify({ aiProvenance: { provider: context.provider || null, model: context.model || null } }),
+    qualityFlags: JSON.stringify(questionQualityFlags(question)),
+    reviewNotes: questionReviewNotes(question, context),
     status: 'PENDING_REVIEW',
     generatedBy: 'AI',
   }
