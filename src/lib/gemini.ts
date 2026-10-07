@@ -448,8 +448,14 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
     try {
       return await textAiCompleteJson(opts)
     } catch (e) {
-      if (!hasGemini()) throw e
+      if (!hasGemini() || opts.excludeProviders?.includes('GEMINI')) throw e
     }
+  }
+
+  if (opts.excludeProviders?.includes('GEMINI')) {
+    const error: any = new Error('AI_VERIFIER_UNAVAILABLE')
+    error.code = 'AI_VERIFIER_UNAVAILABLE'
+    throw error
   }
 
   const ai = getGemini()
