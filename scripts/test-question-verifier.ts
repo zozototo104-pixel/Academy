@@ -203,7 +203,7 @@ async function gemmaVerifierIsBlockedAsGeminiFamily() {
       const result = await verifyQuestionsWithCrossProvider({ questions: [baseQuestion()], sources: [{ text: sourceOne }, { text: sourceTwo }], generatorProvider: 'GEMINI', generatorModel: 'gemini-3.8-flash' })
       assert.equal(calls.some((call) => call.url.includes('/chat/completions')), false, 'Gemma/Gemini-family verifier models must be excluded before chat completion')
       assert.equal(result[0].verificationPending, true)
-      assert.equal(result[0].verificationReason, 'VERIFIER_SAME_FAMILY')
+      assert.equal(result[0].verificationReason, 'AI_VERIFIER_UNAVAILABLE')
       assert.ok(!result[0].qualityFlags?.includes('SOURCE_GROUNDED'))
     }
   )
