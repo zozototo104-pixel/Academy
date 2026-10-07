@@ -273,7 +273,7 @@ async function fetchWithTimeout(provider: string, url: string, init: RequestInit
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e: any) {
     if (e?.name === 'AbortError') {
-      const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${timeoutMs}ms`)
+      const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
       err.status = 504
       err.code = 'AI_PROVIDER_TIMEOUT'
       throw err
