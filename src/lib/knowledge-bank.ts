@@ -1458,6 +1458,13 @@ ${unitText}
         temperature: 0.05,
         maxOutputTokens: 8192,
         taskLevel: 'ACADEMIC_CRITICAL',
+        validate: (text) => {
+          if (!normalizeUnitItems(text).length) {
+            const err: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+            err.code = 'VALIDATION_REJECTED'
+            throw err
+          }
+        },
       }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ROUTER_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
     ])
