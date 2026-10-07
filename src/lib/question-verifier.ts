@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { sourceTextAtOneBasedIndex, validateLiteralEvidence } from './evidence-validator'
-import { textAiCompleteJson, type TextAiProvider } from './text-ai'
+import { modelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
 
 export type QuestionVerifierResult = {
   index: number
