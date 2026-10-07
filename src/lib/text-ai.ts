@@ -560,7 +560,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
     provider === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
     OPENAI_COMPAT_TEXT_MODELS
-  const discoveredFree = await liveFreeModels(provider, s)
+  const discoveredFree = taskLevel === 'GENERAL' ? await liveFreeModels(provider, s) : []
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
   const models = [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
