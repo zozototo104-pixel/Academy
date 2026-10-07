@@ -2108,8 +2108,8 @@ ${plannedTypes}
 [
 {"type":"MCQ","text":"...","options":["خيار صحيح مقتبس المعنى من المصدر","مشتت قريب","مشتت قريب","مشتت قريب"],"correctAnswer":"خيار صحيح مقتبس المعنى من المصدر","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"MEDIUM","rationale":"سبب صحة الخيار الصحيح مستنداً إلى الدليل","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":2},
 {"type":"TF","text":"...","options":["صح","خطأ"],"correctAnswer":"صح","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"EASY","rationale":"سبب صحة الحكم","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":2},
-{"type":"SHORT","text":"...","sourceIndex":2,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"MEDIUM","rationale":"معيار قبول الإجابة القصيرة","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":5},
-{"type":"ESSAY","text":"...","sourceIndex":3,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"ADVANCED","rationale":"معيار قبول الإجابة المقالية","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":10}
+{"type":"SHORT","text":"...","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"MEDIUM","rationale":"معيار قبول الإجابة القصيرة","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":5},
+{"type":"ESSAY","text":"...","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"ADVANCED","rationale":"معيار قبول الإجابة المقالية","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":10}
 ]`
 
   let raw = ''
