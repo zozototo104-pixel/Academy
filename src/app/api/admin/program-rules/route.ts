@@ -226,7 +226,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
 
-    const body = await req.json().catch(() => ({}))
     const payload = programCreateSchema.parse(body.program || body)
     const lastProgram = await db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })
     const sortOrder = payload.sortOrder ?? Number(lastProgram?.order || 0) + 10
