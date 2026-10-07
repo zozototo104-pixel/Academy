@@ -44,9 +44,14 @@ export interface GeneratedQuestion {
   modelAnswer?: string
   points?: number
   bookEvidence?: string
+  sourceEvidence?: string
+  sourceIndex?: number | string
+  sourceBookId?: string
   sourceBookTitle?: string
   sourceChapter?: string
   sourceLocator?: string
+  sourceProvider?: string
+  sourceModel?: string
   cognitiveSkill?: CognitiveSkill
   difficulty?: QuestionDifficulty
   correctRationale?: string
