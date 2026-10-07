@@ -2024,7 +2024,11 @@ ${plannedTypes}
     requestedQuestions: requestedPlan.length,
     acceptedQuestions: balanced.length,
   })
-  return balanced.slice(0, requestedPlan.length)
+  return verifyQuestionsWithCrossProvider({
+    questions: balanced.slice(0, requestedPlan.length),
+    sources: selectedSourceChunks.map((chunk) => ({ text: chunk.text })),
+    generatorProvider: generationContext.provider,
+  })
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length
