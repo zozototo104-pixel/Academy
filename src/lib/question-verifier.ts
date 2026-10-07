@@ -251,14 +251,17 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     const prepared: { index: number; question: T; sourceText: string; literalPass: boolean }[] = []
     batch.forEach((question, localIndex) => {
       const index = start + localIndex
-      const sourceText = sourceTextAtOneBasedIndex(opts.sources, question.sourceIndex ?? '', (item) => item.text)
-      const evidence = sourceEvidence(question)
+      const source = sourceTextAtOneBasedIndex(opts.sources, question.sourceIndex ?? '', (item) => item)
+      const sourceText = source?.text
+      const textProvenance = question.textProvenance || source?.textProvenance || null
+      const questionWithProvenance = { ...question, textProvenance } as T
+      const evidence = sourceEvidence(questionWithProvenance)
       const literal = sourceText == null ? { ok: false as const, reason: 'BAD_INDEX' } : validateLiteralEvidence({ evidence, sourceText })
       if (sourceText == null) {
-        output[index] = applyRejected(question, null, 'BAD_INDEX')
+        output[index] = applyRejected(questionWithProvenance, null, 'BAD_INDEX')
         return
       }
-      prepared.push({ index, question, sourceText, literalPass: literal.ok })
+      prepared.push({ index, question: questionWithProvenance, sourceText, literalPass: literal.ok })
     })
     if (!prepared.length) continue
 
