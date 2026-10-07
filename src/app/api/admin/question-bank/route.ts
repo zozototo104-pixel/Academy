@@ -347,8 +347,8 @@ ${knowledgeText}
     for (let i = 0; i < finalValidation.accepted.length; i++) {
       const item = finalValidation.accepted[i]
       const requestedSourceIndex = Number(item.sourceIndex)
-      const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= knowledge.length
-        ? knowledge[requestedSourceIndex - 1]
+      const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= evidenceKnowledge.length
+        ? evidenceKnowledge[requestedSourceIndex - 1]
         : null
       if (!source) continue
       const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote })
