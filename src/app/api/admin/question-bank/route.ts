@@ -153,7 +153,7 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
     difficulty,
     correctRationale: cleanText(raw?.correctRationale || raw?.rationale, 1000) || null,
     distractorRationales: raw?.distractorRationales ? JSON.stringify(raw.distractorRationales).slice(0, 1800) : null,
-    qualityFlags: JSON.stringify(['SOURCE_GROUNDED', 'NEEDS_HUMAN_REVIEW']),
+    qualityFlags: JSON.stringify(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']),
   }
 }
 
