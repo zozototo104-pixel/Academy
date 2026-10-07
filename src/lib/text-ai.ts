@@ -111,7 +111,6 @@ const UNOROUTER_TEXT_MODELS = [
   'minimax-m2.5:free',
   'deepseek/deepseek-v3.2:free',
   'deepseek/deepseek-chat:free',
-  'dall-e-3:free',
   'gpt-3.5-turbo:free',
   'gpt-4-turbo:free',
   'agnes-2.0-flash:free',
