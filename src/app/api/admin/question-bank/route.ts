@@ -198,7 +198,9 @@ export async function GET(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status) })
+    const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
+    const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
+    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
