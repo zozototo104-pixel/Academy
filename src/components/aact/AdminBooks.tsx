@@ -2927,7 +2927,7 @@ export function AdminBooksTab() {
                               {generating || exams.some((x) => x.status === 'GENERATING') ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                             </Button>
                           )}
-                          {(e.status === 'FAILED' || e.status === 'REVIEW' || e.status === 'READY') && (
+                          {(e.status === 'FAILED' || e.status === 'PAUSED' || e.status === 'REVIEW' || e.status === 'READY') && (
                             <Button size="sm" variant="ghost" onClick={() => deleteExam(e.id)} className="text-red-400 hover:bg-red-50 hover:text-red-600" title="حذف الامتحان بالكامل">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
