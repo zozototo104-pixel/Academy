@@ -441,6 +441,7 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 }
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL') return textAiCompleteJson(opts)
   if (await hasExternalTextAi()) {
     try {
       return await textAiCompleteJson(opts)
