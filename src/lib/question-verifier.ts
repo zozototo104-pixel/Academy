@@ -33,6 +33,8 @@ export type VerifiableQuestion = {
 
 export type VerificationSource = { text: string }
 
+export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
+
 const verifierItemSchema = z.object({
   index: z.number().int().nonnegative(),
   valid: z.boolean(),
