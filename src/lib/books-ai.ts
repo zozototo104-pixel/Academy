@@ -2026,7 +2026,7 @@ ${plannedTypes}
   })
   return verifyQuestionsWithCrossProvider({
     questions: balanced.slice(0, requestedPlan.length),
-    sources: selectedSourceChunks.map((chunk) => ({ text: chunk.text })),
+    sources: selectedSourceChunks.map((chunk) => ({ text: chunk.text, textProvenance: chunk.textProvenance })),
     generatorProvider: generationContext.provider,
     generatorModel: generationContext.model,
   })
