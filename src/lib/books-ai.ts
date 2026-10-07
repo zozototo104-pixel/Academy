@@ -717,7 +717,7 @@ async function completeJsonWithFallback(args: {
 
   try {
     const zai = await getZAI()
-    return await withTimeout(chatWithRetry(
+    const text = await withTimeout(chatWithRetry(
       zai,
       [
         { role: 'assistant', content: args.system },
@@ -725,6 +725,8 @@ async function completeJsonWithFallback(args: {
       ],
       args.retries ?? 3
     ), timeoutMs, `${args.label}_ZAI`)
+    args.validate?.(text, { provider: 'ZAI', model: 'z-ai-web-dev-sdk' })
+    return text
   } catch (e: any) {
     const msg = String(e?.message || e).slice(0, 220)
     errors.push(`ZAI: ${msg}`)
