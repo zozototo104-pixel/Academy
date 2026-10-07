@@ -52,6 +52,12 @@ export interface GeneratedQuestion {
   sourceLocator?: string
   sourceProvider?: string
   sourceModel?: string
+  verifierProvider?: string
+  verifierModel?: string
+  verifiedAt?: string
+  verifierReason?: string
+  verificationPending?: boolean
+  verificationReason?: string
   cognitiveSkill?: CognitiveSkill
   difficulty?: QuestionDifficulty
   correctRationale?: string
