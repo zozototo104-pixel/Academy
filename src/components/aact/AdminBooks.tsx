@@ -990,6 +990,24 @@ export function AdminBooksTab() {
     }
   }
 
+  const markLegacyQuestionGroundingForReview = async () => {
+    if (!programId) return
+    setQuestionBankBusy('legacy-review')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; marked: number }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, source: 'REVIEW_LEGACY_GROUNDING' }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      toast({ title: 'تم تعليم الأسئلة القديمة للمراجعة', description: `تم تعليم ${res.marked || 0} سؤال دون حذفها.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعليم الأسئلة القديمة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
   const addManualQuestionToBank = async () => {
     if (!programId) return
     setQuestionBankBusy('manual')
