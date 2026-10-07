@@ -47,6 +47,76 @@ export const DEFAULT_ACCREDITATION_PAGE = {
   }>,
 }
 
+export const SECRET_SETTING_KEY_RE = /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i
+export const MASKED_SECRET_RE = /^••••.{0,8}$/
+
+export const PUBLIC_SETTING_KEYS = new Set<string>([
+  'DISCLOSURE_CONSENT_TEXT',
+  'TRUST_BANNER_TEXT',
+  'HOME_STATS',
+  'ACCREDITATION_PAGE',
+  'OFFICIAL_CONTACT',
+  'AI_LIVE_PACKAGE_MINUTES',
+  'AI_LIVE_PACKAGE_PRICE_USD',
+  'PAYMENT_MODE',
+  'USDT_WALLET_ADDRESS',
+  'USDT_NETWORK',
+  'USDT_PAYMENT_INSTRUCTIONS',
+  'USDT_BINANCE_PAY_USER_ID',
+  'USDT_BINANCE_PAY_QR_IMAGE_URL',
+  'BINANCE_DOWNLOAD_URL',
+  'BINANCE_PAY_WEB_URL',
+  'BINANCE_PAY_GUIDE_URL',
+])
+
+function isFeeSettingKey(key: string): boolean {
+  return key.startsWith('FEE_')
+}
+
+export function isPublicSettingKey(key: string): boolean {
+  return PUBLIC_SETTING_KEYS.has(key) || isFeeSettingKey(key) || key.startsWith('AI_LIVE_PACKAGE_')
+}
+
+export function isSecretSettingKey(key: string): boolean {
+  return SECRET_SETTING_KEY_RE.test(key)
+}
+
+export function maskSecretValue(value: string): string {
+  const v = String(value || '')
+  if (!v) return ''
+  return `••••${v.slice(-4)}`
+}
+
+export function isMaskedSecretValue(value: unknown): boolean {
+  return typeof value === 'string' && MASKED_SECRET_RE.test(value.trim())
+}
+
+export function sanitizePublicSettings(values: Record<string, string>): Record<string, string> {
+  const safe: Record<string, string> = {}
+  for (const [key, value] of Object.entries(values)) {
+    if (!isPublicSettingKey(key)) continue
+    if (isSecretSettingKey(key)) continue
+    safe[key] = value
+  }
+  return safe
+}
+
+export function maskSettingsForAdmin(values: Record<string, string>): Record<string, string> {
+  const masked: Record<string, string> = {}
+  for (const [key, value] of Object.entries(values)) {
+    masked[key] = isSecretSettingKey(key) ? maskSecretValue(value) : value
+  }
+  return masked
+}
+
+export function publicSettingDefs(): SettingDef[] {
+  return DEFAULT_SETTINGS.filter((def) => isPublicSettingKey(def.key) && !isSecretSettingKey(def.key)).map((def) => ({ ...def, secret: false }))
+}
+
+export function adminSettingDefs(): SettingDef[] {
+  return DEFAULT_SETTINGS.map((def) => ({ ...def, secret: def.secret || isSecretSettingKey(def.key) }))
+}
+
 export const DEFAULT_SETTINGS: SettingDef[] = [
   // الرسوم العامة: أسعار البرامج الافتراضية فقط، أما سعر كل برنامج فيُعدل من قواعد القبول.
   { key: 'FEE_APPLICATION', value: '30', label: 'رسوم التقديم وحجز المقعد (غير مستردة)', group: 'FEES', suffix: '$', inputType: 'number' },
