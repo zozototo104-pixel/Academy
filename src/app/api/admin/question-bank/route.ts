@@ -289,7 +289,11 @@ ${knowledgeText}
 
     const rows: any[] = []
     for (let i = 0; i < generated.length; i++) {
-      const source = knowledge[i % knowledge.length]
+      const requestedSourceIndex = Number(generated[i]?.sourceIndex)
+      const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= knowledge.length
+        ? knowledge[requestedSourceIndex - 1]
+        : null
+      if (!source) continue
       const q = sanitizeQuestion(generated[i], { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote })
       if (!q.text || q.text.length < 12) continue
       const key = norm(q.text)
