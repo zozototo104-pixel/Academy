@@ -189,7 +189,7 @@ async function gemmaVerifierIsBlockedAsGeminiFamily() {
   await withMockFetch(
     (call) => {
       if (call.url.includes('openrouter.ai') && /\/models(?:\?|$)/.test(call.url)) {
-        return new Response(JSON.stringify({ data: [{ id: 'google/gemma-3-27b:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ data: [{ id: 'google/gemma-3-70b:free', is_free: true, online: true, type: 'text' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       if (call.url.includes('/chat/completions')) return response(validResult())
       return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
