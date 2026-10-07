@@ -413,7 +413,7 @@ function CountryCombobox({ value, onChange }: { value: string; onChange: (value:
 
 function AssetUploader({ label, hint, icon, accept, onUpload, uploading }: { label: string; hint?: string; icon: ReactNode; accept?: string; onUpload: (file: File) => void; uploading: boolean }) {
   return (
-    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]">
+    <label className="flex min-w-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm font-black text-[#0f2b46] hover:border-[#c9a227]">
       <input type="file" accept={accept} className="hidden" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) onUpload(file); e.currentTarget.value = '' }} />
       {icon}
       <span>{label}</span>
