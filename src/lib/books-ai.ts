@@ -964,6 +964,7 @@ export interface ExamSourceBook {
   textContent?: string | null
   sourceNote?: string | null
   contentQuality?: string | null
+  linkReadStatus?: string | null
 }
 
 const EXAM_BOOK_MAX_CHARS = 180000
