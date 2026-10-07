@@ -595,6 +595,7 @@ ${recent || 'بدأت الجلسة للتو.'}
               return n
             })
           }
+          processedSignalIdsRef.current.add(sig.id)
         } catch {}
       }
     },
