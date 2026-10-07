@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { normalizeArabic } from './arabic-normalize'
 import type { ExamSourceChunk } from './exam-source-chunks'
+import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
 import { validateQuestionBatchAgainstKnowledge } from './question-bank-evidence'
 
 export type CognitiveSkill = 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE'
