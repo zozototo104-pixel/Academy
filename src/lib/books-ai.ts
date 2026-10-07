@@ -53,6 +53,7 @@ export interface GeneratedQuestion {
   sourceLocator?: string
   sourceProvider?: string
   sourceModel?: string
+  textProvenance?: TextProvenance
   verifierProvider?: string
   verifierModel?: string
   verifiedAt?: string
