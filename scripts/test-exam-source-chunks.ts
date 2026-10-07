@@ -30,11 +30,9 @@ function main() {
   const whitespaceSplit = buildExamSourceChunks([{ bookId: 'spaces', bookTitle: 'مسافات فقط', text: wordsOnly, contentQuality: 'UPLOADED_FILE' }], 1800)
   assert.ok(wordsOnly.length > 4000)
   assert.ok(whitespaceSplit.length >= 2)
-  assert.deepEqual(
-    whitespaceSplit.map((c) => c.text).join(' ').trim().split(/\s+/),
-    wordsOnly.trim().split(/\s+/),
-    'Whitespace fallback must preserve every word intact and in order'
-  )
+  const whitespaceOriginalTokens = wordsOnly.trim().split(/\s+/)
+  const whitespaceChunkTokens = whitespaceSplit.map((c) => c.text).join(' ').trim().split(/\s+/)
+  assert.deepEqual(whitespaceChunkTokens, whitespaceOriginalTokens, 'Whitespace fallback must preserve every word intact and in order')
 
   console.log('▶ comprehensive exam chunks: selected sample is capped, distributed, and renumbered')
   const hundred = Array.from({ length: 100 }, (_, i) => ({ sourceIndex: i + 1, bookId: 'all', bookTitle: 'كامل', text: `مقطع ${i + 1} ${'محتوى أصلي موثوق '.repeat(8)}` }))
