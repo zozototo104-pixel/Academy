@@ -1086,17 +1086,24 @@ export async function POST(req: NextRequest) {
 
     // نُنشئ الدفعة الأولى الآن من محتوى الكتاب/الرابط. بقية الدفعات تكملها الواجهة تدريجياً عبر زر/تحريك التوليد.
     const starter = await ensureStarterQuestions(exam.id)
-
-    return NextResponse.json({
-      ok: true,
+    const starterPayload = {
+      ok: starter.ok,
       examId: exam.id,
       booksCount,
       semester: sem,
       resumed: false,
       existingQuestions: starter.questionCount,
       inserted: starter.inserted,
+      status: starter.status,
+      done: starter.done,
+      ...generationFailureDetails(starter),
       requiredQuestions: totalRequiredQuestions(),
-    })
+    }
+    if (!starter.ok) {
+      return NextResponse.json(starterPayload, { status: starter.code === 'INSUFFICIENT_SOURCE' ? 422 : 500 })
+    }
+
+    return NextResponse.json(starterPayload)
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam generate error:', e)
