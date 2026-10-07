@@ -192,7 +192,8 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   }
   const excludeProviders = [opts.generatorProvider as TextAiProvider]
   const excludeModelFamilies = opts.generatorModel ? [modelFamily(opts.generatorModel)] : []
-  const deadline = Date.now() + Math.max(1, Math.floor(opts.timeBudgetMs ?? QUESTION_VERIFIER_TIME_BUDGET_MS))
+  const budget = opts.timeBudgetMs == null ? QUESTION_VERIFIER_TIME_BUDGET_MS : Math.max(0, Math.floor(opts.timeBudgetMs))
+  const deadline = Date.now() + budget
 
   for (let start = 0; start < output.length; start += batchSize) {
     if (Date.now() >= deadline) {
