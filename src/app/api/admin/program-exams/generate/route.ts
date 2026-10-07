@@ -6,6 +6,7 @@ import { audit } from '@/lib/notify'
 import { generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS, type ExamSourceBook, type GeneratedQuestion } from '@/lib/books-ai'
 import { hydrateBookContentForExam, type HydratedExamBook } from '@/lib/book-content'
 import { buildKnowledgeContextForExam, cleanAcademicGeneratedText } from '@/lib/knowledge-bank'
+import { formatComprehensiveExamInsufficientSourceMessage } from '@/lib/comprehensive-exam-evidence'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
