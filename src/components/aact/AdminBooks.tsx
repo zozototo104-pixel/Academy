@@ -2710,6 +2710,10 @@ export function AdminBooksTab() {
                   {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   توليد أسئلة من بنك المعرفة
                 </Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'legacy-review'} onClick={markLegacyQuestionGroundingForReview} className="bg-white text-xs font-black">
+                  {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  تعليم الأسئلة القديمة للمراجعة
+                </Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" disabled={questionBankBusy === 'exam-load'} onClick={openExamImport}>
