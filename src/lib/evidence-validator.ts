@@ -25,9 +25,10 @@ export function validateLiteralEvidence({
 
 export function sourceTextAtOneBasedIndex<T>(
   sources: readonly T[],
-  sourceIndex: number,
+  sourceIndex: number | string,
   getText: (source: T) => unknown
 ): string | null {
-  if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > sources.length) return null
-  return String(getText(sources[sourceIndex - 1]) ?? '')
+  const n = typeof sourceIndex === 'string' ? Number(sourceIndex.trim()) : sourceIndex
+  if (!Number.isInteger(n) || n < 1 || n > sources.length) return null
+  return String(getText(sources[n - 1]) ?? '')
 }
