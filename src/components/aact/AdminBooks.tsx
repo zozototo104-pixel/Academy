@@ -1516,10 +1516,11 @@ export function AdminBooksTab() {
     if (!(await askAdminConfirm({ title: `توليد امتحان ${semLabel}`, description: confirmText, confirmLabel: 'بدء التوليد' }))) return
     setGenerating(true)
     try {
-      const d = await api<{ examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ programId, semester: sem }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر توليد الامتحان')
       toast({
         title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
         description: d.resumed
