@@ -224,6 +224,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
         excludeProviders,
+        excludeModelFamilies,
         validate: (text, context) => {
           verifierContext = context || {}
           assertVerifierCoverage(text, prepared.map((item) => item.index))
