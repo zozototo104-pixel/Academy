@@ -881,7 +881,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const at = new Date().toISOString()
           const ms = Date.now() - started
           lastResult = { provider, model, ok: true, at }
-          recordAttempt({ provider, model, keyIndex, ok: true, ms, at })
+          const attempt = { provider, model, keyIndex, ok: true, ms, at }
+          attempts.push(attempt)
+          recordAttempt(attempt)
           return text
         } catch (e: any) {
           const at = new Date().toISOString()
