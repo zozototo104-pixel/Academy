@@ -1869,11 +1869,13 @@ export async function generateExamQuestionBatch(
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
   const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
-  assertComprehensiveExamSourceSufficient({
-    availableChunks: selectedSourceChunks.length,
-    requestedQuestions: requestedPlan.length,
-    acceptedQuestions: 0,
-  })
+  if (selectedSourceChunks.length < requestedPlan.length) {
+    throwComprehensiveExamInsufficientSource({
+      availableChunks: selectedSourceChunks.length,
+      requestedQuestions: requestedPlan.length,
+      acceptedQuestions: 0,
+    })
+  }
   const sourceChunksSection = formatSelectedExamSourceChunksForPrompt(selectedSourceChunks)
   const typeLabel = (t: PlannedQuestionKind) => t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t
   const planCounts = requestedPlan.reduce<Record<string, number>>((acc, t) => {
