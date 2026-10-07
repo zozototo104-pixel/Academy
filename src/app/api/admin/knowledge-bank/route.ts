@@ -100,7 +100,20 @@ export async function POST(req: NextRequest) {
     if (action === 'rebuild-book' || action === 'read-book-full') {
       if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
       const strictFullRead = action === 'read-book-full' || body.strictFullRead === true
-      const result = await rebuildKnowledgeForBook(bookId, { strictFullRead })
+      let result
+      try {
+        result = await rebuildKnowledgeForBook(bookId, { strictFullRead })
+      } catch (e: any) {
+        if (e?.code !== 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
+        const paused = { code: e.code, reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
+        await db.setting.upsert({
+          where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` },
+          create: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}`, value: JSON.stringify(paused) },
+          update: { value: JSON.stringify(paused) },
+        }).catch(() => {})
+        return NextResponse.json({ error: 'توقف تحليل الكتاب مؤقتاً لأن المزود الأكاديمي غير متاح. يمكن استئنافه لاحقاً من نفس زر القراءة الكاملة.', status: 'PAUSED', ...paused }, { status: 503 })
+      }
+      await db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {})
       await audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`)
       const items = await getProgramKnowledgeItems(result.programId, semester, 140)
       return NextResponse.json({ ok: true, strictFullRead, result, count: items.length, stats: categoryStats(items), items })
