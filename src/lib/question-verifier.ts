@@ -268,6 +268,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         taskLevel: 'ACADEMIC_CRITICAL',
         excludeProviders,
         excludeModelFamilies,
+        deadlineMs: deadline,
         validate: (text, context) => {
           verifierContext = context || {}
           assertVerifierCoverage(text, prepared.map((item) => item.index))
