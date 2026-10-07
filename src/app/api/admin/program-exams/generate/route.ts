@@ -610,12 +610,12 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: 'FAILED',
-        errorNote: `توقف التوليد بعد حفظ ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()}: ${message} — اضغط استكمال/تحريك ليكمل من حيث توقف دون تكرار`,
+        status: 'PAUSED',
+        errorNote: JSON.stringify({ code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: message, retryAt: e?.retryAt || null, savedQuestions: totals.questionCount }),
         totalPoints: totals.totalPoints,
       },
     }).catch(() => {})
-    return { ok: false, status: 'FAILED', inserted: 0, done: false, error: message, ...totals }
+    return { ok: false, status: 'PAUSED', inserted: 0, done: false, error: message, ...totals }
   }
 }
 
