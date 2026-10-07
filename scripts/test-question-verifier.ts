@@ -289,6 +289,7 @@ async function main() {
   await runCase('verifierAcceptsButLiteralFailDoesNotGround', verifierAcceptsButLiteralFailDoesNotGround)
   await runCase('unavailableVerifierKeepsGenerationPending', unavailableVerifierKeepsGenerationPending)
   await runCase('excludedModelFamilyCanExhaustVerifierModels', excludedModelFamilyCanExhaustVerifierModels)
+  await runCase('missingIndexFromAllProvidersDoesNotPartiallyGround', missingIndexFromAllProvidersDoesNotPartiallyGround)
   await runCase('missingIndexFallsThroughToNextProvider', missingIndexFallsThroughToNextProvider)
   await runCase('timeBudgetMarksRemainingPending', timeBudgetMarksRemainingPending)
   console.log('question verifier guardrails: ok')
