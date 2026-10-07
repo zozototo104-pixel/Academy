@@ -119,6 +119,18 @@ export function normalizeRepresentativeSlug(value: string, fallback = 'represent
   return slug || fallback
 }
 
+export function representativeLookupCandidates(value: string) {
+  const raw = String(value || '').trim()
+  let decoded = raw
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    decoded = raw
+  }
+  const normalized = normalizeRepresentativeSlug(decoded, '')
+  return Array.from(new Set([raw, decoded, normalized].filter(Boolean)))
+}
+
 export function createRepresentativeQrToken() {
   return `rep_${randomBytes(24).toString('base64url')}`
 }
