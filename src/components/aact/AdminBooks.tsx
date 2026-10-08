@@ -1301,11 +1301,18 @@ export function AdminBooksTab() {
     return response.job
   }, [])
 
+  const [bookReadRetryCounts, setBookReadRetryCounts] = useState<Record<string, number>>({})
+  const bookReadRetryRef = useRef<Record<string, { count: number; nextAt: number }>>({})
+
   const advanceBookReadJob = useCallback(async (bookId: string) => {
     if (bookReadInFlightRef.current.has(bookId)) return
+    const retry = bookReadRetryRef.current[bookId]
+    if (retry && (retry.count >= 5 || Date.now() < retry.nextAt)) return
     bookReadInFlightRef.current.add(bookId)
     try {
       const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
+      delete bookReadRetryRef.current[bookId]
+      setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
       if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
       if (response.job) {
         setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
@@ -1321,8 +1328,15 @@ export function AdminBooksTab() {
         setV2CountsByBook(data.v2CountsByBook || {})
       }
     } catch (error: any) {
+      const message = String(error?.message || error)
+      if (/\b(502|504)\b|bad gateway|gateway timeout|failed to fetch|networkerror|network error|load failed/i.test(message)) {
+        const count = (bookReadRetryRef.current[bookId]?.count || 0) + 1
+        bookReadRetryRef.current[bookId] = { count, nextAt: Date.now() + 5000 }
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: count }))
+        if (count < 5) return
+      }
       await fetchBookReadJob(bookId).catch(() => {})
-      toast({ title: 'تعذر متابعة قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+      toast({ title: 'تعذر متابعة قراءة الكتاب', description: message, variant: 'destructive' })
     } finally {
       bookReadInFlightRef.current.delete(bookId)
     }
@@ -1365,6 +1379,8 @@ export function AdminBooksTab() {
 
   const startBookReadJob = async (bookId: string) => {
     setBookReadBusyId(bookId)
+    delete bookReadRetryRef.current[bookId]
+    setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
     try {
       const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST' })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
@@ -1378,6 +1394,8 @@ export function AdminBooksTab() {
 
   const startBookEnrichment = async (bookId: string) => {
     setBookReadBusyId(bookId)
+    delete bookReadRetryRef.current[bookId]
+    setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
     try {
       const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
@@ -2008,6 +2026,8 @@ export function AdminBooksTab() {
                             </div>
                           </div>
                           {programKnowledgeV2States[b.id] && <p className="mt-1 text-[11px] font-bold text-slate-600">{programKnowledgeV2States[b.id].state === 'READING' ? 'يُقرأ' : programKnowledgeV2States[b.id].state === 'ENRICHING' ? 'يُستخرج المزيد' : programKnowledgeV2States[b.id].state === 'COMPLETED' ? 'مكتمل' : `متوقف مؤقتاً${programKnowledgeV2States[b.id].retryAt ? ` · إعادة المحاولة ${new Date(programKnowledgeV2States[b.id].retryAt!).toLocaleString('ar')}` : ''}`}</p>}
+                          {!!bookReadRetryCounts[b.id] && bookReadRetryCounts[b.id] < 5 && <p className="mt-1 text-[11px] font-bold text-amber-700">إعادة محاولة تلقائية ({bookReadRetryCounts[b.id]}/5)</p>}
+                          {bookReadRetryCounts[b.id] >= 5 && <div className="mt-1 flex items-center gap-2"><p className="text-[11px] font-bold text-red-700">فشلت 5 محاولات متتالية</p><Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => { delete bookReadRetryRef.current[b.id]; setBookReadRetryCounts((previous) => ({ ...previous, [b.id]: 0 })); void advanceBookReadJob(b.id) }}>استكمال</Button></div>}
                           {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'تم استخراج كل ما يمكن من الكتاب' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]

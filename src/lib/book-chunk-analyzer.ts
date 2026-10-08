@@ -37,12 +37,14 @@ export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string):
 }
 
 export async function analyzeBookChunk(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+  const remaining = input.deadlineMs - Date.now()
+  if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const result = await geminiCompleteJson({
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج من 3 إلى 12 عنصراً بحسب كثافة النص، لا تخترع معلومات، ولا تنشئ QUESTION_SEED. الأصناف المسموحة: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر: category,title,summary (صياغة أكاديمية عربية),excerpt (اقتباس حرفي من النص بين 60 و600 حرف),importance (0-100). أرجع {"items":[...]}. النص:\n${input.chunkText}` }],
     taskLevel: 'ACADEMIC_DRAFT',
     stickyScope: `BOOK_READ:${input.bookId}`,
-    deadlineMs: input.deadlineMs,
+    deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
     temperature: 0.2,
     validate: (raw) => {
       const parsed = JSON.parse(raw)
@@ -61,10 +63,12 @@ export async function analyzeBookChunk(input: { bookId: string; chunkText: strin
 }
 
 export async function enrichBookChunk(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+  const remaining = input.deadlineMs - Date.now()
+  if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const result = await geminiCompleteJson({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة، مفاهيم وتعريفات وأمثلة ومبادئ وحقائق. لا تخترع معلومات ولا تنشئ أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,excerpt (اقتباس حرفي 60-600 حرف),importance (0-100). أرجع {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالنص:\n${input.chunkText}` }],
-    taskLevel: 'ACADEMIC_DRAFT', stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: input.deadlineMs, temperature: 0.2,
+    taskLevel: 'ACADEMIC_DRAFT', stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
   })
   const accepted: BookKnowledgeCandidate[] = []
@@ -93,7 +97,17 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   if (!chunk) { await store.finish(jobId); return { completed: true, added: 0 } }
   const existing = await store.existing(job.bookId, chunk.id, chunk.index)
   const capacity = Math.max(0, 20 - existing.own.length)
-  const candidates = capacity ? await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own }) : []
+  if (capacity && deadlineMs - Date.now() < 25_000) return { completed: false, added: 0 }
+  let candidates: BookKnowledgeCandidate[] = []
+  if (capacity) {
+    try {
+      candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own })
+    } catch (error: any) {
+      const message = String(error?.message || error)
+      if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { completed: false, added: 0 }
+      throw error
+    }
+  }
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of candidates) {
     const item = validateBookKnowledgeCandidate(raw, chunk.text)
@@ -155,6 +169,7 @@ export async function analyzeStepWithStore(
     attempted.add(chunk.id)
     try {
       const prior = await store.priorItems(job.bookId, chunk.index)
+      if (deadlineMs - Date.now() < 25_000) return { analyzed, failed, completed: false, paused: false }
       const candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, prior })
       // Revalidate at the persistence boundary, including injected analyzers in tests.
       const items = candidates.map((item) => validateBookKnowledgeCandidate(item, chunk.text))
@@ -165,6 +180,7 @@ export async function analyzeStepWithStore(
     } catch (error: any) {
       const message = String(error?.message || error)
       if (message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')) throw error
+      if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { analyzed, failed, completed: false, paused: false }
       const exhausted = chunk.attempts + 1 >= 3
       await store.saveFailure(chunk.id, jobId, message.slice(0, 2000), exhausted)
       if (exhausted) failed++

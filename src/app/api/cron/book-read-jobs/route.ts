@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   }
-  const endAt = Date.now() + 250_000
+  const endAt = Date.now() + 240_000
   const outcomes: { jobId: string; outcome: string }[] = []
   // Select only eligible jobs; the atomic lock still decides which worker owns each job.
   const jobs = await db.bookReadJob.findMany({
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       continue
     }
     try {
-      const deadline = Math.min(Date.now() + 45_000, endAt)
+      const deadline = Math.min(Date.now() + 240_000, endAt)
       if (job.phase === 'EXTRACT') {
         const extraction = await runExtractStep(job.id, deadline)
         if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline)

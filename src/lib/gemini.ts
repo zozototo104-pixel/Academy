@@ -468,7 +468,7 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
   for (const model of await textModelChain()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true, model) })
+        const response = await ai.models.generateContent({ model, contents, config: { ...textConfig(opts, true, model), ...(opts.deadlineMs ? { httpOptions: { timeout: Math.max(1000, opts.deadlineMs - Date.now()) } } : {}) } })
         const text = String((response as any).text || '').trim()
         if (!text) throw new Error('EMPTY_AI_RESPONSE')
         opts.validate?.(text, { provider: 'GEMINI', model })
@@ -497,6 +497,7 @@ export async function geminiVisionJson(opts: {
   images: { mimeType: string; dataBase64: string }[]
   temperature?: number
   maxOutputTokens?: number
+  timeoutMs?: number
 }): Promise<string> {
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
@@ -515,6 +516,7 @@ export async function geminiVisionJson(opts: {
           model,
           contents,
           config: {
+            ...(opts.timeoutMs ? { httpOptions: { timeout: opts.timeoutMs } } : {}),
             systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
             temperature: opts.temperature ?? 0.1,
             maxOutputTokens: opts.maxOutputTokens ?? 2048,

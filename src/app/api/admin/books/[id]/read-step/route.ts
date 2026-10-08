@@ -6,7 +6,7 @@ import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, canRunBookReadJob, claimBookReadLock } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 type Context = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: Context) {
@@ -36,7 +36,7 @@ export async function POST(_request: NextRequest, context: Context) {
   if (!claimed) return NextResponse.json({ ok: true, skipped: 'LOCKED_OR_NOT_DUE' })
 
   try {
-    const deadlineMs = Date.now() + 45_000
+    const deadlineMs = Date.now() + 240_000
     let result: unknown
     if (job.phase === 'EXTRACT') {
       result = await runExtractStep(job.id, deadlineMs)

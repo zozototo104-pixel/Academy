@@ -1,4 +1,4 @@
-export const BOOK_READ_LOCK_MS = 55_000
+export const BOOK_READ_LOCK_MS = 270_000 // 240s work budget + 30s grace; below 300s maxDuration
 export const BOOK_READ_RETRY_MS = 5 * 60_000
 
 export function canRunBookReadJob(job: { status: string; retryAt: Date | null }, now: Date): boolean {

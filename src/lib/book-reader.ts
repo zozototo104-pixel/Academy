@@ -65,8 +65,9 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   }
 }
 
-export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[]): Promise<ExtractedBookPage[]> {
+export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
   if (!pageNumbers.length || pageNumbers.length > 8) throw new Error('OCR_PAGE_RANGE_INVALID')
+  if (deadlineMs - Date.now() < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const original = await PDFDocument.load(buffer)
   const subset = await PDFDocument.create()
   const copied = await subset.copyPages(original, pageNumbers.map((page) => page - 1))
@@ -77,6 +78,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     prompt: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.`,
     images: [{ mimeType: 'application/pdf', dataBase64: data.toString('base64') }],
     maxOutputTokens: 16000,
+    timeoutMs: Math.min(120_000, deadlineMs - Date.now() - 10_000),
   })
   const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
@@ -101,7 +103,8 @@ export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; p
   const extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
   const pageMap = new Map(extracted.map((page) => [page.page, page]))
   for (const range of pagesNeedingOcr(extracted)) {
-    const ocr = await (input.ocrPages || transcribeScannedDocumentWithVision)(buffer, range)
+    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+    const ocr = await (input.ocrPages || transcribeScannedDocumentWithVision)(buffer, range, input.deadlineMs)
     for (const page of ocr) pageMap.set(page.page, page)
   }
   const ordered = numbers.map((page) => {
