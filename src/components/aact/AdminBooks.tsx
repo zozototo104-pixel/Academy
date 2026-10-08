@@ -389,6 +389,7 @@ interface StudyGuideSection {
 interface StudyGuideRow {
   id: string
   programId: string
+  unitId?: string | null
   semester: number
   title: string
   overview: string
@@ -397,6 +398,7 @@ interface StudyGuideRow {
   sections: StudyGuideSection[]
   activities: string[]
   discussionQuestions: string[]
+  sourceKnowledgeIds?: string[]
   status: string
   updatedAt: string
 }
