@@ -14,6 +14,39 @@ function question(n: number, sourceRef = 'source-1'): GeneratedQuestionCandidate
   }
 }
 
+function generatedQuestion(n: number, overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'MCQ',
+    text: `ما السؤال الأكاديمي رقم ${n} حول الدليل والسياق المؤسسي؟`,
+    options: ['الأول', 'الثاني', 'الثالث'],
+    correctAnswer: '0',
+    sourceEvidence: 'هذا دليل حرفي طويل بما يكفي لاختبار شكل السؤال داخل بنك الأسئلة.',
+    difficulty: 'MEDIUM',
+    sourceIndex: 1,
+    correctRationale: 'لأن الدليل يدعم الإجابة مباشرة.',
+    ...overrides,
+  }
+}
+
+function arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped() {
+  const raw = JSON.stringify([
+    generatedQuestion(1),
+    generatedQuestion(2, { correctAnswer: '' }),
+    generatedQuestion(3),
+  ])
+  const envelope = parseQuestionBatchEnvelope(raw)
+  assert.equal(envelope.questions.length, 3)
+  const parsed = parseGeneratedQuestionCandidates(raw)
+  assert.equal(parsed.accepted.length, 2)
+  assert.equal(parsed.rejected, 1)
+}
+
+function questionBankPauseCleanupUsesDeleteMany() {
+  const route = readFileSync('src/app/api/admin/question-bank/route.ts', 'utf8')
+  assert.ok(route.includes('db.setting.deleteMany'), 'question bank route must use deleteMany when clearing pause keys')
+  assert.ok(!route.includes('db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK'), 'question bank route must not use delete for optional pause keys')
+}
+
 async function partialFailureKeepsSavedBatches() {
   const saved: GeneratedQuestionCandidate[] = []
   let calls = 0
