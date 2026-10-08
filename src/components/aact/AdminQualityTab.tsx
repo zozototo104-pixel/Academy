@@ -2812,7 +2812,7 @@ export function AdminQualityTab() {
             <DialogHeader>
               <DialogTitle className="text-2xl font-black">توجد وحدات محفوظة</DialogTitle>
               <DialogDescription className="pt-2 font-bold leading-7 text-[#f5f0e1]/75">
-                اختر طريقة التعامل مع المقترح الجديد. بعد الاختيار يبدأ التوليد مرة واحدة فقط.
+                سيتم الإبقاء على الوحدات الحالية وإضافة التوليد القديم بعدها بعد التأكيد.
               </DialogDescription>
             </DialogHeader>
           </div>
