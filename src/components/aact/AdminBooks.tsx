@@ -1970,11 +1970,12 @@ export function AdminBooksTab() {
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
-                    {displayKnowledgeItems.length > 0 && (
-                      <Badge variant="outline" className="text-[9px] font-black text-slate-500">
-                        مرتبة بالأهمية
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-500">
+                        <input type="checkbox" checked={showLegacyKnowledge} onChange={(event) => setShowLegacyKnowledge(event.target.checked)} /> عرض القديمة
+                      </label>
+                      {displayKnowledgeItems.length > 0 && <Badge variant="outline" className="text-[9px] font-black text-slate-500">مرتبة بالأهمية</Badge>}
+                    </div>
                   </div>
                   <div className="max-h-[34rem] space-y-2 overflow-auto pr-1">
                     {displayKnowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل. إن كانت العناصر القديمة مشوهة فلن تُعرض؛ اضغط بناء/تحديث بنك المعرفة لإعادة استخراجها.</p> : displayKnowledgeItems.map((item) => (
