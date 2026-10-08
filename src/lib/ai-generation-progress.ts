@@ -43,8 +43,8 @@ function normalizeProgress(raw: unknown): AiGenerationProgress | null {
   }
 }
 
-export function resolveGenerationJob(stored: AiGenerationProgress | null, requestedCount: number, resume = false): AiGenerationProgress {
-  const canResume = Boolean(stored && stored.saved < stored.requested && (stored.status === 'PARTIAL' || resume))
+export function resolveGenerationJob(stored: AiGenerationProgress | null, requestedCount: number, resume = false, forceNew = false): AiGenerationProgress {
+  const canResume = Boolean(!forceNew && stored && stored.saved < stored.requested && (stored.status === 'PARTIAL' || resume))
   if (canResume && stored) return { ...stored, status: 'RUNNING' }
   return { jobId: randomUUID(), status: 'RUNNING', requested: requestedCount, saved: 0, failedBatches: 0, lastError: null, updatedAt: new Date().toISOString() }
 }
