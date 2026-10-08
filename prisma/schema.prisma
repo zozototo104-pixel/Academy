@@ -1245,6 +1245,11 @@ model BookKnowledgeItem {
   keywords    String?  // JSON array كلمات مفتاحية
   importance  Int      @default(50) // 0-100: أهمية العنصر في الامتحان والمناقشة
   sourceNote  String?
+  chunkId     String?
+  pageStart   Int?
+  pageEnd     Int?
+  textProvenance String?
+  kbVersion   Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
