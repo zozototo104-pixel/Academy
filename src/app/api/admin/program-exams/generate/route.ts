@@ -665,6 +665,11 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
       const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
     }
+    await setAiTaskPause('PROGRAM_EXAM', examId, {
+      code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+      reason: message,
+      retryAt: e?.retryAt || null,
+    }).catch(() => null)
     await db.programExam.update({
       where: { id: examId },
       data: {
