@@ -402,10 +402,28 @@ function isTimeoutLike(e: any): boolean {
   return status === 504 || /timeout|timed out|abort|deadline|etimedout|ai_provider_timeout/i.test(msg)
 }
 
+function isDeadModelLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 404 && /no longer available|does not exist|not found/i.test(msg)
+}
+
+function isNoBalanceLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 402 || /balance|recharge|top.?up|top up|insufficient credits|payment required|no credits|credit balance/i.test(msg)
+}
+
+function isHighDemandLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 503 || /high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+}
+
 function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package|no credits|credit balance|please recharge|recharge|capacity/i.test(msg)
+  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package/i.test(msg)
 }
 
 function isAuthLike(e: any): boolean {
