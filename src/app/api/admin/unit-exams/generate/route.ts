@@ -87,7 +87,6 @@ async function loadScopedQuestions(programId: string, unitId: string, requiredQu
   const queued = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false })
   let latestJob: QuestionBankGenerationJob | null = queued
   let mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
-  if (mixed.selection.readyToBuild) return { questions: mixed.questions, selection: mixed.selection, job: latestJob, requiredQuestions }
 
   const deadlineAt = Date.now() + UNIT_EXAM_JOB_DEADLINE_MS
   while (Date.now() < deadlineAt - 8_000) {
