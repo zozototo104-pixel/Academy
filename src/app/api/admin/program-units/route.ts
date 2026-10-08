@@ -104,6 +104,16 @@ async function listProgramUnits(programId: string) {
   for (const guide of guides) if (guide.unitId && !guideByUnit.has(guide.unitId)) guideByUnit.set(guide.unitId, guide)
   const jobByUnit = new Map<string, any>()
   for (const job of jobs) if (!jobByUnit.has(job.unitId)) jobByUnit.set(job.unitId, job)
+  const questionBankJobByUnit = new Map<string, (typeof questionBankJobs)[number]>()
+  for (const job of questionBankJobs) if (job.unitId && !questionBankJobByUnit.has(job.unitId)) questionBankJobByUnit.set(job.unitId, job)
+  const questionBankCountsByUnit = new Map<string, { approved: number; pendingReview: number }>()
+  for (const row of questionBankCounts) {
+    if (!row.unitId) continue
+    const current = questionBankCountsByUnit.get(row.unitId) || { approved: 0, pendingReview: 0 }
+    if (row.status === 'APPROVED') current.approved += row._count._all
+    if (row.status === 'PENDING_REVIEW') current.pendingReview += row._count._all
+    questionBankCountsByUnit.set(row.unitId, current)
+  }
   const sectionById = new Map(sections.map((section) => [section.id, section] as const))
   const bookById = new Map(books.map((book) => [book.id, book] as const))
   return units.map((u) => {
