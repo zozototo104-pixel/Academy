@@ -38,6 +38,8 @@ function normalizeProgress(raw: unknown): AiGenerationProgress | null {
       saved: Math.max(0, Number((parsed as any).saved || 0) || 0),
       failedBatches: Math.max(0, Number((parsed as any).failedBatches || 0) || 0),
       lastError: (parsed as any).lastError ? String((parsed as any).lastError).slice(0, 500) : null,
+      usedSourceIndexes: Array.isArray((parsed as any).usedSourceIndexes) ? (parsed as any).usedSourceIndexes.filter((n: unknown) => Number.isInteger(n) && Number(n) > 0) : [],
+      knowledgeItemIds: Array.isArray((parsed as any).knowledgeItemIds) ? (parsed as any).knowledgeItemIds.filter((id: unknown) => typeof id === 'string') : [],
       updatedAt: String((parsed as any).updatedAt || new Date().toISOString()),
     }
   } catch {
