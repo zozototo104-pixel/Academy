@@ -11,6 +11,8 @@ export type AiGenerationProgress = {
   saved: number
   failedBatches: number
   lastError: string | null
+  usedSourceIndexes?: number[]
+  knowledgeItemIds?: string[]
   updatedAt: string
 }
 
