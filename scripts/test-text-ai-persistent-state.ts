@@ -138,7 +138,7 @@ async function paidBudgetExceededSkipsPaidProvider() {
     return geminiResponse('paid')
   }) as typeof fetch
   try {
-    await assert.rejects(() => textAiComplete({ history: [{ role: 'user', text: 'paid' }], taskLevel: 'ACADEMIC_CRITICAL' }))
+    await assert.rejects(() => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'paid' }], taskLevel: 'ACADEMIC_CRITICAL' }))
     assert.equal(fetchCount, 0, 'paid provider must not be called after budget is exceeded')
   } finally {
     globalThis.fetch = originalFetch
