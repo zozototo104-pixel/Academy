@@ -587,10 +587,11 @@ export function AdminQualityTab() {
     }
   }
 
-  const runSuggestedUnits = async (program: ProgramReadinessItem, mode?: 'append' | 'replace') => {
-    const result = await api<{ count: number; mode: string; actualAi?: any; generationAudit?: any }>('/api/admin/program-units/suggest', {
+  const runSuggestedUnits = async (program: ProgramReadinessItem, options: { legacyConfirmed?: boolean } = {}) => {
+    const regenerateDrafts = Boolean(unitRegenerateDrafts[program.id])
+    const result = await api<{ count: number; mode: string; source?: string; warnings?: string[]; actualAi?: any; generationAudit?: any }>('/api/admin/program-units/suggest', {
       method: 'POST',
-      body: JSON.stringify({ programId: program.id, append: mode === 'append', replace: mode === 'replace' }),
+      body: JSON.stringify({ programId: program.id, regenerateDrafts, legacyConfirmed: Boolean(options.legacyConfirmed), append: Boolean(options.legacyConfirmed) }),
     })
     const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
     const refreshedItems = readiness.items || []
@@ -598,6 +599,7 @@ export function AdminQualityTab() {
     setReadinessItems(refreshedItems)
     setUnitGenerationResult({ ...result, programId: program.id })
     setUnitSuggestionConflict(null)
+    if (result.warnings?.length) alert(result.warnings.join('\n'))
     await openUnitReview(refreshedProgram)
   }
 
@@ -607,7 +609,11 @@ export function AdminQualityTab() {
       try {
         await runSuggestedUnits(program)
       } catch (e: any) {
-        if (String(e?.message || '').includes('توجد وحدات')) {
+        if (String(e?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
+          const skippedBooks = Array.isArray(e?.data?.skippedBooks) ? e.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : ''
+          const ok = confirm(`${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة. هل تريد المتابعة؟`)
+          if (ok) await runSuggestedUnits(program, { legacyConfirmed: true })
+        } else if (String(e?.message || '').includes('توجد وحدات')) {
           setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.counts?.units || 0) })
         } else {
           throw e
