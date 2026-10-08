@@ -50,3 +50,4 @@ jobs:
       - run: bunx tsx scripts/test-ai-task-pause.ts
       - run: bunx tsx scripts/test-book-reading.ts
       - run: bunx tsx scripts/test-book-read-lock.ts
+      - run: bunx tsx scripts/test-book-chunk-analysis.ts
