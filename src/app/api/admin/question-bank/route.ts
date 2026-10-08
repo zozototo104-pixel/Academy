@@ -439,16 +439,20 @@ ${knowledgeText}
 
     if (!rows.length) return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.' }, { status: 409 })
     await db.questionBankItem.createMany({ data: rows })
+    const savedTotal = savedSoFar + rows.length
+    const remaining = Math.max(0, requestedTotal - savedTotal)
+    const progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { requested: requestedTotal, saved: savedTotal, failedBatches: storedProgress?.failedBatches || 0, lastError: null })
     await db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${rows.length} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
-    const remaining = Math.max(0, requestedCount - rows.length)
     return NextResponse.json({
       ok: true,
       inserted: rows.length,
-      requested: requestedCount,
+      requested: requestedTotal,
+      saved: savedTotal,
       remaining,
       partial: remaining > 0,
-      message: remaining > 0 ? `تم حفظ ${rows.length} من ${requestedCount}. اضغط مرة أخرى لإكمال الباقي.` : undefined,
+      message: remaining > 0 ? `تم حفظ ${savedTotal} من ${requestedTotal}. اضغط مرة أخرى لإكمال الباقي.` : undefined,
+      progress,
       stats: await questionStats(programId),
       items: await listQuestions(programId),
     })
