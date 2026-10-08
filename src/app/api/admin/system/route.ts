@@ -275,8 +275,8 @@ export async function POST(req: NextRequest) {
         .map((row): TopModelRow | null => {
           try {
             const parsed = JSON.parse(row.value || '{}')
-            const fail = parsed.fail && typeof parsed.fail === 'object' ? parsed.fail : {}
-            const failCount = Object.values(fail).reduce((sum, n) => sum + (Number(n) || 0), 0)
+            const fail = parsed.fail && typeof parsed.fail === 'object' ? parsed.fail as Record<string, unknown> : {}
+            const failCount = Object.values(fail).reduce<number>((sum, n) => sum + (Number(n) || 0), 0)
             const success = Number(parsed.success || 0) || 0
             const total = success + failCount
             const jsonRate = parsed.jsonTotal ? (Number(parsed.jsonOk || 0) / Number(parsed.jsonTotal || 1)) : 0.5
