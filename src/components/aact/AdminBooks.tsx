@@ -997,6 +997,17 @@ export function AdminBooksTab() {
     setCurriculumUnits(res.units || [])
   }
 
+  useEffect(() => {
+    if (workspaceTab !== 'units' || !programId) return
+    const hasPreparingQuestionBank = curriculumUnits.some((unit) => unit.questionBankJob && unit.questionBankJob.currentQuestions < unit.questionBankJob.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(unit.questionBankJob.status))
+    if (!hasPreparingQuestionBank) return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void refreshCurriculumUnits(programId).catch(() => null)
+    }, 10_000)
+    return () => clearInterval(timer)
+  }, [workspaceTab, programId, curriculumUnits, refreshCurriculumUnits])
+
   const generateCurriculumUnits = async () => {
     if (!programId) return
     setUnitBusyId('__generate_units__')
