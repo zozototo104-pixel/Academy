@@ -235,6 +235,63 @@ export async function POST(req: NextRequest) {
       const result = await textAiFreeModelsForProvider(modelProvider)
       return NextResponse.json({ ok: true, ...result })
     }
+    if (action === 'text-ai-model-health') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      const catalog = provider ? await textAiFreeModelsForProvider(provider) : { models: [], provider: '', message: '', discoveredCount: 0, staticCount: 0 }
+      const rows = await db.setting.findMany({
+        where: {
+          OR: [
+            { key: { startsWith: provider ? `AI_MODEL_DEAD:${provider}:` : 'AI_MODEL_DEAD:' } },
+            { key: { startsWith: provider ? `AI_NO_BALANCE:${provider}:` : 'AI_NO_BALANCE:' } },
+            { key: { startsWith: provider ? `AI_MODEL_STATS:${provider}:` : 'AI_MODEL_STATS:' } },
+          ],
+        },
+        take: 500,
+      })
+      const now = Date.now()
+      const excluded = rows
+        .filter((row) => row.key.startsWith('AI_MODEL_DEAD:') || row.key.startsWith('AI_NO_BALANCE:'))
+        .map((row) => {
+          try {
+            const parsed = JSON.parse(row.value || '{}')
+            const untilMs = Date.parse(String(parsed.until || '')) || Number(parsed.until || 0)
+            if (!untilMs || untilMs <= now) return null
+            return {
+              key: row.key,
+              reason: String(parsed.reason || 'cooldown'),
+              status: Number(parsed.status || 0) || null,
+              until: new Date(untilMs).toISOString(),
+              kind: row.key.startsWith('AI_MODEL_DEAD:') ? 'DEAD_MODEL' : 'NO_BALANCE',
+            }
+          } catch {
+            return null
+          }
+        })
+        .filter(Boolean)
+      const top = rows
+        .filter((row) => row.key.startsWith('AI_MODEL_STATS:'))
+        .map((row) => {
+          try {
+            const parsed = JSON.parse(row.value || '{}')
+            const fail = parsed.fail && typeof parsed.fail === 'object' ? parsed.fail : {}
+            const failCount = Object.values(fail).reduce((sum, n) => sum + (Number(n) || 0), 0)
+            const success = Number(parsed.success || 0) || 0
+            const total = success + failCount
+            const jsonRate = parsed.jsonTotal ? (Number(parsed.jsonOk || 0) / Number(parsed.jsonTotal || 1)) : 0.5
+            const evidenceRate = parsed.evidenceTotal ? (Number(parsed.evidenceOk || 0) / Number(parsed.evidenceTotal || 1)) : 0.5
+            const latencyPenalty = parsed.avgMs ? Math.min(0.25, Number(parsed.avgMs) / 120000) : 0.05
+            const score = total ? (success / total) * 0.55 + jsonRate * 0.2 + evidenceRate * 0.2 - latencyPenalty : 0.35
+            const parts = row.key.split(':')
+            return { provider: parts[1], model: parts.slice(2).join(':'), score, success, failCount, avgMs: Number(parsed.avgMs || 0) || 0 }
+          } catch {
+            return null
+          }
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => b.score - a.score)
+        .slice(0, 5)
+      return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top })
+    }
     if (action === 'test-text-ai') {
       const diag = await textAiDiagnostics()
       const test = await textAiTestConnection()
