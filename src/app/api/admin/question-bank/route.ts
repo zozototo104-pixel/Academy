@@ -310,6 +310,9 @@ export async function POST(req: NextRequest) {
         return finishPartial('AI_REQUEST_DEADLINE_REACHED')
       }
       const currentBatchCount = Math.min(batchCount, requestedTotal - savedTotal)
+      const selectedSources = selectQuestionKnowledgeSources(evidenceKnowledge, usage)
+      const knowledgeText = selectedSources.map((k) => `${evidenceKnowledge.indexOf(k) + 1}. [${k.category}] ${k.title}\nملخص للسياق فقط: ${String(k.summary || '').slice(0, 650)}\nنص المصدر (اقتبس منه حرفيًا): ${knowledgeEvidenceText(k).slice(0, 1800)}`).join('\n\n')
+      const recentIdeas = ideaHistory.slice(-30).map((q) => q.text.slice(0, 60)).join(' | ')
       let generated: any[] = []
       let generationContext: { provider?: string; model?: string } = {}
       try {
