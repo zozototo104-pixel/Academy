@@ -230,7 +230,7 @@ function firstUsableNeighbor(lines: readonly LineWithOffset[], indexes: number[]
 }
 
 function chapterNameFromHit(lines: readonly LineWithOffset[], hit: ChapterHit, bookTitle: string, tocTitle?: string): string {
-  const index = lines.indexOf(hit.line)
+  const index = hit.lineIndex
   const sameLine = sameLineChapterName(hit.line.raw, hit, bookTitle)
   if (sameLine) return `${hit.label}: ${sameLine}`
   const forward = Array.from({ length: 7 }, (_, i) => index + i + 1).filter((i) => i < lines.length)
