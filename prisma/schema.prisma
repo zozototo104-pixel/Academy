@@ -153,6 +153,11 @@ model Unit {
   summary    String?
   content    String // JSON: array of { heading, body }
   objectives String? // JSON array
+  sourceBookId String?
+  outlineSectionId String?
+  chunkStartIndex Int?
+  chunkEndIndex Int?
+  generationVersion Int @default(0)
   exam       Exam?
 }
 
