@@ -497,6 +497,7 @@ export async function geminiVisionJson(opts: {
   images: { mimeType: string; dataBase64: string }[]
   temperature?: number
   maxOutputTokens?: number
+  timeoutMs?: number
 }): Promise<string> {
   const ai = getGemini()
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
