@@ -1316,7 +1316,8 @@ export function AdminBooksTab() {
     let active = true
     Promise.all(books.map(async (book) => {
       try {
-        const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${book.id}/read-job`)
+        const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
+        if (active && response.enrichment) setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
         if (active && response.job) setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
       } catch { /* A book without a job is expected. */ }
     })).catch(() => {})
