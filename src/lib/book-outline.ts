@@ -247,12 +247,13 @@ function chapterHitsForChunk(chunk: Chunk, bookTitle: string, tocNames: Readonly
   const lines = splitLinesWithOffsets(chunk.text)
   const found: Boundary[] = []
   const seenOffsets = new Set<number>()
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
     const matched = matchChapterLine(line.raw)
     if (!matched || seenOffsets.has(line.start)) continue
     if (normalizeHeading(matched.label) === normalizeHeading(bookTitle)) continue
     seenOffsets.add(line.start)
-    const hit: ChapterHit = { ...matched, line }
+    const hit: ChapterHit = { ...matched, line, lineIndex }
     found.push({
       at: chunk.index,
       title: chapterNameFromHit(lines, hit, bookTitle, matched.number === null ? undefined : tocNames.get(matched.number)),
