@@ -1280,9 +1280,10 @@ export function AdminBooksTab() {
       if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
       else await fetchBookReadJob(bookId)
       if (response.job?.status === 'COMPLETED' && programId) {
-        const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${programId}`)
+        const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${programId}`)
         setKnowledgeItems(data.items || [])
         setKnowledgeStats(data.stats || {})
+        setV2CountsByBook(data.v2CountsByBook || {})
       }
     } catch (error: any) {
       await fetchBookReadJob(bookId).catch(() => {})
