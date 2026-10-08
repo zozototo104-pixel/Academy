@@ -2734,10 +2734,20 @@ export function AdminBooksTab() {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setQuestionBankOpen(true)}>مراجعة بنك الأسئلة</Button>
-                <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={generateQuestionsForBank} className="bg-white text-xs font-black">
-                  {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                  توليد أسئلة من بنك المعرفة
-                </Button>
+                {questionBankProgress?.status === 'PARTIAL' && questionBankProgress.saved < questionBankProgress.requested ? (
+                  <>
+                    <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('resume')} className="bg-white text-xs font-black">
+                      {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                      إكمال الباقي ({questionBankProgress.saved} من {questionBankProgress.requested})
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('new')} className="bg-white text-xs font-black">بدء توليد جديد</Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('new')} className="bg-white text-xs font-black">
+                    {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                    توليد أسئلة من بنك المعرفة
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'legacy-review'} onClick={markLegacyQuestionGroundingForReview} className="bg-white text-xs font-black">
                   {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   تعليم الأسئلة القديمة للمراجعة
