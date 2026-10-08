@@ -76,7 +76,7 @@ async function persistentCooldownSkipsAfterReset() {
   configureGemini()
   const store = makeStore()
   await withHarness(store, async (calls) => {
-    const first = await textAiComplete({ history: [{ role: 'user', text: 'hello' }] })
+    const first = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'hello' }] })
     assert.equal(first, 'verified')
     assert.ok(calls.some((url) => url.includes('limited-key')))
     assert.ok([...store.values.keys()].some((key) => key.startsWith('AI_COOLDOWN:GEMINI:1:')))
