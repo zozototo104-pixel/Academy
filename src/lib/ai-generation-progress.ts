@@ -74,6 +74,8 @@ export async function setAiGenerationProgress(type: AiGenerationProgressType, pr
     saved,
     failedBatches: Math.max(0, Number(patch.failedBatches ?? current?.failedBatches ?? 0) || 0),
     lastError: patch.lastError === undefined ? current?.lastError ?? null : patch.lastError ? String(patch.lastError).slice(0, 500) : null,
+    usedSourceIndexes: patch.usedSourceIndexes ?? current?.usedSourceIndexes ?? [],
+    knowledgeItemIds: patch.knowledgeItemIds ?? current?.knowledgeItemIds ?? [],
     updatedAt: new Date().toISOString(),
   }
   try {
