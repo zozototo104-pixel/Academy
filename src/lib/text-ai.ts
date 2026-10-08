@@ -710,6 +710,17 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
   if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
+  try {
+    const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
+    const parsed = persisted ? JSON.parse(persisted) : null
+    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
+      const models = parsed.models.map(String).filter(validModelName)
+      freeModelsCache.set(cacheKey, { at: now, models })
+      return models
+    }
+  } catch {
+    // Persistent model discovery cache is best-effort.
+  }
 
   let models: string[] = []
   if (provider === 'UNOROUTER') {
