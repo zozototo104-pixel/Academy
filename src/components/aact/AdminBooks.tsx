@@ -1287,7 +1287,13 @@ export function AdminBooksTab() {
   const fetchBookReadJob = useCallback(async (bookId: string) => {
     const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
     if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
-    if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+    if (response.job) {
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+      setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
+        state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+        retryAt: response.job!.retryAt,
+      } }))
+    }
     return response.job
   }, [])
 
