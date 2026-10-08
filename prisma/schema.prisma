@@ -167,6 +167,27 @@ model Unit {
   @@index([sourceBookId])
 }
 
+model UnitGenerationJob {
+  id          String   @id @default(cuid())
+  unitId      String
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId   String
+  status      String   @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED
+  phase       String   @default("CONTENT") // CONTENT | GUIDE
+  unitsTotal  Int      @default(1)
+  unitsDone   Int      @default(0)
+  lastError   String?
+  retryAt     DateTime?
+  lockedUntil DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([unitId, status])
+  @@index([status, retryAt])
+}
+
 model Enrollment {
   id             String    @id @default(cuid())
   userId         String
