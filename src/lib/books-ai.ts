@@ -697,6 +697,7 @@ async function completeJsonWithFallback(args: {
   maxOutputTokens?: number
   retries?: number
   timeoutMs?: number
+  deadlineMs?: number
   taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
   stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
