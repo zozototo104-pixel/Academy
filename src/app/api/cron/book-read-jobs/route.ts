@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { runExtractStep } from '@/lib/book-reader'
-import { runAnalyzeStep } from '@/lib/book-chunk-analyzer'
+import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
