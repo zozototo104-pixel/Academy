@@ -113,7 +113,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
     nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED', id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
-    priorItems: (bookId) => db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2 }, select: { title: true, summary: true } }),
+    priorItems: (bookId, chunkIndex) => db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunk: { index: { gte: Math.max(0, chunkIndex - 2), lte: chunkIndex } } }, select: { title: true, summary: true } }),
     saveAnalyzed: async (chunk, items, id) => {
       // Keep the persistence batch short; no AI calls or per-item inserts in a transaction.
       const current = await db.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
