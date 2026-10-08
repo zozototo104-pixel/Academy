@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
         summary: unit.summary,
         content: JSON.parse(unit.content || '[]'),
         objectives: JSON.parse(unit.objectives || '[]'),
-        exam: unit.exam,
+        exam: unit.exam?.status === 'READY' ? { id: unit.exam.id, title: unit.exam.title, passScore: unit.exam.passScore } : null,
       },
       program: unit.program,
       books: books.map((b) => ({ id: b.id, title: b.title, author: b.author, year: b.year, hasFile: !!b.fileName, link: b.link, source: b.source })),
