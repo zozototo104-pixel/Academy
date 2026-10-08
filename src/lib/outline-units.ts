@@ -193,11 +193,12 @@ export function validateUnitContentReferences(content: unknown, allowedKnowledge
 
 export function validateStudyGuideSources(sourceKnowledgeIds: unknown, allowedKnowledgeIds: Iterable<string>): string[] {
   const allowed = new Set([...allowedKnowledgeIds])
-  const ids = Array.isArray(sourceKnowledgeIds)
-    ? sourceKnowledgeIds.map((id) => cleanOutlineUnitText(id, 100)).filter((id) => allowed.has(id))
+  const requested = Array.isArray(sourceKnowledgeIds)
+    ? sourceKnowledgeIds.map((id) => cleanOutlineUnitText(id, 100)).filter(Boolean)
     : []
-  if (!ids.length) throw new Error('STUDY_GUIDE_REQUIRES_SOURCE_KNOWLEDGE_IDS')
-  return [...new Set(ids)].slice(0, 80)
+  if (!requested.length) throw new Error('STUDY_GUIDE_REQUIRES_SOURCE_KNOWLEDGE_IDS')
+  if (requested.some((id) => !allowed.has(id))) throw new Error('STUDY_GUIDE_SOURCE_KNOWLEDGE_OUT_OF_RANGE')
+  return [...new Set(requested)].slice(0, 80)
 }
 
 function sourceKnowledgeLines(items: UnitSourceKnowledge[]) {
