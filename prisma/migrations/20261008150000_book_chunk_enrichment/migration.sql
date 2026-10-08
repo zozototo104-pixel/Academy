@@ -1,0 +1,2 @@
+ALTER TABLE "BookChunk" ADD COLUMN "analysisPasses" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "BookChunk" ADD COLUMN "saturatedAt" TIMESTAMP(3);
