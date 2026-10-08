@@ -2188,8 +2188,6 @@ export function AdminBooksTab() {
                                 <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : 'تقسيم ذكي'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
                                 <div className="flex flex-wrap gap-1">
                                   {outline.status !== 'APPROVED' && <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => approveBookOutline(b.id)} className="h-7 text-[10px] font-black text-emerald-700">اعتماد الفهرس</Button>}
-                                  <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => createUnitsFromOutline(b.id, false)} className="h-7 text-[10px] font-black text-[#a8841a]">{outlineUnitBusyId === `create-${b.id}` ? 'جارٍ الإنشاء...' : 'إنشاء وحدات من الفهرس'}</Button>
-                                  <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => createUnitsFromOutline(b.id, true)} className="h-7 text-[10px] font-black text-slate-600">{outlineUnitBusyId === `regen-${b.id}` ? 'جارٍ التحديث...' : 'إعادة توليد وحدات المسودة'}</Button>
                                 </div>
                               </div>
                               {outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).map((warning, index) => <p key={index} role="alert" className="mt-1 text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
