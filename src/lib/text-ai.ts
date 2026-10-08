@@ -155,6 +155,7 @@ type TextAiSettingStore = {
 let injectedStore: TextAiSettingStore | null = null
 let persistentCooldownCache: { at: number; values: Record<string, string> } | null = null
 let routerRequestSeq = 0
+const stickyModels = new Map<string, { provider: ConcreteProvider; model: string; at: number }>()
 
 function hasDatabaseUrl(): boolean {
   return !!String(process.env.DATABASE_URL || '').trim()
