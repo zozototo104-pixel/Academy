@@ -1306,6 +1306,8 @@ export function AdminBooksTab() {
 
   const advanceBookReadJob = useCallback(async (bookId: string) => {
     if (bookReadInFlightRef.current.has(bookId)) return
+    const retry = bookReadRetryRef.current[bookId]
+    if (retry && (retry.count >= 5 || Date.now() < retry.nextAt)) return
     bookReadInFlightRef.current.add(bookId)
     try {
       const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
