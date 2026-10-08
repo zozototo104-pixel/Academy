@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { audit, notify } from '@/lib/notify'
+import { audit } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
