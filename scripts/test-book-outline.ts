@@ -27,7 +27,7 @@ assert.equal(outline.sections.reduce((sum, section) => sum + section.itemsCount,
 const headingChunks = chunks.map((chunk) => ({ ...chunk, text: 'نص', headingPath: chunk.index < 6 ? `الفصل ${chunk.index + 1}` : null }))
 const headed = planBookOutline(headingChunks, items, ids, 2)
 assert.equal(headed.source, 'HEADINGS')
-assert.ok(headed.sections.length < 6, 'tiny single-chunk sections should merge')
+assert.equal(headed.sections.length, 6, 'real numbered chapters must survive even when only one chunk long')
 assert.equal(headed.sections[0].chunkStartIndex, 0)
 assert.equal(headed.sections.at(-1)?.chunkEndIndex, 11)
 const tenChunks = Array.from({ length: 10 }, (_, index) => ({ index, pageStart: index + 1, pageEnd: index + 1, text: 'محتوى', headingPath: index < 3 ? 'الفصل الأول' : index < 7 ? 'الفصل الثاني' : 'الفصل الثالث' }))
