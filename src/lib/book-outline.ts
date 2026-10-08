@@ -121,19 +121,20 @@ function matchChapterLine(line: string): { label: string; number: number | null;
 }
 
 function chapterNumber(title: string): number | null {
-  const normal = normalizeHeading(title).match(normalChapterPattern)
-  if (normal) return ordinalNumber(normal[2])
-  const reversed = normalizeHeading(title).match(reversedChapterPattern)
-  if (reversed) return ordinalNumber(reversed[1])
+  const normalized = normalizeHeading(title)
+  const normal = normalized.match(normalChapterPattern)
+  if (normal && allowedChapterPrefix(normalized, normal.index || 0)) return ordinalNumber(normal[2])
+  const reversed = normalized.match(reversedChapterPattern)
+  if (reversed && allowedChapterPrefix(normalized, reversed.index || 0)) return ordinalNumber(reversed[1])
   return null
 }
 
 function chapterLabel(title: string): string {
   const normalized = normalizeHeading(title)
   const normal = normalized.match(normalChapterPattern)
-  if (normal) return clean(labelFor(normal[1], normal[2]))
+  if (normal && allowedChapterPrefix(normalized, normal.index || 0)) return clean(labelFor(normal[1], normal[2]))
   const reversed = normalized.match(reversedChapterPattern)
-  if (reversed) return clean(labelFor(reversed[2], reversed[1]))
+  if (reversed && allowedChapterPrefix(normalized, reversed.index || 0)) return clean(labelFor(reversed[2], reversed[1]))
   return clean(title)
 }
 
