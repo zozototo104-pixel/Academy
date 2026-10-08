@@ -386,8 +386,9 @@ ${knowledgeText}
     } catch (e: any) {
       console.error('question bank AI failed:', e)
       const paused = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
+      await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { requested: requestedTotal, saved: savedSoFar, failedBatches: (storedProgress?.failedBatches || 0) + 1, lastError: paused.reason })
       await setAiTaskPause('QUESTION_BANK', programId, paused).catch(() => paused)
-      return NextResponse.json({ error: 'توقف توليد بنك الأسئلة مؤقتاً لأن المزود الأكاديمي غير متاح.', status: 'PAUSED', ...paused }, { status: 503 })
+      return NextResponse.json({ error: `تم حفظ ${savedSoFar} من ${requestedTotal}. اضغط مرة أخرى لإكمال الباقي.`, status: 'PAUSED', ...paused, requested: requestedTotal, saved: savedSoFar, remaining: Math.max(0, requestedTotal - savedSoFar) }, { status: 503 })
     }
 
     if (!generated.length) return NextResponse.json({ error: 'لم يُرجع المزود أسئلة أكاديمية صالحة.', status: 'PAUSED' }, { status: 503 })
