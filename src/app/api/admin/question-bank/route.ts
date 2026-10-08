@@ -422,7 +422,8 @@ ${knowledgeText}
         textProvenance: item.textProvenance,
       }
       if (!q.text || q.text.length < 12) continue
-      const key = norm(q.text)
+      const sourceRef = source.id || source.bookId || q.sourceLocator || 'UNKNOWN'
+      const key = questionDuplicateKey(q.text, sourceRef)
       if (seen.has(key)) continue
       seen.add(key)
       rows.push(buildQuestionBankRecord(q, {
