@@ -2298,6 +2298,9 @@ export function AdminBooksTab() {
                               {unit.status === 'APPROVED' ? 'معتمدة' : unit.status === 'NEEDS_REVISION' ? 'تحتاج تعديل' : 'مسودة'}
                             </Badge>
                             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">الفصل {unit.semester || 1}</Badge>
+                            {unit.source && <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{unit.source.sectionTitle || 'من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}</Badge>}
+                            {unit.generationJob && <Badge className={unit.generationJob.status === 'PAUSED' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : unit.generationJob.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : unit.generationJob.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>توليد المحتوى: {unit.generationJob.status === 'PAUSED' ? 'متوقف' : unit.generationJob.status === 'COMPLETED' ? 'مكتمل' : unit.generationJob.status === 'FAILED' ? 'فشل' : 'قيد العمل'}</Badge>}
+                            {unit.studyGuide && <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50">دليل وحدة: {unit.studyGuide.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}</Badge>}
                             <Badge className={unit.exam?.id ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
                               {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال` : 'لا يوجد اختبار وحدة'}
                             </Badge>
