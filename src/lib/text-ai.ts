@@ -1437,6 +1437,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const ms = Date.now() - started
           await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true })
           lastResult = { provider, model, ok: true, at }
+          if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
