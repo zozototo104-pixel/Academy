@@ -42,6 +42,28 @@ function testComprehensiveExamCoversUnits() {
   assert(!code.includes('book.textContent') && !code.includes('examSourceBooks') && !code.includes('generateExamQuestionBatch'), 'الامتحان العام لا يجب أن يستخدم book.textContent أو exam-source-chunks')
 }
 
+function testUnitExamPendingReviewBlocksPublish() {
+  const selection = selectUnitExamQuestionsApprovedFirst([
+    { id: 'approved-1', status: 'APPROVED', qualityFlags: '["SOURCE_GROUNDED"]' },
+    { id: 'pending-1', status: 'PENDING_REVIEW', qualityFlags: '["SOURCE_GROUNDED"]' },
+  ], 2)
+  assert(selection.readyToBuild, 'اختبار الوحدة يجب أن يبنى عند اكتمال الحد الأدنى من approved + pending')
+  assert(!selection.publishable, 'اختبار الوحدة الذي يحتوي PENDING_REVIEW يجب ألا يكون قابلاً للنشر')
+  assert(!canPublishUnitExamFromQuestions([{ text: '【يحتاج مراجعة】 سؤال غير معتمد' }]), 'نشر اختبار يحتوي شارة يحتاج مراجعة يجب أن يُمنع')
+}
+
+function testUnitExamExcludesRejectedAndPrioritizesApproved() {
+  const selection = selectUnitExamQuestionsApprovedFirst([
+    { id: 'pending-1', status: 'PENDING_REVIEW', qualityFlags: '["SOURCE_GROUNDED"]' },
+    { id: 'rejected-1', status: 'REJECTED', qualityFlags: '["SOURCE_GROUNDED"]' },
+    { id: 'approved-1', status: 'APPROVED', qualityFlags: '["SOURCE_GROUNDED"]' },
+    { id: 'approved-2', status: 'APPROVED', qualityFlags: '["SOURCE_GROUNDED"]' },
+  ], 3)
+  assert(!selection.selectedIds.includes('rejected-1'), 'اختبار الوحدة يجب ألا يختار أسئلة REJECTED')
+  assert(selection.selectedIds[0] === 'approved-1' && selection.selectedIds[1] === 'approved-2', 'اختبار الوحدة يجب أن يعطي الأولوية دائماً للأسئلة APPROVED')
+  assert(selection.pendingReviewCount === 1, 'يجب استخدام PENDING_REVIEW فقط لاستكمال النقص بعد APPROVED')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
