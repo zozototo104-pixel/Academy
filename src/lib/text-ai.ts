@@ -1326,6 +1326,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
+  logRouterSummary(attempts, false)
   if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
   if (isVerifierCall(opts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
   if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
