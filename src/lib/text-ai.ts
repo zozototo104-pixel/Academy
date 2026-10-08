@@ -316,7 +316,12 @@ function parseCooldown(value: unknown): { until: number; reason: string; status?
 async function loadPersistentCooldowns(): Promise<Record<string, string>> {
   if (persistentCooldownCache && Date.now() - persistentCooldownCache.at < 30_000) return persistentCooldownCache.values
   try {
-    const values = await settingStore().scan?.('AI_COOLDOWN:') || {}
+    const store = settingStore()
+    const values = {
+      ...(await store.scan?.('AI_COOLDOWN:') || {}),
+      ...(await store.scan?.('AI_MODEL_DEAD:') || {}),
+      ...(await store.scan?.('AI_NO_BALANCE:') || {}),
+    }
     persistentCooldownCache = { at: Date.now(), values }
     for (const [key, value] of Object.entries(values)) {
       if (!parseCooldown(value)) settingStore().delete?.(key).catch(() => {})
