@@ -327,7 +327,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     }
 
     if (Date.now() >= deadline) {
-      for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: 'VERIFIER_TIME_BUDGET_EXCEEDED' })
+      }
       continue
     }
     const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
