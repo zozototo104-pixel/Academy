@@ -244,7 +244,18 @@ export async function DELETE(req: NextRequest) {
     await requireAdmin()
     const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
     const unitId = cleanText(req.nextUrl.searchParams.get('unitId'), 80)
+    const force = req.nextUrl.searchParams.get('force') === 'true'
     if (!programId || !unitId) return NextResponse.json({ error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
+    const unit = await db.unit.findFirst({
+      where: { id: unitId, programId },
+      select: { id: true, title: true, status: true, exam: { select: { _count: { select: { attempts: true } } } } },
+    })
+    if (!unit) return NextResponse.json({ error: 'الوحدة غير موجودة' }, { status: 404 })
+    const blocked = unit.status === 'APPROVED' || hasUnitExamAttempts(unit)
+    if (blocked && !force) {
+      const reasons = [unit.status === 'APPROVED' ? 'الوحدة معتمدة' : '', hasUnitExamAttempts(unit) ? 'لها محاولات طلاب مرتبطة بالاختبار' : ''].filter(Boolean).join(' و')
+      return NextResponse.json({ error: `لا يمكن حذف هذه الوحدة لأنها ${reasons}. استخدم الحذف الإجباري بعد تأكيد إداري صريح.` }, { status: 409 })
+    }
     await db.unit.deleteMany({ where: { id: unitId, programId } })
     await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
     return NextResponse.json({ ok: true, units: await listProgramUnits(programId) })
