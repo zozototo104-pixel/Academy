@@ -248,6 +248,8 @@ async function main() {
   await embeddingModelsAreExcludedFromDiscovery()
   console.log('▶ router health: health score ordering')
   await healthScoreOrdersModelsInsideProvider()
+  console.log('▶ router health: provider order before health score')
+  await providerOrderBeatsHealthScoreAcrossProviders()
   console.log('▶ router health: json response format')
   await jsonObjectResponseFormatIsSent()
   console.log('router health tests: ok')
