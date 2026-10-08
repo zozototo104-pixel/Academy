@@ -249,9 +249,11 @@ export async function POST(req: NextRequest) {
         take: 500,
       })
       const now = Date.now()
+      type ExcludedModelRow = { key: string; kind: string; reason: string; status: number | null; until: string }
+      type TopModelRow = { provider: string; model: string; score: number; success: number; failCount: number; avgMs: number }
       const excluded = rows
         .filter((row) => row.key.startsWith('AI_MODEL_DEAD:') || row.key.startsWith('AI_NO_BALANCE:'))
-        .map((row) => {
+        .map((row): ExcludedModelRow | null => {
           try {
             const parsed = JSON.parse(row.value || '{}')
             const untilMs = Date.parse(String(parsed.until || '')) || Number(parsed.until || 0)
