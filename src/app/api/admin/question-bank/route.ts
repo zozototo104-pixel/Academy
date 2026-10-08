@@ -7,9 +7,9 @@ import { geminiCompleteJson } from '@/lib/gemini'
 import { assertQuestionBatchAcceptable, buildQuestionBankRecord, knowledgeEvidenceText, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { audit } from '@/lib/notify'
+import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { inferTextProvenance, isEvidenceAllowedByProvenance, textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
-import { z } from 'zod'
 
 export const maxDuration = 300
 
