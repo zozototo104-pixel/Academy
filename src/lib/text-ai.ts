@@ -1279,7 +1279,8 @@ function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
   if (attempt.status === 402 || /balance|recharge|top.?up|payment required/.test(msg)) return 'no_balance'
   if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
   if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
-  if (/validation_rejected|invalid|json|zod/.test(msg)) return 'invalid_response'
+  if (/validation_rejected|invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod/.test(msg)) return 'schemaFail'
+  if (/invalid|json/.test(msg)) return 'invalid_response'
   return attempt.ok ? 'ok' : 'other'
 }
 
