@@ -519,6 +519,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       count: created.length,
       mode: replace ? 'replace' : append ? 'append' : 'create',
+      deleted: replaceProtection.deleted,
+      keptApproved: replaceProtection.keptApproved,
+      keptOutline: replaceProtection.keptOutline,
+      keptWithAttempts: replaceProtection.keptWithAttempts,
       actualAi: generationAudit.actualAi,
       generationAudit: {
         generatedAt: generationAudit.generatedAt,
