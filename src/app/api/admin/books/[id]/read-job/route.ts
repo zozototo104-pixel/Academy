@@ -28,6 +28,10 @@ export async function POST(request: NextRequest, context: Context) {
     const mode = body?.mode === 'ENRICH' ? 'ENRICH' : 'EXTRACT'
     const book = await db.book.findUnique({ where: { id }, select: { id: true, programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
+    if (mode === 'ENRICH') {
+      const readable = await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } })
+      if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
+    }
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
     try {
