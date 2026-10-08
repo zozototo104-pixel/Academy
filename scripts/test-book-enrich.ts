@@ -22,7 +22,7 @@ async function scenario(existingTitles: string[], produced: BookKnowledgeCandida
     finish: async () => {},
   }
   const result = await enrichStepWithStore('job', Date.now() + 30000, store, async () => produced)
-  return { result, persisted, added, saturatedAt, passes }
+  return { result, persisted, added, saturated: Boolean(saturatedAt), passes }
 }
 
 async function main() {
