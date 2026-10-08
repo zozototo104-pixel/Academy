@@ -2049,7 +2049,7 @@ export function AdminBooksTab() {
                             </div>
                             <div className="flex w-full flex-col flex-wrap gap-2 sm:flex-row">
                               <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">قراءة وتحليل كامل</Button>
-                              {countForBook > 0 && <Button size="sm" variant="outline" disabled={outlineBusyId === b.id} onClick={() => buildOutlineForBook(b.id)} className="h-8 px-2 text-[10px] font-black">{outlineBusyId === b.id ? 'جارٍ بناء الفهرس...' : 'بناء فهرس الكتاب'}</Button>}
+                              {countForBook > 0 && <Button size="sm" variant="outline" disabled={outlineBusyId === b.id} onClick={() => buildOutlineForBook(b.id)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{outlineBusyId === b.id ? 'جارٍ بناء الفهرس...' : 'بناء فهرس الكتاب'}</Button>}
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 px-2 text-[10px] font-black">استخراج المزيد</Button>}
                             </div>
                           </div>
