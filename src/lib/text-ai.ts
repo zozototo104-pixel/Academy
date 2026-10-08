@@ -1097,6 +1097,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   }
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
+  const persistentCooldowns = await loadPersistentCooldowns()
   let onlySameFamilyModelsExcluded = false
 
   for (const provider of providers) {
