@@ -11,7 +11,7 @@ const tocPattern = /(?:المحتويات|الفهرس|contents|table of content
 const clean = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 180)
 
 const normalizeHeading = (value: unknown) => clean(value).normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[إأآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim()
-const chapterPattern = /(?:^|\s)((?:الفصل|الباب|الوحدة|chapter|part|unit)\s+(?:[\d\u0660-\u0669]+|[\p{L}]+))/iu
+const chapterPattern = /(?:^|\s)((?:الفصل|الباب|الوحدة|chapter|part|unit)\s+(?:الحادي عشر|الثاني عشر|[\d\u0660-\u0669]+|[\p{L}]+))/iu
 function mainHeading(path: string | null, bookTitle: string): string | null {
   const bookKey = normalizeHeading(bookTitle)
   const parts = String(path || '').split(/\s*(?:>|\/|»|›|\||→|—|\s+-\s+)\s*/u).map(clean).filter(Boolean)
