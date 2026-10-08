@@ -62,6 +62,7 @@ const tests = [
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
   testGuideWithoutSourceKnowledgeIdsRejected,
+  testReplaceProtectionKeepsApprovedOutlineAndAttemptedUnits,
 ]
 
 for (const test of tests) {
