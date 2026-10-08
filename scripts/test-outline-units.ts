@@ -1,4 +1,4 @@
-import { planOutlineUnitsFromSections, validateStudyGuideSources, validateUnitContentReferences } from '@/lib/outline-units'
+import { canReplaceDeleteUnit, planOutlineUnitsFromSections, summarizeReplaceUnitProtection, validateStudyGuideSources, validateUnitContentReferences } from '@/lib/outline-units'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
