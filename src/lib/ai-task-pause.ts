@@ -41,11 +41,7 @@ function pauseKey(kind: AiTaskPauseKind, scopeId: string): string {
 export async function setAiTaskPause(kind: AiTaskPauseKind, scopeId: string, payload: AiTaskPausePayload): Promise<AiTaskPausePayload> {
   const value = { ...payload, retryAt: payload.retryAt || null, pausedAt: payload.pausedAt || new Date().toISOString() }
   try {
-    await db.setting.upsert({
-      where: { key: pauseKey(kind, scopeId) },
-      create: { key: pauseKey(kind, scopeId), value: JSON.stringify(value) },
-      update: { value: JSON.stringify(value) },
-    })
+    await store().upsert(pauseKey(kind, scopeId), JSON.stringify(value))
   } catch (error) {
     console.warn('setAiTaskPause failed; continuing without persistent pause state', { kind, scopeId, error })
   }
