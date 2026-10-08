@@ -540,9 +540,34 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const replace = body?.replace === true
-    const append = body?.append === true
+    const append = body?.append === true || body?.legacyConfirmed === true
+    const regenerateDrafts = body?.regenerateDrafts === true
+    const legacyConfirmed = body?.legacyConfirmed === true
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     if (replace && append) return NextResponse.json({ error: 'اختر إما الإضافة إلى الموجود أو الاستبدال، وليس الخيارين معاً.' }, { status: 400 })
+
+    const outlineResult = await createUnitsFromApprovedOutlines(programId, regenerateDrafts)
+    if (!outlineResult) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+    if (outlineResult.usedApprovedOutlines) {
+      await audit({ id: admin.id, name: admin.name }, 'GENERATE_UNITS_FROM_APPROVED_OUTLINES', 'Program', programId, `توليد وحدات من الفهارس المعتمدة لبرنامج ${outlineResult.program.titleAr}`)
+      return NextResponse.json({
+        ok: true,
+        mode: regenerateDrafts ? 'outline-regenerate-drafts' : 'outline',
+        source: 'APPROVED_BOOK_OUTLINES',
+        count: outlineResult.created.length + outlineResult.updated.length,
+        summary: outlineResult.summary,
+        skippedBooks: outlineResult.skippedBooks,
+        warnings: outlineResult.skippedBooks.map((book) => book.reason),
+        units: outlineResult.created,
+      })
+    }
+    if (!legacyConfirmed) {
+      return NextResponse.json({
+        error: 'لا يوجد أي كتاب في البرنامج له فهرس معتمد. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة فقط بعد تأكيد صريح.',
+        code: 'LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED',
+        skippedBooks: outlineResult.skippedBooks,
+      }, { status: 409 })
+    }
 
     const [currentCount, existingOrder] = await Promise.all([
       db.unit.count({ where: { programId } }),
