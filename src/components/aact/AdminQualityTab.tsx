@@ -2916,7 +2916,7 @@ export function AdminQualityTab() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-black">نتيجة توليد الوحدات الأخيرة</span>
                     <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
-                      {unitGenerationResult.mode === 'append' ? 'إضافة إلى الموجود' : unitGenerationResult.mode === 'replace' ? 'استبدال الموجود' : 'إنشاء جديد'}
+                      {unitGenerationResult.mode === 'outline-regenerate-drafts' ? 'تحديث مسودات من الفهارس' : unitGenerationResult.mode === 'outline' ? 'من الفهارس المعتمدة' : unitGenerationResult.mode === 'append' ? 'توليد قديم مضاف' : 'إنشاء جديد'}
                     </Badge>
                   </div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
