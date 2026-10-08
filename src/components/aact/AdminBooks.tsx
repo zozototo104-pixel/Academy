@@ -667,6 +667,7 @@ export function AdminBooksTab() {
       setAssignments(a.assignments)
       setKnowledgeItems([])
       setKnowledgeStats({})
+      setV2CountsByBook({})
       setProgramReadiness(null)
       setCurriculumUnits([])
       setQuestionBankItems([])
