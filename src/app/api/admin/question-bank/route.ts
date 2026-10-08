@@ -417,6 +417,7 @@ ${knowledgeText}
           ? evidenceKnowledge[requestedSourceIndex - 1]
           : null
         if (!source || !selectedSources.some((selected) => selected.id === source.id)) continue
+        if ((usage.get(source.id) || 0) >= 2 && evidenceKnowledge.some((other) => (usage.get(other.id) || 0) < 2)) continue
         const q = {
           ...sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote }),
           qualityFlags: item.qualityFlags,
