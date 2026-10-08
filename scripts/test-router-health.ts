@@ -125,6 +125,62 @@ async function highDemandSkipsSameModelForRemainingKeys() {
   )
 }
 
+async function embeddingModelsAreExcludedFromDiscovery() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'auto'
+  const store = makeStore()
+  await withHarness(
+    store,
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [
+          { id: 'embedding-model:free', is_free: true, online: true, type: 'embedding', context_length: 128000 },
+          { id: 'healthy-chat-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+        ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/chat/completions')) {
+        const model = JSON.parse(String(init?.body || '{}')).model
+        assert.equal(model, 'healthy-chat-model:free')
+        return okChat('healthy')
+      }
+      return okChat('ignored')
+    },
+    async () => {
+      const out = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }] })
+      assert.equal(out, 'healthy')
+    }
+  )
+}
+
+async function healthScoreOrdersModelsInsideProvider() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'auto'
+  const store = makeStore()
+  store.values.set('AI_MODEL_STATS:UNOROUTER:slow-model:free', JSON.stringify({ success: 1, fail: { timeout: 9 }, avgMs: 60000, jsonOk: 0, jsonTotal: 4, evidenceOk: 0, evidenceTotal: 4 }))
+  store.values.set('AI_MODEL_STATS:UNOROUTER:healthy-model:free', JSON.stringify({ success: 20, fail: { other: 1 }, avgMs: 800, jsonOk: 10, jsonTotal: 10, evidenceOk: 10, evidenceTotal: 10 }))
+  await withHarness(
+    store,
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [
+          { id: 'slow-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+          { id: 'healthy-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+        ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/chat/completions')) {
+        const model = JSON.parse(String(init?.body || '{}')).model
+        assert.equal(model, 'healthy-model:free')
+        return okChat('healthy')
+      }
+      return okChat('ignored')
+    },
+    async () => {
+      const out = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }] })
+      assert.equal(out, 'healthy')
+    }
+  )
+}
+
 async function jsonObjectResponseFormatIsSent() {
   configureUnoRouter()
   process.env.UNOROUTER_TEXT_MODEL = 'json-model:free'
