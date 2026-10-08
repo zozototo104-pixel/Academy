@@ -398,7 +398,10 @@ ${knowledgeText}
       if (!generated.length) return finishPartial('لم يُرجع المزود أسئلة أكاديمية صالحة.', 503)
 
       const finalValidation = validateQuestionBatchAgainstKnowledge(generated, evidenceSources)
-      for (const rejection of finalValidation.rejected) console.warn('question bank evidence rejected before save:', rejection)
+      for (const rejection of finalValidation.rejected) {
+        const q = generated[rejection.index]
+        console.warn(`question bank evidence rejected before save index=${rejection.index} type=${String(q?.type || 'UNKNOWN')} sourceIndex=${rejection.sourceIndex} reason=${rejection.reason} question="${String(q?.text || '').slice(0, 80)}"`)
+      }
       const verifiedQuestions = await verifyQuestionsWithCrossProvider({
         questions: finalValidation.accepted,
         sources: evidenceSources,
