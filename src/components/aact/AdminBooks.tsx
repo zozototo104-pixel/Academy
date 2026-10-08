@@ -114,6 +114,32 @@ interface BookRow {
   hasFile: boolean
 }
 
+interface BookOutlineDebugChunk {
+  index: number
+  pageStart: number
+  pageEnd: number
+  headingPath: string | null
+  preview: string
+  matches: {
+    lineNumber: number
+    charOffset: number
+    rawLine: string
+    normalizedLine: string
+    contextBefore: string
+    contextAfter: string
+  }[]
+}
+
+function formatBookOutlineDebug(chunks: BookOutlineDebugChunk[]) {
+  return chunks.map((chunk) => {
+    const header = `مقطع ${chunk.index} · صفحات ${chunk.pageStart}–${chunk.pageEnd} · ${chunk.headingPath || 'بدون مسار عنوان'}\nأول 150 حرفاً: ${chunk.preview}`
+    const rows = chunk.matches.length
+      ? chunk.matches.map((line) => `  سطر ${line.lineNumber} · charOffset ${line.charOffset}\n  النص: ${line.rawLine}\n  بعد التطبيع: ${line.normalizedLine}\n  السياق: ${line.contextBefore}⟦${line.rawLine}⟧${line.contextAfter}`).join('\n')
+      : '  لا توجد أسطر فصل/باب في هذا المقطع.'
+    return `${header}\n${rows}`
+  }).join('\n\n')
+}
+
 interface Suggestion {
   title: string
   titleEn: string
