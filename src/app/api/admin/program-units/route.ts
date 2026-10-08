@@ -22,7 +22,13 @@ function parseObjectives(value: unknown) {
 
 function parseContent(value: unknown) {
   if (Array.isArray(value)) {
-    return value.map((x: any) => ({ heading: cleanText(x?.heading, 160) || 'محور', body: cleanText(x?.body, 1000) })).filter((x) => x.body).slice(0, 10)
+    return value.map((x: any) => ({
+      heading: cleanText(x?.heading, 160) || 'محور',
+      body: cleanText(x?.body, 1600),
+      pageRefs: Array.isArray(x?.pageRefs) ? x.pageRefs.map((r: any) => cleanText(r, 80)).filter(Boolean) : [],
+      sourceKnowledgeIds: Array.isArray(x?.sourceKnowledgeIds) ? x.sourceKnowledgeIds.map((id: any) => cleanText(id, 100)).filter(Boolean) : [],
+      sourceChunkIndexes: Array.isArray(x?.sourceChunkIndexes) ? x.sourceChunkIndexes.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n)) : [],
+    })).filter((x) => x.body).slice(0, 12)
   }
   if (typeof value === 'string') {
     try {
@@ -31,9 +37,37 @@ function parseContent(value: unknown) {
     } catch (error) {
       console.warn('Failed to parse unit content JSON; falling back to plain text.', error)
     }
-    return [{ heading: 'محتوى الوحدة', body: cleanText(value, 1200) }]
+    return [{ heading: 'محتوى الوحدة', body: cleanText(value, 1200), pageRefs: [], sourceKnowledgeIds: [], sourceChunkIndexes: [] }]
   }
   return []
+}
+
+function jsonArray(value: unknown) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
+  }
+  return []
+}
+
+function mapStudyGuide(guide: any | null) {
+  if (!guide) return null
+  return {
+    id: guide.id,
+    unitId: guide.unitId,
+    semester: guide.semester,
+    title: guide.title,
+    overview: guide.overview,
+    objectives: jsonArray(guide.objectives),
+    keyTerms: jsonArray(guide.keyTerms),
+    sections: jsonArray(guide.sections),
+    activities: jsonArray(guide.activities),
+    discussionQuestions: jsonArray(guide.discussionQuestions),
+    sourceKnowledgeIds: jsonArray(guide.sourceKnowledgeIds),
+    status: guide.status,
+    generatedBy: guide.generatedBy,
+    updatedAt: guide.updatedAt,
+  }
 }
 
 async function listProgramUnits(programId: string) {
@@ -51,25 +85,68 @@ async function listProgramUnits(programId: string) {
       },
     },
   })
-  return units.map((u) => ({
-    id: u.id,
-    title: u.title,
-    summary: u.summary,
-    objectives: parseObjectives(u.objectives),
-    content: parseContent(u.content),
-    order: u.order,
-    semester: u.semester,
-    status: u.status,
-    exam: u.exam
-      ? {
-          id: u.exam.id,
-          title: u.exam.title,
-          passScore: u.exam.passScore,
-          questionsCount: u.exam._count.questions,
-          attemptsCount: u.exam._count.attempts,
-        }
-      : null,
-  }))
+  const unitIds = units.map((unit) => unit.id)
+  const outlineSectionIds = [...new Set(units.map((unit) => unit.outlineSectionId).filter((id): id is string => Boolean(id)))]
+  const bookIds = [...new Set(units.map((unit) => unit.sourceBookId).filter((id): id is string => Boolean(id)))]
+  const [guides, jobs, sections, books] = await Promise.all([
+    unitIds.length ? db.programStudyGuide.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
+    unitIds.length ? db.unitGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
+    outlineSectionIds.length ? db.bookOutlineSection.findMany({ where: { id: { in: outlineSectionIds } }, select: { id: true, title: true, pageStart: true, pageEnd: true, chunkStartIndex: true, chunkEndIndex: true } }) : [],
+    bookIds.length ? db.book.findMany({ where: { id: { in: bookIds } }, select: { id: true, title: true } }) : [],
+  ])
+  const guideByUnit = new Map<string, any>()
+  for (const guide of guides) if (guide.unitId && !guideByUnit.has(guide.unitId)) guideByUnit.set(guide.unitId, guide)
+  const jobByUnit = new Map<string, any>()
+  for (const job of jobs) if (!jobByUnit.has(job.unitId)) jobByUnit.set(job.unitId, job)
+  const sectionById = new Map(sections.map((section) => [section.id, section]))
+  const bookById = new Map(books.map((book) => [book.id, book]))
+  return units.map((u) => {
+    const section = u.outlineSectionId ? sectionById.get(u.outlineSectionId) : null
+    const book = u.sourceBookId ? bookById.get(u.sourceBookId) : null
+    return {
+      id: u.id,
+      title: u.title,
+      summary: u.summary,
+      objectives: parseObjectives(u.objectives),
+      content: parseContent(u.content),
+      order: u.order,
+      semester: u.semester,
+      status: u.status,
+      sourceBookId: u.sourceBookId,
+      outlineSectionId: u.outlineSectionId,
+      chunkStartIndex: u.chunkStartIndex,
+      chunkEndIndex: u.chunkEndIndex,
+      generationVersion: u.generationVersion,
+      source: section || book ? {
+        bookTitle: book?.title || null,
+        sectionTitle: section?.title || null,
+        pageStart: section?.pageStart ?? null,
+        pageEnd: section?.pageEnd ?? null,
+        chunkStartIndex: section?.chunkStartIndex ?? u.chunkStartIndex,
+        chunkEndIndex: section?.chunkEndIndex ?? u.chunkEndIndex,
+      } : null,
+      studyGuide: mapStudyGuide(guideByUnit.get(u.id) || null),
+      generationJob: jobByUnit.get(u.id) ? {
+        id: jobByUnit.get(u.id).id,
+        status: jobByUnit.get(u.id).status,
+        phase: jobByUnit.get(u.id).phase,
+        unitsDone: jobByUnit.get(u.id).unitsDone,
+        unitsTotal: jobByUnit.get(u.id).unitsTotal,
+        lastError: jobByUnit.get(u.id).lastError,
+        retryAt: jobByUnit.get(u.id).retryAt,
+        updatedAt: jobByUnit.get(u.id).updatedAt,
+      } : null,
+      exam: u.exam
+        ? {
+            id: u.exam.id,
+            title: u.exam.title,
+            passScore: u.exam.passScore,
+            questionsCount: u.exam._count.questions,
+            attemptsCount: u.exam._count.attempts,
+          }
+        : null,
+    }
+  })
 }
 
 // GET /api/admin/program-units?programId=...
