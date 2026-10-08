@@ -12,12 +12,12 @@ const toc = tocFromChunks(chunks)
 assert.equal(toc.length, 4)
 const outline = planBookOutline(chunks, items, ids, 1)
 assert.equal(outline.source, 'TOC')
-// Four TOC chapters start after page 1, so the uncovered first chunk becomes a preface section.
-assert.equal(outline.sections.length, 5)
-assert.equal(outline.sections[0].title, 'مقدمة الكتاب')
+// A one-chunk unlabeled preface is absorbed into the first real chapter.
+assert.equal(outline.sections.length, 4)
+assert.equal(outline.sections[0].title, 'الفصل الأول')
 assert.equal(outline.sections[0].chunkStartIndex, 0)
-assert.equal(outline.sections[0].chunkEndIndex, 0)
-assert.deepEqual(outline.sections.slice(1).map((section) => section.chunkStartIndex), [1, 4, 7, 10])
+assert.equal(outline.sections[0].chunkEndIndex, 3)
+assert.deepEqual(outline.sections.slice(1).map((section) => section.chunkStartIndex), [4, 7, 10])
 assert.equal(outline.sections.at(-1)?.chunkEndIndex, 11)
 for (let i = 1; i < outline.sections.length; i++) {
   assert.equal(outline.sections[i].chunkStartIndex, outline.sections[i - 1].chunkEndIndex + 1, 'no gaps or overlap')
