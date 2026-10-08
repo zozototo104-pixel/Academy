@@ -646,6 +646,7 @@ export function AdminBooksTab() {
           setCurriculumUnits(units.units || [])
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
+          setQuestionBankProgress(qb.progress || null)
           setStudyGuides(g.guides || [])
         })
         .catch(() => null)
