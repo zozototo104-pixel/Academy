@@ -1331,7 +1331,13 @@ export function AdminBooksTab() {
       try {
         const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
         if (active && response.enrichment) setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
-        if (active && response.job) setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+        if (active && response.job) {
+          setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+          setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: {
+            state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+            retryAt: response.job!.retryAt,
+          } }))
+        }
       } catch { /* A book without a job is expected. */ }
     })).catch(() => {})
     return () => { active = false }
