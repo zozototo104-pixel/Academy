@@ -1257,6 +1257,22 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
+          if (isDeadModelLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            await markPersistentModelDead(provider, model, msg, status)
+            break
+          }
+          if (isNoBalanceLike(e)) {
+            markCooldown(provider, key, msg, 24 * 60)
+            await markPersistentNoBalance(provider, keyIndex, msg, status)
+            continue
+          }
+          if (isHighDemandLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            markCooldown(provider, key, msg, 1)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            break
+          }
           if (isTimeoutLike(e)) {
             markCooldown(provider, key, msg, 2)
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
