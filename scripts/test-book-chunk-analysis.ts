@@ -36,7 +36,7 @@ async function testKnowledgeAndResume() {
 }
 
 async function testThreeFailuresAndContinue() {
-  const chunks = ['bad', 'good'].map((id, index) => ({ id, bookId: 'book', programId: 'program', index, text: evidence, pageStart: index + 1, pageEnd: index + 1, textProvenance: 'NATIVE_TEXT', attempts: 0, status: 'EXTRACTED' }))
+  const chunks = ['bad', 'good'].map((id, index) => ({ id, bookId: 'book', programId: 'program', index, text: index === 0 ? evidence : secondEvidence, pageStart: index + 1, pageEnd: index + 1, textProvenance: 'NATIVE_TEXT', attempts: 0, status: 'EXTRACTED' }))
   let failed = 0, analyzed = 0, completed = false
   const store: AnalyzeStepStore = {
     getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
