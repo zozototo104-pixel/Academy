@@ -680,7 +680,7 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: 'PAUSED',
+        status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
         errorNote: JSON.stringify({
           code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
           reason: message,
