@@ -5,6 +5,22 @@ import { runProgressiveGenerationBatches, type GeneratedQuestionCandidate } from
 import { parseGeneratedQuestionCandidates, parseQuestionBatchEnvelope } from '../src/lib/question-bank-generation'
 import { isDuplicateQuestionIdea, selectQuestionKnowledgeSources } from '../src/lib/question-bank-diversity'
 
+function questionBankDiversityRegressions() {
+  const sources = [{ id: 'used-twice' }, { id: 'unused' }, { id: 'used-once' }]
+  const selected = selectQuestionKnowledgeSources(sources, new Map([['used-twice', 2], ['used-once', 1]]))
+  assert.equal(selected.some((source) => source.id === 'used-twice'), false)
+  assert.equal(selected[0]?.id, 'unused')
+  const previous = [{ text: 'اشرح أهمية التخطيط والتنظيم في إدارة المؤسسات', knowledgeItemId: 'same-source' }]
+  assert.equal(isDuplicateQuestionIdea('وضح أهمية التخطيط والتنظيم في إدارة المؤسسات', 'same-source', previous), true)
+  assert.equal(isDuplicateQuestionIdea('وضح أهمية التخطيط والتنظيم في إدارة المؤسسات', 'different-source', previous), false)
+  const progress: AiGenerationProgress = { jobId: 'resume-usage', status: 'PARTIAL', requested: 10, saved: 2, failedBatches: 0, lastError: null, updatedAt: '', usedSourceIndexes: [3], knowledgeItemIds: ['used-once'] }
+  const resumed = resolveGenerationJob(progress, 10)
+  assert.deepEqual(resumed.usedSourceIndexes, [3])
+  assert.deepEqual(resumed.knowledgeItemIds, ['used-once'])
+}
+
+questionBankDiversityRegressions()
+
 function jobLifecycleAndDedupe() {
   const completed: AiGenerationProgress = { jobId: 'old-job', status: 'COMPLETED', requested: 12, saved: 12, failedBatches: 0, lastError: null, updatedAt: '' }
   const fresh = resolveGenerationJob(completed, 10)
