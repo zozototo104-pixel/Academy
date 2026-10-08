@@ -2361,6 +2361,8 @@ export function AdminBooksTab() {
                             className="min-h-28 bg-white text-xs leading-6"
                           />
                         </div>
+                        {(unit.content || []).some((section) => section.pageRefs?.length || section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length) && <div className="mt-3 rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600 ring-1 ring-slate-100"><p className="mb-1 font-black text-[#0f2b46]">معاينة المحتوى المرجعي قبل الاعتماد</p>{(unit.content || []).map((section, sectionIndex) => <p key={`${unit.id}-content-ref-${sectionIndex}`}>• {section.heading}: {section.pageRefs?.join(' · ') || 'بلا صفحات'}{section.sourceKnowledgeIds?.length ? ` · مصادر معرفة ${section.sourceKnowledgeIds.length}` : ''}{section.sourceChunkIndexes?.length ? ` · مقاطع ${section.sourceChunkIndexes.join(', ')}` : ''}</p>)}</div>}
+                        {unit.studyGuide && <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/40 p-3 text-[11px] font-bold leading-5 text-slate-600"><p className="font-black text-[#0f2b46]">معاينة دليل الدراسة للوحدة — {unit.studyGuide.title}</p><p>{unit.studyGuide.overview}</p><p className="mt-1 text-purple-700">مصادر معرفة: {unit.studyGuide.sourceKnowledgeIds?.length || 0}</p>{(unit.studyGuide.keyTerms || []).slice(0, 6).map((term, termIndex) => <p key={`${unit.id}-term-${termIndex}`}>• {term}</p>)}</div>}
                         {unitBusyId === unit.id && <p className="mt-2 text-xs font-bold text-amber-700">جاري حفظ تعديلات الوحدة...</p>}
                       </article>
                     ))}
