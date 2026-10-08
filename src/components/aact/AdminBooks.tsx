@@ -664,6 +664,7 @@ export function AdminBooksTab() {
       ])
       setBooks(b.books)
       setBookReadJobs({})
+      setBookEnrichment({})
       setExams(e.exams)
       setAssignments(a.assignments)
       setKnowledgeItems([])
