@@ -1420,6 +1420,8 @@ model ProgramStudyGuide {
   id          String   @id @default(cuid())
   programId   String
   program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId      String?
+  unit        Unit?    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   semester    Int      @default(1) // 1 الفصل الأول | 2 الفصل الثاني | 3 بحث/مشروع
   title       String
   overview    String
