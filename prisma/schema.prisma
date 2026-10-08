@@ -1208,6 +1208,8 @@ model Book {
   source      String   @default("ADMIN") // ADMIN | AI
   createdAt   DateTime @default(now())
   knowledgeItems BookKnowledgeItem[]
+  readChunks BookChunk[]
+  readJobs BookReadJob[]
   uploadChunks BookUploadChunk[]
 }
 
