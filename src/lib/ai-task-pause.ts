@@ -71,7 +71,7 @@ export async function getAiTaskPause(kind: AiTaskPauseKind, scopeId: string): Pr
 
 export async function clearAiTaskPause(kind: AiTaskPauseKind, scopeId: string): Promise<void> {
   try {
-    await db.setting.delete({ where: { key: pauseKey(kind, scopeId) } })
+    await store().delete(pauseKey(kind, scopeId))
   } catch (error) {
     console.warn('clearAiTaskPause failed; continuing without throwing', { kind, scopeId, error })
   }
