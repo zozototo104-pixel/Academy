@@ -1083,6 +1083,47 @@ function isVerifierCall(opts: TextAiCallOpts): boolean {
   return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
 }
 
+function utcDateKey(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function utcMonthKey(): string {
+  return new Date().toISOString().slice(0, 7)
+}
+
+function estimatedPaidCostUsd(opts: TextAiCallOpts): number {
+  const configured = Number(env('AI_PAID_DEFAULT_CALL_COST_USD'))
+  if (Number.isFinite(configured) && configured > 0) return configured
+  const approxInput = opts.history.reduce((sum, item) => sum + String(item.text || '').length, 0) / 4
+  const approxOutput = Number(opts.maxOutputTokens || (opts.json ? 4096 : 2048))
+  return Math.max(0.002, ((approxInput + approxOutput) / 1000) * 0.01)
+}
+
+async function paidBudgetAvailable(s: Settings, estimatedCost: number): Promise<boolean> {
+  if (s.paidUsageMode === 'off') return false
+  if (s.openaiCompatTier !== 'PAID') return true
+  const dayKey = `AI_PAID_SPEND:DAY:${utcDateKey()}`
+  const monthKey = `AI_PAID_SPEND:MONTH:${utcMonthKey()}`
+  try {
+    const values = await settingStore().read([dayKey, monthKey])
+    const day = Number(values[dayKey] || 0) || 0
+    const month = Number(values[monthKey] || 0) || 0
+    if (s.paidDailyLimitUsd > 0 && day + estimatedCost > s.paidDailyLimitUsd) return false
+    if (s.paidMonthlyLimitUsd > 0 && month + estimatedCost > s.paidMonthlyLimitUsd) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function recordPaidSpend(s: Settings, estimatedCost: number): Promise<void> {
+  if (s.openaiCompatTier !== 'PAID' || estimatedCost <= 0) return
+  try {
+    await settingStore().increment?.(`AI_PAID_SPEND:DAY:${utcDateKey()}`, estimatedCost)
+    await settingStore().increment?.(`AI_PAID_SPEND:MONTH:${utcMonthKey()}`, estimatedCost)
+  } catch {}
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
