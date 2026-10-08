@@ -743,6 +743,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
 
   models = [...new Set(models)]
   freeModelsCache.set(cacheKey, { at: now, models })
+  if (models.length) {
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models })).catch(() => {})
+  }
   return models
 }
 
