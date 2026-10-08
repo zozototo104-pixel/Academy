@@ -314,8 +314,12 @@ async function loadPersistentCooldowns(): Promise<Record<string, string>> {
   }
 }
 
+function persistentCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+}
+
 function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
-  return !!(parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)]))
+  return !!persistentCooldown(values, provider, keyIndex, model)
 }
 
 async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
