@@ -558,6 +558,7 @@ function mapGuide(g: any) {
   return {
     id: g.id,
     programId: g.programId,
+    unitId: g.unitId || null,
     semester: g.semester,
     title: cleanGuideText(g.title, 'دليل الدراسة', 220, true),
     overview: cleanGuideText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000),
