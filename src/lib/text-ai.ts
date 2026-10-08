@@ -285,6 +285,50 @@ function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
 }
 
+function persistentCooldownKey(provider: string, keyIndex: number, model?: string): string {
+  return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
+}
+
+function parseCooldown(value: unknown): { until: number; reason: string; status?: number } | null {
+  try {
+    const parsed = JSON.parse(String(value || '{}'))
+    const until = Date.parse(String(parsed.until || '')) || Number(parsed.until || 0)
+    if (!Number.isFinite(until) || until <= Date.now()) return null
+    return { until, reason: String(parsed.reason || 'cooldown').slice(0, 180), status: Number(parsed.status || 0) || undefined }
+  } catch {
+    return null
+  }
+}
+
+async function loadPersistentCooldowns(): Promise<Record<string, string>> {
+  if (persistentCooldownCache && Date.now() - persistentCooldownCache.at < 30_000) return persistentCooldownCache.values
+  try {
+    const values = await settingStore().scan?.('AI_COOLDOWN:') || {}
+    persistentCooldownCache = { at: Date.now(), values }
+    for (const [key, value] of Object.entries(values)) {
+      if (!parseCooldown(value)) settingStore().delete?.(key).catch(() => {})
+    }
+    return values
+  } catch {
+    return {}
+  }
+}
+
+function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
+  return !!(parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)]))
+}
+
+async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
+  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const ttl = Math.max(1, Math.floor(minutes || fallback))
+  const until = Date.now() + ttl * 60 * 1000
+  const payload = JSON.stringify({ until: new Date(until).toISOString(), reason: reason.slice(0, 180), status: status || null })
+  try {
+    await settingStore().write(persistentCooldownKey(provider, keyIndex, model), payload)
+    persistentCooldownCache = null
+  } catch {}
+}
+
 function isCooling(provider: string, key: string): boolean {
   const item = cooldowns.get(cooldownId(provider, key))
   if (!item) return false
