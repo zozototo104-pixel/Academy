@@ -488,6 +488,7 @@ export function AdminBooksTab() {
   const [bookOutlines, setBookOutlines] = useState<Record<string, { version: number; status: string; source: string; warnings?: string | null; sections: { id: string; title: string; order: number; semester: number | null; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[] } | null>>({})
   const [programOutlineDraft, setProgramOutlineDraft] = useState<{ id: string; bookId: string; bookTitle: string; title: string; semester: number | null; semesterNeedsReview: boolean; order: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[]>([])
   const [outlineBusyId, setOutlineBusyId] = useState<string | null>(null)
+  const [outlineUnitBusyId, setOutlineUnitBusyId] = useState<string | null>(null)
   const [outlineDebugBusyId, setOutlineDebugBusyId] = useState<string | null>(null)
   const [outlineDebugByBook, setOutlineDebugByBook] = useState<Record<string, BookOutlineDebugChunk[] | undefined>>({})
   const [outlineEditingId, setOutlineEditingId] = useState<string | null>(null)
