@@ -274,7 +274,7 @@ ${sourceChunkLines(params.chunks)}
   const parsed = parseOutlineUnitJson(raw)
   const summary = cleanOutlineUnitText(parsed?.summary, 1600)
   const wc = wordCount(summary)
-  if (wc < 60 || wc > 180) throw new Error('UNIT_SUMMARY_OUT_OF_RANGE')
+  if (wc < 80 || wc > 150) throw new Error('UNIT_SUMMARY_OUT_OF_RANGE')
   const objectives = Array.isArray(parsed?.objectives)
     ? parsed.objectives.map((x: any) => cleanOutlineUnitText(x, 240)).filter((x: string) => x.length >= 12).slice(0, 7)
     : []
