@@ -1759,7 +1759,7 @@ export async function getProgramKnowledgeItems(programId: string, semester?: num
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
-  }).filter((item) => item.title && item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary) && (!item.excerpt || !looksLikeBrokenAcademicOutput(item.excerpt)))
+  }).filter((item) => item.kbVersion === 2 || (item.title && item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary) && (!item.excerpt || !looksLikeBrokenAcademicOutput(item.excerpt))))
 }
 
 export async function buildKnowledgeContextForExam(programId: string, semester?: number | null, limit = 48): Promise<string> {
