@@ -289,8 +289,8 @@ export async function POST(req: NextRequest) {
             return null
           }
         })
-        .filter(Boolean)
-        .sort((a: any, b: any) => b.score - a.score)
+        .filter((row): row is TopModelRow => Boolean(row))
+        .sort((a, b) => b.score - a.score)
         .slice(0, 5)
       return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top })
     }
