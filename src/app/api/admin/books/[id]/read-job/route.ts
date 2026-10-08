@@ -14,7 +14,13 @@ export async function GET(_request: NextRequest, context: Context) {
     await authorize()
     const { id } = await context.params
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
-    return NextResponse.json({ ok: true, job })
+    const enrichment = {
+      totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
+      saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      addedItems: job?.phase === 'ENRICH' || (job?.phase === 'DONE' && job.totalChunks === 0)
+        ? await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }) : 0,
+    }
+    return NextResponse.json({ ok: true, job, enrichment })
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message || 'UNAUTHORIZED') }, { status: 401 })
   }
