@@ -125,7 +125,12 @@ async function highDemandSkipsSameModelForRemainingKeys() {
   const store = makeStore()
   await withHarness(
     store,
-    () => new Response(JSON.stringify({ error: { message: 'high demand, try again later' } }), { status: 503, headers: { 'content-type': 'application/json' } }),
+    (url) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'busy-model:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: { message: 'high demand, try again later' } }), { status: 503, headers: { 'content-type': 'application/json' } })
+    },
     async (calls) => {
       await assert.rejects(() => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }] }))
       assert.equal(calls.filter((call) => call.url.includes('/chat/completions')).length, 1, '503 high demand must skip same model on remaining keys in this request')
