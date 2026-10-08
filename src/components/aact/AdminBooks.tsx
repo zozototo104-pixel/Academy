@@ -997,7 +997,7 @@ export function AdminBooksTab() {
     }
   }
 
-  const generateQuestionsForBank = async () => {
+  const generateQuestionsForBank = async (mode: 'new' | 'resume' = 'new') => {
     if (!programId) return
     setQuestionBankBusy('generate')
     try {
