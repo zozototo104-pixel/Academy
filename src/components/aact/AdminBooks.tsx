@@ -545,6 +545,7 @@ export function AdminBooksTab() {
 
   const displayKnowledgeItems = useMemo(() => {
     return knowledgeItems
+      .filter((item) => showLegacyKnowledge || item.category !== 'LEGACY')
       .map((item) => {
         const title = cleanAcademicOutput(item.title, 220)
         const summary = cleanAcademicOutput(item.summary, 1600)
