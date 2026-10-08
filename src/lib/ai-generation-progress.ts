@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
+import { randomUUID } from 'node:crypto'
 
 export type AiGenerationProgressType = 'QUESTION_BANK' | 'PROGRAM_EXAM' | 'KNOWLEDGE_BANK'
 
