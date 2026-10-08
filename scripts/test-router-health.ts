@@ -382,6 +382,8 @@ async function main() {
   await invalidJsonRetriesOnceStrictly()
   console.log('▶ router health: sticky model')
   await stickyModelIsPreferredForSameScope()
+  console.log('▶ router health: OpenRouter timeout fallthrough')
+  await hangingOpenRouterTimesOutAndFallsThrough()
   console.log('▶ router health: json response format')
   await jsonObjectResponseFormatIsSent()
   console.log('router health tests: ok')
