@@ -643,13 +643,14 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
 
     const totals = await examTotals(examId)
     const done = firstMissingBatchIndex(totals.questionCount) >= EXAM_BATCH_COUNT
+    await setAiGenerationProgress('PROGRAM_EXAM', exam.programId, exam.semester, { requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: 0, lastError: null })
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: done ? 'REVIEW' : 'GENERATING',
+        status: done ? 'REVIEW' : 'DRAFT_INCOMPLETE',
         totalPoints: totals.totalPoints,
         durationMin: Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))),
-        errorNote: done ? null : `تم توليد ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()} — اضغط تحريك/استكمال أو اترك الصفحة مفتوحة ليكمل على دفعات`,
+        errorNote: done ? null : `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.`,
         booksUsed: [
           ...(knowledgeContext ? ['بنك المعرفة الأكاديمي المستخرج من الكتب'] : []),
           ...usableBooks.map((b) => `«${b.title}» (${b.sourceNote})`),
