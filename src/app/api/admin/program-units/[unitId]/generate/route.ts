@@ -9,10 +9,6 @@ export const maxDuration = 240
 export const dynamic = 'force-dynamic'
 type Context = { params: Promise<{ unitId: string }> }
 
-function clean(value: unknown, max = 3000) {
-  return String(value || '').replace(/\u0000/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max)
-}
-
 function parseContent(value: unknown): UnitContentSection[] {
   if (!value) return []
   if (Array.isArray(value)) return value as UnitContentSection[]
