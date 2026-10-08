@@ -6,6 +6,7 @@ import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStep } fro
 import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, type UnitExamSelection } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
+export const maxDuration = 240
 export const dynamic = 'force-dynamic'
 
 const UNIT_EXAM_JOB_DEADLINE_MS = 200_000
