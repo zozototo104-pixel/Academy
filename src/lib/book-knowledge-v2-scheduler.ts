@@ -16,7 +16,6 @@ export async function scheduleProgramKnowledgeV2(programId: string, semester?: n
     }
     const chunks = await db.bookChunk.count({ where: { bookId: book.id } })
     const pending = await db.bookChunk.count({ where: { bookId: book.id, status: { in: ['PENDING', 'EXTRACTED', 'FAILED'] } } })
-    const v2 = await db.bookKnowledgeItem.count({ where: { bookId: book.id, kbVersion: 2, category: { notIn: ['LEGACY', 'QUESTION_SEED'] } } })
     const remaining = await db.bookChunk.count({ where: { bookId: book.id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } } })
     // Fully analyzed books with no accepted v2 knowledge still qualify for enrichment.
     const mode = !chunks || pending ? 'EXTRACT' : remaining ? 'ENRICH' : null
