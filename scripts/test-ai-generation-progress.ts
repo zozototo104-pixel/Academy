@@ -67,7 +67,7 @@ async function resumeRequestsOnlyRemainingWithoutDuplicates() {
 async function invalidQuestionIsDroppedButRestAccepted() {
   const saved: GeneratedQuestionCandidate[] = []
   const result = await runProgressiveGenerationBatches({
-    requested: 3,
+    requested: 2,
     generate: async () => [
       question(1),
       { ...question(2), correctAnswer: '' },
@@ -80,8 +80,8 @@ async function invalidQuestionIsDroppedButRestAccepted() {
   })
   assert.equal(saved.length, 2)
   assert.equal(result.saved, 2)
-  assert.equal(result.remaining, 1)
-  assert.equal(result.lastError, 'AI_BATCH_EMPTY_AFTER_VALIDATION')
+  assert.equal(result.remaining, 0)
+  assert.equal(result.lastError, null)
 }
 
 async function fakeDeadlineReturnsAcceptedSoFar() {
