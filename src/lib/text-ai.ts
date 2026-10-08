@@ -497,6 +497,14 @@ function isAuthLike(e: any): boolean {
   return status === 401 || status === 403 || /api key|unauthorized|permission|forbidden|invalid key/i.test(msg)
 }
 
+function isSchemaFailureLike(e: any): boolean {
+  const code = String(e?.code || '').toUpperCase()
+  const msg = String(e?.message || e || '').toLowerCase()
+  return code === 'INVALID_JSON_RESPONSE'
+    || code === 'VALIDATION_REJECTED'
+    || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
+}
+
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
   try {
     const values = await settingStore().read(keys)
