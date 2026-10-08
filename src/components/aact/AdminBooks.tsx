@@ -429,7 +429,11 @@ export function AdminBooksTab() {
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
   const [showLegacyKnowledge, setShowLegacyKnowledge] = useState(false)
+  const [showAllKnowledge, setShowAllKnowledge] = useState(false)
+  const [knowledgeTotalCount, setKnowledgeTotalCount] = useState(0)
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
+  const [bookEnrichment, setBookEnrichment] = useState<Record<string, { totalChunks: number; saturatedChunks: number; addedItems: number }>>({})
+  const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }>>({})
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
   const bookReadInFlightRef = useRef<Set<string>>(new Set())
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
@@ -568,7 +572,7 @@ export function AdminBooksTab() {
         const keywords = sanitizeAcademicList(item.keywords || [], [], 10, 60)
         return { ...item, title, summary, excerpt, keywords }
       })
-      .filter((item) => item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt)))
+      .filter((item) => item.kbVersion === 2 || (item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt))))
   }, [knowledgeItems, showLegacyKnowledge])
 
   const displayKnowledgeStats = useMemo(() => {
@@ -663,6 +667,7 @@ export function AdminBooksTab() {
       ])
       setBooks(b.books)
       setBookReadJobs({})
+      setBookEnrichment({})
       setExams(e.exams)
       setAssignments(a.assignments)
       setKnowledgeItems([])
@@ -676,7 +681,7 @@ export function AdminBooksTab() {
       setStudyGuides([])
 
       Promise.all([
-        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, v2CountsByBook: {} as Record<string, number> })),
+        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, count: 0, v2CountsByBook: {} as Record<string, number> })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
         api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
         api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
@@ -684,6 +689,8 @@ export function AdminBooksTab() {
       ])
         .then(([k, readiness, units, qb, g]) => {
           setKnowledgeItems(k.items || [])
+          setKnowledgeTotalCount(k.count || 0)
+          setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
           setProgramReadiness(readiness.item || null)
@@ -890,14 +897,15 @@ export function AdminBooksTab() {
     if (!programId) return
     setRebuildingKnowledge(true)
     try {
-      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { totalInserted?: number; results?: { sourceNote?: string; inserted?: number }[] } }>('/api/admin/knowledge-bank', {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { results?: { bookId: string; state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }[] } }>('/api/admin/knowledge-bank', {
         method: 'POST',
         body: JSON.stringify({ programId, action: 'rebuild' }),
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      const firstNote = d.result?.results?.find((r) => r.sourceNote)?.sourceNote
-      toast({ title: 'تم بناء بنك المعرفة', description: firstNote || `بنى النظام ${d.result?.totalInserted || d.count || 0} عنصر معرفة من الكتب المقررة` })
+      const states = d.result?.results || []
+      setProgramKnowledgeV2States(Object.fromEntries(states.map((item) => [item.bookId, { state: item.state, retryAt: item.retryAt }])))
+      toast({ title: 'تمت جدولة/استكمال بنك المعرفة v2', description: `الكتب: ${states.length} · مكتمل ${states.filter((item) => item.state === 'COMPLETED').length} · قيد العمل ${states.filter((item) => item.state !== 'COMPLETED').length}` })
     } catch (e: any) {
       toast({ title: 'تعذر بناء بنك المعرفة', description: e.message, variant: 'destructive' })
     } finally {
@@ -1281,8 +1289,15 @@ export function AdminBooksTab() {
   }
 
   const fetchBookReadJob = useCallback(async (bookId: string) => {
-    const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${bookId}/read-job`)
-    if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+    const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
+    if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+    if (response.job) {
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+      setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
+        state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+        retryAt: response.job!.retryAt,
+      } }))
+    }
     return response.job
   }, [])
 
@@ -1290,9 +1305,15 @@ export function AdminBooksTab() {
     if (bookReadInFlightRef.current.has(bookId)) return
     bookReadInFlightRef.current.add(bookId)
     try {
-      const response = await api<{ job?: BookReadJobRow; skipped?: string }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
-      if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
-      else await fetchBookReadJob(bookId)
+      const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
+      if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
+      if (response.job) {
+        setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+        setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
+          state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+          retryAt: response.job!.retryAt,
+        } }))
+      } else await fetchBookReadJob(bookId)
       if (response.job?.status === 'COMPLETED' && programId) {
         const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${programId}`)
         setKnowledgeItems(data.items || [])
@@ -1312,8 +1333,15 @@ export function AdminBooksTab() {
     let active = true
     Promise.all(books.map(async (book) => {
       try {
-        const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${book.id}/read-job`)
-        if (active && response.job) setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+        const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
+        if (active && response.enrichment) setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+        if (active && response.job) {
+          setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+          setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: {
+            state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+            retryAt: response.job!.retryAt,
+          } }))
+        }
       } catch { /* A book without a job is expected. */ }
     })).catch(() => {})
     return () => { active = false }
@@ -1324,6 +1352,7 @@ export function AdminBooksTab() {
     const timer = setInterval(() => {
       if (document.visibilityState !== 'visible') return
       for (const book of books) {
+        void fetchBookReadJob(book.id).catch(() => {})
         const job = bookReadJobs[book.id]
         if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
           if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
@@ -1332,7 +1361,7 @@ export function AdminBooksTab() {
       }
     }, 5000)
     return () => clearInterval(timer)
-  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob])
+  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob, fetchBookReadJob])
 
   const startBookReadJob = async (bookId: string) => {
     setBookReadBusyId(bookId)
@@ -1345,6 +1374,17 @@ export function AdminBooksTab() {
     } finally {
       setBookReadBusyId(null)
     }
+  }
+
+  const startBookEnrichment = async (bookId: string) => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر بدء استخراج المزيد', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setBookReadBusyId(null) }
   }
 
   const rebuildBookKnowledge = async (bookId: string) => {
@@ -1962,10 +2002,13 @@ export function AdminBooksTab() {
                               <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
                               <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
                             </div>
-                            <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
-                              {bookReadBusyId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
-                            </Button>
+                            <div className="flex shrink-0 flex-wrap gap-1">
+                              <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 px-2 text-[10px] font-black">قراءة وتحليل كامل</Button>
+                              {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 px-2 text-[10px] font-black">استخراج المزيد</Button>}
+                            </div>
                           </div>
+                          {programKnowledgeV2States[b.id] && <p className="mt-1 text-[11px] font-bold text-slate-600">{programKnowledgeV2States[b.id].state === 'READING' ? 'يُقرأ' : programKnowledgeV2States[b.id].state === 'ENRICHING' ? 'يُستخرج المزيد' : programKnowledgeV2States[b.id].state === 'COMPLETED' ? 'مكتمل' : `متوقف مؤقتاً${programKnowledgeV2States[b.id].retryAt ? ` · إعادة المحاولة ${new Date(programKnowledgeV2States[b.id].retryAt!).toLocaleString('ar')}` : ''}`}</p>}
+                          {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'تم استخراج كل ما يمكن من الكتاب' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
@@ -1989,7 +2032,7 @@ export function AdminBooksTab() {
 
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
+                    <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p><span className="text-[10px] text-slate-500">يُعرض {displayKnowledgeItems.length} من {knowledgeTotalCount || displayKnowledgeItems.length}</span>{!showAllKnowledge && knowledgeTotalCount > knowledgeItems.length && <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={async () => { if (!programId) return; try { const result = await api<{ items: KnowledgeItemRow[]; count: number }>(`/api/admin/knowledge-bank?programId=${programId}&all=1`); setKnowledgeItems(result.items || []); setKnowledgeTotalCount(result.count || 0); setShowAllKnowledge(true) } catch (error: any) { toast({ title: 'تعذر عرض كل العناصر', description: String(error?.message || error), variant: 'destructive' }) } }}>عرض الكل</Button>}</div>
                     <div className="flex items-center gap-2">
                       <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-500">
                         <input type="checkbox" checked={showLegacyKnowledge} onChange={(event) => setShowLegacyKnowledge(event.target.checked)} /> عرض القديمة
@@ -2928,6 +2971,7 @@ export function AdminBooksTab() {
                     {generating ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : hasGeneratingExam ? <RefreshCw className="ml-1 h-3.5 w-3.5" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
                     {hasGeneratingExam ? 'تحريك التوليد' : 'توليد بالذكاء الاصطناعي'}
                   </Button>
+                  <p className="w-full text-[10px] leading-5 text-slate-500">ملاحظة للامتحان الشامل: يُفضّل إكمال قراءة الكتب وبناء بنك المعرفة قبل التوليد لضمان الاستناد إلى محتواها.</p>
                 </div>
               </div>
 

@@ -2,7 +2,7 @@ name: Academic AI router tests
 
 on:
   push:
-    branches: [phase2/full-book-reading]
+    branches: [phase2/full-book-reading, phase2/enrich-knowledge]
   pull_request:
     branches: [main]
 
@@ -51,4 +51,6 @@ jobs:
       - run: bunx tsx scripts/test-book-reading.ts
       - run: bunx tsx scripts/test-book-read-lock.ts
       - run: bunx tsx scripts/test-book-chunk-analysis.ts
+      - run: bunx tsx scripts/test-book-enrich.ts
+      - run: bunx tsx scripts/test-book-knowledge-v2-list.ts
       - run: bunx tsx scripts/test-question-bank-chunk-evidence.ts

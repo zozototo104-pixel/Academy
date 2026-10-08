@@ -60,6 +60,71 @@ export async function analyzeBookChunk(input: { bookId: string; chunkText: strin
   return accepted
 }
 
+export async function enrichBookChunk(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+  const result = await geminiCompleteJson({
+    system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
+    history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة، مفاهيم وتعريفات وأمثلة ومبادئ وحقائق. لا تخترع معلومات ولا تنشئ أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,excerpt (اقتباس حرفي 60-600 حرف),importance (0-100). أرجع {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالنص:\n${input.chunkText}` }],
+    taskLevel: 'ACADEMIC_DRAFT', stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: input.deadlineMs, temperature: 0.2,
+    validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
+  })
+  const accepted: BookKnowledgeCandidate[] = []
+  for (const raw of JSON.parse(result).items) {
+    const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
+    if (!candidate || isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) continue
+    accepted.push(candidate)
+    if (accepted.length >= 8) break
+  }
+  return accepted
+}
+
+export type EnrichStepStore = {
+  getJob: (id: string) => Promise<{ id: string; bookId: string; phase: string } | null>
+  nextChunk: (bookId: string) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; analysisPasses: number } | null>
+  existing: (bookId: string, chunkId: string, index: number) => Promise<{ local: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; own: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }>
+  save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[]) => Promise<void>
+  finish: (jobId: string) => Promise<void>
+}
+
+export async function enrichStepWithStore(jobId: string, deadlineMs: number, store: EnrichStepStore, analyze: typeof enrichBookChunk = enrichBookChunk) {
+  const job = await store.getJob(jobId)
+  if (!job) throw new Error('BOOK_READ_JOB_NOT_FOUND')
+  if (job.phase !== 'ENRICH') return { completed: job.phase === 'DONE', added: 0 }
+  const chunk = await store.nextChunk(job.bookId)
+  if (!chunk) { await store.finish(jobId); return { completed: true, added: 0 } }
+  const existing = await store.existing(job.bookId, chunk.id, chunk.index)
+  const capacity = Math.max(0, 20 - existing.own.length)
+  const candidates = capacity ? await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own }) : []
+  const accepted: BookKnowledgeCandidate[] = []
+  for (const raw of candidates) {
+    const item = validateBookKnowledgeCandidate(raw, chunk.text)
+    if (item && !isRepeatedBookConcept(item, [...existing.local, ...accepted])) accepted.push(item)
+    if (accepted.length >= capacity) break
+  }
+  await store.save(chunk, accepted)
+  return { completed: false, added: accepted.length }
+}
+
+/** Requires the shared read-step job lock. Processes exactly one chunk per call. */
+export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_000) {
+  const store: EnrichStepStore = {
+    getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true } }),
+    nextChunk: (bookId) => db.bookChunk.findFirst({ where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } }, orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }], select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true } }),
+    existing: async (bookId, chunkId, index) => {
+      const chunks = await db.bookChunk.findMany({ where: { bookId, index: { gte: Math.max(0, index - 2), lte: index } }, select: { id: true } })
+      const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
+      return { local: rows, own: rows.filter((row) => row.chunkId === chunkId) }
+    },
+    save: async (chunk, items) => {
+      await db.$transaction([
+        ...(items.length ? [db.bookKnowledgeItem.createMany({ data: items.map((item) => ({ bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance, kbVersion: 2, category: item.category, title: item.title, summary: item.summary, excerpt: item.excerpt, importance: item.importance })) })] : []),
+        db.bookChunk.update({ where: { id: chunk.id }, data: { ...(items.length ? { analysisPasses: { increment: 1 } } : { saturatedAt: new Date() }) } }),
+      ])
+    },
+    finish: async (id) => { await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
+  }
+  return enrichStepWithStore(jobId, deadlineMs, store)
+}
+
 export type AnalyzeStepStore = {
   getJob: (id: string) => Promise<{ id: string; bookId: string; programId: string; phase: string; status: string } | null>
   nextChunk: (bookId: string, excludeIds: string[]) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; attempts: number } | null>

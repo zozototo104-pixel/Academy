@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { runExtractStep } from '@/lib/book-reader'
-import { runAnalyzeStep } from '@/lib/book-chunk-analyzer'
+import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
@@ -38,6 +38,8 @@ export async function GET(request: NextRequest) {
         if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline)
       } else if (job.phase === 'ANALYZE') {
         await runAnalyzeStep(job.id, deadline)
+      } else if (job.phase === 'ENRICH') {
+        await runEnrichStep(job.id, deadline)
       }
       const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
       if (current?.status !== 'COMPLETED') await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null, lastError: null } })

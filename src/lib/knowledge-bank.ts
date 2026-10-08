@@ -1728,12 +1728,13 @@ export async function ensureProgramKnowledge(programId: string, semester?: numbe
 export async function getProgramKnowledgeItems(programId: string, semester?: number | null, limit = 80) {
   const where: any = { programId }
   if (semester) where.OR = [{ semester: null }, { semester }]
-  const rows = await db.bookKnowledgeItem.findMany({
-    where,
-    orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }],
-    take: limit,
-    include: { book: { select: { title: true, titleEn: true, semester: true } } },
-  })
+  // v2 is validated against the literal source excerpt at insertion. Keep all v2
+  // records available independently of the legacy context-size limit.
+  const [v2Rows, legacyRows] = await Promise.all([
+    db.bookKnowledgeItem.findMany({ where: { ...where, kbVersion: 2 }, orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }], include: { book: { select: { title: true, titleEn: true, semester: true } } } }),
+    db.bookKnowledgeItem.findMany({ where: { ...where, kbVersion: { not: 2 } }, orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }], take: limit, include: { book: { select: { title: true, titleEn: true, semester: true } } } }),
+  ])
+  const rows = [...v2Rows, ...legacyRows].sort((a, b) => b.importance - a.importance || a.createdAt.getTime() - b.createdAt.getTime())
   return rows.map((r, i) => {
     const summary = cleanText(r.summary, 1600)
     const title = cleanText(safeKnowledgeTitle(r.title, summary, r.category, i), 220)
@@ -1758,7 +1759,7 @@ export async function getProgramKnowledgeItems(programId: string, semester?: num
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
-  }).filter((item) => item.title && item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary) && (!item.excerpt || !looksLikeBrokenAcademicOutput(item.excerpt)))
+  }).filter((item) => item.kbVersion === 2 || (item.title && item.summary && !looksLikeBrokenAcademicOutput(item.title, { allowShort: true }) && !looksLikeBrokenAcademicOutput(item.summary) && (!item.excerpt || !looksLikeBrokenAcademicOutput(item.excerpt))))
 }
 
 export async function buildKnowledgeContextForExam(programId: string, semester?: number | null, limit = 48): Promise<string> {

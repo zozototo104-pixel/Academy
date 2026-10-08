@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { scheduleProgramKnowledgeV2 } from '@/lib/book-knowledge-v2-scheduler'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const items = await getProgramKnowledgeItems(programId, semester, 140)
+    const allItems = await getProgramKnowledgeItems(programId, semester, 140)
+    const items = req.nextUrl.searchParams.get('all') === '1' ? allItems : allItems.slice(0, 140)
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
     const v2BookCounts = await db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
@@ -48,7 +50,8 @@ export async function GET(req: NextRequest) {
       program,
       booksCount,
       v2CountsByBook,
-      count: items.length,
+      count: allItems.length,
+      displayedCount: items.length,
       limits: KNOWLEDGE_BANK_LIMITS,
       stats: categoryStats(items),
       items,
@@ -127,8 +130,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const result = await rebuildProgramKnowledge(programId, semester)
-    await audit(admin, 'REBUILD_PROGRAM_KNOWLEDGE', 'Program', programId, `بناء ${result.totalInserted} عنصر معرفة من كتب البرنامج`)
+    // The program-wide rebuild button schedules v2 jobs; the legacy v1 builder stays available for other paths.
+    const result = await scheduleProgramKnowledgeV2(programId, semester)
+    await audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`)
     const items = await getProgramKnowledgeItems(programId, semester, 140)
     return NextResponse.json({ ok: true, result, count: items.length, stats: categoryStats(items), items })
   } catch (e: any) {

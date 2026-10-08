@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { runExtractStep } from '@/lib/book-reader'
-import { runAnalyzeStep } from '@/lib/book-chunk-analyzer'
+import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, canRunBookReadJob, claimBookReadLock } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
@@ -45,6 +45,8 @@ export async function POST(_request: NextRequest, context: Context) {
       }
     } else if (job.phase === 'ANALYZE') {
       result = await runAnalyzeStep(job.id, deadlineMs)
+    } else if (job.phase === 'ENRICH') {
+      result = await runEnrichStep(job.id, deadlineMs)
     } else {
       result = { phase: job.phase }
     }
@@ -52,7 +54,12 @@ export async function POST(_request: NextRequest, context: Context) {
     const updated = current?.status === 'COMPLETED'
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
       : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
-    return NextResponse.json({ ok: true, result, job: updated })
+    const enrichment = job.phase === 'ENRICH' ? {
+      totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
+      saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      addedItems: await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
+    } : undefined
+    return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {
     const message = String(error?.message || error)
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
