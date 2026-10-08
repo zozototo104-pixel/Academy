@@ -207,7 +207,8 @@ export async function GET(req: NextRequest) {
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused })
+    const progress = await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL')
+    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
