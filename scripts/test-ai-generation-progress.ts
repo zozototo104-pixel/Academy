@@ -34,6 +34,9 @@ async function partialFailureKeepsSavedBatches() {
   assert.equal(result.remaining, 2)
   assert.equal(result.message, 'تم حفظ 8 من 10. اضغط مرة أخرى لإكمال الباقي.')
   assert.deepEqual(result.batchSizes, [4, 4, 2])
+  const progressStore = new Map<string, string>()
+  progressStore.set(aiGenerationProgressKey('QUESTION_BANK', 'program-1', 'ALL'), JSON.stringify({ requested: result.requested, saved: result.saved, failedBatches: result.failedBatches, lastError: result.lastError, updatedAt: new Date(0).toISOString() }))
+  assert.equal(JSON.parse(progressStore.get('AI_GEN_PROGRESS:QUESTION_BANK:program-1:ALL') || '{}').saved, 8)
 }
 
 async function resumeRequestsOnlyRemainingWithoutDuplicates() {
