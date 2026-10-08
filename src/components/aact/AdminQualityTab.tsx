@@ -464,7 +464,7 @@ export function AdminQualityTab() {
   const [unitReviewItems, setUnitReviewItems] = useState<CurriculumUnitReviewItem[]>([])
   const [unitDeleteTarget, setUnitDeleteTarget] = useState<CurriculumUnitReviewItem | null>(null)
   const [unitSuggestionConflict, setUnitSuggestionConflict] = useState<{ program: ProgramReadinessItem; existingUnits: number } | null>(null)
-  const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | 'replace' | null>(null)
+  const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | null>(null)
   const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState<Record<string, boolean>>({})
   const [unitGenerationResult, setUnitGenerationResult] = useState<any | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
