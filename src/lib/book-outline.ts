@@ -7,7 +7,7 @@ export type OutlineSectionDraft = { order: number; title: string; level: number;
 type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string }
 type TocEntry = { title: string; page: number; targetIndex: number | null }
 type LineWithOffset = { raw: string; start: number; lineNumber: number }
-type ChapterHit = { label: string; number: number | null; reversed: boolean; line: LineWithOffset }
+type ChapterHit = { label: string; number: number | null; reversed: boolean; line: LineWithOffset; lineIndex: number }
 
 export type BookOutlineDebugLine = {
   lineNumber: number
