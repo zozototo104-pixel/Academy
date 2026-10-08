@@ -48,7 +48,7 @@ async function resumeRequestsOnlyRemainingWithoutDuplicates() {
     alreadySaved: 8,
     generate: async (count) => {
       requestedCounts.push(count)
-      return [question(8), question(9), question(10)]
+      return [question(9), question(10)]
     },
     save: async (items) => {
       const unique = items.filter((item) => {
