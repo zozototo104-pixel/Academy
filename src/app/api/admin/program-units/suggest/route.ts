@@ -475,6 +475,7 @@ export async function POST(req: NextRequest) {
       mode: replace ? 'replace' : append ? 'append' : 'create',
       source: 'BOOK_TEXT_AND_KNOWLEDGE_BANK',
       unitsCount: plan.units.length,
+      replaceProtection,
       actualAi: (plan as any).actualAi || null,
       executionTrace: ((plan as any).executionTrace || []).slice(-20),
       sourceBooks: ((plan as any).analyses || []).map((analysis: any) => ({
