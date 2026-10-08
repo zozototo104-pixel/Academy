@@ -18,7 +18,7 @@ function generatedQuestion(n: number, overrides: Record<string, unknown> = {}) {
   return {
     type: 'MCQ',
     text: `ما السؤال الأكاديمي رقم ${n} حول الدليل والسياق المؤسسي؟`,
-    options: ['الأول', 'الثاني', 'الثالث'],
+    options: ['الأول', 'الثاني', 'الثالث', 'الرابع'],
     correctAnswer: '0',
     sourceEvidence: 'هذا دليل حرفي طويل بما يكفي لاختبار شكل السؤال داخل بنك الأسئلة.',
     difficulty: 'MEDIUM',
