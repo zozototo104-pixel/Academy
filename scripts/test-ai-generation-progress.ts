@@ -4,6 +4,25 @@ import { aiGenerationProgressKey, questionDuplicateKey, resolveGenerationJob, ty
 import { runProgressiveGenerationBatches, type GeneratedQuestionCandidate } from '../src/lib/ai-generation-batches'
 import { parseGeneratedQuestionCandidates, parseQuestionBatchEnvelope } from '../src/lib/question-bank-generation'
 
+function jobLifecycleAndDedupe() {
+  const completed: AiGenerationProgress = { jobId: 'old-job', status: 'COMPLETED', requested: 12, saved: 12, failedBatches: 0, lastError: null, updatedAt: '' }
+  const fresh = resolveGenerationJob(completed, 10)
+  assert.notEqual(fresh.jobId, completed.jobId)
+  assert.equal(fresh.requested, 10)
+  assert.equal(fresh.saved, 0)
+  assert.equal(fresh.failedBatches, 0)
+  const partial: AiGenerationProgress = { ...completed, jobId: 'partial-job', status: 'PARTIAL', saved: 4 }
+  assert.equal(resolveGenerationJob(partial, 10).jobId, partial.jobId)
+  assert.equal(resolveGenerationJob(partial, 10).saved, 4)
+  assert.equal(resolveGenerationJob({ ...partial, status: 'RUNNING' }, 10, true).jobId, partial.jobId)
+  assert.notEqual(resolveGenerationJob(partial, 10, false, true).jobId, partial.jobId)
+  const existing = new Set([questionDuplicateKey('سؤال محفوظ مسبقاً', 'source-1')])
+  assert.equal(existing.has(questionDuplicateKey('سؤال محفوظ مسبقاً', 'source-1')), true)
+  assert.equal(existing.has(questionDuplicateKey('سؤال جديد', 'source-1')), false)
+}
+
+jobLifecycleAndDedupe()
+
 function question(n: number, sourceRef = 'source-1'): GeneratedQuestionCandidate {
   return {
     type: 'MCQ',
