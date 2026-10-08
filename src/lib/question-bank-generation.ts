@@ -17,7 +17,11 @@ const generatedQuestionSchema = z.discriminatedUnion('type', [
   z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(1800).optional() }),
   z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
   z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
-])
+]).superRefine((q, ctx) => {
+  if (q.type !== 'MCQ') return
+  if (new Set(q.options).size !== 4) ctx.addIssue({ code: 'custom', path: ['options'], message: 'MCQ options must be distinct' })
+  if (!q.options.includes(q.correctAnswer) && !/^[0-3]$/.test(q.correctAnswer)) ctx.addIssue({ code: 'custom', path: ['correctAnswer'], message: 'MCQ answer must match an option or its index' })
+})
 
 function normalizeCandidate(candidate: unknown): unknown {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
