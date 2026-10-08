@@ -2749,6 +2749,18 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-1'} onClick={() => openBankExamDialog(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
+              {questionBankProgress && questionBankProgress.requested > 0 ? (
+                <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">
+                    <span>تقدم توليد بنك الأسئلة</span>
+                    <span>{Math.min(questionBankProgress.saved, questionBankProgress.requested)} من {questionBankProgress.requested}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${Math.max(0, Math.min(100, Math.round((questionBankProgress.saved / Math.max(1, questionBankProgress.requested)) * 100)))}%` }} />
+                  </div>
+                  {questionBankProgress.lastError ? <p className="mt-2 text-[10px] font-bold text-amber-700">آخر توقف: {questionBankProgress.lastError}</p> : null}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
