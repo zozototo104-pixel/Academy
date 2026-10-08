@@ -329,7 +329,7 @@ export async function POST(req: NextRequest) {
       const raw = await geminiCompleteJson({
         system: 'أنت مصمم أسئلة جامعية. أرجع JSON صالحاً فقط دون أي شرح خارج JSON.',
         history: [{ role: 'user', text: `
-أنشئ ${count} سؤالاً لبنك أسئلة مركزي لبرنامج: ${program.titleAr}
+أنشئ ${batchCount} سؤالاً لبنك أسئلة مركزي لبرنامج: ${program.titleAr}
 التصنيف: ${program.category}
 الوصف: ${program.description || 'غير محدد'}
 
