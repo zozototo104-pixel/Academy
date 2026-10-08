@@ -1303,8 +1303,13 @@ export function AdminBooksTab() {
     try {
       const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
       if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
-      if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
-      else await fetchBookReadJob(bookId)
+      if (response.job) {
+        setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+        setProgramKnowledgeV2States((previous) => ({ ...previous, [bookId]: {
+          state: response.job!.status === 'PAUSED' ? 'PAUSED' : response.job!.status === 'COMPLETED' ? 'COMPLETED' : response.job!.phase === 'ENRICH' ? 'ENRICHING' : 'READING',
+          retryAt: response.job!.retryAt,
+        } }))
+      } else await fetchBookReadJob(bookId)
       if (response.job?.status === 'COMPLETED' && programId) {
         const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${programId}`)
         setKnowledgeItems(data.items || [])
