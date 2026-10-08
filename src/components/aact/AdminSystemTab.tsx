@@ -83,6 +83,14 @@ interface BackupRunResult {
   checksum: { sha256: string; uncompressedSha256?: string; uncompressedBytes?: number; compressedBytes?: number; encryptedSha256?: string; encryptedBytes?: number }
 }
 
+interface TextAiModelHealth {
+  ok: boolean
+  provider: string
+  available: string[]
+  excluded: Array<{ key: string; kind: string; reason: string; status?: number | null; until: string }>
+  top: Array<{ provider: string; model: string; score: number; success: number; failCount: number; avgMs: number }>
+}
+
 interface BackupInspectResult {
   ok: boolean
   mode: 'inspect' | 'restore'
