@@ -396,11 +396,12 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
     .sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
     .map((entry) => {
       const number = chapterNumber(entry.title)
-      const chunk = chunks.find((candidate) => candidate.index === entry.at)
+      if (number === null) return entry
       const label = chapterLabel(entry.title)
+      const tocTitle = tocNames.get(number)
       return {
         ...entry,
-        title: number !== null ? (tocNames.get(number) || (chunk ? chapterNameFromHit(splitLinesWithOffsets(chunk.text), { label, number, reversed: false, line: splitLinesWithOffsets(chunk.text)[0] || { raw: '', start: 0, lineNumber: 1 } }, bookTitle) : label)) : entry.title,
+        title: tocTitle && normalizeHeading(entry.title) === normalizeHeading(label) ? tocTitle : entry.title,
       }
     })
   const sections = normalizeBoundaries(chunks, boundaries, items, chunkIds, semester)
