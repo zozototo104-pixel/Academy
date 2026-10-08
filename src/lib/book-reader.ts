@@ -78,6 +78,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     prompt: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.`,
     images: [{ mimeType: 'application/pdf', dataBase64: data.toString('base64') }],
     maxOutputTokens: 16000,
+    timeoutMs: Math.min(120_000, deadlineMs - Date.now() - 10_000),
   })
   const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
