@@ -441,7 +441,7 @@ ${knowledgeText}
       if (Date.now() >= requestDeadlineMs && savedTotal < requestedTotal) return finishPartial('AI_REQUEST_DEADLINE_REACHED')
     }
 
-    await db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
+    await db.setting.deleteMany({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${insertedTotal} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
     return NextResponse.json({
       ok: true,
