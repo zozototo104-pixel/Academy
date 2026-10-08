@@ -1127,7 +1127,9 @@ async function recordPaidSpend(s: Settings, estimatedCost: number): Promise<void
   try {
     await settingStore().increment?.(`AI_PAID_SPEND:DAY:${utcDateKey()}`, estimatedCost)
     await settingStore().increment?.(`AI_PAID_SPEND:MONTH:${utcMonthKey()}`, estimatedCost)
-  } catch {}
+  } catch {
+    // Paid spend accounting is best-effort and must not fail a successful AI response.
+  }
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
