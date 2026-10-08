@@ -1445,6 +1445,18 @@ export function AdminBooksTab() {
     } finally { setOutlineBusyId(null) }
   }
 
+  const loadOutlineDebug = async (bookId: string) => {
+    setOutlineDebugBusyId(bookId)
+    try {
+      const result = await api<{ chunks: BookOutlineDebugChunk[] }>(`/api/admin/books/${bookId}/outline/debug`)
+      setOutlineDebugByBook((previous) => ({ ...previous, [bookId]: result.chunks || [] }))
+      const lineCount = (result.chunks || []).reduce((sum, chunk) => sum + chunk.matches.length, 0)
+      toast({ title: 'تم تحميل تشخيص الفهرس', description: `${lineCount} سطر يحتوي فصل/باب` })
+    } catch (error: any) {
+      toast({ title: 'تعذر تحميل تشخيص الفهرس', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setOutlineDebugBusyId(null) }
+  }
+
   useEffect(() => {
     if (workspaceTab !== 'knowledge') return
     for (const book of books) if (v2CountsByBook[book.id] > 0 && bookOutlines[book.id] === undefined) void loadBookOutline(book.id).catch(() => {})
