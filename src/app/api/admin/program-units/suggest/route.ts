@@ -424,7 +424,116 @@ ${sourceUnitDrafts}
   return { program, semestersCount, units: cleaned, analyses, executionTrace: trace, actualAi: latestSuccessfulTrace(trace) }
 }
 
-// POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية من نصوص الكتب وبنك المعرفة
+async function createUnitsFromApprovedOutlines(programId: string, regenerateDrafts: boolean) {
+  const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, semestersCount: true } })
+  if (!program) return null
+  const books = await db.book.findMany({
+    where: { programId },
+    orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      title: true,
+      semester: true,
+      outlines: {
+        where: { status: 'APPROVED' },
+        orderBy: { version: 'desc' },
+        take: 1,
+        include: { sections: { orderBy: { order: 'asc' } } },
+      },
+    },
+  })
+  const approvedBooks = books.filter((book) => book.outlines.length > 0)
+  const skippedBooks = books.filter((book) => book.outlines.length === 0).map((book) => ({ id: book.id, title: book.title, reason: `الكتاب ${book.title} ليس له فهرس معتمد؛ اعتمد الفهرس من صفحة الكتب` }))
+  if (!approvedBooks.length) {
+    return { program, usedApprovedOutlines: false as const, skippedBooks, created: [], updated: [], summary: { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 } }
+  }
+
+  const allSectionIds = approvedBooks.flatMap((book) => book.outlines[0].sections.map((section) => section.id))
+  const [existingUnits, allUnits] = await Promise.all([
+    db.unit.findMany({
+      where: { programId, outlineSectionId: { in: allSectionIds } },
+      select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
+    }),
+    db.unit.findMany({ where: { programId }, select: { semester: true, order: true } }),
+  ])
+  const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
+    const semester = Number(unit.semester || 1)
+    acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
+    return acc
+  }, {})
+  const summary = { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
+  const created: any[] = []
+  const updated: string[] = []
+
+  for (const book of approvedBooks) {
+    const outline = book.outlines[0]
+    const actions = planOutlineUnitsFromSections({
+      sections: outline.sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        level: section.level,
+        semester: section.semester,
+        chunkStartIndex: section.chunkStartIndex,
+        chunkEndIndex: section.chunkEndIndex,
+        pageStart: section.pageStart,
+        pageEnd: section.pageEnd,
+      })),
+      existingUnits,
+      currentMaxOrderBySemester,
+      bookSemester: book.semester,
+      regenerateDrafts,
+    })
+    for (const action of actions) {
+      if (action.action === 'create') {
+        const unit = await db.unit.create({
+          data: {
+            programId,
+            order: action.order,
+            semester: action.semester,
+            status: 'DRAFT',
+            title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
+            summary: `مسودة وحدة مولدة من فهرس كتاب «${book.title}» في نطاق الصفحات ${action.section.pageStart ?? '؟'}–${action.section.pageEnd ?? '؟'}.`,
+            objectives: JSON.stringify([]),
+            content: JSON.stringify([]),
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+            generationVersion: 1,
+          },
+        })
+        created.push(unit)
+        summary.created++
+        currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
+      } else if (action.action === 'update-draft') {
+        await db.unit.updateMany({
+          where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
+          data: {
+            title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
+            summary: `مسودة وحدة معاد ربطها بفهرس كتاب «${book.title}» في نطاق الصفحات ${action.section.pageStart ?? '؟'}–${action.section.pageEnd ?? '؟'}.`,
+            semester: action.semester,
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+            generationVersion: action.generationVersion,
+          },
+        })
+        updated.push(action.unitId)
+        summary.updatedDrafts++
+      } else if (action.action === 'skip-approved') summary.skippedApproved++
+      else if (action.action === 'skip-draft') summary.skippedDrafts++
+      else if (action.action === 'skip-intro') summary.skippedIntro++
+    }
+  }
+
+  if (summary.created || summary.updatedDrafts) {
+    await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
+  }
+  return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary }
+}
+
+// POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية من الفهارس المعتمدة أولاً، ثم من نصوص الكتب وبنك المعرفة بعد تأكيد صريح
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
