@@ -1467,6 +1467,31 @@ export function AdminBooksTab() {
     } finally { setOutlineBusyId(null) }
   }
 
+  const approveBookOutline = async (bookId: string) => {
+    setOutlineUnitBusyId(`approve-${bookId}`)
+    try {
+      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify({ outlineId: bookOutlines[bookId]?.version ? undefined : undefined }) })
+      setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
+      toast({ title: 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر اعتماد الفهرس', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setOutlineUnitBusyId(null) }
+  }
+
+  const createUnitsFromOutline = async (bookId: string, regenerateDrafts = false) => {
+    if (regenerateDrafts && !(await askAdminConfirm({ title: 'إعادة توليد وحدات المسودة من الفهرس', description: 'الوحدات المعتمدة لن تُلمس، لكن وحدات DRAFT المرتبطة بالفهرس ستُعاد مزامنتها مع زيادة generationVersion.', confirmLabel: 'إعادة توليد المسودات' }))) return
+    setOutlineUnitBusyId(`${regenerateDrafts ? 'regen' : 'create'}-${bookId}`)
+    try {
+      const result = await api<{ summary: { created: number; updatedDrafts: number; skippedApproved: number; skippedDrafts: number; skippedIntro: number } }>(`/api/admin/books/${bookId}/outline/units`, { method: 'POST', body: JSON.stringify({ regenerateDrafts }) })
+      await refreshCurriculumUnits(programId)
+      await refreshProgramReadiness()
+      setWorkspaceTab('units')
+      toast({ title: regenerateDrafts ? 'تمت مزامنة وحدات المسودة من الفهرس' : 'تم إنشاء وحدات من الفهرس', description: `جديد: ${result.summary.created} · محدّث: ${result.summary.updatedDrafts} · معتمد محفوظ: ${result.summary.skippedApproved} · مقدمة متجاوزة: ${result.summary.skippedIntro}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر إنشاء وحدات من الفهرس', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setOutlineUnitBusyId(null) }
+  }
+
   const loadOutlineDebug = async (bookId: string) => {
     setOutlineDebugBusyId(bookId)
     try {
