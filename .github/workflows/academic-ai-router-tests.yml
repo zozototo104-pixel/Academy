@@ -36,10 +36,13 @@ jobs:
       - run: bunx tsx scripts/test-academic-ai-router.ts
       - run: bunx tsx scripts/test-evidence-validator.ts
       - run: bunx tsx scripts/test-question-bank-evidence.ts
+      - run: bunx tsx scripts/test-question-schema.ts
       - run: bunx tsx scripts/test-exam-source-chunks.ts
       - run: bunx tsx scripts/test-comprehensive-exam-source-validation.ts
       - run: bunx tsx scripts/test-comprehensive-exam-insufficient-source.ts
       - run: bunx tsx scripts/test-question-verifier.ts
       - run: bunx tsx scripts/test-text-provenance.ts
       - run: bunx tsx scripts/test-text-ai-persistent-state.ts
+      - run: bunx tsx scripts/test-router-health.ts
+      - run: bunx tsx scripts/test-ai-generation-progress.ts
       - run: bunx tsx scripts/test-ai-task-pause.ts

@@ -182,6 +182,30 @@ function applyAccepted<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
+function finalQuestionStatus(question: VerifiableQuestion): string {
+  const flags = question.qualityFlags || []
+  if (flags.includes('SOURCE_GROUNDED')) return 'SOURCE_GROUNDED'
+  if (question.verificationPending) return 'VERIFICATION_PENDING'
+  if (flags.includes('NEEDS_HUMAN_REVIEW')) return 'NEEDS_HUMAN_REVIEW'
+  if (flags.includes('SOURCE_LINKED')) return 'SOURCE_LINKED'
+  return 'UNKNOWN'
+}
+
+function logVerifierVerdict(args: {
+  questionIndex: number
+  question: VerifiableQuestion
+  result: QuestionVerifierResult | null
+  verifierContext?: { provider?: string; model?: string }
+  generatorProvider?: string | null
+  generatorModel?: string | null
+  literalEvidenceOk: boolean
+  reason: string
+}) {
+  const generator = `${clean(args.generatorProvider || '-', 80)}/${clean(args.generatorModel || '-', 140)}`
+  const verifier = `${clean(args.verifierContext?.provider || '-', 80)}/${clean(args.verifierContext?.model || '-', 140)}`
+  console.info(`[question-verifier] verdict index=${args.questionIndex} type=${clean(String(args.question.type || 'UNKNOWN'), 30)} generator=${generator} verifier=${verifier} valid=${Boolean(args.result?.valid)} literalEvidenceOk=${args.literalEvidenceOk} provenance=${clean(args.question.textProvenance || 'NATIVE_TEXT', 60)} finalStatus=${finalQuestionStatus(args.question)} reason="${clean(args.result?.reason || args.reason, 240)}"`)
+}
+
 function familyAliases(family: string): string[] {
   const aliases: Record<string, string[]> = {
     gemini: ['gemini', 'gemma', 'google'],
@@ -262,6 +286,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       const literal = sourceText == null ? { ok: false as const, reason: 'BAD_INDEX' } : validateLiteralEvidence({ evidence, sourceText })
       if (sourceText == null) {
         output[index] = applyRejected(questionWithProvenance, null, 'BAD_INDEX')
+        logVerifierVerdict({ questionIndex: index, question: output[index], result: null, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: false, reason: 'BAD_INDEX' })
         return
       }
       prepared.push({ index, question: questionWithProvenance, sourceText, literalPass: literal.ok })
@@ -294,17 +319,26 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
           : error?.code === 'AI_DEADLINE_EXCEEDED'
             ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
             : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
-      for (const item of prepared) output[item.index] = applyPending(item.question, reason)
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, reason)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason })
+      }
       continue
     }
 
     if (Date.now() >= deadline) {
-      for (const item of prepared) output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: 'VERIFIER_TIME_BUDGET_EXCEEDED' })
+      }
       continue
     }
     const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
     if (!familyCheck.ok) {
-      for (const item of prepared) output[item.index] = applyPending(item.question, familyCheck.reason)
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, familyCheck.reason)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: familyCheck.reason })
+      }
       continue
     }
 
@@ -313,8 +347,11 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       const result = byIndex.get(item.index) || null
       if (item.literalPass && result?.valid) {
         output[item.index] = applyAccepted(item.question, result, verifierContext)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: result.reason })
       } else {
-        output[item.index] = applyRejected(item.question, result, item.literalPass ? 'VERIFIER_REJECTED' : 'LITERAL_EVIDENCE_FAILED')
+        const reason = item.literalPass ? 'VERIFIER_REJECTED' : 'LITERAL_EVIDENCE_FAILED'
+        output[item.index] = applyRejected(item.question, result, reason)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason })
       }
     }
   }

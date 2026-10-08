@@ -83,6 +83,14 @@ interface BackupRunResult {
   checksum: { sha256: string; uncompressedSha256?: string; uncompressedBytes?: number; compressedBytes?: number; encryptedSha256?: string; encryptedBytes?: number }
 }
 
+interface TextAiModelHealth {
+  ok: boolean
+  provider: string
+  available: string[]
+  excluded: Array<{ key: string; kind: string; reason: string; status?: number | null; until: string }>
+  top: Array<{ provider: string; model: string; score: number; success: number; failCount: number; avgMs: number }>
+}
+
 interface BackupInspectResult {
   ok: boolean
   mode: 'inspect' | 'restore'
@@ -275,6 +283,8 @@ export function AdminSystemTab() {
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
+  const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
+  const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
   const [backupBusy, setBackupBusy] = useState(false)
   const [lastBackup, setLastBackup] = useState<BackupRunResult | null>(null)
@@ -313,6 +323,22 @@ export function AdminSystemTab() {
   const catalogProviderForModels = activeTextProviderForModels === 'AUTO'
     ? (data?.textAi?.activeProvider || 'GEMINI')
     : activeTextProviderForModels
+
+  const loadTextModelHealth = () => {
+    if (!catalogProviderForModels) return
+    setTextModelHealthLoading(true)
+    api<TextAiModelHealth>('/api/admin/system', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'text-ai-model-health', provider: catalogProviderForModels }),
+    })
+      .then((r) => setTextModelHealth(r))
+      .catch(() => setTextModelHealth(null))
+      .finally(() => setTextModelHealthLoading(false))
+  }
+
+  useEffect(() => {
+    setTextModelHealth(null)
+  }, [catalogProviderForModels])
 
   useEffect(() => {
     if (!data || !catalogProviderForModels || textModelCatalog[catalogProviderForModels]) return
@@ -925,6 +951,42 @@ export function AdminSystemTab() {
                 مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider}/${c.key} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
               </div>
             )}
+            <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
+                  <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                  {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
+                </Button>
+              </div>
+              {textModelHealth ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg bg-indigo-50 p-2 text-indigo-800">المتاح الآن: {textModelHealth.available?.length || 0}</div>
+                  <div className="rounded-lg bg-amber-50 p-2 text-amber-700">المستبعد: {textModelHealth.excluded?.length || 0}</div>
+                  <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">أفضل النماذج: {textModelHealth.top?.length || 0}</div>
+                  {!!textModelHealth.excluded?.length && (
+                    <div className="rounded-lg border border-amber-100 bg-amber-50 p-2 text-amber-800 sm:col-span-3">
+                      <p className="mb-1 font-black">المستبعد حالياً</p>
+                      {textModelHealth.excluded.slice(0, 5).map((item) => (
+                        <div key={item.key} dir="ltr" className="truncate text-[10px]">{item.kind}: {item.key} — {item.reason} — until {new Date(item.until).toLocaleString('ar')}</div>
+                      ))}
+                    </div>
+                  )}
+                  {!!textModelHealth.top?.length && (
+                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-emerald-800 sm:col-span-3">
+                      <p className="mb-1 font-black">أفضل 5 حسب health score</p>
+                      {textModelHealth.top.map((item) => (
+                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-[10px] text-slate-400">اضغط تحديث لعرض صحة النماذج لهذا المزود.</p>
+              )}
+            </div>
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('GEMINI_API_KEYS', 'مفاتيح Gemini للنصوص — متعددة', data.secretsSet.GEMINI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2,key3', 'password', 'اكتب أكثر من مفتاح مفصولاً بفاصلة. الحصص غالباً على مستوى المشروع، لكن هذا يفيد عند وجود مشاريع/مفاتيح مستقلة.')}

@@ -230,6 +230,16 @@ type QuestionBankStats = {
   byType?: Record<string, number>
 }
 
+type AiGenerationProgressRow = {
+  jobId?: string
+  status?: 'RUNNING' | 'PARTIAL' | 'COMPLETED'
+  requested: number
+  saved: number
+  failedBatches: number
+  lastError?: string | null
+  updatedAt?: string
+} | null
+
 interface QuestionBankItemRow {
   id: string
   type: string
@@ -392,6 +402,7 @@ export function AdminBooksTab() {
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
   const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
+  const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
@@ -620,13 +631,14 @@ export function AdminBooksTab() {
       setCurriculumUnits([])
       setQuestionBankItems([])
       setQuestionBankStats(null)
+      setQuestionBankProgress(null)
       setStudyGuides([])
 
       Promise.all([
         api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
         api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
-        api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any })),
+        api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
         api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
       ])
         .then(([k, readiness, units, qb, g]) => {
@@ -636,6 +648,7 @@ export function AdminBooksTab() {
           setCurriculumUnits(units.units || [])
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
+          setQuestionBankProgress(qb.progress || null)
           setStudyGuides(g.guides || [])
         })
         .catch(() => null)
@@ -965,9 +978,10 @@ export function AdminBooksTab() {
 
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
-    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`)
+    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
     setQuestionBankItems(res.items || [])
     setQuestionBankStats(res.stats || null)
+    setQuestionBankProgress(res.progress || null)
   }
 
   const refreshProgramReadiness = async () => {
@@ -983,17 +997,18 @@ export function AdminBooksTab() {
     }
   }
 
-  const generateQuestionsForBank = async () => {
+  const generateQuestionsForBank = async (mode: 'new' | 'resume' = 'new') => {
     if (!programId) return
     setQuestionBankBusy('generate')
     try {
-      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; message?: string }>('/api/admin/question-bank', {
         method: 'POST',
-        body: JSON.stringify({ programId, count: 12 }),
+        body: JSON.stringify({ programId, count: 10, resume: mode === 'resume', startNew: mode === 'new' }),
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
-      toast({ title: 'تم توليد أسئلة للبنك', description: 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
+      setQuestionBankProgress(res.progress || null)
+      toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
       toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
     } finally {
@@ -2719,10 +2734,20 @@ export function AdminBooksTab() {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setQuestionBankOpen(true)}>مراجعة بنك الأسئلة</Button>
-                <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={generateQuestionsForBank} className="bg-white text-xs font-black">
-                  {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                  توليد أسئلة من بنك المعرفة
-                </Button>
+                {questionBankProgress?.status === 'PARTIAL' && questionBankProgress.saved < questionBankProgress.requested ? (
+                  <>
+                    <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('resume')} className="bg-white text-xs font-black">
+                      {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                      إكمال الباقي ({questionBankProgress.saved} من {questionBankProgress.requested})
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('new')} className="bg-white text-xs font-black">بدء توليد جديد</Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={questionBankBusy === 'generate'} onClick={() => generateQuestionsForBank('new')} className="bg-white text-xs font-black">
+                    {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                    توليد أسئلة من بنك المعرفة
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'legacy-review'} onClick={markLegacyQuestionGroundingForReview} className="bg-white text-xs font-black">
                   {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   تعليم الأسئلة القديمة للمراجعة
@@ -2736,6 +2761,18 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-1'} onClick={() => openBankExamDialog(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
+              {questionBankProgress && questionBankProgress.requested > 0 ? (
+                <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">
+                    <span>تقدم توليد بنك الأسئلة</span>
+                    <span>{Math.min(questionBankProgress.saved, questionBankProgress.requested)} من {questionBankProgress.requested}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${Math.max(0, Math.min(100, Math.round((questionBankProgress.saved / Math.max(1, questionBankProgress.requested)) * 100)))}%` }} />
+                  </div>
+                  {questionBankProgress.lastError ? <p className="mt-2 text-[10px] font-bold text-amber-700">آخر توقف: {questionBankProgress.lastError}</p> : null}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

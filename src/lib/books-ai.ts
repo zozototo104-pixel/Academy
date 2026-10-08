@@ -697,7 +697,9 @@ async function completeJsonWithFallback(args: {
   maxOutputTokens?: number
   retries?: number
   timeoutMs?: number
+  deadlineMs?: number
   taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+  stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }): Promise<string> {
   const errors: string[] = []
@@ -711,6 +713,8 @@ async function completeJsonWithFallback(args: {
         temperature: args.temperature ?? 0.25,
         maxOutputTokens: args.maxOutputTokens ?? 4096,
         taskLevel: args.taskLevel,
+        deadlineMs: args.deadlineMs,
+        stickyScope: args.stickyScope,
         validate: args.validate,
       }), timeoutMs, `${args.label}_Gemini`)
     } catch (e: any) {
@@ -1864,6 +1868,7 @@ export async function generateExamQuestionBatch(
   requestedCount?: number,
   startOffset = 0
 ): Promise<GeneratedQuestion[]> {
+  const requestDeadlineMs = Date.now() + 240_000
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
   const policy = academicPolicyForCategory(program.category)
@@ -1876,7 +1881,7 @@ export async function generateExamQuestionBatch(
   const totalBookChars = selectedSourceChunks.reduce((sum, chunk) => sum + chunk.text.length, 0)
   const fullPlan = batchQuestionPlan(spec.kind, spec.count, program.category)
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
-  const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
+  const targetQuestionCount = Math.max(1, Math.min(4, spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
   const minimumRequiredSourceChunks = minimumSourceChunksForComprehensiveExam(requestedPlan.length)
   if (selectedSourceChunks.length < minimumRequiredSourceChunks) {
@@ -1996,6 +2001,8 @@ ${plannedTypes}
       retries: 1,
       timeoutMs: 32000,
       taskLevel: 'ACADEMIC_CRITICAL',
+      deadlineMs: requestDeadlineMs,
+      stickyScope: `PROGRAM_EXAM:${program.titleAr}:${batchIndex}`,
       validate: (text, context) => {
         generationContext = context || {}
         const accepted = validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { setAiTaskPause } from '@/lib/ai-task-pause'
+import { getAiGenerationProgress, setAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
@@ -86,7 +87,7 @@ function generationFailureDetails(step: GenerationStepResult) {
 
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
-  return row?.status === 'GENERATING'
+  return row?.status === 'GENERATING' || row?.status === 'DRAFT_INCOMPLETE'
 }
 
 async function stopGenerationAndExposeReview(examId: string, admin: { id: string; name: string }) {
@@ -642,13 +643,14 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
 
     const totals = await examTotals(examId)
     const done = firstMissingBatchIndex(totals.questionCount) >= EXAM_BATCH_COUNT
+    await setAiGenerationProgress('PROGRAM_EXAM', exam.programId, exam.semester, { status: done ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: 0, lastError: null })
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: done ? 'REVIEW' : 'GENERATING',
+        status: done ? 'REVIEW' : 'DRAFT_INCOMPLETE',
         totalPoints: totals.totalPoints,
         durationMin: Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))),
-        errorNote: done ? null : `تم توليد ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()} — اضغط تحريك/استكمال أو اترك الصفحة مفتوحة ليكمل على دفعات`,
+        errorNote: done ? null : `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.`,
         booksUsed: [
           ...(knowledgeContext ? ['بنك المعرفة الأكاديمي المستخرج من الكتب'] : []),
           ...usableBooks.map((b) => `«${b.title}» (${b.sourceNote})`),
@@ -661,6 +663,11 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     const insufficient = insufficientSourcePayload(e)
     const message = String(insufficient?.error || e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
+    const examForProgress = await db.programExam.findUnique({ where: { id: examId }, select: { programId: true, semester: true } }).catch(() => null)
+    if (examForProgress) {
+      const previous = await getAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester)
+      await setAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester, { status: totals.questionCount >= totalRequiredQuestions() ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: (previous?.failedBatches || 0) + 1, lastError: message })
+    }
     if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
       const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
@@ -673,7 +680,7 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: 'PAUSED',
+        status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
         errorNote: JSON.stringify({
           code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
           reason: message,
@@ -690,10 +697,10 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     }).catch(() => {})
     return {
       ok: false,
-      status: 'PAUSED',
+      status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
       inserted: 0,
       done: false,
-      error: message,
+      error: totals.questionCount > 0 ? `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.` : message,
       ...(insufficient || {}),
       ...totals,
     }
@@ -1049,7 +1056,7 @@ export async function POST(req: NextRequest) {
     }
 
     const failedSemExam = await db.programExam.findFirst({
-      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED'] } },
+      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED', 'DRAFT_INCOMPLETE'] } },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { questions: true } } },
     })

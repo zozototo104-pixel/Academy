@@ -37,6 +37,7 @@ export interface TextAiCallOpts {
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
@@ -153,6 +154,8 @@ type TextAiSettingStore = {
 
 let injectedStore: TextAiSettingStore | null = null
 let persistentCooldownCache: { at: number; values: Record<string, string> } | null = null
+let routerRequestSeq = 0
+const stickyModels = new Map<string, { provider: ConcreteProvider; model: string; at: number }>()
 
 function hasDatabaseUrl(): boolean {
   return !!String(process.env.DATABASE_URL || '').trim()
@@ -211,6 +214,8 @@ export function __resetTextAiStateForTests() {
   recentAttempts = []
   freeModelsCache.clear()
   persistentCooldownCache = null
+  routerRequestSeq = 0
+  stickyModels.clear()
 }
 
 function env(name: string): string {
@@ -249,15 +254,26 @@ function normalizeModel(value: unknown, defaults: string[]): string {
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
 
-function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
   const out: Array<{ provider: ConcreteProvider; model: string }> = []
   for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
     const item = raw.trim()
     const separator = item.indexOf(':')
-    if (separator <= 0) continue
-    const provider = normalizeProvider(item.slice(0, separator))
+    if (separator <= 0) {
+      if (item) console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'MISSING_PROVIDER_SEPARATOR' })
+      continue
+    }
+    const providerText = clean(item.slice(0, separator)).toUpperCase()
+    const provider = normalizeProvider(providerText)
     const model = clean(item.slice(separator + 1))
-    if (provider === 'AUTO' || !validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model) || model.endsWith(':free')) continue
+    if (!providerText || provider === 'AUTO' || provider !== providerText || !model) {
+      console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_PROVIDER_OR_MODEL' })
+      continue
+    }
+    if (!validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model)) {
+      console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_MODEL_NAME' })
+      continue
+    }
     out.push({ provider: provider as ConcreteProvider, model })
   }
   return out
@@ -289,6 +305,19 @@ function persistentCooldownKey(provider: string, keyIndex: number, model?: strin
   return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
 }
 
+function modelDeadKey(provider: string, model: string): string {
+  return `AI_MODEL_DEAD:${provider}:${model}`
+}
+
+function noBalanceKey(provider: string, keyIndex: number): string {
+  return `AI_NO_BALANCE:${provider}:${keyIndex}`
+}
+
+function routerStatePayload(daysOrMs: number, reason: string, status?: number): string {
+  const ms = daysOrMs > 1000 ? daysOrMs : daysOrMs * 24 * 60 * 60 * 1000
+  return JSON.stringify({ until: new Date(Date.now() + ms).toISOString(), reason: reason.slice(0, 180), status: status || null })
+}
+
 function parseCooldown(value: unknown): { until: number; reason: string; status?: number } | null {
   try {
     const parsed = JSON.parse(String(value || '{}'))
@@ -303,7 +332,12 @@ function parseCooldown(value: unknown): { until: number; reason: string; status?
 async function loadPersistentCooldowns(): Promise<Record<string, string>> {
   if (persistentCooldownCache && Date.now() - persistentCooldownCache.at < 30_000) return persistentCooldownCache.values
   try {
-    const values = await settingStore().scan?.('AI_COOLDOWN:') || {}
+    const store = settingStore()
+    const values = {
+      ...(await store.scan?.('AI_COOLDOWN:') || {}),
+      ...(await store.scan?.('AI_MODEL_DEAD:') || {}),
+      ...(await store.scan?.('AI_NO_BALANCE:') || {}),
+    }
     persistentCooldownCache = { at: Date.now(), values }
     for (const [key, value] of Object.entries(values)) {
       if (!parseCooldown(value)) settingStore().delete?.(key).catch(() => {})
@@ -320,6 +354,32 @@ function persistentCooldown(values: Record<string, string>, provider: string, ke
 
 function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
   return !!persistentCooldown(values, provider, keyIndex, model)
+}
+
+function isPersistentModelDead(values: Record<string, string>, provider: string, model: string): boolean {
+  return !!parseCooldown(values[modelDeadKey(provider, model)])
+}
+
+function isPersistentNoBalance(values: Record<string, string>, provider: string, keyIndex: number): boolean {
+  return !!parseCooldown(values[noBalanceKey(provider, keyIndex)])
+}
+
+async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number): Promise<void> {
+  try {
+    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(7, reason, status))
+    persistentCooldownCache = null
+  } catch {
+    // Persistent dead-model state is best-effort.
+  }
+}
+
+async function markPersistentNoBalance(provider: string, keyIndex: number, reason: string, status?: number): Promise<void> {
+  try {
+    await settingStore().write(noBalanceKey(provider, keyIndex), routerStatePayload(24 * 60 * 60 * 1000, reason, status))
+    persistentCooldownCache = null
+  } catch {
+    // Persistent no-balance state is best-effort.
+  }
 }
 
 async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
@@ -351,10 +411,11 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180) })
 }
 
-function aiProviderTimeoutMs(): number {
+function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
+  const defaults: Record<TextAiTaskLevel, number> = { GENERAL: 20_000, ACADEMIC_DRAFT: 40_000, ACADEMIC_CRITICAL: 55_000 }
   const configured = Number(env('AI_PROVIDER_TIMEOUT_MS'))
-  if (Number.isFinite(configured) && configured >= 3000) return Math.min(Math.floor(configured), 45000)
-  return 15000
+  const base = Number.isFinite(configured) && configured >= 3000 ? Math.floor(configured) : defaults[taskLevel]
+  return Math.min(base, defaults[taskLevel])
 }
 
 function aiDiscoveryTimeoutMs(): number {
@@ -378,13 +439,17 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
 }
 
 async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
-  const controller = new AbortController()
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
-  const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const fallbackController = new AbortController()
+  const signal = typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(effectiveTimeoutMs)
+    : fallbackController.signal
+  if (signal === fallbackController.signal) timer = setTimeout(() => fallbackController.abort(), effectiveTimeoutMs)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetch(url, { ...init, signal })
   } catch (e: any) {
-    if (e?.name === 'AbortError') {
+    if (e?.name === 'AbortError' || e?.name === 'TimeoutError' || signal.aborted) {
       const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
       err.status = 504
       err.code = 'AI_PROVIDER_TIMEOUT'
@@ -392,7 +457,7 @@ async function fetchWithTimeout(provider: string, url: string, init: RequestInit
     }
     throw e
   } finally {
-    clearTimeout(timer)
+    if (timer) clearTimeout(timer)
   }
 }
 
@@ -402,16 +467,42 @@ function isTimeoutLike(e: any): boolean {
   return status === 504 || /timeout|timed out|abort|deadline|etimedout|ai_provider_timeout/i.test(msg)
 }
 
+function isDeadModelLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 404 && /no longer available|does not exist|not found/i.test(msg)
+}
+
+function isNoBalanceLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 402 || /balance|recharge|top.?up|top up|insufficient credits|payment required|no credits|credit balance/i.test(msg)
+}
+
+function isHighDemandLike(e: any): boolean {
+  const msg = String(e?.message || e || '').toLowerCase()
+  const status = Number(e?.status || e?.code || 0)
+  return status === 503 || /high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+}
+
 function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package|no credits|credit balance|please recharge|recharge|capacity/i.test(msg)
+  return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package/i.test(msg)
 }
 
 function isAuthLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
   return status === 401 || status === 403 || /api key|unauthorized|permission|forbidden|invalid key/i.test(msg)
+}
+
+function isSchemaFailureLike(e: any): boolean {
+  const code = String(e?.code || '').toUpperCase()
+  const msg = String(e?.message || e || '').toLowerCase()
+  if (code === 'VALIDATION_REJECTED' && !/empty_batch_after_structural_validation|invalid_type|invalid_json|schema|zod/i.test(msg)) return false
+  return code === 'INVALID_JSON_RESPONSE' || code === 'SCHEMA_VALIDATION_FAILED'
+    || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
@@ -550,6 +641,10 @@ function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?
   return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
 }
 
+function persistentModelsCacheKey(cacheKey: string): string {
+  return `AI_MODELS_AVAILABLE:${cacheKey}`
+}
+
 function apiRootFromBase(baseUrl: string, fallback: string): string {
   return (baseUrl || fallback).replace(/\/$/, '').replace(/\/v1$/, '')
 }
@@ -563,8 +658,11 @@ function modelId(row: any): string {
 }
 
 function isTextLikeModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
   const type = String(row?.type || row?.modality || row?.architecture?.modality || row?.input_modalities?.join?.(',') || 'text').toLowerCase()
-  if (/image|video|audio|embedding|moderation|rerank|tts|stt/.test(type)) return false
+  if (/image|vision-only|video|audio|embedding|embed|moderation|guard|rerank|ocr-only|tts|stt|whisper/.test(`${type} ${id}`)) return false
+  const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
+  if (Number.isFinite(contextLength) && contextLength > 0 && contextLength < 32000) return false
   const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
 }
@@ -643,6 +741,17 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
   if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
+  try {
+    const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
+    const parsed = persisted ? JSON.parse(persisted) : null
+    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
+      const models = parsed.models.map(String).filter(validModelName)
+      freeModelsCache.set(cacheKey, { at: now, models })
+      return models
+    }
+  } catch {
+    // Persistent model discovery cache is best-effort.
+  }
 
   let models: string[] = []
   if (provider === 'UNOROUTER') {
@@ -665,6 +774,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
 
   models = [...new Set(models)]
   freeModelsCache.set(cacheKey, { at: now, models })
+  if (models.length) {
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models })).catch(() => {})
+  }
   return models
 }
 
@@ -686,7 +798,99 @@ function academicModelRank(model: string): number {
   return 9
 }
 
-async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
+function modelCapabilityAllowed(model: string): boolean {
+  const id = model.toLowerCase()
+  if (/image|vision-only|audio|tts|whisper|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
+  return true
+}
+
+type ModelStats = { success: number; fail: Record<string, number>; avgMs: number; jsonOk: number; jsonTotal: number; evidenceOk: number; evidenceTotal: number }
+
+function modelStatsKey(provider: string, model: string): string {
+  return `AI_MODEL_STATS:${provider}:${model}`
+}
+
+function parseModelStats(raw: unknown): ModelStats {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'))
+    return {
+      success: Number(parsed.success || 0) || 0,
+      fail: typeof parsed.fail === 'object' && parsed.fail ? parsed.fail : {},
+      avgMs: Number(parsed.avgMs || 0) || 0,
+      jsonOk: Number(parsed.jsonOk || 0) || 0,
+      jsonTotal: Number(parsed.jsonTotal || 0) || 0,
+      evidenceOk: Number(parsed.evidenceOk || 0) || 0,
+      evidenceTotal: Number(parsed.evidenceTotal || 0) || 0,
+    }
+  } catch {
+    return { success: 0, fail: {}, avgMs: 0, jsonOk: 0, jsonTotal: 0, evidenceOk: 0, evidenceTotal: 0 }
+  }
+}
+
+function healthScore(stats: ModelStats): number {
+  const failCount = Object.values(stats.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+  const total = stats.success + failCount
+  if (!total) return 0.35
+  const successRate = stats.success / total
+  const jsonRate = stats.jsonTotal ? stats.jsonOk / stats.jsonTotal : 0.5
+  const evidenceRate = stats.evidenceTotal ? stats.evidenceOk / stats.evidenceTotal : 0.5
+  const latencyPenalty = stats.avgMs ? Math.min(0.25, stats.avgMs / 120000) : 0.05
+  return successRate * 0.55 + jsonRate * 0.2 + evidenceRate * 0.2 - latencyPenalty
+}
+
+async function readModelStats(provider: ConcreteProvider, models: readonly string[]): Promise<Map<string, ModelStats>> {
+  if (!models.length) return new Map()
+  try {
+    const keys = models.map((model) => modelStatsKey(provider, model))
+    const rows = await settingStore().read(keys)
+    return new Map(models.map((model) => [model, parseModelStats(rows[modelStatsKey(provider, model)])]))
+  } catch {
+    return new Map(models.map((model) => [model, parseModelStats('')]))
+  }
+}
+
+async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }): Promise<void> {
+  try {
+    const key = modelStatsKey(provider, model)
+    const current = parseModelStats((await settingStore().read([key]))[key])
+    const fail = { ...(current.fail || {}) }
+    if (result.ok) current.success += 1
+    else fail[result.reason || 'other'] = (fail[result.reason || 'other'] || 0) + 1
+    current.fail = fail
+    current.avgMs = current.avgMs ? Math.round(current.avgMs * 0.8 + result.ms * 0.2) : result.ms
+    if (typeof result.jsonOk === 'boolean') {
+      current.jsonTotal += 1
+      if (result.jsonOk) current.jsonOk += 1
+    }
+    if (typeof result.evidenceOk === 'boolean') {
+      current.evidenceTotal += 1
+      if (result.evidenceOk) current.evidenceOk += 1
+    }
+    await settingStore().write(key, JSON.stringify(current))
+  } catch {
+    // Model health stats are best-effort and must not affect routing.
+  }
+}
+
+async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean): Promise<string[]> {
+  const stats = await readModelStats(provider, models)
+  const sorted = [...models].sort((a, b) => {
+    const scoreDiff = healthScore(stats.get(b) || parseModelStats('')) - healthScore(stats.get(a) || parseModelStats(''))
+    if (Math.abs(scoreDiff) > 0.03) return scoreDiff
+    if (taskLevel !== 'GENERAL') return academicModelRank(a) - academicModelRank(b)
+    return 0
+  })
+  if (explore) {
+    const unseen = sorted.find((model) => {
+      const s = stats.get(model) || parseModelStats('')
+      return s.success === 0 && Object.values(s.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0) === 0
+    })
+    if (unseen) return [unseen, ...sorted.filter((model) => model !== unseen)]
+  }
+  return sorted
+}
+
+async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false): Promise<string[]> {
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
@@ -705,9 +909,10 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
   const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
-  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
-  if (taskLevel === 'GENERAL') return models
-  return models.filter((model) => academicModelAllowed(provider, model)).sort((a, b) => academicModelRank(a) - academicModelRank(b))
+  const discoveredOrFallback = discoveredFree.length ? discoveredFree : staticDefaults
+  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))].filter(modelCapabilityAllowed)
+  const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
+  return orderModelsByHealth(provider, allowed, taskLevel, explore)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
@@ -935,7 +1140,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
         responseMimeType: opts.json ? 'application/json' : undefined,
       },
     }),
-  }, aiProviderTimeoutMs(), opts.deadlineMs)
+  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Gemini', response.status, data)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
@@ -958,7 +1163,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: toChatMessages(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  }, aiProviderTimeoutMs(), opts.deadlineMs)
+  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)
   const text = extractOpenAiText(data)
@@ -972,7 +1177,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  }, aiProviderTimeoutMs(), opts.deadlineMs)
+  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Anthropic', response.status, data)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
@@ -993,9 +1198,10 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       messages: toChatMessages(opts),
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
+      ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  }, aiProviderTimeoutMs(), opts.deadlineMs)
+  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
@@ -1010,10 +1216,78 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
   return callChatCompletions(provider, baseFor(s, provider), key, model, opts)
 }
 
+function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
+  const source = String(raw || '').trim()
+  const candidates: string[] = []
+  const stripped = source
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
+  candidates.push(stripped)
+  const firstObject = stripped.indexOf('{')
+  const lastObject = stripped.lastIndexOf('}')
+  if (firstObject >= 0 && lastObject > firstObject) candidates.push(stripped.slice(firstObject, lastObject + 1))
+  const firstArray = stripped.indexOf('[')
+  const lastArray = stripped.lastIndexOf(']')
+  if (firstArray >= 0 && lastArray > firstArray) candidates.push(stripped.slice(firstArray, lastArray + 1))
+  for (const candidate of candidates) {
+    const normalized = candidate
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/,\s*([}\]])/g, '$1')
+      .trim()
+    try {
+      return { ok: true, text: JSON.stringify(JSON.parse(normalized)) }
+    } catch {
+      // Try the next extracted candidate before failing the JSON response.
+    }
+  }
+  return { ok: false, reason: 'INVALID_JSON_RESPONSE' }
+}
+
+async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<{ text: string; jsonOk?: boolean; retriedJson?: boolean }> {
+  const first = await callProvider(provider, s, key, model, opts)
+  if (!opts.json) return { text: first }
+  const repaired = tryRepairJsonText(first)
+  if (repaired.ok) return { text: repaired.text, jsonOk: true }
+
+  const retry = await callProvider(provider, s, key, model, {
+    ...opts,
+    system: `${opts.system}\n\nإعادة إلزامية: الرد السابق لم يكن JSON صالحاً. أعد JSON فقط بدون أي نص تمهيدي أو Markdown أو شرح.`,
+    history: [
+      ...opts.history,
+      { role: 'model', text: first.slice(0, 2000) },
+      { role: 'user', text: 'أعد نفس المطلوب بصيغة JSON صالحة فقط، بدون أي نص خارج JSON.' },
+    ],
+  })
+  const repairedRetry = tryRepairJsonText(retry)
+  if (repairedRetry.ok) return { text: repairedRetry.text, jsonOk: true, retriedJson: true }
+  const error: any = new Error('INVALID_JSON_RESPONSE')
+  error.code = 'INVALID_JSON_RESPONSE'
+  throw error
+}
+
 function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
   const keys = providerKeys(s, provider)
   const available = keys.filter((key) => !isCooling(provider, key))
   return available.length ? available : keys
+}
+
+function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
+  const msg = String(attempt.error || '').toLowerCase()
+  if (attempt.status === 404 && /no longer available|does not exist|not found/.test(msg)) return 'dead_model'
+  if (attempt.status === 402 || /balance|recharge|top.?up|payment required/.test(msg)) return 'no_balance'
+  if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
+  if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
+  if (/validation_rejected|invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod/.test(msg)) return 'schemaFail'
+  if (/invalid|json/.test(msg)) return 'invalid_response'
+  return attempt.ok ? 'ok' : 'other'
+}
+
+function logRouterSummary(attempts: TextAiAttemptDiagnostics[], ok: boolean): void {
+  const counts: Record<string, number> = {}
+  for (const attempt of attempts) counts[routerReasonBucket(attempt)] = (counts[routerReasonBucket(attempt)] || 0) + 1
+  console.info('[text-ai-router] summary', { ok, attempts: attempts.length, counts })
 }
 
 function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
@@ -1138,7 +1412,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const taskLevel = opts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(opts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
-  const providers = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const sticky = opts.stickyScope ? stickyModels.get(opts.stickyScope) : null
+  const orderedProviders = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const providers = sticky && orderedProviders.includes(sticky.provider)
+    ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
+    : orderedProviders
   if (!providers.length) {
     if (isVerifierCall(opts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
@@ -1147,23 +1425,30 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
   const persistentCooldowns = await loadPersistentCooldowns()
+  const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(opts)
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
+  const skipModelsThisRequest = new Set<string>()
 
   for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) continue
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel)
-    const models = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels)
+    const baseModels = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    const models = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
+      ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
+      : baseModels
     if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
+      if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) continue
         if (isCooling(provider, key) || persistedCooldown) {
           if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
           continue
@@ -1171,15 +1456,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const text = await callProvider(provider, s, key, model, opts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, opts)
+          const text = providerResult.text
           opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true })
           lastResult = { provider, model, ok: true, at }
+          if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
           if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') await recordPaidSpend(s, estimatedPaidCost)
+          logRouterSummary(attempts, true)
           return text
         } catch (e: any) {
           const at = new Date().toISOString()
@@ -1191,6 +1480,27 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
+          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: opts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined })
+          if (isSchemaFailureLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            break
+          }
+          if (isDeadModelLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            await markPersistentModelDead(provider, model, msg, status)
+            break
+          }
+          if (isNoBalanceLike(e)) {
+            markCooldown(provider, key, msg, 24 * 60)
+            await markPersistentNoBalance(provider, keyIndex, msg, status)
+            continue
+          }
+          if (isHighDemandLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            markCooldown(provider, key, msg, 1)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            break
+          }
           if (isTimeoutLike(e)) {
             markCooldown(provider, key, msg, 2)
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
@@ -1208,6 +1518,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
   }
 
+  logRouterSummary(attempts, false)
   if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
   if (isVerifierCall(opts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
   if (isVerifierCall(opts)) throw verifierUnavailable(attempts)

@@ -25,7 +25,7 @@ function store(): AiTaskPauseStore {
       return row?.value || null
     },
     async delete(key) {
-      await db.setting.delete({ where: { key } })
+      await db.setting.deleteMany({ where: { key } })
     },
   }
 }
