@@ -1394,6 +1394,8 @@ export function AdminBooksTab() {
 
   const startBookEnrichment = async (bookId: string) => {
     setBookReadBusyId(bookId)
+    delete bookReadRetryRef.current[bookId]
+    setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
     try {
       const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
