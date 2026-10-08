@@ -194,6 +194,33 @@ async function healthScoreOrdersModelsInsideProvider() {
   )
 }
 
+async function providerOrderBeatsHealthScoreAcrossProviders() {
+  process.env.AI_TEXT_PROVIDER = 'AUTO'
+  process.env.AI_ROUTER_POLICY = 'primary_first'
+  process.env.GEMINI_API_KEYS = 'gemini-key'
+  process.env.UNOROUTER_API_KEY = 'uno-key'
+  process.env.UNOROUTER_TEXT_MODEL = 'healthy-uno:free'
+  const store = makeStore()
+  store.values.set('AI_MODEL_STATS:UNOROUTER:healthy-uno:free', JSON.stringify({ success: 100, fail: {}, avgMs: 100, jsonOk: 20, jsonTotal: 20, evidenceOk: 20, evidenceTotal: 20 }))
+  await withHarness(
+    store,
+    (url) => {
+      if (url.includes('generativelanguage.googleapis.com')) {
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'gemini-first' }] } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'healthy-uno:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return okChat('uno')
+    },
+    async (calls) => {
+      const out = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }] })
+      assert.equal(out, 'gemini-first')
+      assert.ok(calls[0]?.url.includes('generativelanguage.googleapis.com'), 'provider order must be respected before cross-provider health score')
+    }
+  )
+}
+
 async function jsonObjectResponseFormatIsSent() {
   configureUnoRouter()
   process.env.UNOROUTER_TEXT_MODEL = 'json-model:free'
