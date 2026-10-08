@@ -54,7 +54,12 @@ export async function POST(_request: NextRequest, context: Context) {
     const updated = current?.status === 'COMPLETED'
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
       : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
-    return NextResponse.json({ ok: true, result, job: updated })
+    const enrichment = job.phase === 'ENRICH' ? {
+      totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
+      saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      addedItems: await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }),
+    } : undefined
+    return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {
     const message = String(error?.message || error)
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
