@@ -1436,8 +1436,9 @@ model ProgramStudyGuide {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([programId, semester])
   @@index([programId])
+  @@index([programId, semester])
+  @@index([unitId])
   @@index([status])
 }
 
