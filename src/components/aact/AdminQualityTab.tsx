@@ -1517,9 +1517,18 @@ export function AdminQualityTab() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'books', subSection: 'add' } }))}>رفع كتب البرنامج</Button>
                       <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'knowledge' } }))}>بناء بنك المعرفة</Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy || item.sourceReadiness?.ready === false} onClick={() => suggestUnits(item)}>
+                      <Button size="sm" variant="outline" className="gap-2 text-xs font-black" disabled={busy} onClick={() => suggestUnits(item)}>
                         {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        {item.sourceReadiness?.ready === false ? 'مصادر التوليد غير جاهزة' : 'اقتراح وحدات من الكتب'}
+                        توليد الوحدات
+                        <span
+                          role="checkbox"
+                          aria-checked={Boolean(unitRegenerateDrafts[item.id])}
+                          tabIndex={0}
+                          onClick={(event) => { event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) }}
+                          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) } }}
+                          className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${unitRegenerateDrafts[item.id] ? 'border-[#a8841a] bg-[#c9a227] text-white' : 'border-slate-300 bg-white text-transparent'}`}
+                        >✓</span>
+                        <span className="text-[10px] text-slate-500">إعادة توليد المسودات</span>
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => generateQuestionBank(item)}>
