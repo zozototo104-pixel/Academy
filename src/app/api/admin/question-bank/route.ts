@@ -350,6 +350,7 @@ ${knowledgeText}
         maxOutputTokens: 6000,
         taskLevel: 'ACADEMIC_CRITICAL',
         stickyScope: `QUESTION_BANK:${programId}`,
+        deadlineMs: requestDeadlineMs,
         validate: (text, context) => {
           const parsed = generatedQuestionsSchema.parse(parseJsonObject(text))
           generationContext = context || {}
