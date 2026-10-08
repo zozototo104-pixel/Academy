@@ -37,6 +37,7 @@ export interface TextAiCallOpts {
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
