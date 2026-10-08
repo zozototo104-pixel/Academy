@@ -1136,13 +1136,17 @@ export function AdminBooksTab() {
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      await api('/api/admin/unit-exams/generate', {
+      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string }>('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: 6, replace: true }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: 10, replace: true }),
       })
       await refreshCurriculumUnits(programId)
       await refreshProgramReadiness()
-      toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: 'سيظهر الاختبار للطالب داخل صفحة الوحدة.' })
+      if (result?.ok === false) {
+        toast({ title: result.status === 'PAUSED' ? 'توقف توليد بنك الأسئلة مؤقتاً' : 'بنك الأسئلة قيد التوليد', description: result.error || result.message || 'تم تشغيل وظيفة بنك الأسئلة للوحدة. أعد المحاولة بعد اكتمالها.' })
+      } else {
+        toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: 'سيظهر الاختبار للطالب داخل صفحة الوحدة.' })
+      }
     } catch (e: any) {
       toast({ title: 'تعذر توليد اختبار الوحدة', description: e.message, variant: 'destructive' })
     } finally {
