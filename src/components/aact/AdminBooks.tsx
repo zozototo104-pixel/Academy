@@ -596,6 +596,7 @@ export function AdminBooksTab() {
       const statusOk = questionBankFilter.status === 'ALL' || q.status === questionBankFilter.status
       const typeOk = questionBankFilter.type === 'ALL' || q.type === questionBankFilter.type
       const difficultyOk = questionBankFilter.difficulty === 'ALL' || (q.difficulty || 'MEDIUM') === questionBankFilter.difficulty
+      const groundingOk = questionBankFilter.grounding === 'ALL' || (questionBankFilter.grounding === 'GROUNDED' ? isSourceGroundedQuestion(q) : !isSourceGroundedQuestion(q))
       const searchOk = !search || `${q.text} ${q.modelAnswer || ''} ${q.sourceEvidence || ''}`.toLowerCase().includes(search)
       return statusOk && typeOk && difficultyOk && searchOk
     })
