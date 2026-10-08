@@ -1868,6 +1868,7 @@ export async function generateExamQuestionBatch(
   requestedCount?: number,
   startOffset = 0
 ): Promise<GeneratedQuestion[]> {
+  const requestDeadlineMs = Date.now() + 240_000
   const spec = BATCH_SPECS[batchIndex % BATCH_SPECS.length]
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
   const policy = academicPolicyForCategory(program.category)
