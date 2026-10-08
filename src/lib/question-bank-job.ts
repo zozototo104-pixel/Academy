@@ -156,7 +156,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   let job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   if (!job) return null
   try {
-    const inserted = await generateBatch(job)
+    const inserted = await generateBatch(job, deadlineMs)
     job = await db.questionBankGenerationJob.update({ where: { id: jobId }, data: { saved: { increment: inserted }, status: job.saved + inserted >= job.requested ? 'COMPLETED' : 'QUEUED', lockedUntil: null, lastError: null, finishedAt: job.saved + inserted >= job.requested ? new Date() : null } })
     return job
   } catch (error: any) {
