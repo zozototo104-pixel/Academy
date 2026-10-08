@@ -42,4 +42,5 @@ jobs:
       - run: bunx tsx scripts/test-question-verifier.ts
       - run: bunx tsx scripts/test-text-provenance.ts
       - run: bunx tsx scripts/test-text-ai-persistent-state.ts
+      - run: bunx tsx scripts/test-router-health.ts
       - run: bunx tsx scripts/test-ai-task-pause.ts
