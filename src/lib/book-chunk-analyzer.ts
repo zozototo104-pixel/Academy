@@ -89,7 +89,7 @@ export async function analyzeStepWithStore(
     }
     attempted.add(chunk.id)
     try {
-      const prior = await store.priorItems(job.bookId)
+      const prior = await store.priorItems(job.bookId, chunk.index)
       const candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, prior })
       // Revalidate at the persistence boundary, including injected analyzers in tests.
       const items = candidates.map((item) => validateBookKnowledgeCandidate(item, chunk.text))
