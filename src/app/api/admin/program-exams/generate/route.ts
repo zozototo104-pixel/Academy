@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
