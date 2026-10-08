@@ -2309,10 +2309,20 @@ export function AdminBooksTab() {
                     <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Layers className="h-4.5 w-4.5 text-[#a8841a]" /> مراجعة وحدات المنهج</h2>
                     <p className="mt-1 text-xs font-bold text-slate-500">تعديل العناوين، الأهداف، المحتوى والترتيب مباشرة من مساحة العمل الدائمة للبرنامج.</p>
                   </div>
-                  <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addCurriculumUnit} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
-                    {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
-                    إضافة وحدة
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" disabled={unitBusyId === '__generate_units__'} onClick={generateCurriculumUnits} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
+                      {unitBusyId === '__generate_units__' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                      توليد الوحدات
+                    </Button>
+                    <label className="flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">
+                      <input type="checkbox" checked={unitRegenerateDrafts} onChange={(event) => setUnitRegenerateDrafts(event.target.checked)} />
+                      إعادة توليد المسودات
+                    </label>
+                    <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addCurriculumUnit} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
+                      {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      إضافة وحدة
+                    </Button>
+                  </div>
                 </div>
                 {curriculumUnits.length === 0 ? (
                   <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم اقتراح الوحدات من الكتب في مركز الجودة أو أضف وحدة يدوياً.</div>
