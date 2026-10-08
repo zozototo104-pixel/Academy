@@ -438,7 +438,10 @@ ${knowledgeText}
       if (rows.length >= batchCount) break
     }
 
-    if (!rows.length) return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.' }, { status: 409 })
+    if (!rows.length) {
+      const progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { requested: requestedTotal, saved: savedSoFar, failedBatches: (storedProgress?.failedBatches || 0) + 1, lastError: 'لم يتم توليد أسئلة جديدة غير مكررة.' })
+      return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.', progress, requested: requestedTotal, saved: savedSoFar, remaining: Math.max(0, requestedTotal - savedSoFar) }, { status: 409 })
+    }
     await db.questionBankItem.createMany({ data: rows })
     const savedTotal = savedSoFar + rows.length
     const remaining = Math.max(0, requestedTotal - savedTotal)
