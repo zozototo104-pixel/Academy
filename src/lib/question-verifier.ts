@@ -203,7 +203,7 @@ function logVerifierVerdict(args: {
 }) {
   const generator = `${clean(args.generatorProvider || '-', 80)}/${clean(args.generatorModel || '-', 140)}`
   const verifier = `${clean(args.verifierContext?.provider || '-', 80)}/${clean(args.verifierContext?.model || '-', 140)}`
-  console.info(`[question-verifier] verdict questionIndex=${args.questionIndex} generator=${generator} verifier=${verifier} valid=${Boolean(args.result?.valid)} reason="${clean(args.result?.reason || args.reason, 240)}" literalEvidenceOk=${args.literalEvidenceOk} textProvenance=${clean(args.question.textProvenance || 'NATIVE_TEXT', 60)} finalStatus=${finalQuestionStatus(args.question)}`)
+  console.info(`[question-verifier] verdict index=${args.questionIndex} type=${clean(String(args.question.type || 'UNKNOWN'), 30)} generator=${generator} verifier=${verifier} valid=${Boolean(args.result?.valid)} literalEvidenceOk=${args.literalEvidenceOk} provenance=${clean(args.question.textProvenance || 'NATIVE_TEXT', 60)} finalStatus=${finalQuestionStatus(args.question)} reason="${clean(args.result?.reason || args.reason, 240)}"`)
 }
 
 function familyAliases(family: string): string[] {
