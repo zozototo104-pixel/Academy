@@ -216,7 +216,25 @@ interface KnowledgeItemRow {
   keywords?: string[]
   importance: number
   sourceNote?: string | null
+  pageStart?: number | null
+  pageEnd?: number | null
+  textProvenance?: string | null
+  kbVersion?: number
   createdAt: string
+}
+
+type BookReadJobRow = {
+  id: string
+  bookId: string
+  phase: string
+  status: string
+  totalPages: number
+  pagesDone: number
+  totalChunks: number
+  chunksAnalyzed: number
+  chunksFailed: number
+  lastError?: string | null
+  retryAt?: string | null
 }
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
