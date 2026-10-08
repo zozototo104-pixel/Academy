@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const items = await getProgramKnowledgeItems(programId, semester, 140)
+    const allItems = await getProgramKnowledgeItems(programId, semester, 140)
+    const items = req.nextUrl.searchParams.get('all') === '1' ? allItems : allItems.slice(0, 140)
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
     const v2BookCounts = await db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
