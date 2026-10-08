@@ -893,7 +893,7 @@ export function AdminBooksTab() {
     if (!programId) return
     setRebuildingKnowledge(true)
     try {
-      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { totalInserted?: number; results?: { sourceNote?: string; inserted?: number }[] } }>('/api/admin/knowledge-bank', {
+      const d = await api<{ count: number; items: KnowledgeItemRow[]; stats: KnowledgeStats; result?: { results?: { bookId: string; state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }[] } }>('/api/admin/knowledge-bank', {
         method: 'POST',
         body: JSON.stringify({ programId, action: 'rebuild' }),
       })
