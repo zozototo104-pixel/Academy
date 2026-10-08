@@ -364,14 +364,10 @@ function isAuthLike(e: any): boolean {
 }
 
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
-  if (!String(process.env.DATABASE_URL || '').trim()) {
-    return Object.fromEntries(keys.map((k) => [k, '']))
-  }
   try {
-    const rows = await db.setting.findMany({ where: { key: { in: keys } } })
+    const values = await settingStore().read(keys)
     const out: Record<string, string> = {}
-    for (const key of keys) out[key] = ''
-    for (const row of rows) out[row.key] = String(row.value || '').trim()
+    for (const key of keys) out[key] = String(values[key] || '').trim()
     return out
   } catch {
     return Object.fromEntries(keys.map((k) => [k, '']))
