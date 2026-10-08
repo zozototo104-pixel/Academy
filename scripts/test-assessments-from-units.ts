@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs'
+import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
