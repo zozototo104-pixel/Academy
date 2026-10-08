@@ -230,6 +230,14 @@ type QuestionBankStats = {
   byType?: Record<string, number>
 }
 
+type AiGenerationProgressRow = {
+  requested: number
+  saved: number
+  failedBatches: number
+  lastError?: string | null
+  updatedAt?: string
+} | null
+
 interface QuestionBankItemRow {
   id: string
   type: string
