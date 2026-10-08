@@ -127,7 +127,7 @@ export async function buildBookOutline(bookId: string) {
     const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام متتابعة اعتماداً على عناوين وملخصات عناصر المعرفة فقط. أرجع JSON فقط.', history: [{ role: 'user', text: `حدد 4 إلى 16 بداية قسم مع عنوان، بصيغة {"sections":[{"at":0,"title":"..."}]}. يجب استخدام index موجود فقط. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
     const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
     const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title) })) : []
-    draft = planBookOutline(chunks, items, chunkIds, book.semester, boundaries)
+    draft = planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title)
   }
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
   return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
