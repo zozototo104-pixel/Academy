@@ -200,6 +200,7 @@ export async function POST(req: NextRequest) {
     }
 
     const unitId = cleanText(body?.unitId, 80) || null
+    await db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null)
     const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true })
     const beforeSaved = backgroundJob.saved
     const stepped = await runQuestionBankGenerationJobStep(backgroundJob.id)
