@@ -48,7 +48,7 @@ const recurring = tenChunks.map((chunk) => ({ ...chunk, headingPath: chunk.index
 const noDuplicate = planBookOutline(recurring, tenItems, tenIds, 1)
 assert.deepEqual(noDuplicate.sections.map((section) => section.title), ['الفصل الأول', 'الفصل الثاني', 'الفصل الثالث'])
 assert.equal(noDuplicate.sections.reduce((sum, section) => sum + section.itemsCount, 0), 10)
-const fiveChunks = Array.from({ length: 10 }, (_, index) => ({ index, pageStart: index + 1, pageEnd: index + 2, headingPath: index < 2 ? null : index < 4 ? 'الفصل الثاني' : index < 6 ? 'الفصل الثالث' : index < 8 ? 'الفصل الخامس' : 'الفصل الخامس', text: index === 0 ? 'الفصل الأول\nمقدمة الإسعافات النفسية' : index === 6 ? 'الفصل الرابع\nمفهوم الإسعافات النفسية' : index === 2 ? 'الفصل الثاني\nمفهوم الإسعافات النفسية' : 'متن علمي' }))
+const fiveChunks = Array.from({ length: 10 }, (_, index) => ({ index, pageStart: index + 1, pageEnd: index + 2, headingPath: index < 2 ? null : index < 4 ? 'الفصل الثاني' : index < 8 ? 'الفصل الثالث' : 'الفصل الخامس', text: index === 0 ? 'الفصل الأول\nمقدمة الإسعافات النفسية' : index === 6 ? 'الفصل الرابع\nمفهوم الإسعافات النفسية' : index === 2 ? 'الفصل الثاني\nمفهوم الإسعافات النفسية' : 'متن علمي' }))
 const fiveIds = new Map(fiveChunks.map((chunk) => [chunk.index, `five-${chunk.index}`]))
 const fiveItems = fiveChunks.map((chunk) => ({ chunkId: `five-${chunk.index}`, title: 'معرفة', summary: 'ملخص' }))
 const recovered = planBookOutline(fiveChunks, fiveItems, fiveIds, 1, [], 'الإسعافات الأولية النفسية')
