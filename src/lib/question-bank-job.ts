@@ -49,7 +49,6 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
     correctRationale: cleanText(raw?.correctRationale || raw?.rationale, 1000) || null,
     distractorRationales: raw?.distractorRationales ? JSON.stringify(raw.distractorRationales).slice(0, 1800) : null,
     qualityFlags: raw?.qualityFlags || JSON.stringify(['SOURCE_LINKED', 'SOURCE_GROUNDED', 'NEEDS_HUMAN_REVIEW']),
-    sourceIndex: raw?.sourceIndex,
   }
 }
 
