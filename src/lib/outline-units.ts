@@ -97,7 +97,7 @@ export function summarizeReplaceUnitProtection(units: ReplaceUnitProtectionInput
   }, { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 })
 }
 
-export function safeReplaceDraftUnitWhere(programId: string) {
+export function safeReplaceDraftUnitWhere(programId: string): Prisma.UnitWhereInput {
   return {
     programId,
     status: 'DRAFT',
