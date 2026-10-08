@@ -429,6 +429,8 @@ export function AdminBooksTab() {
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
   const [showLegacyKnowledge, setShowLegacyKnowledge] = useState(false)
+  const [showAllKnowledge, setShowAllKnowledge] = useState(false)
+  const [knowledgeTotalCount, setKnowledgeTotalCount] = useState(0)
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
   const [bookEnrichment, setBookEnrichment] = useState<Record<string, { totalChunks: number; saturatedChunks: number; addedItems: number }>>({})
   const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }>>({})
