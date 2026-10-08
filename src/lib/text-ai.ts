@@ -768,7 +768,99 @@ function academicModelRank(model: string): number {
   return 9
 }
 
-async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
+function modelCapabilityAllowed(model: string): boolean {
+  const id = model.toLowerCase()
+  if (/image|vision-only|audio|tts|whisper|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
+  return true
+}
+
+type ModelStats = { success: number; fail: Record<string, number>; avgMs: number; jsonOk: number; jsonTotal: number; evidenceOk: number; evidenceTotal: number }
+
+function modelStatsKey(provider: string, model: string): string {
+  return `AI_MODEL_STATS:${provider}:${model}`
+}
+
+function parseModelStats(raw: unknown): ModelStats {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'))
+    return {
+      success: Number(parsed.success || 0) || 0,
+      fail: typeof parsed.fail === 'object' && parsed.fail ? parsed.fail : {},
+      avgMs: Number(parsed.avgMs || 0) || 0,
+      jsonOk: Number(parsed.jsonOk || 0) || 0,
+      jsonTotal: Number(parsed.jsonTotal || 0) || 0,
+      evidenceOk: Number(parsed.evidenceOk || 0) || 0,
+      evidenceTotal: Number(parsed.evidenceTotal || 0) || 0,
+    }
+  } catch {
+    return { success: 0, fail: {}, avgMs: 0, jsonOk: 0, jsonTotal: 0, evidenceOk: 0, evidenceTotal: 0 }
+  }
+}
+
+function healthScore(stats: ModelStats): number {
+  const failCount = Object.values(stats.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+  const total = stats.success + failCount
+  if (!total) return 0.35
+  const successRate = stats.success / total
+  const jsonRate = stats.jsonTotal ? stats.jsonOk / stats.jsonTotal : 0.5
+  const evidenceRate = stats.evidenceTotal ? stats.evidenceOk / stats.evidenceTotal : 0.5
+  const latencyPenalty = stats.avgMs ? Math.min(0.25, stats.avgMs / 120000) : 0.05
+  return successRate * 0.55 + jsonRate * 0.2 + evidenceRate * 0.2 - latencyPenalty
+}
+
+async function readModelStats(provider: ConcreteProvider, models: readonly string[]): Promise<Map<string, ModelStats>> {
+  if (!models.length) return new Map()
+  try {
+    const keys = models.map((model) => modelStatsKey(provider, model))
+    const rows = await settingStore().read(keys)
+    return new Map(models.map((model) => [model, parseModelStats(rows[modelStatsKey(provider, model)])]))
+  } catch {
+    return new Map(models.map((model) => [model, parseModelStats('')]))
+  }
+}
+
+async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }): Promise<void> {
+  try {
+    const key = modelStatsKey(provider, model)
+    const current = parseModelStats((await settingStore().read([key]))[key])
+    const fail = { ...(current.fail || {}) }
+    if (result.ok) current.success += 1
+    else fail[result.reason || 'other'] = (fail[result.reason || 'other'] || 0) + 1
+    current.fail = fail
+    current.avgMs = current.avgMs ? Math.round(current.avgMs * 0.8 + result.ms * 0.2) : result.ms
+    if (typeof result.jsonOk === 'boolean') {
+      current.jsonTotal += 1
+      if (result.jsonOk) current.jsonOk += 1
+    }
+    if (typeof result.evidenceOk === 'boolean') {
+      current.evidenceTotal += 1
+      if (result.evidenceOk) current.evidenceOk += 1
+    }
+    await settingStore().write(key, JSON.stringify(current))
+  } catch {
+    // Model health stats are best-effort and must not affect routing.
+  }
+}
+
+async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean): Promise<string[]> {
+  const stats = await readModelStats(provider, models)
+  const sorted = [...models].sort((a, b) => {
+    const scoreDiff = healthScore(stats.get(b) || parseModelStats('')) - healthScore(stats.get(a) || parseModelStats(''))
+    if (Math.abs(scoreDiff) > 0.03) return scoreDiff
+    if (taskLevel !== 'GENERAL') return academicModelRank(a) - academicModelRank(b)
+    return 0
+  })
+  if (explore) {
+    const unseen = sorted.find((model) => {
+      const s = stats.get(model) || parseModelStats('')
+      return s.success === 0 && Object.values(s.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0) === 0
+    })
+    if (unseen) return [unseen, ...sorted.filter((model) => model !== unseen)]
+  }
+  return sorted
+}
+
+async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false): Promise<string[]> {
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
