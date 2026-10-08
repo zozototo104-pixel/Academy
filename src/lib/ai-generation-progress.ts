@@ -26,8 +26,13 @@ function normalizeProgress(raw: unknown): AiGenerationProgress | null {
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
     if (!parsed || typeof parsed !== 'object') return null
+    const requested = Math.max(0, Number((parsed as any).requested || 0) || 0)
+    const saved = Math.max(0, Number((parsed as any).saved || 0) || 0)
+    const status = (parsed as any).status
     return {
-      requested: Math.max(0, Number((parsed as any).requested || 0) || 0),
+      jobId: String((parsed as any).jobId || 'legacy'),
+      status: saved >= requested && requested > 0 ? 'COMPLETED' : status === 'PARTIAL' || status === 'RUNNING' ? status : 'PARTIAL',
+      requested,
       saved: Math.max(0, Number((parsed as any).saved || 0) || 0),
       failedBatches: Math.max(0, Number((parsed as any).failedBatches || 0) || 0),
       lastError: (parsed as any).lastError ? String((parsed as any).lastError).slice(0, 500) : null,
