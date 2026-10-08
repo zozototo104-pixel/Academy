@@ -395,10 +395,11 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180) })
 }
 
-function aiProviderTimeoutMs(): number {
+function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
+  const defaults: Record<TextAiTaskLevel, number> = { GENERAL: 20_000, ACADEMIC_DRAFT: 40_000, ACADEMIC_CRITICAL: 55_000 }
   const configured = Number(env('AI_PROVIDER_TIMEOUT_MS'))
-  if (Number.isFinite(configured) && configured >= 3000) return Math.min(Math.floor(configured), 45000)
-  return 15000
+  const base = Number.isFinite(configured) && configured >= 3000 ? Math.floor(configured) : defaults[taskLevel]
+  return Math.min(base, defaults[taskLevel])
 }
 
 function aiDiscoveryTimeoutMs(): number {
