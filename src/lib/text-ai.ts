@@ -1215,7 +1215,9 @@ function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: fals
       .trim()
     try {
       return { ok: true, text: JSON.stringify(JSON.parse(normalized)) }
-    } catch {}
+    } catch {
+      // Try the next extracted candidate before failing the JSON response.
+    }
   }
   return { ok: false, reason: 'INVALID_JSON_RESPONSE' }
 }
