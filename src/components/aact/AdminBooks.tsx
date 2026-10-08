@@ -2960,6 +2960,7 @@ export function AdminBooksTab() {
                     {generating ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : hasGeneratingExam ? <RefreshCw className="ml-1 h-3.5 w-3.5" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
                     {hasGeneratingExam ? 'تحريك التوليد' : 'توليد بالذكاء الاصطناعي'}
                   </Button>
+                  <p className="w-full text-[10px] leading-5 text-slate-500">ملاحظة للامتحان الشامل: يُفضّل إكمال قراءة الكتب وبناء بنك المعرفة قبل التوليد لضمان الاستناد إلى محتواها.</p>
                 </div>
               </div>
 
