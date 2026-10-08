@@ -1371,6 +1371,16 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
+          let jsonOk: boolean | undefined
+          if (opts.json) {
+            try {
+              JSON.parse(String(text || ''))
+              jsonOk = true
+            } catch {
+              jsonOk = false
+            }
+          }
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk, evidenceOk: true })
           lastResult = { provider, model, ok: true, at }
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
