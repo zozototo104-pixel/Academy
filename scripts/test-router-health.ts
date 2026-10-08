@@ -308,7 +308,7 @@ async function hangingOpenRouterTimesOutAndFallsThrough() {
   process.env.UNOROUTER_API_KEY = 'uno-key'
   process.env.OPENROUTER_TEXT_MODEL = 'openrouter-timeout:free'
   process.env.UNOROUTER_TEXT_MODEL = 'unorouter-ok:free'
-  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENROUTER:openrouter-timeout:free,UNOROUTER:unorouter-ok:free'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENROUTER:openrouter-timeout,UNOROUTER:unorouter-ok'
   const store = makeStore()
   const originalTimeout = (AbortSignal as any).timeout
   ;(AbortSignal as any).timeout = () => {
