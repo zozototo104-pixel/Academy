@@ -48,3 +48,4 @@ jobs:
       - run: bunx tsx scripts/test-router-health.ts
       - run: bunx tsx scripts/test-ai-generation-progress.ts
       - run: bunx tsx scripts/test-ai-task-pause.ts
+      - run: bunx tsx scripts/test-book-reading.ts
