@@ -357,12 +357,15 @@ interface CurriculumUnitReviewItem {
     status: string
   } | null
   generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
+  questionBankJob?: { id: string; status: string; requested: number; saved: number; approvedQuestions: number; pendingReviewQuestions: number; currentQuestions: number; retryAt?: string | null; updatedAt?: string | null } | null
   exam?: {
     id: string
     title: string
+    status?: 'READY' | 'DRAFT' | string
     passScore: number
     questionsCount: number
     attemptsCount: number
+    reviewQuestionsCount?: number
   } | null
 }
 
