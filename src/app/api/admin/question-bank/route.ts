@@ -255,11 +255,11 @@ export async function POST(req: NextRequest) {
       ? await db.bookChunk.findMany({ where: { id: { in: v2ChunkIds }, bookId: { in: sourceBooks.map((book) => book.id) } }, select: { id: true, bookId: true, text: true } })
       : []
     const chunkById = new Map(sourceChunks.map((chunk) => [chunk.id, chunk]))
-    const knowledgeTextProvenance = (item: { kbVersion?: number; chunkId?: string | null; textProvenance?: string | null; sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }) => {
+    const knowledgeTextProvenance = (item: { kbVersion?: number; chunkId?: string | null; textProvenance?: string | null; sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }): TextProvenance => {
       if (item.kbVersion === 2 && item.chunkId) {
         return item.textProvenance === 'NATIVE_TEXT' || item.textProvenance === 'VISION_OCR'
           ? item.textProvenance
-          : 'UNKNOWN'
+          : 'VISION_DESCRIPTION'
       }
       const book = item.bookId ? bookById.get(item.bookId) : null
       return inferTextProvenance({
