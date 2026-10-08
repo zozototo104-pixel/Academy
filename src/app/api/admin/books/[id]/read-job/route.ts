@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest, context: Context) {
   }
 }
 
-export async function POST(_request: NextRequest, context: Context) {
+export async function POST(request: NextRequest, context: Context) {
   try {
     await authorize()
     const { id } = await context.params
