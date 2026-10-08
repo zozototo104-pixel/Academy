@@ -254,15 +254,26 @@ function normalizeModel(value: unknown, defaults: string[]): string {
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
 
-function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
   const out: Array<{ provider: ConcreteProvider; model: string }> = []
   for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
     const item = raw.trim()
     const separator = item.indexOf(':')
-    if (separator <= 0) continue
-    const provider = normalizeProvider(item.slice(0, separator))
+    if (separator <= 0) {
+      if (item) console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'MISSING_PROVIDER_SEPARATOR' })
+      continue
+    }
+    const providerText = clean(item.slice(0, separator)).toUpperCase()
+    const provider = normalizeProvider(providerText)
     const model = clean(item.slice(separator + 1))
-    if (provider === 'AUTO' || !validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model) || model.endsWith(':free')) continue
+    if (!providerText || provider === 'AUTO' || provider !== providerText || !model) {
+      console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_PROVIDER_OR_MODEL' })
+      continue
+    }
+    if (!validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model)) {
+      console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_MODEL_NAME' })
+      continue
+    }
     out.push({ provider: provider as ConcreteProvider, model })
   }
   return out
