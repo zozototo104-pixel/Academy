@@ -1215,6 +1215,7 @@ model Book {
   knowledgeItems BookKnowledgeItem[]
   readChunks BookChunk[]
   readJobs BookReadJob[]
+  outlines BookOutline[]
   uploadChunks BookUploadChunk[]
 }
 
