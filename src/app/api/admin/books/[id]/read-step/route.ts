@@ -36,7 +36,7 @@ export async function POST(_request: NextRequest, context: Context) {
   if (!claimed) return NextResponse.json({ ok: true, skipped: 'LOCKED_OR_NOT_DUE' })
 
   try {
-    const deadlineMs = Date.now() + 45_000
+    const deadlineMs = Date.now() + 240_000
     let result: unknown
     if (job.phase === 'EXTRACT') {
       result = await runExtractStep(job.id, deadlineMs)
