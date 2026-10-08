@@ -1190,6 +1190,55 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
   return callChatCompletions(provider, baseFor(s, provider), key, model, opts)
 }
 
+function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
+  const source = String(raw || '').trim()
+  const candidates: string[] = []
+  const stripped = source
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
+  candidates.push(stripped)
+  const firstObject = stripped.indexOf('{')
+  const lastObject = stripped.lastIndexOf('}')
+  if (firstObject >= 0 && lastObject > firstObject) candidates.push(stripped.slice(firstObject, lastObject + 1))
+  const firstArray = stripped.indexOf('[')
+  const lastArray = stripped.lastIndexOf(']')
+  if (firstArray >= 0 && lastArray > firstArray) candidates.push(stripped.slice(firstArray, lastArray + 1))
+  for (const candidate of candidates) {
+    const normalized = candidate
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/,\s*([}\]])/g, '$1')
+      .trim()
+    try {
+      return { ok: true, text: JSON.stringify(JSON.parse(normalized)) }
+    } catch {}
+  }
+  return { ok: false, reason: 'INVALID_JSON_RESPONSE' }
+}
+
+async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<{ text: string; jsonOk?: boolean; retriedJson?: boolean }> {
+  const first = await callProvider(provider, s, key, model, opts)
+  if (!opts.json) return { text: first }
+  const repaired = tryRepairJsonText(first)
+  if (repaired.ok) return { text: repaired.text, jsonOk: true }
+
+  const retry = await callProvider(provider, s, key, model, {
+    ...opts,
+    system: `${opts.system}\n\nإعادة إلزامية: الرد السابق لم يكن JSON صالحاً. أعد JSON فقط بدون أي نص تمهيدي أو Markdown أو شرح.`,
+    history: [
+      ...opts.history,
+      { role: 'model', text: first.slice(0, 2000) },
+      { role: 'user', text: 'أعد نفس المطلوب بصيغة JSON صالحة فقط، بدون أي نص خارج JSON.' },
+    ],
+  })
+  const repairedRetry = tryRepairJsonText(retry)
+  if (repairedRetry.ok) return { text: repairedRetry.text, jsonOk: true, retriedJson: true }
+  const error: any = new Error('INVALID_JSON_RESPONSE')
+  error.code = 'INVALID_JSON_RESPONSE'
+  throw error
+}
+
 function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
   const keys = providerKeys(s, provider)
   const available = keys.filter((key) => !isCooling(provider, key))
