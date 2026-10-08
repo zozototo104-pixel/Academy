@@ -49,8 +49,8 @@ async function testThreeFailuresAndContinue() {
   const analyze = async ({ chunkText, bookId }: any) => {
     void chunkText; void bookId
     // The first selected chunk is the one that fails until exhausted.
-    if (chunks[0].status === 'EXTRACTED' && chunks[0].attempts < 3 && analyzed === 0) throw new Error('TEMPORARY_FAILURE')
-    return [first]
+    if (chunkText === evidence) throw new Error('TEMPORARY_FAILURE')
+    return [{ ...first, title: 'المنهج التطبيقي', summary: 'منهج قياس النتائج', excerpt: secondEvidence }]
   }
   for (let attempt = 0; attempt < 3; attempt++) await analyzeStepWithStore('job', Date.now() + 30000, store, analyze as any)
   assert.equal(chunks[0].status, 'FAILED')
