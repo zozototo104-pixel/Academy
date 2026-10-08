@@ -1229,6 +1229,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) continue
         if (isCooling(provider, key) || persistedCooldown) {
           if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
           continue
