@@ -137,11 +137,72 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 
-const cooldowns = new Map<string, { until: number; reason: string }>()
+const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
 const freeModelsCache = new Map<string, { at: number; models: string[] }>()
+
+type TextAiSettingStore = {
+  read(keys: string[]): Promise<Record<string, string>>
+  write(key: string, value: string): Promise<void>
+  delete?(key: string): Promise<void>
+  increment?(key: string, amount: number): Promise<number>
+  scan?(prefix: string): Promise<Record<string, string>>
+}
+
+let injectedStore: TextAiSettingStore | null = null
+let persistentCooldownCache: { at: number; values: Record<string, string> } | null = null
+
+function hasDatabaseUrl(): boolean {
+  return !!String(process.env.DATABASE_URL || '').trim()
+}
+
+function defaultSettingStore(): TextAiSettingStore {
+  return {
+    async read(keys) {
+      if (!hasDatabaseUrl()) return Object.fromEntries(keys.map((k) => [k, '']))
+      const rows = await db.setting.findMany({ where: { key: { in: keys } } })
+      const out: Record<string, string> = Object.fromEntries(keys.map((k) => [k, '']))
+      for (const row of rows) out[row.key] = String(row.value || '')
+      return out
+    },
+    async write(key, value) {
+      if (!hasDatabaseUrl()) return
+      await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } })
+    },
+    async delete(key) {
+      if (!hasDatabaseUrl()) return
+      await db.setting.delete({ where: { key } }).catch(() => {})
+    },
+    async increment(key, amount) {
+      if (!hasDatabaseUrl()) throw new Error('AI_SETTING_STORE_UNAVAILABLE')
+      await db.$executeRaw`
+        INSERT INTO "Setting" ("key", "value", "updatedAt")
+        VALUES (${key}, ${String(amount)}, NOW())
+        ON CONFLICT ("key") DO UPDATE
+        SET "value" = ((COALESCE(NULLIF("Setting"."value", ''), '0'))::numeric + ${amount})::text,
+            "updatedAt" = NOW()
+      `
+      const row = await db.setting.findUnique({ where: { key } })
+      return Number(row?.value || 0) || 0
+    },
+    async scan(prefix) {
+      if (!hasDatabaseUrl()) return {}
+      const rows = await db.setting.findMany({ where: { key: { startsWith: prefix } }, take: 300 })
+      return Object.fromEntries(rows.map((row) => [row.key, String(row.value || '')]))
+    },
+  }
+}
+
+function settingStore(): TextAiSettingStore {
+  return injectedStore || defaultSettingStore()
+}
+
+export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null) {
+  injectedStore = store
+  persistentCooldownCache = null
+}
 
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
