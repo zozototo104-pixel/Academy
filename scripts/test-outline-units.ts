@@ -28,7 +28,7 @@ function testUnitContentRejectsOutsideChunkRange() {
   ], ['k-1'], [1, 2, 3]), 'المحتوى الذي لا يملك مقطعاً أو عنصر معرفة داخل النطاق يجب أن يُرفض')
 
   const valid = validateUnitContentReferences([
-    { heading: 'محور داخل النطاق', body: 'شرح يستند إلى صفحة 2 داخل نطاق الوحدة.', pageRefs: ['صفحة 2'], sourceChunkIndexes: [2], sourceKnowledgeIds: [] },
+    { heading: 'محور داخل النطاق', body: 'شرح تعليمي يستند إلى صفحة 2 داخل نطاق الوحدة ويحتفظ بالمرجع.', pageRefs: ['صفحة 2'], sourceChunkIndexes: [2], sourceKnowledgeIds: [] },
   ], ['k-1'], [1, 2, 3])
   assert(valid[0].sourceChunkIndexes?.[0] === 2, 'المقطع داخل النطاق يجب أن يبقى محفوظاً')
 }
