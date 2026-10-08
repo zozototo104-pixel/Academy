@@ -2042,7 +2042,7 @@ export function AdminBooksTab() {
                       const countForBook = v2CountsByBook[b.id] ?? 0
                       return (
                         <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col gap-2">
                             <div className="min-w-0">
                               <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
                               <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
