@@ -57,7 +57,8 @@ function readableIssueSummary(candidate: unknown, index: number, issues: readonl
   const field = (issue?.path || []).map(String).join('.') || 'question'
   const code = issue?.code || 'invalid'
   const reason = issue?.message || 'غير صالح'
-  return `index=${index} field=${field} code=${code} reason="${reason}" question="${candidateText(candidate)}"`
+  const type = candidate && typeof candidate === 'object' && 'type' in candidate ? String((candidate as { type?: unknown }).type || 'UNKNOWN') : 'UNKNOWN'
+  return `index=${index} type=${type} field=${field} code=${code} reason="${reason}" question="${candidateText(candidate)}"`
 }
 
 export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number } {
