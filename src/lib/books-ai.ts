@@ -1998,6 +1998,7 @@ ${plannedTypes}
       retries: 1,
       timeoutMs: 32000,
       taskLevel: 'ACADEMIC_CRITICAL',
+      stickyScope: `PROGRAM_EXAM:${program.titleAr}:${batchIndex}`,
       validate: (text, context) => {
         generationContext = context || {}
         const accepted = validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)
