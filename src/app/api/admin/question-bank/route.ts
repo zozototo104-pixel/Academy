@@ -40,7 +40,6 @@ const generatedQuestionSchema = z.object({
   if (question.type === 'TF' && !['0', '1'].includes(question.correctAnswer)) ctx.addIssue({ code: 'custom', message: 'TF correctAnswer must be 0 or 1' })
 })
 
-const generatedQuestionsSchema = z.object({ questions: z.array(generatedQuestionSchema).min(1).max(30) })
 const looseGeneratedQuestionsSchema = z.object({ questions: z.array(z.unknown()).min(1).max(30) })
 
 function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number } {
