@@ -263,8 +263,6 @@ export async function POST(req: NextRequest) {
     const ideaHistory = existing.map((q) => ({ text: q.text, knowledgeItemId: q.knowledgeItemId }))
     const usedSourceIndexes = [...(job.usedSourceIndexes || [])]
     const knowledgeItemIds = [...(job.knowledgeItemIds || [])]
-    const evidenceSources = evidenceKnowledge.map((item) => ({ text: knowledgeEvidenceText(item), textProvenance: knowledgeTextProvenance(item) }))
-
     let savedTotal = savedSoFar
     let insertedTotal = 0
     let failedBatches = job.failedBatches
