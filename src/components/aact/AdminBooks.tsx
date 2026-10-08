@@ -646,6 +646,7 @@ export function AdminBooksTab() {
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
       ])
       setBooks(b.books)
+      setBookReadJobs({})
       setExams(e.exams)
       setAssignments(a.assignments)
       setKnowledgeItems([])
