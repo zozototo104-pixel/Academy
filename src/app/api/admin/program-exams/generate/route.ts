@@ -1056,7 +1056,7 @@ export async function POST(req: NextRequest) {
     }
 
     const failedSemExam = await db.programExam.findFirst({
-      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED'] } },
+      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED', 'DRAFT_INCOMPLETE'] } },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { questions: true } } },
     })
