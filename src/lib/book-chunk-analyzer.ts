@@ -1,4 +1,5 @@
 import { geminiCompleteJson } from '@/lib/gemini'
+import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
 
