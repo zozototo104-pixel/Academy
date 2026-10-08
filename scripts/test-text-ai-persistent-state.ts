@@ -83,7 +83,7 @@ async function persistentCooldownSkipsAfterReset() {
 
     __resetTextAiStateForTests()
     calls.length = 0
-    const second = await textAiComplete({ history: [{ role: 'user', text: 'hello again' }] })
+    const second = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'hello again' }] })
     assert.equal(second, 'verified')
     assert.equal(calls.some((url) => url.includes('limited-key')), false, 'new instance should skip persisted cooldown key')
     assert.ok(calls.some((url) => url.includes('ok-key')))
