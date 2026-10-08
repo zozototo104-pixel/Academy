@@ -210,6 +210,7 @@ export function __resetTextAiStateForTests() {
   lastResult = null
   recentAttempts = []
   freeModelsCache.clear()
+  persistentCooldownCache = null
 }
 
 function env(name: string): string {
