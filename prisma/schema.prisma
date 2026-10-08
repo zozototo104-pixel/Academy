@@ -1416,6 +1416,28 @@ model QuestionBankItem {
   @@index([unitId])
 }
 
+model QuestionBankGenerationJob {
+  id             String    @id @default(cuid())
+  programId      String
+  unitId         String?
+  status         String    @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED
+  requested      Int       @default(0)
+  saved          Int       @default(0)
+  batchSize      Int       @default(4)
+  sourceScope    String    @default("PROGRAM") // PROGRAM | UNIT
+  lastError      String?
+  retryAt        DateTime?
+  lockedUntil    DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([programId, status])
+  @@index([unitId, status])
+  @@index([status, retryAt])
+}
+
 model ProgramStudyGuide {
   id          String   @id @default(cuid())
   programId   String
