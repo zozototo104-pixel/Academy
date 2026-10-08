@@ -1130,9 +1130,18 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
-          if (isQuotaLike(e)) markCooldown(provider, key, msg)
-          if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+          if (isTimeoutLike(e)) {
+            markCooldown(provider, key, msg, 2)
+            if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+          }
+          if (isQuotaLike(e)) {
+            markCooldown(provider, key, msg)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status)
+          }
+          if (isAuthLike(e)) {
+            markCooldown(provider, key, msg, 60)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status, 60)
+          }
         }
       }
     }
