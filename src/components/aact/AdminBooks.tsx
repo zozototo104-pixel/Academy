@@ -554,7 +554,7 @@ export function AdminBooksTab() {
         return { ...item, title, summary, excerpt, keywords }
       })
       .filter((item) => item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt)))
-  }, [knowledgeItems])
+  }, [knowledgeItems, showLegacyKnowledge])
 
   const displayKnowledgeStats = useMemo(() => {
     const stats: KnowledgeStats = {}
