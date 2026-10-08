@@ -44,7 +44,7 @@ export async function analyzeBookChunk(input: { bookId: string; chunkText: strin
     history: [{ role: 'user', text: `استخرج من 3 إلى 12 عنصراً بحسب كثافة النص، لا تخترع معلومات، ولا تنشئ QUESTION_SEED. الأصناف المسموحة: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر: category,title,summary (صياغة أكاديمية عربية),excerpt (اقتباس حرفي من النص بين 60 و600 حرف),importance (0-100). أرجع {"items":[...]}. النص:\n${input.chunkText}` }],
     taskLevel: 'ACADEMIC_DRAFT',
     stickyScope: `BOOK_READ:${input.bookId}`,
-    deadlineMs: input.deadlineMs,
+    deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)),
     temperature: 0.2,
     validate: (raw) => {
       const parsed = JSON.parse(raw)
