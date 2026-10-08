@@ -2337,6 +2337,12 @@ export function AdminBooksTab() {
                             <Textarea defaultValue={(unit.objectives || []).join('\n')} onBlur={(e) => patchCurriculumUnit(unit, { objectives: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) as any })} className="min-h-24 bg-white text-xs leading-6" />
                           </div>
                         </div>
+                        {unit.source && <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-[11px] font-bold leading-5 text-blue-900">
+                          <p className="font-black">مصدر الوحدة من الفهرس</p>
+                          <p>{unit.source.bookTitle ? `الكتاب: ${unit.source.bookTitle} · ` : ''}{unit.source.sectionTitle || 'قسم من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}{unit.source.chunkStartIndex != null ? ` · مقاطع ${unit.source.chunkStartIndex}–${unit.source.chunkEndIndex ?? unit.source.chunkStartIndex}` : ''}</p>
+                          {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
+                          {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
+                        </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
                           <Textarea defaultValue={unit.summary || ''} onBlur={(e) => e.target.value !== (unit.summary || '') && patchCurriculumUnit(unit, { summary: e.target.value })} className="min-h-20 bg-white text-sm leading-7" />
