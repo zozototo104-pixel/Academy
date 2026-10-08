@@ -153,6 +153,11 @@ model Unit {
   summary    String?
   content    String // JSON: array of { heading, body }
   objectives String? // JSON array
+  sourceBookId String?
+  outlineSectionId String?
+  chunkStartIndex Int?
+  chunkEndIndex Int?
+  generationVersion Int @default(0)
   exam       Exam?
 }
 
@@ -1210,7 +1215,42 @@ model Book {
   knowledgeItems BookKnowledgeItem[]
   readChunks BookChunk[]
   readJobs BookReadJob[]
+  outlines BookOutline[]
   uploadChunks BookUploadChunk[]
+}
+
+model BookOutline {
+  id String @id @default(cuid())
+  bookId String
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  version Int
+  status String @default("DRAFT") // DRAFT | APPROVED
+  source String // TOC | HEADINGS | AI_SEGMENTED
+  warnings String? // JSON array of detected chapter gaps / TOC mismatches
+  createdAt DateTime @default(now())
+  sections BookOutlineSection[]
+
+  @@unique([bookId, version])
+  @@index([bookId, createdAt])
+}
+
+model BookOutlineSection {
+  id String @id @default(cuid())
+  outlineId String
+  outline BookOutline @relation(fields: [outlineId], references: [id], onDelete: Cascade)
+  order Int
+  title String
+  level Int @default(1)
+  semester Int?
+  chunkStartIndex Int
+  chunkEndIndex Int
+  startCharOffset Int?
+  pageStart Int?
+  pageEnd Int?
+  itemsCount Int @default(0)
+
+  @@unique([outlineId, order])
+  @@index([outlineId, chunkStartIndex])
 }
 
 model BookUploadChunk {
