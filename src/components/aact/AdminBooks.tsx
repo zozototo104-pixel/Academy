@@ -1978,9 +1978,10 @@ export function AdminBooksTab() {
                               <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
                               <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
                             </div>
-                            <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
-                              {bookReadBusyId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
-                            </Button>
+                            <div className="flex shrink-0 flex-wrap gap-1">
+                              <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 px-2 text-[10px] font-black">قراءة وتحليل كامل</Button>
+                              {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 px-2 text-[10px] font-black">استخراج المزيد</Button>}
+                            </div>
                           </div>
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
