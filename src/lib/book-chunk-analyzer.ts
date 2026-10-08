@@ -81,12 +81,12 @@ export async function analyzeStepWithStore(
   let analyzed = 0, failed = 0
   const attempted = new Set<string>()
   while (Date.now() < deadlineMs - 1500) {
-    const chunk = await store.nextChunk(job.bookId)
+    const chunk = await store.nextChunk(job.bookId, [...attempted])
     if (!chunk) {
+      if (attempted.size > analyzed + failed) return { analyzed, failed, completed: false, paused: false }
       await store.complete(job.bookId, jobId)
       return { analyzed, failed, completed: true, paused: false }
     }
-    if (attempted.has(chunk.id)) return { analyzed, failed, completed: false, paused: false }
     attempted.add(chunk.id)
     try {
       const prior = await store.priorItems(job.bookId)
