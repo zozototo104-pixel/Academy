@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { geminiCompleteJson, geminiLastTextResult } from '@/lib/gemini'
 import { audit } from '@/lib/notify'
 import { textAiDiagnostics } from '@/lib/text-ai'
+import { safeReplaceDraftUnitWhere, summarizeReplaceUnitProtection } from '@/lib/outline-units'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
