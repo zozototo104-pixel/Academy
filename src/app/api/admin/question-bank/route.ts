@@ -352,7 +352,11 @@ ${knowledgeText}
 }
 
 القواعد:
-- اجعل 60% اختيار متعدد أو صح/خطأ، و40% قصيرة/مقالية.
+- وزّع الأنواع افتراضياً: 60% MCQ و20% TF و20% SHORT/ESSAY، ما لم يحدد الأدمن توزيعاً آخر.
+- أمثلة الحقول لكل نوع (احتفظ أيضاً بـ sourceEvidence الحرفي وsourceIndex وtext وdifficulty لكل سؤال):
+  MCQ: {"type":"MCQ","text":"ما الفكرة الأساسية المذكورة في النص؟","options":["الأول","الثاني","الثالث","الرابع"],"correctAnswer":"الأول","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM","correctRationale":"لأن النص يؤيد الاختيار الأول"}.
+  TF: {"type":"TF","text":"هل تؤكد العبارة الفكرة الواردة في النص؟","options":["صح","خطأ"],"correctAnswer":"صح","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM"}.
+  SHORT/ESSAY: {"type":"ESSAY","text":"حلل الفكرة كما وردت في النص بالتفصيل.","options":[],"modelAnswer":"إجابة نموذجية مفصلة لا تقل عن أربعين حرفاً، تستند مباشرة إلى النص المقتبس وتشرح الفكرة وأسبابها.","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM"}. في SHORT/ESSAY لا يلزم correctAnswer ولا distractorRationales، ويلزم modelAnswer بطول 40 حرفاً على الأقل.
 - لا تكرر سؤالاً بنفس المعنى.
 - كل سؤال يجب أن يكون مرتبطاً بدليل من بنك المعرفة.
 - sourceEvidence يجب أن يكون اقتباساً حرفياً من "نص المصدر" للعنصر المحدد، وليس من الملخص.
