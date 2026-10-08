@@ -428,13 +428,17 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
 }
 
 async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
-  const controller = new AbortController()
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
-  const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const fallbackController = new AbortController()
+  const signal = typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(effectiveTimeoutMs)
+    : fallbackController.signal
+  if (signal === fallbackController.signal) timer = setTimeout(() => fallbackController.abort(), effectiveTimeoutMs)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetch(url, { ...init, signal })
   } catch (e: any) {
-    if (e?.name === 'AbortError') {
+    if (e?.name === 'AbortError' || e?.name === 'TimeoutError' || signal.aborted) {
       const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
       err.status = 504
       err.code = 'AI_PROVIDER_TIMEOUT'
@@ -442,7 +446,7 @@ async function fetchWithTimeout(provider: string, url: string, init: RequestInit
     }
     throw e
   } finally {
-    clearTimeout(timer)
+    if (timer) clearTimeout(timer)
   }
 }
 
