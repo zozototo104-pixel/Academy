@@ -82,7 +82,7 @@ async function scopedKnowledge(job: { programId: string; unitId: string | null }
   return { unit: null, knowledge, title: 'بنك أسئلة البرنامج', scopeLabel: 'البرنامج كاملاً' }
 }
 
-async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }) {
+async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }, deadlineMs?: number) {
   const program = await db.program.findUnique({ where: { id: job.programId }, select: { id: true, titleAr: true, category: true, description: true } })
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
   const scope = await scopedKnowledge(job)
