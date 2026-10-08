@@ -199,24 +199,11 @@ export async function POST(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true, description: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     const storedProgress = source === 'AI' ? await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL') : null
-    const requestedTotal = Math.max(requestedCount, storedProgress?.requested || 0)
-    const savedSoFar = Math.max(0, storedProgress?.saved || 0)
+    const job = resolveGenerationJob(storedProgress, requestedCount, body?.resume === true, body?.startNew === true)
+    const requestedTotal = job.requested
+    const savedSoFar = job.saved
     const remainingFromProgress = Math.max(0, requestedTotal - savedSoFar)
     const batchCount = Math.min(count, remainingFromProgress || count)
-    if (source === 'AI' && requestedTotal > 0 && remainingFromProgress <= 0) {
-      return NextResponse.json({
-        ok: true,
-        inserted: 0,
-        requested: requestedTotal,
-        saved: savedSoFar,
-        remaining: 0,
-        partial: false,
-        message: `تم حفظ ${savedSoFar} من ${requestedTotal}. لا يوجد باقي للتوليد.`,
-        progress: storedProgress,
-        stats: await questionStats(programId),
-        items: await listQuestions(programId),
-      })
-    }
 
     if (source === 'MANUAL') {
       const result = await insertBankQuestions(programId, [body?.question || body], { generatedBy: 'MANUAL', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
