@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { aiGenerationProgressKey, questionDuplicateKey } from '../src/lib/ai-generation-progress'
 import { runProgressiveGenerationBatches, type GeneratedQuestionCandidate } from '../src/lib/ai-generation-batches'
+import { parseGeneratedQuestionCandidates, parseQuestionBatchEnvelope } from '../src/lib/question-bank-generation'
 
 function question(n: number, sourceRef = 'source-1'): GeneratedQuestionCandidate {
   return {
