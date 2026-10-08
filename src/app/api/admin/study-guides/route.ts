@@ -51,7 +51,7 @@ async function unitGuidesForProgram(programId: string, semester: number) {
     select: { id: true, title: true, semester: true, objectives: true, summary: true, sourceBookId: true, outlineSectionId: true },
   })
   const guides = units.length ? await db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } }) : []
-  const guideByUnit = new Map(guides.map((guide) => [guide.unitId, guide]))
+  const guideByUnit = new Map(guides.filter((guide) => guide.unitId).map((guide) => [guide.unitId!, guide] as const))
   const missing = units.filter((unit) => !guideByUnit.has(unit.id))
   return { units, guides, guideByUnit, missing }
 }
