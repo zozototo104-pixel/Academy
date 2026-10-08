@@ -36,7 +36,15 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
     for (const sentence of sentences) {
       const part = sentence.trim()
       if (!part) continue
-      if (text && (text.length + part.length + 1 > maxChars || provenance !== page.textProvenance) && text.length >= minChars) flush()
+      if (text && (text.length + part.length + 1 > maxChars || provenance !== page.textProvenance)) flush()
+      if (part.length > maxChars) {
+        // A single sentence is indivisible: preserve its wording rather than silently truncating it.
+        if (!text) { start = page.page; provenance = page.textProvenance; headingPath = heading(page.text) }
+        end = page.page
+        text += (text ? ' ' : '') + part
+        flush()
+        continue
+      }
       if (!text) { start = page.page; provenance = page.textProvenance; headingPath = heading(page.text) }
       end = page.page
       text += (text ? ' ' : '') + part
