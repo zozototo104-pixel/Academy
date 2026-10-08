@@ -156,11 +156,13 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  return db.questionBankItem.findMany({
+  const items = await db.questionBankItem.findMany({
     where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
   })
+  // No verifierReason column exists in QuestionBankItem; expose persisted review notes as the review tooltip.
+  return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
 }
 
 // GET /api/admin/question-bank?programId=...&status=PENDING_REVIEW
