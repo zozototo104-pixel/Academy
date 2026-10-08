@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { geminiCompleteJson } from '@/lib/gemini'
 
 export type OutlineUnitSectionInput = {
