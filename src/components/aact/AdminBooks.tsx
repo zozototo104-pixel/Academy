@@ -1002,7 +1002,7 @@ export function AdminBooksTab() {
         method: 'POST',
         body: JSON.stringify({ programId, regenerateDrafts: unitRegenerateDrafts, legacyConfirmed, append: legacyConfirmed }),
       })
-      let result: Awaited<ReturnType<typeof run>>
+      let result: Awaited<ReturnType<typeof run>> | null = null
       try {
         result = await run(false)
       } catch (error: any) {
