@@ -334,10 +334,29 @@ interface CurriculumUnitReviewItem {
   title: string
   summary?: string | null
   objectives: string[]
-  content: { heading: string; body: string }[]
+  content: { heading: string; body: string; pageRefs?: string[]; sourceKnowledgeIds?: string[]; sourceChunkIndexes?: number[] }[]
   order: number
   semester: number
   status: 'DRAFT' | 'APPROVED' | 'NEEDS_REVISION'
+  sourceBookId?: string | null
+  outlineSectionId?: string | null
+  chunkStartIndex?: number | null
+  chunkEndIndex?: number | null
+  generationVersion?: number | null
+  source?: { bookTitle?: string | null; sectionTitle?: string | null; pageStart?: number | null; pageEnd?: number | null; chunkStartIndex?: number | null; chunkEndIndex?: number | null } | null
+  studyGuide?: {
+    id: string
+    title: string
+    overview: string
+    objectives: string[]
+    keyTerms: string[]
+    sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[] }[]
+    activities: string[]
+    discussionQuestions: string[]
+    sourceKnowledgeIds: string[]
+    status: string
+  } | null
+  generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
   exam?: {
     id: string
     title: string
@@ -370,6 +389,7 @@ interface StudyGuideSection {
 interface StudyGuideRow {
   id: string
   programId: string
+  unitId?: string | null
   semester: number
   title: string
   overview: string
@@ -378,6 +398,7 @@ interface StudyGuideRow {
   sections: StudyGuideSection[]
   activities: string[]
   discussionQuestions: string[]
+  sourceKnowledgeIds?: string[]
   status: string
   updatedAt: string
 }
@@ -467,6 +488,7 @@ export function AdminBooksTab() {
   const [bookOutlines, setBookOutlines] = useState<Record<string, { version: number; status: string; source: string; warnings?: string | null; sections: { id: string; title: string; order: number; semester: number | null; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[] } | null>>({})
   const [programOutlineDraft, setProgramOutlineDraft] = useState<{ id: string; bookId: string; bookTitle: string; title: string; semester: number | null; semesterNeedsReview: boolean; order: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[]>([])
   const [outlineBusyId, setOutlineBusyId] = useState<string | null>(null)
+  const [outlineUnitBusyId, setOutlineUnitBusyId] = useState<string | null>(null)
   const [outlineDebugBusyId, setOutlineDebugBusyId] = useState<string | null>(null)
   const [outlineDebugByBook, setOutlineDebugByBook] = useState<Record<string, BookOutlineDebugChunk[] | undefined>>({})
   const [outlineEditingId, setOutlineEditingId] = useState<string | null>(null)
@@ -475,6 +497,7 @@ export function AdminBooksTab() {
   const [readinessLoading, setReadinessLoading] = useState(false)
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
   const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
+  const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState(false)
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
@@ -639,7 +662,8 @@ export function AdminBooksTab() {
     })
   }, [questionBankItems, questionBankFilter])
 
-  const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
+  const rootStudyGuides = useMemo(() => studyGuides.filter((guide) => !guide.unitId), [studyGuides])
+  const displayStudyGuides = useMemo(() => rootStudyGuides.map((guide) => ({
     ...guide,
     title: cleanAcademicOutput(guide.title, 220),
     overview: cleanAcademicOutput(guide.overview, 5000),
@@ -654,10 +678,10 @@ export function AdminBooksTab() {
       outcomes: sanitizeAcademicList(section.outcomes || [], ['شرح المحور وربطه بالتطبيق المهني'], 5, 180),
       sourceTitles: sanitizeAcademicList(section.sourceTitles || [], ['بنك المعرفة'], 5, 160),
     })).filter((section) => section.title && section.summary && !looksLikeBrokenGeneratedArabic(`${section.title}. ${section.summary}`)).slice(0, 8),
-  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [studyGuides])
+  })).filter((guide) => guide.title && guide.overview && !looksLikeBrokenGeneratedArabic(`${guide.title}. ${guide.overview}`)), [rootStudyGuides])
 
   const hiddenKnowledgeItemsCount = Math.max(0, knowledgeItems.length - displayKnowledgeItems.length)
-  const hiddenStudyGuidesCount = Math.max(0, studyGuides.length - displayStudyGuides.length)
+  const hiddenStudyGuidesCount = Math.max(0, rootStudyGuides.length - displayStudyGuides.length)
 
   const academicPlanPreview = useMemo(() => {
     if (!selectedProgram) return null
@@ -970,6 +994,40 @@ export function AdminBooksTab() {
     setCurriculumUnits(res.units || [])
   }
 
+  const generateCurriculumUnits = async () => {
+    if (!programId) return
+    setUnitBusyId('__generate_units__')
+    try {
+      const run = (legacyConfirmed = false) => api<{ count: number; mode: string; warnings?: string[]; summary?: { created: number; updatedDrafts: number; skippedApproved: number; skippedDrafts: number; skippedIntro: number } }>('/api/admin/program-units/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ programId, regenerateDrafts: unitRegenerateDrafts, legacyConfirmed, append: legacyConfirmed }),
+      })
+      let result: Awaited<ReturnType<typeof run>> | null = null
+      try {
+        result = await run(false)
+      } catch (error: any) {
+        if (String(error?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
+          const skipped = Array.isArray(error?.data?.skippedBooks) ? error.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : String(error?.message || '')
+          const ok = await askAdminConfirm({ title: 'تأكيد التوليد القديم للوحدات', description: `${skipped || 'لا يوجد أي كتاب له فهرس معتمد.'}\n\nسيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة.`, confirmLabel: 'استخدم التوليد القديم' })
+          if (!ok) return
+          result = await run(true)
+        } else {
+          throw error
+        }
+      }
+      if (!result) return
+      await refreshCurriculumUnits(programId)
+      await refreshProgramReadiness()
+      if (result.warnings?.length) toast({ title: 'تم تخطي بعض الكتب', description: result.warnings.join(' | ') })
+      const summary = result.summary ? `جديد: ${result.summary.created} · محدّث: ${result.summary.updatedDrafts} · معتمد محفوظ: ${result.summary.skippedApproved}` : `${result.count || 0} وحدة`
+      toast({ title: 'تم توليد الوحدات', description: summary })
+    } catch (error: any) {
+      toast({ title: 'تعذر توليد الوحدات', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const patchCurriculumUnit = async (unit: CurriculumUnitReviewItem, data: Partial<CurriculumUnitReviewItem>) => {
     if (!programId) return
     setUnitBusyId(unit.id)
@@ -1020,7 +1078,40 @@ export function AdminBooksTab() {
       setCurriculumUnits(res.units || [])
       await refreshProgramReadiness()
     } catch (e: any) {
+      if (String(e?.message || '').includes('الحذف الإجباري')) {
+        const force = await askAdminConfirm({ title: 'تأكيد حذف إجباري للوحدة', description: `${e.message}\n\nهذا قد يحذف بيانات مرتبطة بالوحدة. اكتب التأكيد الإداري بالضغط على الزر فقط إذا كنت تقصد ذلك.`, confirmLabel: 'حذف إجباري', danger: true })
+        if (force) {
+          const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}&unitId=${unitId}&force=true`, { method: 'DELETE' })
+          setCurriculumUnits(res.units || [])
+          await refreshProgramReadiness()
+          toast({ title: 'تم الحذف الإجباري للوحدة' })
+          return
+        }
+      }
       toast({ title: 'تعذر حذف الوحدة', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
+  const generateOutlineUnitContent = async (unit: CurriculumUnitReviewItem, regenerate = false) => {
+    if (!programId) return
+    if (unit.status === 'APPROVED') {
+      toast({ title: 'الوحدة معتمدة', description: 'لا يتم تعديل وحدة APPROVED عند إعادة التوليد.' })
+      return
+    }
+    if (regenerate && !(await askAdminConfirm({ title: 'إعادة توليد محتوى الوحدة ودليلها', description: `سيتم استبدال محتوى ودليل مسودة «${unit.title}» من نطاق الفهرس فقط.`, confirmLabel: 'إعادة التوليد' }))) return
+    setUnitBusyId(unit.id)
+    try {
+      await api(`/api/admin/program-units/${unit.id}/generate`, { method: 'POST', body: JSON.stringify({ regenerate }) })
+      await refreshCurriculumUnits(programId)
+      const guides = await api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${programId}`).catch(() => ({ guides: [] }))
+      setStudyGuides(guides.guides || [])
+      toast({ title: regenerate ? 'تمت إعادة توليد محتوى الوحدة' : 'تم توليد محتوى الوحدة', description: 'تم توليد المحتوى ودليل الدراسة كمراجعة DRAFT من مصادر الوحدة فقط.' })
+    } catch (e: any) {
+      const message = String(e?.message || e)
+      toast({ title: message.includes('PAUSED') ? 'توقف التوليد مؤقتاً' : 'تعذر توليد محتوى الوحدة', description: message, variant: 'destructive' })
+      await refreshCurriculumUnits(programId).catch(() => null)
     } finally {
       setUnitBusyId(null)
     }
@@ -1443,6 +1534,17 @@ export function AdminBooksTab() {
     } catch (error: any) {
       toast({ title: 'تعذر بناء فهرس الكتاب', description: String(error?.message || error), variant: 'destructive' })
     } finally { setOutlineBusyId(null) }
+  }
+
+  const approveBookOutline = async (bookId: string) => {
+    setOutlineUnitBusyId(`approve-${bookId}`)
+    try {
+      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify({}) })
+      setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
+      toast({ title: 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر اعتماد الفهرس', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setOutlineUnitBusyId(null) }
   }
 
   const loadOutlineDebug = async (bookId: string) => {
@@ -2113,7 +2215,20 @@ export function AdminBooksTab() {
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">استخراج المزيد</Button>}
                             </div>
                           </div>
-                          {bookOutlines[b.id] && <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2"><p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {bookOutlines[b.id]!.version} · {bookOutlines[b.id]!.source === 'HEADINGS' ? 'من العناوين' : bookOutlines[b.id]!.source === 'TOC' ? 'من فهرس الكتاب' : 'تقسيم ذكي'}</p>{bookOutlines[b.id]!.warnings && (() => { try { return (JSON.parse(bookOutlines[b.id]!.warnings || '[]') as string[]).map((warning, index) => <p key={index} role="alert" className="mt-1 text-amber-700">⚠ {warning}</p>) } catch { return null } })()}{bookOutlines[b.id]!.sections.map((section) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {bookOutlines[b.id]!.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>}</div>}</div>)}</div>}
+                          {bookOutlines[b.id] && (() => {
+                            const outline = bookOutlines[b.id]!
+                            const outlineBusy = outlineUnitBusyId?.endsWith(`-${b.id}`)
+                            return <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : 'تقسيم ذكي'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {outline.status !== 'APPROVED' && <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => approveBookOutline(b.id)} className="h-7 text-[10px] font-black text-emerald-700">اعتماد الفهرس</Button>}
+                                </div>
+                              </div>
+                              {outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).map((warning, index) => <p key={index} role="alert" className="mt-1 text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
+                              {outline.sections.map((section) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>}</div>}</div>)}
+                            </div>
+                          })()}
                           {outlineDebugByBook[b.id] && (() => {
                             const chunks = outlineDebugByBook[b.id] || []
                             const lines = chunks.flatMap((chunk) => chunk.matches.map((match) => ({ chunk, match })))
@@ -2195,13 +2310,23 @@ export function AdminBooksTab() {
                     <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Layers className="h-4.5 w-4.5 text-[#a8841a]" /> مراجعة وحدات المنهج</h2>
                     <p className="mt-1 text-xs font-bold text-slate-500">تعديل العناوين، الأهداف، المحتوى والترتيب مباشرة من مساحة العمل الدائمة للبرنامج.</p>
                   </div>
-                  <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addCurriculumUnit} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
-                    {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
-                    إضافة وحدة
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" disabled={unitBusyId === '__generate_units__'} onClick={generateCurriculumUnits} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
+                      {unitBusyId === '__generate_units__' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                      توليد الوحدات
+                    </Button>
+                    <label className="flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">
+                      <input type="checkbox" checked={unitRegenerateDrafts} onChange={(event) => setUnitRegenerateDrafts(event.target.checked)} />
+                      إعادة توليد المسودات
+                    </label>
+                    <Button size="sm" variant="outline" disabled={unitBusyId === 'new'} onClick={addCurriculumUnit} className="border-[#c9a227] bg-white text-xs font-black text-[#a8841a]">
+                      {unitBusyId === 'new' ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      إضافة وحدة
+                    </Button>
+                  </div>
                 </div>
                 {curriculumUnits.length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم اقتراح الوحدات من الكتب في مركز الجودة أو أضف وحدة يدوياً.</div>
+                  <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر توليد الوحدات أعلاه أو أضف وحدة يدوياً.</div>
                 ) : (
                   <div className="space-y-4">
                     {curriculumUnits.map((unit, index) => (
@@ -2213,11 +2338,18 @@ export function AdminBooksTab() {
                               {unit.status === 'APPROVED' ? 'معتمدة' : unit.status === 'NEEDS_REVISION' ? 'تحتاج تعديل' : 'مسودة'}
                             </Badge>
                             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">الفصل {unit.semester || 1}</Badge>
+                            {unit.source && <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{unit.source.sectionTitle || 'من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}</Badge>}
+                            {unit.generationJob && <Badge className={unit.generationJob.status === 'PAUSED' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : unit.generationJob.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : unit.generationJob.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>توليد المحتوى: {unit.generationJob.status === 'PAUSED' ? 'متوقف' : unit.generationJob.status === 'COMPLETED' ? 'مكتمل' : unit.generationJob.status === 'FAILED' ? 'فشل' : 'قيد العمل'}</Badge>}
+                            {unit.studyGuide && <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50">دليل وحدة: {unit.studyGuide.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}</Badge>}
                             <Badge className={unit.exam?.id ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
                               {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال` : 'لا يوجد اختبار وحدة'}
                             </Badge>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            {unit.outlineSectionId && <Button size="sm" variant="outline" disabled={unitBusyId === unit.id || unit.status === 'APPROVED'} onClick={() => generateOutlineUnitContent(unit, Boolean(unit.content?.length || unit.studyGuide?.id))} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
+                              {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                              {unit.content?.length || unit.studyGuide?.id ? 'إعادة توليد المحتوى' : 'توليد المحتوى'}
+                            </Button>}
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => generateUnitExam(unit)} className="border-indigo-200 bg-white text-xs font-bold text-indigo-700">
                               {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="ml-1 h-3.5 w-3.5" />}
                               {unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
@@ -2245,6 +2377,12 @@ export function AdminBooksTab() {
                             <Textarea defaultValue={(unit.objectives || []).join('\n')} onBlur={(e) => patchCurriculumUnit(unit, { objectives: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) as any })} className="min-h-24 bg-white text-xs leading-6" />
                           </div>
                         </div>
+                        {unit.source && <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-[11px] font-bold leading-5 text-blue-900">
+                          <p className="font-black">مصدر الوحدة من الفهرس</p>
+                          <p>{unit.source.bookTitle ? `الكتاب: ${unit.source.bookTitle} · ` : ''}{unit.source.sectionTitle || 'قسم من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}{unit.source.chunkStartIndex != null ? ` · مقاطع ${unit.source.chunkStartIndex}–${unit.source.chunkEndIndex ?? unit.source.chunkStartIndex}` : ''}</p>
+                          {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
+                          {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
+                        </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
                           <Textarea defaultValue={unit.summary || ''} onBlur={(e) => e.target.value !== (unit.summary || '') && patchCurriculumUnit(unit, { summary: e.target.value })} className="min-h-20 bg-white text-sm leading-7" />
@@ -2263,6 +2401,8 @@ export function AdminBooksTab() {
                             className="min-h-28 bg-white text-xs leading-6"
                           />
                         </div>
+                        {(unit.content || []).some((section) => section.pageRefs?.length || section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length) && <div className="mt-3 rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600 ring-1 ring-slate-100"><p className="mb-1 font-black text-[#0f2b46]">معاينة المحتوى المرجعي قبل الاعتماد</p>{(unit.content || []).map((section, sectionIndex) => <p key={`${unit.id}-content-ref-${sectionIndex}`}>• {section.heading}: {section.pageRefs?.join(' · ') || 'بلا صفحات'}{section.sourceKnowledgeIds?.length ? ` · مصادر معرفة ${section.sourceKnowledgeIds.length}` : ''}{section.sourceChunkIndexes?.length ? ` · مقاطع ${section.sourceChunkIndexes.join(', ')}` : ''}</p>)}</div>}
+                        {unit.studyGuide && <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/40 p-3 text-[11px] font-bold leading-5 text-slate-600"><p className="font-black text-[#0f2b46]">معاينة دليل الدراسة للوحدة — {unit.studyGuide.title}</p><p>{unit.studyGuide.overview}</p><p className="mt-1 text-purple-700">مصادر معرفة: {unit.studyGuide.sourceKnowledgeIds?.length || 0}</p>{(unit.studyGuide.keyTerms || []).slice(0, 6).map((term, termIndex) => <p key={`${unit.id}-term-${termIndex}`}>• {term}</p>)}</div>}
                         {unitBusyId === unit.id && <p className="mt-2 text-xs font-bold text-amber-700">جاري حفظ تعديلات الوحدة...</p>}
                       </article>
                     ))}
@@ -2280,7 +2420,7 @@ export function AdminBooksTab() {
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
                     <BookMarked className="h-4.5 w-4.5 text-[#a8841a]" />
-                    أدلة الدراسة والمحاضرات ({displayStudyGuides.length})
+                    أدلة الفصل الدراسي العام والمحاضرات ({displayStudyGuides.length})
                   </h2>
                   <p className="mt-1 max-w-3xl text-[11px] font-bold leading-5 text-slate-500">
                     يولد النظام دليلاً دراسياً من بنك المعرفة: محاور مذاكرة، أهداف تعلم، مصطلحات، أنشطة قراءة، وأسئلة نقاش يستخدمها الطالب والمشرف الذكي.
@@ -2290,7 +2430,7 @@ export function AdminBooksTab() {
                   {[1, 2, 3].map((semester) => (
                     <Button key={semester} size="sm" variant="outline" onClick={() => generateStudyGuide(semester)} disabled={!!generatingGuideSemester || books.length === 0} className="border-[#c9a227] text-[10px] font-black text-[#a8841a]">
                       {generatingGuideSemester === String(semester) ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
-                      {semester === 3 ? 'دليل البحث/المشروع' : `دليل الفصل ${semester === 2 ? 'الثاني' : 'الأول'}`}
+                      {semester === 3 ? 'دليل الفصل الدراسي العام للبحث/المشروع' : `دليل الفصل الدراسي العام ${semester === 2 ? 'الثاني' : 'الأول'}`}
                     </Button>
                   ))}
                 </div>

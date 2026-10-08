@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { geminiCompleteJson, geminiLastTextResult } from '@/lib/gemini'
 import { audit } from '@/lib/notify'
 import { textAiDiagnostics } from '@/lib/text-ai'
+import { planOutlineUnitsFromSections, safeReplaceDraftUnitWhere, summarizeReplaceUnitProtection } from '@/lib/outline-units'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -423,16 +424,150 @@ ${sourceUnitDrafts}
   return { program, semestersCount, units: cleaned, analyses, executionTrace: trace, actualAi: latestSuccessfulTrace(trace) }
 }
 
-// POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية من نصوص الكتب وبنك المعرفة
+async function createUnitsFromApprovedOutlines(programId: string, regenerateDrafts: boolean) {
+  const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, semestersCount: true } })
+  if (!program) return null
+  const books = await db.book.findMany({
+    where: { programId },
+    orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      title: true,
+      semester: true,
+      outlines: {
+        where: { status: 'APPROVED' },
+        orderBy: { version: 'desc' },
+        take: 1,
+        include: { sections: { orderBy: { order: 'asc' } } },
+      },
+    },
+  })
+  const approvedBooks = books.filter((book) => book.outlines.length > 0)
+  const skippedBooks = books.filter((book) => book.outlines.length === 0).map((book) => ({ id: book.id, title: book.title, reason: `الكتاب ${book.title} ليس له فهرس معتمد؛ اعتمد الفهرس من صفحة الكتب` }))
+  if (!approvedBooks.length) {
+    return { program, usedApprovedOutlines: false as const, skippedBooks, created: [], updated: [], summary: { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 } }
+  }
+
+  const allSectionIds = approvedBooks.flatMap((book) => book.outlines[0].sections.map((section) => section.id))
+  const [existingUnits, allUnits] = await Promise.all([
+    db.unit.findMany({
+      where: { programId, outlineSectionId: { in: allSectionIds } },
+      select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
+    }),
+    db.unit.findMany({ where: { programId }, select: { semester: true, order: true } }),
+  ])
+  const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
+    const semester = Number(unit.semester || 1)
+    acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
+    return acc
+  }, {})
+  const summary = { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
+  const created: any[] = []
+  const updated: string[] = []
+
+  for (const book of approvedBooks) {
+    const outline = book.outlines[0]
+    const actions = planOutlineUnitsFromSections({
+      sections: outline.sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        level: section.level,
+        semester: section.semester,
+        chunkStartIndex: section.chunkStartIndex,
+        chunkEndIndex: section.chunkEndIndex,
+        pageStart: section.pageStart,
+        pageEnd: section.pageEnd,
+      })),
+      existingUnits,
+      currentMaxOrderBySemester,
+      bookSemester: book.semester,
+      regenerateDrafts,
+    })
+    for (const action of actions) {
+      if (action.action === 'create') {
+        const unit = await db.unit.create({
+          data: {
+            programId,
+            order: action.order,
+            semester: action.semester,
+            status: 'DRAFT',
+            title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
+            summary: `مسودة وحدة مولدة من فهرس كتاب «${book.title}» في نطاق الصفحات ${action.section.pageStart ?? '؟'}–${action.section.pageEnd ?? '؟'}.`,
+            objectives: JSON.stringify([]),
+            content: JSON.stringify([]),
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+            generationVersion: 1,
+          },
+        })
+        created.push(unit)
+        summary.created++
+        currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
+      } else if (action.action === 'update-draft') {
+        await db.unit.updateMany({
+          where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
+          data: {
+            title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
+            summary: `مسودة وحدة معاد ربطها بفهرس كتاب «${book.title}» في نطاق الصفحات ${action.section.pageStart ?? '؟'}–${action.section.pageEnd ?? '؟'}.`,
+            semester: action.semester,
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+            generationVersion: action.generationVersion,
+          },
+        })
+        updated.push(action.unitId)
+        summary.updatedDrafts++
+      } else if (action.action === 'skip-approved') summary.skippedApproved++
+      else if (action.action === 'skip-draft') summary.skippedDrafts++
+      else if (action.action === 'skip-intro') summary.skippedIntro++
+    }
+  }
+
+  if (summary.created || summary.updatedDrafts) {
+    await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
+  }
+  return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary }
+}
+
+// POST /api/admin/program-units/suggest — يقترح ويحفظ وحدات قابلة للمراجعة البشرية من الفهارس المعتمدة أولاً، ثم من نصوص الكتب وبنك المعرفة بعد تأكيد صريح
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const replace = body?.replace === true
-    const append = body?.append === true
+    const append = body?.append === true || body?.legacyConfirmed === true
+    const regenerateDrafts = body?.regenerateDrafts === true
+    const legacyConfirmed = body?.legacyConfirmed === true
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     if (replace && append) return NextResponse.json({ error: 'اختر إما الإضافة إلى الموجود أو الاستبدال، وليس الخيارين معاً.' }, { status: 400 })
+
+    const outlineResult = await createUnitsFromApprovedOutlines(programId, regenerateDrafts)
+    if (!outlineResult) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+    if (outlineResult.usedApprovedOutlines) {
+      await audit({ id: admin.id, name: admin.name }, 'GENERATE_UNITS_FROM_APPROVED_OUTLINES', 'Program', programId, `توليد وحدات من الفهارس المعتمدة لبرنامج ${outlineResult.program.titleAr}`)
+      return NextResponse.json({
+        ok: true,
+        mode: regenerateDrafts ? 'outline-regenerate-drafts' : 'outline',
+        source: 'APPROVED_BOOK_OUTLINES',
+        count: outlineResult.created.length + outlineResult.updated.length,
+        summary: outlineResult.summary,
+        skippedBooks: outlineResult.skippedBooks,
+        warnings: outlineResult.skippedBooks.map((book) => book.reason),
+        units: outlineResult.created,
+      })
+    }
+    if (!legacyConfirmed) {
+      return NextResponse.json({
+        error: 'لا يوجد أي كتاب في البرنامج له فهرس معتمد. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة فقط بعد تأكيد صريح.',
+        code: 'LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED',
+        skippedBooks: outlineResult.skippedBooks,
+      }, { status: 409 })
+    }
 
     const [currentCount, existingOrder] = await Promise.all([
       db.unit.count({ where: { programId } }),
@@ -450,8 +585,23 @@ export async function POST(req: NextRequest) {
     if ((plan as any).evidenceError) return NextResponse.json({ error: (plan as any).evidenceError }, { status: 422 })
     if (!plan.units.length) return NextResponse.json({ error: 'لم ينتج تحليل الكتب وبنك المعرفة أي وحدات قابلة للحفظ.' }, { status: 422 })
 
-    if (replace) await db.unit.deleteMany({ where: { programId } })
-    const orderOffset = replace ? 0 : Number(existingOrder._max.order || currentCount)
+    let replaceProtection = { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 }
+    let orderOffset = Number(existingOrder._max.order || currentCount)
+    if (replace) {
+      const unitsBeforeReplace = await db.unit.findMany({
+        where: { programId },
+        select: {
+          status: true,
+          outlineSectionId: true,
+          exam: { select: { _count: { select: { attempts: true } } } },
+        },
+      })
+      replaceProtection = summarizeReplaceUnitProtection(unitsBeforeReplace)
+      const deleted = await db.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
+      replaceProtection.deleted = deleted.count
+      const remainingOrder = await db.unit.aggregate({ where: { programId }, _max: { order: true } })
+      orderOffset = Number(remainingOrder._max.order || 0)
+    }
 
     const generationAudit = {
       kind: 'CURRICULUM_GENERATION_AUDIT',
@@ -459,6 +609,7 @@ export async function POST(req: NextRequest) {
       mode: replace ? 'replace' : append ? 'append' : 'create',
       source: 'BOOK_TEXT_AND_KNOWLEDGE_BANK',
       unitsCount: plan.units.length,
+      replaceProtection,
       actualAi: (plan as any).actualAi || null,
       executionTrace: ((plan as any).executionTrace || []).slice(-20),
       sourceBooks: ((plan as any).analyses || []).map((analysis: any) => ({
@@ -502,6 +653,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       count: created.length,
       mode: replace ? 'replace' : append ? 'append' : 'create',
+      deleted: replaceProtection.deleted,
+      keptApproved: replaceProtection.keptApproved,
+      keptOutline: replaceProtection.keptOutline,
+      keptWithAttempts: replaceProtection.keptWithAttempts,
       actualAi: generationAudit.actualAi,
       generationAudit: {
         generatedAt: generationAudit.generatedAt,

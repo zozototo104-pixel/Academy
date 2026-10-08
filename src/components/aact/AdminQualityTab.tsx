@@ -464,7 +464,8 @@ export function AdminQualityTab() {
   const [unitReviewItems, setUnitReviewItems] = useState<CurriculumUnitReviewItem[]>([])
   const [unitDeleteTarget, setUnitDeleteTarget] = useState<CurriculumUnitReviewItem | null>(null)
   const [unitSuggestionConflict, setUnitSuggestionConflict] = useState<{ program: ProgramReadinessItem; existingUnits: number } | null>(null)
-  const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | 'replace' | null>(null)
+  const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | null>(null)
+  const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState<Record<string, boolean>>({})
   const [unitGenerationResult, setUnitGenerationResult] = useState<any | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [questionBankProgram, setQuestionBankProgram] = useState<ProgramReadinessItem | null>(null)
@@ -586,10 +587,11 @@ export function AdminQualityTab() {
     }
   }
 
-  const runSuggestedUnits = async (program: ProgramReadinessItem, mode?: 'append' | 'replace') => {
-    const result = await api<{ count: number; mode: string; actualAi?: any; generationAudit?: any }>('/api/admin/program-units/suggest', {
+  const runSuggestedUnits = async (program: ProgramReadinessItem, options: { legacyConfirmed?: boolean } = {}) => {
+    const regenerateDrafts = Boolean(unitRegenerateDrafts[program.id])
+    const result = await api<{ count: number; mode: string; source?: string; warnings?: string[]; actualAi?: any; generationAudit?: any }>('/api/admin/program-units/suggest', {
       method: 'POST',
-      body: JSON.stringify({ programId: program.id, append: mode === 'append', replace: mode === 'replace' }),
+      body: JSON.stringify({ programId: program.id, regenerateDrafts, legacyConfirmed: Boolean(options.legacyConfirmed), append: Boolean(options.legacyConfirmed) }),
     })
     const readiness = await api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness')
     const refreshedItems = readiness.items || []
@@ -597,6 +599,7 @@ export function AdminQualityTab() {
     setReadinessItems(refreshedItems)
     setUnitGenerationResult({ ...result, programId: program.id })
     setUnitSuggestionConflict(null)
+    if (result.warnings?.length) alert(result.warnings.join('\n'))
     await openUnitReview(refreshedProgram)
   }
 
@@ -606,7 +609,11 @@ export function AdminQualityTab() {
       try {
         await runSuggestedUnits(program)
       } catch (e: any) {
-        if (String(e?.message || '').includes('توجد وحدات')) {
+        if (String(e?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
+          const skippedBooks = Array.isArray(e?.data?.skippedBooks) ? e.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : ''
+          const ok = confirm(`${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة. هل تريد المتابعة؟`)
+          if (ok) await runSuggestedUnits(program, { legacyConfirmed: true })
+        } else if (String(e?.message || '').includes('توجد وحدات')) {
           setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.counts?.units || 0) })
         } else {
           throw e
@@ -617,13 +624,13 @@ export function AdminQualityTab() {
     }
   }
 
-  const chooseUnitSuggestionMode = async (mode: 'append' | 'replace') => {
+  const chooseUnitSuggestionMode = async () => {
     if (!unitSuggestionConflict) return
     const program = unitSuggestionConflict.program
-    setUnitSuggestionModeBusy(mode)
+    setUnitSuggestionModeBusy('append')
     setReadinessBusyId(program.id)
     try {
-      await runSuggestedUnits(program, mode)
+      await runSuggestedUnits(program, { legacyConfirmed: true })
     } finally {
       setReadinessBusyId(null)
       setUnitSuggestionModeBusy(null)
@@ -1510,9 +1517,18 @@ export function AdminQualityTab() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'books', subSection: 'add' } }))}>رفع كتب البرنامج</Button>
                       <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'knowledge' } }))}>بناء بنك المعرفة</Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy || item.sourceReadiness?.ready === false} onClick={() => suggestUnits(item)}>
+                      <Button size="sm" variant="outline" className="gap-2 text-xs font-black" disabled={busy} onClick={() => suggestUnits(item)}>
                         {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        {item.sourceReadiness?.ready === false ? 'مصادر التوليد غير جاهزة' : 'اقتراح وحدات من الكتب'}
+                        توليد الوحدات
+                        <span
+                          role="checkbox"
+                          aria-checked={Boolean(unitRegenerateDrafts[item.id])}
+                          tabIndex={0}
+                          onClick={(event) => { event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) }}
+                          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) } }}
+                          className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${unitRegenerateDrafts[item.id] ? 'border-[#a8841a] bg-[#c9a227] text-white' : 'border-slate-300 bg-white text-transparent'}`}
+                        >✓</span>
+                        <span className="text-[10px] text-slate-500">إعادة توليد المسودات</span>
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
                       <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => generateQuestionBank(item)}>
@@ -2796,7 +2812,7 @@ export function AdminQualityTab() {
             <DialogHeader>
               <DialogTitle className="text-2xl font-black">توجد وحدات محفوظة</DialogTitle>
               <DialogDescription className="pt-2 font-bold leading-7 text-[#f5f0e1]/75">
-                اختر طريقة التعامل مع المقترح الجديد. بعد الاختيار يبدأ التوليد مرة واحدة فقط.
+                سيتم الإبقاء على الوحدات الحالية وإضافة التوليد القديم بعدها بعد التأكيد.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -2810,28 +2826,16 @@ export function AdminQualityTab() {
             <button
               type="button"
               disabled={!!unitSuggestionModeBusy}
-              onClick={() => chooseUnitSuggestionMode('append')}
+              onClick={() => chooseUnitSuggestionMode()}
               className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right transition hover:bg-emerald-100 disabled:opacity-60"
             >
               <span>
-                <span className="block text-lg font-black text-emerald-800">إضافة إلى الموجود</span>
-                <span className="mt-1 block text-xs font-bold leading-6 text-emerald-700">يبقي الوحدات الحالية ويضيف الوحدات المقترحة بعدها.</span>
+                <span className="block text-lg font-black text-emerald-800">استخدام التوليد القديم والإضافة</span>
+                <span className="mt-1 block text-xs font-bold leading-6 text-emerald-700">يبقي الوحدات الحالية ويضيف الوحدات القديمة المولدة من النص وبنك المعرفة بعدها.</span>
               </span>
               {unitSuggestionModeBusy === 'append' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-emerald-700" /> : <span className="text-2xl font-black text-emerald-700">＋</span>}
             </button>
 
-            <button
-              type="button"
-              disabled={!!unitSuggestionModeBusy}
-              onClick={() => chooseUnitSuggestionMode('replace')}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-right transition hover:bg-red-100 disabled:opacity-60"
-            >
-              <span>
-                <span className="block text-lg font-black text-red-800">استبدال الموجود</span>
-                <span className="mt-1 block text-xs font-bold leading-6 text-red-700">يحذف الوحدات الحالية ويضع الخطة المقترحة مكانها.</span>
-              </span>
-              {unitSuggestionModeBusy === 'replace' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-red-700" /> : <span className="text-2xl font-black text-red-700">↻</span>}
-            </button>
 
             {unitSuggestionModeBusy ? (
               <p className="rounded-2xl bg-white px-4 py-3 text-center text-xs font-black leading-6 text-slate-500">
@@ -2912,7 +2916,7 @@ export function AdminQualityTab() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-black">نتيجة توليد الوحدات الأخيرة</span>
                     <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
-                      {unitGenerationResult.mode === 'append' ? 'إضافة إلى الموجود' : unitGenerationResult.mode === 'replace' ? 'استبدال الموجود' : 'إنشاء جديد'}
+                      {unitGenerationResult.mode === 'outline-regenerate-drafts' ? 'تحديث مسودات من الفهارس' : unitGenerationResult.mode === 'outline' ? 'من الفهارس المعتمدة' : unitGenerationResult.mode === 'append' ? 'توليد قديم مضاف' : 'إنشاء جديد'}
                     </Badge>
                   </div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
@@ -2929,7 +2933,7 @@ export function AdminQualityTab() {
               ) : null}
 
               {unitReviewItems.length === 0 ? (
-                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر اقتراح وحدات من الكتب أو أضف وحدة يدوياً.</p>
+                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر توليد الوحدات أو أضف وحدة يدوياً.</p>
               ) : unitReviewItems.map((unit, index) => (
                 <article key={unit.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

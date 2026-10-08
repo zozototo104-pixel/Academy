@@ -558,6 +558,7 @@ function mapGuide(g: any) {
   return {
     id: g.id,
     programId: g.programId,
+    unitId: g.unitId || null,
     semester: g.semester,
     title: cleanGuideText(g.title, 'دليل الدراسة', 220, true),
     overview: cleanGuideText(g.overview, 'دليل دراسة منظم يربط الكتب المقررة بالتطبيق المهني والاختبارات.', 7000),
@@ -598,35 +599,22 @@ export async function POST(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
     const generated = await generateStudyGuide(programId, semester)
-    const guide = await db.programStudyGuide.upsert({
-      where: { programId_semester: { programId, semester } },
-      update: {
-        title: generated.title,
-        overview: generated.overview,
-        objectives: JSON.stringify(generated.objectives),
-        keyTerms: JSON.stringify(generated.keyTerms),
-        sections: JSON.stringify(generated.sections),
-        activities: JSON.stringify(generated.activities),
-        discussionQuestions: JSON.stringify(generated.discussionQuestions),
-        sourceKnowledgeIds: JSON.stringify(generated.sourceKnowledgeIds || []),
-        status,
-        generatedBy: 'AI',
-      },
-      create: {
-        programId,
-        semester,
-        title: generated.title,
-        overview: generated.overview,
-        objectives: JSON.stringify(generated.objectives),
-        keyTerms: JSON.stringify(generated.keyTerms),
-        sections: JSON.stringify(generated.sections),
-        activities: JSON.stringify(generated.activities),
-        discussionQuestions: JSON.stringify(generated.discussionQuestions),
-        sourceKnowledgeIds: JSON.stringify(generated.sourceKnowledgeIds || []),
-        status,
-        generatedBy: 'AI',
-      },
-    })
+    const existing = await db.programStudyGuide.findFirst({ where: { programId, semester, unitId: null }, select: { id: true } })
+    const guideData = {
+      title: generated.title,
+      overview: generated.overview,
+      objectives: JSON.stringify(generated.objectives),
+      keyTerms: JSON.stringify(generated.keyTerms),
+      sections: JSON.stringify(generated.sections),
+      activities: JSON.stringify(generated.activities),
+      discussionQuestions: JSON.stringify(generated.discussionQuestions),
+      sourceKnowledgeIds: JSON.stringify(generated.sourceKnowledgeIds || []),
+      status,
+      generatedBy: 'AI',
+    }
+    const guide = existing
+      ? await db.programStudyGuide.update({ where: { id: existing.id }, data: guideData })
+      : await db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...guideData } })
 
     await audit(admin, 'GENERATE_STUDY_GUIDE', 'ProgramStudyGuide', guide.id, `توليد دليل دراسة للفصل ${semester}: ${guide.title}`)
     if (status === 'PUBLISHED') {

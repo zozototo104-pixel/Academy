@@ -159,6 +159,33 @@ model Unit {
   chunkEndIndex Int?
   generationVersion Int @default(0)
   exam       Exam?
+  studyGuides ProgramStudyGuide[]
+  generationJobs UnitGenerationJob[]
+
+  @@index([programId, semester])
+  @@index([outlineSectionId])
+  @@index([sourceBookId])
+}
+
+model UnitGenerationJob {
+  id          String   @id @default(cuid())
+  unitId      String
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  programId   String
+  status      String   @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED
+  phase       String   @default("CONTENT") // CONTENT | GUIDE
+  unitsTotal  Int      @default(1)
+  unitsDone   Int      @default(0)
+  lastError   String?
+  retryAt     DateTime?
+  lockedUntil DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([unitId, status])
+  @@index([status, retryAt])
 }
 
 model Enrollment {
@@ -1393,6 +1420,8 @@ model ProgramStudyGuide {
   id          String   @id @default(cuid())
   programId   String
   program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId      String?
+  unit        Unit?    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   semester    Int      @default(1) // 1 الفصل الأول | 2 الفصل الثاني | 3 بحث/مشروع
   title       String
   overview    String
@@ -1407,8 +1436,9 @@ model ProgramStudyGuide {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([programId, semester])
   @@index([programId])
+  @@index([programId, semester])
+  @@index([unitId])
   @@index([status])
 }
 
