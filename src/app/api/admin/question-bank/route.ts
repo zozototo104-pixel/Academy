@@ -348,6 +348,7 @@ ${knowledgeText}
         thinkingBudget: 256,
         maxOutputTokens: 6000,
         taskLevel: 'ACADEMIC_CRITICAL',
+        stickyScope: `QUESTION_BANK:${programId}`,
         validate: (text, context) => {
           const parsed = generatedQuestionsSchema.parse(parseJsonObject(text))
           generationContext = context || {}
