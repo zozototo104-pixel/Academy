@@ -1003,7 +1003,7 @@ export function AdminBooksTab() {
     try {
       const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; message?: string }>('/api/admin/question-bank', {
         method: 'POST',
-        body: JSON.stringify({ programId, count: 12 }),
+        body: JSON.stringify({ programId, count: 10, resume: mode === 'resume', startNew: mode === 'new' }),
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
