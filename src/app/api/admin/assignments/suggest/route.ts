@@ -89,7 +89,7 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       dueDays: asInt(item?.dueDays, 14, 1, 365),
       rubric: cleanAssignmentText(item?.rubric, '', 1600) || 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%',
       sourceKnowledgeTitles: sourceTitles,
-      sourceKnowledgeIds: [...new Set(ids)],
+      sourceKnowledgeIds: Array.from(new Set<string>(ids)),
       unitId: clean(item?.unitId, 100) || fallbackUnitId || null,
     })
     if (out.length >= 6) break
