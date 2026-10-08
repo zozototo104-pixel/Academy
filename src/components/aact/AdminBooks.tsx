@@ -991,11 +991,11 @@ export function AdminBooksTab() {
     }
   }
 
-  const refreshCurriculumUnits = async (pid = programId) => {
+  const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
     setCurriculumUnits(res.units || [])
-  }
+  }, [programId])
 
   useEffect(() => {
     if (workspaceTab !== 'units' || !programId) return
