@@ -2047,7 +2047,7 @@ export function AdminBooksTab() {
                               <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
                               <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
                             </div>
-                            <div className="flex shrink-0 flex-wrap gap-1">
+                            <div className="flex w-full flex-col flex-wrap gap-2 sm:flex-row">
                               <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 px-2 text-[10px] font-black">قراءة وتحليل كامل</Button>
                               {countForBook > 0 && <Button size="sm" variant="outline" disabled={outlineBusyId === b.id} onClick={() => buildOutlineForBook(b.id)} className="h-8 px-2 text-[10px] font-black">{outlineBusyId === b.id ? 'جارٍ بناء الفهرس...' : 'بناء فهرس الكتاب'}</Button>}
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 px-2 text-[10px] font-black">استخراج المزيد</Button>}
