@@ -1386,7 +1386,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const taskLevel = opts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(opts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
-  const providers = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const sticky = opts.stickyScope ? stickyModels.get(opts.stickyScope) : null
+  const orderedProviders = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const providers = sticky && orderedProviders.includes(sticky.provider)
+    ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
+    : orderedProviders
   if (!providers.length) {
     if (isVerifierCall(opts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
