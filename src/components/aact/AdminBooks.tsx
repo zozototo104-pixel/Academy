@@ -272,6 +272,18 @@ interface QuestionBankItemRow {
   verifierReason?: string | null
 }
 
+function questionGroundingFlags(question: QuestionBankItemRow): string[] {
+  try {
+    const flags = JSON.parse(question.qualityFlags || '[]')
+    return Array.isArray(flags) ? flags.filter((flag): flag is string => typeof flag === 'string') : []
+  } catch { return [] }
+}
+
+function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
+  const flags = questionGroundingFlags(question)
+  return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
+}
+
 interface ExamImportQuestionRow {
   id: string
   order: number
