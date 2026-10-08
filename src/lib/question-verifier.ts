@@ -182,6 +182,30 @@ function applyAccepted<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
+function finalQuestionStatus(question: VerifiableQuestion): string {
+  const flags = question.qualityFlags || []
+  if (flags.includes('SOURCE_GROUNDED')) return 'SOURCE_GROUNDED'
+  if (question.verificationPending) return 'VERIFICATION_PENDING'
+  if (flags.includes('NEEDS_HUMAN_REVIEW')) return 'NEEDS_HUMAN_REVIEW'
+  if (flags.includes('SOURCE_LINKED')) return 'SOURCE_LINKED'
+  return 'UNKNOWN'
+}
+
+function logVerifierVerdict(args: {
+  questionIndex: number
+  question: VerifiableQuestion
+  result: QuestionVerifierResult | null
+  verifierContext?: { provider?: string; model?: string }
+  generatorProvider?: string | null
+  generatorModel?: string | null
+  literalEvidenceOk: boolean
+  reason: string
+}) {
+  const generator = `${clean(args.generatorProvider || '-', 80)}/${clean(args.generatorModel || '-', 140)}`
+  const verifier = `${clean(args.verifierContext?.provider || '-', 80)}/${clean(args.verifierContext?.model || '-', 140)}`
+  console.info(`[question-verifier] verdict questionIndex=${args.questionIndex} generator=${generator} verifier=${verifier} valid=${Boolean(args.result?.valid)} reason="${clean(args.result?.reason || args.reason, 240)}" literalEvidenceOk=${args.literalEvidenceOk} textProvenance=${clean(args.question.textProvenance || 'NATIVE_TEXT', 60)} finalStatus=${finalQuestionStatus(args.question)}`)
+}
+
 function familyAliases(family: string): string[] {
   const aliases: Record<string, string[]> = {
     gemini: ['gemini', 'gemma', 'google'],
