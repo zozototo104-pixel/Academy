@@ -248,45 +248,12 @@ export async function POST(req: NextRequest) {
       where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
       select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true },
     })
-    const bookById = new Map(sourceBooks.map((book) => [book.id, book]))
-    // V2 excerpts are grounded in their persisted page chunk, not the truncated legacy book.textContent.
+    // Validate against persisted page chunks for v2; preserve legacy book-text checks for v1.
     const v2ChunkIds = [...new Set(knowledge.filter((item) => item.kbVersion === 2 && item.chunkId).map((item) => item.chunkId!))]
     const sourceChunks = v2ChunkIds.length
       ? await db.bookChunk.findMany({ where: { id: { in: v2ChunkIds }, bookId: { in: sourceBooks.map((book) => book.id) } }, select: { id: true, bookId: true, text: true } })
       : []
-    const chunkById = new Map(sourceChunks.map((chunk) => [chunk.id, chunk]))
-    const knowledgeTextProvenance = (item: { kbVersion?: number; chunkId?: string | null; textProvenance?: string | null; sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }): TextProvenance => {
-      if (item.kbVersion === 2 && item.chunkId) {
-        return item.textProvenance === 'NATIVE_TEXT' || item.textProvenance === 'VISION_OCR'
-          ? item.textProvenance
-          : 'VISION_DESCRIPTION'
-      }
-      const book = item.bookId ? bookById.get(item.bookId) : null
-      return inferTextProvenance({
-        sourceNote: item.sourceNote,
-        linkReadNote: book?.linkReadNote,
-        linkReadStatus: book?.linkReadStatus,
-        textContent: book?.textContent,
-      })
-    }
-    const excerptMatchesNativeOrOcrBook = (item: { kbVersion?: number; chunkId?: string | null; bookId?: string | null; excerpt?: string | null }) => {
-      const excerpt = knowledgeEvidenceText(item).trim()
-      if (!excerpt) return false
-      if (item.kbVersion === 2 && item.chunkId) {
-        const chunk = chunkById.get(item.chunkId)
-        return !!chunk && chunk.bookId === item.bookId && textContainsEvidenceAfterNormalization(chunk.text, excerpt)
-      }
-      const book = item.bookId ? bookById.get(item.bookId) : null
-      if (!book?.textContent) return false
-      const bookProvenance = inferTextProvenance({ linkReadNote: book.linkReadNote, linkReadStatus: book.linkReadStatus, textContent: book.textContent })
-      if (!['NATIVE_TEXT', 'VISION_OCR'].includes(bookProvenance)) return false
-      return textContainsEvidenceAfterNormalization(book.textContent, excerpt)
-    }
-    const evidenceKnowledge = knowledge.filter((item) => {
-      const text = knowledgeEvidenceText(item).trim()
-      const provenance = knowledgeTextProvenance(item)
-      return text.length >= 40 && isEvidenceAllowedByProvenance(provenance) && excerptMatchesNativeOrOcrBook(item)
-    })
+    const { evidenceKnowledge, evidenceSources } = resolveQuestionBankEvidence(knowledge, sourceBooks, sourceChunks, knowledgeEvidenceText)
     if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
 
     const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true, knowledgeItemId: true, bookId: true, sourceLocator: true } })
