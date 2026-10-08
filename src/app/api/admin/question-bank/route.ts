@@ -417,7 +417,17 @@ ${knowledgeText}
     await db.questionBankItem.createMany({ data: rows })
     await db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${rows.length} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
-    return NextResponse.json({ ok: true, inserted: rows.length, stats: await questionStats(programId), items: await listQuestions(programId) })
+    const remaining = Math.max(0, requestedCount - rows.length)
+    return NextResponse.json({
+      ok: true,
+      inserted: rows.length,
+      requested: requestedCount,
+      remaining,
+      partial: remaining > 0,
+      message: remaining > 0 ? `تم حفظ ${rows.length} من ${requestedCount}. اضغط مرة أخرى لإكمال الباقي.` : undefined,
+      stats: await questionStats(programId),
+      items: await listQuestions(programId),
+    })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank POST error:', e)
