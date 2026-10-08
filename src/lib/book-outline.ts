@@ -10,9 +10,36 @@ const headingPattern = /^(?:الفصل|الباب|المبحث|الوحدة|chap
 const tocPattern = /(?:المحتويات|الفهرس|contents|table of contents)/iu
 const clean = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 180)
 
-export function headingsFromChunks(chunks: readonly Chunk[]): Boundary[] {
-  return chunks.filter((chunk) => clean(chunk.headingPath) && headingPattern.test(clean(chunk.headingPath)))
-    .map((chunk) => ({ at: chunk.index, title: clean(chunk.headingPath) }))
+const normalizeHeading = (value: unknown) => clean(value).normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[إأآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim()
+const chapterPattern = /(?:^|\s)((?:الفصل|الباب|الوحدة|chapter|part|unit)\s+(?:[\d\u0660-\u0669]+|[\p{L}]+))/iu
+function mainHeading(path: string | null, bookTitle: string): string | null {
+  const bookKey = normalizeHeading(bookTitle)
+  const parts = String(path || '').split(/\s*(?:>|\/|»|›|\||→|—|\s+-\s+)\s*/u).map(clean).filter(Boolean)
+  for (const part of parts) {
+    if (bookKey && normalizeHeading(part) === bookKey) continue
+    const chapter = part.match(chapterPattern)
+    if (chapter) return clean(chapter[1])
+    if (/^[\d\u0660-\u0669]+[.)]\s+\S/u.test(part) && !/المبحث|المطلب|الفرع/u.test(part)) return part
+  }
+  return null
+}
+
+export function headingsFromChunks(chunks: readonly Chunk[], bookTitle = ''): Boundary[] {
+  const sorted = [...chunks].sort((a, b) => a.index - b.index)
+  const titles = sorted.map((chunk) => mainHeading(chunk.headingPath, bookTitle))
+  const seen = new Set<string>()
+  const boundaries: Boundary[] = []
+  let current = ''
+  for (let i = 0; i < sorted.length; i++) {
+    const title = titles[i]
+    if (!title) continue
+    const key = normalizeHeading(title)
+    if (!key || key === normalizeHeading(bookTitle) || key === current || seen.has(key)) continue
+    current = key
+    seen.add(key)
+    boundaries.push({ at: sorted[i].index, title })
+  }
+  return boundaries
 }
 
 export function tocFromChunks(chunks: readonly Chunk[]): Boundary[] {
