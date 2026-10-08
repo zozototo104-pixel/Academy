@@ -1207,7 +1207,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
   if (isVerifierCall(opts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
   if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
-  if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable(attempts)
+  if (taskLevel === 'ACADEMIC_CRITICAL') {
+    const err: any = academicProviderUnavailable(attempts)
+    if (skippedCooldownUntil) err.retryAt = new Date(skippedCooldownUntil).toISOString()
+    throw err
+  }
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
 }
 
