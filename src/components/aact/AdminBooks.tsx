@@ -1983,6 +1983,7 @@ export function AdminBooksTab() {
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 px-2 text-[10px] font-black">استخراج المزيد</Button>}
                             </div>
                           </div>
+                          {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'تم استخراج كل ما يمكن من الكتاب' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
