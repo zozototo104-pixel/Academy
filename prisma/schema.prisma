@@ -1244,6 +1244,7 @@ model BookOutlineSection {
   semester Int?
   chunkStartIndex Int
   chunkEndIndex Int
+  startCharOffset Int?
   pageStart Int?
   pageEnd Int?
   itemsCount Int @default(0)
