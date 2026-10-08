@@ -70,7 +70,12 @@ async function deadModelIsNotRetriedOnSecondKey() {
   const store = makeStore()
   await withHarness(
     store,
-    () => new Response(JSON.stringify({ error: { message: 'model no longer available' } }), { status: 404, headers: { 'content-type': 'application/json' } }),
+    (url) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'dead-model:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: { message: 'model no longer available' } }), { status: 404, headers: { 'content-type': 'application/json' } })
+    },
     async (calls) => {
       await assert.rejects(() => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }] }))
       const chatCalls = calls.filter((call) => call.url.includes('/chat/completions'))
