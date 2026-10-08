@@ -180,6 +180,9 @@ export function validateUnitContentReferences(content: unknown, allowedKnowledge
     if (!section.sourceKnowledgeIds?.length && !section.sourceChunkIndexes?.length) {
       throw new Error('UNIT_CONTENT_SECTION_MISSING_SOURCE_REFERENCE')
     }
+    if (!section.pageRefs?.length && !/(?:صفحات?|page)\s*[\d٠-٩]/iu.test(section.body)) {
+      throw new Error('UNIT_CONTENT_SECTION_MISSING_PAGE_REFERENCE')
+    }
   }
   return sections.slice(0, 10)
 }
