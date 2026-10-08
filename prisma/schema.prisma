@@ -1481,6 +1481,11 @@ model ProgramAssignment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   submissions AssignmentSubmission[]
+
+  @@index([programId])
+  @@index([unitId])
+  @@index([semester])
+  @@index([status])
 }
 
 model AssignmentSubmission {
