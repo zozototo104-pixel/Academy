@@ -1339,6 +1339,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
   const persistentCooldowns = await loadPersistentCooldowns()
+  const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(opts)
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
