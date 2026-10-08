@@ -1972,7 +1972,7 @@ export function AdminBooksTab() {
                               <p className="text-[#0f2b46]">المرحلة: {phase}</p>
                               <p>قراءة الصفحات {job.pagesDone} من {job.totalPages}</p>
                               <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, job.totalPages ? (job.pagesDone / job.totalPages) * 100 : 0)}%` }} /></div>
-                              <p>تحليل المقاطع {job.chunksAnalyzed} من {job.totalChunks}</p>
+                              <p>تحليل المقاطع {job.chunksAnalyzed} من {job.totalChunks} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
                               <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, job.totalChunks ? (job.chunksAnalyzed / job.totalChunks) * 100 : 0)}%` }} /></div>
                               <p>فشل {job.chunksFailed}</p>
                               {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
