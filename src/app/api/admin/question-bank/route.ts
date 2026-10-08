@@ -286,6 +286,7 @@ export async function POST(req: NextRequest) {
     let insertedTotal = 0
     let failedBatches = job.failedBatches
     let progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', job)
+    const usagePatch = () => ({ usedSourceIndexes: [...new Set(usedSourceIndexes)], knowledgeItemIds: [...new Set(knowledgeItemIds)] })
     const finishPartial = async (lastError: string | null, status = 200) => {
       if (lastError) failedBatches += 1
       progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { jobId: job.jobId, status: savedTotal >= requestedTotal ? 'COMPLETED' : 'PARTIAL', requested: requestedTotal, saved: savedTotal, failedBatches, lastError })
