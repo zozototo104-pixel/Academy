@@ -231,12 +231,18 @@ function firstUsableNeighbor(lines: readonly LineWithOffset[], indexes: number[]
 
 function chapterNameFromHit(lines: readonly LineWithOffset[], hit: ChapterHit, bookTitle: string, tocTitle?: string): string {
   const index = hit.lineIndex
-  const sameLine = sameLineChapterName(hit.line.raw, hit, bookTitle)
-  if (sameLine) return `${hit.label}: ${sameLine}`
   const forward = Array.from({ length: 7 }, (_, i) => index + i + 1).filter((i) => i < lines.length)
   const backward = Array.from({ length: 7 }, (_, i) => index - i - 1).filter((i) => i >= 0)
+  // In Arabic PDF extraction the heading can arrive as "الأول الفصل"; in that
+  // layout the semantic chapter title is usually the line immediately before it.
+  if (hit.reversed) {
+    const previousTitle = firstUsableNeighbor(lines, backward, bookTitle)
+    if (previousTitle) return `${hit.label}: ${previousTitle}`
+  }
+  const sameLine = sameLineChapterName(hit.line.raw, hit, bookTitle)
+  if (sameLine) return `${hit.label}: ${sameLine}`
   const neighbor = hit.reversed
-    ? firstUsableNeighbor(lines, backward, bookTitle) || firstUsableNeighbor(lines, forward, bookTitle)
+    ? firstUsableNeighbor(lines, forward, bookTitle)
     : firstUsableNeighbor(lines, forward, bookTitle) || firstUsableNeighbor(lines, backward, bookTitle)
   if (neighbor) return `${hit.label}: ${neighbor}`
   if (tocTitle && normalizeHeading(tocTitle) !== normalizeHeading(hit.label)) return clean(tocTitle)
