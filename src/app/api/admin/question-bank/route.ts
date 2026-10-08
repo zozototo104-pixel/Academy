@@ -428,7 +428,7 @@ ${knowledgeText}
       await db.questionBankItem.createMany({ data: rows })
       insertedTotal += rows.length
       savedTotal += rows.length
-      progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { requested: requestedTotal, saved: savedTotal, failedBatches, lastError: null })
+      progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { jobId: job.jobId, status: savedTotal >= requestedTotal ? 'COMPLETED' : 'RUNNING', requested: requestedTotal, saved: savedTotal, failedBatches, lastError: null })
       if (Date.now() >= requestDeadlineMs && savedTotal < requestedTotal) return finishPartial('AI_REQUEST_DEADLINE_REACHED')
     }
 
