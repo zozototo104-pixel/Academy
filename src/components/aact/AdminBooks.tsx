@@ -1261,6 +1261,72 @@ export function AdminBooksTab() {
     }
   }
 
+  const fetchBookReadJob = useCallback(async (bookId: string) => {
+    const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${bookId}/read-job`)
+    if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+    return response.job
+  }, [])
+
+  const advanceBookReadJob = useCallback(async (bookId: string) => {
+    if (bookReadInFlightRef.current.has(bookId)) return
+    bookReadInFlightRef.current.add(bookId)
+    try {
+      const response = await api<{ job?: BookReadJobRow; skipped?: string }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
+      if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+      else await fetchBookReadJob(bookId)
+      if (response.job?.status === 'COMPLETED' && programId) {
+        const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${programId}`)
+        setKnowledgeItems(data.items || [])
+        setKnowledgeStats(data.stats || {})
+      }
+    } catch (error: any) {
+      await fetchBookReadJob(bookId).catch(() => {})
+      toast({ title: 'تعذر متابعة قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      bookReadInFlightRef.current.delete(bookId)
+    }
+  }, [fetchBookReadJob, programId, toast])
+
+  useEffect(() => {
+    if (workspaceTab !== 'knowledge' || !books.length) return
+    let active = true
+    Promise.all(books.map(async (book) => {
+      try {
+        const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${book.id}/read-job`)
+        if (active && response.job) setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+      } catch { /* A book without a job is expected. */ }
+    })).catch(() => {})
+    return () => { active = false }
+  }, [workspaceTab, books])
+
+  useEffect(() => {
+    if (workspaceTab !== 'knowledge') return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      for (const book of books) {
+        const job = bookReadJobs[book.id]
+        if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
+          if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
+          void advanceBookReadJob(book.id)
+        }
+      }
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob])
+
+  const startBookReadJob = async (bookId: string) => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST' })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر بدء قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
+    }
+  }
+
   const rebuildBookKnowledge = async (bookId: string) => {
     if (!programId) return
     setRebuildingBookId(bookId)
