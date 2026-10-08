@@ -301,6 +301,52 @@ async function stickyModelIsPreferredForSameScope() {
   )
 }
 
+async function hangingOpenRouterTimesOutAndFallsThrough() {
+  process.env.AI_TEXT_PROVIDER = 'AUTO'
+  process.env.AI_ROUTER_POLICY = 'primary_first'
+  process.env.OPENROUTER_API_KEY = 'openrouter-key'
+  process.env.UNOROUTER_API_KEY = 'uno-key'
+  process.env.OPENROUTER_TEXT_MODEL = 'openrouter-timeout:free'
+  process.env.UNOROUTER_TEXT_MODEL = 'unorouter-ok:free'
+  process.env.AI_ACADEMIC_ALLOWLIST = 'OPENROUTER:openrouter-timeout:free,UNOROUTER:unorouter-ok:free'
+  const store = makeStore()
+  const originalTimeout = (AbortSignal as any).timeout
+  ;(AbortSignal as any).timeout = () => {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 5)
+    return controller.signal
+  }
+  try {
+    await withHarness(
+      store,
+      (url, init) => {
+        if (url.includes('openrouter.ai') && /\/models(?:\?|$)/.test(url)) {
+          return new Response(JSON.stringify({ data: [{ id: 'openrouter-timeout:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        if (url.includes('/api/pricing/catalog')) {
+          return new Response(JSON.stringify({ data: [{ id: 'unorouter-ok:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        if (url.includes('openrouter.ai') && url.includes('/chat/completions')) {
+          return new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal as AbortSignal | undefined
+            signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+          })
+        }
+        if (url.includes('api.unorouter.com') && url.includes('/chat/completions')) return okChat('uno-after-timeout')
+        return okChat('ignored')
+      },
+      async (calls) => {
+        const out = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'timeout' }], taskLevel: 'ACADEMIC_CRITICAL' })
+        assert.equal(out, 'uno-after-timeout')
+        assert.ok(calls.some((call) => call.url.includes('openrouter.ai') && call.url.includes('/chat/completions')), 'OpenRouter should be attempted first')
+        assert.ok(calls.some((call) => call.url.includes('api.unorouter.com') && call.url.includes('/chat/completions')), 'router must fall through after OpenRouter timeout')
+      }
+    )
+  } finally {
+    ;(AbortSignal as any).timeout = originalTimeout
+  }
+}
+
 async function jsonObjectResponseFormatIsSent() {
   configureUnoRouter()
   process.env.UNOROUTER_TEXT_MODEL = 'json-model:free'
