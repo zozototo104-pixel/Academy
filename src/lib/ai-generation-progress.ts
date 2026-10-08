@@ -61,7 +61,7 @@ export async function setAiGenerationProgress(type: AiGenerationProgressType, pr
     jobId: patch.jobId || current?.jobId || randomUUID(),
     status: requested > 0 && saved >= requested ? 'COMPLETED' : patch.status || current?.status || 'RUNNING',
     requested,
-    saved: Math.max(0, Number(patch.saved ?? current?.saved ?? 0) || 0),
+    saved,
     failedBatches: Math.max(0, Number(patch.failedBatches ?? current?.failedBatches ?? 0) || 0),
     lastError: patch.lastError === undefined ? current?.lastError ?? null : patch.lastError ? String(patch.lastError).slice(0, 500) : null,
     updatedAt: new Date().toISOString(),
