@@ -125,7 +125,6 @@ export async function POST(req: NextRequest) {
     const data = { title: generated.title, overview: generated.overview, objectives: json(generated.objectives), keyTerms: json(generated.keyTerms), sections: json(generated.sections), activities: json(generated.activities), discussionQuestions: json(generated.discussionQuestions), sourceKnowledgeIds: json(generated.sourceKnowledgeIds), status, generatedBy: 'AI' }
     const guide = existing ? await db.programStudyGuide.update({ where: { id: existing.id }, data }) : await db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } })
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`)
-    if (status === 'PUBLISHED') await notify({ title: 'تم نشر دليل دراسة عام', message: generated.title, audience: 'STUDENTS' }).catch(() => null)
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
