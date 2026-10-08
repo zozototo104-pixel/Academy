@@ -52,10 +52,10 @@ function mapUnit(unit: any) {
 }
 
 export async function POST(req: NextRequest, context: Context) {
-  const admin = await requireAdmin().catch((error) => { throw error })
-  const { unitId } = await context.params
   let job: { id: string } | null = null
   try {
+    const admin = await requireAdmin()
+    const { unitId } = await context.params
     const body = await req.json().catch(() => ({}))
     const force = Boolean(body?.regenerate || body?.force)
     const unit = await db.unit.findUnique({
