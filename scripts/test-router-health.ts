@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { __resetTextAiStateForTests, __setTextAiSettingStoreForTests, textAiComplete, textAiCompleteJson } from '../src/lib/text-ai'
+import { __resetTextAiStateForTests, __setTextAiSettingStoreForTests, parseAcademicAllowlist, textAiComplete, textAiCompleteJson } from '../src/lib/text-ai'
 
 const originalFetch = globalThis.fetch
 const originalEnv = { ...process.env }
