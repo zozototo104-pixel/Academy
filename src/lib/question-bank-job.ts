@@ -127,7 +127,10 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) continue
     seen.add(key)
     ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
-    rows.push(buildQuestionBankRecord({ ...q, qualityFlags: ['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(item.verificationPending ? ['NEEDS_REVIEW'] : [])], verifierProvider: item.verifierProvider, verifierModel: item.verifierModel, verifiedAt: item.verifiedAt, verifierReason: item.verifierReason, verificationPending: item.verificationPending, verificationReason: item.verificationReason, textProvenance: item.textProvenance }, { programId: job.programId, knowledgeItemId: source.id, bookId: source.bookId || null, semester: source.semester || scope.unit?.semester || null, provider: raw.provider, model: raw.model }))
+    rows.push({
+      ...buildQuestionBankRecord({ ...q, qualityFlags: ['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(item.verificationPending ? ['NEEDS_REVIEW'] : [])], verifierProvider: item.verifierProvider, verifierModel: item.verifierModel, verifiedAt: item.verifiedAt, verifierReason: item.verifierReason, verificationPending: item.verificationPending, verificationReason: item.verificationReason, textProvenance: item.textProvenance }, { programId: job.programId, knowledgeItemId: source.id, bookId: source.bookId || null, semester: source.semester || scope.unit?.semester || null, provider: raw.provider, model: raw.model }),
+      unitId: job.unitId || null,
+    })
     if (rows.length >= count) break
   }
   if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')
