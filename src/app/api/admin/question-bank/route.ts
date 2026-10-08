@@ -241,6 +241,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
+    const unitId = cleanText(body?.unitId, 80) || null
+    const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true })
+    const stepped = await runQuestionBankGenerationJobStep(backgroundJob.id)
+    await audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`)
+    return NextResponse.json({
+      ok: stepped?.status === 'COMPLETED' || stepped?.status === 'QUEUED' || stepped?.status === 'RUNNING',
+      job: stepped || backgroundJob,
+      inserted: Math.max(0, Number(stepped?.saved || 0) - Number(backgroundJob.saved || 0)),
+      requested: stepped?.requested || backgroundJob.requested,
+      saved: stepped?.saved || backgroundJob.saved,
+      remaining: Math.max(0, Number(stepped?.requested || backgroundJob.requested) - Number(stepped?.saved || backgroundJob.saved)),
+      partial: (stepped?.saved || 0) < (stepped?.requested || backgroundJob.requested),
+      paused: stepped?.status === 'PAUSED',
+      error: stepped?.lastError || undefined,
+      message: stepped?.status === 'PAUSED' ? 'توقفت وظيفة بنك الأسئلة مؤقتاً لعدم توفر مزود أكاديمي. ستُستكمل من cron أو عند فتح الصفحة.' : undefined,
+      stats: await questionStats(programId),
+      items: await listQuestions(programId),
+    }, { status: stepped?.status === 'PAUSED' ? 503 : 200 })
+
     const v2Count = await db.bookKnowledgeItem.count({ where: { programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } } })
     const knowledge = await db.bookKnowledgeItem.findMany({
       where: { programId, ...(v2Count ? { kbVersion: 2 } : {}), category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
