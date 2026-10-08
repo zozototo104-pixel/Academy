@@ -373,6 +373,8 @@ async function jsonObjectResponseFormatIsSent() {
 }
 
 async function main() {
+  console.log('▶ router health: academic allowlist parser')
+  academicAllowlistParserKeepsColonAndSlashModelNames()
   console.log('▶ router health: dead model')
   await deadModelIsNotRetriedOnSecondKey()
   console.log('▶ router health: no balance')
