@@ -18,7 +18,9 @@ export async function scheduleProgramKnowledgeV2(programId: string, semester?: n
     const pending = await db.bookChunk.count({ where: { bookId: book.id, status: { in: ['PENDING', 'EXTRACTED', 'FAILED'] } } })
     const v2 = await db.bookKnowledgeItem.count({ where: { bookId: book.id, kbVersion: 2, category: { notIn: ['LEGACY', 'QUESTION_SEED'] } } })
     const remaining = await db.bookChunk.count({ where: { bookId: book.id, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } } })
-    const mode = !chunks || pending || !v2 ? 'EXTRACT' : remaining ? 'ENRICH' : null
+    // Existing extracted chunks must resume ANALYZE rather than restarting PDF extraction.
+    // An analyzed book with zero accepted v2 items is already read; enrichment may try again.
+    const mode = !chunks || pending ? 'EXTRACT' : remaining && !v2 ? 'ENRICH' : remaining ? 'ENRICH' : null
     if (!mode) { results.push({ bookId: book.id, title: book.title, state: 'COMPLETED' }); continue }
     let job
     try {
