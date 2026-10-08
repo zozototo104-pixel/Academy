@@ -1015,6 +1015,7 @@ export function AdminBooksTab() {
           throw error
         }
       }
+      if (!result) return
       await refreshCurriculumUnits(programId)
       await refreshProgramReadiness()
       if (result.warnings?.length) toast({ title: 'تم تخطي بعض الكتب', description: result.warnings.join(' | ') })
