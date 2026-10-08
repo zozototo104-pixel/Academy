@@ -249,7 +249,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
+    let gradedEssayResults: GradedResult[]
+    try {
+      gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
       const graded = await gradeEssayAnswer(q.text, q.modelAnswer || '', text, q.points, examAcademicContext)
       await db.programAnswer.create({
         data: {
@@ -277,7 +279,15 @@ export async function POST(req: NextRequest) {
       }
       totalScore += graded.points
       return r
-    })
+      })
+    } catch (e: any) {
+      const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null }
+      await db.programExamAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+      })
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة كاملة للمراجعة دون اعتماد نتيجة جزئية.', ...reviewState }, { status: 202 })
+    }
 
     const rawPercentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const percentage = Math.min(rawPercentage, readiness.maxExamScore)

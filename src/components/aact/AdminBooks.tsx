@@ -150,6 +150,16 @@ interface ExamRow {
   createdAt: string
 }
 
+function examErrorMessage(errorNote?: string | null): string {
+  if (!errorNote) return ''
+  try {
+    const parsed = JSON.parse(errorNote) as { reason?: string; error?: string; message?: string }
+    return parsed.reason || parsed.error || parsed.message || errorNote
+  } catch {
+    return errorNote
+  }
+}
+
 interface AssignmentSubmissionRow {
   id: string
   studentName?: string
@@ -660,10 +670,11 @@ export function AdminBooksTab() {
       if (advanceRef.current) return
       advanceRef.current = true
       try {
-        const d = await api<{ status?: string; questionCount?: number; inserted?: number; done?: boolean }>('/api/admin/program-exams/generate', {
+        const d = await api<{ ok?: boolean; error?: string; status?: string; questionCount?: number; inserted?: number; done?: boolean }>('/api/admin/program-exams/generate', {
           method: 'POST',
           body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
         })
+        if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
         await loadProgramData(programId, true)
         if (d.done || d.status === 'REVIEW') {
           toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
@@ -990,6 +1001,24 @@ export function AdminBooksTab() {
     }
   }
 
+  const markLegacyQuestionGroundingForReview = async () => {
+    if (!programId) return
+    setQuestionBankBusy('legacy-review')
+    try {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; marked: number }>('/api/admin/question-bank', {
+        method: 'POST',
+        body: JSON.stringify({ programId, source: 'REVIEW_LEGACY_GROUNDING' }),
+      })
+      setQuestionBankItems(res.items || [])
+      setQuestionBankStats(res.stats || null)
+      toast({ title: 'تم تعليم الأسئلة القديمة للمراجعة', description: `تم تعليم ${res.marked || 0} سؤال دون حذفها.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر تعليم الأسئلة القديمة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
   const addManualQuestionToBank = async () => {
     if (!programId) return
     setQuestionBankBusy('manual')
@@ -1100,7 +1129,7 @@ export function AdminBooksTab() {
       type: q.type || 'MCQ',
       text: q.text || '',
       options: options.join('\n'),
-      correctAnswer: q.correctAnswer || '0',
+      correctAnswer: q.correctAnswer || '',
       modelAnswer: q.modelAnswer || '',
       sourceEvidence: q.sourceEvidence || '',
       difficulty: q.difficulty || 'MEDIUM',
@@ -1478,7 +1507,7 @@ export function AdminBooksTab() {
     const sem = genSemester === '2' ? 2 : 1
     const semLabel = sem === 2 ? 'الفصل الثاني' : 'الفصل الأول'
     const generatingExam = exams.find((e) => e.semester === sem && e.status === 'GENERATING') || exams.find((e) => e.status === 'GENERATING')
-    const failedExam = exams.find((e) => e.semester === sem && e.status === 'FAILED')
+    const failedExam = exams.find((e) => e.semester === sem && (e.status === 'FAILED' || e.status === 'PAUSED'))
     const confirmText = generatingExam
       ? `يوجد امتحان عالق حالياً وفيه ${generatingExam.questionCount} سؤالاً. سأحرك التوليد الآن، وإذا كان صفر أسئلة سيتم إنشاء دفعة أولية فوراً ثم يكمل من حيث توقف. متابعة؟`
       : failedExam
@@ -1487,10 +1516,11 @@ export function AdminBooksTab() {
     if (!(await askAdminConfirm({ title: `توليد امتحان ${semLabel}`, description: confirmText, confirmLabel: 'بدء التوليد' }))) return
     setGenerating(true)
     try {
-      const d = await api<{ examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; examId: string; booksCount: number; resumed?: boolean; existingQuestions?: number }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ programId, semester: sem }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر توليد الامتحان')
       toast({
         title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
         description: d.resumed
@@ -1511,10 +1541,11 @@ export function AdminBooksTab() {
     if (!(await askAdminConfirm({ title: `استكمال توليد ${semLabel}`, description: `سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً.`, confirmLabel: 'استكمال التوليد' }))) return
     setGenerating(true)
     try {
-      const d = await api<{ examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; examId: string; booksCount: number; existingQuestions?: number; requiredQuestions?: number; resumed?: boolean }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId: exam.id }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
       toast({
         title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
         description: `سيكمل من السؤال ${(d.existingQuestions || exam.questionCount) + 1} دون حذف الأسئلة السابقة — تابع الحالة بالأسفل`,
@@ -2692,6 +2723,10 @@ export function AdminBooksTab() {
                   {questionBankBusy === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   توليد أسئلة من بنك المعرفة
                 </Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'legacy-review'} onClick={markLegacyQuestionGroundingForReview} className="bg-white text-xs font-black">
+                  {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  تعليم الأسئلة القديمة للمراجعة
+                </Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" disabled={questionBankBusy === 'exam-load'} onClick={openExamImport}>
@@ -2764,10 +2799,13 @@ export function AdminBooksTab() {
                             {e.status === 'FAILED' && (
                               <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> فشل</Badge>
                             )}
+                            {e.status === 'PAUSED' && (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><AlertTriangle className="ml-1 h-3 w-3" /> متوقف: المزود الأكاديمي غير متاح</Badge>
+                            )}
                           </div>
-                          {e.status === 'FAILED' && e.errorNote && (
-                            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-red-500">
-                              <AlertTriangle className="h-3 w-3" /> {e.errorNote} — تم حفظ {e.questionCount} سؤالاً، اضغط زر الاستكمال الدائري لمتابعة التوليد من حيث توقف
+                          {(e.status === 'FAILED' || e.status === 'PAUSED') && e.errorNote && (
+                            <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-bold ${e.status === 'PAUSED' ? 'text-amber-600' : 'text-red-500'}`}>
+                              <AlertTriangle className="h-3 w-3" /> {examErrorMessage(e.errorNote)} — تم حفظ {e.questionCount} سؤالاً
                             </p>
                           )}
                           {e.status === 'REVIEW' && e.questionCount < FULL_EXAM_TARGET && (
@@ -2890,7 +2928,7 @@ export function AdminBooksTab() {
                               {e.status === 'REVIEW' ? 'مراجعة الأسئلة واعتمادها' : 'عرض الأسئلة المعتمدة'}
                             </Button>
                           )}
-                          {e.status === 'FAILED' && (
+                          {(e.status === 'FAILED' || e.status === 'PAUSED') && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -2902,7 +2940,7 @@ export function AdminBooksTab() {
                               {generating || exams.some((x) => x.status === 'GENERATING') ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                             </Button>
                           )}
-                          {(e.status === 'FAILED' || e.status === 'REVIEW' || e.status === 'READY') && (
+                          {(e.status === 'FAILED' || e.status === 'PAUSED' || e.status === 'REVIEW' || e.status === 'READY') && (
                             <Button size="sm" variant="ghost" onClick={() => deleteExam(e.id)} className="text-red-400 hover:bg-red-50 hover:text-red-600" title="حذف الامتحان بالكامل">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

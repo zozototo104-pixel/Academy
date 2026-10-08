@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { getZAI } from '@/lib/ai'
+import { textAiComplete, textAiCompleteJson } from '@/lib/text-ai'
 import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
@@ -395,22 +395,21 @@ export async function POST(req: NextRequest) {
 
 async function aiOpening(title: string, abstract: string, studentAcademicContext?: string): Promise<string> {
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
 السؤال الأول يجب أن يكون عن دوافع اختيار الموضوع وأهميته العملية، ويراعي تخصص الطالب وكتبه ونتائجه إن ظهرت في السياق.
 ملخص البحث: ${abstract.slice(0, 1200)}
 
 اكتب: ترحيب من سطرين + "السؤال الأول:" ثم السؤال. بدون أي تنسيق Markdown.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
-    return (completion.choices[0]?.message?.content || '').trim() || defaultQuestion(1)
+    return text.trim() || defaultQuestion(1)
   } catch {
     return defaultQuestion(1)
   }
@@ -437,13 +436,11 @@ async function aiEvaluate(
   studentAcademicContext?: string
 ): Promise<DefenseEvaluation> {
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}بحث: «${title}»
+    const raw = await textAiCompleteJson({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}بحث: «${title}»
 الملخص: ${abstract.slice(0, 1000)}
 السؤال المطروح: ${question}
 إجابة الطالب: ${answer.slice(0, 2500)}
@@ -453,11 +450,11 @@ async function aiEvaluate(
 
 أجب بصيغة JSON فقط:
 {"score": <0-10>, "feedback": "<تعليق تفاعلي من جملتين إلى ثلاث على إجابة الطالب>", "nextQuestion": "<السؤال التالي مسبوق بـ: السؤال ${qNum + 1}: >"}`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.15,
+      maxOutputTokens: 1400,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    const raw = completion.choices[0]?.message?.content || ''
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('NO_JSON')
     const parsed = JSON.parse(match[0])
@@ -488,25 +485,24 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
           ? 'توصية بالقبول مع ملاحظات'
           : 'توصية بمراجعة البحث وإعادة المناقشة'
   try {
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.` },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.`,
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}اكتب توصية رسمية موجزة (3-4 جمل) للجنة المناقشة بشأن بحث الطالب/ة ${name} بعنوان «${title}»:
 - التقييم العام عبر الأسئلة: ${scoreLabel(aiScore)} (${answered} أسئلة ذات تقييم صالح)
 - آخر ملاحظة: ${lastFeedback}
 - الحكم العام: ${verdict}
 
 ابدأ بعبارة «توصية خبير الذكاء الاصطناعي للجنة:». بدون Markdown.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    return (completion.choices[0]?.message?.content || `${verdict} — التقييم ${scoreLabel(aiScore)}`).trim().slice(0, 1500)
+    return text.trim().slice(0, 1500)
   } catch {
-    return `توصية خبير الذكاء الاصطناعي للجنة: ${verdict} — التقييم العام عبر أسئلة المناقشة ${scoreLabel(aiScore)}.`
+    return 'تعذر إصدار توصية آلية موثوقة. يجب أن تصدر التوصية من اللجنة البشرية بعد مراجعة تسجيل الجلسة وإجابات الطالب.'
   }
 }
 
@@ -542,13 +538,11 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
     if (`${dialog} ${latest}`.length < 45) return null
 
     const rag = await buildSupervisorContext(userId, { scope: 'DEFENSE_EXAMINER', query: `${title} ${latest}` })
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.` },
-        {
-          role: 'user',
-          content: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
+    const text = await textAiComplete({
+      system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت المستشار الذكي حاضر كعضو لجنة مناقشة فعلي بصوت داخل القاعة. لا تكتفي بطرح أسئلة؛ تفاعل مع كلام الطالب كما يفعل عضو اللجنة: قاطع بلطف عند الحاجة، علّق، أبدِ رأياً أكاديمياً، صحح مسار الإجابة، ثم اطرح سؤال متابعة قصيراً عند اللزوم. القرار النهائي يبقى للجنة البشرية. ترجع نصاً عربياً فقط بدون Markdown.`,
+      history: [{
+        role: 'user',
+        text: `${rag ? mergeContext(rag) + '\n\n' : ''}بحث: «${title}» — الملخص: ${abstract.slice(0, 900)}
 
 آخر كلام مباشر قاله الطالب الآن:
 ${latest || 'غير متوفر'}
@@ -565,11 +559,12 @@ ${dialog.slice(0, 4500)}
 - لا تذكر أنك مجرد نموذج أو خدمة.
 
 ابدأ بعبارة «مداخلة المستشار الذكي:».`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
-    const note = (completion.choices[0]?.message?.content || '').trim()
+    const note = text.trim()
     return note && note.length > 30 ? note.slice(0, 900) : null
   } catch (e) {
     console.error('aiLiveNote error:', e)
@@ -593,13 +588,11 @@ async function aiMinutes(thesisId: string, title: string, studentName: string, d
       })
       .join('\n')
 
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: 'أنت كاتب محاضر أكاديمي محترف. تصوغ محضر جلسة مناقشة بحث تخرج بصيغة رسمية موجزة بالعربية. بدون Markdown أو جداول.' },
-        {
-          role: 'user',
-          content: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 5500)}\n\n` : ''}صُغ محضر جلسة مناقشة بحث التخرج التالي:
+    const text = await textAiComplete({
+      system: 'أنت كاتب محاضر أكاديمي محترف. تصوغ محضر جلسة مناقشة بحث تخرج بصيغة رسمية موجزة بالعربية. بدون Markdown أو جداول.',
+      history: [{
+        role: 'user',
+        text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 5500)}\n\n` : ''}صُغ محضر جلسة مناقشة بحث التخرج التالي:
 عنوان البحث: «${title}»
 الباحث: ${studentName}
 تاريخ الجلسة: ${defenseDate ? new Date(defenseDate).toLocaleDateString('ar-EG') : 'الجلسة الحالية'}
@@ -616,14 +609,16 @@ ${dialog.slice(0, 8000)}
 4) أبرز نقاط القوة والضعف
 5) القرار: القرار النهائي يُصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة
 اجعله في حدود 12 سطراً.`,
-        },
-      ],
-      thinking: { type: 'disabled' },
+      }],
+      temperature: 0.3,
+      maxOutputTokens: 900,
+      taskLevel: 'ACADEMIC_CRITICAL',
     })
-    const minutes = (completion.choices[0]?.message?.content || '').trim()
-    return minutes.length > 60 ? minutes.slice(0, 4000) : `محضر جلسة مناقشة «${title}» — الباحث: ${studentName} — حضر الطالب وأعضاء اللجنة والمستشار الذكي، ونوقشت الأسئلة الموثقة في سجل الجلسة. القرار النهائي يصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة.`
+    const minutes = text.trim()
+    if (minutes.length <= 60) throw new Error('DEFENSE_MINUTES_TOO_SHORT')
+    return minutes.slice(0, 4000)
   } catch (e) {
     console.error('aiMinutes error:', e)
-    return `محضر جلسة مناقشة «${title}» — الباحث: ${studentName} — نوقش البحث أمام لجنة متخصصة بحضور المستشار الذكي، والقرار النهائي يصدر من أعضاء اللجنة البشرية وتُعتمد النتيجة من الإدارة.`
+    return `تعذر توليد محضر آلي موثوق لجلسة «${title}» — الباحث: ${studentName}. يجب إعداد المحضر من سجل الجلسة والتسجيل واعتماده من اللجنة البشرية.`
   }
 }

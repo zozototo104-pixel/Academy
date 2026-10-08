@@ -3,11 +3,43 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { geminiCompleteJson } from '@/lib/gemini'
+import { assertQuestionBatchAcceptable, buildQuestionBankRecord, knowledgeEvidenceText, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
+import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { audit } from '@/lib/notify'
+import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
+import { inferTextProvenance, isEvidenceAllowedByProvenance, textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { z } from 'zod'
+
+export const maxDuration = 300
 
 const STATUSES = new Set(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'])
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
+
+const generatedQuestionSchema = z.object({
+  type: z.enum(['MCQ', 'TF', 'SHORT', 'ESSAY']),
+  text: z.string().min(12).max(1200),
+  options: z.array(z.string().min(1).max(260)).max(6).default([]),
+  correctAnswer: z.string().min(1).max(20),
+  modelAnswer: z.string().max(1800).optional(),
+  sourceEvidence: z.string().min(8).max(1800),
+  sourceBookTitle: z.string().max(220).optional(),
+  sourceLocator: z.string().max(220).optional(),
+  cognitiveSkill: z.string().max(40).optional(),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']),
+  sourceIndex: z.number().int().positive(),
+  correctRationale: z.string().min(4).max(1000),
+  distractorRationales: z.array(z.string().max(500)).max(6).optional(),
+}).superRefine((question, ctx) => {
+  if (question.type === 'MCQ') {
+    if (question.options.length < 3) ctx.addIssue({ code: 'custom', message: 'MCQ requires at least three options' })
+    const answer = Number(question.correctAnswer)
+    if (!Number.isInteger(answer) || answer < 0 || answer >= question.options.length) ctx.addIssue({ code: 'custom', message: 'MCQ correctAnswer must point to an option' })
+  }
+  if (question.type === 'TF' && !['0', '1'].includes(question.correctAnswer)) ctx.addIssue({ code: 'custom', message: 'TF correctAnswer must be 0 or 1' })
+})
+
+const generatedQuestionsSchema = z.object({ questions: z.array(generatedQuestionSchema).min(1).max(30) })
 
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -111,9 +143,9 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
   const text = cleanText(raw?.text || raw?.question || fallback.title, 1200)
   const options = safeOptions(raw?.options, type)
   let correctAnswer = raw?.correctAnswer != null ? String(raw.correctAnswer) : null
-  if ((type === 'MCQ' || type === 'TF') && (correctAnswer == null || Number.isNaN(Number(correctAnswer)))) correctAnswer = '0'
-  if (type === 'MCQ') correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer || 0))))
-  if (type === 'TF') correctAnswer = String(Number(correctAnswer || 0) === 1 ? 1 : 0)
+  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
+  if (type === 'MCQ' && correctAnswer != null) correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer))))
+  if (type === 'TF' && correctAnswer != null) correctAnswer = ['0', '1'].includes(correctAnswer) ? correctAnswer : null
   return {
     type,
     text,
@@ -127,7 +159,7 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
     difficulty,
     correctRationale: cleanText(raw?.correctRationale || raw?.rationale, 1000) || null,
     distractorRationales: raw?.distractorRationales ? JSON.stringify(raw.distractorRationales).slice(0, 1800) : null,
-    qualityFlags: JSON.stringify(['SOURCE_GROUNDED', 'NEEDS_HUMAN_REVIEW']),
+    qualityFlags: JSON.stringify(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW']),
   }
 }
 
@@ -172,7 +204,9 @@ export async function GET(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status) })
+    const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
+    const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
+    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
@@ -202,6 +236,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
+    if (source === 'REVIEW_LEGACY_GROUNDING') {
+      const legacy = await db.questionBankItem.findMany({
+        where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
+        select: { id: true },
+      })
+      if (legacy.length) {
+        await db.questionBankItem.updateMany({
+          where: { id: { in: legacy.map((item) => item.id) } },
+          data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) },
+        })
+      }
+      await audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`)
+      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
+    }
+
     if (source === 'IMPORT') {
       const imported = parseImportedQuestions(body?.questions || body?.text || body?.csv)
       const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
@@ -217,11 +266,43 @@ export async function POST(req: NextRequest) {
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
+    const sourceBooks = await db.book.findMany({
+      where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
+      select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true },
+    })
+    const bookById = new Map(sourceBooks.map((book) => [book.id, book]))
+    const knowledgeTextProvenance = (item: { sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }) => {
+      const book = item.bookId ? bookById.get(item.bookId) : null
+      return inferTextProvenance({
+        sourceNote: item.sourceNote,
+        linkReadNote: book?.linkReadNote,
+        linkReadStatus: book?.linkReadStatus,
+        textContent: book?.textContent,
+      })
+    }
+    const excerptMatchesNativeOrOcrBook = (item: { bookId?: string | null; excerpt?: string | null }) => {
+      const excerpt = knowledgeEvidenceText(item).trim()
+      if (!excerpt) return false
+      const book = item.bookId ? bookById.get(item.bookId) : null
+      if (!book?.textContent) return false
+      const bookProvenance = inferTextProvenance({ linkReadNote: book.linkReadNote, linkReadStatus: book.linkReadStatus, textContent: book.textContent })
+      if (!['NATIVE_TEXT', 'VISION_OCR'].includes(bookProvenance)) return false
+      return textContainsEvidenceAfterNormalization(book.textContent, excerpt)
+    }
+    const evidenceKnowledge = knowledge.filter((item) => {
+      const text = knowledgeEvidenceText(item).trim()
+      const provenance = knowledgeTextProvenance(item)
+      return text.length >= 40 && isEvidenceAllowedByProvenance(provenance) && excerptMatchesNativeOrOcrBook(item)
+    })
+    if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
+
     const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
     const seen = new Set(existing.map((q) => norm(q.text)))
-    const knowledgeText = knowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\n${String(k.summary || '').slice(0, 650)}\nدليل: ${String(k.excerpt || k.sourceNote || '').slice(0, 360)}`).join('\n\n')
+    const knowledgeText = evidenceKnowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\nملخص للسياق فقط: ${String(k.summary || '').slice(0, 650)}\nنص المصدر (اقتبس منه حرفيًا): ${knowledgeEvidenceText(k).slice(0, 1800)}`).join('\n\n')
+    const evidenceSources = evidenceKnowledge.map((item) => ({ text: knowledgeEvidenceText(item), textProvenance: knowledgeTextProvenance(item) }))
 
     let generated: any[] = []
+    let generationContext: { provider?: string; model?: string } = {}
     try {
       const raw = await geminiCompleteJson({
         system: 'أنت مصمم أسئلة جامعية. أرجع JSON صالحاً فقط دون أي شرح خارج JSON.',
@@ -247,6 +328,7 @@ ${knowledgeText}
       "sourceLocator": "عنوان العنصر أو المحور",
       "cognitiveSkill": "UNDERSTAND | APPLY | ANALYZE | EVALUATE",
       "difficulty": "EASY | MEDIUM | ADVANCED",
+      "sourceIndex": 1,
       "correctRationale": "سبب صحة الإجابة",
       "distractorRationales": ["سبب خطأ الخيار 1"]
     }
@@ -257,55 +339,81 @@ ${knowledgeText}
 - اجعل 60% اختيار متعدد أو صح/خطأ، و40% قصيرة/مقالية.
 - لا تكرر سؤالاً بنفس المعنى.
 - كل سؤال يجب أن يكون مرتبطاً بدليل من بنك المعرفة.
+- sourceEvidence يجب أن يكون اقتباساً حرفياً من "نص المصدر" للعنصر المحدد، وليس من الملخص.
+- لكل سؤال أعد sourceIndex وهو رقم عنصر المعرفة المستخدم فعلياً (1 يبدأ من أول عنصر في قائمة المعرفة أعلاه)، ولا تختر عنصراً لا يدعم السؤال مباشرة.
 - اجعل الإجابة الصحيحة واضحة وقابلة للمراجعة.
 - الأسئلة ستبقى بانتظار مراجعة الإدارة.` }],
         temperature: 0.25,
         thinkingBudget: 256,
         maxOutputTokens: 6000,
+        taskLevel: 'ACADEMIC_CRITICAL',
+        validate: (text, context) => {
+          const parsed = generatedQuestionsSchema.parse(parseJsonObject(text))
+          generationContext = context || {}
+          const validation = validateQuestionBatchAgainstKnowledge(parsed.questions, evidenceSources, context)
+          for (const rejection of validation.rejected) {
+            console.warn('question bank evidence rejected:', rejection)
+          }
+          assertQuestionBatchAcceptable(parsed.questions.length, validation.rejected.length)
+        },
       })
-      const parsed = parseJsonObject(raw)
-      generated = Array.isArray(parsed?.questions) ? parsed.questions : []
-    } catch (e) {
+      const parsed = generatedQuestionsSchema.parse(parseJsonObject(raw))
+      generated = parsed.questions
+    } catch (e: any) {
       console.error('question bank AI failed:', e)
+      const paused = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
+      await setAiTaskPause('QUESTION_BANK', programId, paused).catch(() => paused)
+      return NextResponse.json({ error: 'توقف توليد بنك الأسئلة مؤقتاً لأن المزود الأكاديمي غير متاح.', status: 'PAUSED', ...paused }, { status: 503 })
     }
 
-    if (!generated.length) {
-      generated = knowledge.slice(0, count).map((k, i) => ({
-        type: i % 3 === 0 ? 'SHORT' : 'MCQ',
-        text: `اشرح بإيجاز: ${k.title}`,
-        options: [`${k.title}`, 'خيار غير مرتبط', 'مصطلح عام', 'لا شيء مما سبق'],
-        correctAnswer: '0',
-        modelAnswer: k.summary,
-        sourceEvidence: k.summary,
-        sourceLocator: k.title,
-        difficulty: i % 4 === 0 ? 'ADVANCED' : 'MEDIUM',
-        cognitiveSkill: i % 4 === 0 ? 'ANALYZE' : 'UNDERSTAND',
-        correctRationale: 'الإجابة مستندة إلى عنصر بنك المعرفة المحدد.',
-      }))
-    }
+    if (!generated.length) return NextResponse.json({ error: 'لم يُرجع المزود أسئلة أكاديمية صالحة.', status: 'PAUSED' }, { status: 503 })
+
+    const finalValidation = validateQuestionBatchAgainstKnowledge(generated, evidenceSources)
+    for (const rejection of finalValidation.rejected) console.warn('question bank evidence rejected before save:', rejection)
+    const verifiedQuestions = await verifyQuestionsWithCrossProvider({
+      questions: finalValidation.accepted,
+      sources: evidenceSources,
+      generatorProvider: generationContext.provider,
+      generatorModel: generationContext.model,
+    })
 
     const rows: any[] = []
-    for (let i = 0; i < generated.length; i++) {
-      const source = knowledge[i % knowledge.length]
-      const q = sanitizeQuestion(generated[i], { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote })
+    for (let i = 0; i < verifiedQuestions.length; i++) {
+      const item = verifiedQuestions[i]
+      const requestedSourceIndex = Number(item.sourceIndex)
+      const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= evidenceKnowledge.length
+        ? evidenceKnowledge[requestedSourceIndex - 1]
+        : null
+      if (!source) continue
+      const q = {
+        ...sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote }),
+        qualityFlags: item.qualityFlags,
+        verifierProvider: item.verifierProvider,
+        verifierModel: item.verifierModel,
+        verifiedAt: item.verifiedAt,
+        verifierReason: item.verifierReason,
+        verificationPending: item.verificationPending,
+        verificationReason: item.verificationReason,
+        textProvenance: item.textProvenance,
+      }
       if (!q.text || q.text.length < 12) continue
       const key = norm(q.text)
       if (seen.has(key)) continue
       seen.add(key)
-      rows.push({
+      rows.push(buildQuestionBankRecord(q, {
         programId,
         knowledgeItemId: source.id,
         bookId: source.bookId || null,
         semester: source.semester || null,
-        ...q,
-        status: 'PENDING_REVIEW',
-        generatedBy: 'AI',
-      })
+        provider: generationContext.provider,
+        model: generationContext.model,
+      }))
       if (rows.length >= count) break
     }
 
     if (!rows.length) return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.' }, { status: 409 })
     await db.questionBankItem.createMany({ data: rows })
+    await db.setting.delete({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${rows.length} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
     return NextResponse.json({ ok: true, inserted: rows.length, stats: await questionStats(programId), items: await listQuestions(programId) })
   } catch (e: any) {

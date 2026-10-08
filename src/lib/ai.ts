@@ -1,7 +1,7 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { ACADEMY_INFO, ADMISSION_GUIDE, ACCREDITATION_GUIDE } from '@/lib/academyData'
 import { ensureGeminiKey, geminiComplete, isAuthError, isQuotaError, isModelUnavailableError, isInvalidArgumentError } from '@/lib/gemini'
-import { textAiComplete, type TextAiRouterPolicy } from '@/lib/text-ai'
+import { textAiComplete, textAiCompleteJson, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { getSettings } from '@/lib/settings'
 
@@ -577,7 +577,6 @@ export async function gradeEssayAnswer(
   maxPoints: number,
   studentAcademicContext?: string
 ): Promise<GradedAnswer> {
-  const zai = await getZAI()
   const prompt = `${buildSupervisorPersonaBlock('EXAM')}
 
 ${studentAcademicContext ? `سياق ملف الطالب للقياس العادل لا للمجاملة:\n${studentAcademicContext.slice(0, 6000)}\n` : ''}
@@ -599,10 +598,13 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
 أجب بصيغة JSON فقط بدون أي نص إضافي:
 {"points": <رقم من 0 إلى ${maxPoints}>, "feedback": "<التغذية الراجعة بالعربية>"}`
 
-  const raw = await chatWithRetry(zai, [
-    { role: 'assistant', content: 'أنت مصحح أكاديمي دقيق يرجع بـ JSON فقط.' },
-    { role: 'user', content: prompt },
-  ])
+  const raw = await textAiCompleteJson({
+    system: 'أنت مصحح أكاديمي دقيق يرجع بـ JSON فقط.',
+    history: [{ role: 'user', text: prompt }],
+    temperature: 0.1,
+    maxOutputTokens: 1200,
+    taskLevel: 'ACADEMIC_CRITICAL',
+  })
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -615,13 +617,12 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
       maxPoints,
       feedback: String(parsed.feedback || '').slice(0, 1500),
     }
-  } catch {
-    return {
-      index: -1,
-      points: 0,
-      maxPoints,
-      feedback: 'تعذر تقييم الإجابة آلياً — سيراجعها المشرف الأكاديمي يدوياً.',
-    }
+  } catch (e: any) {
+    const err: any = new Error('ESSAY_GRADING_NEEDS_REVIEW')
+    err.code = e?.code || 'ESSAY_GRADING_NEEDS_REVIEW'
+    err.retryAt = e?.retryAt || null
+    err.cause = e
+    throw err
   }
 }
 

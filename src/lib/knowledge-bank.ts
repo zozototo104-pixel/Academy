@@ -5,6 +5,8 @@ import { textAiCompleteJson } from '@/lib/text-ai'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
 import { cleanAcademicOutput as sharedCleanAcademicOutput, looksLikeBrokenGeneratedArabic as sharedLooksBrokenAcademicOutput, conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { appendTextProvenanceNote } from '@/lib/text-provenance'
+import { createHash } from 'crypto'
 
 export interface KnowledgeItemDraft {
   category: string
@@ -989,7 +991,10 @@ async function aiKnowledgeItemsFromUploadedFile(
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_FILE_AI_TIMEOUT')), 52000)),
     ])
     const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, [], semester)
+    const normalized = normalizeDrafts(arr, [], semester).map((item) => ({
+      ...item,
+      sourceNote: appendTextProvenanceNote(item.sourceNote || 'قراءة مباشرة من ملف الكتاب المرفوع عبر الذكاء البصري', 'VISION_DESCRIPTION'),
+    }))
     return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItemsFromUploadedFile failed:', String(e?.message || e).slice(0, 240))
@@ -1456,16 +1461,33 @@ ${unitText}
         history: [{ role: 'user', text: prompt }],
         temperature: 0.05,
         maxOutputTokens: 8192,
+        taskLevel: 'ACADEMIC_CRITICAL',
+        validate: (text) => {
+          if (!normalizeUnitItems(text).length) {
+            const err: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+            err.code = 'VALIDATION_REJECTED'
+            throw err
+          }
+        },
       }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_UNIT_ROUTER_TIMEOUT')), UNIT_ANALYSIS_TIMEOUT_MS)),
     ])
     const normalized = normalizeUnitItems(raw)
-    if (normalized.length) return normalized
+    if (!normalized.length) {
+      const err: any = new Error('AI_KNOWLEDGE_EMPTY_OUTPUT')
+      err.code = 'VALIDATION_REJECTED'
+      throw err
+    }
+    return normalized
   } catch (e: any) {
     console.error(`knowledge unit ${unit.index + 1} provider router failed:`, String(e?.message || e).slice(0, 420))
+    if (e?.code === 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
+    const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+    err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
+    err.retryAt = e?.retryAt || null
+    err.cause = e
+    throw err
   }
-
-  return []
 }
 
 async function rebuildKnowledgeForBookByUnits(
@@ -1481,11 +1503,16 @@ async function rebuildKnowledgeForBookByUnits(
     where: { bookId: book.id },
     select: { sourceNote: true },
   })
-  const completedUnitNumbers = new Set<number>()
+  const completedUnitKeys = new Set<string>()
   for (const row of existingUnitNotes) {
-    const match = String(row.sourceNote || '').match(/الوحدة\s+(\d+)/u)
-    const unitNo = match ? Number(match[1]) : 0
-    if (Number.isFinite(unitNo) && unitNo > 0) completedUnitNumbers.add(unitNo)
+    const match = String(row.sourceNote || '').match(/\[unitKey:([a-f0-9]{64})\]/i)
+    if (match?.[1]) completedUnitKeys.add(match[1].toLowerCase())
+  }
+
+  const unitFingerprint = (unit: (typeof units)[number]) => {
+    const normalizedTitle = norm(String(unit.title || ''))
+    const normalizedText = norm(String(unit.text || ''))
+    return createHash('sha256').update(`${normalizedTitle}\n${normalizedText}`, 'utf8').digest('hex')
   }
 
   let inserted = 0
@@ -1497,7 +1524,8 @@ async function rebuildKnowledgeForBookByUnits(
   const seen = new Set<string>()
 
   for (const unit of units) {
-    if (completedUnitNumbers.has(unit.index + 1)) {
+    const unitKey = unitFingerprint(unit)
+    if (completedUnitKeys.has(unitKey)) {
       resumedUnits++
       continue
     }
@@ -1510,7 +1538,7 @@ async function rebuildKnowledgeForBookByUnits(
       uniqueItems.push({
         ...item,
         semester: item.semester ?? semester ?? null,
-        sourceNote: item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`,
+        sourceNote: `${item.sourceNote || `قراءة مباشرة من الوحدة ${unit.index + 1}: ${unit.title}`} [unitKey:${unitKey}]`,
       })
     }
     if (!uniqueItems.length) {

@@ -1,0 +1,45 @@
+name: Academic AI router tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  router-tests:
+    name: Academic AI router tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DATABASE_URL: ""
+      GEMINI_API_KEY: ""
+      GEMINI_API_KEYS: ""
+      OPENAI_API_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      ZAI_API_KEY: ""
+      GROQ_API_KEY: ""
+      OPENROUTER_API_KEY: ""
+      DEEPINFRA_API_KEY: ""
+      TOGETHER_API_KEY: ""
+      UNOROUTER_API_KEY: ""
+      RELAYROUTER_API_KEY: ""
+      TOPTOOLS_API_KEY: ""
+      OPENAI_COMPAT_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx prisma generate
+      - run: bunx tsx scripts/test-academic-ai-router.ts
+      - run: bunx tsx scripts/test-evidence-validator.ts
+      - run: bunx tsx scripts/test-question-bank-evidence.ts
+      - run: bunx tsx scripts/test-exam-source-chunks.ts
+      - run: bunx tsx scripts/test-comprehensive-exam-source-validation.ts
+      - run: bunx tsx scripts/test-comprehensive-exam-insufficient-source.ts
+      - run: bunx tsx scripts/test-question-verifier.ts
+      - run: bunx tsx scripts/test-text-provenance.ts
+      - run: bunx tsx scripts/test-text-ai-persistent-state.ts
+      - run: bunx tsx scripts/test-ai-task-pause.ts

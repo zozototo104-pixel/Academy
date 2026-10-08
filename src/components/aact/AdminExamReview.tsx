@@ -231,10 +231,11 @@ export function QuestionReviewDialog({
     if (!confirm('سيتم حذف كل الأسئلة الحالية وإعادة بناء الامتحان من الكتب المقررة وفق المنطق الجديد المتنوع. متابعة؟')) return
     setBusy(true)
     try {
-      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'rebuild' }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر إعادة بناء الامتحان')
       toast({
         title: 'بدأت إعادة بناء الامتحان من الكتب',
         description: `تم إنشاء ${d.questionCount || d.inserted || 0} سؤالاً أولياً، وسيكمل النظام الدفعات التالية من صفحة الكتب`,
@@ -253,10 +254,11 @@ export function QuestionReviewDialog({
     if (!confirm(`هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي. متابعة؟`)) return
     setBusy(true)
     try {
-      const d = await api<{ questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
+      const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'kick' }),
       })
+      if (d.ok === false) throw new Error(d.error || 'تعذر استكمال التوليد')
       toast({
         title: 'تم تحريك استكمال الامتحان',
         description: `أصبح العدد ${d.questionCount || questions.length} سؤالاً، وستكمل صفحة الكتب بقية الدفعات إذا بقيت مفتوحة`,
@@ -363,6 +365,7 @@ export function QuestionReviewDialog({
                       {q.cognitiveSkill && <Badge variant="outline" className="border-blue-200 text-[9px] text-blue-700">{SKILL_AR[q.cognitiveSkill] || q.cognitiveSkill}</Badge>}
                       {q.difficulty && <Badge variant="outline" className="border-purple-200 text-[9px] text-purple-700">{DIFFICULTY_AR[q.difficulty] || q.difficulty}</Badge>}
                       {q.sourceBookTitle && <Badge variant="outline" className="border-emerald-200 text-[9px] text-emerald-700">موثق بمصدر</Badge>}
+                      {q.qualityFlags?.includes('OCR_DERIVED_SOURCE') && <Badge variant="outline" className="border-orange-200 bg-orange-50 text-[9px] text-orange-700">مصدر OCR – يحتاج مراجعة</Badge>}
                       <Badge className={`text-[9px] ${q.status === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-600 hover:bg-red-100' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'}`}>
                         {q.status === 'PENDING_REVIEW' ? 'بانتظار المراجعة' : q.status === 'REJECTED' ? 'مرفوض' : 'معتمد'}
                       </Badge>

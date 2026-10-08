@@ -3,6 +3,10 @@ import { ACADEMY_INFO } from '@/lib/academyData'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 import { conciseAcademicLabel } from '@/lib/academic-output-quality'
+import { buildExamSourceChunks, selectExamSourceChunks, type ExamSourceChunk, type ExamSourceText } from '@/lib/exam-source-chunks'
+import { assertComprehensiveExamSourceSufficient, MAX_QUESTIONS_PER_SOURCE_CHUNK, minimumSourceChunksForComprehensiveExam, throwComprehensiveExamInsufficientSource, validateGeneratedExamQuestionsAgainstSelectedChunks, type ExamGenerationProviderContext } from '@/lib/comprehensive-exam-evidence'
+import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
+import type { TextProvenance } from '@/lib/text-provenance'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
 
@@ -41,9 +45,21 @@ export interface GeneratedQuestion {
   modelAnswer?: string
   points?: number
   bookEvidence?: string
+  sourceEvidence?: string
+  sourceIndex?: number | string
+  sourceBookId?: string
   sourceBookTitle?: string
   sourceChapter?: string
   sourceLocator?: string
+  sourceProvider?: string
+  sourceModel?: string
+  textProvenance?: TextProvenance
+  verifierProvider?: string
+  verifierModel?: string
+  verifiedAt?: string
+  verifierReason?: string
+  verificationPending?: boolean
+  verificationReason?: string
   cognitiveSkill?: CognitiveSkill
   difficulty?: QuestionDifficulty
   correctRationale?: string
@@ -681,22 +697,27 @@ async function completeJsonWithFallback(args: {
   maxOutputTokens?: number
   retries?: number
   timeoutMs?: number
+  taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+  validate?: (text: string, context?: { provider: string; model: string }) => void
 }): Promise<string> {
   const errors: string[] = []
   const timeoutMs = args.timeoutMs ?? 45000
 
-  if (await ensureGeminiKey().catch(() => false)) {
+  if (args.taskLevel === 'ACADEMIC_CRITICAL' || await ensureGeminiKey().catch(() => false)) {
     try {
       return await withTimeout(geminiCompleteJson({
         system: args.system,
         history: [{ role: 'user', text: args.prompt }],
         temperature: args.temperature ?? 0.25,
         maxOutputTokens: args.maxOutputTokens ?? 4096,
+        taskLevel: args.taskLevel,
+        validate: args.validate,
       }), timeoutMs, `${args.label}_Gemini`)
     } catch (e: any) {
       const msg = String(e?.message || e).slice(0, 220)
       errors.push(`Gemini: ${msg}`)
       console.error(`${args.label} Gemini failed:`, msg)
+      if (args.taskLevel === 'ACADEMIC_CRITICAL') throw e
     }
   } else {
     errors.push('Gemini: GEMINI_NOT_CONFIGURED')
@@ -704,7 +725,7 @@ async function completeJsonWithFallback(args: {
 
   try {
     const zai = await getZAI()
-    return await withTimeout(chatWithRetry(
+    const text = await withTimeout(chatWithRetry(
       zai,
       [
         { role: 'assistant', content: args.system },
@@ -712,6 +733,8 @@ async function completeJsonWithFallback(args: {
       ],
       args.retries ?? 3
     ), timeoutMs, `${args.label}_ZAI`)
+    args.validate?.(text, { provider: 'ZAI', model: 'z-ai-web-dev-sdk' })
+    return text
   } catch (e: any) {
     const msg = String(e?.message || e).slice(0, 220)
     errors.push(`ZAI: ${msg}`)
@@ -928,6 +951,7 @@ export async function suggestBooksForProgram(program: {
       temperature: 0.25,
       maxOutputTokens: 4096,
       retries: 3,
+      taskLevel: 'ACADEMIC_DRAFT',
     })
     const cleaned = extractJsonArray(raw)
       .map((item) => normalizeSuggestion(item, policy))
@@ -948,6 +972,7 @@ export async function suggestBooksForProgram(program: {
 }
 
 export interface ExamSourceBook {
+  id?: string | null
   title: string
   titleEn?: string | null
   author?: string | null
@@ -957,6 +982,7 @@ export interface ExamSourceBook {
   textContent?: string | null
   sourceNote?: string | null
   contentQuality?: string | null
+  linkReadStatus?: string | null
 }
 
 const EXAM_BOOK_MAX_CHARS = 180000
@@ -1443,7 +1469,7 @@ function normalizeDistractorRationales(value: unknown, q: GeneratedQuestion): Di
 
 function academicQualityFlags(q: GeneratedQuestion): string[] {
   return uniqueStrings([
-    q.bookEvidence ? 'SOURCE_GROUNDED' : '',
+    q.bookEvidence ? 'SOURCE_LINKED' : '',
     q.sourceBookTitle ? 'HAS_SOURCE_BOOK' : '',
     q.sourceLocator ? 'HAS_SOURCE_LOCATOR' : '',
     q.cognitiveSkill ? `SKILL_${q.cognitiveSkill}` : '',
@@ -1730,6 +1756,30 @@ function evidenceGroundedInBooks(evidence: string, books: ExamSourceBook[]): boo
   return evidenceSupportedByBooks(evidence, books)
 }
 
+function examSourceTextsFromBooks(books: ExamSourceBook[]): ExamSourceText[] {
+  return books.map((book, index) => ({
+    bookId: cleanText(book.id || '', 120) || `book-${index + 1}`,
+    bookTitle: cleanText(book.title, 220) || `كتاب ${index + 1}`,
+    text: sanitizeExamText(book.textContent || '', EXAM_BOOK_MAX_CHARS),
+    contentQuality: cleanText(book.contentQuality, 80),
+    sourceNote: book.sourceNote || null,
+    linkReadStatus: book.linkReadStatus || null,
+  }))
+}
+
+function buildSelectedExamSourceChunks(books: ExamSourceBook[]): ExamSourceChunk[] {
+  return selectExamSourceChunks(buildExamSourceChunks(examSourceTextsFromBooks(books), 1800), { maxChunks: 12, maxTotalChars: 18000 })
+}
+
+function formatSelectedExamSourceChunksForPrompt(chunks: readonly ExamSourceChunk[]): string {
+  return chunks.map((chunk) => [
+    `[${chunk.sourceIndex}] الكتاب: «${cleanText(chunk.bookTitle, 220)}»`,
+    'نص المصدر (اقتبس منه حرفياً):',
+    chunk.text,
+  ].join('\n')).join('\n\n---\n\n')
+}
+
+
 function enforceExamQuestionPlan(aiQuestions: GeneratedQuestion[], fallback: GeneratedQuestion[], spec: { kind: string; count: number }, books: ExamSourceBook[] = [], category = 'MASTERS', planOverride?: PlannedQuestionKind[]): GeneratedQuestion[] {
   const plan = planOverride && planOverride.length ? planOverride : batchQuestionPlan(spec.kind, spec.count, category)
   const usedTexts = new Set<string>()
@@ -1818,19 +1868,25 @@ export async function generateExamQuestionBatch(
   const level = LEVEL_AR[program.category] || 'الدراسات العليا'
   const policy = academicPolicyForCategory(program.category)
   const specialty = specialtyName(program)
-  const domain = detectProgramDomain(program)
-  const booksSection = buildBooksKnowledgeSection(books, domain, batchIndex)
-  const knowledgePrompt = sanitizeKnowledgeContextForExamPrompt(knowledgeContext)
-  // بنك المعرفة مرشد تنظيمي فقط. لا يدخل ضمن مصادر الدليل حتى لا تظهر عبارات مثل
-  // «بنك المعرفة الأكاديمي المنظم للبرنامج» أو ملاحظات تقنية داخل السؤال أو مرجع التصحيح.
+  void knowledgeContext
+  const selectedSourceChunks = buildSelectedExamSourceChunks(books)
+  // في الامتحان الشامل الحالي، المقاطع المختارة وحدها هي مصدر البرومبت والتحقق والحفظ.
   const evidenceBooks: ExamSourceBook[] = books
-  const contentConcepts = contentConceptsFromBooks(evidenceBooks, domain, 32).join('\n- ')
-  const booksWithStrongContent = books.filter((b) => sanitizeExamText(b.textContent || '').length >= 900).length
-  const totalBookChars = books.reduce((sum, b) => sum + sanitizeExamText(b.textContent || '').length, 0)
+  const booksWithStrongContent = new Set(selectedSourceChunks.map((chunk) => chunk.bookId)).size
+  const totalBookChars = selectedSourceChunks.reduce((sum, chunk) => sum + chunk.text.length, 0)
   const fullPlan = batchQuestionPlan(spec.kind, spec.count, program.category)
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
   const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
+  const minimumRequiredSourceChunks = minimumSourceChunksForComprehensiveExam(requestedPlan.length)
+  if (selectedSourceChunks.length < minimumRequiredSourceChunks) {
+    throwComprehensiveExamInsufficientSource({
+      availableChunks: selectedSourceChunks.length,
+      requestedQuestions: requestedPlan.length,
+      acceptedQuestions: 0,
+    })
+  }
+  const sourceChunksSection = formatSelectedExamSourceChunksForPrompt(selectedSourceChunks)
   const typeLabel = (t: PlannedQuestionKind) => t === 'CASE_MCQ' ? 'MCQ حالة عملية' : t
   const planCounts = requestedPlan.reduce<Record<string, number>>((acc, t) => {
     const label = typeLabel(t)
@@ -1867,14 +1923,9 @@ export async function generateExamQuestionBatch(
 منهج الإسقاط من الكتاب إلى التخصص:
 ${bridgeInstruction}
 
-ملخص المعرفة المستخرجة من الكتب المقررة، مع مقاطع موزعة من بداية/وسط/نهاية كل كتاب وأهم الجمل التي التقطها النظام:
+المقاطع المختارة الوحيدة المسموح استخدامها كمصدر للدليل في هذه الدفعة. كل sourceEvidence يجب أن يكون اقتباساً حرفياً من المقطع المشار إليه فقط، بعدد 40 حرفاً على الأقل، ولا يجوز استخدام أي ملخص أو Vision أو معرفة عامة كدليل:
 
-${booksSection}
-
-${knowledgePrompt ? `خريطة تنظيمية داخلية مستخلصة من القراءة. استخدمها فقط لترتيب المحاور، ولا تجعلها مصدراً أو عنوان كتاب أو مرجع تصحيح؛ الدليل المقبول يجب أن يأتي من مقاطع الكتب أعلاه فقط:\n${knowledgePrompt}\n` : ''}
-
-أهم محاور مستخرجة يجب تغطيتها قدر الإمكان في هذه الدفعة:
-- ${contentConcepts || `المفاهيم المركزية في ${specialty.ar}`}
+${sourceChunksSection}
 
 أسئلة سبق توليدها في نفس الامتحان ويُمنع تكرارها أو تكرار فكرتها أو خياراتها:
 ${previousSection}
@@ -1891,22 +1942,23 @@ ${plannedTypes}
 شروط صارمة:
 - مستوى الأسئلة: ${level} — لا تستخدم نفس قوة السؤال لكل الدرجات. الدبلوم يقيس الإتقان العملي، الماجستير يقيس التحليل والتطبيق المهني، والدكتوراه تقيس النقد والتقييم والمنهجية والبحث.
 - ${policy.examInstruction}
-- قبل صياغة الأسئلة، ابنِ داخلياً خريطة أبواب/فصول/محاور من ملخص الكتب أعلاه، ثم اختر لكل سؤال محوراً أو جزئية تعليمية مختلفة ومهمة.
+- قبل صياغة الأسئلة، ابنِ داخلياً خريطة أبواب/فصول/محاور من المقاطع المختارة أعلاه، ثم اختر لكل سؤال محوراً أو جزئية تعليمية مختلفة ومهمة.
 - نص السؤال النهائي يجب أن يبدو كسؤال امتحان حقيقي، لا كتعليق على مقطع. لا تبدأ بـ «وفق المقطع الآتي»، «يعرض الكتاب المقطع»، «بالاعتماد على الدليل النصي»، «يمكن تحويل المقطع»، «الحالة الثانية»، أو أي صيغة قالبية مشابهة.
 - كل سؤال يجب أن يقيس نقطة تعلم مركزية من الكتاب: مفهوم، نموذج، نظرية، قرار، علاقة سببية، خطأ تطبيقي، أو حالة تحليلية، ثم يربطها بسياق ${specialty.ar} عند الحاجة.
-- ضع الدليل الخام المختصر في bookEvidence فقط؛ أما text/options/modelAnswer فيجب أن تكون صياغة امتحانية احترافية مستقلة ومفهومة للطالب.
+- ضع الدليل الخام الحرفي في sourceEvidence فقط؛ أما text/options/modelAnswer فيجب أن تكون صياغة امتحانية احترافية مستقلة ومفهومة للطالب.
 - ممنوع أن يكون السؤال امتحاناً عاماً في ${specialty.ar}. إذا استطاع الطالب الإجابة دون قراءة الكتاب فالسؤال مرفوض.
 - إذا كان الكتاب رواية أو نصاً أدبياً: لا تسأل عن إدارة المشاريع مباشرة بشكل منفصل، بل صغ السؤال هكذا: «من خلال موقف/شخصية/حدث في الرواية، ما دلالته في التخطيط/المخاطر/أصحاب المصلحة/الاتصال/القيادة/التنفيذ؟».
 - وزّع الأسئلة على الكتب كلها قدر الإمكان، ولا تركز على أول كتاب فقط.
 - وزّع الأسئلة كذلك على الأبواب/الفصول/المحاور المرصودة داخل الكتاب، ولا تبنِ الامتحان كله من أول مقطع أو من ملاحظة قراءة تقنية.
 - اجعل الأسئلة كأنها خريطة فهم للكتاب: من يجيبها جيداً يكون فهم أهم ما في الكتاب، لا حفظ سطراً واحداً.
-- كل سؤال يجب أن يحتوي حقلاً bookEvidence فيه عبارة قصيرة من محتوى الكتاب أو إعادة صياغة دقيقة لحدث/فكرة منه.
+- كل سؤال يجب أن يحتوي sourceIndex مطابقاً لرقم المقطع [1]..[n]، وsourceEvidence اقتباساً حرفياً لا يقل عن 40 حرفاً من ذلك المقطع فقط؛ لا تقبل إعادة الصياغة هنا.
+- لا تستخدم نفس sourceIndex لأكثر من ${MAX_QUESTIONS_PER_SOURCE_CHUNK} أسئلة في هذه الدفعة الواحدة؛ وزّع الأسئلة بين المقاطع المختارة.
 - كل سؤال يجب أن يحتوي sourceBookTitle باسم الكتاب، وsourceChapter إذا ظهر فصل/باب/محور، وsourceLocator يصف مكان الدليل: مقطع/فقرة/فكرة/عنوان فرعي.
 - كل سؤال يجب أن يحتوي cognitiveSkill واحدة من: UNDERSTAND أو APPLY أو ANALYZE أو EVALUATE.
 - كل سؤال يجب أن يحتوي difficulty واحدة من: EASY أو MEDIUM أو ADVANCED.
 - كل سؤال يجب أن يحتوي correctRationale يشرح لماذا الإجابة صحيحة أو معيار قبول الإجابة النموذجية.
 - أسئلة MCQ وTF يجب أن تحتوي distractorRationales كمصفوفة لأسباب خطأ الخيارات الأخرى، بعناصر فيها optionIndex وoption وreason.
-- كل سؤال يجب أن يحتوي qualityFlags كمصفوفة قصيرة مثل SOURCE_GROUNDED وHAS_SOURCE_BOOK وHAS_CORRECT_RATIONALE.
+- كل سؤال يجب أن يحتوي qualityFlags كمصفوفة قصيرة تبدأ بـ SOURCE_LINKED وNEEDS_HUMAN_REVIEW، ولا تستخدم SOURCE_GROUNDED قبل تحقق المزود الثاني لاحقاً.
 - عند السؤال التطبيقي أو المقالي، اذكر حالة واقعية أو سيناريو مهني من مجال ${specialty.ar} مرتبطاً بالدليل النصي من الكتاب.
 - في modelAnswer اذكر عبارة قصيرة تبدأ بـ «مرجع التصحيح:» توضّح الفكرة أو الكتاب/المحور الذي يعتمد عليه السؤال.
 - لا تضع أسئلة عن إدارة أو قيادة عامة إلا إذا كانت واردة في محتوى الكتاب نفسه ومرتبطة صراحة بتخصص ${specialty.ar}.
@@ -1918,21 +1970,22 @@ ${plannedTypes}
 - ممنوع تكرار نفس خيارات MCQ بين سؤال وآخر. كل سؤال اختيار يجب أن تكون خياراته خاصة بفكرة السؤال والكتاب.
 - خيارات MCQ يجب أن تكون مشتتات علمية واقعية قريبة من المجال، لا عبارات عامة مكررة مثل تطبيق أداة واحدة أو الاعتماد على الانطباع.
 - وزّع الإجابات الصحيحة في أسئلة MCQ بين 0 و1 و2 و3 قدر الإمكان، ولا تجعل الخيار الصحيح دائماً الأول.
-- كل سؤال MCQ له options مصفوفة 4 نصوص و correct رقم الخيار الصحيح كنص "0"-"3".
-- كل سؤال TF له options ["صح","خطأ"] و correct "0" أو "1"، ويجب أن تكون عبارات الصح/الخطأ من محتوى الكتاب لا عموميات.
+- كل سؤال MCQ له options مصفوفة 4 نصوص و correctAnswer نص الخيار الصحيح نفسه، ويجب أن يكون مطابقاً لأحد عناصر options.
+- كل سؤال TF له options ["صح","خطأ"] و correctAnswer "صح" أو "خطأ"، ويجب أن تكون عبارات الصح/الخطأ من محتوى الكتاب لا عموميات.
 - كل سؤال SHORT/ESSAY له modelAnswer (الإجابة النموذجية للتصحيح الآلي) وفيها «مرجع التصحيح:».
 - points رقماً كما هو محدد في المواصفة: MCQ/TF = 2، SHORT = 5، ESSAY = 10.
 - مهم جداً: أرسل كل سؤال في سطر مستقل — كائن JSON واحد لكل سطر داخل مصفوفة، ولا تستخدم علامة تنصيص " داخل نص السؤال أو الخيارات أو الإجابة النموذجية (استخدم «» بدلاً منها)
 
 أجب بصيغة JSON فقط — مصفوفة من ${requestedPlan.length} أسئلة مختلطة حسب التسلسل أعلاه، أمثلة شكلية فقط:
 [
-{"type":"MCQ","text":"...","options":["خيار مستند إلى دليل الكتاب","مشتت قريب","مشتت قريب","مشتت قريب"],"correct":"2","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceChapter":"الفصل أو المحور إن وجد","sourceLocator":"مقطع أو فقرة أو فكرة محددة","cognitiveSkill":"APPLY","difficulty":"MEDIUM","correctRationale":"سبب صحة الخيار الصحيح مستنداً إلى الدليل","distractorRationales":[{"optionIndex":0,"option":"...","reason":"سبب الخطأ"},{"optionIndex":1,"option":"...","reason":"سبب الخطأ"},{"optionIndex":3,"option":"...","reason":"سبب الخطأ"}],"qualityFlags":["SOURCE_GROUNDED","HAS_SOURCE_BOOK","HAS_CORRECT_RATIONALE"],"points":2},
-{"type":"TF","text":"...","options":["صح","خطأ"],"correct":"0","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"UNDERSTAND","difficulty":"EASY","correctRationale":"سبب صحة الحكم","distractorRationales":[{"optionIndex":1,"option":"خطأ","reason":"سبب خطأ الحكم المعاكس"}],"qualityFlags":["SOURCE_GROUNDED"],"points":2},
-{"type":"SHORT","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"ANALYZE","difficulty":"MEDIUM","correctRationale":"معيار قبول الإجابة القصيرة","qualityFlags":["SOURCE_GROUNDED"],"points":5},
-{"type":"ESSAY","text":"...","modelAnswer":"مرجع التصحيح: ...","bookEvidence":"حدث/فكرة محددة من الكتاب نفسه","sourceBookTitle":"اسم الكتاب","sourceLocator":"موضع الدليل","cognitiveSkill":"EVALUATE","difficulty":"ADVANCED","correctRationale":"معيار قبول الإجابة المقالية","qualityFlags":["SOURCE_GROUNDED"],"points":10}
+{"type":"MCQ","text":"...","options":["خيار صحيح مقتبس المعنى من المصدر","مشتت قريب","مشتت قريب","مشتت قريب"],"correctAnswer":"خيار صحيح مقتبس المعنى من المصدر","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"MEDIUM","rationale":"سبب صحة الخيار الصحيح مستنداً إلى الدليل","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":2},
+{"type":"TF","text":"...","options":["صح","خطأ"],"correctAnswer":"صح","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"EASY","rationale":"سبب صحة الحكم","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":2},
+{"type":"SHORT","text":"...","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"MEDIUM","rationale":"معيار قبول الإجابة القصيرة","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":5},
+{"type":"ESSAY","text":"...","sourceIndex":1,"sourceEvidence":"اقتباس حرفي لا يقل عن أربعين حرفاً من نص المصدر المحدد فقط","modelAnswer":"مرجع التصحيح: ...","difficulty":"ADVANCED","rationale":"معيار قبول الإجابة المقالية","qualityFlags":["SOURCE_LINKED","NEEDS_HUMAN_REVIEW"],"points":10}
 ]`
 
   let raw = ''
+  let generationContext: ExamGenerationProviderContext = {}
   try {
     raw = await completeJsonWithFallback({
       label: `exam question batch ${batchIndex + 1}`,
@@ -1942,104 +1995,43 @@ ${plannedTypes}
       maxOutputTokens: 8192,
       retries: 1,
       timeoutMs: 32000,
+      taskLevel: 'ACADEMIC_CRITICAL',
+      validate: (text, context) => {
+        generationContext = context || {}
+        const accepted = validateGeneratedExamQuestionsAgainstSelectedChunks(text, selectedSourceChunks, spec.kind, generationContext)
+        assertComprehensiveExamSourceSufficient({
+          availableChunks: selectedSourceChunks.length,
+          requestedQuestions: requestedPlan.length,
+          acceptedQuestions: accepted.length,
+        })
+      },
     })
   } catch (e: any) {
+    if (e?.code === 'INSUFFICIENT_SOURCE') throw e
     const reason = String(e?.message || e).slice(0, 600)
-    console.error('generateExamQuestionBatch AI failed; using book-grounded professional fallback:', reason)
-    const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
-    const targetSpec = { ...spec, count: requestedPlan.length }
-    const balancedFallback = enforceExamQuestionPlan([], fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
-    if (!balancedFallback.length) {
-      throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من نص الكتاب: ${reason}`)
-    }
-    return balancedFallback.slice(0, requestedPlan.length)
+    console.error('generateExamQuestionBatch AI failed source-chunk validation:', reason)
+    throw new Error(`تعذر توليد أسئلة امتحانية مؤصلة من مقاطع المصدر المختارة: ${reason}`)
   }
 
-  let arr: any[] = []
-  try {
-    arr = extractJsonArray(raw)
-  } catch {
-    arr = parseLoose(raw)
-  }
-
-  const cleaned: GeneratedQuestion[] = []
-  for (const q of arr) {
-    const rawType = String(q.type || '').toUpperCase()
-    const type = rawType === 'CASE_MCQ' ? 'MCQ' : rawType
-    const text = stripExamKnowledgeMeta(q.text || '', 2000)
-    const bookEvidence = stripExamKnowledgeMeta(q.bookEvidence || q.evidence || q.sourceEvidence || q.referenceEvidence || '', 700)
-    const modelAnswerBase = stripExamKnowledgeMeta(q.modelAnswer || '', 3000)
-    if (!text || !bookEvidence || bookEvidence.length < 18 || hasForbiddenExamMetadata(text) || hasForbiddenExamMetadata(bookEvidence) || isBrokenAcademicExamText(text) || isBrokenAcademicExamText(bookEvidence) || (modelAnswerBase && isBrokenAcademicExamText(modelAnswerBase)) || mentionsUnsupportedExternalReference(`${text} ${modelAnswerBase}`, evidenceBooks) || !evidenceGroundedInBooks(bookEvidence, evidenceBooks)) continue
-    const modelAnswer = modelAnswerBase.includes('مرجع التصحيح')
-      ? modelAnswerBase
-      : `مرجع التصحيح: ${bookEvidence}${modelAnswerBase ? ` — ${modelAnswerBase}` : ''}`
-    if (type === 'MCQ') {
-      const options = Array.isArray(q.options) ? q.options.map((o: any) => stripExamKnowledgeMeta(o, 240)).filter((o: string) => o && !isBrokenAcademicExamText(o, true)).slice(0, 4) : null
-      const correctNum = Number(q.correct ?? '')
-      const distinctOptions = options ? new Set(options.map((o) => norm(o))).size : 0
-      if (!options || options.length !== 4 || distinctOptions < 4 || !Number.isInteger(correctNum) || correctNum < 0 || correctNum > 3) continue
-      cleaned.push(enrichQuestionMetadata({
-        type: 'MCQ',
-        text: text.slice(0, 2000),
-        options,
-        correct: String(correctNum),
-        modelAnswer,
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: 2,
-      }, evidenceBooks, spec.kind))
-    } else if (type === 'TF') {
-      const correctNum = Number(q.correct ?? '')
-      if (!Number.isInteger(correctNum) || correctNum < 0 || correctNum > 1) continue
-      cleaned.push(enrichQuestionMetadata({
-        type: 'TF',
-        text: text.slice(0, 2000),
-        options: ['صح', 'خطأ'],
-        correct: String(correctNum),
-        modelAnswer,
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        distractorRationales: Array.isArray(q.distractorRationales) ? q.distractorRationales : undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: 2,
-      }, evidenceBooks, spec.kind))
-    } else if (type === 'SHORT' || type === 'ESSAY') {
-      cleaned.push(enrichQuestionMetadata({
-        type,
-        text: text.slice(0, 2000),
-        modelAnswer: modelAnswer.slice(0, 3000),
-        bookEvidence,
-        sourceBookTitle: stripExamKnowledgeMeta(q.sourceBookTitle || q.sourceBook || q.bookTitle || '', 220) || undefined,
-        sourceChapter: stripExamKnowledgeMeta(q.sourceChapter || q.chapter || '', 160) || undefined,
-        sourceLocator: stripExamKnowledgeMeta(q.sourceLocator || q.locator || '', 320) || undefined,
-        cognitiveSkill: q.cognitiveSkill,
-        difficulty: q.difficulty,
-        correctRationale: stripExamKnowledgeMeta(q.correctRationale || q.rationale || '', 900) || undefined,
-        qualityFlags: Array.isArray(q.qualityFlags) ? q.qualityFlags.map((x: any) => cleanText(x, 90)).filter(Boolean) : undefined,
-        points: Number(q.points) || (type === 'ESSAY' ? 10 : 5),
-      }, evidenceBooks, spec.kind))
-    }
-  }
-
-  const fallback = fallbackExamQuestionBatch(program, evidenceBooks, batchIndex)
+  const validated = validateGeneratedExamQuestionsAgainstSelectedChunks(raw, selectedSourceChunks, spec.kind, generationContext)
+  assertComprehensiveExamSourceSufficient({
+    availableChunks: selectedSourceChunks.length,
+    requestedQuestions: requestedPlan.length,
+    acceptedQuestions: validated.length,
+  })
   const targetSpec = { ...spec, count: requestedPlan.length }
-  const balanced = enforceExamQuestionPlan(cleaned, fallback, targetSpec, evidenceBooks, program.category, requestedPlan)
-  if (!balanced.length) {
-    throw new Error('تعذر بناء أسئلة امتحانية مؤصلة من نص الكتاب بعد التحليل والتنظيف.')
-  }
-  return balanced.slice(0, requestedPlan.length)
+  const balanced = enforceExamQuestionPlan(validated, [], targetSpec, [], program.category, requestedPlan)
+  assertComprehensiveExamSourceSufficient({
+    availableChunks: selectedSourceChunks.length,
+    requestedQuestions: requestedPlan.length,
+    acceptedQuestions: balanced.length,
+  })
+  return verifyQuestionsWithCrossProvider({
+    questions: balanced.slice(0, requestedPlan.length),
+    sources: selectedSourceChunks.map((chunk) => ({ text: chunk.text, textProvenance: chunk.textProvenance })),
+    generatorProvider: generationContext.provider,
+    generatorModel: generationContext.model,
+  })
 }
 
 export const EXAM_BATCH_COUNT = BATCH_SPECS.length

@@ -11,6 +11,7 @@
     "check:deploy": "bun run quality && bun run build",
     "lint": "eslint . --max-warnings=54",
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
+    "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "db:push": "tsx scripts/prisma-deploy.ts --push",
     "db:force-push": "tsx scripts/prisma-deploy.ts --force-push",
     "db:deploy": "tsx scripts/prisma-deploy.ts --migrate",

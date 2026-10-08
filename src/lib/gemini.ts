@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
-import { hasExternalTextAi, textAiCompleteJson, textAiStreamText } from '@/lib/text-ai'
+import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiProvider, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
   role: 'user' | 'model'
@@ -14,6 +14,11 @@ interface GeminiCallOpts {
   thinkingBudget?: number
   thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
+  taskLevel?: TextAiTaskLevel
+  excludeProviders?: TextAiProvider[]
+  excludeModelFamilies?: string[]
+  deadlineMs?: number
+  validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
 const TEXT_MODELS = [
@@ -389,6 +394,10 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
+    for await (const chunk of textAiStreamText(opts)) yield chunk
+    return
+  }
   if (await hasExternalTextAi()) {
     try {
       for await (const chunk of textAiStreamText(opts)) yield chunk
@@ -436,12 +445,19 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 }
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
+  if (opts.taskLevel === 'ACADEMIC_CRITICAL') return textAiCompleteJson(opts)
   if (await hasExternalTextAi()) {
     try {
       return await textAiCompleteJson(opts)
     } catch (e) {
-      if (!hasGemini()) throw e
+      if (!hasGemini() || opts.excludeProviders?.includes('GEMINI')) throw e
     }
+  }
+
+  if (opts.excludeProviders?.includes('GEMINI')) {
+    const error: any = new Error('AI_VERIFIER_UNAVAILABLE')
+    error.code = 'AI_VERIFIER_UNAVAILABLE'
+    throw error
   }
 
   const ai = getGemini()
@@ -454,6 +470,7 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
         const response = await ai.models.generateContent({ model, contents, config: textConfig(opts, true, model) })
         const text = String((response as any).text || '').trim()
         if (!text) throw new Error('EMPTY_AI_RESPONSE')
+        opts.validate?.(text, { provider: 'GEMINI', model })
         activeTextModel = model
         lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
         return text

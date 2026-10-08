@@ -17,6 +17,9 @@ export type TextAiProvider =
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
+export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+export type TextAiProviderTier = 'FREE' | 'PAID'
+export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 
 export interface TextAiTurn {
   role: 'user' | 'model'
@@ -30,6 +33,17 @@ export interface TextAiCallOpts {
   maxOutputTokens?: number
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
+  taskLevel?: TextAiTaskLevel
+  excludeProviders?: TextAiProvider[]
+  excludeModelFamilies?: string[]
+  deadlineMs?: number
+  validate?: (text: string, context?: { provider: string; model: string }) => void
+}
+
+export interface TextAiCompletionResult {
+  text: string
+  provider: Exclude<TextAiProvider, 'AUTO'>
+  model: string
 }
 
 export interface TextAiAttemptDiagnostics {
@@ -80,7 +94,7 @@ export interface TextAiDiagnostics {
 }
 
 const OPENAI_TEXT_MODELS = ['gpt-5.1', 'gpt-5', 'gpt-5-mini']
-const ANTHROPIC_TEXT_MODELS = ['claude-opus-5', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022']
+const ANTHROPIC_TEXT_MODELS = ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022']
 const ZAI_TEXT_MODELS = ['glm-4.5', 'glm-4.5-air', 'glm-4.5-x', 'glm-4.5-airx']
 const GEMINI_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
 const GROQ_TEXT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
@@ -109,7 +123,6 @@ const UNOROUTER_TEXT_MODELS = [
   'minimax-m2.5:free',
   'deepseek/deepseek-v3.2:free',
   'deepseek/deepseek-chat:free',
-  'dall-e-3:free',
   'gpt-3.5-turbo:free',
   'gpt-4-turbo:free',
   'agnes-2.0-flash:free',
@@ -124,11 +137,81 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 
-const cooldowns = new Map<string, { until: number; reason: string }>()
+const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
 const freeModelsCache = new Map<string, { at: number; models: string[] }>()
+
+type TextAiSettingStore = {
+  read(keys: string[]): Promise<Record<string, string>>
+  write(key: string, value: string): Promise<void>
+  delete?(key: string): Promise<void>
+  increment?(key: string, amount: number): Promise<number>
+  scan?(prefix: string): Promise<Record<string, string>>
+}
+
+let injectedStore: TextAiSettingStore | null = null
+let persistentCooldownCache: { at: number; values: Record<string, string> } | null = null
+
+function hasDatabaseUrl(): boolean {
+  return !!String(process.env.DATABASE_URL || '').trim()
+}
+
+function defaultSettingStore(): TextAiSettingStore {
+  return {
+    async read(keys) {
+      if (!hasDatabaseUrl()) return Object.fromEntries(keys.map((k) => [k, '']))
+      const rows = await db.setting.findMany({ where: { key: { in: keys } } })
+      const out: Record<string, string> = Object.fromEntries(keys.map((k) => [k, '']))
+      for (const row of rows) out[row.key] = String(row.value || '')
+      return out
+    },
+    async write(key, value) {
+      if (!hasDatabaseUrl()) return
+      await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } })
+    },
+    async delete(key) {
+      if (!hasDatabaseUrl()) return
+      await db.setting.delete({ where: { key } }).catch(() => {})
+    },
+    async increment(key, amount) {
+      if (!hasDatabaseUrl()) throw new Error('AI_SETTING_STORE_UNAVAILABLE')
+      await db.$executeRaw`
+        INSERT INTO "Setting" ("key", "value", "updatedAt")
+        VALUES (${key}, ${String(amount)}, NOW())
+        ON CONFLICT ("key") DO UPDATE
+        SET "value" = ((COALESCE(NULLIF("Setting"."value", ''), '0'))::numeric + ${amount})::text,
+            "updatedAt" = NOW()
+      `
+      const row = await db.setting.findUnique({ where: { key } })
+      return Number(row?.value || 0) || 0
+    },
+    async scan(prefix) {
+      if (!hasDatabaseUrl()) return {}
+      const rows = await db.setting.findMany({ where: { key: { startsWith: prefix } }, take: 300 })
+      return Object.fromEntries(rows.map((row) => [row.key, String(row.value || '')]))
+    },
+  }
+}
+
+function settingStore(): TextAiSettingStore {
+  return injectedStore || defaultSettingStore()
+}
+
+export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null) {
+  injectedStore = store
+  persistentCooldownCache = null
+}
+
+export function __resetTextAiStateForTests() {
+  cooldowns.clear()
+  roundRobin = 0
+  lastResult = null
+  recentAttempts = []
+  freeModelsCache.clear()
+  persistentCooldownCache = null
+}
 
 function env(name: string): string {
   try {
@@ -164,6 +247,22 @@ function normalizeModel(value: unknown, defaults: string[]): string {
   return /^[a-z0-9][a-z0-9_./:-]{1,160}$/i.test(v) ? v : defaults[0]
 }
 
+const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
+
+function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+  const out: Array<{ provider: ConcreteProvider; model: string }> = []
+  for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
+    const item = raw.trim()
+    const separator = item.indexOf(':')
+    if (separator <= 0) continue
+    const provider = normalizeProvider(item.slice(0, separator))
+    const model = clean(item.slice(separator + 1))
+    if (provider === 'AUTO' || !validModelName(model) || /(^|[\/:.-])auto($|[\/:.-])/i.test(model) || model.endsWith(':free')) continue
+    out.push({ provider: provider as ConcreteProvider, model })
+  }
+  return out
+}
+
 function parseKeys(...values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -184,6 +283,56 @@ function keyHash(key: string): string {
 
 function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
+}
+
+function persistentCooldownKey(provider: string, keyIndex: number, model?: string): string {
+  return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
+}
+
+function parseCooldown(value: unknown): { until: number; reason: string; status?: number } | null {
+  try {
+    const parsed = JSON.parse(String(value || '{}'))
+    const until = Date.parse(String(parsed.until || '')) || Number(parsed.until || 0)
+    if (!Number.isFinite(until) || until <= Date.now()) return null
+    return { until, reason: String(parsed.reason || 'cooldown').slice(0, 180), status: Number(parsed.status || 0) || undefined }
+  } catch {
+    return null
+  }
+}
+
+async function loadPersistentCooldowns(): Promise<Record<string, string>> {
+  if (persistentCooldownCache && Date.now() - persistentCooldownCache.at < 30_000) return persistentCooldownCache.values
+  try {
+    const values = await settingStore().scan?.('AI_COOLDOWN:') || {}
+    persistentCooldownCache = { at: Date.now(), values }
+    for (const [key, value] of Object.entries(values)) {
+      if (!parseCooldown(value)) settingStore().delete?.(key).catch(() => {})
+    }
+    return values
+  } catch {
+    return {}
+  }
+}
+
+function persistentCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+}
+
+function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
+  return !!persistentCooldown(values, provider, keyIndex, model)
+}
+
+async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
+  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const ttl = Math.max(1, Math.floor(minutes || fallback))
+  const until = Date.now() + ttl * 60 * 1000
+  const payload = JSON.stringify({ until: new Date(until).toISOString(), reason: reason.slice(0, 180), status: status || null })
+  try {
+    await settingStore().write(persistentCooldownKey(provider, keyIndex, model), payload)
+    persistentCooldownCache = null
+  } catch {
+    // Persistent cooldown storage is best-effort; keep in-memory routing behavior if DB/storage fails.
+  }
 }
 
 function isCooling(provider: string, key: string): boolean {
@@ -214,14 +363,29 @@ function aiDiscoveryTimeoutMs(): number {
   return 5000
 }
 
-async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs()): Promise<Response> {
+function deadlineExceeded(): Error {
+  const err: any = new Error('AI_DEADLINE_EXCEEDED')
+  err.code = 'AI_DEADLINE_EXCEEDED'
+  err.status = 504
+  return err
+}
+
+function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTimeoutMs()): number {
+  if (!Number.isFinite(deadlineMs || NaN)) return defaultTimeoutMs
+  const remaining = Math.floor(Number(deadlineMs) - Date.now())
+  if (remaining <= 0) throw deadlineExceeded()
+  return Math.max(1, Math.min(defaultTimeoutMs, remaining))
+}
+
+async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
+  const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e: any) {
     if (e?.name === 'AbortError') {
-      const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${timeoutMs}ms`)
+      const err: any = new Error(`${provider}_PROVIDER_TIMEOUT_${effectiveTimeoutMs}ms`)
       err.status = 504
       err.code = 'AI_PROVIDER_TIMEOUT'
       throw err
@@ -252,10 +416,9 @@ function isAuthLike(e: any): boolean {
 
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
   try {
-    const rows = await db.setting.findMany({ where: { key: { in: keys } } })
+    const values = await settingStore().read(keys)
     const out: Record<string, string> = {}
-    for (const key of keys) out[key] = ''
-    for (const row of rows) out[row.key] = String(row.value || '').trim()
+    for (const key of keys) out[key] = String(values[key] || '').trim()
     return out
   } catch {
     return Object.fromEntries(keys.map((k) => [k, '']))
@@ -264,7 +427,8 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS',
+    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST',
+    'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
     'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
@@ -284,6 +448,12 @@ async function settings() {
     provider,
     policy,
     allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
+    academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
+    paidUsageMode: (['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase()) ? String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase() : 'off') as TextAiPaidUsageMode,
+    paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
+    paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
+    paidMonthlyLimitUsd: Math.max(0, Number(rows.AI_PAID_MONTHLY_LIMIT_USD || env('AI_PAID_MONTHLY_LIMIT_USD') || 0) || 0),
+    openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
     // الأولوية: Vercel Environment Variables أولاً، ثم إعدادات المنصة كخيار احتياطي.
     geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
     geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
@@ -498,7 +668,25 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   return models
 }
 
-async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<string[]> {
+function academicModelAllowed(provider: ConcreteProvider, model: string): boolean {
+  const id = model.toLowerCase()
+  if (!id || /(^|\/|-)auto$/i.test(id) || id === 'auto') return false
+  if (/dall-e|image|embedding|rerank|whisper|tts|stt|audio|moderation/.test(id)) return false
+  if (/\b(?:7b|8b|9b|11b|13b|14b|20b|22b|24b|27b)\b/i.test(id)) return false
+  if (/gpt-3\.5/.test(id)) return false
+  if (provider === 'TOPTOOLS' && topToolsModelRank(model) > 2) return false
+  return true
+}
+
+function academicModelRank(model: string): number {
+  const id = model.toLowerCase()
+  if (/gemini-(?:3\.8|3\.5)-flash/.test(id)) return 1
+  if (/gpt-oss-120b|deepseek.*v3\.2|glm-5|llama-4-maverick|nemotron.*120b/.test(id)) return 2
+  if (/claude-(?:opus|sonnet)|gpt-[45]|gemini-2\.5|qwen.*(?:32b|70b|72b)|llama.*70b|mistral.*large/.test(id)) return 3
+  return 9
+}
+
+async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL'): Promise<string[]> {
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
@@ -516,7 +704,10 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider): Promise<
   const discoveredFree = await liveFreeModels(provider, s)
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
-  return [...new Set([...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
+  const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
+  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredFree, ...staticDefaults].filter(Boolean))]
+  if (taskLevel === 'GENERAL') return models
+  return models.filter((model) => academicModelAllowed(provider, model)).sort((a, b) => academicModelRank(a) - academicModelRank(b))
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
@@ -550,7 +741,12 @@ function baseOrder(s: Settings): ConcreteProvider[] {
   return primary
 }
 
-function providerOrder(s: Settings): ConcreteProvider[] {
+function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
+  if (taskLevel !== 'GENERAL') {
+    const preferred = [...new Set(s.academicAllowlist.map((item) => item.provider))]
+    const rest = baseOrder(s).filter((provider) => !preferred.includes(provider))
+    return [...preferred, ...rest].filter((provider) => providerKeys(s, provider).length > 0)
+  }
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
   const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
   return baseOrder(s).filter((provider) => {
@@ -739,7 +935,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
         responseMimeType: opts.json ? 'application/json' : undefined,
       },
     }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Gemini', response.status, data)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
@@ -762,7 +958,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: toChatMessages(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)
   const text = extractOpenAiText(data)
@@ -776,7 +972,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Anthropic', response.status, data)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
@@ -799,7 +995,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  })
+  }, aiProviderTimeoutMs(), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
@@ -820,25 +1016,170 @@ function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
   return available.length ? available : keys
 }
 
+function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const activeCooldowns = [...cooldowns.values()].filter((item) => item.until > Date.now())
+  const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+  err.code = 'AI_ACADEMIC_PROVIDER_UNAVAILABLE'
+  err.retryAt = activeCooldowns.length ? new Date(Math.min(...activeCooldowns.map((item) => item.until))).toISOString() : null
+  err.attempts = attempts
+  return err
+}
+
+function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const err: any = new Error('AI_VERIFIER_UNAVAILABLE')
+  err.code = 'AI_VERIFIER_UNAVAILABLE'
+  err.attempts = attempts
+  return err
+}
+
+function verifierSameFamilyUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
+  const err: any = new Error('AI_VERIFIER_SAME_FAMILY')
+  err.code = 'AI_VERIFIER_SAME_FAMILY'
+  err.attempts = attempts
+  return err
+}
+
+export function modelFamily(model: string): string {
+  const raw = String(model || '').trim().toLowerCase()
+  const normalized = raw
+    .replace(/^models\//, '')
+    .replace(/^google\//, '')
+    .replace(/^anthropic\//, '')
+    .replace(/^openai\//, '')
+    .replace(/^meta-llama\//, '')
+    .replace(/^qwen\//, '')
+    .replace(/^deepseek\//, '')
+    .replace(/^mistralai\//, '')
+    .replace(/^moonshotai\//, '')
+    .replace(/^cohere\//, '')
+  if (/gemini|gemma/.test(normalized)) return 'gemini'
+  if (/gpt[-_]?oss|\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/claude/.test(normalized)) return 'claude'
+  if (/llama|codellama/.test(normalized)) return 'llama'
+  if (/qwen/.test(normalized)) return 'qwen'
+  if (/deepseek/.test(normalized)) return 'deepseek'
+  if (/mistral|mixtral/.test(normalized)) return 'mistral'
+  if (/glm/.test(normalized)) return 'glm'
+  if (/nemotron/.test(normalized)) return 'nemotron'
+  if (/minimax/.test(normalized)) return 'minimax'
+  if (/kimi|moonshot/.test(normalized)) return 'kimi'
+  if (/grok/.test(normalized)) return 'grok'
+  if (/phi(?:[-_\d]|$)/.test(normalized)) return 'phi'
+  if (/command|cohere/.test(normalized)) return 'cohere'
+  if (/\byi(?:[-_\d]|$)/.test(normalized)) return 'yi'
+  if (/ernie/.test(normalized)) return 'ernie'
+  if (/hunyuan/.test(normalized)) return 'hunyuan'
+  if (/\bling(?:[-_\d.]|$)/.test(normalized)) return 'ling'
+  return 'unknown'
+}
+
+function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
+  return new Set((excludeProviders || []).filter((provider): provider is ConcreteProvider => provider !== 'AUTO'))
+}
+
+function excludedModelFamilies(excludeModelFamilies?: readonly string[]): Set<string> {
+  return new Set((excludeModelFamilies || []).map(modelFamily).filter(Boolean))
+}
+
+function modelFamilyAllowed(model: string, excludedFamilies: Set<string>): boolean {
+  return !excludedFamilies.has(modelFamily(model))
+}
+
+function isVerifierCall(opts: TextAiCallOpts): boolean {
+  return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
+}
+
+function utcDateKey(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function utcMonthKey(): string {
+  return new Date().toISOString().slice(0, 7)
+}
+
+function estimatedPaidCostUsd(opts: TextAiCallOpts): number {
+  const configured = Number(env('AI_PAID_DEFAULT_CALL_COST_USD'))
+  if (Number.isFinite(configured) && configured > 0) return configured
+  const approxInput = opts.history.reduce((sum, item) => sum + String(item.text || '').length, 0) / 4
+  const approxOutput = Number(opts.maxOutputTokens || (opts.json ? 4096 : 2048))
+  return Math.max(0.002, ((approxInput + approxOutput) / 1000) * 0.01)
+}
+
+async function paidBudgetAvailable(s: Settings, estimatedCost: number): Promise<boolean> {
+  if (s.paidUsageMode === 'off') return false
+  if (s.openaiCompatTier !== 'PAID') return true
+  const dayKey = `AI_PAID_SPEND:DAY:${utcDateKey()}`
+  const monthKey = `AI_PAID_SPEND:MONTH:${utcMonthKey()}`
+  try {
+    const values = await settingStore().read([dayKey, monthKey])
+    const day = Number(values[dayKey] || 0) || 0
+    const month = Number(values[monthKey] || 0) || 0
+    if (s.paidDailyLimitUsd > 0 && day + estimatedCost > s.paidDailyLimitUsd) return false
+    if (s.paidMonthlyLimitUsd > 0 && month + estimatedCost > s.paidMonthlyLimitUsd) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function recordPaidSpend(s: Settings, estimatedCost: number): Promise<void> {
+  if (s.openaiCompatTier !== 'PAID' || estimatedCost <= 0) return
+  try {
+    await settingStore().increment?.(`AI_PAID_SPEND:DAY:${utcDateKey()}`, estimatedCost)
+    await settingStore().increment?.(`AI_PAID_SPEND:MONTH:${utcMonthKey()}`, estimatedCost)
+  } catch {
+    // Paid spend accounting is best-effort and must not fail a successful AI response.
+  }
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
-  const providers = providerOrder(s)
-  if (!providers.length) throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+  const taskLevel = opts.taskLevel || 'GENERAL'
+  const excluded = excludedConcreteProviders(opts.excludeProviders)
+  const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
+  const providers = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  if (!providers.length) {
+    if (isVerifierCall(opts)) throw verifierUnavailable([])
+    if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
+    throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+  }
   const errors: string[] = []
+  const attempts: TextAiAttemptDiagnostics[] = []
+  const persistentCooldowns = await loadPersistentCooldowns()
+  const estimatedPaidCost = estimatedPaidCostUsd(opts)
+  let paidAvailable: boolean | null = null
+  let skippedCooldownUntil: number | null = null
+  let onlySameFamilyModelsExcluded = false
 
   for (const provider of providers) {
-    for (const model of await modelFallbacks(s, provider)) {
+    if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
+      if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
+      if (!paidAvailable) continue
+    }
+    const candidateModels = await modelFallbacks(s, provider, taskLevel)
+    const models = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
+    for (const model of models) {
       for (const key of candidateKeys(provider, s)) {
-        if (isCooling(provider, key)) continue
-        const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
+        const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        if (isCooling(provider, key) || persistedCooldown) {
+          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+          continue
+        }
+        if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
+        const started = Date.now()
         try {
           const text = await callProvider(provider, s, key, model, opts)
+          opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
           lastResult = { provider, model, ok: true, at }
-          recordAttempt({ provider, model, keyIndex, ok: true, ms, at })
+          const attempt = { provider, model, keyIndex, ok: true, ms, at }
+          attempts.push(attempt)
+          recordAttempt(attempt)
+          if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') await recordPaidSpend(s, estimatedPaidCost)
           return text
         } catch (e: any) {
           const at = new Date().toISOString()
@@ -846,17 +1187,53 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const msg = String(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
+          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
+          attempts.push(attempt)
+          recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
-          if (isQuotaLike(e)) markCooldown(provider, key, msg)
-          if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+          if (isTimeoutLike(e)) {
+            markCooldown(provider, key, msg, 2)
+            if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+          }
+          if (isQuotaLike(e)) {
+            markCooldown(provider, key, msg)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status)
+          }
+          if (isAuthLike(e)) {
+            markCooldown(provider, key, msg, 60)
+            await markPersistentCooldown(provider, keyIndex, model, msg, status, 60)
+          }
         }
       }
     }
   }
 
+  if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
+  if (isVerifierCall(opts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
+  if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
+  if (taskLevel === 'ACADEMIC_CRITICAL') {
+    const err: any = academicProviderUnavailable(attempts)
+    if (skippedCooldownUntil) err.retryAt = new Date(skippedCooldownUntil).toISOString()
+    throw err
+  }
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
+}
+
+export async function textAiCompleteWithMetadata(opts: TextAiCallOpts): Promise<TextAiCompletionResult> {
+  let context: { provider?: string; model?: string } = {}
+  const text = await textAiComplete({
+    ...opts,
+    validate: (output, providerContext) => {
+      opts.validate?.(output, providerContext)
+      context = providerContext || {}
+    },
+  })
+  if (!context.provider || !context.model) throw new Error('TEXT_AI_ROUTER_MISSING_PROVIDER_METADATA')
+  return { text, provider: context.provider as ConcreteProvider, model: context.model }
+}
+
+export async function textAiCompleteJsonWithMetadata(opts: Omit<TextAiCallOpts, 'json'>): Promise<TextAiCompletionResult> {
+  return textAiCompleteWithMetadata({ ...opts, json: true })
 }
 
 export async function textAiCompleteJson(opts: Omit<TextAiCallOpts, 'json'>): Promise<string> {

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/notify'
-import { fallbackExamQuestionBatch, generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS, type ExamSourceBook, type GeneratedQuestion } from '@/lib/books-ai'
+import { generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS, type ExamSourceBook, type GeneratedQuestion } from '@/lib/books-ai'
 import { hydrateBookContentForExam, type HydratedExamBook } from '@/lib/book-content'
 import { buildKnowledgeContextForExam, cleanAcademicGeneratedText } from '@/lib/knowledge-bank'
+import { formatComprehensiveExamInsufficientSourceMessage } from '@/lib/comprehensive-exam-evidence'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -46,6 +48,41 @@ function prioritizeUnfilledCandidates<T>(questions: T[], offset: number): T[] {
 }
 
 const MANUAL_CONTINUE_STEPS = 3
+
+type GenerationStepResult = {
+  ok: boolean
+  status: string
+  inserted: number
+  questionCount: number
+  totalPoints: number
+  done: boolean
+  batchIndex?: number
+  error?: string
+  code?: string
+  availableChunks?: number
+  requestedQuestions?: number
+  acceptedQuestions?: number
+}
+
+function insufficientSourcePayload(error: any) {
+  if (error?.code !== 'INSUFFICIENT_SOURCE') return null
+  const availableChunks = Number(error.availableChunks || 0)
+  const requestedQuestions = Number(error.requestedQuestions || 0)
+  const acceptedQuestions = Number(error.acceptedQuestions || 0)
+  const message = formatComprehensiveExamInsufficientSourceMessage({ availableChunks, requestedQuestions, acceptedQuestions })
+  return { code: 'INSUFFICIENT_SOURCE', error: message, availableChunks, requestedQuestions, acceptedQuestions }
+}
+
+function generationFailureDetails(step: GenerationStepResult) {
+  if (!step.error && !step.code) return {}
+  return {
+    error: step.error,
+    code: step.code,
+    availableChunks: step.availableChunks,
+    requestedQuestions: step.requestedQuestions,
+    acceptedQuestions: step.acceptedQuestions,
+  }
+}
 
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
@@ -134,6 +171,25 @@ function stringifyJsonField(value: unknown): string | null {
   }
 }
 
+function questionReviewNotes(q: GeneratedQuestion): string | null {
+  const provider = q.sourceProvider || null
+  const model = q.sourceModel || null
+  const bookId = q.sourceBookId || null
+  const sourceIndex = q.sourceIndex ?? null
+  const verifierProvider = q.verifierProvider || null
+  const verifierModel = q.verifierModel || null
+  const verifiedAt = q.verifiedAt || null
+  const verifierReason = q.verifierReason || null
+  const verificationPending = q.verificationPending || false
+  const verificationReason = q.verificationReason || null
+  if (!provider && !model && !bookId && sourceIndex == null && !verifierProvider && !verificationPending) return null
+  return stringifyJsonField({
+    aiProvenance: { provider, model },
+    source: { bookId, sourceIndex, textProvenance: q.textProvenance || null },
+    verifier: { provider: verifierProvider, model: verifierModel, verifiedAt, reason: verifierReason, pending: verificationPending, pendingReason: verificationReason },
+  })
+}
+
 function createProgramQuestionData(examId: string, order: number, q: GeneratedQuestion) {
   return {
     examId,
@@ -142,8 +198,8 @@ function createProgramQuestionData(examId: string, order: number, q: GeneratedQu
     text: q.text,
     options: q.options ? JSON.stringify(q.options) : null,
     correctAnswer: q.correct ?? null,
-    modelAnswer: q.modelAnswer ?? (q.bookEvidence ? `مرجع التصحيح: ${q.bookEvidence}` : null),
-    sourceEvidence: q.bookEvidence || null,
+    modelAnswer: q.modelAnswer ?? (q.sourceEvidence || q.bookEvidence ? `مرجع التصحيح: ${q.sourceEvidence || q.bookEvidence}` : null),
+    sourceEvidence: q.sourceEvidence || q.bookEvidence || null,
     sourceBookTitle: q.sourceBookTitle || null,
     sourceChapter: q.sourceChapter || null,
     sourceLocator: q.sourceLocator || null,
@@ -152,6 +208,7 @@ function createProgramQuestionData(examId: string, order: number, q: GeneratedQu
     correctRationale: q.correctRationale || null,
     distractorRationales: stringifyJsonField(q.distractorRationales),
     qualityFlags: stringifyJsonField(q.qualityFlags),
+    reviewNotes: questionReviewNotes(q),
     points: q.points || 2,
     status: 'PENDING_REVIEW',
   }
@@ -414,7 +471,7 @@ async function exposeExamForReview(examId: string, note?: string) {
   return { ok: status === 'REVIEW', status, inserted: 0, done: status === 'REVIEW', ...totals }
 }
 
-async function runGenerationStep(examId: string): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+async function runGenerationStep(examId: string): Promise<GenerationStepResult> {
   try {
     const exam = await db.programExam.findUnique({
       where: { id: examId },
@@ -546,16 +603,10 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
         batch = [...batch, ...filtered].slice(0, window.needed)
       } catch (err: any) {
         generationNotes.push(`AI:${seedBatchIndex + 1}:${String(err?.message || err).slice(0, 120)}`)
+        throw err
       }
 
       if (batch.length >= window.needed) break
-
-      // إذا فشل الذكاء الاصطناعي أو أعاد أسئلة مكررة، ننتقل إلى محور/دفعة تالية ونبني أسئلة مهنية من نص الكتاب نفسه.
-      // لا نوقف الامتحان عند نقطة واحدة؛ المهم حفظ أسئلة صالحة ومراجعتها قبل النشر.
-      const fallbackCandidates = fallbackExamQuestionBatch(exam.program, examSourceBooks, seedBatchIndex)
-      let fallback = filterNewQuestions(fallbackCandidates, existingKeys, existingOptions, existingOptionWords)
-      if (!fallback.length && fallbackCandidates.length) fallback = filterNewQuestions(fallbackCandidates, existingKeys)
-      batch = [...batch, ...fallback].slice(0, window.needed)
     }
 
     if (batch.length === 0) {
@@ -607,28 +658,52 @@ async function runGenerationStep(examId: string): Promise<{ ok: boolean; status:
 
     return { ok: true, status: done ? 'REVIEW' : 'GENERATING', inserted: batch.length, done, batchIndex, ...totals }
   } catch (e: any) {
-    const message = String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
+    const insufficient = insufficientSourcePayload(e)
+    const message = String(insufficient?.error || e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
-    if (totals.questionCount >= totalRequiredQuestions()) {
+    if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
       const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
     }
+    await setAiTaskPause('PROGRAM_EXAM', examId, {
+      code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+      reason: message,
+      retryAt: e?.retryAt || null,
+    }).catch(() => null)
     await db.programExam.update({
       where: { id: examId },
       data: {
-        status: 'FAILED',
-        errorNote: `توقف التوليد بعد حفظ ${totals.questionCount} سؤالاً من أصل ${totalRequiredQuestions()}: ${message} — اضغط استكمال/تحريك ليكمل من حيث توقف دون تكرار`,
+        status: 'PAUSED',
+        errorNote: JSON.stringify({
+          code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+          reason: message,
+          retryAt: e?.retryAt || null,
+          savedQuestions: totals.questionCount,
+          ...(insufficient ? {
+            availableChunks: insufficient.availableChunks,
+            requestedQuestions: insufficient.requestedQuestions,
+            acceptedQuestions: insufficient.acceptedQuestions,
+          } : {}),
+        }),
         totalPoints: totals.totalPoints,
       },
     }).catch(() => {})
-    return { ok: false, status: 'FAILED', inserted: 0, done: false, error: message, ...totals }
+    return {
+      ok: false,
+      status: 'PAUSED',
+      inserted: 0,
+      done: false,
+      error: message,
+      ...(insufficient || {}),
+      ...totals,
+    }
   }
 }
 
 async function runGenerationSteps(
   examId: string,
   maxSteps = 1
-): Promise<{ ok: boolean; status: string; inserted: number; questionCount: number; totalPoints: number; done: boolean; batchIndex?: number; error?: string }> {
+): Promise<GenerationStepResult> {
   let totalInserted = 0
   let last: Awaited<ReturnType<typeof runGenerationStep>> | null = null
   for (let i = 0; i < maxSteps; i++) {
@@ -640,14 +715,16 @@ async function runGenerationSteps(
   return { ...last, inserted: totalInserted }
 }
 
-async function ensureStarterQuestions(examId: string): Promise<{ inserted: number; questionCount: number }> {
+async function ensureStarterQuestions(examId: string): Promise<GenerationStepResult> {
   const existingCount = await db.programQuestion.count({ where: { examId } })
-  if (existingCount > 0) return { inserted: 0, questionCount: existingCount }
+  if (existingCount > 0) {
+    const totals = await examTotals(examId)
+    return { ok: true, status: 'GENERATING', inserted: 0, done: false, ...totals }
+  }
 
   // لا نضع أسئلة احتياطية قبل قراءة الكتاب. الدفعة الأولى نفسها تُبنى عبر runGenerationStep
-  // من محتوى الملف/الرابط، وإذا تعطل مزود الذكاء فقط نستخدم fallback مرتبطاً بالمحتوى.
-  const step = await runGenerationSteps(examId, 1)
-  return { inserted: step.inserted, questionCount: step.questionCount }
+  // من محتوى الملف/الرابط، وإذا نقص المصدر نعيد INSUFFICIENT_SOURCE بدلاً من أي أسئلة عامة.
+  return runGenerationSteps(examId, 1)
 }
 
 // ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
@@ -725,10 +802,16 @@ async function runGeneration(examId: string) {
       let batch: GeneratedQuestion[] = []
       try {
         batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
-      } catch (err) {
-        console.warn('exam background AI batch failed; using fallback and continuing:', i + 1, String((err as any)?.message || err).slice(0, 180))
+      } catch (err: any) {
+        const retryAt = err?.retryAt || null
+        const reason = String(err?.message || err).slice(0, 500)
+        await setAiTaskPause('PROGRAM_EXAM', examId, { code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }).catch(() => null)
+        await db.programExam.update({
+          where: { id: examId },
+          data: { status: 'PAUSED', errorNote: JSON.stringify({ code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }) },
+        }).catch(() => {})
+        return
       }
-      if (batch.length === 0) batch = fallbackExamQuestionBatch(exam.program, examSourceBooks, i)
       if (batch.length === 0) {
         await db.programExam.update({
           where: { id: examId },
@@ -853,6 +936,7 @@ export async function POST(req: NextRequest) {
           inserted: step.inserted,
           status: step.status,
           done: step.done,
+          ...generationFailureDetails(step),
           requiredQuestions: totalRequiredQuestions(),
         })
       }
@@ -895,6 +979,7 @@ export async function POST(req: NextRequest) {
         inserted: step.inserted,
         status: step.status,
         done: step.done,
+        ...generationFailureDetails(step),
         requiredQuestions: totalRequiredQuestions(),
       })
     }
@@ -929,6 +1014,7 @@ export async function POST(req: NextRequest) {
         inserted: step.inserted,
         status: step.status,
         done: step.done,
+        ...generationFailureDetails(step),
         requiredQuestions: totalRequiredQuestions(),
       })
     }
@@ -952,6 +1038,7 @@ export async function POST(req: NextRequest) {
           inserted: step.inserted,
           status: step.status,
           done: step.done,
+          ...generationFailureDetails(step),
           requiredQuestions: totalRequiredQuestions(),
         })
       }
@@ -962,7 +1049,7 @@ export async function POST(req: NextRequest) {
     }
 
     const failedSemExam = await db.programExam.findFirst({
-      where: { programId, semester: sem, status: 'FAILED' },
+      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED'] } },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { questions: true } } },
     })
@@ -986,6 +1073,7 @@ export async function POST(req: NextRequest) {
         inserted: step.inserted,
         status: step.status,
         done: step.done,
+        ...generationFailureDetails(step),
         requiredQuestions: totalRequiredQuestions(),
       })
     }
@@ -1012,17 +1100,24 @@ export async function POST(req: NextRequest) {
 
     // نُنشئ الدفعة الأولى الآن من محتوى الكتاب/الرابط. بقية الدفعات تكملها الواجهة تدريجياً عبر زر/تحريك التوليد.
     const starter = await ensureStarterQuestions(exam.id)
-
-    return NextResponse.json({
-      ok: true,
+    const starterPayload = {
+      ok: starter.ok,
       examId: exam.id,
       booksCount,
       semester: sem,
       resumed: false,
       existingQuestions: starter.questionCount,
       inserted: starter.inserted,
+      status: starter.status,
+      done: starter.done,
+      ...generationFailureDetails(starter),
       requiredQuestions: totalRequiredQuestions(),
-    })
+    }
+    if (!starter.ok) {
+      return NextResponse.json(starterPayload, { status: starter.code === 'INSUFFICIENT_SOURCE' ? 422 : 500 })
+    }
+
+    return NextResponse.json(starterPayload)
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam generate error:', e)

@@ -2,6 +2,7 @@ import { extractDocumentText, normalizeExtractedText } from '@/lib/document-extr
 import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
 import { normalizeAcademic, cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { appendTextProvenanceNote } from '@/lib/text-provenance'
 
 // ===== قراءة محتوى الكتب للامتحانات =====
 // لا نعتمد على textContent فقط. إذا كان النص غير مستخرج، نحاول قراءة الملف المخزن، ثم الرابط،
@@ -195,6 +196,67 @@ function parseGeminiBookJson(raw: string): { text: string; note: string } {
   return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة Gemini غير JSON لكنها تحتوي نصاً قابلاً للاستخدام' }
 }
 
+export function parseScannedTranscriptionJson(raw: string): { text: string; note: string; pagesTranscribed: number | null; pagesTotal: number | null } {
+  const body = String(raw || '').trim()
+  const json = body.match(/\{[\s\S]*\}/)?.[0]
+  if (json) {
+    try {
+      const parsed = JSON.parse(json)
+      const text = repairExtractedAcademicText(String(parsed.textContent || parsed.transcription || parsed.text || ''), MAX_BOOK_CONTEXT_CHARS)
+      return {
+        text,
+        note: normalizeExtractedText(String(parsed.note || 'نسخ بصري حرفي للمستند'), 700),
+        pagesTranscribed: Number.isFinite(Number(parsed.pagesTranscribed)) ? Number(parsed.pagesTranscribed) : null,
+        pagesTotal: Number.isFinite(Number(parsed.pagesTotal)) ? Number(parsed.pagesTotal) : null,
+      }
+    } catch (error) {
+      console.warn('Failed to parse scanned transcription JSON; using raw response text.', error)
+    }
+  }
+  return { text: repairExtractedAcademicText(body, MAX_BOOK_CONTEXT_CHARS), note: 'استجابة OCR غير JSON لكنها تحتوي نصاً قابلاً للاستخدام', pagesTranscribed: null, pagesTotal: null }
+}
+
+export function visionExtractionFailedNote(ocrNote: string, visualNote: string, extractedNote = ''): string {
+  return appendTextProvenanceNote(`تعذر استخراج نص حرفي أو ملخص بصري صالح من المستند. OCR: ${ocrNote || 'غير متاح'}; Summary: ${visualNote || 'غير متاح'}; Extracted: ${extractedNote || 'غير متاح'}`.slice(0, 900), 'VISION_DESCRIPTION')
+}
+
+export async function transcribeScannedDocumentWithVision(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
+  const hasKey = await ensureGeminiKey().catch(() => false)
+  if (!hasKey) return { text: '', note: 'Gemini غير مفعّل لنسخ المستند الممسوح بصرياً' }
+
+  const prompt = `أنت ناسخ OCR حرفي للمستندات الأكاديمية.
+
+بيانات الكتاب:
+- العنوان: ${book.title}
+- المؤلف: ${book.author || '-'}
+
+المطلوب:
+- انسخ نص الصفحات كما هو حرفياً قدر الإمكان.
+- لا تلخص، لا تعيد الصياغة، لا تصحح، لا تترجم، ولا تضف شرحاً.
+- ضع [غير مقروء] مكان أي كلمة أو مقطع لا يُقرأ بوضوح.
+- افصل الصفحات بصيغة [صفحة N].
+- إذا كان الملف كبيراً ولم تستطع تغطية كل الصفحات، انسخ النطاق الذي استطعت قراءته واذكر التغطية في note.
+
+أجب JSON فقط:
+{"textContent":"[صفحة 1]\n<النص الحرفي>\n\n[صفحة 2]\n<النص الحرفي>","note":"<تغطية النسخ وحدوده>","pagesTranscribed":null,"pagesTotal":null}`
+
+  try {
+    const raw = await geminiVisionJson({
+      prompt,
+      images: [{ mimeType: inferMime(book.fileName, mimeType), dataBase64: buffer.toString('base64') }],
+      temperature: 0,
+      maxOutputTokens: 12288,
+    })
+    const parsed = parseScannedTranscriptionJson(raw)
+    const coverage = parsed.pagesTranscribed || parsed.pagesTotal
+      ? ` pagesTranscribed=${parsed.pagesTranscribed ?? 'unknown'} pagesTotal=${parsed.pagesTotal ?? 'unknown'}`
+      : ' pagesTranscribed=unknown pagesTotal=unknown'
+    return { text: parsed.text, note: appendTextProvenanceNote(`${parsed.note}${coverage}`, 'VISION_OCR') }
+  } catch (e: any) {
+    return { text: '', note: `تعذر النسخ الحرفي عبر Gemini Vision/OCR: ${String(e?.message || e).slice(0, 180)}` }
+  }
+}
+
 async function readVisualDocumentWithGemini(buffer: Buffer, mimeType: string, book: RawBookForHydration): Promise<{ text: string; note: string }> {
   const hasKey = await ensureGeminiKey().catch(() => false)
   if (!hasKey) return { text: '', note: 'Gemini غير مفعّل لقراءة المستند بصرياً' }
@@ -241,11 +303,16 @@ async function readBufferContent(buffer: Buffer, mimeType: string, fileName: str
   }
 
   if (isVisualReadableByGemini(effectiveMime, fileName)) {
+    const ocr = await transcribeScannedDocumentWithVision(buffer, effectiveMime, book)
+    if (isUsableBookText(ocr.text, MIN_USABLE_TEXT)) {
+      return { text: repairExtractedAcademicText(ocr.text, MAX_BOOK_CONTEXT_CHARS), note: ocr.note, quality: 'UPLOADED_FILE' }
+    }
+
     const visual = await readVisualDocumentWithGemini(buffer, effectiveMime, book)
     if (isUsableBookText(visual.text, MIN_USABLE_TEXT)) {
-      return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: visual.note, quality: 'GEMINI_DOCUMENT' }
+      return { text: repairExtractedAcademicText(visual.text, MAX_BOOK_CONTEXT_CHARS), note: appendTextProvenanceNote(visual.note, 'VISION_DESCRIPTION'), quality: 'GEMINI_DOCUMENT' }
     }
-    return { text: '', note: visual.note || extracted.note, quality: 'GEMINI_DOCUMENT' }
+    return { text: '', note: visionExtractionFailedNote(ocr.note, visual.note, extracted.note), quality: 'GEMINI_DOCUMENT' }
   }
 
   return { text: '', note: extracted.note, quality: 'UPLOADED_FILE' }
