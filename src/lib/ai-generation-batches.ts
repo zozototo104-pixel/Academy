@@ -70,19 +70,20 @@ export async function runProgressiveGenerationBatches<T extends GeneratedQuestio
       break
     }
     const usable = raw.filter((item) => (opts.accept ? opts.accept(item) : isGeneratedQuestionStructurallyUsable(item)))
-    if (!usable.length) {
+    const toSave = usable.slice(0, Math.max(0, requested - saved))
+    if (!toSave.length) {
       failedBatches += 1
       lastError = 'AI_BATCH_EMPTY_AFTER_VALIDATION'
       break
     }
-    const inserted = await opts.save(usable)
+    const inserted = Math.min(await opts.save(toSave), toSave.length, Math.max(0, requested - saved))
     if (inserted <= 0) {
       failedBatches += 1
       lastError = 'AI_BATCH_SAVED_ZERO'
       break
     }
     saved += inserted
-    accepted.push(...usable.slice(0, inserted))
+    accepted.push(...toSave.slice(0, inserted))
   }
 
   const remaining = Math.max(0, requested - saved)
