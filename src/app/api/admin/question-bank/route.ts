@@ -17,46 +17,6 @@ const STATUSES = new Set(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'])
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
 
-const generatedQuestionSchema = z.object({
-  type: z.enum(['MCQ', 'TF', 'SHORT', 'ESSAY']),
-  text: z.string().min(12).max(1200),
-  options: z.array(z.string().min(1).max(260)).max(6).default([]),
-  correctAnswer: z.string().min(1).max(20),
-  modelAnswer: z.string().max(1800).optional(),
-  sourceEvidence: z.string().min(8).max(1800),
-  sourceBookTitle: z.string().max(220).optional(),
-  sourceLocator: z.string().max(220).optional(),
-  cognitiveSkill: z.string().max(40).optional(),
-  difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']),
-  sourceIndex: z.number().int().positive(),
-  correctRationale: z.string().min(4).max(1000),
-  distractorRationales: z.array(z.string().max(500)).max(6).optional(),
-}).superRefine((question, ctx) => {
-  if (question.type === 'MCQ') {
-    if (question.options.length < 3) ctx.addIssue({ code: 'custom', message: 'MCQ requires at least three options' })
-    const answer = Number(question.correctAnswer)
-    if (!Number.isInteger(answer) || answer < 0 || answer >= question.options.length) ctx.addIssue({ code: 'custom', message: 'MCQ correctAnswer must point to an option' })
-  }
-  if (question.type === 'TF' && !['0', '1'].includes(question.correctAnswer)) ctx.addIssue({ code: 'custom', message: 'TF correctAnswer must be 0 or 1' })
-})
-
-const looseGeneratedQuestionsSchema = z.object({ questions: z.array(z.unknown()).min(1).max(30) })
-
-function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number } {
-  const parsed = looseGeneratedQuestionsSchema.parse(parseJsonObject(raw))
-  const accepted: any[] = []
-  let rejected = 0
-  for (let index = 0; index < parsed.questions.length; index++) {
-    const result = generatedQuestionSchema.safeParse(parsed.questions[index])
-    if (result.success) accepted.push(result.data)
-    else {
-      rejected += 1
-      console.warn('question bank generated question rejected structurally:', { index, issues: result.error.issues.map((issue) => ({ path: issue.path.map(String).join('.'), code: issue.code, message: issue.message })) })
-    }
-  }
-  return { accepted, rejected }
-}
-
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
