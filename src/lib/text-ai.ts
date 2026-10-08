@@ -1098,6 +1098,22 @@ function candidateKeys(provider: ConcreteProvider, s: Settings): string[] {
   return available.length ? available : keys
 }
 
+function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
+  const msg = String(attempt.error || '').toLowerCase()
+  if (attempt.status === 404 && /no longer available|does not exist|not found/.test(msg)) return 'dead_model'
+  if (attempt.status === 402 || /balance|recharge|top.?up|payment required/.test(msg)) return 'no_balance'
+  if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
+  if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
+  if (/validation_rejected|invalid|json|zod/.test(msg)) return 'invalid_response'
+  return attempt.ok ? 'ok' : 'other'
+}
+
+function logRouterSummary(attempts: TextAiAttemptDiagnostics[], ok: boolean): void {
+  const counts: Record<string, number> = {}
+  for (const attempt of attempts) counts[routerReasonBucket(attempt)] = (counts[routerReasonBucket(attempt)] || 0) + 1
+  console.info('[text-ai-router] summary', { ok, attempts: attempts.length, counts })
+}
+
 function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
   const activeCooldowns = [...cooldowns.values()].filter((item) => item.until > Date.now())
   const err: any = new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
