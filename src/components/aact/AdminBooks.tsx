@@ -570,7 +570,7 @@ export function AdminBooksTab() {
         const keywords = sanitizeAcademicList(item.keywords || [], [], 10, 60)
         return { ...item, title, summary, excerpt, keywords }
       })
-      .filter((item) => item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt)))
+      .filter((item) => item.kbVersion === 2 || (item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt))))
   }, [knowledgeItems, showLegacyKnowledge])
 
   const displayKnowledgeStats = useMemo(() => {
