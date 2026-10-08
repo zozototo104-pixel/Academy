@@ -379,7 +379,10 @@ ${knowledgeText}
               throw err
             }
             const validation = validateQuestionBatchAgainstKnowledge(candidates.accepted, evidenceSources, context)
-            for (const rejection of validation.rejected) console.warn('question bank evidence rejected:', rejection)
+            for (const rejection of validation.rejected) {
+              const q = candidates.accepted[rejection.index]
+              console.warn(`question bank evidence rejected index=${rejection.index} type=${String(q?.type || 'UNKNOWN')} sourceIndex=${rejection.sourceIndex} reason=${rejection.reason} question="${String(q?.text || '').slice(0, 80)}"`)
+            }
             assertQuestionBatchAcceptable(candidates.accepted.length + candidates.rejected, validation.rejected.length + candidates.rejected)
           },
         })
