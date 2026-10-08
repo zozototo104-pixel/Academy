@@ -1226,6 +1226,7 @@ model BookOutline {
   version Int
   status String @default("DRAFT") // DRAFT | APPROVED
   source String // TOC | HEADINGS | AI_SEGMENTED
+  warnings String? // JSON array of detected chapter gaps / TOC mismatches
   createdAt DateTime @default(now())
   sections BookOutlineSection[]
 
