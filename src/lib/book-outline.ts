@@ -127,9 +127,9 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
   return ranges.map((range, order) => ({
     order: order + 1, title: range.title, level: 1, semester,
     chunkStartIndex: sorted[range.start].index, chunkEndIndex: sorted[range.end].index,
-    pageStart: sorted[range.start].pageStart,
+    pageStart: order > 0 && sorted[range.start].pageStart <= sorted[ranges[order - 1].end].pageEnd ? null : sorted[range.start].pageStart,
     pageEnd: order + 1 < ranges.length
-      ? Math.min(sorted[range.end].pageEnd, sorted[ranges[order + 1].start].pageStart - 1)
+      ? (sorted[ranges[order + 1].start].pageStart <= sorted[range.start].pageStart ? null : Math.min(sorted[range.end].pageEnd, sorted[ranges[order + 1].start].pageStart - 1))
       : sorted[range.end].pageEnd,
     itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
   }))
