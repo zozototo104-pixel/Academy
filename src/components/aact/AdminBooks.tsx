@@ -497,6 +497,7 @@ export function AdminBooksTab() {
   const [readinessLoading, setReadinessLoading] = useState(false)
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
   const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
+  const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState(false)
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
