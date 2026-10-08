@@ -2306,6 +2306,10 @@ export function AdminBooksTab() {
                             </Badge>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            {unit.outlineSectionId && <Button size="sm" variant="outline" disabled={unitBusyId === unit.id || unit.status === 'APPROVED'} onClick={() => generateOutlineUnitContent(unit, Boolean(unit.content?.length || unit.studyGuide?.id))} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
+                              {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
+                              {unit.content?.length || unit.studyGuide?.id ? 'إعادة توليد المحتوى' : 'توليد المحتوى'}
+                            </Button>}
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => generateUnitExam(unit)} className="border-indigo-200 bg-white text-xs font-bold text-indigo-700">
                               {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="ml-1 h-3.5 w-3.5" />}
                               {unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
