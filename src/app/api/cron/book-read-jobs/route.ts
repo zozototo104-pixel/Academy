@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       continue
     }
     try {
-      const deadline = Math.min(Date.now() + 45_000, endAt)
+      const deadline = Math.min(Date.now() + 240_000, endAt)
       if (job.phase === 'EXTRACT') {
         const extraction = await runExtractStep(job.id, deadline)
         if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline)
