@@ -142,12 +142,8 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
       await db.$transaction(async (tx) => {
         const remaining = await tx.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
         if (remaining) return
-        // Preserve historical rows and their category; mark them via sourceNote.
-        const old = await tx.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 1 }, select: { id: true, sourceNote: true } })
-        for (const item of old) {
-          if (item.sourceNote?.includes('[LEGACY]')) continue
-          await tx.bookKnowledgeItem.update({ where: { id: item.id }, data: { sourceNote: `[LEGACY] ${item.sourceNote || ''}`.trim() } })
-        }
+        // Preserve historical rows while excluding them from question generation.
+        await tx.bookKnowledgeItem.updateMany({ where: { bookId, kbVersion: 1 }, data: { category: 'LEGACY' } })
         await tx.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } })
       })
     },
