@@ -2032,7 +2032,7 @@ export function AdminBooksTab() {
 
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
+                    <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p><span className="text-[10px] text-slate-500">يُعرض {displayKnowledgeItems.length} من {knowledgeTotalCount || displayKnowledgeItems.length}</span>{!showAllKnowledge && knowledgeTotalCount > knowledgeItems.length && <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={async () => { if (!programId) return; try { const result = await api<{ items: KnowledgeItemRow[]; count: number }>(`/api/admin/knowledge-bank?programId=${programId}&all=1`); setKnowledgeItems(result.items || []); setKnowledgeTotalCount(result.count || 0); setShowAllKnowledge(true) } catch (error: any) { toast({ title: 'تعذر عرض كل العناصر', description: String(error?.message || error), variant: 'destructive' }) } }}>عرض الكل</Button>}</div>
                     <div className="flex items-center gap-2">
                       <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-500">
                         <input type="checkbox" checked={showLegacyKnowledge} onChange={(event) => setShowLegacyKnowledge(event.target.checked)} /> عرض القديمة
