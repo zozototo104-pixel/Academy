@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto'
 export type AiGenerationProgressType = 'QUESTION_BANK' | 'PROGRAM_EXAM' | 'KNOWLEDGE_BANK'
 
 export type AiGenerationProgress = {
+  jobId: string
+  status: 'RUNNING' | 'PARTIAL' | 'COMPLETED'
   requested: number
   saved: number
   failedBatches: number
