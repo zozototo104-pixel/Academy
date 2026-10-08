@@ -888,8 +888,6 @@ export function AdminBooksTab() {
     }
   }
 
-  const [programKnowledgeV2States, setProgramKnowledgeV2States] = useState<Record<string, { state: 'READING' | 'ENRICHING' | 'COMPLETED' | 'PAUSED'; retryAt?: string | null }>>({})
-
   const rebuildKnowledge = async () => {
     if (!programId) return
     setRebuildingKnowledge(true)
