@@ -1984,6 +1984,9 @@ export function AdminBooksTab() {
                           <Badge variant="outline" className="text-[9px] font-black">{knowledgeCategoryLabel(item.category)}</Badge>
                           <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">أهمية {item.importance}%</Badge>
                           {item.bookTitle && <span className="text-[10px] text-slate-400">{item.bookTitle}</span>}
+                          {item.pageStart != null && <Badge variant="outline" className="text-[9px]">صفحة {item.pageStart}{item.pageEnd != null && item.pageEnd !== item.pageStart ? `–${item.pageEnd}` : ''}</Badge>}
+                          {item.textProvenance === 'NATIVE_TEXT' && <Badge variant="outline" className="text-[9px] text-emerald-700">نص أصلي</Badge>}
+                          {item.textProvenance === 'VISION_OCR' && <Badge variant="outline" className="text-[9px] text-amber-700">OCR – يحتاج مراجعة</Badge>}
                         </div>
                         <p className="font-black text-[#0f2b46]">{item.title}</p>
                         <p className="mt-1">{item.summary}</p>
