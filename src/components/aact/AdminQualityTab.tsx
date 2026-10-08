@@ -2933,7 +2933,7 @@ export function AdminQualityTab() {
               ) : null}
 
               {unitReviewItems.length === 0 ? (
-                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر اقتراح وحدات من الكتب أو أضف وحدة يدوياً.</p>
+                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر توليد الوحدات أو أضف وحدة يدوياً.</p>
               ) : unitReviewItems.map((unit, index) => (
                 <article key={unit.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
