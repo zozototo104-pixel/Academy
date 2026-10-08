@@ -236,10 +236,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
+    const v2Count = await db.bookKnowledgeItem.count({ where: { programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } } })
     const knowledge = await db.bookKnowledgeItem.findMany({
-      where: { programId },
+      where: { programId, ...(v2Count ? { kbVersion: 2 } : {}), category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
       orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-      take: 50,
+      take: 400,
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
