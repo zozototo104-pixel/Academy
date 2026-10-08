@@ -221,6 +221,86 @@ async function providerOrderBeatsHealthScoreAcrossProviders() {
   )
 }
 
+async function jsonRepairExtractsObjectFromText() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'json-repair-model:free'
+  const store = makeStore()
+  await withHarness(
+    store,
+    (url) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'json-repair-model:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return okChat('I will now answer. {"ok":true,}')
+    },
+    async () => {
+      const out = await textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'json' }] })
+      assert.equal(out, '{"ok":true}')
+    }
+  )
+}
+
+async function invalidJsonRetriesOnceStrictly() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'json-retry-model:free'
+  const store = makeStore()
+  let chatCount = 0
+  await withHarness(
+    store,
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'json-retry-model:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/chat/completions')) {
+        chatCount++
+        const body = JSON.parse(String(init?.body || '{}'))
+        if (chatCount === 1) return okChat('I will now prepare the answer.')
+        assert.ok(JSON.stringify(body).includes('JSON فقط'), 'strict retry prompt must ask for JSON only')
+        return okChat('{"ok":true}')
+      }
+      return okChat('ignored')
+    },
+    async () => {
+      const out = await textAiCompleteJson({ system: 'test', history: [{ role: 'user', text: 'json' }] })
+      assert.equal(out, '{"ok":true}')
+      assert.equal(chatCount, 2)
+    }
+  )
+}
+
+async function stickyModelIsPreferredForSameScope() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'auto'
+  const store = makeStore()
+  store.values.set('AI_MODEL_STATS:UNOROUTER:first-model:free', JSON.stringify({ success: 10, fail: {}, avgMs: 100, jsonOk: 5, jsonTotal: 5, evidenceOk: 5, evidenceTotal: 5 }))
+  store.values.set('AI_MODEL_STATS:UNOROUTER:second-model:free', JSON.stringify({ success: 1, fail: { other: 4 }, avgMs: 1000, jsonOk: 1, jsonTotal: 2, evidenceOk: 1, evidenceTotal: 2 }))
+  const seenModels: string[] = []
+  await withHarness(
+    store,
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [
+          { id: 'first-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+          { id: 'second-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+        ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/chat/completions')) {
+        const model = JSON.parse(String(init?.body || '{}')).model
+        seenModels.push(model)
+        return okChat(model === 'first-model:free' ? 'first' : 'second')
+      }
+      return okChat('ignored')
+    },
+    async () => {
+      const first = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }], stickyScope: 'batch-1' })
+      assert.equal(first, 'first')
+      const second = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'x' }], stickyScope: 'batch-1' })
+      assert.equal(second, 'first')
+      assert.deepEqual(seenModels, ['first-model:free', 'first-model:free'])
+    }
+  )
+}
+
 async function jsonObjectResponseFormatIsSent() {
   configureUnoRouter()
   process.env.UNOROUTER_TEXT_MODEL = 'json-model:free'
