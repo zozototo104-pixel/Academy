@@ -50,10 +50,10 @@ export async function setAiTaskPause(kind: AiTaskPauseKind, scopeId: string, pay
 
 export async function getAiTaskPause(kind: AiTaskPauseKind, scopeId: string): Promise<AiTaskPausePayload | null> {
   try {
-    const row = await db.setting.findUnique({ where: { key: pauseKey(kind, scopeId) } })
-    if (!row?.value) return null
+    const value = await store().find(pauseKey(kind, scopeId))
+    if (!value) return null
     try {
-      const parsed = JSON.parse(row.value)
+      const parsed = JSON.parse(value)
       return {
         code: String(parsed.code || 'AI_TASK_PAUSED'),
         reason: String(parsed.reason || 'Paused'),
