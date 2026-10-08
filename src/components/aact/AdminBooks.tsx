@@ -899,8 +899,9 @@ export function AdminBooksTab() {
       })
       setKnowledgeItems(d.items || [])
       setKnowledgeStats(d.stats || {})
-      const firstNote = d.result?.results?.find((r) => r.sourceNote)?.sourceNote
-      toast({ title: 'تم بناء بنك المعرفة', description: firstNote || `بنى النظام ${d.result?.totalInserted || d.count || 0} عنصر معرفة من الكتب المقررة` })
+      const states = d.result?.results || []
+      setProgramKnowledgeV2States(Object.fromEntries(states.map((item) => [item.bookId, { state: item.state, retryAt: item.retryAt }])))
+      toast({ title: 'تمت جدولة/استكمال بنك المعرفة v2', description: `الكتب: ${states.length} · مكتمل ${states.filter((item) => item.state === 'COMPLETED').length} · قيد العمل ${states.filter((item) => item.state !== 'COMPLETED').length}` })
     } catch (e: any) {
       toast({ title: 'تعذر بناء بنك المعرفة', description: e.message, variant: 'destructive' })
     } finally {
