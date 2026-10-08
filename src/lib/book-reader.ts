@@ -103,7 +103,8 @@ export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; p
   const extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
   const pageMap = new Map(extracted.map((page) => [page.page, page]))
   for (const range of pagesNeedingOcr(extracted)) {
-    const ocr = await (input.ocrPages || transcribeScannedDocumentWithVision)(buffer, range)
+    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+    const ocr = await (input.ocrPages || transcribeScannedDocumentWithVision)(buffer, range, input.deadlineMs)
     for (const page of ocr) pageMap.set(page.page, page)
   }
   const ordered = numbers.map((page) => {
