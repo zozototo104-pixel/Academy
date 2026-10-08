@@ -103,7 +103,8 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
 export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = []) {
   const headings = headingsFromChunks(chunks)
   const toc = tocFromChunks(chunks)
-  const source = headings.length >= 2 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : 'AI_SEGMENTED'
+  const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
+  const source = headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : 'AI_SEGMENTED'
   const boundaries = source === 'HEADINGS' ? headings : source === 'TOC' ? toc : aiBoundaries
   return { source, sections: normalizeBoundaries(chunks, boundaries, items, chunkIds, semester) }
 }
