@@ -1281,6 +1281,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') await recordPaidSpend(s, estimatedPaidCost)
+          logRouterSummary(attempts, true)
           return text
         } catch (e: any) {
           const at = new Date().toISOString()
