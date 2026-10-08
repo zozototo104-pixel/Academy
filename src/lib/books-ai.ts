@@ -2001,6 +2001,7 @@ ${plannedTypes}
       retries: 1,
       timeoutMs: 32000,
       taskLevel: 'ACADEMIC_CRITICAL',
+      deadlineMs: requestDeadlineMs,
       stickyScope: `PROGRAM_EXAM:${program.titleAr}:${batchIndex}`,
       validate: (text, context) => {
         generationContext = context || {}
