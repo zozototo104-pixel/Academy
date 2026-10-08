@@ -2826,7 +2826,7 @@ export function AdminQualityTab() {
             <button
               type="button"
               disabled={!!unitSuggestionModeBusy}
-              onClick={() => chooseUnitSuggestionMode('append')}
+              onClick={() => chooseUnitSuggestionMode()}
               className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right transition hover:bg-emerald-100 disabled:opacity-60"
             >
               <span>
