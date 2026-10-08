@@ -131,8 +131,8 @@ export async function POST(req: NextRequest) {
 
     const existing = await db.programAssignment.findMany({ where: { programId }, select: { title: true } })
     const existingTitles = existing.map((a) => a.title).join('، ')
-    const titleById = new Map(knowledge.map((k) => [k.id, titleFromKnowledge(k)]))
-    const allowedIds = new Set(knowledge.map((k) => k.id))
+    const titleById = new Map(knowledge.map((k) => [String(k.id), titleFromKnowledge(k)] as const))
+    const allowedIds = new Set<string>(knowledge.map((k) => String(k.id)))
     const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
     const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, dueDays, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
