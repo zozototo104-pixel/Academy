@@ -2036,6 +2036,7 @@ export function AdminBooksTab() {
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <p className="mb-2 text-xs font-black text-[#0f2b46]">تحليل الكتب فردياً</p>
+                  {programOutlineDraft.length > 0 && <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-2"><p className="font-black text-[#0f2b46]">مسودة خطة وحدات البرنامج (عرض فقط — لا تنشئ وحدات)</p>{programOutlineDraft.map((section) => <p key={section.id} className="mt-1 text-[11px]">الفصل {section.semester ?? 'غير محدد — يحتاج مراجعة'} · {section.bookTitle} · {section.title} · صفحات {section.pageStart ?? '؟'}–{section.pageEnd ?? '؟'} · {section.itemsCount} عنصر{section.semesterNeedsReview ? ' · الفصل مقترح للمراجعة' : ''}</p>)}</div>}
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
                       const countForBook = v2CountsByBook[b.id] ?? 0
