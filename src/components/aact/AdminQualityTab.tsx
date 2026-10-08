@@ -624,13 +624,13 @@ export function AdminQualityTab() {
     }
   }
 
-  const chooseUnitSuggestionMode = async (mode: 'append' | 'replace') => {
+  const chooseUnitSuggestionMode = async () => {
     if (!unitSuggestionConflict) return
     const program = unitSuggestionConflict.program
-    setUnitSuggestionModeBusy(mode)
+    setUnitSuggestionModeBusy('append')
     setReadinessBusyId(program.id)
     try {
-      await runSuggestedUnits(program, mode)
+      await runSuggestedUnits(program, { legacyConfirmed: true })
     } finally {
       setReadinessBusyId(null)
       setUnitSuggestionModeBusy(null)
