@@ -434,7 +434,7 @@ ${knowledgeText}
         provider: generationContext.provider,
         model: generationContext.model,
       }))
-      if (rows.length >= count) break
+      if (rows.length >= batchCount) break
     }
 
     if (!rows.length) return NextResponse.json({ error: 'لم يتم توليد أسئلة جديدة غير مكررة.' }, { status: 409 })
