@@ -1311,6 +1311,8 @@ export function AdminBooksTab() {
     bookReadInFlightRef.current.add(bookId)
     try {
       const response = await api<{ job?: BookReadJobRow; skipped?: string; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
+      delete bookReadRetryRef.current[bookId]
+      setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
       if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
       if (response.job) {
         setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
