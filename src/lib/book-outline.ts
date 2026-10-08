@@ -105,13 +105,18 @@ function labelFor(word: string, ordinal: string): string {
   return `${chapterWordLabel(word)} ${display}`
 }
 
+function allowedChapterPrefix(normalizedLine: string, matchIndex: number): boolean {
+  const prefix = normalizedLine.slice(0, Math.max(0, matchIndex)).trim()
+  return !prefix || /^[\d.)\]:：\-–—]+$/.test(prefix)
+}
+
 function matchChapterLine(line: string): { label: string; number: number | null; reversed: boolean } | null {
   const normalized = normalizeLineForMatch(line)
   if (!normalized || normalized.length > 160 || /(?:\.{2,}|…+|\s{2,})\s*\d{1,4}\s*$/.test(normalized)) return null
   const normal = normalized.match(normalChapterPattern)
-  if (normal && (normal.index || 0) <= 12) return { label: labelFor(normal[1], normal[2]), number: ordinalNumber(normal[2]), reversed: false }
+  if (normal && allowedChapterPrefix(normalized, normal.index || 0)) return { label: labelFor(normal[1], normal[2]), number: ordinalNumber(normal[2]), reversed: false }
   const reversed = normalized.match(reversedChapterPattern)
-  if (reversed && (reversed.index || 0) <= 12) return { label: labelFor(reversed[2], reversed[1]), number: ordinalNumber(reversed[1]), reversed: true }
+  if (reversed && allowedChapterPrefix(normalized, reversed.index || 0)) return { label: labelFor(reversed[2], reversed[1]), number: ordinalNumber(reversed[1]), reversed: true }
   return null
 }
 
