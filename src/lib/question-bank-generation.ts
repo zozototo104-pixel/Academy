@@ -1,27 +1,43 @@
 import { z } from 'zod'
 
-const generatedQuestionSchema = z.object({
-  type: z.enum(['MCQ', 'TF', 'SHORT', 'ESSAY']),
+const commonQuestionFields = {
   text: z.string().min(12).max(1200),
-  options: z.array(z.string().min(1).max(260)).max(6).default([]),
-  correctAnswer: z.string().min(1).max(20),
-  modelAnswer: z.string().max(1800).optional(),
   sourceEvidence: z.string().min(8).max(1800),
   sourceBookTitle: z.string().max(220).optional(),
   sourceLocator: z.string().max(220).optional(),
   cognitiveSkill: z.string().max(40).optional(),
   difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']),
   sourceIndex: z.number().int().positive(),
-  correctRationale: z.string().min(4).max(1000),
-  distractorRationales: z.array(z.string().max(500)).max(6).optional(),
-}).superRefine((question, ctx) => {
-  if (question.type === 'MCQ') {
-    if (question.options.length < 3) ctx.addIssue({ code: 'custom', message: 'MCQ requires at least three options' })
-    const answer = Number(question.correctAnswer)
-    if (!Number.isInteger(answer) || answer < 0 || answer >= question.options.length) ctx.addIssue({ code: 'custom', message: 'MCQ correctAnswer must point to an option' })
+  correctRationale: z.string().min(4).max(1000).optional(),
+  distractorRationales: z.array(z.string().max(500)).max(6).default([]),
+}
+const optionSchema = z.string().min(1).max(260)
+const generatedQuestionSchema = z.discriminatedUnion('type', [
+  z.object({ ...commonQuestionFields, type: z.literal('MCQ'), options: z.array(optionSchema).length(4), correctAnswer: z.string().min(1).max(260), modelAnswer: z.string().max(1800).optional() }).superRefine((q, ctx) => {
+    if (new Set(q.options).size !== 4) ctx.addIssue({ code: 'custom', path: ['options'], message: 'MCQ options must be distinct' })
+    if (!q.options.includes(q.correctAnswer) && !(/^[0-3]$/.test(q.correctAnswer))) ctx.addIssue({ code: 'custom', path: ['correctAnswer'], message: 'MCQ answer must match an option or its index' })
+  }),
+  z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(1800).optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
+])
+
+function normalizeCandidate(candidate: unknown): unknown {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
+  const q: Record<string, unknown> = { ...(candidate as Record<string, unknown>) }
+  const type = String(q.type || '').trim().toLowerCase()
+  const aliases: Record<string, string> = { essay: 'ESSAY', 'مقالي': 'ESSAY', short_answer: 'SHORT', 'قصير': 'SHORT', true_false: 'TF', 'صح وخطأ': 'TF', 'صح/خطأ': 'TF', multiple_choice: 'MCQ', 'اختيار من متعدد': 'MCQ' }
+  q.type = aliases[type] || type.toUpperCase()
+  for (const [key, value] of Object.entries(q)) {
+    if (typeof value === 'string') q[key] = value.trim()
   }
-  if (question.type === 'TF' && !['0', '1'].includes(question.correctAnswer)) ctx.addIssue({ code: 'custom', message: 'TF correctAnswer must be 0 or 1' })
-})
+  for (const key of ['options', 'distractorRationales']) {
+    if (q[key] == null) q[key] = key === 'options' && q.type === 'TF' ? ['صح', 'خطأ'] : []
+    else if (Array.isArray(q[key])) q[key] = q[key].map((v: unknown) => typeof v === 'string' ? v.trim() : v)
+  }
+  if (typeof q.correctAnswer === 'number') q.correctAnswer = String(q.correctAnswer)
+  return q
+}
 
 const looseGeneratedQuestionsSchema = z.object({ questions: z.array(z.unknown()).min(1).max(30) })
 
