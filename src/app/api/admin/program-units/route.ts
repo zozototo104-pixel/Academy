@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { hasUnitExamAttempts } from '@/lib/outline-units'
 
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
