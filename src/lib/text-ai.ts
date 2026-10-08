@@ -613,6 +613,10 @@ function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?
   return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
 }
 
+function persistentModelsCacheKey(cacheKey: string): string {
+  return `AI_MODELS_AVAILABLE:${cacheKey}`
+}
+
 function apiRootFromBase(baseUrl: string, fallback: string): string {
   return (baseUrl || fallback).replace(/\/$/, '').replace(/\/v1$/, '')
 }
