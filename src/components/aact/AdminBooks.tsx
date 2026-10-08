@@ -430,6 +430,7 @@ export function AdminBooksTab() {
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
   const [showLegacyKnowledge, setShowLegacyKnowledge] = useState(false)
   const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
+  const [bookEnrichment, setBookEnrichment] = useState<Record<string, { totalChunks: number; saturatedChunks: number; addedItems: number }>>({})
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
   const bookReadInFlightRef = useRef<Set<string>>(new Set())
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
