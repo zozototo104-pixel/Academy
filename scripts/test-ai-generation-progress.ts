@@ -155,6 +155,10 @@ async function main() {
   assert.equal(a, b, 'Arabic normalization should deduplicate equivalent question text for the same source')
   assert.notEqual(a, c, 'same text with a different source remains a different generation target')
 
+  console.log('▶ question bank parser accepts array envelopes and drops invalid question only')
+  arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped()
+  console.log('▶ question bank pause cleanup uses deleteMany')
+  questionBankPauseCleanupUsesDeleteMany()
   console.log('▶ progressive generation keeps saved batches on third failure')
   await partialFailureKeepsSavedBatches()
   console.log('▶ progressive generation resumes only remaining without duplicates')
