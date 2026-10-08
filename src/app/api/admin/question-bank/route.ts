@@ -432,6 +432,9 @@ ${knowledgeText}
         }
         seen.add(key)
         ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
+        usage.set(source.id, (usage.get(source.id) || 0) + 1)
+        usedSourceIndexes.push(requestedSourceIndex)
+        knowledgeItemIds.push(source.id)
         rows.push(buildQuestionBankRecord(q, {
           programId,
           knowledgeItemId: source.id,
