@@ -1301,6 +1301,9 @@ export function AdminBooksTab() {
     return response.job
   }, [])
 
+  const [bookReadRetryCounts, setBookReadRetryCounts] = useState<Record<string, number>>({})
+  const bookReadRetryRef = useRef<Record<string, { count: number; nextAt: number }>>({})
+
   const advanceBookReadJob = useCallback(async (bookId: string) => {
     if (bookReadInFlightRef.current.has(bookId)) return
     bookReadInFlightRef.current.add(bookId)
