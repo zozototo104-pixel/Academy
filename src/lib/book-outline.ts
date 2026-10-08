@@ -211,7 +211,7 @@ function rejectedChapterNameCandidate(line: string, bookTitle: string): boolean 
   if (tocPattern.test(value)) return true
   if (matchChapterLine(value)) return true
   if (/^(?:المبحث|المطلب|الفرع)\s/u.test(value)) return true
-  if (/^[\W_]+$/u.test(value)) return true
+  if (!/[\p{L}\p{N}]/u.test(value)) return true
   return false
 }
 
