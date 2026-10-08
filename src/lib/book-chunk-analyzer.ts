@@ -62,7 +62,7 @@ export async function analyzeBookChunk(input: { bookId: string; chunkText: strin
 
 export type AnalyzeStepStore = {
   getJob: (id: string) => Promise<{ id: string; bookId: string; programId: string; phase: string; status: string } | null>
-  nextChunk: (bookId: string) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; attempts: number } | null>
+  nextChunk: (bookId: string, excludeIds: string[]) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; attempts: number } | null>
   priorItems: (bookId: string) => Promise<Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]>
   saveAnalyzed: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[], jobId: string) => Promise<void>
   saveFailure: (chunkId: string, jobId: string, error: string, exhausted: boolean) => Promise<void>
