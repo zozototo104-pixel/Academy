@@ -55,13 +55,13 @@ function arrayFromJson(value: any): any[] {
 
 function parseJsonArray(raw: string): any[] {
   const body = clean(raw, 20000)
-  try { return arrayFromJson(JSON.parse(body)) } catch {}
+  try { return arrayFromJson(JSON.parse(body)) } catch (error) { console.warn('Failed to parse assignments JSON directly:', error) }
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
-  if (fenced) { try { return arrayFromJson(JSON.parse(fenced)) } catch {} }
+  if (fenced) { try { return arrayFromJson(JSON.parse(fenced)) } catch (error) { console.warn('Failed to parse fenced assignments JSON:', error) } }
   const arr = body.match(/\[[\s\S]*\]/)?.[0]
-  if (arr) { try { return arrayFromJson(JSON.parse(arr)) } catch {} }
+  if (arr) { try { return arrayFromJson(JSON.parse(arr)) } catch (error) { console.warn('Failed to parse assignment array JSON:', error) } }
   const obj = body.match(/\{[\s\S]*\}/)?.[0]
-  if (obj) { try { return arrayFromJson(JSON.parse(obj)) } catch {} }
+  if (obj) { try { return arrayFromJson(JSON.parse(obj)) } catch (error) { console.warn('Failed to parse assignment object JSON:', error) } }
   return []
 }
 
