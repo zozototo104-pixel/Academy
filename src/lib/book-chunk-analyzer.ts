@@ -112,7 +112,7 @@ export async function analyzeStepWithStore(
 export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
-    nextChunk: (bookId) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED' }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
+    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED', id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
     priorItems: (bookId) => db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2 }, select: { title: true, summary: true } }),
     saveAnalyzed: async (chunk, items, id) => {
       await db.$transaction(async (tx) => {
