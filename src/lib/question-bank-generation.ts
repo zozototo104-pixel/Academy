@@ -84,7 +84,7 @@ export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]
   let rejected = 0
   for (let index = 0; index < parsed.questions.length; index++) {
     const candidate = parsed.questions[index]
-    const result = generatedQuestionSchema.safeParse(candidate)
+    const result = generatedQuestionSchema.safeParse(normalizeCandidate(candidate))
     if (result.success) accepted.push(result.data)
     else {
       rejected += 1
