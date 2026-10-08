@@ -689,6 +689,8 @@ export function AdminBooksTab() {
       ])
         .then(([k, readiness, units, qb, g]) => {
           setKnowledgeItems(k.items || [])
+          setKnowledgeTotalCount(k.count || 0)
+          setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
           setProgramReadiness(readiness.item || null)
