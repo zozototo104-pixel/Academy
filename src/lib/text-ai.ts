@@ -1056,6 +1056,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       messages: toChatMessages(opts),
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
+      ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
   }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
