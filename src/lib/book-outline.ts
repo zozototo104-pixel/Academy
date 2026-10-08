@@ -97,12 +97,13 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
   if (!unique.length || unique[0][0] !== sorted[0].index) unique.unshift([sorted[0].index, clean(sorted[0].headingPath) || 'مقدمة الكتاب'])
   let ranges = unique.map(([start, title], i) => ({ start: at.get(start)!, end: i + 1 < unique.length ? at.get(unique[i + 1][0])! - 1 : sorted.length - 1, title }))
     .filter((range) => range.end >= range.start)
-  // Merge tiny one-chunk sections when there are larger neighbors.
-  for (let i = ranges.length - 1; i > 0; i--) {
-    if (ranges[i].end - ranges[i].start === 0 && ranges.length > 4) {
-      ranges[i - 1].end = ranges[i].end
-      ranges.splice(i, 1)
-    }
+  // Real chapter boundaries are never merged, even if they have one chunk or one v2 item.
+  // Only unlabeled fragments may be absorbed into a neighboring chapter.
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    if (ranges.length <= 1 || chapterNumber(ranges[i].title) !== null) continue
+    if (ranges[i].end !== ranges[i].start) continue
+    if (i > 0) { ranges[i - 1].end = ranges[i].end; ranges.splice(i, 1) }
+    else { ranges[1].start = ranges[0].start; ranges.shift() }
   }
   while (ranges.length > 16) {
     let smallest = 1
