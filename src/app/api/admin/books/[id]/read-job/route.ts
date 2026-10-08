@@ -24,6 +24,8 @@ export async function POST(request: NextRequest, context: Context) {
   try {
     await authorize()
     const { id } = await context.params
+    const body = await request.json().catch(() => ({}))
+    const mode = body?.mode === 'ENRICH' ? 'ENRICH' : 'EXTRACT'
     const book = await db.book.findUnique({ where: { id }, select: { id: true, programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
