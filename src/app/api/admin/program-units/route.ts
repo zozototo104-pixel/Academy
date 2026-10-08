@@ -80,7 +80,9 @@ async function listProgramUnits(programId: string) {
         select: {
           id: true,
           title: true,
+          status: true,
           passScore: true,
+          questions: { select: { text: true } },
           _count: { select: { questions: true, attempts: true } },
         },
       },
