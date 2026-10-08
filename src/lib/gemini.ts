@@ -515,6 +515,7 @@ export async function geminiVisionJson(opts: {
         const response = await ai.models.generateContent({
           model,
           contents,
+          ...(opts.timeoutMs ? { httpOptions: { timeout: opts.timeoutMs } } : {}),
           config: {
             systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
             temperature: opts.temperature ?? 0.1,
