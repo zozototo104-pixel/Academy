@@ -46,6 +46,15 @@ function okChat(text = 'ok') {
   return new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
 
+function academicAllowlistParserKeepsColonAndSlashModelNames() {
+  const parsed = parseAcademicAllowlist('OPENROUTER:nvidia/nemotron-3-super-120b-a12b:free,UNOROUTER:unorouter-ok:free,BAD_ITEM')
+  assert.deepEqual(parsed.slice(0, 2), [
+    { provider: 'OPENROUTER', model: 'nvidia/nemotron-3-super-120b-a12b:free' },
+    { provider: 'UNOROUTER', model: 'unorouter-ok:free' },
+  ])
+  assert.equal(parsed.length, 2)
+}
+
 async function withHarness(store: Store, handler: (url: string, init?: RequestInit) => Response | Promise<Response>, run: (calls: Array<{ url: string; body: any }>) => Promise<void>) {
   __setTextAiSettingStoreForTests(store)
   __resetTextAiStateForTests()
