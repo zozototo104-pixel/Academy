@@ -35,12 +35,19 @@ export async function GET(req: NextRequest) {
 
     const items = await getProgramKnowledgeItems(programId, semester, 140)
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
+    const v2BookCounts = await db.bookKnowledgeItem.groupBy({
+      by: ['bookId'],
+      where: { programId, kbVersion: 2, bookId: { not: null }, category: { notIn: ['LEGACY', 'QUESTION_SEED'] } },
+      _count: { _all: true },
+    })
+    const v2CountsByBook = Object.fromEntries(v2BookCounts.filter((row) => row.bookId).map((row) => [row.bookId!, row._count._all]))
     const contextPreview = items.length
       ? items.slice(0, 16).map((item, i) => `${i + 1}. [${item.category}] ${item.title}: ${item.summary.slice(0, 320)}${item.bookTitle ? ` — المصدر: ${item.bookTitle}` : ''}`).join('\n')
       : ''
     return NextResponse.json({
       program,
       booksCount,
+      v2CountsByBook,
       count: items.length,
       limits: KNOWLEDGE_BANK_LIMITS,
       stats: categoryStats(items),

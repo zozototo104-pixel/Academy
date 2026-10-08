@@ -216,7 +216,25 @@ interface KnowledgeItemRow {
   keywords?: string[]
   importance: number
   sourceNote?: string | null
+  pageStart?: number | null
+  pageEnd?: number | null
+  textProvenance?: string | null
+  kbVersion?: number
   createdAt: string
+}
+
+type BookReadJobRow = {
+  id: string
+  bookId: string
+  phase: string
+  status: string
+  totalPages: number
+  pagesDone: number
+  totalChunks: number
+  chunksAnalyzed: number
+  chunksFailed: number
+  lastError?: string | null
+  retryAt?: string | null
 }
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
@@ -250,6 +268,20 @@ interface QuestionBankItemRow {
   sourceEvidence?: string | null
   difficulty?: string | null
   status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
+  qualityFlags?: string | null
+  verifierReason?: string | null
+}
+
+function questionGroundingFlags(question: QuestionBankItemRow): string[] {
+  try {
+    const flags = JSON.parse(question.qualityFlags || '[]')
+    return Array.isArray(flags) ? flags.filter((flag): flag is string => typeof flag === 'string') : []
+  } catch { return [] }
+}
+
+function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
+  const flags = questionGroundingFlags(question)
+  return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
 }
 
 interface ExamImportQuestionRow {
@@ -396,7 +428,12 @@ export function AdminBooksTab() {
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
+  const [showLegacyKnowledge, setShowLegacyKnowledge] = useState(false)
+  const [bookReadJobs, setBookReadJobs] = useState<Record<string, BookReadJobRow>>({})
+  const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
+  const bookReadInFlightRef = useRef<Set<string>>(new Set())
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
+  const [v2CountsByBook, setV2CountsByBook] = useState<Record<string, number>>({})
   const [programReadiness, setProgramReadiness] = useState<ProgramReadinessSnapshot | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
@@ -406,7 +443,7 @@ export function AdminBooksTab() {
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
-  const [questionBankFilter, setQuestionBankFilter] = useState({ search: '', status: 'ALL', type: 'ALL', difficulty: 'ALL' })
+  const [questionBankFilter, setQuestionBankFilter] = useState({ search: '', status: 'ALL', type: 'ALL', difficulty: 'ALL', grounding: 'ALL' })
   const [editingBankQuestion, setEditingBankQuestion] = useState<QuestionBankItemRow | null>(null)
   const [editingBankQuestionForm, setEditingBankQuestionForm] = useState({ type: 'MCQ', text: '', options: '', correctAnswer: '0', modelAnswer: '', sourceEvidence: '', difficulty: 'MEDIUM' })
   const [examImportOpen, setExamImportOpen] = useState(false)
@@ -523,6 +560,7 @@ export function AdminBooksTab() {
 
   const displayKnowledgeItems = useMemo(() => {
     return knowledgeItems
+      .filter((item) => showLegacyKnowledge || item.category !== 'LEGACY')
       .map((item) => {
         const title = cleanAcademicOutput(item.title, 220)
         const summary = cleanAcademicOutput(item.summary, 1600)
@@ -531,7 +569,7 @@ export function AdminBooksTab() {
         return { ...item, title, summary, excerpt, keywords }
       })
       .filter((item) => item.title && item.summary && !looksLikeBrokenGeneratedArabic(`${item.title}. ${item.summary}`) && (!item.excerpt || !looksLikeBrokenGeneratedArabic(item.excerpt)))
-  }, [knowledgeItems])
+  }, [knowledgeItems, showLegacyKnowledge])
 
   const displayKnowledgeStats = useMemo(() => {
     const stats: KnowledgeStats = {}
@@ -558,8 +596,9 @@ export function AdminBooksTab() {
       const statusOk = questionBankFilter.status === 'ALL' || q.status === questionBankFilter.status
       const typeOk = questionBankFilter.type === 'ALL' || q.type === questionBankFilter.type
       const difficultyOk = questionBankFilter.difficulty === 'ALL' || (q.difficulty || 'MEDIUM') === questionBankFilter.difficulty
+      const groundingOk = questionBankFilter.grounding === 'ALL' || (questionBankFilter.grounding === 'GROUNDED' ? isSourceGroundedQuestion(q) : !isSourceGroundedQuestion(q))
       const searchOk = !search || `${q.text} ${q.modelAnswer || ''} ${q.sourceEvidence || ''}`.toLowerCase().includes(search)
-      return statusOk && typeOk && difficultyOk && searchOk
+      return statusOk && typeOk && difficultyOk && groundingOk && searchOk
     })
   }, [questionBankItems, questionBankFilter])
 
@@ -623,10 +662,12 @@ export function AdminBooksTab() {
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
       ])
       setBooks(b.books)
+      setBookReadJobs({})
       setExams(e.exams)
       setAssignments(a.assignments)
       setKnowledgeItems([])
       setKnowledgeStats({})
+      setV2CountsByBook({})
       setProgramReadiness(null)
       setCurriculumUnits([])
       setQuestionBankItems([])
@@ -635,7 +676,7 @@ export function AdminBooksTab() {
       setStudyGuides([])
 
       Promise.all([
-        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats })),
+        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, v2CountsByBook: {} as Record<string, number> })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
         api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
         api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
@@ -644,6 +685,7 @@ export function AdminBooksTab() {
         .then(([k, readiness, units, qb, g]) => {
           setKnowledgeItems(k.items || [])
           setKnowledgeStats(k.stats || {})
+          setV2CountsByBook(k.v2CountsByBook || {})
           setProgramReadiness(readiness.item || null)
           setCurriculumUnits(units.units || [])
           setQuestionBankItems(qb.items || [])
@@ -1235,6 +1277,73 @@ export function AdminBooksTab() {
       toast({ title: 'تعذر إنشاء امتحان من البنك', description: e.message, variant: 'destructive' })
     } finally {
       setQuestionBankBusy(null)
+    }
+  }
+
+  const fetchBookReadJob = useCallback(async (bookId: string) => {
+    const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${bookId}/read-job`)
+    if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+    return response.job
+  }, [])
+
+  const advanceBookReadJob = useCallback(async (bookId: string) => {
+    if (bookReadInFlightRef.current.has(bookId)) return
+    bookReadInFlightRef.current.add(bookId)
+    try {
+      const response = await api<{ job?: BookReadJobRow; skipped?: string }>(`/api/admin/books/${bookId}/read-step`, { method: 'POST' })
+      if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
+      else await fetchBookReadJob(bookId)
+      if (response.job?.status === 'COMPLETED' && programId) {
+        const data = await api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${programId}`)
+        setKnowledgeItems(data.items || [])
+        setKnowledgeStats(data.stats || {})
+        setV2CountsByBook(data.v2CountsByBook || {})
+      }
+    } catch (error: any) {
+      await fetchBookReadJob(bookId).catch(() => {})
+      toast({ title: 'تعذر متابعة قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      bookReadInFlightRef.current.delete(bookId)
+    }
+  }, [fetchBookReadJob, programId, toast])
+
+  useEffect(() => {
+    if (workspaceTab !== 'knowledge' || !books.length) return
+    let active = true
+    Promise.all(books.map(async (book) => {
+      try {
+        const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${book.id}/read-job`)
+        if (active && response.job) setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
+      } catch { /* A book without a job is expected. */ }
+    })).catch(() => {})
+    return () => { active = false }
+  }, [workspaceTab, books])
+
+  useEffect(() => {
+    if (workspaceTab !== 'knowledge') return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      for (const book of books) {
+        const job = bookReadJobs[book.id]
+        if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
+          if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
+          void advanceBookReadJob(book.id)
+        }
+      }
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob])
+
+  const startBookReadJob = async (bookId: string) => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST' })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر بدء قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
     }
   }
 
@@ -1845,16 +1954,33 @@ export function AdminBooksTab() {
                   <p className="mb-2 text-xs font-black text-[#0f2b46]">تحليل الكتب فردياً</p>
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
-                      const countForBook = displayKnowledgeItems.filter((k) => k.bookId === b.id).length
+                      const countForBook = v2CountsByBook[b.id] ?? 0
                       return (
-                        <div key={b.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
-                          <div className="min-w-0">
-                            <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
-                            <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
+                        <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
+                              <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
+                              {bookReadBusyId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
+                            </Button>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => rebuildBookKnowledge(b.id)} disabled={rebuildingKnowledge || rebuildingBookId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
-                            {rebuildingBookId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
-                          </Button>
+                          {bookReadJobs[b.id] && (() => {
+                            const job = bookReadJobs[b.id]
+                            const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
+                            return <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-2">
+                              <p className="text-[#0f2b46]">المرحلة: {phase}</p>
+                              <p>قراءة الصفحات {job.pagesDone} من {job.totalPages}</p>
+                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, job.totalPages ? (job.pagesDone / job.totalPages) * 100 : 0)}%` }} /></div>
+                              <p>تحليل المقاطع {job.chunksAnalyzed} من {job.totalChunks} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
+                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, job.totalChunks ? (job.chunksAnalyzed / job.totalChunks) * 100 : 0)}%` }} /></div>
+                              <p>فشل {job.chunksFailed}</p>
+                              {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
+                              {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
+                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
+                            </div>
+                          })()}
                         </div>
                       )
                     })}
@@ -1864,11 +1990,12 @@ export function AdminBooksTab() {
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة ({displayKnowledgeItems.length})</p>
-                    {displayKnowledgeItems.length > 0 && (
-                      <Badge variant="outline" className="text-[9px] font-black text-slate-500">
-                        مرتبة بالأهمية
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-500">
+                        <input type="checkbox" checked={showLegacyKnowledge} onChange={(event) => setShowLegacyKnowledge(event.target.checked)} /> عرض القديمة
+                      </label>
+                      {displayKnowledgeItems.length > 0 && <Badge variant="outline" className="text-[9px] font-black text-slate-500">مرتبة بالأهمية</Badge>}
+                    </div>
                   </div>
                   <div className="max-h-[34rem] space-y-2 overflow-auto pr-1">
                     {displayKnowledgeItems.length === 0 ? <p className="text-[11px] font-bold text-slate-500">سيظهر هنا ملخص المفاهيم والحالات بعد التحليل. إن كانت العناصر القديمة مشوهة فلن تُعرض؛ اضغط بناء/تحديث بنك المعرفة لإعادة استخراجها.</p> : displayKnowledgeItems.map((item) => (
@@ -1877,6 +2004,9 @@ export function AdminBooksTab() {
                           <Badge variant="outline" className="text-[9px] font-black">{knowledgeCategoryLabel(item.category)}</Badge>
                           <Badge className="bg-[#f7edd0] text-[9px] font-black text-[#a8841a] hover:bg-[#f7edd0]">أهمية {item.importance}%</Badge>
                           {item.bookTitle && <span className="text-[10px] text-slate-400">{item.bookTitle}</span>}
+                          {item.pageStart != null && <Badge variant="outline" className="text-[9px]">صفحة {item.pageStart}{item.pageEnd != null && item.pageEnd !== item.pageStart ? `–${item.pageEnd}` : ''}</Badge>}
+                          {item.textProvenance === 'NATIVE_TEXT' && <Badge variant="outline" className="text-[9px] text-emerald-700">نص أصلي</Badge>}
+                          {item.textProvenance === 'VISION_OCR' && <Badge variant="outline" className="text-[9px] text-amber-700">OCR – يحتاج مراجعة</Badge>}
                         </div>
                         <p className="font-black text-[#0f2b46]">{item.title}</p>
                         <p className="mt-1">{item.summary}</p>
@@ -3080,7 +3210,12 @@ export function AdminBooksTab() {
                 <option value="ALL">كل الصعوبات</option><option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option>
               </select>
             </div>
-            <p className="text-[11px] font-bold text-slate-400">المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+              <p>المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال · مُثبت {questionBankItems.filter(isSourceGroundedQuestion).length} · يحتاج تدقيق {questionBankItems.filter((q) => !isSourceGroundedQuestion(q)).length}</p>
+              <select aria-label="فلترة إثبات المصدر" value={questionBankFilter.grounding} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, grounding: e.target.value }))} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold">
+                <option value="ALL">الكل</option><option value="GROUNDED">مُثبت</option><option value="REVIEW">يحتاج تدقيق</option>
+              </select>
+            </div>
             {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : filteredQuestionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة مطابقة للفلترة.</p> : filteredQuestionBankItems.map((q) => {
               let options: string[] = []
               try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options for display.', error) }
@@ -3090,6 +3225,13 @@ export function AdminBooksTab() {
                     <div className="flex flex-wrap gap-2">
                       <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge>
                       <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge>
+                      {isSourceGroundedQuestion(q) ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">مُثبت من المصدر</Badge>
+                      ) : questionGroundingFlags(q).includes('OCR_DERIVED_SOURCE') ? (
+                        <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100" title={q.verifierReason || undefined}>مصدر OCR – يحتاج مراجعة</Badge>
+                      ) : (
+                        <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>يحتاج تدقيق</Badge>
+                      )}
                       <Badge className={q.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
                         {q.status === 'APPROVED' ? 'معتمد' : q.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
                       </Badge>

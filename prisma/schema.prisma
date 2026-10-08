@@ -1208,6 +1208,8 @@ model Book {
   source      String   @default("ADMIN") // ADMIN | AI
   createdAt   DateTime @default(now())
   knowledgeItems BookKnowledgeItem[]
+  readChunks BookChunk[]
+  readJobs BookReadJob[]
   uploadChunks BookUploadChunk[]
 }
 
@@ -1229,6 +1231,54 @@ model BookUploadChunk {
   @@index([uploadId])
 }
 
+model BookChunk {
+  id             String   @id @default(cuid())
+  bookId         String
+  book           Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  programId      String
+  index          Int
+  pageStart      Int
+  pageEnd        Int
+  headingPath    String?
+  text           String   @db.Text
+  charCount      Int
+  textProvenance String
+  contentHash    String
+  status         String   @default("PENDING")
+  attempts       Int      @default(0)
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([bookId, index])
+  @@index([bookId, status])
+  @@index([programId])
+}
+
+model BookReadJob {
+  id             String    @id @default(cuid())
+  bookId         String
+  book           Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  programId      String
+  phase          String    @default("EXTRACT")
+  status         String    @default("QUEUED")
+  totalPages     Int       @default(0)
+  pagesDone      Int       @default(0)
+  totalChunks    Int       @default(0)
+  chunksAnalyzed Int       @default(0)
+  chunksFailed   Int       @default(0)
+  lastError      String?
+  retryAt        DateTime?
+  lockedUntil    DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([bookId, status])
+  @@index([status, retryAt])
+}
+
 model BookKnowledgeItem {
   id          String   @id @default(cuid())
   programId   String
@@ -1243,6 +1293,11 @@ model BookKnowledgeItem {
   keywords    String?  // JSON array كلمات مفتاحية
   importance  Int      @default(50) // 0-100: أهمية العنصر في الامتحان والمناقشة
   sourceNote  String?
+  chunkId     String?
+  pageStart   Int?
+  pageEnd     Int?
+  textProvenance String?
+  kbVersion   Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

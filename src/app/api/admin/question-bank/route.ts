@@ -10,7 +10,7 @@ import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { audit } from '@/lib/notify'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
-import { inferTextProvenance, isEvidenceAllowedByProvenance, textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { resolveQuestionBankEvidence } from '@/lib/question-bank-chunk-evidence'
 
 export const maxDuration = 300
 
@@ -156,11 +156,13 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  return db.questionBankItem.findMany({
+  const items = await db.questionBankItem.findMany({
     where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
   })
+  // No verifierReason column exists in QuestionBankItem; expose persisted review notes as the review tooltip.
+  return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
 }
 
 // GET /api/admin/question-bank?programId=...&status=PENDING_REVIEW
@@ -236,10 +238,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
+    const v2Count = await db.bookKnowledgeItem.count({ where: { programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } } })
     const knowledge = await db.bookKnowledgeItem.findMany({
-      where: { programId },
+      where: { programId, ...(v2Count ? { kbVersion: 2 } : {}), category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
       orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-      take: 50,
+      take: 400,
     })
     if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
 
@@ -247,30 +250,12 @@ export async function POST(req: NextRequest) {
       where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
       select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true },
     })
-    const bookById = new Map(sourceBooks.map((book) => [book.id, book]))
-    const knowledgeTextProvenance = (item: { sourceNote?: string | null; bookId?: string | null; excerpt?: string | null }) => {
-      const book = item.bookId ? bookById.get(item.bookId) : null
-      return inferTextProvenance({
-        sourceNote: item.sourceNote,
-        linkReadNote: book?.linkReadNote,
-        linkReadStatus: book?.linkReadStatus,
-        textContent: book?.textContent,
-      })
-    }
-    const excerptMatchesNativeOrOcrBook = (item: { bookId?: string | null; excerpt?: string | null }) => {
-      const excerpt = knowledgeEvidenceText(item).trim()
-      if (!excerpt) return false
-      const book = item.bookId ? bookById.get(item.bookId) : null
-      if (!book?.textContent) return false
-      const bookProvenance = inferTextProvenance({ linkReadNote: book.linkReadNote, linkReadStatus: book.linkReadStatus, textContent: book.textContent })
-      if (!['NATIVE_TEXT', 'VISION_OCR'].includes(bookProvenance)) return false
-      return textContainsEvidenceAfterNormalization(book.textContent, excerpt)
-    }
-    const evidenceKnowledge = knowledge.filter((item) => {
-      const text = knowledgeEvidenceText(item).trim()
-      const provenance = knowledgeTextProvenance(item)
-      return text.length >= 40 && isEvidenceAllowedByProvenance(provenance) && excerptMatchesNativeOrOcrBook(item)
-    })
+    // Validate against persisted page chunks for v2; preserve legacy book-text checks for v1.
+    const v2ChunkIds = [...new Set(knowledge.filter((item) => item.kbVersion === 2 && item.chunkId).map((item) => item.chunkId!))]
+    const sourceChunks = v2ChunkIds.length
+      ? await db.bookChunk.findMany({ where: { id: { in: v2ChunkIds }, bookId: { in: sourceBooks.map((book) => book.id) } }, select: { id: true, bookId: true, text: true } })
+      : []
+    const { evidenceKnowledge, evidenceSources } = resolveQuestionBankEvidence(knowledge, sourceBooks, sourceChunks, knowledgeEvidenceText)
     if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
 
     const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true, knowledgeItemId: true, bookId: true, sourceLocator: true } })
@@ -280,8 +265,6 @@ export async function POST(req: NextRequest) {
     const ideaHistory = existing.map((q) => ({ text: q.text, knowledgeItemId: q.knowledgeItemId }))
     const usedSourceIndexes = [...(job.usedSourceIndexes || [])]
     const knowledgeItemIds = [...(job.knowledgeItemIds || [])]
-    const evidenceSources = evidenceKnowledge.map((item) => ({ text: knowledgeEvidenceText(item), textProvenance: knowledgeTextProvenance(item) }))
-
     let savedTotal = savedSoFar
     let insertedTotal = 0
     let failedBatches = job.failedBatches
