@@ -268,6 +268,8 @@ interface QuestionBankItemRow {
   sourceEvidence?: string | null
   difficulty?: string | null
   status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
+  qualityFlags?: string | null
+  verifierReason?: string | null
 }
 
 interface ExamImportQuestionRow {
