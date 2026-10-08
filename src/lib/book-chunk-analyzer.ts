@@ -171,6 +171,7 @@ export async function analyzeStepWithStore(
     } catch (error: any) {
       const message = String(error?.message || error)
       if (message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')) throw error
+      if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { analyzed, failed, completed: false, paused: false }
       const exhausted = chunk.attempts + 1 >= 3
       await store.saveFailure(chunk.id, jobId, message.slice(0, 2000), exhausted)
       if (exhausted) failed++
