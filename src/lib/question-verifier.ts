@@ -286,6 +286,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       const literal = sourceText == null ? { ok: false as const, reason: 'BAD_INDEX' } : validateLiteralEvidence({ evidence, sourceText })
       if (sourceText == null) {
         output[index] = applyRejected(questionWithProvenance, null, 'BAD_INDEX')
+        logVerifierVerdict({ questionIndex: index, question: output[index], result: null, verifierContext: null as any, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: false, reason: 'BAD_INDEX' })
         return
       }
       prepared.push({ index, question: questionWithProvenance, sourceText, literalPass: literal.ok })
