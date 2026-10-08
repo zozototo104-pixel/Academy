@@ -416,7 +416,7 @@ ${knowledgeText}
         const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= evidenceKnowledge.length
           ? evidenceKnowledge[requestedSourceIndex - 1]
           : null
-        if (!source) continue
+        if (!source || !selectedSources.some((selected) => selected.id === source.id)) continue
         const q = {
           ...sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote }),
           qualityFlags: item.qualityFlags,
