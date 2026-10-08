@@ -697,10 +697,10 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     }).catch(() => {})
     return {
       ok: false,
-      status: 'PAUSED',
+      status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
       inserted: 0,
       done: false,
-      error: message,
+      error: totals.questionCount > 0 ? `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.` : message,
       ...(insufficient || {}),
       ...totals,
     }
