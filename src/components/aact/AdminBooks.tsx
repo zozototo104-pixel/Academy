@@ -334,10 +334,29 @@ interface CurriculumUnitReviewItem {
   title: string
   summary?: string | null
   objectives: string[]
-  content: { heading: string; body: string }[]
+  content: { heading: string; body: string; pageRefs?: string[]; sourceKnowledgeIds?: string[]; sourceChunkIndexes?: number[] }[]
   order: number
   semester: number
   status: 'DRAFT' | 'APPROVED' | 'NEEDS_REVISION'
+  sourceBookId?: string | null
+  outlineSectionId?: string | null
+  chunkStartIndex?: number | null
+  chunkEndIndex?: number | null
+  generationVersion?: number | null
+  source?: { bookTitle?: string | null; sectionTitle?: string | null; pageStart?: number | null; pageEnd?: number | null; chunkStartIndex?: number | null; chunkEndIndex?: number | null } | null
+  studyGuide?: {
+    id: string
+    title: string
+    overview: string
+    objectives: string[]
+    keyTerms: string[]
+    sections: { title: string; summary: string; outcomes?: string[]; sourceTitles?: string[]; sourceKnowledgeIds?: string[]; pageRefs?: string[] }[]
+    activities: string[]
+    discussionQuestions: string[]
+    sourceKnowledgeIds: string[]
+    status: string
+  } | null
+  generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
   exam?: {
     id: string
     title: string
