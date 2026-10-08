@@ -337,6 +337,10 @@ export function AdminSystemTab() {
   }
 
   useEffect(() => {
+    setTextModelHealth(null)
+  }, [catalogProviderForModels])
+
+  useEffect(() => {
     if (!data || !catalogProviderForModels || textModelCatalog[catalogProviderForModels]) return
     let cancelled = false
     const timer = window.setTimeout(() => {
