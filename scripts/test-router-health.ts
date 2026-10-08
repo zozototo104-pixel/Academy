@@ -422,6 +422,8 @@ async function main() {
   await noBalanceSkipsProviderKey()
   console.log('▶ router health: high demand')
   await highDemandSkipsSameModelForRemainingKeys()
+  console.log('▶ router health: schema failure model skip')
+  await schemaFailureSkipsSameModelForRemainingKeys()
   console.log('▶ router health: capability filter')
   await embeddingModelsAreExcludedFromDiscovery()
   console.log('▶ router health: health score ordering')
