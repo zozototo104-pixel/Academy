@@ -1878,7 +1878,7 @@ export async function generateExamQuestionBatch(
   const totalBookChars = selectedSourceChunks.reduce((sum, chunk) => sum + chunk.text.length, 0)
   const fullPlan = batchQuestionPlan(spec.kind, spec.count, program.category)
   const normalizedOffset = Math.max(0, Math.min(Math.max(0, fullPlan.length - 1), Math.floor(startOffset || 0)))
-  const targetQuestionCount = Math.max(1, Math.min(spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
+  const targetQuestionCount = Math.max(1, Math.min(4, spec.count - normalizedOffset, Math.floor(requestedCount || spec.count)))
   const requestedPlan = fullPlan.slice(normalizedOffset, normalizedOffset + targetQuestionCount)
   const minimumRequiredSourceChunks = minimumSourceChunksForComprehensiveExam(requestedPlan.length)
   if (selectedSourceChunks.length < minimumRequiredSourceChunks) {
