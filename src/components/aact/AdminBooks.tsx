@@ -1380,6 +1380,29 @@ export function AdminBooksTab() {
     return () => clearInterval(timer)
   }, [workspaceTab, books, bookReadJobs, advanceBookReadJob, fetchBookReadJob])
 
+  const loadBookOutline = useCallback(async (bookId: string) => {
+    const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> | null; programDraft: typeof programOutlineDraft }>(`/api/admin/books/${bookId}/outline`)
+    setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
+    setProgramOutlineDraft(result.programDraft || [])
+  }, [])
+
+  const buildOutlineForBook = async (bookId: string) => {
+    setOutlineBusyId(bookId)
+    try {
+      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]>; programDraft: typeof programOutlineDraft }>(`/api/admin/books/${bookId}/outline`, { method: 'POST' })
+      setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
+      setProgramOutlineDraft(result.programDraft || [])
+      toast({ title: 'تم إنشاء مسودة فهرس الكتاب', description: `الإصدار ${result.outline.version} — ${result.outline.sections.length} أقسام` })
+    } catch (error: any) {
+      toast({ title: 'تعذر بناء فهرس الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setOutlineBusyId(null) }
+  }
+
+  useEffect(() => {
+    if (workspaceTab !== 'knowledge') return
+    for (const book of books) if (v2CountsByBook[book.id] > 0 && bookOutlines[book.id] === undefined) void loadBookOutline(book.id).catch(() => {})
+  }, [workspaceTab, books, v2CountsByBook, bookOutlines, loadBookOutline])
+
   const startBookReadJob = async (bookId: string) => {
     setBookReadBusyId(bookId)
     delete bookReadRetryRef.current[bookId]
