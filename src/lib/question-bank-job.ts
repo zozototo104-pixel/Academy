@@ -104,7 +104,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     temperature: 0.2,
     maxOutputTokens: 5200,
     stickyScope: `QUESTION_BANK_JOB:${job.programId}:${job.unitId || 'PROGRAM'}`,
-    deadlineMs: Date.now() + 220_000,
+    deadlineMs: deadlineMs || Date.now() + 220_000,
     validate: (text, context) => {
       const parsed = parseGeneratedQuestionCandidates(text)
       const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, context)
