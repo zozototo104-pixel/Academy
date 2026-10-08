@@ -3209,7 +3209,12 @@ export function AdminBooksTab() {
                 <option value="ALL">كل الصعوبات</option><option value="EASY">سهل</option><option value="MEDIUM">متوسط</option><option value="ADVANCED">متقدم</option>
               </select>
             </div>
-            <p className="text-[11px] font-bold text-slate-400">المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+              <p>المعروض: {filteredQuestionBankItems.length} من {questionBankItems.length} سؤال · مُثبت {questionBankItems.filter(isSourceGroundedQuestion).length} · يحتاج تدقيق {questionBankItems.filter((q) => !isSourceGroundedQuestion(q)).length}</p>
+              <select aria-label="فلترة إثبات المصدر" value={questionBankFilter.grounding} onChange={(e) => setQuestionBankFilter((p) => ({ ...p, grounding: e.target.value }))} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold">
+                <option value="ALL">الكل</option><option value="GROUNDED">مُثبت</option><option value="REVIEW">يحتاج تدقيق</option>
+              </select>
+            </div>
             {questionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة في البنك بعد.</p> : filteredQuestionBankItems.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد أسئلة مطابقة للفلترة.</p> : filteredQuestionBankItems.map((q) => {
               let options: string[] = []
               try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options for display.', error) }
