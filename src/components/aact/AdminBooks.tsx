@@ -1159,7 +1159,7 @@ export function AdminBooksTab() {
       if (result?.ok === false) {
         toast({ title: result.status === 'PAUSED' ? 'توقف توليد بنك الأسئلة مؤقتاً' : 'بنك الأسئلة قيد التوليد', description: result.error || result.message || 'تم تشغيل وظيفة بنك الأسئلة للوحدة. أعد المحاولة بعد اكتمالها.' })
       } else {
-        toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: 'سيظهر الاختبار للطالب داخل صفحة الوحدة.' })
+        toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: result.message || (result.reviewRequired ? 'حُفظ الاختبار كمسودة ولن يظهر للطلاب حتى اعتماد الأسئلة.' : 'سيظهر الاختبار للطالب داخل صفحة الوحدة.') })
       }
     } catch (e: any) {
       toast({ title: 'تعذر توليد اختبار الوحدة', description: e.message, variant: 'destructive' })
