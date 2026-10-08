@@ -1283,7 +1283,8 @@ export function AdminBooksTab() {
   }
 
   const fetchBookReadJob = useCallback(async (bookId: string) => {
-    const response = await api<{ job: BookReadJobRow | null }>(`/api/admin/books/${bookId}/read-job`)
+    const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
+    if (response.enrichment) setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
     if (response.job) setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job! }))
     return response.job
   }, [])
