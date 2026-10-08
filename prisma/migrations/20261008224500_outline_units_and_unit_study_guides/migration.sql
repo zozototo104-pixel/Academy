@@ -1,6 +1,10 @@
 -- Add per-unit study guides while keeping old semester-level guides supported.
 ALTER TABLE "ProgramStudyGuide" ADD COLUMN "unitId" TEXT;
 
+ALTER TABLE "ProgramStudyGuide"
+  ADD CONSTRAINT "ProgramStudyGuide_unitId_fkey"
+  FOREIGN KEY ("unitId") REFERENCES "Unit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 -- The previous unique constraint made one guide per program/semester impossible to coexist
 -- with per-unit guides. Replace it with partial unique indexes: one semester guide where
 -- unitId is null, and at most one guide per unit.
