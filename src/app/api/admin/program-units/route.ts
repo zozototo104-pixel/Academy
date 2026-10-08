@@ -152,13 +152,26 @@ async function listProgramUnits(programId: string) {
         retryAt: jobByUnit.get(u.id).retryAt,
         updatedAt: jobByUnit.get(u.id).updatedAt,
       } : null,
+      questionBankJob: questionBankJobByUnit.get(u.id) ? {
+        id: questionBankJobByUnit.get(u.id)!.id,
+        status: questionBankJobByUnit.get(u.id)!.status,
+        requested: questionBankJobByUnit.get(u.id)!.requested,
+        saved: questionBankJobByUnit.get(u.id)!.saved,
+        approvedQuestions: questionBankCountsByUnit.get(u.id)?.approved || 0,
+        pendingReviewQuestions: questionBankCountsByUnit.get(u.id)?.pendingReview || 0,
+        currentQuestions: (questionBankCountsByUnit.get(u.id)?.approved || 0) + (questionBankCountsByUnit.get(u.id)?.pendingReview || 0),
+        retryAt: questionBankJobByUnit.get(u.id)!.retryAt,
+        updatedAt: questionBankJobByUnit.get(u.id)!.updatedAt,
+      } : null,
       exam: u.exam
         ? {
             id: u.exam.id,
             title: u.exam.title,
+            status: u.exam.status,
             passScore: u.exam.passScore,
             questionsCount: u.exam._count.questions,
             attemptsCount: u.exam._count.attempts,
+            reviewQuestionsCount: countUnitExamQuestionsNeedingReview(u.exam.questions),
           }
         : null,
     }
