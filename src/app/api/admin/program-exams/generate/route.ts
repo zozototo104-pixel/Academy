@@ -663,6 +663,11 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     const insufficient = insufficientSourcePayload(e)
     const message = String(insufficient?.error || e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
     const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
+    const examForProgress = await db.programExam.findUnique({ where: { id: examId }, select: { programId: true, semester: true } }).catch(() => null)
+    if (examForProgress) {
+      const previous = await getAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester)
+      await setAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester, { requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: (previous?.failedBatches || 0) + 1, lastError: message })
+    }
     if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
       const reviewed = await exposeExamForReview(examId)
       return { ...reviewed, ok: true, done: true, error: message }
