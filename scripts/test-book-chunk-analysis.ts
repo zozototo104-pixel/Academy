@@ -8,7 +8,8 @@ const second: BookKnowledgeCandidate = { category: 'METHOD', title: 'التحق�
 const invalid: BookKnowledgeCandidate = { ...first, title: 'غير حرفي', excerpt: 'هذه جملة مختلقة غير موجودة في نص الكتاب الأصلي '.repeat(2) }
 assert.ok(validateBookKnowledgeCandidate(first, evidence))
 assert.equal(validateBookKnowledgeCandidate(invalid, evidence), null)
-assert.ok(isRepeatedBookConcept(first, [first]))
+assert.ok(isRepeatedBookConcept(first, [first]), 'same-chunk duplicate must be rejected')
+assert.equal(isRepeatedBookConcept(first, [{ title: 'مفهوم مختلف', summary: 'ملخص آخر' }]), false)
 
 async function testKnowledgeAndResume() {
   const chunks = [
