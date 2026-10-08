@@ -379,7 +379,7 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   const tocNames = tocNameMap(chunks)
   const fromText = textChapters(chunks, bookTitle, tocNames)
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
-  const source = headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length >= 2 ? 'HEADINGS' : 'AI_SEGMENTED'
+  const source = headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : 'AI_SEGMENTED'
   const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : aiBoundaries
   const byNumber = new Map<number, Boundary>()
   for (const boundary of primary) {
