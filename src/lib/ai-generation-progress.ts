@@ -50,7 +50,7 @@ function normalizeProgress(raw: unknown): AiGenerationProgress | null {
 export function resolveGenerationJob(stored: AiGenerationProgress | null, requestedCount: number, resume = false, forceNew = false): AiGenerationProgress {
   const canResume = Boolean(!forceNew && stored && stored.saved < stored.requested && (stored.status === 'PARTIAL' || resume))
   if (canResume && stored) return { ...stored, status: 'RUNNING' }
-  return { jobId: randomUUID(), status: 'RUNNING', requested: requestedCount, saved: 0, failedBatches: 0, lastError: null, updatedAt: new Date().toISOString() }
+  return { jobId: randomUUID(), status: 'RUNNING', requested: requestedCount, saved: 0, failedBatches: 0, lastError: null, usedSourceIndexes: [], knowledgeItemIds: [], updatedAt: new Date().toISOString() }
 }
 
 export async function getAiGenerationProgress(type: AiGenerationProgressType, programId: string, semester?: number | string | null): Promise<AiGenerationProgress | null> {
