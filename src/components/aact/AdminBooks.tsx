@@ -1388,6 +1388,23 @@ export function AdminBooksTab() {
     setProgramOutlineDraft(result.programDraft || [])
   }, [])
 
+  const renameOutlineSection = async (bookId: string, sectionId: string) => {
+    const title = outlineEditingTitle.trim()
+    if (!title || title.length > 180) return
+    try {
+      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}`, { method: 'PATCH', body: JSON.stringify({ title }) })
+      setBookOutlines((previous) => {
+        const outline = previous[bookId]
+        return outline ? { ...previous, [bookId]: { ...outline, sections: outline.sections.map((section) => section.id === sectionId ? { ...section, title } : section) } } : previous
+      })
+      setProgramOutlineDraft((previous) => previous.map((section) => section.id === sectionId ? { ...section, title } : section))
+      setOutlineEditingId(null)
+      toast({ title: 'تم تعديل عنوان القسم' })
+    } catch (error: any) {
+      toast({ title: 'تعذر تعديل عنوان القسم', description: String(error?.message || error), variant: 'destructive' })
+    }
+  }
+
   const buildOutlineForBook = async (bookId: string) => {
     setOutlineBusyId(bookId)
     try {
