@@ -41,6 +41,22 @@ const generatedQuestionSchema = z.object({
 })
 
 const generatedQuestionsSchema = z.object({ questions: z.array(generatedQuestionSchema).min(1).max(30) })
+const looseGeneratedQuestionsSchema = z.object({ questions: z.array(z.unknown()).min(1).max(30) })
+
+function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number } {
+  const parsed = looseGeneratedQuestionsSchema.parse(parseJsonObject(raw))
+  const accepted: any[] = []
+  let rejected = 0
+  for (let index = 0; index < parsed.questions.length; index++) {
+    const result = generatedQuestionSchema.safeParse(parsed.questions[index])
+    if (result.success) accepted.push(result.data)
+    else {
+      rejected += 1
+      console.warn('question bank generated question rejected structurally:', { index, issues: result.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code, message: issue.message })) })
+    }
+  }
+  return { accepted, rejected }
+}
 
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
