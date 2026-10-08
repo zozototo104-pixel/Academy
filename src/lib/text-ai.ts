@@ -212,6 +212,7 @@ export function __resetTextAiStateForTests() {
   recentAttempts = []
   freeModelsCache.clear()
   persistentCooldownCache = null
+  routerRequestSeq = 0
 }
 
 function env(name: string): string {
