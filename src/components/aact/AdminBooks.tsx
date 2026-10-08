@@ -1048,6 +1048,29 @@ export function AdminBooksTab() {
     }
   }
 
+  const generateOutlineUnitContent = async (unit: CurriculumUnitReviewItem, regenerate = false) => {
+    if (!programId) return
+    if (unit.status === 'APPROVED') {
+      toast({ title: 'الوحدة معتمدة', description: 'لا يتم تعديل وحدة APPROVED عند إعادة التوليد.' })
+      return
+    }
+    if (regenerate && !(await askAdminConfirm({ title: 'إعادة توليد محتوى الوحدة ودليلها', description: `سيتم استبدال محتوى ودليل مسودة «${unit.title}» من نطاق الفهرس فقط.`, confirmLabel: 'إعادة التوليد' }))) return
+    setUnitBusyId(unit.id)
+    try {
+      await api(`/api/admin/program-units/${unit.id}/generate`, { method: 'POST', body: JSON.stringify({ regenerate }) })
+      await refreshCurriculumUnits(programId)
+      const guides = await api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${programId}`).catch(() => ({ guides: [] }))
+      setStudyGuides(guides.guides || [])
+      toast({ title: regenerate ? 'تمت إعادة توليد محتوى الوحدة' : 'تم توليد محتوى الوحدة', description: 'تم توليد المحتوى ودليل الدراسة كمراجعة DRAFT من مصادر الوحدة فقط.' })
+    } catch (e: any) {
+      const message = String(e?.message || e)
+      toast({ title: message.includes('PAUSED') ? 'توقف التوليد مؤقتاً' : 'تعذر توليد محتوى الوحدة', description: message, variant: 'destructive' })
+      await refreshCurriculumUnits(programId).catch(() => null)
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const generateUnitExam = async (unit: CurriculumUnitReviewItem) => {
     if (!programId) return
     const hasExam = Boolean(unit.exam?.id)
