@@ -72,7 +72,7 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
     const title = cleanAssignmentText(item?.title, '', 180, true)
     const description = cleanAssignmentText(item?.description, '', 5000)
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
-    const ids = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: any) => clean(id, 100)).filter((id: string) => allowedIds.has(id)) : []
+    const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
     if (!ids.length) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
