@@ -135,10 +135,36 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
 export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '') {
   const headings = headingsFromChunks(chunks, bookTitle)
   const toc = tocFromChunks(chunks)
+  const fromText = textChapters(chunks, bookTitle)
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
   const source = headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : 'AI_SEGMENTED'
-  const boundaries = source === 'HEADINGS' ? headings : source === 'TOC' ? toc : aiBoundaries
-  return { source, sections: normalizeBoundaries(chunks, boundaries, items, chunkIds, semester) }
+  const primary = source === 'HEADINGS' ? headings : source === 'TOC' ? toc : aiBoundaries
+  const tocNames = new Map(toc.filter((entry) => chapterNumber(entry.title) !== null).map((entry) => [chapterNumber(entry.title), entry.title]))
+  const byNumber = new Map<number, Boundary>()
+  for (const boundary of primary) {
+    const number = chapterNumber(boundary.title)
+    if (number !== null && !byNumber.has(number)) byNumber.set(number, boundary)
+  }
+  const expected = [...tocNames.keys()].filter((n): n is number => n !== null)
+  const maximum = expected.length ? Math.max(...expected) : byNumber.size ? Math.max(...byNumber.keys()) : 0
+  for (const boundary of fromText) {
+    const number = chapterNumber(boundary.title)
+    if (number !== null && number <= Math.max(maximum, 12) && !byNumber.has(number)) byNumber.set(number, boundary)
+  }
+  const boundaries = [...primary.filter((entry) => chapterNumber(entry.title) === null), ...byNumber.values()]
+    .sort((a, b) => a.at - b.at)
+    .map((entry) => {
+      const number = chapterNumber(entry.title)
+      const chunk = chunks.find((candidate) => candidate.index === entry.at)
+      const label = chapterLabel(entry.title)
+      return { at: entry.at, title: number !== null ? (tocNames.get(number) || (chunk ? chapterName(chunk, label, bookTitle) : label)) : entry.title }
+    })
+  const sections = normalizeBoundaries(chunks, boundaries, items, chunkIds, semester)
+  const detected = new Set(sections.map((section) => chapterNumber(section.title)).filter((n) => n !== null))
+  const warnings: string[] = []
+  if (expected.length && detected.size !== expected.length) warnings.push(`عدد الفصول المكتشفة ${detected.size} من ${expected.length} في فهرس الكتاب`)
+  for (let n = 1; n <= maximum; n++) if (!detected.has(n)) warnings.push(`الفصل رقم ${n} غير مكتشف`)
+  return { source, sections, warnings }
 }
 
 export async function buildBookOutline(bookId: string) {
