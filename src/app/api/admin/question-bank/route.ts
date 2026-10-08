@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
       if (lastError) failedBatches += 1
       progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { requested: requestedTotal, saved: savedTotal, failedBatches, lastError })
       return NextResponse.json({
-        ok: insertedTotal > 0,
+        ok: savedTotal > 0,
         inserted: insertedTotal,
         requested: requestedTotal,
         saved: savedTotal,
