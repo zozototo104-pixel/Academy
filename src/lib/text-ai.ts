@@ -1469,6 +1469,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') await recordPaidSpend(s, estimatedPaidCost)
+          if (provider === 'OPENAI' && taskLevel !== 'GENERAL') console.warn('paid fallback used: OPENAI academic router')
           logRouterSummary(attempts, true)
           return text
         } catch (e: any) {
