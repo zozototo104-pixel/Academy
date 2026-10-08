@@ -159,6 +159,12 @@ model Unit {
   chunkEndIndex Int?
   generationVersion Int @default(0)
   exam       Exam?
+  studyGuides ProgramStudyGuide[]
+  generationJobs UnitGenerationJob[]
+
+  @@index([programId, semester])
+  @@index([outlineSectionId])
+  @@index([sourceBookId])
 }
 
 model Enrollment {
