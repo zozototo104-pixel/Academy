@@ -629,6 +629,7 @@ export function AdminBooksTab() {
       setCurriculumUnits([])
       setQuestionBankItems([])
       setQuestionBankStats(null)
+      setQuestionBankProgress(null)
       setStudyGuides([])
 
       Promise.all([
