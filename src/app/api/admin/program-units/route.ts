@@ -92,9 +92,11 @@ async function listProgramUnits(programId: string) {
   const unitIds = units.map((unit) => unit.id)
   const outlineSectionIds = [...new Set(units.map((unit) => unit.outlineSectionId).filter((id): id is string => Boolean(id)))]
   const bookIds = [...new Set(units.map((unit) => unit.sourceBookId).filter((id): id is string => Boolean(id)))]
-  const [guides, jobs, sections, books] = await Promise.all([
+  const [guides, jobs, questionBankJobs, questionBankCounts, sections, books] = await Promise.all([
     unitIds.length ? db.programStudyGuide.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
     unitIds.length ? db.unitGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
+    unitIds.length ? db.questionBankGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
+    unitIds.length ? db.questionBankItem.groupBy({ by: ['unitId', 'status'], where: { unitId: { in: unitIds }, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } }, _count: { _all: true } }) : [],
     outlineSectionIds.length ? db.bookOutlineSection.findMany({ where: { id: { in: outlineSectionIds } }, select: { id: true, title: true, pageStart: true, pageEnd: true, chunkStartIndex: true, chunkEndIndex: true } }) : [],
     bookIds.length ? db.book.findMany({ where: { id: { in: bookIds } }, select: { id: true, title: true } }) : [],
   ])
