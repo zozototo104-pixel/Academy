@@ -713,6 +713,7 @@ async function completeJsonWithFallback(args: {
         temperature: args.temperature ?? 0.25,
         maxOutputTokens: args.maxOutputTokens ?? 4096,
         taskLevel: args.taskLevel,
+        deadlineMs: args.deadlineMs,
         stickyScope: args.stickyScope,
         validate: args.validate,
       }), timeoutMs, `${args.label}_Gemini`)
