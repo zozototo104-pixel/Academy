@@ -330,7 +330,9 @@ async function markPersistentCooldown(provider: string, keyIndex: number, model:
   try {
     await settingStore().write(persistentCooldownKey(provider, keyIndex, model), payload)
     persistentCooldownCache = null
-  } catch {}
+  } catch {
+    // Persistent cooldown storage is best-effort; keep in-memory routing behavior if DB/storage fails.
+  }
 }
 
 function isCooling(provider: string, key: string): boolean {
