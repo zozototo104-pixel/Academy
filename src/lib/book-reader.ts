@@ -78,7 +78,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     images: [{ mimeType: 'application/pdf', dataBase64: data.toString('base64') }],
     maxOutputTokens: 16000,
   })
-  const parsed = JSON.parse(result)
+  const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
   return pageNumbers.map((page, i) => {
     const match = parsed.pages.find((entry: any) => Number(entry.page) === i + 1)
