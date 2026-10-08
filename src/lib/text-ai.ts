@@ -1420,20 +1420,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const text = await callProvider(provider, s, key, model, opts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, opts)
+          const text = providerResult.text
           opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          let jsonOk: boolean | undefined
-          if (opts.json) {
-            try {
-              JSON.parse(String(text || ''))
-              jsonOk = true
-            } catch {
-              jsonOk = false
-            }
-          }
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk, evidenceOk: true })
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true })
           lastResult = { provider, model, ok: true, at }
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
