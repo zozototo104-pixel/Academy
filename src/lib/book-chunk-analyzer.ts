@@ -17,7 +17,7 @@ export function isRepeatedBookConcept(candidate: Pick<BookKnowledgeCandidate, 't
     const b = conceptTokens(`${item.title} ${item.summary}`)
     let intersection = 0
     for (const word of a) if (b.has(word)) intersection++
-    return b.size > 0 && intersection / (a.size + b.size - intersection) >= 0.6
+    return b.size > 0 && intersection / (a.size + b.size - intersection) >= 0.75
   })
 }
 export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string): BookKnowledgeCandidate | null {
