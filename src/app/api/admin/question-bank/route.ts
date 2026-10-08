@@ -220,6 +220,7 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin()
     const limited = enforceApiRateLimit(req, 'admin-question-bank', 10, 60 * 1000, admin.id)
     if (limited) return limited
+    const requestDeadlineMs = Date.now() + 240_000
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const requestedCount = Math.max(1, Math.min(30, Number(body?.count || 12)))
