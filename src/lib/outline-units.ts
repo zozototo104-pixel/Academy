@@ -163,12 +163,16 @@ export function validateUnitContentReferences(content: unknown, allowedKnowledge
   const sections = raw.map((entry: any) => {
     const heading = cleanOutlineUnitText(entry?.heading, 180)
     const body = cleanOutlineUnitText(entry?.body, 1800)
-    const sourceKnowledgeIds = Array.isArray(entry?.sourceKnowledgeIds)
-      ? entry.sourceKnowledgeIds.map((id: any) => cleanOutlineUnitText(id, 100)).filter((id: string) => allowedKnowledge.has(id)).slice(0, 12)
+    const requestedKnowledgeIds = Array.isArray(entry?.sourceKnowledgeIds)
+      ? entry.sourceKnowledgeIds.map((id: any) => cleanOutlineUnitText(id, 100)).filter(Boolean)
       : []
-    const sourceChunkIndexes = Array.isArray(entry?.sourceChunkIndexes)
-      ? entry.sourceChunkIndexes.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && allowedChunks.has(n)).slice(0, 12)
+    const requestedChunkIndexes = Array.isArray(entry?.sourceChunkIndexes)
+      ? entry.sourceChunkIndexes.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n))
       : []
+    if (requestedKnowledgeIds.some((id: string) => !allowedKnowledge.has(id))) throw new Error('UNIT_CONTENT_SECTION_OUT_OF_RANGE_SOURCE')
+    if (requestedChunkIndexes.some((n: number) => !allowedChunks.has(n))) throw new Error('UNIT_CONTENT_SECTION_OUT_OF_RANGE_CHUNK')
+    const sourceKnowledgeIds = requestedKnowledgeIds.slice(0, 12)
+    const sourceChunkIndexes = requestedChunkIndexes.slice(0, 12)
     const pageRefs = Array.isArray(entry?.pageRefs)
       ? entry.pageRefs.map((x: any) => cleanOutlineUnitText(x, 80)).filter(Boolean).slice(0, 8)
       : []
