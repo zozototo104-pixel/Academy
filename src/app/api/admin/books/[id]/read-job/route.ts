@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, context: Context) {
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
     try {
-      const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'EXTRACT', status: 'QUEUED' } })
+      const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
       return NextResponse.json({ ok: true, job, resumed: false })
     } catch (error: any) {
       // PostgreSQL partial unique index protects the create itself; a competing
