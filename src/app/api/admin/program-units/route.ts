@@ -98,8 +98,8 @@ async function listProgramUnits(programId: string) {
   for (const guide of guides) if (guide.unitId && !guideByUnit.has(guide.unitId)) guideByUnit.set(guide.unitId, guide)
   const jobByUnit = new Map<string, any>()
   for (const job of jobs) if (!jobByUnit.has(job.unitId)) jobByUnit.set(job.unitId, job)
-  const sectionById = new Map(sections.map((section) => [section.id, section]))
-  const bookById = new Map(books.map((book) => [book.id, book]))
+  const sectionById = new Map(sections.map((section) => [section.id, section] as const))
+  const bookById = new Map(books.map((book) => [book.id, book] as const))
   return units.map((u) => {
     const section = u.outlineSectionId ? sectionById.get(u.outlineSectionId) : null
     const book = u.sourceBookId ? bookById.get(u.sourceBookId) : null
