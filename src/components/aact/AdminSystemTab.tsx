@@ -324,6 +324,18 @@ export function AdminSystemTab() {
     ? (data?.textAi?.activeProvider || 'GEMINI')
     : activeTextProviderForModels
 
+  const loadTextModelHealth = () => {
+    if (!catalogProviderForModels) return
+    setTextModelHealthLoading(true)
+    api<TextAiModelHealth>('/api/admin/system', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'text-ai-model-health', provider: catalogProviderForModels }),
+    })
+      .then((r) => setTextModelHealth(r))
+      .catch(() => setTextModelHealth(null))
+      .finally(() => setTextModelHealthLoading(false))
+  }
+
   useEffect(() => {
     if (!data || !catalogProviderForModels || textModelCatalog[catalogProviderForModels]) return
     let cancelled = false
