@@ -98,7 +98,16 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
   const existing = await store.existing(job.bookId, chunk.id, chunk.index)
   const capacity = Math.max(0, 20 - existing.own.length)
   if (capacity && deadlineMs - Date.now() < 25_000) return { completed: false, added: 0 }
-  const candidates = capacity ? await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own }) : []
+  let candidates: BookKnowledgeCandidate[] = []
+  if (capacity) {
+    try {
+      candidates = await analyze({ bookId: job.bookId, chunkText: chunk.text, deadlineMs, existing: existing.own })
+    } catch (error: any) {
+      const message = String(error?.message || error)
+      if (message.includes('BOOK_READ_TIME_BUDGET_EXHAUSTED') || (Date.now() >= deadlineMs - 10_000 && /timeout|deadline|abort|timed out/i.test(message))) return { completed: false, added: 0 }
+      throw error
+    }
+  }
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of candidates) {
     const item = validateBookKnowledgeCandidate(raw, chunk.text)
