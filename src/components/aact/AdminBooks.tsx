@@ -1129,7 +1129,7 @@ export function AdminBooksTab() {
       title: hasExam ? 'إعادة توليد اختبار الوحدة' : 'توليد اختبار الوحدة',
       description: hasExam
         ? `سيتم استبدال أسئلة اختبار «${unit.title}» الحالية (${unit.exam?.questionsCount || 0} سؤال).`
-        : `سيتم إنشاء اختبار قصير لوحدة «${unit.title}» من أهداف ومحاور الوحدة.`,
+        : `سيتم إنشاء اختبار وحدة «${unit.title}» من بنك الأسئلة الموثق الخاص بهذه الوحدة.`,
       confirmLabel: hasExam ? 'إعادة التوليد' : 'توليد الاختبار',
       danger: hasExam,
     })
