@@ -51,7 +51,7 @@ function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejec
     if (result.success) accepted.push(result.data)
     else {
       rejected += 1
-      console.warn('question bank generated question rejected structurally:', { index, issues: result.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code, message: issue.message })) })
+      console.warn('question bank generated question rejected structurally:', { index, issues: result.error.issues.map((issue) => ({ path: issue.path.map(String).join('.'), code: issue.code, message: issue.message })) })
     }
   }
   return { accepted, rejected }
