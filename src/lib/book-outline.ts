@@ -59,6 +59,35 @@ export function tocFromChunks(chunks: readonly Chunk[]): Boundary[] {
   return found
 }
 
+const ordinals: Record<string, number> = { 'الاول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4, 'الخامس': 5, 'السادس': 6, 'السابع': 7, 'الثامن': 8, 'التاسع': 9, 'العاشر': 10, 'الحادي عشر': 11, 'الثاني عشر': 12 }
+const chapterLine = /^\s*((?:الفصل|الباب|الوحدة)\s+(?:الحادي عشر|الثاني عشر|[\p{L}]+|[\d\u0660-\u0669]+))\s*[:：.\-–]?\s*$/iu
+function chapterNumber(title: string): number | null {
+  const match = normalizeHeading(title).match(/^(?:الفصل|الباب|الوحده)\s+(الحادي عشر|الثاني عشر|\S+)/u)
+  if (!match) return null
+  return ordinals[match[1]] || (/^\d+$/.test(match[1]) ? Number(match[1]) : null)
+}
+function chapterLabel(title: string): string {
+  return clean(title.match(/(?:الفصل|الباب|الوحدة)\s+(?:الحادي عشر|الثاني عشر|[\p{L}]+|[\d\u0660-\u0669]+)/iu)?.[0] || title)
+}
+function chapterName(chunk: Chunk, label: string, bookTitle: string): string {
+  const lines = chunk.text.split(/\r?\n/).map(clean)
+  const start = lines.findIndex((line) => normalizeHeading(line) === normalizeHeading(label))
+  if (start < 0) return label
+  for (const line of lines.slice(start + 1, start + 7)) {
+    if (line.length < 3 || line.length > 80 || /^\d+$/.test(line) || normalizeHeading(line) === normalizeHeading(bookTitle) || chapterLine.test(line) || /^(?:المبحث|المطلب|الفرع)\s/u.test(line)) continue
+    return `${label}: ${line}`
+  }
+  return label
+}
+function textChapters(chunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  const found: Boundary[] = []
+  for (const chunk of chunks) {
+    const line = chunk.text.split(/\r?\n/).slice(0, 160).map(clean).find((value) => chapterLine.test(value))
+    if (line && normalizeHeading(line) !== normalizeHeading(bookTitle)) found.push({ at: chunk.index, title: chapterName(chunk, chapterLabel(line), bookTitle) })
+  }
+  return found
+}
+
 function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boundary[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null): OutlineSectionDraft[] {
   const sorted = [...chunks].sort((a, b) => a.index - b.index)
   if (!sorted.length) return []
