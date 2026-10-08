@@ -55,8 +55,12 @@ export async function getAiGenerationProgress(type: AiGenerationProgressType, pr
 
 export async function setAiGenerationProgress(type: AiGenerationProgressType, programId: string, semester: number | string | null | undefined, patch: Partial<AiGenerationProgress>): Promise<AiGenerationProgress> {
   const current = await getAiGenerationProgress(type, programId, semester)
+  const requested = Math.max(0, Number(patch.requested ?? current?.requested ?? 0) || 0)
+  const saved = Math.max(0, Number(patch.saved ?? current?.saved ?? 0) || 0)
   const next: AiGenerationProgress = {
-    requested: Math.max(0, Number(patch.requested ?? current?.requested ?? 0) || 0),
+    jobId: patch.jobId || current?.jobId || randomUUID(),
+    status: requested > 0 && saved >= requested ? 'COMPLETED' : patch.status || current?.status || 'RUNNING',
+    requested,
     saved: Math.max(0, Number(patch.saved ?? current?.saved ?? 0) || 0),
     failedBatches: Math.max(0, Number(patch.failedBatches ?? current?.failedBatches ?? 0) || 0),
     lastError: patch.lastError === undefined ? current?.lastError ?? null : patch.lastError ? String(patch.lastError).slice(0, 500) : null,
