@@ -643,7 +643,7 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
 
     const totals = await examTotals(examId)
     const done = firstMissingBatchIndex(totals.questionCount) >= EXAM_BATCH_COUNT
-    await setAiGenerationProgress('PROGRAM_EXAM', exam.programId, exam.semester, { requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: 0, lastError: null })
+    await setAiGenerationProgress('PROGRAM_EXAM', exam.programId, exam.semester, { status: done ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: 0, lastError: null })
     await db.programExam.update({
       where: { id: examId },
       data: {
