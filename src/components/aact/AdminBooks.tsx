@@ -994,6 +994,39 @@ export function AdminBooksTab() {
     setCurriculumUnits(res.units || [])
   }
 
+  const generateCurriculumUnits = async () => {
+    if (!programId) return
+    setUnitBusyId('__generate_units__')
+    try {
+      const run = (legacyConfirmed = false) => api<{ count: number; mode: string; warnings?: string[]; summary?: { created: number; updatedDrafts: number; skippedApproved: number; skippedDrafts: number; skippedIntro: number } }>('/api/admin/program-units/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ programId, regenerateDrafts: unitRegenerateDrafts, legacyConfirmed, append: legacyConfirmed }),
+      })
+      let result: Awaited<ReturnType<typeof run>>
+      try {
+        result = await run(false)
+      } catch (error: any) {
+        if (String(error?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
+          const skipped = Array.isArray(error?.data?.skippedBooks) ? error.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : String(error?.message || '')
+          const ok = await askAdminConfirm({ title: 'تأكيد التوليد القديم للوحدات', description: `${skipped || 'لا يوجد أي كتاب له فهرس معتمد.'}\n\nسيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة.`, confirmLabel: 'استخدم التوليد القديم' })
+          if (!ok) return
+          result = await run(true)
+        } else {
+          throw error
+        }
+      }
+      await refreshCurriculumUnits(programId)
+      await refreshProgramReadiness()
+      if (result.warnings?.length) toast({ title: 'تم تخطي بعض الكتب', description: result.warnings.join(' | ') })
+      const summary = result.summary ? `جديد: ${result.summary.created} · محدّث: ${result.summary.updatedDrafts} · معتمد محفوظ: ${result.summary.skippedApproved}` : `${result.count || 0} وحدة`
+      toast({ title: 'تم توليد الوحدات', description: summary })
+    } catch (error: any) {
+      toast({ title: 'تعذر توليد الوحدات', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setUnitBusyId(null)
+    }
+  }
+
   const patchCurriculumUnit = async (unit: CurriculumUnitReviewItem, data: Partial<CurriculumUnitReviewItem>) => {
     if (!programId) return
     setUnitBusyId(unit.id)
