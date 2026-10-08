@@ -108,8 +108,16 @@ export async function POST(req: NextRequest) {
     if (!unit) return NextResponse.json({ ok: false, error: 'الوحدة غير موجودة ضمن البرنامج المحدد' }, { status: 404 })
     if (unit.exam?._count.attempts && replace) return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.' }, { status: 409 })
 
-    const bankItems = await scopedQuestions(programId, unitId, count)
-    if (bankItems.length < 3) return NextResponse.json({ ok: false, error: 'لا توجد أسئلة موثقة كافية لهذه الوحدة. تم تشغيل وظيفة بنك الأسئلة؛ أعد المحاولة بعد اكتمالها.' }, { status: 409 })
+    const scoped = await scopedQuestions(programId, unitId, count)
+    const bankItems = scoped.questions
+    if (bankItems.length < 3) return NextResponse.json({
+      ok: false,
+      status: scoped.job?.status || 'QUEUED',
+      job: scoped.job,
+      error: scoped.job?.status === 'PAUSED'
+        ? 'توقفت وظيفة بنك الأسئلة مؤقتاً لعدم توفر مزود أكاديمي. أعد المحاولة بعد الاستئناف.'
+        : 'لا توجد أسئلة موثقة كافية لهذه الوحدة بعد. تم تشغيل وظيفة بنك الأسئلة؛ أعد المحاولة بعد اكتمالها.',
+    }, { status: scoped.job?.status === 'PAUSED' ? 503 : 202 })
     const reviewRequired = bankItems.some((item) => item.status !== 'APPROVED' || !hasFlag(item.qualityFlags, 'SOURCE_GROUNDED')) || bankItems.length < count
     const examQuestions = bankItems.map((item, index) => toExamQuestion(item, index, item.status !== 'APPROVED'))
 
