@@ -631,8 +631,11 @@ function modelId(row: any): string {
 }
 
 function isTextLikeModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
   const type = String(row?.type || row?.modality || row?.architecture?.modality || row?.input_modalities?.join?.(',') || 'text').toLowerCase()
-  if (/image|video|audio|embedding|moderation|rerank|tts|stt/.test(type)) return false
+  if (/image|vision-only|video|audio|embedding|embed|moderation|guard|rerank|ocr-only|tts|stt|whisper/.test(`${type} ${id}`)) return false
+  const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
+  if (Number.isFinite(contextLength) && contextLength > 0 && contextLength < 32000) return false
   const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
 }
