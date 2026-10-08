@@ -661,7 +661,8 @@ export function AdminBooksTab() {
     })
   }, [questionBankItems, questionBankFilter])
 
-  const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
+  const rootStudyGuides = useMemo(() => studyGuides.filter((guide) => !guide.unitId), [studyGuides])
+  const displayStudyGuides = useMemo(() => rootStudyGuides.map((guide) => ({
     ...guide,
     title: cleanAcademicOutput(guide.title, 220),
     overview: cleanAcademicOutput(guide.overview, 5000),
