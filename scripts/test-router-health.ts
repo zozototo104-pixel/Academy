@@ -147,6 +147,47 @@ async function highDemandSkipsSameModelForRemainingKeys() {
   )
 }
 
+async function schemaFailureSkipsSameModelForRemainingKeys() {
+  configureUnoRouter()
+  process.env.UNOROUTER_TEXT_MODEL = 'schema-bad-model:free'
+  const store = makeStore()
+  await withHarness(
+    store,
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [
+          { id: 'schema-bad-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+          { id: 'schema-good-model:free', is_free: true, online: true, type: 'text', context_length: 128000 },
+        ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url.includes('/chat/completions')) {
+        const model = JSON.parse(String(init?.body || '{}')).model
+        if (model === 'schema-bad-model:free') return okChat('{"questions":[{"text":"bad"}]}')
+        return okChat('{"ok":true}')
+      }
+      return okChat('ignored')
+    },
+    async (calls) => {
+      const out = await textAiCompleteJson({
+        system: 'test',
+        history: [{ role: 'user', text: 'schema' }],
+        validate: (text) => {
+          if (text.includes('questions')) {
+            const error = new Error('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION invalid_type correctAnswer') as Error & { code?: string }
+            error.code = 'VALIDATION_REJECTED'
+            throw error
+          }
+        },
+      })
+      assert.equal(out, '{"ok":true}')
+      const badCalls = calls.filter((call) => call.url.includes('/chat/completions') && call.body?.model === 'schema-bad-model:free')
+      assert.equal(badCalls.length, 1, 'schema-failing model must not be retried on the second key')
+      const stats = JSON.parse(store.values.get('AI_MODEL_STATS:UNOROUTER:schema-bad-model:free') || '{}')
+      assert.equal(stats.fail?.schemaFail, 1)
+    }
+  )
+}
+
 async function embeddingModelsAreExcludedFromDiscovery() {
   configureUnoRouter()
   process.env.UNOROUTER_TEXT_MODEL = 'auto'
