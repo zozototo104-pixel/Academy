@@ -451,8 +451,23 @@ export async function POST(req: NextRequest) {
     if ((plan as any).evidenceError) return NextResponse.json({ error: (plan as any).evidenceError }, { status: 422 })
     if (!plan.units.length) return NextResponse.json({ error: 'لم ينتج تحليل الكتب وبنك المعرفة أي وحدات قابلة للحفظ.' }, { status: 422 })
 
-    if (replace) await db.unit.deleteMany({ where: { programId } })
-    const orderOffset = replace ? 0 : Number(existingOrder._max.order || currentCount)
+    let replaceProtection = { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 }
+    let orderOffset = Number(existingOrder._max.order || currentCount)
+    if (replace) {
+      const unitsBeforeReplace = await db.unit.findMany({
+        where: { programId },
+        select: {
+          status: true,
+          outlineSectionId: true,
+          exam: { select: { _count: { select: { attempts: true } } } },
+        },
+      })
+      replaceProtection = summarizeReplaceUnitProtection(unitsBeforeReplace)
+      const deleted = await db.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
+      replaceProtection.deleted = deleted.count
+      const remainingOrder = await db.unit.aggregate({ where: { programId }, _max: { order: true } })
+      orderOffset = Number(remainingOrder._max.order || 0)
+    }
 
     const generationAudit = {
       kind: 'CURRICULUM_GENERATION_AUDIT',
