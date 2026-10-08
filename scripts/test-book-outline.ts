@@ -48,4 +48,19 @@ const recurring = tenChunks.map((chunk) => ({ ...chunk, headingPath: chunk.index
 const noDuplicate = planBookOutline(recurring, tenItems, tenIds, 1)
 assert.deepEqual(noDuplicate.sections.map((section) => section.title), ['الفصل الأول', 'الفصل الثاني', 'الفصل الثالث'])
 assert.equal(noDuplicate.sections.reduce((sum, section) => sum + section.itemsCount, 0), 10)
+const fiveChunks = Array.from({ length: 10 }, (_, index) => ({ index, pageStart: index + 1, pageEnd: index + 2, headingPath: index < 2 ? null : index < 4 ? 'الفصل الثاني' : index < 6 ? 'الفصل الثالث' : index < 8 ? 'الفصل الخامس' : 'الفصل الخامس', text: index === 0 ? 'الفصل الأول\nمقدمة الإسعافات النفسية' : index === 6 ? 'الفصل الرابع\nمفهوم الإسعافات النفسية' : index === 2 ? 'الفصل الثاني\nمفهوم الإسعافات النفسية' : 'متن علمي' }))
+const fiveIds = new Map(fiveChunks.map((chunk) => [chunk.index, `five-${chunk.index}`]))
+const fiveItems = fiveChunks.map((chunk) => ({ chunkId: `five-${chunk.index}`, title: 'معرفة', summary: 'ملخص' }))
+const recovered = planBookOutline(fiveChunks, fiveItems, fiveIds, 1, [], 'الإسعافات الأولية النفسية')
+assert.deepEqual(recovered.sections.map((section) => section.title.match(/الفصل (?:الأول|الثاني|الثالث|الرابع|الخامس)/)?.[0]), ['الفصل الأول', 'الفصل الثاني', 'الفصل الثالث', 'الفصل الرابع', 'الفصل الخامس'])
+assert.ok(recovered.sections.some((section) => section.title === 'الفصل الثاني: مفهوم الإسعافات النفسية'))
+assert.ok(recovered.sections.every((section) => section.title !== 'الإسعافات الأولية النفسية'))
+assert.equal(recovered.warnings.length, 0)
+for (let i = 1; i < recovered.sections.length; i++) {
+  const previous = recovered.sections[i - 1]
+  const next = recovered.sections[i]
+  if (previous.pageEnd !== null && next.pageStart !== null) assert.ok(previous.pageEnd < next.pageStart, 'displayed pages must not overlap')
+}
+const oneChunkChapter = planBookOutline(tenChunks.map((chunk, index) => ({ ...chunk, headingPath: index === 3 ? 'الفصل الثاني' : index < 3 ? 'الفصل الأول' : 'الفصل الثالث' })), tenItems, tenIds, 1)
+assert.ok(oneChunkChapter.sections.some((section) => section.title === 'الفصل الثاني' && section.itemsCount === 1 && section.chunkStartIndex === section.chunkEndIndex))
 console.log('book outline tests passed')
