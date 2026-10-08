@@ -1357,7 +1357,7 @@ export function AdminBooksTab() {
       }
     }, 5000)
     return () => clearInterval(timer)
-  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob])
+  }, [workspaceTab, books, bookReadJobs, advanceBookReadJob, fetchBookReadJob])
 
   const startBookReadJob = async (bookId: string) => {
     setBookReadBusyId(bookId)
