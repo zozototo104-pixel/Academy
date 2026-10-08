@@ -45,6 +45,8 @@ export async function POST(_request: NextRequest, context: Context) {
       }
     } else if (job.phase === 'ANALYZE') {
       result = await runAnalyzeStep(job.id, deadlineMs)
+    } else if (job.phase === 'ENRICH') {
+      result = await runEnrichStep(job.id, deadlineMs)
     } else {
       result = { phase: job.phase }
     }
