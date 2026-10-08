@@ -1468,6 +1468,7 @@ model ProgramAssignment {
   id          String   @id @default(cuid())
   programId   String
   program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId      String?
   title       String
   description String
   semester    Int      @default(1) // الفصل الدراسي المرتبط بالتكليف
