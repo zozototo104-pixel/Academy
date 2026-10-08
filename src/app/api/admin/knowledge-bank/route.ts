@@ -128,8 +128,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const result = await rebuildProgramKnowledge(programId, semester)
-    await audit(admin, 'REBUILD_PROGRAM_KNOWLEDGE', 'Program', programId, `بناء ${result.totalInserted} عنصر معرفة من كتب البرنامج`)
+    // The program-wide rebuild button schedules v2 jobs; the legacy v1 builder stays available for other paths.
+    const result = await scheduleProgramKnowledgeV2(programId, semester)
+    await audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`)
     const items = await getProgramKnowledgeItems(programId, semester, 140)
     return NextResponse.json({ ok: true, result, count: items.length, stats: categoryStats(items), items })
   } catch (e: any) {
