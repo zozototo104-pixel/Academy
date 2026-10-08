@@ -358,7 +358,7 @@ export async function POST(req: NextRequest) {
         progress,
         stats: await questionStats(programId),
         items: await listQuestions(programId),
-      }, { status: insertedTotal > 0 ? 200 : status })
+      }, { status: savedTotal > 0 ? 200 : status })
     }
 
     while (savedTotal < requestedTotal) {
