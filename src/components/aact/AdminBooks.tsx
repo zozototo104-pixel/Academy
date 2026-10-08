@@ -2385,7 +2385,7 @@ export function AdminBooksTab() {
                   {[1, 2, 3].map((semester) => (
                     <Button key={semester} size="sm" variant="outline" onClick={() => generateStudyGuide(semester)} disabled={!!generatingGuideSemester || books.length === 0} className="border-[#c9a227] text-[10px] font-black text-[#a8841a]">
                       {generatingGuideSemester === String(semester) ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
-                      {semester === 3 ? 'دليل البحث/المشروع' : `دليل الفصل ${semester === 2 ? 'الثاني' : 'الأول'}`}
+                      {semester === 3 ? 'دليل الفصل الدراسي العام للبحث/المشروع' : `دليل الفصل الدراسي العام ${semester === 2 ? 'الثاني' : 'الأول'}`}
                     </Button>
                   ))}
                 </div>
