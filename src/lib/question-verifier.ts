@@ -335,7 +335,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     }
     const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
     if (!familyCheck.ok) {
-      for (const item of prepared) output[item.index] = applyPending(item.question, familyCheck.reason)
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, familyCheck.reason)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: familyCheck.reason })
+      }
       continue
     }
 
