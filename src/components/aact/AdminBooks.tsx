@@ -1493,7 +1493,7 @@ export function AdminBooksTab() {
   const approveBookOutline = async (bookId: string) => {
     setOutlineUnitBusyId(`approve-${bookId}`)
     try {
-      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify({ outlineId: bookOutlines[bookId]?.version ? undefined : undefined }) })
+      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify({}) })
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       toast({ title: 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
     } catch (error: any) {
