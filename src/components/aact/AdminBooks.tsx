@@ -1043,6 +1043,16 @@ export function AdminBooksTab() {
       setCurriculumUnits(res.units || [])
       await refreshProgramReadiness()
     } catch (e: any) {
+      if (String(e?.message || '').includes('الحذف الإجباري')) {
+        const force = await askAdminConfirm({ title: 'تأكيد حذف إجباري للوحدة', description: `${e.message}\n\nهذا قد يحذف بيانات مرتبطة بالوحدة. اكتب التأكيد الإداري بالضغط على الزر فقط إذا كنت تقصد ذلك.`, confirmLabel: 'حذف إجباري', danger: true })
+        if (force) {
+          const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}&unitId=${unitId}&force=true`, { method: 'DELETE' })
+          setCurriculumUnits(res.units || [])
+          await refreshProgramReadiness()
+          toast({ title: 'تم الحذف الإجباري للوحدة' })
+          return
+        }
+      }
       toast({ title: 'تعذر حذف الوحدة', description: e.message, variant: 'destructive' })
     } finally {
       setUnitBusyId(null)
