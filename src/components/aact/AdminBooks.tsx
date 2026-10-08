@@ -421,6 +421,7 @@ export function AdminBooksTab() {
   const [bookReadBusyId, setBookReadBusyId] = useState<string | null>(null)
   const bookReadInFlightRef = useRef<Set<string>>(new Set())
   const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats>({})
+  const [v2CountsByBook, setV2CountsByBook] = useState<Record<string, number>>({})
   const [programReadiness, setProgramReadiness] = useState<ProgramReadinessSnapshot | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
   const [curriculumUnits, setCurriculumUnits] = useState<CurriculumUnitReviewItem[]>([])
