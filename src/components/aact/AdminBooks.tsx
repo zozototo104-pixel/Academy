@@ -1936,14 +1936,31 @@ export function AdminBooksTab() {
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
                       const countForBook = displayKnowledgeItems.filter((k) => k.bookId === b.id).length
                       return (
-                        <div key={b.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
-                          <div className="min-w-0">
-                            <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
-                            <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
+                        <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate font-black text-[#0f2b46]">{b.title}</p>
+                              <p className="text-slate-400">{countForBook ? `${countForBook} عنصر معرفة` : 'غير محلل بعد'}</p>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
+                              {bookReadBusyId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
+                            </Button>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => rebuildBookKnowledge(b.id)} disabled={rebuildingKnowledge || rebuildingBookId === b.id} className="h-8 shrink-0 px-2 text-[10px] font-black">
-                            {rebuildingBookId === b.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'قراءة وتحليل كامل'}
-                          </Button>
+                          {bookReadJobs[b.id] && (() => {
+                            const job = bookReadJobs[b.id]
+                            const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
+                            return <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-2">
+                              <p className="text-[#0f2b46]">المرحلة: {phase}</p>
+                              <p>قراءة الصفحات {job.pagesDone} من {job.totalPages}</p>
+                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, job.totalPages ? (job.pagesDone / job.totalPages) * 100 : 0)}%` }} /></div>
+                              <p>تحليل المقاطع {job.chunksAnalyzed} من {job.totalChunks}</p>
+                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, job.totalChunks ? (job.chunksAnalyzed / job.totalChunks) * 100 : 0)}%` }} /></div>
+                              <p>فشل {job.chunksFailed}</p>
+                              {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
+                              {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
+                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
+                            </div>
+                          })()}
                         </div>
                       )
                     })}
