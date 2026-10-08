@@ -1348,6 +1348,7 @@ export function AdminBooksTab() {
     const timer = setInterval(() => {
       if (document.visibilityState !== 'visible') return
       for (const book of books) {
+        void fetchBookReadJob(book.id).catch(() => {})
         const job = bookReadJobs[book.id]
         if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
           if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
