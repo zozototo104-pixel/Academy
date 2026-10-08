@@ -2325,7 +2325,7 @@ export function AdminBooksTab() {
                   </div>
                 </div>
                 {curriculumUnits.length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم اقتراح الوحدات من الكتب في مركز الجودة أو أضف وحدة يدوياً.</div>
+                  <div className="rounded-2xl bg-slate-50 p-6 text-center text-xs font-bold text-slate-500">لا توجد وحدات بعد. استخدم زر توليد الوحدات أعلاه أو أضف وحدة يدوياً.</div>
                 ) : (
                   <div className="space-y-4">
                     {curriculumUnits.map((unit, index) => (
