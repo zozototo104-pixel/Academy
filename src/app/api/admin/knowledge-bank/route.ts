@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { scheduleProgramKnowledgeV2 } from '@/lib/book-knowledge-v2-scheduler'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
