@@ -319,7 +319,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
           : error?.code === 'AI_DEADLINE_EXCEEDED'
             ? 'VERIFIER_TIME_BUDGET_EXCEEDED'
             : `VERIFICATION_PENDING:${String(error?.reason || error?.code || error?.message || error).slice(0, 180)}`
-      for (const item of prepared) output[item.index] = applyPending(item.question, reason)
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, reason)
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason })
+      }
       continue
     }
 
