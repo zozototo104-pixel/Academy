@@ -11,6 +11,7 @@ import { audit } from '@/lib/notify'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { resolveQuestionBankEvidence } from '@/lib/question-bank-chunk-evidence'
+import { ensureQuestionBankGenerationJob, runNextQuestionBankGenerationJobStep, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const maxDuration = 300
 
