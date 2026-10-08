@@ -110,7 +110,7 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
 }
 
 export async function buildBookOutline(bookId: string) {
-  const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true } })
+  const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
   const [chunks, items] = await Promise.all([
     db.bookChunk.findMany({ where: { bookId }, orderBy: { index: 'asc' }, select: { id: true, index: true, headingPath: true, text: true, pageStart: true, pageEnd: true } }),
