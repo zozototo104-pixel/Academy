@@ -63,24 +63,33 @@ function selectBalanced(items: any[], count: number) {
   return selected.slice(0, count)
 }
 
-async function scopedQuestions(programId: string, unitId: string, count: number) {
-  const grounded = await db.questionBankItem.findMany({
-    where: { programId, unitId, status: 'APPROVED', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
-    orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }],
-    take: Math.max(30, count * 3),
+async function unitQuestionCandidates(programId: string, unitId: string, count: number, includePending = false) {
+  return db.questionBankItem.findMany({
+    where: {
+      programId,
+      unitId,
+      qualityFlags: { contains: 'SOURCE_GROUNDED' },
+      status: includePending ? { in: ['APPROVED', 'PENDING_REVIEW'] } : 'APPROVED',
+    },
+    orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
+    take: Math.max(40, count * 4),
   })
-  let selected = selectBalanced(grounded, count)
+}
+
+async function scopedQuestions(programId: string, unitId: string, count: number) {
+  let selected = selectBalanced(await unitQuestionCandidates(programId, unitId, count, false), count)
+  let job: Awaited<ReturnType<typeof runQuestionBankGenerationJobStep>> | null = null
   if (selected.length < count) {
-    const job = await ensureQuestionBankGenerationJob({ programId, unitId, requested: count - selected.length, startNew: false })
-    await runQuestionBankGenerationJobStep(job.id)
-    const refreshed = await db.questionBankItem.findMany({
-      where: { programId, unitId, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
-      orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
-      take: Math.max(40, count * 4),
-    })
-    selected = selectBalanced(refreshed, count)
+    const queued = await ensureQuestionBankGenerationJob({ programId, unitId, requested: Math.max(count - selected.length, count), startNew: false })
+    const deadline = Date.now() + 210_000
+    for (let step = 0; step < 5 && Date.now() < deadline; step++) {
+      job = await runQuestionBankGenerationJobStep(queued.id)
+      selected = selectBalanced(await unitQuestionCandidates(programId, unitId, count, true), count)
+      if (selected.length >= count) break
+      if (job?.status === 'PAUSED' || job?.status === 'FAILED' || job?.status === 'COMPLETED') break
+    }
   }
-  return selected
+  return { questions: selected, job }
 }
 
 // POST /api/admin/unit-exams/generate
