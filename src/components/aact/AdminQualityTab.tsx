@@ -2830,8 +2830,8 @@ export function AdminQualityTab() {
               className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right transition hover:bg-emerald-100 disabled:opacity-60"
             >
               <span>
-                <span className="block text-lg font-black text-emerald-800">إضافة إلى الموجود</span>
-                <span className="mt-1 block text-xs font-bold leading-6 text-emerald-700">يبقي الوحدات الحالية ويضيف الوحدات المقترحة بعدها.</span>
+                <span className="block text-lg font-black text-emerald-800">استخدام التوليد القديم والإضافة</span>
+                <span className="mt-1 block text-xs font-bold leading-6 text-emerald-700">يبقي الوحدات الحالية ويضيف الوحدات القديمة المولدة من النص وبنك المعرفة بعدها.</span>
               </span>
               {unitSuggestionModeBusy === 'append' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-emerald-700" /> : <span className="text-2xl font-black text-emerald-700">＋</span>}
             </button>
