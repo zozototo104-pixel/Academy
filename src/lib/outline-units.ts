@@ -72,6 +72,42 @@ export type UnitStudyGuideDraft = {
   sourceKnowledgeIds: string[]
 }
 
+export type ReplaceUnitProtectionInput = {
+  status?: string | null
+  outlineSectionId?: string | null
+  exam?: { attemptsCount?: number | null; _count?: { attempts?: number | null } } | null
+}
+
+export function hasUnitExamAttempts(unit: ReplaceUnitProtectionInput) {
+  return Number(unit.exam?.attemptsCount ?? unit.exam?._count?.attempts ?? 0) > 0
+}
+
+export function canReplaceDeleteUnit(unit: ReplaceUnitProtectionInput) {
+  return String(unit.status || '').toUpperCase() === 'DRAFT' && !unit.outlineSectionId && !hasUnitExamAttempts(unit)
+}
+
+export function summarizeReplaceUnitProtection(units: ReplaceUnitProtectionInput[]) {
+  return units.reduce((acc, unit) => {
+    if (canReplaceDeleteUnit(unit)) acc.deleted++
+    if (String(unit.status || '').toUpperCase() === 'APPROVED') acc.keptApproved++
+    if (unit.outlineSectionId) acc.keptOutline++
+    if (hasUnitExamAttempts(unit)) acc.keptWithAttempts++
+    return acc
+  }, { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 })
+}
+
+export function safeReplaceDraftUnitWhere(programId: string) {
+  return {
+    programId,
+    status: 'DRAFT',
+    outlineSectionId: null,
+    OR: [
+      { exam: { is: null } },
+      { exam: { is: { attempts: { none: {} } } } },
+    ],
+  }
+}
+
 export function cleanOutlineUnitText(value: unknown, max = 1200) {
   return String(value || '')
     .replace(/\u0000/g, ' ')
