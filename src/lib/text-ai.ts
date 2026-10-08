@@ -289,6 +289,19 @@ function persistentCooldownKey(provider: string, keyIndex: number, model?: strin
   return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
 }
 
+function modelDeadKey(provider: string, model: string): string {
+  return `AI_MODEL_DEAD:${provider}:${model}`
+}
+
+function noBalanceKey(provider: string, keyIndex: number): string {
+  return `AI_NO_BALANCE:${provider}:${keyIndex}`
+}
+
+function routerStatePayload(daysOrMs: number, reason: string, status?: number): string {
+  const ms = daysOrMs > 1000 ? daysOrMs : daysOrMs * 24 * 60 * 60 * 1000
+  return JSON.stringify({ until: new Date(Date.now() + ms).toISOString(), reason: reason.slice(0, 180), status: status || null })
+}
+
 function parseCooldown(value: unknown): { until: number; reason: string; status?: number } | null {
   try {
     const parsed = JSON.parse(String(value || '{}'))
