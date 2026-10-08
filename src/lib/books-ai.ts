@@ -698,6 +698,7 @@ async function completeJsonWithFallback(args: {
   retries?: number
   timeoutMs?: number
   taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
+  stickyScope?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }): Promise<string> {
   const errors: string[] = []
