@@ -81,7 +81,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     ranges[smallest - 1].end = ranges[smallest].end
     ranges.splice(smallest, 1)
   }
-  while (ranges.length < Math.min(4, sorted.length)) {
+  while (ranges.length < Math.min(boundaries.length ? Math.max(1, boundaries.length) : 4, sorted.length)) {
     let largest = 0
     for (let i = 1; i < ranges.length; i++) if (ranges[i].end - ranges[i].start > ranges[largest].end - ranges[largest].start) largest = i
     const range = ranges[largest]
