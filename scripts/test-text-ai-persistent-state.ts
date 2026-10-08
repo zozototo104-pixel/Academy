@@ -99,6 +99,7 @@ async function validationRejectedDoesNotWriteCooldown() {
   try {
     await assert.rejects(
       () => textAiComplete({
+        system: 'test',
         history: [{ role: 'user', text: 'validate' }],
         validate: () => {
           const error = new Error('bad validation') as Error & { code?: string }
