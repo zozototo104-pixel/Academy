@@ -6,7 +6,7 @@ import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, canRunBookReadJob, claimBookReadLock } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 type Context = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: Context) {
