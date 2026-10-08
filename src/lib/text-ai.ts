@@ -1481,6 +1481,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: opts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined })
+          if (isSchemaFailureLike(e)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            break
+          }
           if (isDeadModelLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             await markPersistentModelDead(provider, model, msg, status)
