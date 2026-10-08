@@ -108,7 +108,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     validate: (text, context) => {
       const parsed = parseGeneratedQuestionCandidates(text)
       const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, context)
-      assertQuestionBatchAcceptable(parsed.accepted.length + parsed.rejected, validation.rejected.length + parsed.rejected.length, validation.accepted.length)
+      assertQuestionBatchAcceptable(parsed.accepted.length + parsed.rejected, validation.rejected.length + parsed.rejected, validation.accepted.length)
     },
   })
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
