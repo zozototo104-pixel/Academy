@@ -38,7 +38,7 @@ async function main() {
   const full = await scenario(Array.from({ length: 20 }, (_, index) => `معلومة سابقة ${index}`), [candidate])
   assert.equal(full.added, 0, '20-item cap respected')
   assert.equal(full.persisted.length, 20)
-  assert.ok(full.saturatedAt instanceof Date)
+  assert.equal(full.saturated, true)
   console.log('book enrichment behavior tests passed')
 }
 
