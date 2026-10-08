@@ -191,5 +191,5 @@ export async function buildBookOutline(bookId: string) {
     draft = planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title)
   }
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
-  return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
+  return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
 }
