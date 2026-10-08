@@ -10,7 +10,7 @@ import { setAiTaskPause } from '@/lib/ai-task-pause'
 import { audit } from '@/lib/notify'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
-import { inferTextProvenance, isEvidenceAllowedByProvenance, textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { inferTextProvenance, isEvidenceAllowedByProvenance, textContainsEvidenceAfterNormalization, type TextProvenance } from '@/lib/text-provenance'
 
 export const maxDuration = 300
 
