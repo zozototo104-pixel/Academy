@@ -3,7 +3,7 @@ import { geminiCompleteJson } from '@/lib/gemini'
 
 type Chunk = { index: number; headingPath: string | null; text: string; pageStart: number; pageEnd: number }
 type Item = { chunkId: string | null; title: string; summary: string }
-export type OutlineSectionDraft = { order: number; title: string; level: number; semester: number | null; chunkStartIndex: number; chunkEndIndex: number; pageStart: number; pageEnd: number; itemsCount: number }
+export type OutlineSectionDraft = { order: number; title: string; level: number; semester: number | null; chunkStartIndex: number; chunkEndIndex: number; pageStart: number | null; pageEnd: number | null; itemsCount: number }
 type Boundary = { at: number; title: string }
 
 const headingPattern = /^(?:الفصل|الباب|المبحث|الوحدة|chapter|part|unit)\s+(?:[\d\u0660-\u0669]+|[\p{L}]+)/iu
