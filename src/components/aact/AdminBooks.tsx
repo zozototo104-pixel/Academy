@@ -1328,8 +1328,15 @@ export function AdminBooksTab() {
         setV2CountsByBook(data.v2CountsByBook || {})
       }
     } catch (error: any) {
+      const message = String(error?.message || error)
+      if (/\b(502|504)\b|bad gateway|gateway timeout|failed to fetch|networkerror|network error|load failed/i.test(message)) {
+        const count = (bookReadRetryRef.current[bookId]?.count || 0) + 1
+        bookReadRetryRef.current[bookId] = { count, nextAt: Date.now() + 5000 }
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: count }))
+        if (count < 5) return
+      }
       await fetchBookReadJob(bookId).catch(() => {})
-      toast({ title: 'تعذر متابعة قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+      toast({ title: 'تعذر متابعة قراءة الكتاب', description: message, variant: 'destructive' })
     } finally {
       bookReadInFlightRef.current.delete(bookId)
     }
