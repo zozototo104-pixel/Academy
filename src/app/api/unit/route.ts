@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       where: { id: unitId },
       include: {
         program: { select: { id: true, titleAr: true, slug: true } },
-        exam: { select: { id: true, title: true, passScore: true } },
+        exam: { select: { id: true, title: true, status: true, passScore: true } },
       },
     })
     if (!unit) return NextResponse.json({ error: 'الوحدة غير موجودة' }, { status: 404 })
