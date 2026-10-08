@@ -805,6 +805,7 @@ async function runGeneration(examId: string) {
       } catch (err: any) {
         const retryAt = err?.retryAt || null
         const reason = String(err?.message || err).slice(0, 500)
+        await setAiTaskPause('PROGRAM_EXAM', examId, { code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }).catch(() => null)
         await db.programExam.update({
           where: { id: examId },
           data: { status: 'PAUSED', errorNote: JSON.stringify({ code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }) },
