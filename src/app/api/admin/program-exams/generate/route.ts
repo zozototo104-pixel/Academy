@@ -666,7 +666,7 @@ async function runGenerationStep(examId: string): Promise<GenerationStepResult> 
     const examForProgress = await db.programExam.findUnique({ where: { id: examId }, select: { programId: true, semester: true } }).catch(() => null)
     if (examForProgress) {
       const previous = await getAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester)
-      await setAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester, { requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: (previous?.failedBatches || 0) + 1, lastError: message })
+      await setAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester, { status: totals.questionCount >= totalRequiredQuestions() ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: (previous?.failedBatches || 0) + 1, lastError: message })
     }
     if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
       const reviewed = await exposeExamForReview(examId)
