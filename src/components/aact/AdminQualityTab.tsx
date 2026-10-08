@@ -2836,18 +2836,6 @@ export function AdminQualityTab() {
               {unitSuggestionModeBusy === 'append' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-emerald-700" /> : <span className="text-2xl font-black text-emerald-700">＋</span>}
             </button>
 
-            <button
-              type="button"
-              disabled={!!unitSuggestionModeBusy}
-              onClick={() => chooseUnitSuggestionMode('replace')}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-right transition hover:bg-red-100 disabled:opacity-60"
-            >
-              <span>
-                <span className="block text-lg font-black text-red-800">استبدال الموجود</span>
-                <span className="mt-1 block text-xs font-bold leading-6 text-red-700">يحذف الوحدات الحالية ويضع الخطة المقترحة مكانها.</span>
-              </span>
-              {unitSuggestionModeBusy === 'replace' ? <Loader2 className="h-6 w-6 shrink-0 animate-spin text-red-700" /> : <span className="text-2xl font-black text-red-700">↻</span>}
-            </button>
 
             {unitSuggestionModeBusy ? (
               <p className="rounded-2xl bg-white px-4 py-3 text-center text-xs font-black leading-6 text-slate-500">
