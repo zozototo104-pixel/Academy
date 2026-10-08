@@ -318,8 +318,8 @@ export async function POST(req: NextRequest) {
     })
     if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
 
-    const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
-    const seen = new Set(existing.map((q) => norm(q.text)))
+    const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true, knowledgeItemId: true, bookId: true, sourceLocator: true } })
+    const seen = new Set(existing.map((q) => questionDuplicateKey(q.text, q.knowledgeItemId || q.bookId || q.sourceLocator || 'UNKNOWN')))
     const knowledgeText = evidenceKnowledge.map((k, i) => `${i + 1}. [${k.category}] ${k.title}\nملخص للسياق فقط: ${String(k.summary || '').slice(0, 650)}\nنص المصدر (اقتبس منه حرفيًا): ${knowledgeEvidenceText(k).slice(0, 1800)}`).join('\n\n')
     const evidenceSources = evidenceKnowledge.map((item) => ({ text: knowledgeEvidenceText(item), textProvenance: knowledgeTextProvenance(item) }))
 
