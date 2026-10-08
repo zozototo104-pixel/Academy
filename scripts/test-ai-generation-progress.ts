@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { aiGenerationProgressKey, questionDuplicateKey, resolveGenerationJob, type AiGenerationProgress } from '../src/lib/ai-generation-progress'
 import { runProgressiveGenerationBatches, type GeneratedQuestionCandidate } from '../src/lib/ai-generation-batches'
 import { parseGeneratedQuestionCandidates, parseQuestionBatchEnvelope } from '../src/lib/question-bank-generation'
+import { isDuplicateQuestionIdea, selectQuestionKnowledgeSources } from '../src/lib/question-bank-diversity'
 
 function jobLifecycleAndDedupe() {
   const completed: AiGenerationProgress = { jobId: 'old-job', status: 'COMPLETED', requested: 12, saved: 12, failedBatches: 0, lastError: null, updatedAt: '' }
