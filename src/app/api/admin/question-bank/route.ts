@@ -426,7 +426,12 @@ ${knowledgeText}
         const sourceRef = source.id || source.bookId || q.sourceLocator || 'UNKNOWN'
         const key = questionDuplicateKey(q.text, sourceRef)
         if (seen.has(key)) continue
+        if (isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) {
+          console.warn(`question bank evidence rejected index=${i} type=${q.type} sourceIndex=${requestedSourceIndex} reason=DUPLICATE_IDEA question="${q.text.slice(0, 80)}"`)
+          continue
+        }
         seen.add(key)
+        ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
         rows.push(buildQuestionBankRecord(q, {
           programId,
           knowledgeItemId: source.id,
