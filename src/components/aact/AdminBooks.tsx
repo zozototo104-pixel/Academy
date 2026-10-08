@@ -2371,7 +2371,7 @@ export function AdminBooksTab() {
                             </Button>}
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => generateUnitExam(unit)} className="border-indigo-200 bg-white text-xs font-bold text-indigo-700">
                               {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="ml-1 h-3.5 w-3.5" />}
-                              {unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
+                              {unit.questionBankJob && unit.questionBankJob.currentQuestions >= unit.questionBankJob.requested && !unit.exam?.id ? 'بناء الاختبار الآن' : unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
                             </Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'APPROVED' })} className="border-emerald-200 bg-white text-xs font-bold text-emerald-700">اعتماد</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'NEEDS_REVISION' })} className="border-amber-200 bg-white text-xs font-bold text-amber-700">بحاجة تعديل</Button>
