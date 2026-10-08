@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { getZAI, chatWithRetry } from '@/lib/ai'
-import { geminiCompleteJson } from '@/lib/gemini'
-import { ensureProgramKnowledge, getProgramKnowledgeItems, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
+import { textAiCompleteJson } from '@/lib/text-ai'
+import { cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput } from '@/lib/knowledge-bank'
 import { conciseAcademicLabel, sanitizeAcademicLabelList } from '@/lib/academic-output-quality'
 
 export const runtime = 'nodejs'
@@ -19,36 +18,19 @@ interface AssignmentSuggestion {
   dueDays: number
   rubric: string
   sourceKnowledgeTitles: string[]
+  sourceKnowledgeIds: string[]
+  unitId?: string | null
 }
 
 const TYPE_SET = new Set(['REPORT', 'CASE_STUDY', 'SUMMARY', 'PROJECT', 'REFLECTION'])
 
 function clean(value: unknown, max = 2000) {
-  return String(value || '')
-    .replace(/\u0000/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max)
+  return String(value || '').replace(/\u0000/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
 function cleanAssignmentText(value: unknown, fallback = '', max = 2000, allowShort = false) {
   const cleaned = cleanAcademicGeneratedText(value, max).replace(/\s+/g, ' ').trim()
   return cleaned && !looksLikeBrokenAcademicOutput(cleaned, { allowShort }) ? cleaned : fallback
-}
-
-function cleanAssignmentList(values: unknown, fallback: string[] = [], maxItems = 6) {
-  const seen = new Set<string>()
-  const out: string[] = []
-  const raw = Array.isArray(values) ? values : []
-  for (const item of [...raw, ...fallback]) {
-    const cleaned = cleanAssignmentText(item, '', 180, true)
-    const key = cleaned.toLowerCase().replace(/\s+/g, ' ')
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push(cleaned)
-    if (out.length >= maxItems) break
-  }
-  return out
 }
 
 function cleanAssignmentSourceTitles(values: unknown, fallback: string[] = [], maxItems = 6) {
@@ -67,43 +49,36 @@ function asInt(value: unknown, fallback: number, min: number, max: number) {
 
 function arrayFromJson(value: any): any[] {
   if (Array.isArray(value)) return value
-  for (const key of ['suggestions', 'items', 'data', 'assignments', 'results']) {
-    if (Array.isArray(value?.[key])) return value[key]
-  }
+  for (const key of ['suggestions', 'items', 'data', 'assignments', 'results']) if (Array.isArray(value?.[key])) return value[key]
   return []
 }
 
 function parseJsonArray(raw: string): any[] {
   const body = clean(raw, 20000)
-  try { return arrayFromJson(JSON.parse(body)) } catch (error) { console.warn('Failed to parse assignment suggestions JSON directly.', error) }
+  try { return arrayFromJson(JSON.parse(body)) } catch {}
   const fenced = body.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
-  if (fenced) {
-    try { return arrayFromJson(JSON.parse(fenced)) } catch (error) { console.warn('Failed to parse fenced assignment suggestions JSON.', error) }
-  }
+  if (fenced) { try { return arrayFromJson(JSON.parse(fenced)) } catch {} }
   const arr = body.match(/\[[\s\S]*\]/)?.[0]
-  if (arr) {
-    try { return arrayFromJson(JSON.parse(arr)) } catch (error) { console.warn('Failed to parse extracted assignment suggestions array JSON.', error) }
-  }
+  if (arr) { try { return arrayFromJson(JSON.parse(arr)) } catch {} }
   const obj = body.match(/\{[\s\S]*\}/)?.[0]
-  if (obj) {
-    try { return arrayFromJson(JSON.parse(obj)) } catch (error) { console.warn('Failed to parse extracted assignment suggestions object JSON.', error) }
-  }
+  if (obj) { try { return arrayFromJson(JSON.parse(obj)) } catch {} }
   return []
 }
 
-function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: string[]): AssignmentSuggestion[] {
+function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
   const seen = new Set<string>()
   const out: AssignmentSuggestion[] = []
   for (const item of raw) {
     const title = cleanAssignmentText(item?.title, '', 180, true)
     const description = cleanAssignmentText(item?.description, '', 5000)
-    if (!title || !description) continue
-    if (looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
+    if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
+    const ids = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: any) => clean(id, 100)).filter((id: string) => allowedIds.has(id)) : []
+    if (!ids.length) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
     seen.add(key)
     const type = TYPE_SET.has(String(item?.type || '').toUpperCase()) ? String(item.type).toUpperCase() : 'CASE_STUDY'
-    const src = cleanAssignmentSourceTitles(item?.sourceKnowledgeTitles, knowledgeTitles.slice(0, 4), 6)
+    const sourceTitles = cleanAssignmentSourceTitles(item?.sourceKnowledgeTitles, ids.map((id: string) => titleById.get(id) || id), 6)
     out.push({
       title,
       description,
@@ -112,49 +87,31 @@ function normalizeSuggestions(raw: any[], semester: number, knowledgeTitles: str
       points: asInt(item?.points, 15, 5, 100),
       weight: asInt(item?.weight, 0, 0, 100),
       dueDays: asInt(item?.dueDays, 14, 1, 365),
-      rubric: cleanAssignmentText(item?.rubric, 'وضوح الفكرة 20%، عمق التحليل 35%، الارتباط بالكتاب 25%، جودة العرض والاستنتاجات 20%', 1600),
-      sourceKnowledgeTitles: src,
+      rubric: cleanAssignmentText(item?.rubric, '', 1600) || 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%',
+      sourceKnowledgeTitles: sourceTitles,
+      sourceKnowledgeIds: [...new Set(ids)],
+      unitId: clean(item?.unitId, 100) || fallbackUnitId || null,
     })
     if (out.length >= 6) break
   }
   return out
 }
 
-function fallbackSuggestions(programTitle: string, semester: number, knowledge: Awaited<ReturnType<typeof getProgramKnowledgeItems>>): AssignmentSuggestion[] {
-  const top = knowledge.slice(0, 18)
-  const titles = cleanAssignmentSourceTitles(top.map((k, i) => titleFromKnowledge(k, `محور ${i + 1}`)), [
-    'تحليل الحالات',
-    'التطبيق المهني',
-    'مؤشرات الأداء',
-    'التقييم النقدي',
-  ], 10)
-  const first = top[0]
-  const second = top.find((k) => k.category === 'CASE') || top[1]
-  const third = top.find((k) => k.category === 'METHOD' || k.category === 'THEORY') || top[2]
-  const pick = (i: number) => titleFromKnowledge(top[i], titles[i % Math.max(1, titles.length)] || `محور ${programTitle}`)
-  return [
-    {
-      title: `تقرير تحليل تطبيقي في ${programTitle}`,
-      description: `اكتب تقريراً تحليلياً يربط بين محاور الكتب المقررة وبين واقع ${programTitle}. ابدأ بتحديد ثلاثة محاور مثل: ${titles.slice(0, 4).join('، ')}، ثم اشرح معنى كل محور، دليله من الكتاب، تطبيقه المهني، وحدود استخدامه.`,
-      type: 'REPORT', semester, points: 15, weight: 0, dueDays: 14,
-      rubric: 'دقة فهم المحاور 25%، الاستناد للكتاب 25%، الربط بالتخصص 25%، جودة الاستنتاج والتوصيات 25%',
-      sourceKnowledgeTitles: titles.slice(0, 5),
-    },
-    {
-      title: `دراسة حالة حول ${titleFromKnowledge(second, pick(1))}`,
-      description: `حوّل محوراً محدداً من بنك المعرفة إلى سيناريو مهني قابل للنقاش في ${programTitle}. عرّف المشكلة، أصحاب المصلحة، القرارات المتاحة، المخاطر، ثم قدّم توصية مبررة مستندة إلى محتوى الكتاب لا إلى رأي عام.`,
-      type: 'CASE_STUDY', semester, points: 20, weight: 0, dueDays: 10,
-      rubric: 'بناء الحالة 20%، تحليل أصحاب المصلحة والمخاطر 30%، الاستناد للمصدر 25%، جودة القرار والتبرير 25%',
-      sourceKnowledgeTitles: cleanAssignmentSourceTitles([titleFromKnowledge(second, pick(1)), titleFromKnowledge(first, pick(0))], titles, 5),
-    },
-    {
-      title: `خريطة مفاهيم ومنهجيات تطبيقية`,
-      description: `صمّم خريطة موجزة توضّح العلاقة بين المفاهيم والمنهجيات والنظريات المهمة مثل: ${[titleFromKnowledge(third, pick(2)), pick(3), pick(4)].filter(Boolean).join('، ')}. أرفق شرحاً يبيّن كيف تساعد الخريطة في الدراسة والامتحان والتطبيق المهني.`,
-      type: 'SUMMARY', semester, points: 10, weight: 0, dueDays: 7,
-      rubric: 'شمولية الخريطة 25%، صحة العلاقات 30%، الارتباط بالكتاب 25%، وضوح العرض 20%',
-      sourceKnowledgeTitles: cleanAssignmentSourceTitles([titleFromKnowledge(third, pick(2)), pick(3), pick(4)], titles, 6),
-    },
-  ]
+async function unitKnowledge(programId: string, semester: number, unitId?: string | null) {
+  const units = await db.unit.findMany({
+    where: { programId, ...(unitId ? { id: unitId } : semester === 3 ? {} : { semester }) },
+    orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+    select: { id: true, title: true, semester: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+  })
+  const out: any[] = []
+  for (const unit of units) {
+    if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) continue
+    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true } })
+    if (!chunks.length) continue
+    const knowledge = await db.bookKnowledgeItem.findMany({ where: { programId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }, orderBy: [{ importance: 'desc' }, { pageStart: 'asc' }], take: unitId ? 80 : 40 })
+    for (const item of knowledge) out.push({ ...item, unitId: unit.id, unitTitle: unit.title, unitSemester: unit.semester })
+  }
+  return out
 }
 
 export async function POST(req: NextRequest) {
@@ -163,90 +120,31 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const programId = clean(body.programId, 80)
     const semester = asInt(body.semester, 1, 1, 3)
+    const unitId = clean(body.unitId, 80) || null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({
-      where: { id: programId },
-      select: { id: true, titleAr: true, titleEn: true, category: true, description: true },
-    })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true, category: true, description: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const knowledgeSemester = semester === 3 ? null : semester
-    await ensureProgramKnowledge(programId, knowledgeSemester, KNOWLEDGE_BANK_LIMITS.minContextItems).catch(() => null)
-    const knowledge = await getProgramKnowledgeItems(programId, knowledgeSemester, 80)
-    if (!knowledge.length) {
-      return NextResponse.json({ error: 'لا يوجد بنك معرفة كافٍ. أضف كتاباً أو اضغط بناء/تحديث بنك المعرفة أولاً.' }, { status: 400 })
-    }
+    const knowledge = await unitKnowledge(programId, semester, unitId)
+    if (!knowledge.length) return NextResponse.json({ error: unitId ? 'لا توجد عناصر معرفة v2 داخل نطاق هذه الوحدة. ولّد محتوى الوحدة أولاً.' : 'لا توجد وحدات ذات مصادر v2 لهذا الفصل. ولّد محتوى الوحدات أولاً.' }, { status: 400 })
 
     const existing = await db.programAssignment.findMany({ where: { programId }, select: { title: true } })
     const existingTitles = existing.map((a) => a.title).join('، ')
-    const knowledgeTitles = cleanAssignmentSourceTitles(knowledge.map((k, i) => titleFromKnowledge(k, `محور ${i + 1}`)), [], 12)
-    const knowledgeContext = knowledge.slice(0, 40).map((k, i) => {
-      const title = titleFromKnowledge(k, `محور ${i + 1}`)
-      const source = k.bookTitle ? ` — من كتاب ${cleanAssignmentText(k.bookTitle, 'الكتاب المقرر', 120, true)}` : ''
-      return `${i + 1}. ${title}: ${cleanAssignmentText(k.summary, '', 430)}${source}`
-    }).join('\n')
+    const titleById = new Map(knowledge.map((k) => [k.id, titleFromKnowledge(k)]))
+    const allowedIds = new Set(knowledge.map((k) => k.id))
+    const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
-    const assignmentPrompt = `صمم 4 إلى 6 واجبات أكاديمية مهنية من بنك المعرفة التالي.
+    const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, dueDays, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
 
-البرنامج: ${program.titleAr}
-التصنيف: ${program.category}
-الفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}
-وصف البرنامج: ${program.description || '-'}
-الواجبات الموجودة مسبقاً لتجنب التكرار: ${existingTitles || 'لا يوجد'}
-
-محتوى منظم من الكتب المقررة:
-${knowledgeContext}
-
-الشروط:
-- كل واجب يجب أن يكون مرتبطاً صراحة بعنصر معرفة محدد وبالكتاب، لا عاماً ولا مبنياً على عنوان البرنامج فقط.
-- اضبط مستوى الواجب حسب الدرجة: الدبلوم تنفيذ عملي، الماجستير تحليل وتطبيق مهني، الدكتوراه نقد ومنهجية وبحث.
-- نوّع بين: REPORT, CASE_STUDY, SUMMARY, PROJECT, REFLECTION.
-- اكتب وصفاً واضحاً يحدد: المطلوب تسليمه، خطوات العمل، الدليل المطلوب من الكتاب، وطريقة الربط بالتخصص.
-- اكتب Rubric قابل للتصحيح بالنسب ويقيس الفهم، الاستناد للمصدر، التطبيق، وجودة الاستنتاج.
-- sourceKnowledgeTitles يجب أن تكون عناوين قصيرة نظيفة من كلمتين إلى خمس كلمات، لا جملة كاملة ولا عبارة تبدأ بـ «حالة تطبيقية من النص» أو «منهجية مستخرجة من النص».
-- لا تستخدم Markdown أو ** أو رموزاً تقنية مثل CONCEPT أو QUESTION_SEED.
-- لا تستخدم كلمات تقنية إنجليزية داخل العنوان والوصف إلا أسماء المصطلحات الضرورية.
-
-أجب JSON فقط كمصفوفة، وكل عنصر بهذه الحقول:
-title, description, type, semester, points, weight, dueDays, rubric, sourceKnowledgeTitles`
-
-    let suggestions: AssignmentSuggestion[] = []
+    let raw = ''
     try {
-      const raw = await Promise.race([
-        geminiCompleteJson({
-          system: 'أنت مصمم تكليفات جامعية مهنية. أعد JSON array صالحاً فقط دون Markdown.',
-          history: [{ role: 'user', text: assignmentPrompt }],
-          temperature: 0.12,
-          maxOutputTokens: 6144,
-        }),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('ASSIGNMENT_GEMINI_TIMEOUT')), 32000)),
-      ])
-      suggestions = normalizeSuggestions(parseJsonArray(raw), semester, knowledgeTitles)
-    } catch (e: any) {
-      console.error('assignment suggestions Gemini fallback:', String(e?.message || e).slice(0, 300))
+      raw = await textAiCompleteJson({ system: 'أنت مصمم تكليفات جامعية مصدرية. أعد JSON فقط.', history: [{ role: 'user', text: prompt }], taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced', temperature: 0.15, maxOutputTokens: 6000, stickyScope: `ASSIGNMENTS:${programId}:${unitId || semester}` })
+    } catch (error: any) {
+      return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
     }
-
-    if (suggestions.length < 3) {
-      try {
-        const zai = await getZAI()
-        const raw = await Promise.race([
-          chatWithRetry(zai, [
-            { role: 'assistant', content: 'أنت مصمم تكليفات جامعية مهنية. أعد JSON صالحاً فقط.' },
-            { role: 'user', content: assignmentPrompt },
-          ], 2),
-          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('ASSIGNMENT_ZAI_TIMEOUT')), 28000)),
-        ])
-        suggestions = normalizeSuggestions([...suggestions, ...parseJsonArray(raw)], semester, knowledgeTitles)
-      } catch (e: any) {
-        console.error('assignment suggestions AI fallback:', String(e?.message || e).slice(0, 300))
-      }
-    }
-
-    if (suggestions.length < 3) {
-      suggestions = normalizeSuggestions([...suggestions, ...fallbackSuggestions(program.titleAr, semester, knowledge)], semester, knowledgeTitles)
-    }
-
+    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitId)
+    if (!suggestions.length) return NextResponse.json({ error: 'لم ينتج الراوتر واجبات موثقة بالمصادر. لم تُنشأ قوالب بديلة.', status: 'PAUSED' }, { status: 503 })
     return NextResponse.json({ suggestions })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
