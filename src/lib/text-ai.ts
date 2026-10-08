@@ -1159,7 +1159,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     for (const model of models) {
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
-        if (isCooling(provider, key) || isPersistentCooling(persistentCooldowns, provider, keyIndex, model)) continue
+        const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        if (isCooling(provider, key) || persistedCooldown) {
+          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+          continue
+        }
         if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
