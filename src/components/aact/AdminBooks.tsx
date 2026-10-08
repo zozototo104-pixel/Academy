@@ -681,7 +681,7 @@ export function AdminBooksTab() {
       setStudyGuides([])
 
       Promise.all([
-        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, v2CountsByBook: {} as Record<string, number> })),
+        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, count: 0, v2CountsByBook: {} as Record<string, number> })),
         api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
         api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
         api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
