@@ -500,7 +500,8 @@ function isAuthLike(e: any): boolean {
 function isSchemaFailureLike(e: any): boolean {
   const code = String(e?.code || '').toUpperCase()
   const msg = String(e?.message || e || '').toLowerCase()
-  return code === 'INVALID_JSON_RESPONSE'
+  if (code === 'VALIDATION_REJECTED' && !/empty_batch_after_structural_validation|invalid_type|invalid_json|schema|zod/i.test(msg)) return false
+  return code === 'INVALID_JSON_RESPONSE' || code === 'SCHEMA_VALIDATION_FAILED'
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
