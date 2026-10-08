@@ -69,6 +69,8 @@ const tests = [
   testUnitExamScopedToUnitQuestionBank,
   testAssignmentsAndGuidesNoFallbackTemplates,
   testComprehensiveExamCoversUnits,
+  testUnitExamPendingReviewBlocksPublish,
+  testUnitExamExcludesRejectedAndPrioritizesApproved,
 ]
 
 for (const test of tests) {
