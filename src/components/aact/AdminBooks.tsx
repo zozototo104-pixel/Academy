@@ -1352,6 +1352,17 @@ export function AdminBooksTab() {
     }
   }
 
+  const startBookEnrichment = async (bookId: string) => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر بدء استخراج المزيد', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setBookReadBusyId(null) }
+  }
+
   const rebuildBookKnowledge = async (bookId: string) => {
     if (!programId) return
     setRebuildingBookId(bookId)
