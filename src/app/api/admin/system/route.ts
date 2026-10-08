@@ -269,10 +269,10 @@ export async function POST(req: NextRequest) {
             return null
           }
         })
-        .filter(Boolean)
+        .filter((row): row is ExcludedModelRow => Boolean(row))
       const top = rows
         .filter((row) => row.key.startsWith('AI_MODEL_STATS:'))
-        .map((row) => {
+        .map((row): TopModelRow | null => {
           try {
             const parsed = JSON.parse(row.value || '{}')
             const fail = parsed.fail && typeof parsed.fail === 'object' ? parsed.fail : {}
