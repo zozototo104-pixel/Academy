@@ -96,7 +96,10 @@ async function noBalanceSkipsProviderKey() {
   const store = makeStore()
   await withHarness(
     store,
-    (_url, init) => {
+    (url, init) => {
+      if (url.includes('/api/pricing/catalog')) {
+        return new Response(JSON.stringify({ data: [{ id: 'healthy-model:free', is_free: true, online: true, type: 'text', context_length: 128000 }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
       const auth = String((init?.headers as Record<string, string>)?.Authorization || '')
       if (auth.includes('key-a')) return new Response(JSON.stringify({ error: { message: 'please recharge your balance' } }), { status: 402, headers: { 'content-type': 'application/json' } })
       return okChat('healthy')
