@@ -222,7 +222,8 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
-    const count = Math.max(4, Math.min(30, Number(body?.count || 12)))
+    const requestedCount = Math.max(1, Math.min(30, Number(body?.count || 12)))
+    const count = Math.min(4, requestedCount)
     const source = cleanText(body?.source, 40) || 'AI'
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
