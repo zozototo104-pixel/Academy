@@ -999,13 +999,14 @@ export function AdminBooksTab() {
     if (!programId) return
     setQuestionBankBusy('generate')
     try {
-      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>('/api/admin/question-bank', {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; message?: string }>('/api/admin/question-bank', {
         method: 'POST',
         body: JSON.stringify({ programId, count: 12 }),
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
-      toast({ title: 'تم توليد أسئلة للبنك', description: 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
+      setQuestionBankProgress(res.progress || null)
+      toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
       toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
     } finally {
