@@ -211,6 +211,7 @@ model Exam {
   unitId    String        @unique
   unit      Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
   title     String
+  status    String        @default("READY") // READY | DRAFT
   passScore Int           @default(60)
   questions Question[]
   attempts  ExamAttempt[]
