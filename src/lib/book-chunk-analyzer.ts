@@ -115,43 +115,40 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
     nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED', id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
     priorItems: (bookId) => db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2 }, select: { title: true, summary: true } }),
     saveAnalyzed: async (chunk, items, id) => {
-      await db.$transaction(async (tx) => {
-        // A retry after a partial failure must never duplicate knowledge rows.
-        const current = await tx.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
-        if (current?.status !== 'EXTRACTED') return
-        await tx.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } })
-        for (const item of items) {
-          await tx.bookKnowledgeItem.create({ data: {
-            bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id,
-            pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance,
-            kbVersion: 2, category: item.category, title: item.title, summary: item.summary,
-            excerpt: item.excerpt, importance: item.importance,
-          } })
-        }
-        await tx.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', lastError: null } })
-        await tx.bookReadJob.update({ where: { id }, data: { chunksAnalyzed: { increment: 1 } } })
-      })
+      // Keep the persistence batch short; no AI calls or per-item inserts in a transaction.
+      const current = await db.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
+      if (current?.status !== 'EXTRACTED') return
+      await db.$transaction([
+        db.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } }),
+        db.bookKnowledgeItem.createMany({ data: items.map((item) => ({
+          bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id,
+          pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance,
+          kbVersion: 2, category: item.category, title: item.title, summary: item.summary,
+          excerpt: item.excerpt, importance: item.importance,
+        })) }),
+        db.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', lastError: null } }),
+        db.bookReadJob.update({ where: { id }, data: { chunksAnalyzed: { increment: 1 } } }),
+      ])
     },
     saveFailure: async (chunkId, id, error, exhausted) => {
-      await db.$transaction(async (tx) => {
-        await tx.bookChunk.update({ where: { id: chunkId }, data: { attempts: { increment: 1 }, lastError: error, ...(exhausted ? { status: 'FAILED' } : {}) } })
-        if (exhausted) await tx.bookReadJob.update({ where: { id }, data: { chunksFailed: { increment: 1 } } })
-      })
+      await db.$transaction([
+        db.bookChunk.update({ where: { id: chunkId }, data: { attempts: { increment: 1 }, lastError: error, ...(exhausted ? { status: 'FAILED' } : {}) } }),
+        ...(exhausted ? [db.bookReadJob.update({ where: { id }, data: { chunksFailed: { increment: 1 } } })] : []),
+      ])
     },
     complete: async (bookId, id) => {
-      await db.$transaction(async (tx) => {
-        const remaining = await tx.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
-        if (remaining) return
-        // Preserve the original category before marking historical knowledge as LEGACY.
-        const legacyItems = await tx.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 1, category: { not: 'LEGACY' } }, select: { id: true, category: true, sourceNote: true } })
-        for (const item of legacyItems) {
-          await tx.bookKnowledgeItem.update({ where: { id: item.id }, data: {
-            category: 'LEGACY',
-            sourceNote: `[legacyCategory:${item.category}] ${item.sourceNote || ''}`.trim(),
-          } })
-        }
-        await tx.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } })
-      })
+      const remaining = await db.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
+      if (remaining) return
+      // One parameterized statement regardless of historical item count; reruns skip LEGACY rows.
+      await db.$executeRaw`
+        UPDATE "BookKnowledgeItem"
+        SET "sourceNote" = COALESCE("sourceNote", '') || ' [legacyCategory:' || "category" || ']',
+            "category" = 'LEGACY'
+        WHERE "bookId" = ${bookId}
+          AND ("kbVersion" = 1 OR "kbVersion" IS NULL)
+          AND "category" <> 'LEGACY'
+      `
+      await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } })
     },
   }
   return analyzeStepWithStore(jobId, deadlineMs, store)
