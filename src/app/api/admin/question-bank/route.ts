@@ -326,6 +326,9 @@ export async function POST(req: NextRequest) {
 اعتمد فقط على عناصر بنك المعرفة التالية:
 ${knowledgeText}
 
+مواضيع آخر الأسئلة المحفوظة: ${recentIdeas || 'لا توجد'}
+لا تكرر هذه الأفكار ولو بصياغة مختلفة.
+
 أرجع JSON بالشكل:
 {
   "questions": [
