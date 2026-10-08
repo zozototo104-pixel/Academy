@@ -87,7 +87,7 @@ function generationFailureDetails(step: GenerationStepResult) {
 
 async function isExamStillGenerating(examId: string): Promise<boolean> {
   const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
-  return row?.status === 'GENERATING'
+  return row?.status === 'GENERATING' || row?.status === 'DRAFT_INCOMPLETE'
 }
 
 async function stopGenerationAndExposeReview(examId: string, admin: { id: string; name: string }) {
