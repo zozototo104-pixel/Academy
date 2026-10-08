@@ -215,6 +215,7 @@ export function __resetTextAiStateForTests() {
   freeModelsCache.clear()
   persistentCooldownCache = null
   routerRequestSeq = 0
+  stickyModels.clear()
 }
 
 function env(name: string): string {
