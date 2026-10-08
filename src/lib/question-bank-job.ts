@@ -141,12 +141,15 @@ export async function ensureQuestionBankGenerationJob(params: { programId: strin
   const requested = Math.max(1, Math.min(60, Number(params.requested || 12)))
   if (!params.startNew) {
     const existing = await db.questionBankGenerationJob.findFirst({ where: { programId: params.programId, unitId: params.unitId || null, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
-    if (existing) return existing
+    if (existing) {
+      if (existing.requested < requested) return db.questionBankGenerationJob.update({ where: { id: existing.id }, data: { requested, status: existing.status === 'PAUSED' ? 'QUEUED' : existing.status, retryAt: null } })
+      return existing
+    }
   }
   return db.questionBankGenerationJob.create({ data: { programId: params.programId, unitId: params.unitId || null, requested, batchSize: 4, sourceScope: params.unitId ? 'UNIT' : 'PROGRAM' } })
 }
 
-export async function runQuestionBankGenerationJobStep(jobId: string) {
+export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs?: number) {
   const now = new Date()
   const claimed = await claimQuestionBankJob(jobId, now)
   if (!claimed) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
