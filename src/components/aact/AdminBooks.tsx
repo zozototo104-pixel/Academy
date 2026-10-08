@@ -976,9 +976,10 @@ export function AdminBooksTab() {
 
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
-    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats }>(`/api/admin/question-bank?programId=${pid}`)
+    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
     setQuestionBankItems(res.items || [])
     setQuestionBankStats(res.stats || null)
+    setQuestionBankProgress(res.progress || null)
   }
 
   const refreshProgramReadiness = async () => {
