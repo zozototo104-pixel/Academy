@@ -65,8 +65,9 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   }
 }
 
-export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[]): Promise<ExtractedBookPage[]> {
+export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
   if (!pageNumbers.length || pageNumbers.length > 8) throw new Error('OCR_PAGE_RANGE_INVALID')
+  if (deadlineMs - Date.now() < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const original = await PDFDocument.load(buffer)
   const subset = await PDFDocument.create()
   const copied = await subset.copyPages(original, pageNumbers.map((page) => page - 1))
