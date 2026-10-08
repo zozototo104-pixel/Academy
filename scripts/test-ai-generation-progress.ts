@@ -1,9 +1,113 @@
 import assert from 'node:assert/strict'
 import { aiGenerationProgressKey, questionDuplicateKey } from '../src/lib/ai-generation-progress'
+import { runProgressiveGenerationBatches, type GeneratedQuestionCandidate } from '../src/lib/ai-generation-batches'
 
-function main() {
+function question(n: number, sourceRef = 'source-1'): GeneratedQuestionCandidate {
+  return {
+    type: 'MCQ',
+    text: `ما السؤال السلوكي رقم ${n} حول الدليل؟`,
+    options: ['الأول', 'الثاني', 'الثالث'],
+    correctAnswer: '0',
+    sourceRef,
+  }
+}
+
+async function partialFailureKeepsSavedBatches() {
+  const saved: GeneratedQuestionCandidate[] = []
+  let calls = 0
+  const result = await runProgressiveGenerationBatches({
+    requested: 10,
+    generate: async (count) => {
+      calls += 1
+      assert.ok(count <= 4, 'generation calls must never request more than four questions')
+      if (calls === 3) throw new Error('ALL_PROVIDERS_FAILED')
+      return Array.from({ length: count }, (_, index) => question(saved.length + index + 1))
+    },
+    save: async (items) => {
+      saved.push(...items)
+      return items.length
+    },
+  })
+  assert.equal(calls, 3)
+  assert.equal(saved.length, 8)
+  assert.equal(result.saved, 8)
+  assert.equal(result.remaining, 2)
+  assert.equal(result.message, 'تم حفظ 8 من 10. اضغط مرة أخرى لإكمال الباقي.')
+  assert.deepEqual(result.batchSizes, [4, 4, 2])
+}
+
+async function resumeRequestsOnlyRemainingWithoutDuplicates() {
+  const saved: GeneratedQuestionCandidate[] = Array.from({ length: 8 }, (_, index) => question(index + 1))
+  const seen = new Set(saved.map((item) => questionDuplicateKey(item.text, item.sourceRef)))
+  const requestedCounts: number[] = []
+  const result = await runProgressiveGenerationBatches({
+    requested: 10,
+    alreadySaved: 8,
+    generate: async (count) => {
+      requestedCounts.push(count)
+      return [question(8), question(9), question(10)]
+    },
+    save: async (items) => {
+      const unique = items.filter((item) => {
+        const key = questionDuplicateKey(item.text, item.sourceRef)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      saved.push(...unique)
+      return unique.length
+    },
+  })
+  assert.deepEqual(requestedCounts, [2])
+  assert.equal(result.saved, 10)
+  assert.equal(result.remaining, 0)
+  assert.equal(saved.length, 10)
+}
+
+async function invalidQuestionIsDroppedButRestAccepted() {
+  const saved: GeneratedQuestionCandidate[] = []
+  const result = await runProgressiveGenerationBatches({
+    requested: 3,
+    generate: async () => [
+      question(1),
+      { ...question(2), correctAnswer: '' },
+      question(3),
+    ],
+    save: async (items) => {
+      saved.push(...items)
+      return items.length
+    },
+  })
+  assert.equal(saved.length, 2)
+  assert.equal(result.saved, 2)
+  assert.equal(result.remaining, 1)
+  assert.equal(result.lastError, 'AI_BATCH_EMPTY_AFTER_VALIDATION')
+}
+
+async function fakeDeadlineReturnsAcceptedSoFar() {
+  let now = 0
+  const saved: GeneratedQuestionCandidate[] = []
+  const result = await runProgressiveGenerationBatches({
+    requested: 10,
+    deadlineMs: 240_000,
+    now: () => now,
+    generate: async (count) => Array.from({ length: count }, (_, index) => question(saved.length + index + 1)),
+    save: async (items) => {
+      saved.push(...items)
+      now += 120_000
+      return items.length
+    },
+  })
+  assert.equal(saved.length, 8)
+  assert.equal(result.saved, 8)
+  assert.equal(result.remaining, 2)
+  assert.equal(result.timedOut, true)
+  assert.equal(result.lastError, 'AI_REQUEST_DEADLINE_REACHED')
+  assert.equal(result.message, 'تم حفظ 8 من 10. اضغط مرة أخرى لإكمال الباقي.')
+}
+
+async function main() {
   console.log('▶ AI generation progress helper keys and dedupe')
-
   assert.equal(aiGenerationProgressKey('QUESTION_BANK', 'program-1', 'ALL'), 'AI_GEN_PROGRESS:QUESTION_BANK:program-1:ALL')
   assert.equal(aiGenerationProgressKey('PROGRAM_EXAM', 'program-1', 2), 'AI_GEN_PROGRESS:PROGRAM_EXAM:program-1:2')
 
@@ -13,7 +117,19 @@ function main() {
   assert.equal(a, b, 'Arabic normalization should deduplicate equivalent question text for the same source')
   assert.notEqual(a, c, 'same text with a different source remains a different generation target')
 
+  console.log('▶ progressive generation keeps saved batches on third failure')
+  await partialFailureKeepsSavedBatches()
+  console.log('▶ progressive generation resumes only remaining without duplicates')
+  await resumeRequestsOnlyRemainingWithoutDuplicates()
+  console.log('▶ progressive generation drops invalid question only')
+  await invalidQuestionIsDroppedButRestAccepted()
+  console.log('▶ progressive generation deadline returns accepted so far')
+  await fakeDeadlineReturnsAcceptedSoFar()
+
   console.log('AI generation progress helpers: ok')
 }
 
-main()
+main().catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})
