@@ -1214,6 +1214,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
+  const skipModelsThisRequest = new Set<string>()
 
   for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
