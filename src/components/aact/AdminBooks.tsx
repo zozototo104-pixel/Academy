@@ -1150,7 +1150,7 @@ export function AdminBooksTab() {
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string }>('/api/admin/unit-exams/generate', {
+      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean }>('/api/admin/unit-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ programId, unitId: unit.id, count: 10, replace: true }),
       })
