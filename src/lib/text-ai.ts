@@ -340,6 +340,32 @@ function isPersistentCooling(values: Record<string, string>, provider: string, k
   return !!persistentCooldown(values, provider, keyIndex, model)
 }
 
+function isPersistentModelDead(values: Record<string, string>, provider: string, model: string): boolean {
+  return !!parseCooldown(values[modelDeadKey(provider, model)])
+}
+
+function isPersistentNoBalance(values: Record<string, string>, provider: string, keyIndex: number): boolean {
+  return !!parseCooldown(values[noBalanceKey(provider, keyIndex)])
+}
+
+async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number): Promise<void> {
+  try {
+    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(7, reason, status))
+    persistentCooldownCache = null
+  } catch {
+    // Persistent dead-model state is best-effort.
+  }
+}
+
+async function markPersistentNoBalance(provider: string, keyIndex: number, reason: string, status?: number): Promise<void> {
+  try {
+    await settingStore().write(noBalanceKey(provider, keyIndex), routerStatePayload(24 * 60 * 60 * 1000, reason, status))
+    persistentCooldownCache = null
+  } catch {
+    // Persistent no-balance state is best-effort.
+  }
+}
+
 async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
