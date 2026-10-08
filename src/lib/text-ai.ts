@@ -501,7 +501,6 @@ function isSchemaFailureLike(e: any): boolean {
   const code = String(e?.code || '').toUpperCase()
   const msg = String(e?.message || e || '').toLowerCase()
   return code === 'INVALID_JSON_RESPONSE'
-    || code === 'VALIDATION_REJECTED'
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
