@@ -13,6 +13,7 @@
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "test:book-outline": "tsx scripts/test-book-outline.ts",
+    "test:outline-units": "tsx scripts/test-outline-units.ts",
     "db:push": "tsx scripts/prisma-deploy.ts --push",
     "db:force-push": "tsx scripts/prisma-deploy.ts --force-push",
     "db:deploy": "tsx scripts/prisma-deploy.ts --migrate",
