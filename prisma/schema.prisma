@@ -211,6 +211,7 @@ model Exam {
   unitId    String        @unique
   unit      Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
   title     String
+  status    String        @default("READY") // READY | DRAFT
   passScore Int           @default(60)
   questions Question[]
   attempts  ExamAttempt[]
@@ -1416,6 +1417,28 @@ model QuestionBankItem {
   @@index([unitId])
 }
 
+model QuestionBankGenerationJob {
+  id             String    @id @default(cuid())
+  programId      String
+  unitId         String?
+  status         String    @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | FAILED
+  requested      Int       @default(0)
+  saved          Int       @default(0)
+  batchSize      Int       @default(4)
+  sourceScope    String    @default("PROGRAM") // PROGRAM | UNIT
+  lastError      String?
+  retryAt        DateTime?
+  lockedUntil    DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([programId, status])
+  @@index([unitId, status])
+  @@index([status, retryAt])
+}
+
 model ProgramStudyGuide {
   id          String   @id @default(cuid())
   programId   String
@@ -1446,6 +1469,7 @@ model ProgramAssignment {
   id          String   @id @default(cuid())
   programId   String
   program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId      String?
   title       String
   description String
   semester    Int      @default(1) // الفصل الدراسي المرتبط بالتكليف
@@ -1458,6 +1482,11 @@ model ProgramAssignment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   submissions AssignmentSubmission[]
+
+  @@index([programId])
+  @@index([unitId])
+  @@index([semester])
+  @@index([status])
 }
 
 model AssignmentSubmission {

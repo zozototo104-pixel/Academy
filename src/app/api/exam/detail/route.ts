@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       },
     })
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
+    if (exam.status !== 'READY') return NextResponse.json({ error: 'اختبار الوحدة غير منشور لأنه يحتوي أسئلة تحتاج مراجعة.' }, { status: 403 })
 
     const enrollment = await db.enrollment.findUnique({
       where: { userId_programId: { userId: user.id, programId: exam.unit.programId } },

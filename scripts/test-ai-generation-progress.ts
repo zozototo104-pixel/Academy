@@ -58,6 +58,7 @@ function generatedQuestion(n: number, overrides: Record<string, unknown> = {}) {
     correctAnswer: '0',
     sourceEvidence: 'هذا دليل حرفي طويل بما يكفي لاختبار شكل السؤال داخل بنك الأسئلة.',
     difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
     sourceIndex: 1,
     correctRationale: 'لأن الدليل يدعم الإجابة مباشرة.',
     ...overrides,
@@ -75,6 +76,17 @@ function arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped() {
   const parsed = parseGeneratedQuestionCandidates(raw)
   assert.equal(parsed.accepted.length, 2)
   assert.equal(parsed.rejected, 1)
+}
+
+function generatedQuestionDifficultyAliasesAreNormalized() {
+  const raw = JSON.stringify([
+    generatedQuestion(1, { difficulty: 'متوسط' }),
+    generatedQuestion(2, { difficulty: 'سهل' }),
+    generatedQuestion(3, { difficulty: 'ADVANCED_LEVEL' }),
+  ])
+  const parsed = parseGeneratedQuestionCandidates(raw)
+  assert.equal(parsed.accepted.length, 3)
+  assert.equal(parsed.rejected, 0)
 }
 
 function questionBankPauseCleanupUsesDeleteMany() {
@@ -193,6 +205,8 @@ async function main() {
 
   console.log('▶ question bank parser accepts array envelopes and drops invalid question only')
   arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped()
+  console.log('▶ question bank parser normalizes generated difficulty aliases')
+  generatedQuestionDifficultyAliasesAreNormalized()
   console.log('▶ question bank pause cleanup uses deleteMany')
   questionBankPauseCleanupUsesDeleteMany()
   console.log('▶ progressive generation keeps saved batches on third failure')

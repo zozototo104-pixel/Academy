@@ -1,1133 +1,123 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { setAiTaskPause } from '@/lib/ai-task-pause'
-import { getAiGenerationProgress, setAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/notify'
-import { generateExamQuestionBatch, EXAM_BATCH_COUNT, EXAM_BATCH_SPECS, type ExamSourceBook, type GeneratedQuestion } from '@/lib/books-ai'
-import { hydrateBookContentForExam, type HydratedExamBook } from '@/lib/book-content'
-import { buildKnowledgeContextForExam, cleanAcademicGeneratedText } from '@/lib/knowledge-bank'
-import { formatComprehensiveExamInsufficientSourceMessage } from '@/lib/comprehensive-exam-evidence'
+import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-function totalRequiredQuestions(): number {
-  return EXAM_BATCH_SPECS.reduce((sum, b) => sum + b.count, 0)
+function clean(value: unknown, max = 1200) { return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max) }
+function parseArray(value: unknown): any[] { if (Array.isArray(value)) return value; if (typeof value === 'string') { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : [] } catch { return [] } } return [] }
+function hasFlag(value: unknown, flag: string) { return parseArray(value).map(String).includes(flag) }
+
+function shuffleWithAnswer(options: string[], correctAnswer: string | null | undefined) {
+  const original = options.map((option) => clean(option, 240)).filter(Boolean)
+  if (!original.length) return { options: [], correctAnswer: null as string | null }
+  const correctIndex = Math.max(0, Math.min(original.length - 1, Number(correctAnswer || 0)))
+  const pairs = original.map((option, index) => ({ option, correct: index === correctIndex }))
+  for (let i = pairs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pairs[i], pairs[j]] = [pairs[j], pairs[i]] }
+  return { options: pairs.map((pair) => pair.option), correctAnswer: String(Math.max(0, pairs.findIndex((pair) => pair.correct))) }
 }
 
-function firstMissingBatchIndex(existingCount: number): number {
-  let cumulative = 0
-  for (let i = 0; i < EXAM_BATCH_SPECS.length; i++) {
-    cumulative += EXAM_BATCH_SPECS[i].count
-    if (existingCount < cumulative) return i
+function toProgramQuestion(examId: string, order: number, item: any) {
+  const type = String(item.type || 'MCQ').toUpperCase()
+  const needsReview = item.status !== 'APPROVED' || !hasFlag(item.qualityFlags, 'SOURCE_GROUNDED')
+  if (type === 'MCQ') {
+    const shuffled = shuffleWithAnswer(parseArray(item.options), item.correctAnswer)
+    return { examId, order, type: 'MCQ', text: clean(`${needsReview ? '[يحتاج تدقيق] ' : ''}${item.text}`, 1200), options: JSON.stringify(shuffled.options), correctAnswer: shuffled.correctAnswer, modelAnswer: clean(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), sourceEvidence: item.sourceEvidence, sourceBookTitle: item.sourceBookTitle, sourceChapter: null, sourceLocator: item.sourceLocator, cognitiveSkill: item.cognitiveSkill, difficulty: item.difficulty, correctRationale: item.correctRationale, distractorRationales: item.distractorRationales, qualityFlags: item.qualityFlags, reviewNotes: item.reviewNotes, points: 2, status: 'PENDING_REVIEW' }
   }
-  return EXAM_BATCH_COUNT
-}
-
-function questionsBeforeBatch(batchIndex: number): number {
-  return EXAM_BATCH_SPECS.slice(0, Math.max(0, batchIndex)).reduce((sum, b) => sum + b.count, 0)
-}
-
-const MAX_QUESTIONS_PER_AI_STEP = 3
-
-function currentBatchWindow(existingCount: number, batchIndex: number): { offset: number; needed: number; batchEnd: number } {
-  const spec = EXAM_BATCH_SPECS[batchIndex]
-  const start = questionsBeforeBatch(batchIndex)
-  const batchEnd = start + spec.count
-  const offset = Math.max(0, Math.min(spec.count, existingCount - start))
-  // لا نطلب 20 سؤالاً مفصلاً في نداء واحد؛ هذا كان يسبب قص JSON وحفظ 11 سؤالاً فقط.
-  const needed = Math.max(1, Math.min(spec.count, batchEnd - existingCount, MAX_QUESTIONS_PER_AI_STEP))
-  return { offset, needed, batchEnd }
-}
-
-function prioritizeUnfilledCandidates<T>(questions: T[], offset: number): T[] {
-  if (offset <= 0 || questions.length <= 1) return questions
-  if (questions.length > offset) return [...questions.slice(offset), ...questions.slice(0, offset)]
-  return questions
-}
-
-const MANUAL_CONTINUE_STEPS = 3
-
-type GenerationStepResult = {
-  ok: boolean
-  status: string
-  inserted: number
-  questionCount: number
-  totalPoints: number
-  done: boolean
-  batchIndex?: number
-  error?: string
-  code?: string
-  availableChunks?: number
-  requestedQuestions?: number
-  acceptedQuestions?: number
-}
-
-function insufficientSourcePayload(error: any) {
-  if (error?.code !== 'INSUFFICIENT_SOURCE') return null
-  const availableChunks = Number(error.availableChunks || 0)
-  const requestedQuestions = Number(error.requestedQuestions || 0)
-  const acceptedQuestions = Number(error.acceptedQuestions || 0)
-  const message = formatComprehensiveExamInsufficientSourceMessage({ availableChunks, requestedQuestions, acceptedQuestions })
-  return { code: 'INSUFFICIENT_SOURCE', error: message, availableChunks, requestedQuestions, acceptedQuestions }
-}
-
-function generationFailureDetails(step: GenerationStepResult) {
-  if (!step.error && !step.code) return {}
-  return {
-    error: step.error,
-    code: step.code,
-    availableChunks: step.availableChunks,
-    requestedQuestions: step.requestedQuestions,
-    acceptedQuestions: step.acceptedQuestions,
+  if (type === 'TF') {
+    const shuffled = shuffleWithAnswer(['صح', 'خطأ'], item.correctAnswer)
+    return { examId, order, type: 'TF', text: clean(`${needsReview ? '[يحتاج تدقيق] ' : ''}${item.text}`, 1200), options: JSON.stringify(shuffled.options), correctAnswer: shuffled.correctAnswer, modelAnswer: clean(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), sourceEvidence: item.sourceEvidence, sourceBookTitle: item.sourceBookTitle, sourceChapter: null, sourceLocator: item.sourceLocator, cognitiveSkill: item.cognitiveSkill, difficulty: item.difficulty, correctRationale: item.correctRationale, distractorRationales: item.distractorRationales, qualityFlags: item.qualityFlags, reviewNotes: item.reviewNotes, points: 2, status: 'PENDING_REVIEW' }
   }
+  return { examId, order, type: type === 'ESSAY' ? 'ESSAY' : 'SHORT', text: clean(`${needsReview ? '[يحتاج تدقيق] ' : ''}${item.text}`, 1200), options: JSON.stringify([]), correctAnswer: null, modelAnswer: clean(item.modelAnswer || item.sourceEvidence, 1800), sourceEvidence: item.sourceEvidence, sourceBookTitle: item.sourceBookTitle, sourceChapter: null, sourceLocator: item.sourceLocator, cognitiveSkill: item.cognitiveSkill, difficulty: item.difficulty, correctRationale: item.correctRationale, distractorRationales: item.distractorRationales, qualityFlags: item.qualityFlags, reviewNotes: item.reviewNotes, points: 2, status: 'PENDING_REVIEW' }
 }
 
-async function isExamStillGenerating(examId: string): Promise<boolean> {
-  const row = await db.programExam.findUnique({ where: { id: examId }, select: { status: true } })
-  return row?.status === 'GENERATING' || row?.status === 'DRAFT_INCOMPLETE'
+function balancedPick(items: any[], count: number) {
+  const selected: any[] = []
+  const take = (predicate: (item: any) => boolean) => { const found = items.find((item) => predicate(item) && !selected.some((x) => x.id === item.id)); if (found) selected.push(found) }
+  take((item) => item.type === 'MCQ')
+  take((item) => item.type === 'TF')
+  take((item) => item.type === 'SHORT')
+  take((item) => item.difficulty === 'EASY')
+  take((item) => item.difficulty === 'MEDIUM')
+  take((item) => item.difficulty === 'ADVANCED')
+  for (const item of items) { if (selected.length >= count) break; if (!selected.some((x) => x.id === item.id)) selected.push(item) }
+  return selected.slice(0, count)
 }
 
-async function stopGenerationAndExposeReview(examId: string, admin: { id: string; name: string }) {
-  const exam = await db.programExam.findUnique({
-    where: { id: examId },
-    include: { program: { select: { titleAr: true } } },
-  })
-  if (!exam) return { error: 'الامتحان غير موجود', statusCode: 404 }
-  if (exam.status === 'READY') return { error: 'الامتحان منشور بالفعل ولا يمكن إيقاف توليده', statusCode: 409 }
-
-  const questions = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
-  const questionCount = questions.length
-  const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
-  const nextStatus = questionCount > 0 ? 'REVIEW' : 'FAILED'
-  const errorNote = questionCount > 0
-    ? `تم إيقاف التوليد يدوياً بعد حفظ ${questionCount} سؤالاً — الأسئلة جاهزة للمراجعة والتعديل قبل النشر`
-    : 'تم إيقاف التوليد يدوياً قبل توليد أي سؤال'
-
-  await db.programExam.update({
-    where: { id: examId },
-    data: {
-      status: nextStatus,
-      errorNote,
-      totalPoints,
-      durationMin: questionCount > 0 ? Math.max(120, Math.min(240, Math.round(questionCount * 2))) : exam.durationMin,
-    },
-  })
-
-  await audit(
-    { id: admin.id, name: admin.name },
-    'STOP_PROGRAM_EXAM_GENERATION',
-    'ProgramExam',
-    examId,
-    `إيقاف توليد امتحان ${exam.program.titleAr} بعد ${questionCount} سؤال`
-  )
-
-  return { ok: true, examId, status: nextStatus, questionCount, totalPoints }
+async function unitsForExam(programId: string, semester: number, comprehensive: boolean) {
+  return db.unit.findMany({ where: { programId, ...(comprehensive ? {} : { semester }) }, orderBy: [{ semester: 'asc' }, { order: 'asc' }], select: { id: true, title: true, semester: true } })
 }
 
-function normalizeQuestionText(value: unknown): string {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/[ة]/g, 'ه')
-    .replace(/[ىي]/g, 'ي')
-    .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-}
-
-async function examTotals(examId: string): Promise<{ questionCount: number; totalPoints: number }> {
-  const rows = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
-  return { questionCount: rows.length, totalPoints: rows.reduce((sum, q) => sum + q.points, 0) }
-}
-
-async function existingQuestionKeys(examId: string): Promise<Set<string>> {
-  const rows = await db.programQuestion.findMany({ where: { examId }, select: { text: true } })
-  return new Set(rows.map((q) => normalizeQuestionText(q.text).slice(0, 160)).filter(Boolean))
-}
-
-function optionSignatureFromJson(options: string | null): string {
-  if (!options) return ''
-  try {
-    const arr = JSON.parse(options)
-    return Array.isArray(arr) ? arr.map((o) => normalizeQuestionText(o)).filter(Boolean).join('|') : ''
-  } catch {
-    return ''
-  }
-}
-
-function optionSignatureFromArray(options?: string[] | null): string {
-  return Array.isArray(options) ? options.map((o) => normalizeQuestionText(o)).filter(Boolean).join('|') : ''
-}
-
-function stringifyJsonField(value: unknown): string | null {
-  if (value == null) return null
-  if (Array.isArray(value) && value.length === 0) return null
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return null
-  }
-}
-
-function questionReviewNotes(q: GeneratedQuestion): string | null {
-  const provider = q.sourceProvider || null
-  const model = q.sourceModel || null
-  const bookId = q.sourceBookId || null
-  const sourceIndex = q.sourceIndex ?? null
-  const verifierProvider = q.verifierProvider || null
-  const verifierModel = q.verifierModel || null
-  const verifiedAt = q.verifiedAt || null
-  const verifierReason = q.verifierReason || null
-  const verificationPending = q.verificationPending || false
-  const verificationReason = q.verificationReason || null
-  if (!provider && !model && !bookId && sourceIndex == null && !verifierProvider && !verificationPending) return null
-  return stringifyJsonField({
-    aiProvenance: { provider, model },
-    source: { bookId, sourceIndex, textProvenance: q.textProvenance || null },
-    verifier: { provider: verifierProvider, model: verifierModel, verifiedAt, reason: verifierReason, pending: verificationPending, pendingReason: verificationReason },
-  })
-}
-
-function createProgramQuestionData(examId: string, order: number, q: GeneratedQuestion) {
-  return {
-    examId,
-    order,
-    type: q.type,
-    text: q.text,
-    options: q.options ? JSON.stringify(q.options) : null,
-    correctAnswer: q.correct ?? null,
-    modelAnswer: q.modelAnswer ?? (q.sourceEvidence || q.bookEvidence ? `مرجع التصحيح: ${q.sourceEvidence || q.bookEvidence}` : null),
-    sourceEvidence: q.sourceEvidence || q.bookEvidence || null,
-    sourceBookTitle: q.sourceBookTitle || null,
-    sourceChapter: q.sourceChapter || null,
-    sourceLocator: q.sourceLocator || null,
-    cognitiveSkill: q.cognitiveSkill || null,
-    difficulty: q.difficulty || null,
-    correctRationale: q.correctRationale || null,
-    distractorRationales: stringifyJsonField(q.distractorRationales),
-    qualityFlags: stringifyJsonField(q.qualityFlags),
-    reviewNotes: questionReviewNotes(q),
-    points: q.points || 2,
-    status: 'PENDING_REVIEW',
-  }
-}
-
-async function existingOptionSignatures(examId: string): Promise<Set<string>> {
-  const rows = await db.programQuestion.findMany({ where: { examId, type: 'MCQ' }, select: { options: true } })
-  return new Set(rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean))
-}
-
-async function existingOptionTexts(examId: string): Promise<Set<string>> {
-  const rows = await db.programQuestion.findMany({ where: { examId, type: 'MCQ' }, select: { options: true } })
-  const out = new Set<string>()
-  for (const row of rows) {
-    try {
-      const arr = JSON.parse(row.options || '[]')
-      if (Array.isArray(arr)) {
-        for (const opt of arr) {
-          const n = normalizeQuestionText(opt)
-          if (n) out.add(n)
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to parse existing exam option texts JSON.', error)
+async function bankForUnits(programId: string, units: { id: string; title: string; semester: number }[], total: number) {
+  const perUnit = Math.max(1, Math.ceil(total / Math.max(1, units.length)))
+  const selected: any[] = []
+  const breakdown: Record<string, { unitTitle: string; selected: number; grounded: number; total: number }> = {}
+  const missing: any[] = []
+  for (const unit of units) {
+    const approved = await db.questionBankItem.findMany({ where: { programId, unitId: unit.id, status: 'APPROVED', qualityFlags: { contains: 'SOURCE_GROUNDED' } }, orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }], take: perUnit * 3 })
+    const pending = approved.length >= perUnit ? [] : await db.questionBankItem.findMany({ where: { programId, unitId: unit.id, status: 'PENDING_REVIEW', qualityFlags: { contains: 'SOURCE_GROUNDED' } }, orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }], take: perUnit * 3 })
+    const picked = balancedPick([...approved, ...pending], perUnit)
+    selected.push(...picked)
+    breakdown[unit.id] = { unitTitle: unit.title, selected: picked.length, grounded: picked.filter((item) => item.status === 'APPROVED' && hasFlag(item.qualityFlags, 'SOURCE_GROUNDED')).length, total: perUnit }
+    if (picked.length < perUnit) {
+      const job = await ensureQuestionBankGenerationJob({ programId, unitId: unit.id, requested: perUnit - picked.length, startNew: false })
+      await runQuestionBankGenerationJobStep(job.id)
+      missing.push({ unitId: unit.id, title: unit.title, needed: perUnit - picked.length, jobId: job.id })
     }
   }
-  return out
+  return { selected: balancedPick(selected, total), breakdown, missing }
 }
 
-async function cleanupDuplicatePendingQuestions(examId: string): Promise<number> {
-  const rows = await db.programQuestion.findMany({
-    where: { examId, status: 'PENDING_REVIEW' },
-    orderBy: { order: 'asc' },
-    select: { id: true, text: true, type: true, options: true },
-  })
-  const seenTexts = new Set<string>()
-  const seenOptionSigs = new Set<string>()
-  const deleteIds: string[] = []
-  for (const row of rows) {
-    const textKey = normalizeQuestionText(row.text).slice(0, 180)
-    const optSig = row.type === 'MCQ' ? optionSignatureFromJson(row.options) : ''
-    const duplicatedText = !!textKey && seenTexts.has(textKey)
-    const duplicatedOptions = row.type === 'MCQ' && !!optSig && seenOptionSigs.has(optSig)
-    if (duplicatedText || duplicatedOptions) {
-      deleteIds.push(row.id)
-      continue
-    }
-    if (textKey) seenTexts.add(textKey)
-    if (row.type === 'MCQ' && optSig) seenOptionSigs.add(optSig)
-  }
-  if (deleteIds.length) await db.programQuestion.deleteMany({ where: { id: { in: deleteIds } } })
-  return db.programQuestion.count({ where: { examId } })
-}
-
-function filterNewQuestions<T extends { text: string; type?: string; options?: string[] | null }>(
-  questions: T[],
-  keys: Set<string>,
-  optionSigs?: Set<string>,
-  optionTexts?: Set<string>
-): T[] {
-  const out: T[] = []
-  for (const q of questions) {
-    if (hasBadExamMetadata(`${q.text} ${(q.options || []).join(' ')}`)) continue
-    const key = normalizeQuestionText(q.text).slice(0, 160)
-    if (!key || keys.has(key)) continue
-    const isMcq = String(q.type || '').toUpperCase() === 'MCQ'
-    const optSig = isMcq ? optionSignatureFromArray(q.options) : ''
-    if (isMcq && optSig && optionSigs?.has(optSig)) continue
-    const opts = isMcq && Array.isArray(q.options) ? q.options.map((o) => normalizeQuestionText(o)).filter(Boolean) : []
-    if (isMcq && opts.length && optionTexts) {
-      const repeatedOptionCount = opts.filter((o) => optionTexts.has(o)).length
-      // لا نمنع السؤال لمجرد تكرار خيار أو خيارين شائعين عبر امتحان طويل؛ يكفي منع توقيع الخيارات الكامل أو أغلب الخيارات.
-      if (repeatedOptionCount >= Math.max(3, Math.ceil(opts.length * 0.75))) continue
-    }
-    keys.add(key)
-    if (isMcq && optSig) optionSigs?.add(optSig)
-    if (isMcq) for (const opt of opts) optionTexts?.add(opt)
-    out.push(q)
-  }
-  return out
-}
-
-function hasBadExamMetadata(value: unknown): boolean {
-  const raw = String(value || '')
-  const n = normalizeQuestionText(value)
-  return (
-    /\b\d{1,5}\s+of\s+\d{1,5}\b/i.test(raw) ||
-    /(?:^|\s)of\s+\d{1,5}\b/i.test(raw) ||
-    n.includes('رابط الكتاب') ||
-    n.includes('مصدره') ||
-    n.includes('عنوان الكتاب') ||
-    n.includes('العنوان الاصلي') ||
-    n.includes('محور معرفي مهم') ||
-    n.includes('حاله تطبيقيه من النص') ||
-    n.includes('منهجيه مستخرجه من النص') ||
-    n.includes('نظريه او اطار من النص') ||
-    n.includes('تعريف من النص') ||
-    n.includes('بذره سوال من النص') ||
-    n.includes('دليل من المحتوي') ||
-    n.includes('خلاصه اكاديميه') ||
-    n.includes('مقتطف داعم') ||
-    n.includes('مصطلحات مرتبطه') ||
-    n.includes('كلمات مفتاحيه') ||
-    n.includes('بنك المعرفه الاكاديمي المستخرج من الكتب') ||
-    n.includes('بنك المعرفه الاكاديمي المنظم للبرنامج') ||
-    n.includes('بنك المعرفه الاكاديمي المنظم') ||
-    n.includes('تمت قراءه وفحص كامل صفحات') ||
-    n.includes('note') ||
-    n.includes('source note') ||
-    n.includes('sourcenote') ||
-    n.includes('contentquality') ||
-    n.includes('كيف يمكن فهم فكره') ||
-    n.includes('اي عباره تفسر بصوره ادق دلاله') ||
-    n.includes('ما الاستنتاج الاكثر صحه من الفكره الاتيه في الكتاب') ||
-    n.includes('اي استنتاج مهني هو الادق') ||
-    n.includes('يعالج الكتاب الفكره الاتيه') ||
-    n.includes('عند تحويله الي حاله مهنيه') ||
-    n.includes('امام مدير يعمل') ||
-    n.includes('موقف مستمد من الكتاب') ||
-    n.includes('وفق المقطع الاتي') ||
-    n.includes('وفق المقطع الاتي من الكتاب') ||
-    n.includes('يعرض الكتاب المقطع الاتي') ||
-    n.includes('بالاعتماد علي الدليل النصي') ||
-    n.includes('يمكن تحويل المقطع') ||
-    n.includes('يجوز تعميم المقطع') ||
-    n.includes('قراءه المقطع') ||
-    n.includes('قراءه') && n.includes('مهنيا تتطلب تحديد الاطراف') ||
-    n.includes('تحليل استراتيجيا مستندا خصائصيه') ||
-    n.includes('ملاحظه قراءه المحتوي') ||
-    n.includes('google com search') ||
-    n.includes('books google') ||
-    n.includes('tbm bks') ||
-    n.includes('لم يظهر فيه نص')
-  )
-}
-
-async function resetLegacyWeakFirstBatchIfNeeded(examId: string, existingCount: number): Promise<number> {
-  // لا نحذف دفعة أولية صغيرة ناجحة؛ كان هذا يسبب حلقة: يحفظ 6 ثم يحذفها في نفس الاستكمال.
-  if (existingCount === 0 || existingCount < 10 || existingCount > totalRequiredQuestions()) return existingCount
-  const rows = await db.programQuestion.findMany({
-    where: { examId },
-    orderBy: { order: 'asc' },
-    select: { text: true, options: true, status: true },
-  })
-  if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
-
-  const optionSigs = rows.map((q) => optionSignatureFromJson(q.options)).filter(Boolean)
-  const repeatedOptions = new Set(optionSigs).size < optionSigs.length
-  const metadataQuestions = rows.some((q) => hasBadExamMetadata(q.text) || hasBadExamMetadata(q.options))
-  const genericRepeated = optionSigs.some((sig) =>
-    sig.includes(normalizeQuestionText('تحليل المتطلبات والمخاطر ثم اختيار ضوابط قابلة للقياس وفق سياق المؤسسة')) ||
-    sig.includes(normalizeQuestionText('تطبيق أداة تقنية واحدة دون تحليل البيئة أو أصحاب المصلحة'))
-  )
-
-  if (!metadataQuestions && !repeatedOptions && !genericRepeated) return existingCount
-
-  await db.programQuestion.deleteMany({ where: { examId, status: 'PENDING_REVIEW' } })
-  await db.programExam.update({
-    where: { id: examId },
-    data: {
-      status: 'GENERATING',
-      totalPoints: 0,
-      errorNote: 'حذف النظام الأسئلة القديمة لأنها كانت مبنية على رابط/وصف أو خيارات مكررة، وسيعيد بناءها من محتوى الكتاب المقروء فعلياً',
-    },
-  }).catch(() => {})
-  return 0
-}
-
-function groundedTokenSet(value: unknown): string[] {
-  const stop = new Set(['هذا', 'هذه', 'ذلك', 'التي', 'الذي', 'على', 'الى', 'في', 'من', 'عن', 'ضمن', 'كتاب', 'الكتاب', 'اداره', 'المشاريع', 'مشروع', 'تخصص', 'تحليل', 'قرار', 'مخاطر', 'تخطيط', 'تنفيذ'])
-  return normalizeQuestionText(value).split(' ').filter((t) => t.length >= 4 && !stop.has(t)).slice(0, 40)
-}
-
-function questionGroundedInBooks(
-  question: {
-    text: string
-    options: string | null
-    modelAnswer?: string | null
-    sourceEvidence?: string | null
-    sourceBookTitle?: string | null
-    sourceChapter?: string | null
-    sourceLocator?: string | null
-    correctRationale?: string | null
-  },
-  books: { title: string; titleEn?: string | null; textContent?: string | null }[]
-): boolean {
-  const combined = `${question.text} ${question.options || ''} ${question.modelAnswer || ''} ${question.sourceEvidence || ''} ${question.sourceBookTitle || ''} ${question.sourceChapter || ''} ${question.sourceLocator || ''} ${question.correctRationale || ''}`
-  if (hasBadExamMetadata(combined)) return false
-  // التحقق يكون من نص الكتاب المقروء، لا من العنوان أو الوصف، حتى لا نقبل سؤالاً عاماً عن تخصص آخر أو عنوان مرجع خارجي.
-  const source = normalizeQuestionText(books.map((b) => cleanAcademicGeneratedText(String(b.textContent || '').slice(0, 180000), 180000)).join(' '))
-  const tokens = groundedTokenSet(combined)
-  if (!source || tokens.length === 0) return false
-  const hits = tokens.filter((t) => source.includes(t)).length
-  return hits >= Math.min(5, Math.max(2, Math.ceil(tokens.length * 0.18)))
-}
-
-async function resetUngroundedPendingQuestionsIfNeeded(
-  examId: string,
-  books: { title: string; titleEn?: string | null; textContent?: string | null }[],
-  existingCount: number
-): Promise<number> {
-  // لا نحذف دفعة أولية صغيرة بعد حفظها مباشرة؛ الاستكمال يجب أن يبدأ من السؤال 7 لا أن يرجع للصفر.
-  if (existingCount === 0 || existingCount < 10) return existingCount
-  const rows = await db.programQuestion.findMany({
-    where: { examId },
-    orderBy: { order: 'asc' },
-    select: {
-      id: true,
-      text: true,
-      options: true,
-      modelAnswer: true,
-      sourceEvidence: true,
-      sourceBookTitle: true,
-      sourceChapter: true,
-      sourceLocator: true,
-      correctRationale: true,
-      status: true,
-    },
-  })
-  if (!rows.length || rows.some((q) => q.status !== 'PENDING_REVIEW')) return existingCount
-
-  const pollutedIds = rows
-    .filter((q) =>
-      hasBadExamMetadata(`${q.text} ${q.options || ''} ${q.modelAnswer || ''} ${q.sourceEvidence || ''} ${q.sourceBookTitle || ''} ${q.sourceChapter || ''} ${q.sourceLocator || ''} ${q.correctRationale || ''}`)
-    )
-    .map((q) => q.id)
-  // لا نصفر الامتحان بسبب فحص تأصيل صارم؛ فقط نحذف الأسئلة التي تسربت إليها metadata واضحة.
-  // التكرارات الحرفية تُزال مسبقاً عبر cleanupDuplicatePendingQuestions.
-  if (!pollutedIds.length) return existingCount
-
-  await db.programQuestion.deleteMany({ where: { id: { in: pollutedIds }, status: 'PENDING_REVIEW' } })
-  const remaining = await db.programQuestion.count({ where: { examId } })
-  await db.programExam.update({
-    where: { id: examId },
-    data: {
-      status: 'GENERATING',
-      ...(remaining > 0 ? {} : { totalPoints: 0 }),
-      errorNote: remaining > 0
-        ? `حذف النظام ${pollutedIds.length} سؤالاً ملوثاً ببيانات داخلية وسيكمل من السؤال ${remaining + 1}`
-        : 'حذف النظام الأسئلة الملوثة ببيانات داخلية وسيعيد بناء الامتحان من الكتاب نفسه',
-    },
-  }).catch(() => {})
-  return remaining
-}
-
-async function exposeExamForReview(examId: string, note?: string) {
-  const totals = await examTotals(examId)
-  const status = totals.questionCount >= 10 ? 'REVIEW' : 'FAILED'
-  await db.programExam.update({
-    where: { id: examId },
-    data: {
-      status,
-      totalPoints: totals.totalPoints,
-      durationMin: totals.questionCount > 0 ? Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))) : 120,
-      errorNote: note || (status === 'REVIEW'
-        ? `تم نقل ${totals.questionCount} سؤالاً للمراجعة بعد توقف التوليد`
-        : 'فشل التوليد قبل إنشاء الحد الأدنى من الأسئلة'),
-    },
-  })
-  return { ok: status === 'REVIEW', status, inserted: 0, done: status === 'REVIEW', ...totals }
-}
-
-async function runGenerationStep(examId: string): Promise<GenerationStepResult> {
-  try {
-    const exam = await db.programExam.findUnique({
-      where: { id: examId },
-      include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
-    })
-    if (!exam) return { ok: false, status: 'MISSING', inserted: 0, questionCount: 0, totalPoints: 0, done: true, error: 'الامتحان غير موجود' }
-    if (exam.status === 'READY' || exam.status === 'REVIEW') {
-      const totals = await examTotals(examId)
-      return { ok: true, status: exam.status, inserted: 0, done: true, ...totals }
-    }
-    if (exam.status !== 'GENERATING') {
-      await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
-    }
-
-    const books = await db.book.findMany({
-      where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        title: true,
-        titleEn: true,
-        author: true,
-        year: true,
-        description: true,
-        link: true,
-        fileName: true,
-        mimeType: true,
-        size: true,
-        data: true,
-        textContent: true,
-        levelPolicy: true,
-        readingDepth: true,
-        assessmentOrientation: true,
-        linkReadStatus: true,
-        linkReadNote: true,
-      },
-    })
-    if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}`)
-
-    // مهم: الاستكمال لا يصفر الامتحان إطلاقاً. نزيل فقط النسخ المكررة حرفياً ونكمل من آخر سؤال محفوظ.
-    let existingCount = await cleanupDuplicatePendingQuestions(examId)
-
-    const hydratedBooks: HydratedExamBook[] = []
-    for (const book of books) {
-      if (!(await isExamStillGenerating(examId))) {
-        const totals = await examTotals(examId)
-        return { ok: true, status: 'STOPPED', inserted: 0, done: true, ...totals }
-      }
-      const hydrated = await hydrateBookContentForExam(book)
-      hydratedBooks.push(hydrated)
-      if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
-        await db.book.update({
-          where: { id: hydrated.id },
-          data: {
-            textContent: hydrated.textContent.slice(0, 180000),
-            linkReadStatus: hydrated.contentQuality === 'LINK_TEXT' ? 'TEXT_EXTRACTED' : hydrated.contentQuality === 'NO_CONTENT' ? 'FAILED' : 'FILE_EXTRACTED',
-            linkReadNote: hydrated.sourceNote,
-          },
-        }).catch(() => {})
-      }
-    }
-
-    const usableBooks = hydratedBooks.filter((b) =>
-      b.contentQuality !== 'METADATA_ONLY' &&
-      b.contentQuality !== 'NO_CONTENT' &&
-      String(b.textContent || '').trim().length >= 300
-    )
-    if (usableBooks.length === 0) {
-      const notes = hydratedBooks.map((b) => `«${b.title}»: ${b.sourceNote}`).join(' — ').slice(0, 700)
-      throw new Error(`لا يوجد نص فعلي مقروء من الكتب. ارفع ملف Word/PDF/TXT قابل للقراءة أو ضع رابط PDF مباشر، ولا تستخدم رابط بحث Google أو صفحة وصف فقط. ${notes}`)
-    }
-
-    const knowledgeContext = await buildKnowledgeContextForExam(exam.programId, exam.semester, 56).catch((e) => {
-      console.error('knowledge context for exam failed:', String(e?.message || e).slice(0, 300))
-      return ''
-    })
-    // بنك المعرفة يستخدم كمرشد تنظيمي منفصل فقط، ولا يعامل ككتاب مصدر حتى لا تتسرب عبارات داخلية مثل «محور معرفي مهم» إلى نص السؤال.
-    const examSourceBooks: ExamSourceBook[] = usableBooks
-
-    // في الاستكمال لا نصفر الامتحان بعد حفظ دفعة صحيحة؛ ننظف فقط الأسئلة الملوثة ببيانات داخلية ونكمل من آخر رقم محفوظ.
-    existingCount = await resetUngroundedPendingQuestionsIfNeeded(examId, examSourceBooks, existingCount)
-
-    const batchIndex = firstMissingBatchIndex(existingCount)
-    if (batchIndex >= EXAM_BATCH_COUNT) {
-      const reviewed = await exposeExamForReview(examId)
-      return { ...reviewed, ok: true, done: true }
-    }
-
-    const previousQuestions = await db.programQuestion.findMany({
-      where: { examId },
-      orderBy: { order: 'asc' },
-      select: { text: true, options: true },
-    })
-    const previousTexts = previousQuestions.map((q) => {
-      let optionsText = ''
-      try {
-        const opts = JSON.parse(q.options || '[]')
-        if (Array.isArray(opts) && opts.length) optionsText = ` | خيارات سابقة: ${opts.join(' / ')}`
-      } catch (error) {
-        console.warn('Failed to parse previous exam question options JSON.', error)
-      }
-      return `${q.text}${optionsText}`
-    })
-    const existingKeys = await existingQuestionKeys(examId)
-    const existingOptions = await existingOptionSignatures(examId)
-    const existingOptionWords = await existingOptionTexts(examId)
-
-    const window = currentBatchWindow(existingCount, batchIndex)
-    let batch: GeneratedQuestion[] = []
-    const generationNotes: string[] = []
-
-    for (let attempt = 0; attempt < EXAM_BATCH_COUNT * 2 && batch.length < window.needed; attempt++) {
-      const seedBatchIndex = batchIndex + attempt
-      const neededNow = window.needed - batch.length
-      const retryPreviousTexts = [...previousTexts, ...batch.map((q) => q.text)]
-
-      try {
-        const aiCandidates = await generateExamQuestionBatch(
-          exam.program,
-          examSourceBooks,
-          seedBatchIndex,
-          retryPreviousTexts,
-          knowledgeContext,
-          neededNow,
-          window.offset + batch.length + attempt
-        )
-        let filtered = filterNewQuestions(aiCandidates, existingKeys, existingOptions, existingOptionWords)
-        if (!filtered.length && aiCandidates.length) filtered = filterNewQuestions(aiCandidates, existingKeys)
-        batch = [...batch, ...filtered].slice(0, window.needed)
-      } catch (err: any) {
-        generationNotes.push(`AI:${seedBatchIndex + 1}:${String(err?.message || err).slice(0, 120)}`)
-        throw err
-      }
-
-      if (batch.length >= window.needed) break
-    }
-
-    if (batch.length === 0) {
-      const totals = await examTotals(examId)
-      await db.programExam.update({
-        where: { id: examId },
-        data: {
-          status: 'GENERATING',
-          totalPoints: totals.totalPoints,
-          errorNote: `تجاوز النظام نافذة لم تنتج أسئلة صالحة بعد ${totals.questionCount}/${totalRequiredQuestions()} سؤالاً وسيحاول محوراً تالياً عند الاستكمال. ${generationNotes.slice(-2).join(' | ')}`.slice(0, 500),
-        },
-      }).catch(() => {})
-      return { ok: true, status: 'GENERATING', inserted: 0, done: false, batchIndex, ...totals }
-    }
-
-    if (!(await isExamStillGenerating(examId))) {
-      const totals = await examTotals(examId)
-      return { ok: true, status: 'STOPPED', inserted: 0, done: true, ...totals }
-    }
-
-    // منع التكرار إذا دخل طلبان في نفس اللحظة: نعيد فحص العدد قبل الإدخال.
-    const latestCount = await db.programQuestion.count({ where: { examId } })
-    if (latestCount !== existingCount) {
-      const totals = await examTotals(examId)
-      return { ok: true, status: 'GENERATING', inserted: 0, done: false, batchIndex, ...totals }
-    }
-
-    const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
-    let order = maxOrder._max.order || existingCount || 0
-    await db.programQuestion.createMany({
-      data: batch.map((q) => createProgramQuestionData(examId, ++order, q)),
-    })
-
-    const totals = await examTotals(examId)
-    const done = firstMissingBatchIndex(totals.questionCount) >= EXAM_BATCH_COUNT
-    await setAiGenerationProgress('PROGRAM_EXAM', exam.programId, exam.semester, { status: done ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: 0, lastError: null })
-    await db.programExam.update({
-      where: { id: examId },
-      data: {
-        status: done ? 'REVIEW' : 'DRAFT_INCOMPLETE',
-        totalPoints: totals.totalPoints,
-        durationMin: Math.max(120, Math.min(240, Math.round(totals.questionCount * 2))),
-        errorNote: done ? null : `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.`,
-        booksUsed: [
-          ...(knowledgeContext ? ['بنك المعرفة الأكاديمي المستخرج من الكتب'] : []),
-          ...usableBooks.map((b) => `«${b.title}» (${b.sourceNote})`),
-        ].join('، ').slice(0, 2000),
-      },
-    })
-
-    return { ok: true, status: done ? 'REVIEW' : 'GENERATING', inserted: batch.length, done, batchIndex, ...totals }
-  } catch (e: any) {
-    const insufficient = insufficientSourcePayload(e)
-    const message = String(insufficient?.error || e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500)
-    const totals = await examTotals(examId).catch(() => ({ questionCount: 0, totalPoints: 0 }))
-    const examForProgress = await db.programExam.findUnique({ where: { id: examId }, select: { programId: true, semester: true } }).catch(() => null)
-    if (examForProgress) {
-      const previous = await getAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester)
-      await setAiGenerationProgress('PROGRAM_EXAM', examForProgress.programId, examForProgress.semester, { status: totals.questionCount >= totalRequiredQuestions() ? 'COMPLETED' : 'PARTIAL', requested: totalRequiredQuestions(), saved: totals.questionCount, failedBatches: (previous?.failedBatches || 0) + 1, lastError: message })
-    }
-    if (!insufficient && totals.questionCount >= totalRequiredQuestions()) {
-      const reviewed = await exposeExamForReview(examId)
-      return { ...reviewed, ok: true, done: true, error: message }
-    }
-    await setAiTaskPause('PROGRAM_EXAM', examId, {
-      code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
-      reason: message,
-      retryAt: e?.retryAt || null,
-    }).catch(() => null)
-    await db.programExam.update({
-      where: { id: examId },
-      data: {
-        status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
-        errorNote: JSON.stringify({
-          code: insufficient?.code || e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
-          reason: message,
-          retryAt: e?.retryAt || null,
-          savedQuestions: totals.questionCount,
-          ...(insufficient ? {
-            availableChunks: insufficient.availableChunks,
-            requestedQuestions: insufficient.requestedQuestions,
-            acceptedQuestions: insufficient.acceptedQuestions,
-          } : {}),
-        }),
-        totalPoints: totals.totalPoints,
-      },
-    }).catch(() => {})
-    return {
-      ok: false,
-      status: totals.questionCount > 0 ? 'DRAFT_INCOMPLETE' : 'PAUSED',
-      inserted: 0,
-      done: false,
-      error: totals.questionCount > 0 ? `تم حفظ ${totals.questionCount} من ${totalRequiredQuestions()}. اضغط مرة أخرى لإكمال الباقي.` : message,
-      ...(insufficient || {}),
-      ...totals,
-    }
-  }
-}
-
-async function runGenerationSteps(
-  examId: string,
-  maxSteps = 1
-): Promise<GenerationStepResult> {
-  let totalInserted = 0
-  let last: Awaited<ReturnType<typeof runGenerationStep>> | null = null
-  for (let i = 0; i < maxSteps; i++) {
-    last = await runGenerationStep(examId)
-    totalInserted += last.inserted || 0
-    if (last.done || last.status !== 'GENERATING' || !last.ok || last.inserted === 0) break
-  }
-  if (!last) return { ok: false, status: 'FAILED', inserted: 0, questionCount: 0, totalPoints: 0, done: true, error: 'لم يبدأ التوليد' }
-  return { ...last, inserted: totalInserted }
-}
-
-async function ensureStarterQuestions(examId: string): Promise<GenerationStepResult> {
-  const existingCount = await db.programQuestion.count({ where: { examId } })
-  if (existingCount > 0) {
-    const totals = await examTotals(examId)
-    return { ok: true, status: 'GENERATING', inserted: 0, done: false, ...totals }
-  }
-
-  // لا نضع أسئلة احتياطية قبل قراءة الكتاب. الدفعة الأولى نفسها تُبنى عبر runGenerationStep
-  // من محتوى الملف/الرابط، وإذا نقص المصدر نعيد INSUFFICIENT_SOURCE بدلاً من أي أسئلة عامة.
-  return runGenerationSteps(examId, 1)
-}
-
-// ===== التوليد الخلفي لامتحان الفصل الدراسي من الكتب =====
-// 12.2: كل برنامج له امتحانان (فصل أول + فصل ثانٍ) — الأسئلة تولد بحالة "بانتظار مراجعة الإدارة"
-// (Human-in-the-loop) ولا تُنشر للطلاب إلا بعد اعتماد الإدارة.
-
-async function runGeneration(examId: string) {
-  try {
-    const exam = await db.programExam.findUnique({
-      where: { id: examId },
-      include: { program: { select: { id: true, titleAr: true, titleEn: true, category: true, description: true } } },
-    })
-    if (!exam || exam.status !== 'GENERATING') return
-
-    const semester = exam.semester
-    const books = await db.book.findMany({
-      where: { programId: exam.programId, OR: [{ semester: null }, { semester }] },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        title: true,
-        titleEn: true,
-        author: true,
-        year: true,
-        description: true,
-        link: true,
-        fileName: true,
-        mimeType: true,
-        size: true,
-        data: true,
-        textContent: true,
-        levelPolicy: true,
-        readingDepth: true,
-        assessmentOrientation: true,
-        linkReadStatus: true,
-        linkReadNote: true,
-      },
-    })
-    if (books.length === 0) throw new Error(`لا توجد كتب مقررة للفصل ${semester === 2 ? 'الثاني' : 'الأول'}`)
-
-    const hydratedBooks: HydratedExamBook[] = []
-    for (const book of books) {
-      if (!(await isExamStillGenerating(examId))) return
-      const hydrated = await hydrateBookContentForExam(book)
-      hydratedBooks.push(hydrated)
-      if (hydrated.shouldPersistText && hydrated.id && hydrated.textContent.length >= 160) {
-        await db.book.update({
-          where: { id: hydrated.id },
-          data: {
-            textContent: hydrated.textContent.slice(0, 180000),
-            linkReadStatus: hydrated.contentQuality === 'LINK_TEXT' ? 'TEXT_EXTRACTED' : hydrated.contentQuality === 'NO_CONTENT' ? 'FAILED' : 'FILE_EXTRACTED',
-            linkReadNote: hydrated.sourceNote,
-          },
-        }).catch(() => {})
-      }
-    }
-
-    const usableBooks = hydratedBooks.filter((b) =>
-      b.contentQuality !== 'METADATA_ONLY' &&
-      b.contentQuality !== 'NO_CONTENT' &&
-      String(b.textContent || '').trim().length >= 300
-    )
-    if (usableBooks.length === 0) throw new Error('لا يوجد نص فعلي مقروء من الكتب لبناء الامتحان')
-    const knowledgeContext = await buildKnowledgeContextForExam(exam.programId, exam.semester, 56).catch(() => '')
-    // بنك المعرفة يستخدم كمرشد تنظيمي منفصل، أما sourceEvidence فيجب أن يأتي من نصوص الكتب الفعلية.
-    const examSourceBooks: ExamSourceBook[] = usableBooks
-
-    const existingCount = await db.programQuestion.count({ where: { examId } })
-    const maxOrder = await db.programQuestion.aggregate({ where: { examId }, _max: { order: true } })
-    let order = maxOrder._max.order || existingCount || 0
-    const startBatch = firstMissingBatchIndex(existingCount)
-
-    for (let i = startBatch; i < EXAM_BATCH_COUNT; i++) {
-      if (!(await isExamStillGenerating(examId))) return
-      let batch: GeneratedQuestion[] = []
-      try {
-        batch = await generateExamQuestionBatch(exam.program, examSourceBooks, i, [], knowledgeContext)
-      } catch (err: any) {
-        const retryAt = err?.retryAt || null
-        const reason = String(err?.message || err).slice(0, 500)
-        await setAiTaskPause('PROGRAM_EXAM', examId, { code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }).catch(() => null)
-        await db.programExam.update({
-          where: { id: examId },
-          data: { status: 'PAUSED', errorNote: JSON.stringify({ code: err?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt }) },
-        }).catch(() => {})
-        return
-      }
-      if (batch.length === 0) {
-        await db.programExam.update({
-          where: { id: examId },
-          data: { errorNote: `تجاوز النظام الدفعة ${i + 1} لأنها لم تنتج أسئلة صالحة، وسيكمل الدفعة التالية.` },
-        }).catch(() => {})
-        continue
-      }
-      if (!(await isExamStillGenerating(examId))) return
-
-      await db.programQuestion.createMany({
-        data: batch.map((q) => createProgramQuestionData(examId, ++order, q)),
-      })
-      const totalNow = await db.programQuestion.count({ where: { examId } })
-      await db.programExam.update({
-        where: { id: examId },
-        data: {
-          durationMin: Math.max(120, Math.min(240, Math.round(totalNow * 2))),
-          booksUsed: [
-            ...(knowledgeContext ? ['بنك المعرفة الأكاديمي المستخرج من الكتب'] : []),
-            ...usableBooks.map((b) => `«${b.title}» (${b.sourceNote})`),
-          ].join('، ').slice(0, 2000),
-        },
-      })
-    }
-
-    const allQuestions = await db.programQuestion.findMany({ where: { examId }, select: { points: true } })
-    const totalPoints = allQuestions.reduce((s, q) => s + q.points, 0)
-    const totalQ = allQuestions.length
-
-    await db.programExam.updateMany({
-      where: { id: examId, status: 'GENERATING' },
-      data: {
-        // بانتظار مراجعة الإدارة واعتماد الأسئلة قبل النشر للطلاب
-        status: 'REVIEW',
-        durationMin: Math.max(120, Math.min(240, Math.round(totalQ * 2))),
-        totalPoints,
-        errorNote: null,
-      },
-    })
-  } catch (e: any) {
-    console.error('exam generation error:', e)
-    await db.programExam
-      .updateMany({
-        where: { id: examId, status: 'GENERATING' },
-        data: { status: 'FAILED', errorNote: String(e?.message || 'خطأ غير متوقع أثناء التوليد').slice(0, 500) },
-      })
-      .catch(() => {})
-  }
-}
-
-// POST /api/admin/program-exams/generate — بدء أو استكمال توليد امتحان فصل دراسي من الكتب المقررة
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const limited = enforceApiRateLimit(req, 'admin-program-exam-generate', 8, 60 * 1000, admin.id)
     if (limited) return limited
-    const body = await req.json()
-    const examId = String(body?.examId || '').trim()
-    const programId = String(body?.programId || '').trim()
-    const sem = Number(body?.semester) === 2 ? 2 : 1
+    const body = await req.json().catch(() => ({}))
+    const programId = clean(body.programId, 80)
+    const examId = clean(body.examId, 80)
+    const comprehensive = body.comprehensive === true || body.semester === 0 || body.semester === 'all'
+    const semester = comprehensive ? 0 : Number(body.semester) === 2 ? 2 : 1
+    const total = Math.max(10, Math.min(80, Number(body.count || 20)))
 
-    if (body?.action === 'stop') {
-      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لإيقاف التوليد' }, { status: 400 })
-      const stopped = await stopGenerationAndExposeReview(examId, { id: admin.id, name: admin.name })
-      if ('error' in stopped) return NextResponse.json({ error: stopped.error }, { status: stopped.statusCode || 400 })
-      return NextResponse.json(stopped)
+    if (body?.action === 'stop' && examId) {
+      const exam = await db.programExam.update({ where: { id: examId }, data: { status: 'REVIEW', errorNote: 'تم إيقاف التوليد وإرسال الأسئلة الحالية للمراجعة' } })
+      return NextResponse.json({ ok: true, examId: exam.id, status: exam.status })
     }
+    if (!programId && !examId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    if (body?.action === 'rebuild') {
-      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لإعادة البناء' }, { status: 400 })
-      const existing = await db.programExam.findUnique({
-        where: { id: examId },
-        include: { program: { select: { titleAr: true } }, _count: { select: { questions: true } } },
-      })
-      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-      if (existing.status === 'READY') return NextResponse.json({ error: 'الامتحان منشور للطلاب — احذفه وأنشئ امتحاناً جديداً إذا أردت إعادة البناء' }, { status: 409 })
-      await db.programQuestion.deleteMany({ where: { examId } })
-      await db.programExam.update({
-        where: { id: examId },
-        data: { status: 'GENERATING', errorNote: null, totalPoints: 0, booksUsed: null },
-      })
-      await audit(
-        { id: admin.id, name: admin.name },
-        'REBUILD_PROGRAM_EXAM_FROM_BOOKS',
-        'ProgramExam',
-        examId,
-        `إعادة بناء امتحان ${existing.program.titleAr} من الكتب بعد حذف ${existing._count.questions} سؤالاً سابقاً`
-      )
-      const step = await runGenerationSteps(examId, 1)
-      return NextResponse.json({ ...step, examId, rebuilt: true, requiredQuestions: totalRequiredQuestions() })
-    }
+    const existing = examId ? await db.programExam.findUnique({ where: { id: examId }, include: { _count: { select: { questions: true, attempts: true } } } }) : null
+    const targetProgramId = programId || existing?.programId || ''
+    if (!targetProgramId) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
+    if (existing?.status === 'READY') return NextResponse.json({ error: 'الامتحان منشور للطلاب — لا يمكن إعادة توليده مباشرة' }, { status: 409 })
+    if ((existing as any)?._count?.attempts) return NextResponse.json({ error: 'لا يمكن إعادة توليد امتحان له محاولات طلابية محفوظة' }, { status: 409 })
 
-    if (body?.action === 'kick') {
-      if (!examId) return NextResponse.json({ error: 'معرف الامتحان مطلوب لتحريك التوليد' }, { status: 400 })
-      const existing = await db.programExam.findUnique({ where: { id: examId }, select: { id: true, status: true } })
-      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-      if (existing.status === 'READY') return NextResponse.json({ error: 'الامتحان منشور بالفعل' }, { status: 409 })
-      if (existing.status !== 'GENERATING') {
-        await db.programExam.update({ where: { id: examId }, data: { status: 'GENERATING', errorNote: null } })
-      }
-      const step = await runGenerationSteps(examId, MANUAL_CONTINUE_STEPS)
-      return NextResponse.json({ ...step, examId, kicked: true, requiredQuestions: totalRequiredQuestions() })
-    }
+    const units = await unitsForExam(targetProgramId, existing?.semester || semester || 1, comprehensive)
+    if (!units.length) return NextResponse.json({ error: 'لا توجد وحدات لبناء الامتحان. ولّد الوحدات ومحتواها أولاً.' }, { status: 400 })
+    const bank = await bankForUnits(targetProgramId, units, total)
+    if (bank.missing.length) return NextResponse.json({ ok: false, status: 'PAUSED', error: 'بنك الأسئلة غير كافٍ لبعض الوحدات. تم تشغيل وظائف التوليد لتلك الوحدات؛ أعد المحاولة بعد اكتمالها.', missingUnits: bank.missing, unitBreakdown: bank.breakdown }, { status: 202 })
+    if (bank.selected.length < Math.min(10, total)) return NextResponse.json({ error: 'لا توجد أسئلة موثقة كافية في بنك الأسئلة.' }, { status: 409 })
 
-    if (examId) {
-      const existing = await db.programExam.findUnique({
-        where: { id: examId },
-        include: {
-          program: { select: { id: true, titleAr: true, category: true } },
-          _count: { select: { questions: true } },
-        },
-      })
-      if (!existing) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
-      if (existing.status === 'GENERATING') {
-        const step = await runGenerationSteps(existing.id, MANUAL_CONTINUE_STEPS)
-        return NextResponse.json({
-          ok: step.ok,
-          examId: existing.id,
-          resumed: true,
-          kicked: true,
-          existingQuestions: step.questionCount,
-          inserted: step.inserted,
-          status: step.status,
-          done: step.done,
-          ...generationFailureDetails(step),
-          requiredQuestions: totalRequiredQuestions(),
-        })
-      }
-      if (existing.status === 'READY') {
-        return NextResponse.json({ error: 'الامتحان منشور للطلاب — استخدم زر الحذف إذا أردت إنشاء امتحان جديد بالكامل' }, { status: 409 })
-      }
-
-      const booksCount = await db.book.count({
-        where: { programId: existing.programId, OR: [{ semester: null }, { semester: existing.semester }] },
-      })
-      if (booksCount === 0) {
-        return NextResponse.json(
-          { error: `لا توجد كتب مقررة للفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} — أضف كتباً لهذا الفصل أو اجعل بعض الكتب «عامة للبرنامج»` },
-          { status: 400 }
-        )
-      }
-
-      await db.programExam.update({
-        where: { id: existing.id },
-        data: { status: 'GENERATING', errorNote: null },
-      })
-
-      await audit(
-        { id: admin.id, name: admin.name },
-        'RESUME_PROGRAM_EXAM_GENERATION',
-        'ProgramExam',
-        existing.id,
-        `استكمال توليد امتحان الفصل ${existing.semester === 2 ? 'الثاني' : 'الأول'} من السؤال ${existing._count.questions + 1} لبرنامج ${existing.program.titleAr}`
-      )
-
-      const step = await runGenerationSteps(existing.id, MANUAL_CONTINUE_STEPS)
-
-      return NextResponse.json({
-        ok: step.ok,
-        examId: existing.id,
-        booksCount,
-        semester: existing.semester,
-        resumed: true,
-        existingQuestions: step.questionCount || existing._count.questions,
-        inserted: step.inserted,
-        status: step.status,
-        done: step.done,
-        ...generationFailureDetails(step),
-        requiredQuestions: totalRequiredQuestions(),
-      })
-    }
-
-    if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-
-    const program = await db.program.findUnique({
-      where: { id: programId },
-      select: { id: true, titleAr: true, category: true },
-    })
-    if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-
-    const booksCount = await db.book.count({ where: { programId, OR: [{ semester: null }, { semester: sem }] } })
-    if (booksCount === 0) {
-      return NextResponse.json(
-        { error: `لا توجد كتب مقررة للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — أضف كتباً لهذا الفصل أو اجعل بعض الكتب «عامة للبرنامج»` },
-        { status: 400 }
-      )
-    }
-
-    const generating = await db.programExam.findFirst({ where: { programId, status: 'GENERATING' } })
-    if (generating) {
-      const step = await runGenerationSteps(generating.id, MANUAL_CONTINUE_STEPS)
-      return NextResponse.json({
-        ok: step.ok,
-        examId: generating.id,
-        booksCount,
-        semester: generating.semester,
-        resumed: true,
-        kicked: true,
-        existingQuestions: step.questionCount,
-        inserted: step.inserted,
-        status: step.status,
-        done: step.done,
-        ...generationFailureDetails(step),
-        requiredQuestions: totalRequiredQuestions(),
-      })
-    }
-
-    const existingSemExam = await db.programExam.findFirst({
-      where: { programId, semester: sem, status: { in: ['REVIEW', 'READY'] } },
-      include: { _count: { select: { questions: true } } },
-    })
-    if (existingSemExam) {
-      if (existingSemExam.status === 'REVIEW' && existingSemExam._count.questions < totalRequiredQuestions()) {
-        await db.programExam.update({ where: { id: existingSemExam.id }, data: { status: 'GENERATING', errorNote: null } })
-        const step = await runGenerationSteps(existingSemExam.id, MANUAL_CONTINUE_STEPS)
-        return NextResponse.json({
-          ok: step.ok,
-          examId: existingSemExam.id,
-          booksCount,
-          semester: sem,
-          resumed: true,
-          continuedFromReview: true,
-          existingQuestions: step.questionCount,
-          inserted: step.inserted,
-          status: step.status,
-          done: step.done,
-          ...generationFailureDetails(step),
-          requiredQuestions: totalRequiredQuestions(),
-        })
-      }
-      return NextResponse.json(
-        { error: `يوجد امتحان ${existingSemExam.status === 'READY' ? 'منشور' : 'بانتظار المراجعة'} للفصل ${sem === 2 ? 'الثاني' : 'الأول'} — استخدم زر الحذف أو زر إعادة البناء داخل المراجعة إذا أردت نسخة جديدة` },
-        { status: 409 }
-      )
-    }
-
-    const failedSemExam = await db.programExam.findFirst({
-      where: { programId, semester: sem, status: { in: ['FAILED', 'PAUSED', 'DRAFT_INCOMPLETE'] } },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { questions: true } } },
-    })
-    if (failedSemExam) {
-      await db.programExam.update({ where: { id: failedSemExam.id }, data: { status: 'GENERATING', errorNote: null } })
-      await audit(
-        { id: admin.id, name: admin.name },
-        'RESUME_PROGRAM_EXAM_GENERATION',
-        'ProgramExam',
-        failedSemExam.id,
-        `استكمال توليد امتحان فاشل سابقاً للفصل ${sem === 2 ? 'الثاني' : 'الأول'} من السؤال ${failedSemExam._count.questions + 1} لبرنامج ${program.titleAr}`
-      )
-      const step = await runGenerationSteps(failedSemExam.id, MANUAL_CONTINUE_STEPS)
-      return NextResponse.json({
-        ok: step.ok,
-        examId: failedSemExam.id,
-        booksCount,
-        semester: sem,
-        resumed: true,
-        existingQuestions: step.questionCount || failedSemExam._count.questions,
-        inserted: step.inserted,
-        status: step.status,
-        done: step.done,
-        ...generationFailureDetails(step),
-        requiredQuestions: totalRequiredQuestions(),
-      })
-    }
-
-    const semLabel = sem === 2 ? 'الثاني' : 'الأول'
-    const exam = await db.programExam.create({
-      data: {
-        programId,
-        semester: sem,
-        title: `امتحان الفصل الدراسي ${semLabel} — ${program.titleAr}`,
-        status: 'GENERATING',
-        durationMin: 120,
-        generatedBy: 'AI',
-      },
-    })
-
-    await audit(
-      { id: admin.id, name: admin.name },
-      'GENERATE_PROGRAM_EXAM',
-      'ProgramExam',
-      exam.id,
-      `توليد امتحان الفصل ${semLabel} من ${booksCount} كتاب مقرر لبرنامج ${program.titleAr}`
-    )
-
-    // نُنشئ الدفعة الأولى الآن من محتوى الكتاب/الرابط. بقية الدفعات تكملها الواجهة تدريجياً عبر زر/تحريك التوليد.
-    const starter = await ensureStarterQuestions(exam.id)
-    const starterPayload = {
-      ok: starter.ok,
-      examId: exam.id,
-      booksCount,
-      semester: sem,
-      resumed: false,
-      existingQuestions: starter.questionCount,
-      inserted: starter.inserted,
-      status: starter.status,
-      done: starter.done,
-      ...generationFailureDetails(starter),
-      requiredQuestions: totalRequiredQuestions(),
-    }
-    if (!starter.ok) {
-      return NextResponse.json(starterPayload, { status: starter.code === 'INSUFFICIENT_SOURCE' ? 422 : 500 })
-    }
-
-    return NextResponse.json(starterPayload)
+    const program = await db.program.findUnique({ where: { id: targetProgramId }, select: { titleAr: true } })
+    const reviewRequired = bank.selected.some((item) => item.status !== 'APPROVED' || !hasFlag(item.qualityFlags, 'SOURCE_GROUNDED'))
+    const exam = existing
+      ? await db.programExam.update({ where: { id: existing.id }, data: { status: 'REVIEW', errorNote: reviewRequired ? 'يتضمن الامتحان أسئلة تحتاج تدقيقاً من بنك الأسئلة.' : null, totalPoints: 0 } })
+      : await db.programExam.create({ data: { programId: targetProgramId, semester: comprehensive ? 3 : semester || 1, title: `${comprehensive ? 'الامتحان الشامل' : `امتحان الفصل ${semester === 2 ? 'الثاني' : 'الأول'}`} — ${program?.titleAr || ''}`, status: 'REVIEW', durationMin: 120, generatedBy: 'AI', errorNote: reviewRequired ? 'يتضمن الامتحان أسئلة تحتاج تدقيقاً من بنك الأسئلة.' : null } })
+    await db.programQuestion.deleteMany({ where: { examId: exam.id } })
+    await db.programQuestion.createMany({ data: bank.selected.map((item, index) => toProgramQuestion(exam.id, index + 1, item)) })
+    const totalPoints = bank.selected.length * 2
+    await db.programExam.update({ where: { id: exam.id }, data: { totalPoints, durationMin: Math.max(120, Math.min(240, bank.selected.length * 2)), booksUsed: 'بنك الأسئلة الموثق حسب الوحدات' } })
+    await db.questionBankItem.updateMany({ where: { id: { in: bank.selected.map((item) => item.id) } }, data: { usageCount: { increment: 1 } } })
+    await audit({ id: admin.id, name: admin.name }, 'GENERATE_PROGRAM_EXAM_FROM_QUESTION_BANK', 'ProgramExam', exam.id, `توليد امتحان من بنك الأسئلة الموثق مع توزيع على ${units.length} وحدة`)
+    const grounded = bank.selected.filter((item) => item.status === 'APPROVED' && hasFlag(item.qualityFlags, 'SOURCE_GROUNDED')).length
+    return NextResponse.json({ ok: true, examId: exam.id, status: 'REVIEW', inserted: bank.selected.length, requiredQuestions: total, unitBreakdown: bank.breakdown, sourceGroundedRatio: bank.selected.length ? grounded / bank.selected.length : 0, reviewRequired })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam generate error:', e)
-    return NextResponse.json({ error: 'تعذر بدء التوليد' }, { status: 500 })
+    return NextResponse.json({ error: e?.message || 'تعذر بدء التوليد' }, { status: 500 })
   }
 }

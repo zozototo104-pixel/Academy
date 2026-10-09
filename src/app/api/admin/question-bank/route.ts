@@ -1,16 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
-import { getAiGenerationProgress, questionDuplicateKey, resolveGenerationJob, setAiGenerationProgress } from '@/lib/ai-generation-progress'
-import { isDuplicateQuestionIdea, selectQuestionKnowledgeSources } from '@/lib/question-bank-diversity'
-import { geminiCompleteJson } from '@/lib/gemini'
-import { assertQuestionBatchAcceptable, buildQuestionBankRecord, knowledgeEvidenceText, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
-import { setAiTaskPause } from '@/lib/ai-task-pause'
+import { getAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { audit } from '@/lib/notify'
-import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
-import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
-import { resolveQuestionBankEvidence } from '@/lib/question-bank-chunk-evidence'
+import { ensureQuestionBankGenerationJob, runNextQuestionBankGenerationJobStep, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
 
 export const maxDuration = 300
 
@@ -63,10 +57,8 @@ function parseImportedQuestions(value: unknown) {
   } catch (error) {
     console.warn('Failed to parse imported questions JSON; falling back to delimited rows.', error)
   }
-
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-  if (!lines.length) return []
-  const hasHeader = /type|question|text|السؤال|النوع/i.test(lines[0])
+  const hasHeader = Boolean(lines[0] && /type|question|text|السؤال|النوع/i.test(lines[0]))
   const rows = (hasHeader ? lines.slice(1) : lines).map((line) => line.split(/\t|,/).map((x) => x.trim()))
   return rows.map((cols) => ({
     type: cols[0] || 'MCQ',
@@ -79,39 +71,16 @@ function parseImportedQuestions(value: unknown) {
   })).filter((q) => cleanText(q.text, 1200).length > 8)
 }
 
-async function insertBankQuestions(programId: string, questions: any[], meta: { generatedBy: string; status?: string; fallback?: any }) {
-  const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
-  const seen = new Set(existing.map((q) => norm(q.text)))
-  const rows: any[] = []
-  let skippedDuplicates = 0
-  for (const raw of questions) {
-    const q = sanitizeQuestion(raw, meta.fallback || {})
-    if (!q.text || q.text.length < 12) continue
-    const key = norm(q.text)
-    if (seen.has(key)) {
-      skippedDuplicates++
-      continue
-    }
-    seen.add(key)
-    rows.push({
-      programId,
-      ...q,
-      status: meta.status || 'PENDING_REVIEW',
-      generatedBy: meta.generatedBy,
-      qualityFlags: q.qualityFlags || JSON.stringify(['NEEDS_HUMAN_REVIEW']),
-    })
-  }
-  if (rows.length > 0) await db.questionBankItem.createMany({ data: rows })
-  return { inserted: rows.length, skippedDuplicates }
-}
-
 function sanitizeQuestion(raw: any, fallback: any = {}) {
   const type = TYPES.has(String(raw?.type || '').toUpperCase()) ? String(raw.type).toUpperCase() : 'MCQ'
   const difficulty = DIFFICULTIES.has(String(raw?.difficulty || '').toUpperCase()) ? String(raw.difficulty).toUpperCase() : 'MEDIUM'
   const text = cleanText(raw?.text || raw?.question || fallback.title, 1200)
   const options = safeOptions(raw?.options, type)
   let correctAnswer = raw?.correctAnswer != null ? String(raw.correctAnswer) : null
-  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
+  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) {
+    const index = options.findIndex((option) => option === correctAnswer)
+    correctAnswer = index >= 0 ? String(index) : null
+  }
   if (type === 'MCQ' && correctAnswer != null) correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer))))
   if (type === 'TF' && correctAnswer != null) correctAnswer = ['0', '1'].includes(correctAnswer) ? correctAnswer : null
   return {
@@ -131,27 +100,35 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
   }
 }
 
+async function insertBankQuestions(programId: string, questions: any[], meta: { generatedBy: string; status?: string; fallback?: any }) {
+  const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
+  const seen = new Set(existing.map((q) => norm(q.text)))
+  const rows: any[] = []
+  let skippedDuplicates = 0
+  for (const raw of questions) {
+    const q = sanitizeQuestion(raw, meta.fallback || {})
+    if (!q.text || q.text.length < 12) continue
+    const key = norm(q.text)
+    if (seen.has(key)) {
+      skippedDuplicates++
+      continue
+    }
+    seen.add(key)
+    rows.push({ programId, ...q, status: meta.status || 'PENDING_REVIEW', generatedBy: meta.generatedBy, qualityFlags: q.qualityFlags || JSON.stringify(['NEEDS_HUMAN_REVIEW']) })
+  }
+  if (rows.length > 0) await db.questionBankItem.createMany({ data: rows })
+  return { inserted: rows.length, skippedDuplicates }
+}
+
 async function questionStats(programId: string) {
-  const rows = await db.questionBankItem.findMany({
-    where: { programId },
-    select: { status: true, difficulty: true, type: true },
-  })
+  const rows = await db.questionBankItem.findMany({ where: { programId }, select: { status: true, difficulty: true, type: true } })
   return {
     total: rows.length,
     pending: rows.filter((x) => x.status === 'PENDING_REVIEW').length,
     approved: rows.filter((x) => x.status === 'APPROVED').length,
     rejected: rows.filter((x) => x.status === 'REJECTED').length,
-    byDifficulty: {
-      EASY: rows.filter((x) => x.difficulty === 'EASY').length,
-      MEDIUM: rows.filter((x) => x.difficulty === 'MEDIUM').length,
-      ADVANCED: rows.filter((x) => x.difficulty === 'ADVANCED').length,
-    },
-    byType: {
-      MCQ: rows.filter((x) => x.type === 'MCQ').length,
-      TF: rows.filter((x) => x.type === 'TF').length,
-      SHORT: rows.filter((x) => x.type === 'SHORT').length,
-      ESSAY: rows.filter((x) => x.type === 'ESSAY').length,
-    },
+    byDifficulty: { EASY: rows.filter((x) => x.difficulty === 'EASY').length, MEDIUM: rows.filter((x) => x.difficulty === 'MEDIUM').length, ADVANCED: rows.filter((x) => x.difficulty === 'ADVANCED').length },
+    byType: { MCQ: rows.filter((x) => x.type === 'MCQ').length, TF: rows.filter((x) => x.type === 'TF').length, SHORT: rows.filter((x) => x.type === 'SHORT').length, ESSAY: rows.filter((x) => x.type === 'ESSAY').length },
   }
 }
 
@@ -161,11 +138,9 @@ async function listQuestions(programId: string, status?: string | null) {
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
   })
-  // No verifierReason column exists in QuestionBankItem; expose persisted review notes as the review tooltip.
   return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
 }
 
-// GET /api/admin/question-bank?programId=...&status=PENDING_REVIEW
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
@@ -174,10 +149,12 @@ export async function GET(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+    await runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error))
     const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
     const progress = await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL')
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress })
+    const jobs = await db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 })
+    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress, jobs })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
@@ -185,28 +162,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/question-bank — توليد أسئلة من بنك المعرفة إلى بنك الأسئلة المركزي
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const limited = enforceApiRateLimit(req, 'admin-question-bank', 10, 60 * 1000, admin.id)
     if (limited) return limited
-    const requestDeadlineMs = Date.now() + 240_000
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
-    const requestedCount = Math.max(1, Math.min(30, Number(body?.count || 12)))
-    const count = Math.min(4, requestedCount)
     const source = cleanText(body?.source, 40) || 'AI'
+    const requestedTotal = Math.max(1, Math.min(60, Number(body?.count || 12)))
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, category: true, description: true } })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    const storedProgress = source === 'AI' ? await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL') : null
-    const job = resolveGenerationJob(storedProgress, requestedCount, body?.resume === true, body?.startNew === true)
-    const requestedTotal = job.requested
-    const savedSoFar = job.saved
-    const remainingFromProgress = Math.max(0, requestedTotal - savedSoFar)
-    const batchCount = Math.min(count, remainingFromProgress || count)
 
     if (source === 'MANUAL') {
       const result = await insertBankQuestions(programId, [body?.question || body], { generatedBy: 'MANUAL', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
@@ -216,15 +183,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (source === 'REVIEW_LEGACY_GROUNDING') {
-      const legacy = await db.questionBankItem.findMany({
-        where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
-        select: { id: true },
-      })
+      const legacy = await db.questionBankItem.findMany({ where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } }, select: { id: true } })
       if (legacy.length) {
-        await db.questionBankItem.updateMany({
-          where: { id: { in: legacy.map((item) => item.id) } },
-          data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) },
-        })
+        await db.questionBankItem.updateMany({ where: { id: { in: legacy.map((item) => item.id) } }, data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) } })
       }
       await audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`)
       return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
@@ -238,225 +199,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
-    const v2Count = await db.bookKnowledgeItem.count({ where: { programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } } })
-    const knowledge = await db.bookKnowledgeItem.findMany({
-      where: { programId, ...(v2Count ? { kbVersion: 2 } : {}), category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
-      orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-      take: 400,
-    })
-    if (!knowledge.length) return NextResponse.json({ error: 'لا يوجد بنك معرفة لهذا البرنامج. ابنِ بنك المعرفة من الكتب أولاً.' }, { status: 400 })
-
-    const sourceBooks = await db.book.findMany({
-      where: { id: { in: Array.from(new Set(knowledge.map((item) => item.bookId).filter(Boolean) as string[])) } },
-      select: { id: true, textContent: true, linkReadNote: true, linkReadStatus: true },
-    })
-    // Validate against persisted page chunks for v2; preserve legacy book-text checks for v1.
-    const v2ChunkIds = [...new Set(knowledge.filter((item) => item.kbVersion === 2 && item.chunkId).map((item) => item.chunkId!))]
-    const sourceChunks = v2ChunkIds.length
-      ? await db.bookChunk.findMany({ where: { id: { in: v2ChunkIds }, bookId: { in: sourceBooks.map((book) => book.id) } }, select: { id: true, bookId: true, text: true } })
-      : []
-    const { evidenceKnowledge, evidenceSources } = resolveQuestionBankEvidence(knowledge, sourceBooks, sourceChunks, knowledgeEvidenceText)
-    if (!evidenceKnowledge.length) return NextResponse.json({ error: 'لا توجد عناصر معرفة تحتوي نص مصدر أصلي كافيًا للاقتباس. أعد تحليل الكتب أولاً.' }, { status: 400 })
-
-    const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true, knowledgeItemId: true, bookId: true, sourceLocator: true } })
-    const seen = new Set(existing.map((q) => questionDuplicateKey(q.text, q.knowledgeItemId || q.bookId || q.sourceLocator || 'UNKNOWN')))
-    const usage = new Map<string, number>()
-    for (const item of existing) if (item.knowledgeItemId) usage.set(item.knowledgeItemId, (usage.get(item.knowledgeItemId) || 0) + 1)
-    const ideaHistory = existing.map((q) => ({ text: q.text, knowledgeItemId: q.knowledgeItemId }))
-    const usedSourceIndexes = [...(job.usedSourceIndexes || [])]
-    const knowledgeItemIds = [...(job.knowledgeItemIds || [])]
-    let savedTotal = savedSoFar
-    let insertedTotal = 0
-    let failedBatches = job.failedBatches
-    let progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', job)
-    const usagePatch = () => ({ usedSourceIndexes: [...new Set(usedSourceIndexes)], knowledgeItemIds: [...new Set(knowledgeItemIds)] })
-    const finishPartial = async (lastError: string | null, status = 200) => {
-      if (lastError) failedBatches += 1
-      progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { jobId: job.jobId, status: savedTotal >= requestedTotal ? 'COMPLETED' : 'PARTIAL', requested: requestedTotal, saved: savedTotal, failedBatches, lastError, ...usagePatch() })
-      return NextResponse.json({
-        ok: savedTotal > 0,
-        inserted: insertedTotal,
-        requested: requestedTotal,
-        saved: savedTotal,
-        remaining: Math.max(0, requestedTotal - savedTotal),
-        partial: savedTotal < requestedTotal,
-        error: lastError || undefined,
-        message: savedTotal < requestedTotal ? `تم حفظ ${savedTotal} من ${requestedTotal}. اضغط مرة أخرى لإكمال الباقي.` : undefined,
-        progress,
-        stats: await questionStats(programId),
-        items: await listQuestions(programId),
-      }, { status: savedTotal > 0 ? 200 : status })
-    }
-
-    while (savedTotal < requestedTotal) {
-      if (Date.now() >= requestDeadlineMs) {
-        return finishPartial('AI_REQUEST_DEADLINE_REACHED')
-      }
-      const currentBatchCount = Math.min(batchCount, requestedTotal - savedTotal)
-      const selectedSources = selectQuestionKnowledgeSources(evidenceKnowledge, usage)
-      const knowledgeText = selectedSources.map((k) => `${evidenceKnowledge.indexOf(k) + 1}. [${k.category}] ${k.title}\nملخص للسياق فقط: ${String(k.summary || '').slice(0, 650)}\nنص المصدر (اقتبس منه حرفيًا): ${knowledgeEvidenceText(k).slice(0, 1800)}`).join('\n\n')
-      const recentIdeas = ideaHistory.slice(-30).map((q) => q.text.slice(0, 60)).join(' | ')
-      let generated: any[] = []
-      let generationContext: { provider?: string; model?: string } = {}
-      try {
-        const raw = await geminiCompleteJson({
-          system: 'أنت مصمم أسئلة جامعية. أرجع JSON صالحاً فقط دون أي شرح خارج JSON.',
-          history: [{ role: 'user', text: `
-أنشئ ${currentBatchCount} سؤالاً لبنك أسئلة مركزي لبرنامج: ${program.titleAr}
-التصنيف: ${program.category}
-الوصف: ${program.description || 'غير محدد'}
-
-اعتمد فقط على عناصر بنك المعرفة التالية:
-${knowledgeText}
-
-مواضيع آخر الأسئلة المحفوظة: ${recentIdeas || 'لا توجد'}
-لا تكرر هذه الأفكار ولو بصياغة مختلفة.
-
-أرجع JSON بالشكل:
-{
-  "questions": [
-    {
-      "type": "MCQ | TF | SHORT | ESSAY",
-      "text": "نص السؤال",
-      "options": ["..."],
-      "correctAnswer": "0",
-      "modelAnswer": "إجابة نموذجية للأسئلة القصيرة/المقالية",
-      "sourceEvidence": "دليل من بنك المعرفة",
-      "sourceBookTitle": "اسم المرجع إن ظهر",
-      "sourceLocator": "عنوان العنصر أو المحور",
-      "cognitiveSkill": "UNDERSTAND | APPLY | ANALYZE | EVALUATE",
-      "difficulty": "EASY | MEDIUM | ADVANCED",
-      "sourceIndex": 1,
-      "correctRationale": "سبب صحة الإجابة",
-      "distractorRationales": ["سبب خطأ الخيار 1"]
-    }
-  ]
-}
-
-القواعد:
-- وزّع الأنواع افتراضياً: 60% MCQ و20% TF و20% SHORT/ESSAY، ما لم يحدد الأدمن توزيعاً آخر.
-- أمثلة الحقول لكل نوع (احتفظ أيضاً بـ sourceEvidence الحرفي وsourceIndex وtext وdifficulty لكل سؤال):
-  MCQ: {"type":"MCQ","text":"ما الفكرة الأساسية المذكورة في النص؟","options":["الأول","الثاني","الثالث","الرابع"],"correctAnswer":"الأول","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM","correctRationale":"لأن النص يؤيد الاختيار الأول"}.
-  TF: {"type":"TF","text":"هل تؤكد العبارة الفكرة الواردة في النص؟","options":["صح","خطأ"],"correctAnswer":"صح","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM"}.
-  SHORT/ESSAY: {"type":"ESSAY","text":"حلل الفكرة كما وردت في النص بالتفصيل.","options":[],"modelAnswer":"إجابة نموذجية مفصلة لا تقل عن أربعين حرفاً، تستند مباشرة إلى النص المقتبس وتشرح الفكرة وأسبابها.","sourceEvidence":"اقتباس حرفي من المصدر","sourceIndex":1,"difficulty":"MEDIUM"}. في SHORT/ESSAY لا يلزم correctAnswer ولا distractorRationales، ويلزم modelAnswer بطول 40 حرفاً على الأقل.
-- لا تكرر سؤالاً بنفس المعنى.
-- للأسئلة SHORT/ESSAY: ابنِ modelAnswer فقط من sourceEvidence والنص الحرفي للمصدر نفسه، دون معلومات إضافية أو استنتاجات تتجاوز ما يقوله المصدر.
-- إن لم يكفِ نص المصدر لإجابة قصيرة أو مقالية موثوقة، ولّد MCQ أو TF بدلاً منها.
-- كل سؤال يجب أن يكون مرتبطاً بدليل من بنك المعرفة.
-- sourceEvidence يجب أن يكون اقتباساً حرفياً من "نص المصدر" للعنصر المحدد، وليس من الملخص.
-- لكل سؤال أعد sourceIndex وهو رقم عنصر المعرفة المستخدم فعلياً (1 يبدأ من أول عنصر في قائمة المعرفة أعلاه)، ولا تختر عنصراً لا يدعم السؤال مباشرة.
-- اجعل الإجابة الصحيحة واضحة وقابلة للمراجعة.
-- الأسئلة ستبقى بانتظار مراجعة الإدارة.` }],
-          temperature: 0.25,
-          thinkingBudget: 256,
-          maxOutputTokens: 6000,
-          taskLevel: 'ACADEMIC_CRITICAL',
-          stickyScope: `QUESTION_BANK:${programId}`,
-          deadlineMs: requestDeadlineMs,
-          validate: (text, context) => {
-            const candidates = parseGeneratedQuestionCandidates(text)
-            generationContext = context || {}
-            if (!candidates.accepted.length) {
-              const err: any = new Error('EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION')
-              err.code = 'VALIDATION_REJECTED'
-              throw err
-            }
-            const validation = validateQuestionBatchAgainstKnowledge(candidates.accepted, evidenceSources, context)
-            for (const rejection of validation.rejected) {
-              const q = candidates.accepted[rejection.index]
-              console.warn(`question bank evidence rejected index=${rejection.index} type=${String(q?.type || 'UNKNOWN')} sourceIndex=${rejection.sourceIndex} reason=${rejection.reason} question="${String(q?.text || '').slice(0, 80)}"`)
-            }
-            assertQuestionBatchAcceptable(candidates.accepted.length + candidates.rejected, validation.rejected.length + candidates.rejected)
-          },
-        })
-        generated = parseGeneratedQuestionCandidates(raw).accepted
-      } catch (e: any) {
-        console.error('question bank AI failed:', e)
-        const reason = String(e?.message || e).slice(0, 500)
-        const paused = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason, retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
-        await setAiTaskPause('QUESTION_BANK', programId, paused).catch(() => paused)
-        return finishPartial(reason, 503)
-      }
-
-      if (!generated.length) return finishPartial('لم يُرجع المزود أسئلة أكاديمية صالحة.', 503)
-
-      const finalValidation = validateQuestionBatchAgainstKnowledge(generated, evidenceSources)
-      for (const rejection of finalValidation.rejected) {
-        const q = generated[rejection.index]
-        console.warn(`question bank evidence rejected before save index=${rejection.index} type=${String(q?.type || 'UNKNOWN')} sourceIndex=${rejection.sourceIndex} reason=${rejection.reason} question="${String(q?.text || '').slice(0, 80)}"`)
-      }
-      const verifiedQuestions = await verifyQuestionsWithCrossProvider({
-        questions: finalValidation.accepted,
-        sources: evidenceSources,
-        generatorProvider: generationContext.provider,
-        generatorModel: generationContext.model,
-      })
-
-      const rows: any[] = []
-      for (let i = 0; i < verifiedQuestions.length; i++) {
-        const item = verifiedQuestions[i]
-        const requestedSourceIndex = Number(item.sourceIndex)
-        const source = Number.isInteger(requestedSourceIndex) && requestedSourceIndex >= 1 && requestedSourceIndex <= evidenceKnowledge.length
-          ? evidenceKnowledge[requestedSourceIndex - 1]
-          : null
-        if (!source || !selectedSources.some((selected) => selected.id === source.id)) continue
-        if ((usage.get(source.id) || 0) >= 2 && evidenceKnowledge.some((other) => (usage.get(other.id) || 0) < 2)) continue
-        const q = {
-          ...sanitizeQuestion(item, { title: source.title, summary: source.summary, sourceBookTitle: source.sourceNote }),
-          qualityFlags: item.qualityFlags,
-          verifierProvider: item.verifierProvider,
-          verifierModel: item.verifierModel,
-          verifiedAt: item.verifiedAt,
-          verifierReason: item.verifierReason,
-          verificationPending: item.verificationPending,
-          verificationReason: item.verificationReason,
-          textProvenance: item.textProvenance,
-        }
-        if (!q.text || q.text.length < 12) continue
-        const sourceRef = source.id || source.bookId || q.sourceLocator || 'UNKNOWN'
-        const key = questionDuplicateKey(q.text, sourceRef)
-        if (seen.has(key)) continue
-        if (isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) {
-          console.warn(`question bank evidence rejected index=${i} type=${q.type} sourceIndex=${requestedSourceIndex} reason=DUPLICATE_IDEA question="${q.text.slice(0, 80)}"`)
-          continue
-        }
-        seen.add(key)
-        ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
-        usage.set(source.id, (usage.get(source.id) || 0) + 1)
-        usedSourceIndexes.push(requestedSourceIndex)
-        knowledgeItemIds.push(source.id)
-        rows.push(buildQuestionBankRecord(q, {
-          programId,
-          knowledgeItemId: source.id,
-          bookId: source.bookId || null,
-          semester: source.semester || null,
-          provider: generationContext.provider,
-          model: generationContext.model,
-        }))
-        if (rows.length >= currentBatchCount) break
-      }
-
-      if (!rows.length) return finishPartial('لم يتم توليد أسئلة جديدة غير مكررة.', 409)
-      await db.questionBankItem.createMany({ data: rows })
-      insertedTotal += rows.length
-      savedTotal += rows.length
-      progress = await setAiGenerationProgress('QUESTION_BANK', programId, 'ALL', { jobId: job.jobId, status: savedTotal >= requestedTotal ? 'COMPLETED' : 'RUNNING', requested: requestedTotal, saved: savedTotal, failedBatches, lastError: null, ...usagePatch() })
-      if (Date.now() >= requestDeadlineMs && savedTotal < requestedTotal) return finishPartial('AI_REQUEST_DEADLINE_REACHED')
-    }
-
-    await db.setting.deleteMany({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => {})
-    await audit({ id: admin.id, name: admin.name }, 'GENERATE_QUESTION_BANK', 'Program', programId, `توليد ${insertedTotal} سؤال لبنك أسئلة ${program.titleAr} من بنك المعرفة`)
+    const unitId = cleanText(body?.unitId, 80) || null
+    await db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null)
+    const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true })
+    after(() => runQuestionBankGenerationJobStepsUntil(backgroundJob.id, { budgetMs: 260_000 }).catch((error) => console.error('manual question bank after() runner failed:', error)))
+    await audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`)
     return NextResponse.json({
-      ok: true,
-      inserted: insertedTotal,
-      requested: requestedTotal,
-      saved: savedTotal,
-      remaining: 0,
-      partial: false,
-      progress,
+      ok: false,
+      job: backgroundJob,
+      jobId: backgroundJob.id,
+      requested: backgroundJob.requested,
+      saved: backgroundJob.saved,
+      remaining: Math.max(0, Number(backgroundJob.requested || 0) - Number(backgroundJob.saved || 0)),
+      partial: true,
+      paused: backgroundJob.status === 'PAUSED',
+      error: backgroundJob.lastError || undefined,
+      message: 'تم تشغيل وظيفة بنك الأسئلة في الخلفية. ستُستكمل من after() والـ cron.',
       stats: await questionStats(programId),
       items: await listQuestions(programId),
-    })
+    }, { status: 202 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank POST error:', e)
@@ -464,7 +225,6 @@ ${knowledgeText}
   }
 }
 
-// PATCH /api/admin/question-bank — مراجعة/اعتماد/رفض السؤال المركزي
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()

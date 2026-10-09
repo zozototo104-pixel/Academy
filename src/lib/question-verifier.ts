@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { validateLiteralEvidence } from './evidence-validator'
 import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
-import { modelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
+import { modelFamily, textAiCompleteJson, textAiDiagnostics, type TextAiProvider } from './text-ai'
 
 export type QuestionVerifierResult = {
   index: number
@@ -31,6 +31,7 @@ export type VerifiableQuestion = {
   verifierReason?: string
   verificationPending?: boolean
   verificationReason?: string
+  sameProviderVerifierFallback?: boolean
 }
 
 export type VerificationSource = { text: string; textProvenance?: TextProvenance | null }
@@ -168,12 +169,13 @@ function applyRejected<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
-function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string }): T {
+function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string; sameProviderVerifierFallback?: boolean }): T {
   const provenance = question.textProvenance || null
   return {
     ...question,
     verifierProvider: context.provider,
     verifierModel: context.model,
+    sameProviderVerifierFallback: context.sameProviderVerifierFallback,
     verifiedAt: new Date().toISOString(),
     verifierReason: result.reason,
     qualityFlags: provenance === 'VISION_OCR'
@@ -261,8 +263,11 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   if (generatorFamily === 'unknown') {
     return output.map((question) => applyPending(question, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
   }
-  const excludeProviders = [opts.generatorProvider as TextAiProvider]
-  const excludeModelFamilies = [generatorFamily]
+  const diagnostics = await textAiDiagnostics().catch(() => null)
+  const configuredProviders = diagnostics ? Object.entries(diagnostics.keyCounts).filter(([, count]) => count > 0).map(([provider]) => provider) : []
+  const sameProviderVerifierFallback = opts.generatorProvider === 'OPENAI' && Boolean(diagnostics?.openaiConfigured) && configuredProviders.length === 1 && configuredProviders[0] === 'OPENAI'
+  const excludeProviders = sameProviderVerifierFallback ? [] : [opts.generatorProvider as TextAiProvider]
+  const excludeModelFamilies = sameProviderVerifierFallback ? [] : [generatorFamily]
   const budget = opts.timeBudgetMs == null ? QUESTION_VERIFIER_TIME_BUDGET_MS : Math.max(0, Math.floor(opts.timeBudgetMs))
   const deadline = Date.now() + budget
 
@@ -333,7 +338,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       }
       continue
     }
-    const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
+    const familyCheck = sameProviderVerifierFallback ? { ok: true as const } : verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
     if (!familyCheck.ok) {
       for (const item of prepared) {
         output[item.index] = applyPending(item.question, familyCheck.reason)
@@ -346,7 +351,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     for (const item of prepared) {
       const result = byIndex.get(item.index) || null
       if (item.literalPass && result?.valid) {
-        output[item.index] = applyAccepted(item.question, result, verifierContext)
+        output[item.index] = applyAccepted(item.question, result, { ...verifierContext, sameProviderVerifierFallback })
         logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: result.reason })
       } else {
         const reason = item.literalPass ? 'VERIFIER_REJECTED' : 'LITERAL_EVIDENCE_FAILED'

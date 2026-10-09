@@ -9,7 +9,7 @@
     },
     {
       "path": "/api/cron/book-read-jobs",
-      "schedule": "0 3 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

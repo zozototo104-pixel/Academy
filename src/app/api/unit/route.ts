@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       where: { id: unitId },
       include: {
         program: { select: { id: true, titleAr: true, slug: true } },
-        exam: { select: { id: true, title: true, passScore: true } },
+        exam: { select: { id: true, title: true, status: true, passScore: true } },
       },
     })
     if (!unit) return NextResponse.json({ error: 'الوحدة غير موجودة' }, { status: 404 })
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
         summary: unit.summary,
         content: JSON.parse(unit.content || '[]'),
         objectives: JSON.parse(unit.objectives || '[]'),
-        exam: unit.exam,
+        exam: unit.exam?.status === 'READY' ? { id: unit.exam.id, title: unit.exam.title, passScore: unit.exam.passScore } : null,
       },
       program: unit.program,
       books: books.map((b) => ({ id: b.id, title: b.title, author: b.author, year: b.year, hasFile: !!b.fileName, link: b.link, source: b.source })),

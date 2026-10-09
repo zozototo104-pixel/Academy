@@ -292,10 +292,35 @@ interface QuestionBankItemRow {
   correctAnswer?: string | null
   modelAnswer?: string | null
   sourceEvidence?: string | null
+  sourceLocator?: string | null
+  knowledgeItemId?: string | null
+  knowledgeTitle?: string | null
+  pageStart?: number | null
+  pageEnd?: number | null
+  cognitiveSkill?: string | null
   difficulty?: string | null
   status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
   qualityFlags?: string | null
   verifierReason?: string | null
+  verifierModel?: string | null
+  verifierProvider?: string | null
+  provider?: string | null
+  model?: string | null
+  generatorModel?: string | null
+  rejectedReason?: string | null
+  createdAt?: string | null
+}
+
+const TF_ANSWER_FIX_DEPLOYED_AT = Date.parse('2026-10-09T10:31:00.000Z')
+
+function tfCorrectAnswerLabel(question: QuestionBankItemRow) {
+  return String(question.correctAnswer) === '1' ? 'خطأ' : 'صح'
+}
+
+function shouldReviewLegacyTfAnswer(question: QuestionBankItemRow) {
+  if (String(question.type || '').toUpperCase() !== 'TF') return false
+  const createdAt = Date.parse(question.createdAt || '')
+  return !Number.isFinite(createdAt) || createdAt < TF_ANSWER_FIX_DEPLOYED_AT
 }
 
 function questionGroundingFlags(question: QuestionBankItemRow): string[] {
@@ -308,6 +333,18 @@ function questionGroundingFlags(question: QuestionBankItemRow): string[] {
 function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
   const flags = questionGroundingFlags(question)
   return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
+}
+
+function bankQuestionOptions(question: QuestionBankItemRow): string[] {
+  try {
+    const parsed = JSON.parse(question.options || '[]')
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch { return [] }
+}
+
+function unitExamLabel(exam: CurriculumUnitReviewItem['exam'] | UnitQuestionReviewPayload['exam']) {
+  if (!exam?.id) return 'ما انبنى'
+  return exam.status === 'DRAFT' ? 'مسودة' : 'جاهز'
 }
 
 interface ExamImportQuestionRow {
@@ -357,13 +394,40 @@ interface CurriculumUnitReviewItem {
     status: string
   } | null
   generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
+  questionBankSummary?: { approved: number; pendingReview: number; rejected: number }
+  questionBankJob?: {
+    id: string
+    status: string
+    requested: number
+    saved: number
+    readyToBuild?: boolean
+    approvedQuestions: number
+    pendingReviewQuestions: number
+    currentQuestions: number
+    lastError?: string | null
+    retryAt?: string | null
+    updatedAt?: string | null
+    trace?: { generated: number; saved: number; verifierRejected: number; rejected: number; rejectionReasons: { reason: string; count: number }[]; aiTrace?: { generatorProvider?: string | null; generatorModel?: string | null; verifierProvider?: string | null; verifierModel?: string | null; sameProviderVerifierFallback?: boolean } } | null
+  } | null
   exam?: {
     id: string
     title: string
+    status?: 'READY' | 'DRAFT' | string
     passScore: number
     questionsCount: number
     attemptsCount: number
+    reviewQuestionsCount?: number
   } | null
+}
+
+interface UnitQuestionReviewPayload {
+  unit: { id: string; title: string; programId: string }
+  requiredQuestions: number
+  readyToBuild: boolean
+  publishable: boolean
+  counts: { APPROVED: number; PENDING_REVIEW: number; REJECTED: number; total: number }
+  questions: { APPROVED: QuestionBankItemRow[]; PENDING_REVIEW: QuestionBankItemRow[]; REJECTED: QuestionBankItemRow[] }
+  exam: { id: string; title: string; status: string; questionsCount: number } | null
 }
 
 interface ProgramReadinessSnapshot {
@@ -503,6 +567,12 @@ export function AdminBooksTab() {
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
+  const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
+  const [unitQuestionsUnit, setUnitQuestionsUnit] = useState<CurriculumUnitReviewItem | null>(null)
+  const [unitQuestions, setUnitQuestions] = useState<UnitQuestionReviewPayload | null>(null)
+  const [unitQuestionsLoading, setUnitQuestionsLoading] = useState(false)
+  const [unitQuestionsTab, setUnitQuestionsTab] = useState<'PENDING_REVIEW' | 'APPROVED' | 'REJECTED'>('PENDING_REVIEW')
+  const [selectedUnitQuestionIds, setSelectedUnitQuestionIds] = useState<string[]>([])
   const [questionBankFilter, setQuestionBankFilter] = useState({ search: '', status: 'ALL', type: 'ALL', difficulty: 'ALL', grounding: 'ALL' })
   const [editingBankQuestion, setEditingBankQuestion] = useState<QuestionBankItemRow | null>(null)
   const [editingBankQuestionForm, setEditingBankQuestionForm] = useState({ type: 'MCQ', text: '', options: '', correctAnswer: '0', modelAnswer: '', sourceEvidence: '', difficulty: 'MEDIUM' })
@@ -553,6 +623,7 @@ export function AdminBooksTab() {
   const [updatingSourceBookId, setUpdatingSourceBookId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const latestProgramLoadRef = useRef('')
   const advanceRef = useRef(false)
   const [genSemester, setGenSemester] = useState('1')
   const [reviewingExam, setReviewingExam] = useState<{ id: string; title: string } | null>(null)
@@ -715,6 +786,8 @@ export function AdminBooksTab() {
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
+    const loadToken = `${pid}:${Date.now()}`
+    latestProgramLoadRef.current = loadToken
     if (!silent) setLoadingBooks(true)
     try {
       const [b, e, a] = await Promise.all([
@@ -722,6 +795,7 @@ export function AdminBooksTab() {
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
       ])
+      if (latestProgramLoadRef.current !== loadToken) return
       setBooks(b.books)
       setBookReadJobs({})
       setBookEnrichment({})
@@ -737,24 +811,39 @@ export function AdminBooksTab() {
       setQuestionBankProgress(null)
       setStudyGuides([])
 
-      Promise.all([
-        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, count: 0, v2CountsByBook: {} as Record<string, number> })),
-        api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
-        api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
-        api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
-        api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
-      ])
-        .then(([k, readiness, units, qb, g]) => {
+      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
+        .then((k) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setKnowledgeItems(k.items || [])
           setKnowledgeTotalCount(k.count || 0)
           setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
+        })
+        .catch(() => null)
+      void api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`)
+        .then((readiness) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setProgramReadiness(readiness.item || null)
+        })
+        .catch(() => null)
+      void api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
+        .then((units) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setCurriculumUnits(units.units || [])
+        })
+        .catch(() => null)
+      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+        .then((qb) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
           setQuestionBankProgress(qb.progress || null)
+        })
+        .catch(() => null)
+      void api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`)
+        .then((g) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setStudyGuides(g.guides || [])
         })
         .catch(() => null)
@@ -988,11 +1077,33 @@ export function AdminBooksTab() {
     }
   }
 
-  const refreshCurriculumUnits = async (pid = programId) => {
+  const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
     setCurriculumUnits(res.units || [])
-  }
+  }, [programId])
+
+  useEffect(() => {
+    if (workspaceTab !== 'units' || !programId) return
+    const activeJobIds = curriculumUnits
+      .map((unit) => unit.questionBankJob)
+      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => {
+        if (!job) return false
+        return (job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) || job.status === 'RUNNING'
+      })
+      .map((job) => job.id)
+    if (!activeJobIds.length) return
+    const pollJobs = async () => {
+      if (document.visibilityState !== 'visible') return
+      const updates = await Promise.all(activeJobIds.map((id) => api<{ job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> }>(`/api/admin/question-bank-jobs/${id}`).catch(() => null)))
+      const byId = new Map(updates.filter((item): item is { job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> } => Boolean(item?.job)).map((item) => [item.job.id, item.job] as const))
+      if (!byId.size) return
+      setCurriculumUnits((prev) => prev.map((unit) => unit.questionBankJob && byId.has(unit.questionBankJob.id) ? { ...unit, questionBankJob: byId.get(unit.questionBankJob.id)! } : unit))
+    }
+    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 5_000)
+    void pollJobs().catch(() => null)
+    return () => clearInterval(timer)
+  }, [workspaceTab, programId, curriculumUnits])
 
   const generateCurriculumUnits = async () => {
     if (!programId) return
@@ -1129,25 +1240,102 @@ export function AdminBooksTab() {
       title: hasExam ? 'إعادة توليد اختبار الوحدة' : 'توليد اختبار الوحدة',
       description: hasExam
         ? `سيتم استبدال أسئلة اختبار «${unit.title}» الحالية (${unit.exam?.questionsCount || 0} سؤال).`
-        : `سيتم إنشاء اختبار قصير لوحدة «${unit.title}» من أهداف ومحاور الوحدة.`,
+        : `سيتم إنشاء اختبار وحدة «${unit.title}» من بنك الأسئلة الموثق الخاص بهذه الوحدة.`,
       confirmLabel: hasExam ? 'إعادة التوليد' : 'توليد الاختبار',
       danger: hasExam,
     })
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      await api('/api/admin/unit-exams/generate', {
+      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: 6, replace: true }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: 10, replace: true }),
       })
+      if (result?.ok === false && result.jobId) {
+        setCurriculumUnits((prev) => prev.map((item) => item.id === unit.id ? {
+          ...item,
+          questionBankJob: {
+            id: result.jobId!,
+            status: result.status || 'QUEUED',
+            requested: Number(result.requested || result.requiredQuestions || 10),
+            saved: Number(result.saved || 0),
+            approvedQuestions: Number(result.approvedQuestions || 0),
+            pendingReviewQuestions: Number(result.pendingReviewQuestions || 0),
+            currentQuestions: Number(result.currentQuestions || 0),
+            lastError: result.error || null,
+          },
+        } : item))
+      }
       await refreshCurriculumUnits(programId)
       await refreshProgramReadiness()
-      toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: 'سيظهر الاختبار للطالب داخل صفحة الوحدة.' })
+      if (result?.ok === false) {
+        toast({ title: result.status === 'PAUSED' ? 'توقف توليد بنك الأسئلة مؤقتاً' : 'بنك الأسئلة قيد التوليد', description: result.error || result.message || 'تم تشغيل وظيفة بنك الأسئلة للوحدة. أعد المحاولة بعد اكتمالها.' })
+      } else {
+        toast({ title: hasExam ? 'تمت إعادة توليد اختبار الوحدة' : 'تم توليد اختبار الوحدة', description: result.message || (result.reviewRequired ? 'حُفظ الاختبار كمسودة ولن يظهر للطلاب حتى اعتماد الأسئلة.' : 'سيظهر الاختبار للطالب داخل صفحة الوحدة.') })
+      }
     } catch (e: any) {
       toast({ title: 'تعذر توليد اختبار الوحدة', description: e.message, variant: 'destructive' })
     } finally {
       setUnitBusyId(null)
     }
+  }
+
+  const loadUnitQuestions = async (unitId: string) => {
+    setUnitQuestionsLoading(true)
+    try {
+      const res = await api<UnitQuestionReviewPayload>(`/api/admin/units/${unitId}/questions`)
+      setUnitQuestions(res)
+      return res
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل أسئلة الوحدة', description: e.message, variant: 'destructive' })
+      return null
+    } finally {
+      setUnitQuestionsLoading(false)
+    }
+  }
+
+  const openUnitQuestionReview = async (unit: CurriculumUnitReviewItem) => {
+    setUnitQuestionsUnit(unit)
+    setUnitQuestionsTab('PENDING_REVIEW')
+    setSelectedUnitQuestionIds([])
+    setUnitQuestionsOpen(true)
+    await loadUnitQuestions(unit.id)
+  }
+
+  const patchUnitQuestion = async (questionId: string, status: 'APPROVED' | 'REJECTED', rejectedReason?: string) => {
+    setQuestionBankBusy(questionId)
+    try {
+      await api('/api/admin/question-bank', { method: 'PATCH', body: JSON.stringify({ id: questionId, status, rejectedReason }) })
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
+      if (programId) await refreshCurriculumUnits(programId)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const approveSelectedUnitQuestions = async () => {
+    if (!selectedUnitQuestionIds.length) return
+    if (!(await askAdminConfirm({ title: 'اعتماد الأسئلة المحددة', description: `سيتم اعتماد ${selectedUnitQuestionIds.length} سؤال من أسئلة الوحدة.`, confirmLabel: 'اعتماد الكل' }))) return
+    setQuestionBankBusy('unit-approve-selected')
+    try {
+      await Promise.all(selectedUnitQuestionIds.map((id) => api('/api/admin/question-bank', { method: 'PATCH', body: JSON.stringify({ id, status: 'APPROVED' }) })))
+      setSelectedUnitQuestionIds([])
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
+      if (programId) await refreshCurriculumUnits(programId)
+      toast({ title: 'تم اعتماد الأسئلة المحددة' })
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد الأسئلة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const runUnitQuestionPanelAction = async () => {
+    if (!unitQuestionsUnit || !unitQuestions) return
+    await generateUnitExam(unitQuestionsUnit)
+    await loadUnitQuestions(unitQuestionsUnit.id)
   }
 
   const refreshQuestionBank = async (pid = programId) => {
@@ -1345,6 +1533,7 @@ export function AdminBooksTab() {
       setQuestionBankItems((prev) => prev.map((q) => q.id === editingBankQuestion.id ? res.item : q))
       setEditingBankQuestion(null)
       toast({ title: 'تم تعديل السؤال' })
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
       if (programId) await refreshQuestionBank(programId)
     } catch (e: any) {
       toast({ title: 'تعذر تعديل السؤال', description: e.message, variant: 'destructive' })
@@ -1966,6 +2155,9 @@ export function AdminBooksTab() {
   }
 
   const hasGeneratingExam = exams.some((e) => e.status === 'GENERATING')
+  const activeUnitQuestionRows = unitQuestions ? unitQuestions.questions[unitQuestionsTab] || [] : []
+  const unitQuestionMissing = unitQuestions ? Math.max(0, unitQuestions.requiredQuestions - (unitQuestions.counts.APPROVED + unitQuestions.counts.PENDING_REVIEW)) : 0
+  const draftPendingCount = unitQuestions?.exam?.status === 'DRAFT' ? unitQuestions.counts.PENDING_REVIEW : 0
 
   if (loading) {
     return (
@@ -2341,9 +2533,11 @@ export function AdminBooksTab() {
                             {unit.source && <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{unit.source.sectionTitle || 'من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}</Badge>}
                             {unit.generationJob && <Badge className={unit.generationJob.status === 'PAUSED' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : unit.generationJob.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : unit.generationJob.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>توليد المحتوى: {unit.generationJob.status === 'PAUSED' ? 'متوقف' : unit.generationJob.status === 'COMPLETED' ? 'مكتمل' : unit.generationJob.status === 'FAILED' ? 'فشل' : 'قيد العمل'}</Badge>}
                             {unit.studyGuide && <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50">دليل وحدة: {unit.studyGuide.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}</Badge>}
-                            <Badge className={unit.exam?.id ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
-                              {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال` : 'لا يوجد اختبار وحدة'}
+                            {unit.questionBankJob && unit.questionBankJob.currentQuestions < unit.questionBankJob.requested && <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">جارٍ تجهيز بنك الأسئلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested}</Badge>}
+                            <Badge className={unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
+                              {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال${unit.exam.status === 'DRAFT' ? ` · بانتظار اعتماد ${unit.exam.reviewQuestionsCount || 0} سؤال` : ''}` : 'لا يوجد اختبار وحدة'}
                             </Badge>
+                            {unit.exam?.status === 'DRAFT' && <Button size="sm" variant="link" className="h-6 px-1 text-[10px] font-black text-amber-700" onClick={() => openUnitQuestionReview(unit)}>انحفظ الاختبار كمسودة: {unit.exam.reviewQuestionsCount || unit.questionBankSummary?.pendingReview || 0} سؤال بانتظار مراجعتك. مراجعة أسئلة الوحدة</Button>}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {unit.outlineSectionId && <Button size="sm" variant="outline" disabled={unitBusyId === unit.id || unit.status === 'APPROVED'} onClick={() => generateOutlineUnitContent(unit, Boolean(unit.content?.length || unit.studyGuide?.id))} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
@@ -2352,7 +2546,7 @@ export function AdminBooksTab() {
                             </Button>}
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => generateUnitExam(unit)} className="border-indigo-200 bg-white text-xs font-bold text-indigo-700">
                               {unitBusyId === unit.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="ml-1 h-3.5 w-3.5" />}
-                              {unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
+                              {unit.questionBankJob?.status === 'FAILED' ? 'إعادة المحاولة' : unit.questionBankJob?.readyToBuild && !unit.exam?.id ? 'بناء الاختبار الآن' : unit.exam?.id ? 'إعادة توليد اختبار' : 'توليد اختبار'}
                             </Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'APPROVED' })} className="border-emerald-200 bg-white text-xs font-bold text-emerald-700">اعتماد</Button>
                             <Button size="sm" variant="outline" disabled={unitBusyId === unit.id} onClick={() => patchCurriculumUnit(unit, { status: 'NEEDS_REVISION' })} className="border-amber-200 bg-white text-xs font-bold text-amber-700">بحاجة تعديل</Button>
@@ -2382,6 +2576,25 @@ export function AdminBooksTab() {
                           <p>{unit.source.bookTitle ? `الكتاب: ${unit.source.bookTitle} · ` : ''}{unit.source.sectionTitle || 'قسم من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}{unit.source.chunkStartIndex != null ? ` · مقاطع ${unit.source.chunkStartIndex}–${unit.source.chunkEndIndex ?? unit.source.chunkStartIndex}` : ''}</p>
                           {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
                           {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
+                        </div>}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] font-bold text-indigo-900">
+                          <span>بنك أسئلة الوحدة: {unit.questionBankSummary?.approved || 0} معتمد · {unit.questionBankSummary?.pendingReview || 0} بانتظار المراجعة · {unit.questionBankSummary?.rejected || 0} مرفوض — الاختبار: {unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'مسودة' : 'جاهز' : 'ما انبنى'}</span>
+                          <Button size="sm" variant="outline" className="h-7 rounded-full text-[10px] font-black" onClick={() => openUnitQuestionReview(unit)}>مراجعة أسئلة الوحدة</Button>
+                        </div>
+                        {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
+                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%` }} />
+                          </div>
+                          <p className="mt-2">الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
+                          {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
+                          {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
+                          {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
+                          {unit.questionBankJob.retryAt && <p>موعد إعادة المحاولة: {new Date(unit.questionBankJob.retryAt).toLocaleString('ar-SA')}</p>}
+                          {unit.questionBankJob.lastError && <p className="whitespace-pre-wrap text-red-700">آخر خطأ كامل: {unit.questionBankJob.lastError}</p>}
                         </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
@@ -3540,6 +3753,7 @@ export function AdminBooksTab() {
                       ) : (
                         <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>يحتاج تدقيق</Badge>
                       )}
+                      {q.verifierModel?.includes(':free') && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100" title={q.verifierModel}>تحقق بموديل مجاني</Badge>}
                       <Badge className={q.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
                         {q.status === 'APPROVED' ? 'معتمد' : q.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
                       </Badge>
@@ -3559,6 +3773,44 @@ export function AdminBooksTab() {
               )
             })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={unitQuestionsOpen} onOpenChange={(open) => { setUnitQuestionsOpen(open); if (!open) { setSelectedUnitQuestionIds([]); setUnitQuestions(null); setUnitQuestionsUnit(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراجعة أسئلة الوحدة</DialogTitle>
+            <DialogDescription>{unitQuestionsUnit?.title || unitQuestions?.unit.title || 'وحدة'} · بنك أسئلة الوحدة والاختبار في مكان واحد.</DialogDescription>
+          </DialogHeader>
+          {unitQuestionsLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div> : unitQuestions ? <div className="space-y-4">
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs font-bold text-indigo-900">
+              بنك أسئلة الوحدة: {unitQuestions.counts.APPROVED} معتمد · {unitQuestions.counts.PENDING_REVIEW} بانتظار المراجعة · {unitQuestions.counts.REJECTED} مرفوض — الاختبار: {unitExamLabel(unitQuestions.exam)}
+            </div>
+            <Tabs value={unitQuestionsTab} onValueChange={(value) => { setUnitQuestionsTab(value as typeof unitQuestionsTab); setSelectedUnitQuestionIds([]) }} dir="rtl">
+              <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="PENDING_REVIEW">بانتظار المراجعة ({unitQuestions.counts.PENDING_REVIEW})</TabsTrigger><TabsTrigger value="APPROVED">معتمد ({unitQuestions.counts.APPROVED})</TabsTrigger><TabsTrigger value="REJECTED">مرفوض ({unitQuestions.counts.REJECTED})</TabsTrigger></TabsList>
+              {(['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const).map((status) => <TabsContent key={status} value={status} className="space-y-3">
+                {status === 'PENDING_REVIEW' && activeUnitQuestionRows.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2 text-xs font-bold"><Button size="sm" disabled={!selectedUnitQuestionIds.length || questionBankBusy === 'unit-approve-selected'} onClick={approveSelectedUnitQuestions} className="bg-emerald-700 text-white hover:bg-emerald-800">اعتماد الكل للمحددين ({selectedUnitQuestionIds.length})</Button></div>}
+                {activeUnitQuestionRows.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">{unitQuestions.counts.total === 0 ? 'ما في أسئلة لهالوحدة بعد' : 'لا توجد أسئلة في هذا القسم'}{unitQuestions.counts.total === 0 && unitQuestionsUnit ? <div className="mt-3"><Button size="sm" onClick={() => generateUnitExam(unitQuestionsUnit)} className="bg-[#0f2b46] text-[#f5f0e1]">توليد أسئلة</Button></div> : null}</div> : activeUnitQuestionRows.map((q) => {
+                  const options = bankQuestionOptions(q)
+                  const sourceReference = q.pageStart != null ? (q.pageEnd != null && q.pageEnd !== q.pageStart ? `صفحات ${q.pageStart}–${q.pageEnd}` : `صفحة ${q.pageStart}`) : q.sourceLocator || ''
+                  return <article key={q.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-2"><Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge><Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge><Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{q.cognitiveSkill || 'UNDERSTAND'}</Badge>{q.verifierModel?.includes(':free') && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100" title={q.verifierModel}>تحقق بموديل مجاني</Badge>}{shouldReviewLegacyTfAnswer(q) && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">راجع جواب صح/خطأ</Badge>}</div>
+                      <div className="flex flex-wrap gap-2">{status === 'PENDING_REVIEW' && <label className="flex items-center gap-1 text-[11px] font-black text-slate-500"><input type="checkbox" checked={selectedUnitQuestionIds.includes(q.id)} onChange={(event) => setSelectedUnitQuestionIds((prev) => event.target.checked ? [...new Set([...prev, q.id])] : prev.filter((id) => id !== q.id))} /> تحديد</label>}<Button size="sm" variant="outline" onClick={() => openEditBankQuestion(q)} className="text-xs font-black">تعديل</Button><Button size="sm" disabled={questionBankBusy === q.id} onClick={() => patchUnitQuestion(q.id, 'APPROVED')} className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800">اعتماد</Button><Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={async () => patchUnitQuestion(q.id, 'REJECTED', window.prompt('سبب الرفض؟') || undefined)} className="border-red-200 text-xs font-black text-red-700">رفض</Button></div>
+                    </div>
+                    <p className="rounded-xl bg-slate-50 p-3 text-sm font-bold leading-7 text-[#0f2b46]">{q.text}</p>
+                    {options.length > 0 && <div className="mt-2 grid gap-1">{options.map((option, index) => <p key={index} className={String(index) === String(q.correctAnswer) ? 'rounded-lg bg-emerald-50 p-2 font-black text-emerald-700' : 'rounded-lg bg-slate-50 p-2 font-bold text-slate-600'}>{index}. {option}{String(index) === String(q.correctAnswer) ? ' ✓' : ''}</p>)}</div>}
+                    {String(q.type || '').toUpperCase() === 'TF' && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-xs font-black text-emerald-700">الإجابة الصحيحة: {tfCorrectAnswerLabel(q)}</p>}
+                    {q.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل من الكتاب: {q.sourceEvidence}{sourceReference ? ` · ${sourceReference}` : ''}</p>}
+                    <p className="mt-2 text-[11px] font-bold text-slate-400">مولّد: {q.generatorModel || q.model || '؟'} · محقق: {q.verifierModel || '؟'}{q.verifierReason ? ` · سبب المحقق: ${q.verifierReason}` : ''}</p>
+                  </article>
+                })}
+              </TabsContent>)}
+            </Tabs>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-[#0f2b46]">
+              {!unitQuestions.readyToBuild ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-[#0f2b46] text-[#f5f0e1]">توليد أسئلة إضافية (ناقص {unitQuestionMissing})</Button> : !unitQuestions.exam ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-indigo-700 text-white hover:bg-indigo-800">بناء الاختبار الآن</Button> : unitQuestions.exam.status === 'DRAFT' && draftPendingCount === 0 ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-emerald-700 text-white hover:bg-emerald-800">تحديث الاختبار ونشره</Button> : unitQuestions.exam.status === 'DRAFT' ? <span className="text-amber-700">باقي {draftPendingCount} سؤال بانتظار المراجعة</span> : <span className="text-emerald-700">الاختبار جاهز للنشر للطلاب.</span>}
+            </div>
+          </div> : <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">اختر وحدة لعرض أسئلتها.</p>}
         </DialogContent>
       </Dialog>
 

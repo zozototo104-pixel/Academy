@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
+import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,13 @@ export async function GET(request: NextRequest) {
   }
   const endAt = Date.now() + 240_000
   const outcomes: { jobId: string; outcome: string }[] = []
+  while (Date.now() < endAt - 48_000) {
+    const questionJob = await runNextQuestionBankGenerationJobStep()
+    if (!questionJob) break
+    outcomes.push({ jobId: questionJob.id, outcome: `QUESTION_BANK_${questionJob.status}` })
+    if (questionJob.status === 'RUNNING') break
+    if (!['QUEUED'].includes(questionJob.status)) break
+  }
   // Select only eligible jobs; the atomic lock still decides which worker owns each job.
   const jobs = await db.bookReadJob.findMany({
     where: { OR: [
