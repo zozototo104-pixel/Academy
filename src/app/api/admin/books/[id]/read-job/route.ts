@@ -54,6 +54,8 @@ export async function POST(request: NextRequest, context: Context) {
       return NextResponse.json({ ok: true, job: winner, resumed: true })
     }
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || 'UNAUTHORIZED') }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-job POST error:', error)
+    return NextResponse.json({ error: 'تعذر بدء قراءة الكتاب' }, { status: 500 })
   }
 }
