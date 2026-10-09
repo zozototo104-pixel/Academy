@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     const id = clean(body?.attemptId, 100)
     const detail = type === 'UNIT' ? await unitDetail(id) : await programDetail(id)
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-    const graded = []
+    const graded: Array<{ answerId: string; points: number; feedback: string }> = []
     for (const answer of detail.answers) {
       const result = await gradeEssayWithRubric({ question: answer.question, modelAnswer: answer.modelAnswer, rubric: answer.rubric, sourceExcerpt: answer.source, studentAnswer: answer.studentAnswer, maxPoints: answer.maxPoints })
       graded.push({ answerId: answer.answerId, points: result.points, feedback: JSON.stringify(result) })
