@@ -451,7 +451,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     let processedContext = liveThesisContext
     if (!processedContext) {
       try {
-        const response = await api<{ context: string }>(`/api/defense/context?thesisId=${encodeURIComponent(thesisId)}`)
+        const response = await api<{ context: string }>(`/api/defense/context?thesisId=${encodeURIComponent(thesis.id)}`)
         processedContext = response.context || ''
         setLiveThesisContext(processedContext)
       } catch {
