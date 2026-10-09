@@ -52,18 +52,13 @@ function normalizeDifficulty(value: unknown): 'EASY' | 'MEDIUM' | 'ADVANCED' | u
 
 function normalizeCognitiveSkill(value: unknown): z.infer<typeof cognitiveSkillSchema> | unknown {
   const normalized = normalizeArabicText(value)
-  if (['remember', 'recall', 'ذكر', 'تذكر', 'يتذكر', 'استدعاء'].includes(normalized)) return 'REMEMBER'
-  if (['understand', 'comprehend', 'فهم', 'يفهم', 'استيعاب'].includes(normalized)) return 'UNDERSTAND'
-  if (['apply', 'application', 'تطبيق', 'يطبق'].includes(normalized)) return 'APPLY'
-  if (['analyze', 'analysis', 'تحليل', 'يحلل'].includes(normalized)) return 'ANALYZE'
-  if (['evaluate', 'evaluation', 'تقييم', 'يقيم', 'تقويم'].includes(normalized)) return 'EVALUATE'
-  if (['create', 'creation', 'إبداع', 'ابداع', 'ينشئ', 'ابتكار'].includes(normalized)) return 'CREATE'
-  if (/remember|recall/.test(normalized)) return 'REMEMBER'
-  if (/understand|comprehend/.test(normalized)) return 'UNDERSTAND'
-  if (/apply/.test(normalized)) return 'APPLY'
-  if (/analy[sz]e|analysis/.test(normalized)) return 'ANALYZE'
-  if (/evaluate|evaluation/.test(normalized)) return 'EVALUATE'
-  if (/create|creation/.test(normalized)) return 'CREATE'
+  const containsAny = (items: string[]) => items.some((item) => normalized.includes(item))
+  if (containsAny(['remember', 'recall', 'knowledge', 'ذكر', 'تذكر', 'يتذكر', 'تذكير', 'استدعاء', 'معرفه'])) return 'REMEMBER'
+  if (containsAny(['understand', 'comprehend', 'comprehension', 'فهم', 'يفهم', 'استيعاب', 'فهم واستيعاب'])) return 'UNDERSTAND'
+  if (containsAny(['apply', 'application', 'تطبيق', 'يطبق'])) return 'APPLY'
+  if (containsAny(['analyze', 'analyse', 'analysis', 'تحليل', 'يحلل'])) return 'ANALYZE'
+  if (containsAny(['evaluate', 'evaluation', 'تقييم', 'يقيم', 'تقويم'])) return 'EVALUATE'
+  if (containsAny(['create', 'creation', 'synthesis', 'إبداع', 'ابداع', 'ينشئ', 'انشاء', 'إنشاء', 'ابتكار', 'تركيب'])) return 'CREATE'
   return value
 }
 
