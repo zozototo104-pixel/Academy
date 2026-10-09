@@ -130,6 +130,8 @@ async function listProgramUnits(programId: string) {
   return units.map((u) => {
     const section = u.outlineSectionId ? sectionById.get(u.outlineSectionId) : null
     const book = u.sourceBookId ? bookById.get(u.sourceBookId) : null
+    const qJob = questionBankJobByUnit.get(u.id)
+    const qSelection = selectUnitExamQuestionsApprovedFirst(questionBankCandidatesByUnit.get(u.id) || [], qJob?.requested || 10)
     return {
       id: u.id,
       title: u.title,
