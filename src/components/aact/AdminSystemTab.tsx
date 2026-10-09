@@ -366,8 +366,8 @@ export function AdminSystemTab() {
     setTextModelHealthLoading(true)
     try {
       const allowlistItem = `${provider}:${model}`
-      await api<{ ok: boolean; allowlist: string }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'add-academic-allowlist', allowlistItem }) })
-      set('AI_ACADEMIC_ALLOWLIST', form.AI_ACADEMIC_ALLOWLIST ? `${form.AI_ACADEMIC_ALLOWLIST},${allowlistItem}` : allowlistItem)
+      const result = await api<{ ok: boolean; allowlist: string }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'add-academic-allowlist', allowlistItem }) })
+      set('AI_ACADEMIC_ALLOWLIST', result.allowlist || allowlistItem)
       toast({ title: 'تمت الإضافة للمهام الحساسة', description: allowlistItem })
     } catch (e: any) {
       toast({ title: 'تعذر الإضافة للمهام الحساسة', description: e.message, variant: 'destructive' })
