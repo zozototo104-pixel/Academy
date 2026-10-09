@@ -498,7 +498,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         variant: 'destructive',
       })
     })
-  }, [addAudioStreamToRecording, buildDefenseVoiceContext, finished, isStudent, stopLiveAdvisor, toast])
+  }, [addAudioStreamToRecording, buildDefenseVoiceContext, finished, isStudent, liveThesisContext, stopLiveAdvisor, thesis.id, toast])
 
   const toggleLiveAdvisor = useCallback(() => {
     if (liveAdvisorRef.current || liveAdvisorOn) stopLiveAdvisor()
