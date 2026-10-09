@@ -201,18 +201,24 @@ function testShortConciseAnswerAccepted() {
 }
 
 function testTfArabicCorrectAnswerAliasesNormalize() {
-  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([{
-    type: 'TF',
-    text: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
-    options: ['صح', 'خطأ'],
-    correctAnswer: 'صحيح',
-    sourceEvidence: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
-    sourceIndex: 1,
-    difficulty: 'MEDIUM',
-    cognitiveSkill: 'UNDERSTAND',
-  }]))
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedTf({ correctAnswer: 'صحيح' })]))
   assert(parsed.accepted.length === 1, 'إجابة TF بقيمة صحيح يجب أن تُقبل')
   assert(parsed.accepted[0].correctAnswer === 'صح', 'صحيح يجب أن تتحول إلى صح')
+}
+
+function testTfNumericAnswerUsesGeneratedOptionIndex() {
+  const zeroTrue = parseGeneratedQuestionCandidates(JSON.stringify([generatedTf({ options: ['صح', 'خطأ'], correctAnswer: 0 })]))
+  const oneFalse = parseGeneratedQuestionCandidates(JSON.stringify([generatedTf({ options: ['صح', 'خطأ'], correctAnswer: 1 })]))
+  const zeroFalse = parseGeneratedQuestionCandidates(JSON.stringify([generatedTf({ options: ['خطأ', 'صح'], correctAnswer: 0 })]))
+  assert(zeroTrue.accepted[0]?.correctAnswer === 'صح', 'correctAnswer=0 مع خيارات صح/خطأ يجب أن يعني صح')
+  assert(oneFalse.accepted[0]?.correctAnswer === 'خطأ', 'correctAnswer=1 مع خيارات صح/خطأ يجب أن يعني خطأ')
+  assert(zeroFalse.accepted[0]?.correctAnswer === 'خطأ', 'correctAnswer=0 يجب أن يتبع ترتيب خيارات الموديل نفسه')
+}
+
+function testUnitExamTfOptionsStayStable() {
+  const code = src('src/app/api/admin/unit-exams/generate/route.ts')
+  assert(code.includes("options: JSON.stringify(['صح', 'خطأ'])"), 'اختبار الوحدة يجب أن يخزن خيارات TF دائماً بترتيب صح ثم خطأ')
+  assert(!code.includes("shuffleWithAnswer(['صح', 'خطأ']"), 'اختبار الوحدة يجب ألا يخلط خيارات TF')
 }
 
 function testEssayShortAnswerRejected() {
