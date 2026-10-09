@@ -107,12 +107,13 @@ async function listProgramUnits(programId: string) {
   for (const job of jobs) if (!jobByUnit.has(job.unitId)) jobByUnit.set(job.unitId, job)
   const questionBankJobByUnit = new Map<string, (typeof questionBankJobs)[number]>()
   for (const job of questionBankJobs) if (job.unitId && !questionBankJobByUnit.has(job.unitId)) questionBankJobByUnit.set(job.unitId, job)
-  const questionBankCountsByUnit = new Map<string, { approved: number; pendingReview: number }>()
+  const questionBankCountsByUnit = new Map<string, { approved: number; pendingReview: number; rejected: number }>()
   for (const row of questionBankCounts) {
     if (!row.unitId) continue
-    const current = questionBankCountsByUnit.get(row.unitId) || { approved: 0, pendingReview: 0 }
+    const current = questionBankCountsByUnit.get(row.unitId) || { approved: 0, pendingReview: 0, rejected: 0 }
     if (row.status === 'APPROVED') current.approved += row._count._all
     if (row.status === 'PENDING_REVIEW') current.pendingReview += row._count._all
+    if (row.status === 'REJECTED') current.rejected += row._count._all
     questionBankCountsByUnit.set(row.unitId, current)
   }
   const questionBankTraceByJob = new Map(await Promise.all([...questionBankJobByUnit.values()].map(async (job) => [job.id, await readQuestionBankJobTrace(job.id)] as const)))
