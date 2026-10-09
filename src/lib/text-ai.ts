@@ -520,7 +520,14 @@ function providerFromSettingKey(key: string): string {
 function decryptSettingValue(key: string, raw: string): string {
   const value = String(raw || '').trim()
   if (!value || !isSecretKeyName(key)) return value
-  if (isEncryptedSecret(value)) return decryptSecret(value).trim()
+  if (isEncryptedSecret(value)) {
+    try {
+      return decryptSecret(value).trim()
+    } catch (error) {
+      console.warn('[text-ai-router] encrypted setting key skipped', { key, error: redactSecrets((error as any)?.message || error) })
+      return ''
+    }
+  }
   const provider = providerFromSettingKey(key)
   if (STRICT_ENCRYPTED_SETTING_PROVIDERS.has(provider)) return ''
   return value
