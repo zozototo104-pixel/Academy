@@ -12,7 +12,7 @@ type EssayRubricCriterion = { name: string; weight: number }
 
 const gradingSchema = z.object({
   criteria: z.array(z.object({
-    name: z.string().min(2).max(120),
+    name: z.string().min(1).max(120),
     weight: z.number().min(0).max(100),
     score0to10: z.number().min(0).max(10),
     comment: z.string().min(1).max(500),
