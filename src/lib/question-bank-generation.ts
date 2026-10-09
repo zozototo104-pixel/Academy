@@ -62,11 +62,23 @@ function normalizeCognitiveSkill(value: unknown): z.infer<typeof cognitiveSkillS
   return value
 }
 
-function normalizeTfCorrectAnswer(value: unknown): unknown {
+function normalizeTfAnswerText(value: unknown): 'صح' | 'خطأ' | null {
   const normalized = normalizeArabicText(value)
-  if (['صح', 'صحيح', 'true', 'yes', 'y', '1'].includes(normalized)) return 'صح'
-  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n', '0'].includes(normalized)) return 'خطأ'
-  return value
+  if (['صح', 'صحيح', 'true', 'yes', 'y'].includes(normalized)) return 'صح'
+  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n'].includes(normalized)) return 'خطأ'
+  return null
+}
+
+function normalizeTfCorrectAnswer(value: unknown, options: unknown): unknown {
+  const normalized = normalizeArabicText(value)
+  if (/^\d+$/.test(normalized)) {
+    const index = Number(normalized)
+    const optionList = Array.isArray(options) ? options : []
+    if (optionList.length > index) return normalizeTfAnswerText(optionList[index]) || optionList[index]
+    if (index === 0) return 'صح'
+    if (index === 1) return 'خطأ'
+  }
+  return normalizeTfAnswerText(value) || value
 }
 
 function normalizeCandidate(candidate: unknown): unknown {
