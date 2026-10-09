@@ -13,6 +13,8 @@ export async function GET(_request: NextRequest, context: Context) {
   try {
     await authorize()
     const { id } = await context.params
+    const book = await db.book.findUnique({ where: { id }, select: { id: true } })
+    if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     const enrichment = {
       totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
