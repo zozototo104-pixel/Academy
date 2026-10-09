@@ -393,7 +393,7 @@ export function DefenseRoom({
     }
   }, [addAudioStreamToRecording])
 
-  const buildDefenseVoiceContext = useCallback((overrideMessages?: DefenseMsg[]) => {
+  const buildDefenseVoiceContext = useCallback((overrideMessages?: DefenseMsg[], thesisContextOverride = '') => {
     const recent = (overrideMessages || messages)
       .slice(-10)
       .map((m) => `${m.role === 'AI_EXPERT' ? 'سؤال رسمي' : m.role === 'AI_NOTE' ? 'مداخلة سابقة' : m.role === 'TRANSCRIPT' ? 'كلام الطالب' : m.role === 'STUDENT' ? 'إجابة مكتوبة' : 'نظام'}: ${m.content.slice(0, 450)}`)
