@@ -33,9 +33,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const activeLock = questionBankJobHasActiveLock(job)
     if (job.unitId && selection.readyToBuild && !activeLock && job.status !== 'COMPLETED') {
       await db.questionBankGenerationJob.updateMany({ where: { id: job.id, status: { not: 'COMPLETED' } }, data: { status: 'COMPLETED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date(), saved: Math.max(job.saved, selection.currentEligibleCount) } })
-      job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } }) || job
+      const updatedJob = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
+      if (updatedJob) job = updatedJob
     } else if (!selection.readyToBuild && questionBankJobCanRunStep(job)) {
-      after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('question bank job status after() step failed:', error)))
+      const runnableJobId = job.id
+      after(() => runQuestionBankGenerationJobStep(runnableJobId).catch((error) => console.error('question bank job status after() step failed:', error)))
     }
     const trace = await readQuestionBankJobTrace(job.id)
     const approvedQuestions = candidates.filter((row) => row.status === 'APPROVED').length
