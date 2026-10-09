@@ -202,10 +202,11 @@ export async function POST(_req: NextRequest, context: Context) {
       const updated = await db.thesisSubmission.findUnique({ where: { id }, select: { extractionStatus: true, extractionError: true, pageCount: true, wordCount: true, extractedAt: true, extractionPagesDone: true, extractionTotalPages: true } })
       return NextResponse.json({ ok: true, result, thesis: updated })
     } catch (error: any) {
-      errorToPersist = String(error?.message || error)
-      return NextResponse.json({ error: errorToPersist }, { status: 500 })
+      const errorMessage = String(error?.message || error)
+      await failWithToken(id, token, errorMessage)
+      return NextResponse.json({ error: errorMessage }, { status: 500 })
     } finally {
-      await release(id, errorToPersist)
+      await release(id, token)
     }
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
