@@ -308,6 +308,19 @@ interface QuestionBankItemRow {
   model?: string | null
   generatorModel?: string | null
   rejectedReason?: string | null
+  createdAt?: string | null
+}
+
+const TF_ANSWER_FIX_DEPLOYED_AT = Date.parse('2026-10-09T10:31:00.000Z')
+
+function tfCorrectAnswerLabel(question: QuestionBankItemRow) {
+  return String(question.correctAnswer) === '1' ? 'خطأ' : 'صح'
+}
+
+function shouldReviewLegacyTfAnswer(question: QuestionBankItemRow) {
+  if (String(question.type || '').toUpperCase() !== 'TF') return false
+  const createdAt = Date.parse(question.createdAt || '')
+  return !Number.isFinite(createdAt) || createdAt < TF_ANSWER_FIX_DEPLOYED_AT
 }
 
 function questionGroundingFlags(question: QuestionBankItemRow): string[] {
