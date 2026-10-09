@@ -95,7 +95,8 @@ export async function POST(req: NextRequest) {
     if (thesis.status !== 'SCHEDULED') {
       return NextResponse.json({ error: 'مناقشتك غير مجدولة' }, { status: 400 })
     }
-    if (['start', 'answer', 'end'].includes(String(action)) && thesis.extractionStatus !== 'READY') {
+    const legacyDefense = thesis.status === 'SCHEDULED' && thesis.extractionStatus == null && !thesis.fileStorageKey
+    if (['start', 'answer', 'end'].includes(String(action)) && !legacyDefense && thesis.extractionStatus !== 'READY') {
       return NextResponse.json({ error: 'يجب رفع البحث ومعالجته قبل المناقشة' }, { status: 409 })
     }
 
