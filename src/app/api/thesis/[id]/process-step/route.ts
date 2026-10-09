@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { PDFDocument } from 'pdf-lib'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -17,6 +18,10 @@ function words(text: string) {
   return String(text || '').trim().split(/\s+/).filter(Boolean).length
 }
 
+function enoughTime(deadlineMs: number, minMs = 20_000) {
+  return deadlineMs - Date.now() >= minMs
+}
+
 function splitPlainTextToPages(text: string) {
   const normalized = String(text || '').replace(/\r/g, '').trim()
   const pages: Array<{ page: number; text: string; textProvenance: 'NATIVE_TEXT' }> = []
@@ -24,9 +29,28 @@ function splitPlainTextToPages(text: string) {
   return pages.length ? pages : [{ page: 1, text: '', textProvenance: 'NATIVE_TEXT' as const }]
 }
 
+async function resetExtraction(thesisId: string, status = 'UPLOADED') {
+  return db.$transaction(async (tx) => {
+    await tx.thesisChunk.deleteMany({ where: { thesisId } })
+    return tx.thesisSubmission.update({
+      where: { id: thesisId },
+      data: {
+        extractionStatus: status,
+        extractionError: null,
+        extractionPagesDone: 0,
+        extractionTotalPages: null,
+        pageCount: null,
+        wordCount: null,
+        digest: Prisma.JsonNull,
+        extractedAt: null,
+      },
+    })
+  })
+}
+
 async function claim(thesisId: string) {
   const now = new Date()
-  const lockedUntil = new Date(Date.now() + 60_000)
+  const lockedUntil = new Date(Date.now() + 90_000)
   const updated = await db.thesisSubmission.updateMany({
     where: { id: thesisId, OR: [{ extractionLockedUntil: null }, { extractionLockedUntil: { lt: now } }] },
     data: { extractionLockedUntil: lockedUntil },
@@ -44,10 +68,15 @@ async function extractPdf(thesis: any, buffer: Buffer, deadlineMs: number) {
   const pagesDone = Number(thesis.extractionPagesDone || 0)
   const last = Math.min(totalPages, pagesDone + 8)
   const nums = Array.from({ length: last - pagesDone }, (_, index) => pagesDone + index + 1)
+  if (!nums.length) return { phase: 'ANALYZING', pagesDone, totalPages }
   const extracted = await extractNumberedPdfPages(buffer, nums)
+  const ocrRanges = pagesNeedingOcr(extracted)
+  if (ocrRanges.length && !enoughTime(deadlineMs, 20_000)) {
+    return { phase: thesis.extractionStatus || 'EXTRACTING', pagesDone, totalPages, deferred: true }
+  }
   const pageMap = new Map(extracted.map((page) => [page.page, page]))
-  for (const range of pagesNeedingOcr(extracted)) {
-    if (deadlineMs - Date.now() < 20_000) break
+  for (const range of ocrRanges) {
+    if (!enoughTime(deadlineMs, 20_000)) return { phase: thesis.extractionStatus || 'EXTRACTING', pagesDone, totalPages, deferred: true }
     const ocr = await transcribeScannedDocumentWithVision(buffer, range, deadlineMs)
     for (const page of ocr) pageMap.set(page.page, page)
   }
@@ -72,7 +101,8 @@ async function extractPdf(thesis: any, buffer: Buffer, deadlineMs: number) {
   return { phase: last >= totalPages ? 'ANALYZING' : 'EXTRACTING', pagesDone: last, totalPages }
 }
 
-async function extractDocx(thesis: any, buffer: Buffer) {
+async function extractDocx(thesis: any, buffer: Buffer, deadlineMs: number) {
+  if (!enoughTime(deadlineMs, 10_000)) return { phase: thesis.extractionStatus || 'UPLOADED', deferred: true }
   const mammoth = await import('mammoth')
   const result = await mammoth.extractRawText({ buffer })
   const pages = splitPlainTextToPages(result.value)
@@ -85,23 +115,26 @@ async function extractDocx(thesis: any, buffer: Buffer) {
   return { phase: 'ANALYZING', pagesDone: pages.length, totalPages: pages.length }
 }
 
-async function analyze(thesisId: string) {
+async function analyze(thesisId: string, deadlineMs: number) {
   const chunks = await db.thesisChunk.findMany({ where: { thesisId, status: { in: ['EXTRACTED', 'FAILED'] }, attempts: { lt: 3 } }, orderBy: { index: 'asc' }, take: 3 })
   if (!chunks.length) {
     const failed = await db.thesisChunk.count({ where: { thesisId, status: 'FAILED' } })
     if (failed) throw new Error(`${failed} مقطع فشل`)
-    await db.thesisSubmission.update({ where: { id: thesisId }, data: { extractionStatus: 'READY' } })
-    return { phase: 'READY' }
+    return { phase: 'DIGEST' }
   }
+  let analyzed = 0
   for (const chunk of chunks) {
+    if (!enoughTime(deadlineMs, 20_000)) break
     try {
       const summary = await textAiComplete({
         taskLevel: 'ACADEMIC_DRAFT',
         temperature: 0.2,
         maxOutputTokens: 900,
+        deadlineMs,
         system: 'لخص مقطعاً من بحث تخرج أكاديمي بالعربية بوضوح وبدون اختلاق.',
         history: [{ role: 'user', text: `لخص هذا المقطع في 150-250 كلمة، مع ذكر: الفكرة، المنهج، النتائج، والادعاءات إن وجدت.\n\n${chunk.text.slice(0, 6000)}` }],
       })
+      analyzed += 1
       await db.thesisChunk.update({ where: { id: chunk.id }, data: { summary: summary.trim().slice(0, 1800), status: 'ANALYZED', attempts: { increment: 1 } } })
     } catch (error: any) {
       const attempts = chunk.attempts + 1
@@ -109,16 +142,18 @@ async function analyze(thesisId: string) {
       if (attempts >= 3) throw new Error(`فشل تلخيص المقطع ${chunk.index}`)
     }
   }
-  return { phase: 'ANALYZING', analyzed: chunks.length }
+  return { phase: 'ANALYZING', analyzed, deferred: analyzed === 0 }
 }
 
-async function digest(thesisId: string) {
+async function digest(thesisId: string, deadlineMs: number) {
+  if (!enoughTime(deadlineMs, 20_000)) return { phase: 'ANALYZING', deferred: true }
   const chunks = await db.thesisChunk.findMany({ where: { thesisId, status: 'ANALYZED' }, orderBy: { index: 'asc' }, select: { index: true, summary: true } })
   const summaries = chunks.map((chunk) => `#${chunk.index}\n${chunk.summary || ''}`).join('\n\n').slice(0, 14000)
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
     temperature: 0.1,
     maxOutputTokens: 2800,
+    deadlineMs,
     system: 'أنت محلل أبحاث أكاديمية. أرجع JSON فقط مطابقاً للمخطط المطلوب.',
     history: [{ role: 'user', text: `من ملخصات مقاطع بحث التخرج التالية، استخرج digest JSON بالمفاتيح: problem, objectives[], methodology, sample, tools[], keyFindings[], contributions[], literatureCoverage, referencesCount, weaknesses[], sectionMap[{title, chunkFrom, chunkTo}].\n\n${summaries}` }],
   })
@@ -137,32 +172,32 @@ export async function POST(_req: NextRequest, context: Context) {
     if (thesis.userId !== user.id && user.role !== 'ADMIN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const ok = await claim(id)
     if (!ok) return NextResponse.json({ ok: true, status: thesis.extractionStatus, locked: true })
+    let errorToPersist: string | undefined
     try {
       const deadlineMs = Date.now() + 50_000
-      const current = await db.thesisSubmission.findUnique({ where: { id } })
+      let current = await db.thesisSubmission.findUnique({ where: { id } })
       if (!current) throw new Error('THESIS_NOT_FOUND')
       let result: any
+      if (current.extractionStatus === 'FAILED') current = await resetExtraction(id, 'UPLOADED')
       if (!current.extractionStatus || ['UPLOADED', 'EXTRACTING'].includes(current.extractionStatus)) {
         const stored = await getFileBufferFromStorageOrBase64({ provider: current.fileStorageProvider, key: current.fileStorageKey, url: current.fileUrl, data: null, mimeType: current.fileMime })
         if (!stored?.buffer?.length) throw new Error('ملف البحث غير متوفر')
         if ((current.fileMime || '').includes('pdf') || stored.buffer.subarray(0, 4).toString() === '%PDF') result = await extractPdf(current, stored.buffer, deadlineMs)
-        else result = await extractDocx(current, stored.buffer)
+        else result = await extractDocx(current, stored.buffer, deadlineMs)
       } else if (current.extractionStatus === 'ANALYZING') {
-        result = await analyze(id)
+        result = await analyze(id, deadlineMs)
         const remaining = await db.thesisChunk.count({ where: { thesisId: id, status: 'EXTRACTED' } })
         const failed = await db.thesisChunk.count({ where: { thesisId: id, status: 'FAILED' } })
-        if (!remaining && !failed) result = await digest(id)
+        if (!remaining && !failed) result = await digest(id, deadlineMs)
         if (failed) throw new Error(`${failed} مقطع فشل`)
-      } else if (current.extractionStatus === 'FAILED') {
-        await db.thesisSubmission.update({ where: { id }, data: { extractionStatus: 'UPLOADED', extractionError: null, extractionPagesDone: 0 } })
-        result = { phase: 'UPLOADED' }
       } else result = { phase: current.extractionStatus }
-      await release(id)
       const updated = await db.thesisSubmission.findUnique({ where: { id }, select: { extractionStatus: true, extractionError: true, pageCount: true, wordCount: true, extractedAt: true, extractionPagesDone: true, extractionTotalPages: true } })
       return NextResponse.json({ ok: true, result, thesis: updated })
     } catch (error: any) {
-      await release(id, String(error?.message || error))
-      return NextResponse.json({ error: String(error?.message || error) }, { status: 500 })
+      errorToPersist = String(error?.message || error)
+      return NextResponse.json({ error: errorToPersist }, { status: 500 })
+    } finally {
+      await release(id, errorToPersist)
     }
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
