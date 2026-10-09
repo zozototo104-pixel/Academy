@@ -304,6 +304,7 @@ interface QuestionBankItemRow {
   verifierProvider?: string | null
   provider?: string | null
   model?: string | null
+  generatorModel?: string | null
   rejectedReason?: string | null
 }
 
