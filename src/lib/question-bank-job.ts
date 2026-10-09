@@ -380,11 +380,28 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
 }
 
 export async function ensureQuestionBankGenerationJob(params: { programId: string; unitId?: string | null; requested?: number; startNew?: boolean; manual?: boolean }) {
-  const requested = Math.max(1, Math.min(60, Number(params.requested || 12)))
+  const requested = params.unitId ? unitExamRequiredQuestions(params.requested) : Math.max(1, Math.min(60, Number(params.requested || 12)))
   if (!params.startNew || params.manual) {
     const statuses = params.manual ? ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'] : ['QUEUED', 'RUNNING', 'PAUSED']
     const existing = await db.questionBankGenerationJob.findFirst({ where: { programId: params.programId, unitId: params.unitId || null, status: { in: statuses } }, orderBy: { createdAt: 'desc' } })
     if (existing) {
+      const shouldReactivate = Boolean(params.manual) && ['PAUSED', 'FAILED'].includes(existing.status)
+      if (params.unitId) {
+        if (shouldReactivate) await resetJobFailureState(existing.id)
+        if (shouldReactivate || existing.requested !== requested) {
+          return db.questionBankGenerationJob.update({
+            where: { id: existing.id },
+            data: {
+              requested,
+              status: shouldReactivate ? 'QUEUED' : existing.status === 'PAUSED' ? 'QUEUED' : existing.status,
+              retryAt: shouldReactivate ? null : existing.retryAt,
+              lockedUntil: null,
+              finishedAt: shouldReactivate ? null : existing.finishedAt,
+            },
+          })
+        }
+        return existing
+      }
       const plan = planQuestionBankJobManualReactivation(existing, requested, Boolean(params.manual))
       if (plan.resetFailureCounter) await resetJobFailureState(existing.id)
       if (plan.shouldUpdate) {
