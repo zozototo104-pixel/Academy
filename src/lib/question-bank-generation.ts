@@ -110,13 +110,24 @@ function candidateText(candidate: unknown): string {
   return String(candidate || '').replace(/\s+/g, ' ').trim().slice(0, 80)
 }
 
+function receivedValue(candidate: unknown, path: readonly (string | number)[]) {
+  let current: unknown = candidate
+  for (const part of path) {
+    if (!current || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[String(part)]
+  }
+  if (Array.isArray(current)) return JSON.stringify(current)
+  if (current == null) return ''
+  return String(current).replace(/\s+/g, ' ').trim().slice(0, 180)
+}
+
 function readableIssueSummary(candidate: unknown, index: number, issues: readonly z.ZodIssue[]): string {
   const issue = issues[0]
   const field = (issue?.path || []).map(String).join('.') || 'question'
   const code = issue?.code || 'invalid'
   const reason = issue?.message || 'غير صالح'
   const type = candidate && typeof candidate === 'object' && 'type' in candidate ? String((candidate as { type?: unknown }).type || 'UNKNOWN') : 'UNKNOWN'
-  return `index=${index} type=${type} field=${field} code=${code} reason="${reason}" question="${candidateText(candidate)}"`
+  return `index=${index} type=${type} field=${field} code=${code} received="${receivedValue(candidate, issue?.path || []) ?? ''}" reason="${reason}" question="${candidateText(candidate)}"`
 }
 
 function structuralReasonCode(issues: readonly z.ZodIssue[]): string {
