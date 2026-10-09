@@ -339,6 +339,7 @@ export async function POST(req: NextRequest) {
       where: { id: attempt.id },
       data: {
         score: roundedScore,
+        finalScore: roundedScore,
         passed,
         status: 'GRADED',
         feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: readiness.maxExamScore, readiness }),
