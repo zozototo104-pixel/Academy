@@ -18,6 +18,7 @@ const cases: Array<[string, string]> = [
 
 for (const [input, expected] of cases) {
   assert.equal(fixArabicPdfText(input), expected, `${input} => ${expected}`)
+  assert.equal(fixArabicPdfText(fixArabicPdfText(input)), fixArabicPdfText(input), `idempotent: ${input}`)
 }
 
 console.log('Arabic PDF text normalization tests passed')
