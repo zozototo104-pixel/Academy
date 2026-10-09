@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
           extractionTotalPages: null,
           wordCount: null,
           pageCount: null,
-          digest: null,
+          digest: Prisma.JsonNull,
           extractedAt: null,
         },
       })
