@@ -210,7 +210,7 @@ export async function geminiKeyDiagnostics(): Promise<{ source: 'env' | 'db' | '
   return {
     source: geminiKeySource(),
     adminKeySet: !!dbKeyCache,
-    envKeySet: !!process.env.GEMINI_API_KEY?.trim(),
+    envKeySet: !!parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0],
     activeMask: maskKey(key),
   }
 }
