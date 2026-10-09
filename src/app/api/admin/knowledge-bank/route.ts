@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`)
       const items = await getProgramKnowledgeItems(programId, semester, 140)
       const message = items.length < KNOWLEDGE_BANK_LIMITS.minContextItems ? 'شغّل القراءة الكاملة أو استخراج المزيد' : null
-      return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
+      return NextResponse.json({ ok: true, deleted, updated, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
     }
 
     if (action === 'rebuild-book' || action === 'read-book-full') {
