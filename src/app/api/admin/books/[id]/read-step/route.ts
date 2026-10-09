@@ -51,7 +51,7 @@ export async function POST(_request: NextRequest, context: Context) {
       result = { phase: job.phase }
     }
     const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-    const updated = current?.status === 'COMPLETED'
+    const updated = current?.status && ['COMPLETED', 'FAILED', 'PAUSED'].includes(current.status)
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
       : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
     const enrichment = job.phase === 'ENRICH' ? {
