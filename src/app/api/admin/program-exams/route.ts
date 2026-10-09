@@ -126,7 +126,10 @@ export async function GET(req: NextRequest) {
           totalPoints,
           pendingReview: pending,
           rejectedCount: rejected,
-          attemptsCount: e._count.attempts,
+          attemptsCount,
+          attemptStatusCounts: statusCounts,
+          attemptStatusLabels: { EXPIRED: 'انتهى الوقت دون تسليم' },
+          expiredAttemptsCount: statusCounts.EXPIRED || 0,
           createdAt: e.createdAt,
           ...(includeQuestions ? { questions: e.questions } : {}),
         }
