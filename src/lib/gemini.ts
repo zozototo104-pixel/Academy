@@ -424,7 +424,11 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
         lastErr = e
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(700 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
