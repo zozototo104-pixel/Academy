@@ -327,6 +327,36 @@ function testDraftExamCanBeRebuiltReadyAfterApprovals() {
   assert(ui.includes('تحديث الاختبار ونشره') && ui.includes('draftPendingCount === 0'), 'لوحة الوحدة يجب أن تعرض تحديث الاختبار ونشره بعد اعتماد كل الأسئلة')
 }
 
+function testQuestionBankSanitizesTfBeforeNumericValidation() {
+  const code = src('src/lib/question-bank-job.ts')
+  const tfNormalizeIndex = code.indexOf("type === 'TF' && correctAnswer != null")
+  const numericValidationIndex = code.indexOf('Number.isNaN(Number(correctAnswer))')
+  assert(tfNormalizeIndex >= 0 && numericValidationIndex >= 0 && tfNormalizeIndex < numericValidationIndex, 'تحويل إجابة TF النصية إلى 0/1 يجب أن يحدث قبل التحقق الرقمي')
+  assert(code.includes('TF_ANSWER_REQUIRED'), 'أسئلة TF التي تبقى بلا correctAnswer صالح يجب أن تُرفض')
+}
+
+function testExamTimingUsesStartedAtNotClientDuration() {
+  const detail = src('src/app/api/program-exam/detail/route.ts')
+  const submit = src('src/app/api/program-exam/submit/route.ts')
+  assert(detail.includes("status: 'STARTED'") && detail.includes('startedAt: new Date()'), 'فتح الامتحان يجب أن يسجل startedAt على الخادم')
+  assert(submit.includes('startedAttempt.startedAt') && submit.includes('(exam.durationMin + 2)'), 'التسليم يجب أن يتحقق من startedAt ومدة الامتحان مع دقيقتي سماح')
+  assert(submit.includes('serverDurationUsedMin'), 'مدة الاستخدام يجب أن تحسب من الخادم لا من المتصفح')
+}
+
+function testBookReplacementProtectedWhenUnitsLinked() {
+  const books = src('src/app/api/admin/books/route.ts')
+  const chunkUpload = src('src/app/api/admin/books/upload-chunk/route.ts')
+  assert(books.includes("sourceBookId: bookId") && books.includes('الكتاب مربوط بوحدات'), 'تغيير ملف كتاب مربوط بوحدات يجب أن يُرفض')
+  assert(chunkUpload.includes("sourceBookId: bookId") && chunkUpload.includes('الكتاب مربوط بوحدات'), 'الرفع المجزأ لكتاب مربوط بوحدات يجب أن يُرفض')
+}
+
+function testQuestionBankPatchValidatesCorrectAnswer() {
+  const code = src('src/app/api/admin/question-bank/route.ts')
+  assert(code.includes('خيارات الاختيار المتعدد يجب أن تكون بين 3 و6'), 'PATCH بنك الأسئلة يجب أن يتحقق من عدد خيارات MCQ')
+  assert(code.includes('الإجابة الصحيحة خارج نطاق الخيارات'), 'PATCH بنك الأسئلة يجب أن يرفض correctAnswer خارج خيارات MCQ')
+  assert(code.includes('إجابة صح/خطأ يجب أن تكون 0 أو 1'), 'PATCH بنك الأسئلة يجب أن يرفض TF correctAnswer غير 0/1')
+}
+
 function testQuestionBankRetryAtNotBeyondOneHour() {
   const now = Date.now()
   const retry = nextQuestionBankRetryAt(now, 365 * 24 * 60 * 60 * 1000)
