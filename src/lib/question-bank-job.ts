@@ -311,6 +311,9 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   }).join('\n\n')
   const count = Math.min(4, job.batchSize || 4, Math.max(0, job.requested - job.saved))
   if (count <= 0) return 0
+  const diversityInstruction = selected.length <= 3
+    ? '\nعدد المصادر قليل؛ اختر جانباً مختلفاً من النص ونوع سؤال مختلفاً عن الأسئلة الموجودة قدر الإمكان، ولا تكرر زاوية السؤال أو نفس المهارة المعرفية.'
+    : ''
 
   const raw = await textAiCompleteJsonWithMetadata({
     system: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.',
