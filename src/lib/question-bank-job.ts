@@ -311,7 +311,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     const existingQuestions = existingBySource.get(item.id) || []
     return `${index + 1}. [${item.category}] ${item.title}\nالصفحات: ${item.pageStart ?? '؟'}–${item.pageEnd ?? item.pageStart ?? '؟'}\nنص المصدر: ${evidenceText(item).slice(0, 1800)}\nأسئلة موجودة لنفس المصدر لا تكررها: ${existingQuestions.length ? existingQuestions.map((q) => `«${q}»`).join('؛ ') : 'لا يوجد'}`
   }).join('\n\n')
-  const count = Math.min(4, job.batchSize || 4, Math.max(0, unitExamRequiredQuestions(job.requested) - job.saved))
+  const requiredForJob = job.unitId ? unitExamRequiredQuestions(job.requested) : job.requested
+  const count = Math.min(4, job.batchSize || 4, Math.max(0, requiredForJob - job.saved))
   if (count <= 0) return 0
   const diversityInstruction = selected.length <= 3
     ? '\nعدد المصادر قليل؛ اختر جانباً مختلفاً من النص ونوع سؤال مختلفاً عن الأسئلة الموجودة قدر الإمكان، ولا تكرر زاوية السؤال أو نفس المهارة المعرفية.'
