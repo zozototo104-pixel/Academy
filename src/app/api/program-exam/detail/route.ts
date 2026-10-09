@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
       })
       if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة' }, { status: 403 })
       startedAttempt = await db.programExamAttempt.create({
-        data: { userId: user.id, examId, status: 'STARTED', startedAt: now },
+        data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
         select: { id: true, startedAt: true, createdAt: true },
       })
     }
