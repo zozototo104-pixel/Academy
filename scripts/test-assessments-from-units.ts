@@ -306,6 +306,10 @@ const tests = [
   testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty,
   testPreviewPollingNudgesQuestionBankJob,
   testQuestionBankStepRoutesHaveMaxDuration,
+  testQuestionBankJobCompletesWithSharedSelector,
+  testLateQuestionBankStepDoesNotReopenCompleted,
+  testUnitQuestionsApiScopesToSingleUnit,
+  testDraftExamCanBeRebuiltReadyAfterApprovals,
   testQuestionBankRetryAtNotBeyondOneHour,
 ]
 
