@@ -75,6 +75,29 @@ function testPausedFutureRetryManualReactivation() {
   assert(plan.requested === 10, 'requested يجب أن يرتفع إلى العدد المطلوب عند إعادة التفعيل')
 }
 
+function testEmptyBatchAdvancesQuestionBankCursor() {
+  const planned = planQuestionBankSourceWindow(10, 0, 4)
+  assert(planned.indexes.join(',') === '0,1,2,3', 'نافذة مصادر بنك الأسئلة يجب أن تبدأ من cursor الحالي')
+  assert(planned.nextCursor === 4, 'دفعة بنك الأسئلة يجب أن تقدم cursor حتى لو لم تحفظ أسئلة')
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.indexOf('await saveJobCursor(job.id, window.nextCursor)') < code.indexOf("if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')"), 'يجب حفظ cursor قبل فشل الدفعة الفارغة')
+}
+
+function testVerifierRejectedQuestionIsNotSaved() {
+  assert(!hasSourceGroundedFlag({ qualityFlags: ['NEEDS_REVIEW'] }), 'السؤال المرفوض من المحقق لا يجب اعتباره SOURCE_GROUNDED')
+  assert(hasSourceGroundedFlag({ qualityFlags: ['SOURCE_GROUNDED'] }), 'السؤال المثبت فقط يحفظ كـ SOURCE_GROUNDED')
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.includes('const groundedQuestions = verified.filter(hasSourceGroundedFlag)'), 'يجب فلترة أسئلة verifier قبل الحفظ')
+  assert(code.includes('for (const item of groundedQuestions)'), 'الحفظ يجب أن يمر فقط على الأسئلة المثبتة من verifier')
+  assert(!code.includes("qualityFlags: ['SOURCE_LINKED', 'SOURCE_GROUNDED'"), 'ممنوع إضافة SOURCE_GROUNDED يدوياً عند الحفظ')
+}
+
+function testQuestionBankRetryAtNotBeyondOneHour() {
+  const now = Date.now()
+  const retry = nextQuestionBankRetryAt(now, 365 * 24 * 60 * 60 * 1000)
+  assert(retry.getTime() - now <= 60 * 60 * 1000, 'retryAt لوظيفة بنك الأسئلة لا يجب أن يتجاوز ساعة')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
