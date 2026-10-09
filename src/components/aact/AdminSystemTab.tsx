@@ -107,6 +107,7 @@ interface BackupInspectResult {
 interface SystemData {
   values: Record<string, string>
   secretsSet: Record<string, boolean>
+  secretsEncryption?: { configured: boolean; unencryptedKeys: string[] }
   smtpEnabled: boolean
   resendConfigured?: boolean
   paymentMode: string
