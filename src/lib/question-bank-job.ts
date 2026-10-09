@@ -132,8 +132,8 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
   const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer) : null
   const options = mcq ? mcq.options : safeOptions(raw.options, type)
   let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer) : null
-  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
   if (type === 'TF' && correctAnswer != null && !['0', '1'].includes(correctAnswer)) correctAnswer = /^صح|true$/iu.test(correctAnswer) ? '0' : /^خطأ|false$/iu.test(correctAnswer) ? '1' : null
+  if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
   return {
     type,
     text,
