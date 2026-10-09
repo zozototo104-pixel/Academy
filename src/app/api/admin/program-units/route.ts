@@ -131,7 +131,8 @@ async function listProgramUnits(programId: string) {
     const section = u.outlineSectionId ? sectionById.get(u.outlineSectionId) : null
     const book = u.sourceBookId ? bookById.get(u.sourceBookId) : null
     const qJob = questionBankJobByUnit.get(u.id)
-    const qSelection = selectUnitExamQuestionsApprovedFirst(questionBankCandidatesByUnit.get(u.id) || [], qJob?.requested || 10)
+    const requiredQuestions = unitExamRequiredQuestions(qJob?.requested)
+    const qSelection = selectUnitExamQuestionsApprovedFirst(questionBankCandidatesByUnit.get(u.id) || [], requiredQuestions)
     return {
       id: u.id,
       title: u.title,
