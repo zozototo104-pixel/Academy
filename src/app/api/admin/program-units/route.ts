@@ -320,10 +320,10 @@ export async function DELETE(req: NextRequest) {
       select: { id: true, title: true, status: true, exam: { select: { _count: { select: { attempts: true } } } } },
     })
     if (!unit) return NextResponse.json({ error: 'الوحدة غير موجودة' }, { status: 404 })
-    const blocked = unit.status === 'APPROVED' || hasUnitExamAttempts(unit)
+    if (hasUnitExamAttempts(unit)) return NextResponse.json({ error: 'الوحدة فيها محاولات طلاب، لا يمكن حذفها' }, { status: 409 })
+    const blocked = unit.status === 'APPROVED'
     if (blocked && !force) {
-      const reasons = [unit.status === 'APPROVED' ? 'الوحدة معتمدة' : '', hasUnitExamAttempts(unit) ? 'لها محاولات طلاب مرتبطة بالاختبار' : ''].filter(Boolean).join(' و')
-      return NextResponse.json({ error: `لا يمكن حذف هذه الوحدة لأنها ${reasons}. استخدم الحذف الإجباري بعد تأكيد إداري صريح.` }, { status: 409 })
+      return NextResponse.json({ error: 'لا يمكن حذف هذه الوحدة لأنها الوحدة معتمدة. استخدم الحذف الإجباري بعد تأكيد إداري صريح.' }, { status: 409 })
     }
     await db.unit.deleteMany({ where: { id: unitId, programId } })
     await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
