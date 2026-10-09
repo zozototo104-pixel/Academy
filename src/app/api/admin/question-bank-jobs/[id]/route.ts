@@ -1,7 +1,8 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { questionBankJobCanRunStep, readQuestionBankJobTrace, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { questionBankJobCanRunStep, questionBankJobHasActiveLock, readQuestionBankJobTrace, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { selectUnitExamQuestionsApprovedFirst } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -17,21 +18,26 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const jobId = clean(id, 120)
     if (!jobId) return NextResponse.json({ error: 'معرف وظيفة بنك الأسئلة مطلوب' }, { status: 400 })
-    const job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
+    let job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     if (!job) return NextResponse.json({ error: 'وظيفة بنك الأسئلة غير موجودة' }, { status: 404 })
-    if (questionBankJobCanRunStep(job)) after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('question bank job status after() step failed:', error)))
-    const [trace, grouped] = await Promise.all([
-      readQuestionBankJobTrace(job.id),
-      job.unitId
-        ? db.questionBankItem.groupBy({
-            by: ['status'],
-            where: { programId: job.programId, unitId: job.unitId, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
-            _count: { _all: true },
-          })
-        : Promise.resolve([] as Array<{ status: string; _count: { _all: number } }>),
-    ])
-    const approvedQuestions = grouped.find((row) => row.status === 'APPROVED')?._count._all || 0
-    const pendingReviewQuestions = grouped.find((row) => row.status === 'PENDING_REVIEW')?._count._all || 0
+    const candidates = job.unitId
+      ? await db.questionBankItem.findMany({
+          where: { programId: job.programId, unitId: job.unitId, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
+          select: { id: true, status: true, qualityFlags: true },
+          orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
+        })
+      : []
+    const selection = selectUnitExamQuestionsApprovedFirst(candidates, job.requested)
+    const activeLock = questionBankJobHasActiveLock(job)
+    if (job.unitId && selection.readyToBuild && !activeLock && job.status !== 'COMPLETED') {
+      await db.questionBankGenerationJob.updateMany({ where: { id: job.id, status: { not: 'COMPLETED' } }, data: { status: 'COMPLETED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date(), saved: Math.max(job.saved, selection.currentEligibleCount) } })
+      job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } }) || job
+    } else if (!selection.readyToBuild && questionBankJobCanRunStep(job)) {
+      after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('question bank job status after() step failed:', error)))
+    }
+    const trace = await readQuestionBankJobTrace(job.id)
+    const approvedQuestions = candidates.filter((row) => row.status === 'APPROVED').length
+    const pendingReviewQuestions = candidates.filter((row) => row.status === 'PENDING_REVIEW').length
     return NextResponse.json({
       job: {
         id: job.id,
@@ -40,7 +46,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         status: job.status,
         requested: job.requested,
         saved: job.saved,
-        currentQuestions: approvedQuestions + pendingReviewQuestions,
+        currentQuestions: selection.currentEligibleCount,
+        readyToBuild: selection.readyToBuild,
         approvedQuestions,
         pendingReviewQuestions,
         lastError: job.lastError,
