@@ -155,6 +155,11 @@ async function listProgramUnits(programId: string) {
         retryAt: jobByUnit.get(u.id).retryAt,
         updatedAt: jobByUnit.get(u.id).updatedAt,
       } : null,
+      questionBankSummary: {
+        approved: questionBankCountsByUnit.get(u.id)?.approved || 0,
+        pendingReview: questionBankCountsByUnit.get(u.id)?.pendingReview || 0,
+        rejected: questionBankCountsByUnit.get(u.id)?.rejected || 0,
+      },
       questionBankJob: questionBankJobByUnit.get(u.id) ? {
         id: questionBankJobByUnit.get(u.id)!.id,
         status: questionBankJobByUnit.get(u.id)!.status,
