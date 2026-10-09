@@ -1,18 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import type { QuestionBankGenerationJob, QuestionBankItem } from '@prisma/client'
+import { after, NextRequest, NextResponse } from 'next/server'
+import type { QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, type UnitExamSelection } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
-export const maxDuration = 240
+export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-const UNIT_EXAM_JOB_DEADLINE_MS = 200_000
-
 type UnitExamBankItem = Pick<QuestionBankItem, 'id' | 'status' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'sourceEvidence' | 'correctRationale' | 'qualityFlags' | 'usageCount' | 'createdAt'>
-type ScopedQuestionResult = { questions: UnitExamBankItem[]; selection: UnitExamSelection; job: QuestionBankGenerationJob | null; requiredQuestions: number }
+type ScopedQuestionResult = { questions: UnitExamBankItem[]; selection: UnitExamSelection; requiredQuestions: number }
 
 function cleanText(value: unknown, max = 1200) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -68,7 +66,7 @@ async function unitQuestionCandidates(programId: string, unitId: string, require
       qualityFlags: { contains: 'SOURCE_GROUNDED' },
       status: includePending ? { in: ['APPROVED', 'PENDING_REVIEW'] } : 'APPROVED',
     },
-    orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
     take: Math.max(40, requiredQuestions * 4),
   })
 }
@@ -81,22 +79,15 @@ function selectItems(candidates: UnitExamBankItem[], requiredQuestions: number) 
 
 async function loadScopedQuestions(programId: string, unitId: string, requiredQuestions: number): Promise<ScopedQuestionResult> {
   const approvedOnly = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, false), requiredQuestions)
-  if (approvedOnly.selection.readyToBuild && approvedOnly.selection.publishable) {
-    return { questions: approvedOnly.questions, selection: approvedOnly.selection, job: null, requiredQuestions }
-  }
+  if (approvedOnly.selection.readyToBuild && approvedOnly.selection.publishable) return { questions: approvedOnly.questions, selection: approvedOnly.selection, requiredQuestions }
+  const mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
+  return { questions: mixed.questions, selection: mixed.selection, requiredQuestions }
+}
 
-  const queued = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false, manual: true })
-  let latestJob: QuestionBankGenerationJob | null = queued
-  let mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
-
-  const deadlineAt = Date.now() + UNIT_EXAM_JOB_DEADLINE_MS
-  while (Date.now() < deadlineAt - 8_000) {
-    latestJob = await runQuestionBankGenerationJobStep(queued.id, deadlineAt - 5_000)
-    mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
-    if (mixed.selection.readyToBuild) break
-    if (latestJob?.status === 'PAUSED' || latestJob?.status === 'FAILED') break
-  }
-  return { questions: mixed.questions, selection: mixed.selection, job: latestJob, requiredQuestions }
+async function queueQuestionBankJob(programId: string, unitId: string, requiredQuestions: number) {
+  const job = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false, manual: true })
+  after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('unit question bank after() step failed:', error)))
+  return job
 }
 
 // POST /api/admin/unit-exams/generate
@@ -117,10 +108,13 @@ export async function POST(req: NextRequest) {
 
     const scoped = await loadScopedQuestions(programId, unitId, requiredQuestions)
     if (!scoped.selection.readyToBuild) {
+      const job = await queueQuestionBankJob(programId, unitId, requiredQuestions)
       return NextResponse.json({
         ok: false,
-        status: scoped.job?.status || 'QUEUED',
-        jobId: scoped.job?.id || null,
+        status: job.status,
+        jobId: job.id,
+        saved: job.saved,
+        requested: job.requested,
         currentQuestions: scoped.selection.currentEligibleCount,
         approvedQuestions: scoped.selection.approvedCount,
         pendingReviewQuestions: scoped.selection.pendingReviewCount,
