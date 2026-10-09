@@ -77,6 +77,17 @@ function arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped() {
   assert.equal(parsed.rejected, 1)
 }
 
+function generatedQuestionDifficultyAliasesAreNormalized() {
+  const raw = JSON.stringify([
+    generatedQuestion(1, { difficulty: 'متوسط' }),
+    generatedQuestion(2, { difficulty: 'سهل' }),
+    generatedQuestion(3, { difficulty: 'ADVANCED_LEVEL' }),
+  ])
+  const parsed = parseGeneratedQuestionCandidates(raw)
+  assert.equal(parsed.accepted.length, 3)
+  assert.equal(parsed.rejected, 0)
+}
+
 function questionBankPauseCleanupUsesDeleteMany() {
   const route = readFileSync('src/app/api/admin/question-bank/route.ts', 'utf8')
   assert.ok(route.includes('db.setting.deleteMany'), 'question bank route must use deleteMany when clearing pause keys')
