@@ -35,18 +35,40 @@ export default function AdminGradingReviewTab() {
 
   const regrade = async () => {
     if (!selected) return
-    const res = await api(`/api/admin/attempts-review`, { method: 'POST', body: JSON.stringify({ type: selected.type, attemptId: selected.id }) })
-    toast({ title: 'تمت إعادة التصحيح الآلي', description: `النتيجة: ${(res as any).score ?? ''}` })
-    setSelected(null)
-    await load()
+    setBusy('regrade')
+    try {
+      const res = await api(`/api/admin/attempts-review`, { method: 'POST', body: JSON.stringify({ type: selected.type, attemptId: selected.id }) })
+      toast({ title: 'تمت إعادة التصحيح الآلي', description: `النتيجة: ${(res as any).score ?? ''}` })
+      setSelected(null)
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذر إعادة التصحيح الآلي', description: String(error?.message || error), variant: 'destructive' })
+      if (String(error?.message || '').includes('تم اعتماد هذه المحاولة مسبقاً')) {
+        setSelected(null)
+        await load()
+      }
+    } finally {
+      setBusy(null)
+    }
   }
 
   const approve = async () => {
     if (!selected) return
-    const res = await api(`/api/admin/attempts-review`, { method: 'PATCH', body: JSON.stringify({ type: selected.type, attemptId: selected.id, scores }) })
-    toast({ title: 'تم اعتماد نتيجة المراجعة', description: `النتيجة: ${(res as any).score ?? ''}` })
-    setSelected(null)
-    await load()
+    setBusy('approve')
+    try {
+      const res = await api(`/api/admin/attempts-review`, { method: 'PATCH', body: JSON.stringify({ type: selected.type, attemptId: selected.id, scores }) })
+      toast({ title: 'تم اعتماد نتيجة المراجعة', description: `النتيجة: ${(res as any).score ?? ''}` })
+      setSelected(null)
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذر اعتماد نتيجة المراجعة', description: String(error?.message || error), variant: 'destructive' })
+      if (String(error?.message || '').includes('تم اعتماد هذه المحاولة مسبقاً')) {
+        setSelected(null)
+        await load()
+      }
+    } finally {
+      setBusy(null)
+    }
   }
 
   useEffect(() => { void load() }, [])
