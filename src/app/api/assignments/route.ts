@@ -156,6 +156,10 @@ export async function POST(req: NextRequest) {
 
     const enrollment = await db.enrollment.findFirst({ where: { userId: user.id, programId: assignment.programId, status: { in: ['ACTIVE', 'COMPLETED'] } } })
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
+    const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays)
+    if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
+    const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true } })
+    if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })
 
     const submission = await db.assignmentSubmission.upsert({
       where: { assignmentId_userId: { assignmentId, userId: user.id } },
