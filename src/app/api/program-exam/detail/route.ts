@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     })
 
     const previousAttempts = await db.programExamAttempt.findMany({
-      where: { userId: user.id, examId },
+      where: { userId: user.id, examId, status: { not: 'STARTED' } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
