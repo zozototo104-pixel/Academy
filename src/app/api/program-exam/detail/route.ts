@@ -148,7 +148,10 @@ export async function GET(req: NextRequest) {
       })),
       previousAttempts: previousAttempts.map((attempt) => ({
         ...attempt,
-        statusLabel: attempt.status === 'EXPIRED' ? 'انتهى الوقت دون تسليم' : attempt.status,
+        score: attempt.status === 'NEEDS_REVIEW' ? null : attempt.score,
+        finalScore: attempt.status === 'NEEDS_REVIEW' ? null : attempt.finalScore,
+        passed: attempt.status === 'NEEDS_REVIEW' ? null : attempt.passed,
+        statusLabel: attempt.status === 'NEEDS_REVIEW' ? 'قيد التصحيح' : attempt.status === 'EXPIRED' ? 'انتهى الوقت دون تسليم' : attempt.status,
       })),
     })
   } catch (e: any) {
