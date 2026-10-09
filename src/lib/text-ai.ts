@@ -1168,7 +1168,7 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
   }
   for (const [key, value] of Object.entries(rows)) {
     if (key.startsWith('AI_MODEL_HEALTH:')) {
-      const [, , provider, ...modelParts] = key.split(':')
+      const [, provider, ...modelParts] = key.split(':')
       ensure(provider, modelParts.join(':')).health = parseModelHealth(value)
     } else if (key.startsWith('AI_MODEL_STATS:')) {
       const parts = key.split(':')
