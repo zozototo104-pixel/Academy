@@ -2,6 +2,11 @@ name: Scan Arabic lam-alef PDF text
 
 on:
   workflow_dispatch:
+  push:
+    branches: [fix/arabic-lam-alef]
+    paths:
+      - 'scripts/scan-lam-alef.ts'
+      - '.github/workflows/scan-lam-alef.yml'
 
 jobs:
   scan-lam-alef:
