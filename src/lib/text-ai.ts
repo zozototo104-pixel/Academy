@@ -1176,7 +1176,7 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
         const [, purpose, provider, ...modelParts] = parts
         ensure(provider, modelParts.join(':')).purposeScores![purpose] = healthScore(parseModelStats(value))
       } else {
-        const [, , provider, ...modelParts] = parts
+        const [, provider, ...modelParts] = parts
         ensure(provider, modelParts.join(':')).stats = parseModelStats(value)
       }
     } else if (key.startsWith('AI_MODEL_DEAD:')) {
