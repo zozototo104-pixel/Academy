@@ -108,6 +108,16 @@ function testIncompleteMcqOptionsAreRejected() {
   assert(code.includes('MCQ_REQUIRES_AT_LEAST_3_OPTIONS'), 'أسئلة MCQ الناقصة يجب أن ترفض بسبب عدد الخيارات')
 }
 
+function testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(!code.includes('raw.sourceEvidence || fallback.excerpt'), 'sourceEvidence الناقص لا يجب أن يُستبدل بالمقتطف أو الملخص')
+  assert(!code.includes("raw.cognitiveSkill || 'UNDERSTAND'"), 'cognitiveSkill الناقص لا يجب أن يُستبدل بقيمة افتراضية')
+  assert(!code.includes(": 'MEDIUM'"), 'difficulty الناقص لا يجب أن يُستبدل بقيمة افتراضية')
+  assert(code.includes('SOURCE_EVIDENCE_REQUIRED'), 'يجب تسجيل سبب واضح عند غياب sourceEvidence')
+  assert(code.includes('COGNITIVE_SKILL_REQUIRED'), 'يجب تسجيل سبب واضح عند غياب cognitiveSkill')
+  assert(code.includes('DIFFICULTY_REQUIRED'), 'يجب تسجيل سبب واضح عند غياب difficulty')
+}
+
 function testPreviewPollingNudgesQuestionBankJob() {
   const statusRoute = src('src/app/api/admin/question-bank-jobs/[id]/route.ts')
   assert(statusRoute.includes('questionBankJobCanRunStep(job)'), 'مسار حالة job يجب أن يفحص إمكانية تشغيل خطوة عند polling')
