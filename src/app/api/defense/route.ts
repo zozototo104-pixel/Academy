@@ -465,6 +465,7 @@ async function aiEvaluate(
 ): Promise<DefenseEvaluation> {
   try {
     const raw = await textAiCompleteJson({
+      purpose: 'GRADING',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.`,
       history: [{
         role: 'user',
