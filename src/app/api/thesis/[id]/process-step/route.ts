@@ -1,5 +1,4 @@
 import { PDFDocument } from 'pdf-lib'
-import { z } from 'zod'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
