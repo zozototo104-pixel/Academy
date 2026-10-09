@@ -508,11 +508,28 @@ function isSchemaFailureLike(e: any): boolean {
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
+const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
+
+function providerFromSettingKey(key: string): string {
+  for (const provider of [...STRICT_ENCRYPTED_SETTING_PROVIDERS, ...LEGACY_PLAINTEXT_SETTING_PROVIDERS]) if (key.startsWith(`${provider}_`)) return provider
+  return ''
+}
+
+function decryptSettingValue(key: string, raw: string): string {
+  const value = String(raw || '').trim()
+  if (!value || !isSecretKeyName(key)) return value
+  if (isEncryptedSecret(value)) return decryptSecret(value).trim()
+  const provider = providerFromSettingKey(key)
+  if (STRICT_ENCRYPTED_SETTING_PROVIDERS.has(provider)) return ''
+  return value
+}
+
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
   try {
     const values = await settingStore().read(keys)
     const out: Record<string, string> = {}
-    for (const key of keys) out[key] = String(values[key] || '').trim()
+    for (const key of keys) out[key] = decryptSettingValue(key, String(values[key] || ''))
     return out
   } catch {
     return Object.fromEntries(keys.map((k) => [k, '']))
