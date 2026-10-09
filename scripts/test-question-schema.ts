@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { parseGeneratedQuestionCandidates, parseQuestionBatchEnvelope } from '../src/lib/question-bank-generation'
 
-const base = { text: 'ما هي الفكرة الرئيسية التي يؤكدها النص المقتبس؟', sourceEvidence: 'الإدارة الفعالة تعتمد على التخطيط والتنظيم والمتابعة المستمرة.', sourceIndex: 1, difficulty: 'MEDIUM' }
+const base = { text: 'ما هي الفكرة الرئيسية التي يؤكدها النص المقتبس؟', sourceEvidence: 'الإدارة الفعالة تعتمد على التخطيط والتنظيم والمتابعة المستمرة.', sourceIndex: 1, difficulty: 'MEDIUM', cognitiveSkill: 'UNDERSTAND' }
 const essay = { ...base, type: 'مقالي', modelAnswer: 'تعتمد الإدارة الفعالة على التخطيط والتنظيم والمتابعة المستمرة، وهي خطوات مترابطة لتحقيق الأهداف.' }
 const mcq = { ...base, type: 'multiple_choice', options: ['التخطيط', 'التنظيم', 'المتابعة', 'التقييم'], correctAnswer: 'التخطيط' }
 function accepts(q: unknown): boolean { return parseGeneratedQuestionCandidates(JSON.stringify({ questions: [q] })).accepted.length === 1 }
