@@ -270,8 +270,9 @@ export function questionBankJobHasActiveLock(job: { status: string; lockedUntil?
   return job.status === 'RUNNING' && Boolean(job.lockedUntil) && new Date(job.lockedUntil as Date | string).getTime() > now
 }
 
-export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number }, now = Date.now()) {
-  if (job.saved >= unitExamRequiredQuestions(job.requested)) return false
+export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number; unitId?: string | null }, now = Date.now()) {
+  const required = job.unitId ? unitExamRequiredQuestions(job.requested) : job.requested
+  if (job.saved >= required) return false
   if (['COMPLETED', 'FAILED'].includes(job.status)) return false
   if (questionBankJobHasActiveLock(job, now)) return false
   if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > now) return false
