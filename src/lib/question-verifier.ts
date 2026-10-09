@@ -168,13 +168,12 @@ function applyRejected<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
-function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string; sameProviderVerifierFallback?: boolean }): T {
+function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string }): T {
   const provenance = question.textProvenance || null
   return {
     ...question,
     verifierProvider: context.provider,
     verifierModel: context.model,
-    sameProviderVerifierFallback: context.sameProviderVerifierFallback,
     verifiedAt: new Date().toISOString(),
     verifierReason: result.reason,
     qualityFlags: provenance === 'VISION_OCR'
