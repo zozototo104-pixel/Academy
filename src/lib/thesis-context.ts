@@ -42,14 +42,3 @@ export async function findRelevantThesisChunks(thesisId: string, query: string, 
 export function summarizeDigestForPrompt(digest: unknown, max = 6000) {
   return JSON.stringify(digest || {}, null, 2).slice(0, max)
 }
-
-export function scoreDefenseBreakdown(scores: Array<{ criterion: string; score0to10: number | null }>) {
-  const weights: Record<string, number> = { methodology: 25, results: 25, contribution: 20, literature: 15, presentation: 15 }
-  const normalized = scores
-    .map((item) => ({ criterion: item.criterion, score0to10: Number(item.score0to10) }))
-    .filter((item) => Object.prototype.hasOwnProperty.call(weights, item.criterion) && Number.isFinite(item.score0to10))
-  const totalWeight = normalized.reduce((sum, item) => sum + weights[item.criterion], 0)
-  if (!totalWeight) return { score: null, breakdown: [] }
-  const weighted = normalized.reduce((sum, item) => sum + Math.max(0, Math.min(10, item.score0to10)) * weights[item.criterion], 0)
-  return { score: Math.round((weighted / totalWeight) * 10), breakdown: normalized.map((item) => ({ ...item, weight: weights[item.criterion] })) }
-}
