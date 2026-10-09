@@ -65,8 +65,10 @@ export async function GET(req: NextRequest) {
       })),
       previousAttempts: attempts.map((a) => ({
         id: a.id,
-        score: a.score,
-        passed: a.passed,
+        status: a.status,
+        statusLabel: a.status === 'NEEDS_REVIEW' ? 'قيد التصحيح' : a.status,
+        score: a.status === 'NEEDS_REVIEW' ? null : a.score,
+        passed: a.status === 'NEEDS_REVIEW' ? null : a.passed,
         submittedAt: a.submittedAt,
         feedback: a.feedback ? JSON.parse(a.feedback) : null,
       })),
