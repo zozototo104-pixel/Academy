@@ -193,7 +193,7 @@ export async function analyzeStepWithStore(
 export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
-    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED', id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
+    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] }, id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
     priorItems: async (bookId, chunkIndex) => {
       const chunks = await db.bookChunk.findMany({
         where: { bookId, index: { gte: Math.max(0, chunkIndex - 2), lte: chunkIndex } },
