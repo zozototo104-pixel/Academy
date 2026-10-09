@@ -248,6 +248,18 @@ export function nextQuestionBankRetryAt(now = Date.now(), retryMs = BOOK_READ_RE
   return new Date(now + Math.min(retryMs, 60 * 60_000))
 }
 
+export function questionBankJobHasActiveLock(job: { status: string; lockedUntil?: Date | string | null }, now = Date.now()) {
+  return job.status === 'RUNNING' && Boolean(job.lockedUntil) && new Date(job.lockedUntil as Date | string).getTime() > now
+}
+
+export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number }, now = Date.now()) {
+  if (job.saved >= job.requested) return false
+  if (['COMPLETED', 'FAILED'].includes(job.status)) return false
+  if (questionBankJobHasActiveLock(job, now)) return false
+  if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > now) return false
+  return ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
+}
+
 async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }, deadlineMs?: number) {
   const program = await db.program.findUnique({ where: { id: job.programId }, select: { id: true, titleAr: true, category: true, description: true } })
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
