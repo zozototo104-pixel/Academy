@@ -909,18 +909,23 @@ function healthScore(stats: ModelStats): number {
   return successRate * 0.55 + jsonRate * 0.2 + evidenceRate * 0.2 - latencyPenalty
 }
 
-async function readModelStats(provider: ConcreteProvider, models: readonly string[]): Promise<Map<string, ModelStats>> {
+async function readModelStats(provider: ConcreteProvider, models: readonly string[], purpose?: TextAiPurpose): Promise<Map<string, ModelStats>> {
   if (!models.length) return new Map()
   try {
-    const keys = models.map((model) => modelStatsKey(provider, model))
-    const rows = await settingStore().read(keys)
-    return new Map(models.map((model) => [model, parseModelStats(rows[modelStatsKey(provider, model)])]))
+    const purposeKeys = models.map((model) => purposeModelStatsKey(purpose, provider, model))
+    const generalKeys = models.map((model) => modelStatsKey(provider, model))
+    const rows = await settingStore().read([...purposeKeys, ...generalKeys])
+    return new Map(models.map((model) => {
+      const purposeStats = parseModelStats(rows[purposeModelStatsKey(purpose, provider, model)])
+      const total = purposeStats.success + Object.values(purposeStats.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+      return [model, total >= 5 ? purposeStats : parseModelStats(rows[modelStatsKey(provider, model)])]
+    }))
   } catch {
     return new Map(models.map((model) => [model, parseModelStats('')]))
   }
 }
 
-async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }): Promise<void> {
+async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }, purpose?: TextAiPurpose): Promise<void> {
   try {
     const key = modelStatsKey(provider, model)
     const current = parseModelStats((await settingStore().read([key]))[key])
