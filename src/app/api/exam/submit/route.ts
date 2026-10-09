@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
+import { generateOverallFeedback } from '@/lib/ai'
+import { gradeEssayWithRubric } from '@/lib/essay-grading'
 
 interface SubmitAnswer {
   questionId: string
