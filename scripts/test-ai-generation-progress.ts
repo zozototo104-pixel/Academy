@@ -204,6 +204,8 @@ async function main() {
 
   console.log('▶ question bank parser accepts array envelopes and drops invalid question only')
   arrayEnvelopeIsAcceptedAndInvalidQuestionsAreDropped()
+  console.log('▶ question bank parser normalizes generated difficulty aliases')
+  generatedQuestionDifficultyAliasesAreNormalized()
   console.log('▶ question bank pause cleanup uses deleteMany')
   questionBankPauseCleanupUsesDeleteMany()
   console.log('▶ progressive generation keeps saved batches on third failure')
