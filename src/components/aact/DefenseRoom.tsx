@@ -426,7 +426,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     setLiveAiCaption('')
   }, [])
 
-  const startLiveAdvisor = useCallback((initialMessages?: DefenseMsg[]) => {
+  const startLiveAdvisor = useCallback(async (initialMessages?: DefenseMsg[]) => {
     if (!isStudent || finished || liveAdvisorRef.current) return
     // ألغِ أي نطق TTS محلي قبل تشغيل Gemini Live حتى لا يظهر صوتان متداخلان.
     suppressLocalTtsRef.current = true
