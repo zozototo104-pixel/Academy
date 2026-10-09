@@ -1140,12 +1140,14 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
   const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
   const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
   for (const provider of providerOrder(s)) {
+    if (Date.now() >= deadlineMs - 1000) break
     const key = providerKeys(s, provider)[0]
     if (!key) continue
     for (const model of (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
+      if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
-        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Date.now() + 15_000 })
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Math.min(Date.now() + 15_000, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
