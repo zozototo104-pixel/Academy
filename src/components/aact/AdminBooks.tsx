@@ -366,6 +366,7 @@ interface CurriculumUnitReviewItem {
     status: string
   } | null
   generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
+  questionBankSummary?: { approved: number; pendingReview: number; rejected: number }
   questionBankJob?: {
     id: string
     status: string
