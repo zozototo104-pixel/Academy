@@ -292,20 +292,20 @@ export async function POST(req: NextRequest) {
           attemptId: attempt.id,
           questionId: q.id,
           answerText: text,
-          isCorrect: graded.points >= q.points * 0.6 ? true : graded.points > 0 ? null : false,
-          points: graded.points,
+          isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
+          points: clampedPoints,
           maxPoints: q.points,
           aiFeedback: graded.feedback,
         },
       })
-      if (graded.points < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
+      if (clampedPoints < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
       const r: GradedResult = {
         questionId: q.id,
         order: q.order,
         type: q.type,
         text: q.text,
-        isCorrect: graded.points >= q.points * 0.6,
-        points: graded.points,
+        isCorrect: clampedPoints >= q.points * 0.6,
+        points: clampedPoints,
         maxPoints: q.points,
         aiFeedback: q.correctRationale ? `${graded.feedback}\nمعيار التصحيح: ${q.correctRationale}` : graded.feedback,
         studentAnswer: text || '(لم يجب)',
