@@ -1180,7 +1180,7 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
         ensure(provider, modelParts.join(':')).stats = parseModelStats(value)
       }
     } else if (key.startsWith('AI_MODEL_DEAD:')) {
-      const [, , provider, ...modelParts] = key.split(':')
+      const [, provider, ...modelParts] = key.split(':')
       ensure(provider, modelParts.join(':')).status = 'ميت'
     }
   }
