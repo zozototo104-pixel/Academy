@@ -422,13 +422,14 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    if (file && file.size > 0) {
+    const replacingStoredFile = (file != null && file.size > 0) || storageKey !== book.storageKey || fileUrl !== book.fileUrl
+    if (replacingStoredFile) {
       const linkedUnits = await db.unit.count({ where: { sourceBookId: bookId } })
       if (linkedUnits > 0) return NextResponse.json({ error: 'الكتاب مربوط بوحدات' }, { status: 409 })
     }
 
     const updated = await db.$transaction(async (tx) => {
-      if (file && file.size > 0) {
+      if (replacingStoredFile) {
         await tx.bookChunk.deleteMany({ where: { bookId } })
         await tx.bookKnowledgeItem.deleteMany({ where: { bookId, kbVersion: 2 } })
         await tx.bookReadJob.deleteMany({ where: { bookId } })
