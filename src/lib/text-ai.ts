@@ -914,6 +914,12 @@ function recentFailedHealth(health: ModelHealth | null): boolean {
   return Number.isFinite(checkedAt) && Date.now() - checkedAt < 30 * 60 * 1000
 }
 
+export function __testApplyRecentFailedHealthSkip(models: string[], failedModels: string[]): string[] {
+  const failed = new Set(failedModels)
+  const filtered = models.filter((model) => !failed.has(model))
+  return filtered.length ? filtered : models
+}
+
 async function readModelHealth(provider: ConcreteProvider, models: string[]): Promise<Map<string, ModelHealth | null>> {
   try {
     const keys = models.map((model) => modelHealthKey(provider, model))
