@@ -756,24 +756,39 @@ export function AdminBooksTab() {
       setQuestionBankProgress(null)
       setStudyGuides([])
 
-      Promise.all([
-        api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`).catch(() => ({ items: [] as KnowledgeItemRow[], stats: {} as KnowledgeStats, count: 0, v2CountsByBook: {} as Record<string, number> })),
-        api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`).catch(() => ({ item: null as any })),
-        api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`).catch(() => ({ units: [] as CurriculumUnitReviewItem[] })),
-        api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`).catch(() => ({ items: [] as QuestionBankItemRow[], stats: null as any, progress: null })),
-        api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`).catch(() => ({ guides: [] as StudyGuideRow[] })),
-      ])
-        .then(([k, readiness, units, qb, g]) => {
+      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
+        .then((k) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setKnowledgeItems(k.items || [])
           setKnowledgeTotalCount(k.count || 0)
           setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
+        })
+        .catch(() => null)
+      void api<{ item: ProgramReadinessSnapshot }>(`/api/admin/program-readiness?programId=${pid}`)
+        .then((readiness) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setProgramReadiness(readiness.item || null)
+        })
+        .catch(() => null)
+      void api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
+        .then((units) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setCurriculumUnits(units.units || [])
+        })
+        .catch(() => null)
+      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+        .then((qb) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
           setQuestionBankProgress(qb.progress || null)
+        })
+        .catch(() => null)
+      void api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`)
+        .then((g) => {
+          if (latestProgramLoadRef.current !== loadToken) return
           setStudyGuides(g.guides || [])
         })
         .catch(() => null)
