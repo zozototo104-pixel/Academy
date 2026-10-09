@@ -70,7 +70,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       db.questionBankGenerationJob.findFirst({ where: { unitId: unit.id }, orderBy: { createdAt: 'desc' } }),
     ])
     const requiredQuestions = unitExamRequiredQuestions(job?.requested)
-    const questions = items.map((item) => ({ ...item, generatorModel: item.model }))
+    const questions = items.map((item) => {
+      const notes = reviewNotes(item.reviewNotes)
+      return {
+        ...item,
+        pageStart: null as number | null,
+        pageEnd: null as number | null,
+        provider: nestedString(notes, 'aiProvenance', 'provider'),
+        generatorModel: nestedString(notes, 'aiProvenance', 'model'),
+        verifierProvider: nestedString(notes, 'verifier', 'provider'),
+        verifierModel: nestedString(notes, 'verifier', 'model'),
+        verifierReason: nestedString(notes, 'verifier', 'reason') || item.rejectedReason,
+      }
+    })
     const candidates = questions.filter((item) => ['APPROVED', 'PENDING_REVIEW'].includes(item.status) && String(item.qualityFlags || '').includes('SOURCE_GROUNDED'))
     const selection = selectUnitExamQuestionsApprovedFirst(candidates.map((item) => ({ id: item.id, status: item.status, qualityFlags: item.qualityFlags })), requiredQuestions)
     const grouped = groupByStatus(questions)
