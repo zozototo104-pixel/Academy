@@ -626,7 +626,11 @@ async function generateAudio(text: string): Promise<Buffer> {
         lastErr = e
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(700 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1)
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
