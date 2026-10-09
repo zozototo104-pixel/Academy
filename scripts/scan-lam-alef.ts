@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 
+// Diagnostic-only scan; this script must never write to the database.
 type Example = {
   chunkId: string
   index: number
