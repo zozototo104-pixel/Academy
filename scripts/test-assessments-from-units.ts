@@ -92,6 +92,21 @@ function testVerifierRejectedQuestionIsNotSaved() {
   assert(!code.includes("qualityFlags: ['SOURCE_LINKED', 'SOURCE_GROUNDED'"), 'ممنوع إضافة SOURCE_GROUNDED يدوياً عند الحفظ')
 }
 
+function testIncompleteMcqOptionsAreRejected() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(!code.includes('خيار أول'), 'لا يجب اختراع خيارات MCQ وهمية')
+  assert(code.includes('MCQ_REQUIRES_AT_LEAST_3_OPTIONS'), 'أسئلة MCQ الناقصة يجب أن ترفض بسبب عدد الخيارات')
+}
+
+function testPreviewPollingNudgesQuestionBankJob() {
+  const statusRoute = src('src/app/api/admin/question-bank-jobs/[id]/route.ts')
+  assert(statusRoute.includes('questionBankJobCanRunStep(job)'), 'مسار حالة job يجب أن يفحص إمكانية تشغيل خطوة عند polling')
+  assert(statusRoute.includes('after(() => runQuestionBankGenerationJobStep'), 'مسار حالة job يجب أن يشغل خطوة خلفية واحدة في Preview')
+  const unitRoute = src('src/app/api/admin/unit-exams/generate/route.ts')
+  assert(unitRoute.includes('maxDuration = 300'), 'مسار توليد اختبار الوحدة يحتاج maxDuration أعلى من خطوة بنك الأسئلة')
+  assert(unitRoute.includes('runQuestionBankGenerationJobStepsUntil'), 'ضغط زر الاختبار يجب أن يشغل runner متعدد الخطوات عبر after')
+}
+
 function testQuestionBankRetryAtNotBeyondOneHour() {
   const now = Date.now()
   const retry = nextQuestionBankRetryAt(now, 365 * 24 * 60 * 60 * 1000)
