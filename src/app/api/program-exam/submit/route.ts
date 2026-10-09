@@ -75,7 +75,7 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { examId, answers, durationUsedMin, proctoring } = (await req.json()) as {
+    const { examId, answers, proctoring } = (await req.json()) as {
       examId: string
       answers: SubmitAnswer[]
       durationUsedMin?: number
