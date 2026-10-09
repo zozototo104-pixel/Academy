@@ -144,7 +144,7 @@ export async function PATCH(req: NextRequest) {
     if (action === 'REPROCESS') {
       const updated = await db.thesisSubmission.update({
         where: { id },
-        data: { extractionStatus: 'UPLOADED', extractionError: null, extractionPagesDone: 0, extractionLockedUntil: null, digest: undefined, extractedAt: null },
+        data: { extractionStatus: 'UPLOADED', extractionError: null, extractionPagesDone: 0, extractionLockedUntil: null, digest: null, extractedAt: null },
       })
       await db.thesisChunk.deleteMany({ where: { thesisId: id } })
       await audit(admin, 'REPROCESS_THESIS', 'ThesisSubmission', id, thesis.title)
