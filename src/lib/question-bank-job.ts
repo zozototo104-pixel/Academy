@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { BOOK_READ_LOCK_MS, BOOK_READ_RETRY_MS } from '@/lib/book-read-job-control'
-import { textAiCompleteJsonWithMetadata } from '@/lib/text-ai'
+import { textAiCompleteJsonWithMetadata, textAiDiagnostics } from '@/lib/text-ai'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { assertQuestionBatchAcceptable, buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
