@@ -4,6 +4,7 @@ import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
