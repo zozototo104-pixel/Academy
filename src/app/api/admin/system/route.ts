@@ -59,7 +59,11 @@ function settingSecretMeta(key: string, value: string | undefined, envValue = ''
   const stored = String(value || '')
   const encrypted = isEncryptedSecret(stored)
   const source = stored ? 'settings' : envValue ? 'env' : 'none'
-  return { hasValue: !!(stored || envValue), last4: secretLast4(stored || envValue), encrypted, source }
+  let last4 = secretLast4(envValue)
+  if (stored) {
+    try { last4 = secretLast4(encrypted ? decryptSecret(stored) : stored) } catch { last4 = '' }
+  }
+  return { hasValue: !!(stored || envValue), last4, encrypted, source }
 }
 
 function shouldEncryptSystemKey(key: string) {
