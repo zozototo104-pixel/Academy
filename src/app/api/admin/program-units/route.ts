@@ -172,7 +172,7 @@ async function listProgramUnits(programId: string) {
       },
       questionBankJob: qJob ? {
         id: qJob.id,
-        status: qSelection.readyToBuild && qJob.status === 'RUNNING' ? 'COMPLETED' : qJob.status,
+        status: qJob.status,
         requested: qJob.requested,
         saved: qJob.saved,
         readyToBuild: qSelection.readyToBuild,
