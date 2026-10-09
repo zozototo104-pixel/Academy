@@ -1786,6 +1786,20 @@ export function AdminBooksTab() {
     }
   }
 
+  const retryFailedBookChunks = async (bookId: string) => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ jobId: string | null; chunksReset: number }>(`/api/admin/books/${bookId}/retry-failed-chunks`, { method: 'POST' })
+      toast({ title: 'تمت إعادة محاولة المقاطع الفاشلة', description: `أعيد ${response.chunksReset} مقطع إلى الانتظار.` })
+      await fetchBookReadJob(bookId)
+      void advanceBookReadJob(bookId)
+    } catch (error: any) {
+      toast({ title: 'تعذر إعادة محاولة المقاطع الفاشلة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
+    }
+  }
+
   const startBookEnrichment = async (bookId: string) => {
     setBookReadBusyId(bookId)
     delete bookReadRetryRef.current[bookId]
