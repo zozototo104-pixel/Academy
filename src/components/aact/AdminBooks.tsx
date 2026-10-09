@@ -1030,14 +1030,22 @@ export function AdminBooksTab() {
 
   useEffect(() => {
     if (workspaceTab !== 'units' || !programId) return
-    const hasPreparingQuestionBank = curriculumUnits.some((unit) => unit.questionBankJob && unit.questionBankJob.currentQuestions < unit.questionBankJob.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(unit.questionBankJob.status))
-    if (!hasPreparingQuestionBank) return
-    const timer = setInterval(() => {
+    const activeJobIds = curriculumUnits
+      .map((unit) => unit.questionBankJob)
+      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job) && job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status))
+      .map((job) => job.id)
+    if (!activeJobIds.length) return
+    const pollJobs = async () => {
       if (document.visibilityState !== 'visible') return
-      void refreshCurriculumUnits(programId).catch(() => null)
-    }, 10_000)
+      const updates = await Promise.all(activeJobIds.map((id) => api<{ job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> }>(`/api/admin/question-bank-jobs/${id}`).catch(() => null)))
+      const byId = new Map(updates.filter((item): item is { job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> } => Boolean(item?.job)).map((item) => [item.job.id, item.job] as const))
+      if (!byId.size) return
+      setCurriculumUnits((prev) => prev.map((unit) => unit.questionBankJob && byId.has(unit.questionBankJob.id) ? { ...unit, questionBankJob: byId.get(unit.questionBankJob.id)! } : unit))
+    }
+    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 5_000)
+    void pollJobs().catch(() => null)
     return () => clearInterval(timer)
-  }, [workspaceTab, programId, curriculumUnits, refreshCurriculumUnits])
+  }, [workspaceTab, programId, curriculumUnits])
 
   const generateCurriculumUnits = async () => {
     if (!programId) return
