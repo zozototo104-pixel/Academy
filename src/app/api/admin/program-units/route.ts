@@ -115,6 +115,7 @@ async function listProgramUnits(programId: string) {
     if (row.status === 'PENDING_REVIEW') current.pendingReview += row._count._all
     questionBankCountsByUnit.set(row.unitId, current)
   }
+  const questionBankTraceByJob = new Map(await Promise.all([...questionBankJobByUnit.values()].map(async (job) => [job.id, await readQuestionBankJobTrace(job.id)] as const)))
   const sectionById = new Map(sections.map((section) => [section.id, section] as const))
   const bookById = new Map(books.map((book) => [book.id, book] as const))
   return units.map((u) => {
