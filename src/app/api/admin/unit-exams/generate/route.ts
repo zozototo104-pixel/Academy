@@ -52,7 +52,8 @@ function toExamQuestion(item: UnitExamBankItem, index: number, needsReview: bool
     return { order: index + 1, type: 'MCQ', text: cleanText(text, 1200), options: JSON.stringify(shuffled.options), correctAnswer: shuffled.correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10 }
   }
   if (type === 'TF') {
-    const correctAnswer = String(item.correctAnswer) === '1' ? '1' : '0'
+    const answerText = cleanText(item.correctAnswer, 20)
+    const correctAnswer = answerText === '1' || /^خطأ|false$/iu.test(answerText) ? '1' : '0'
     return { order: index + 1, type: 'TF', text: cleanText(text, 1200), options: JSON.stringify(['صح', 'خطأ']), correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10 }
   }
   return { order: index + 1, type: type === 'ESSAY' ? 'ESSAY' : 'SHORT', text: cleanText(text, 1200), options: JSON.stringify([]), correctAnswer: null, modelAnswer: cleanText(item.modelAnswer || item.sourceEvidence, 1800), points: 10 }
