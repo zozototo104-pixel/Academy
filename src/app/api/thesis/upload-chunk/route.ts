@@ -84,7 +84,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, index })
     }
     const rows = await db.thesisUploadChunk.findMany({ where: { uploadId, userId: user.id, thesisId }, orderBy: { index: 'asc' } })
-    if (rows.length !== total) return NextResponse.json({ error: `لم تصل كل أجزاء الملف (${rows.length}/${total})` }, { status: 400 })
+    if (rows.length !== total) {
+      await cleanupUpload(uploadId, user.id, thesisId)
+      return NextResponse.json({ error: `لم تصل كل أجزاء الملف (${rows.length}/${total})` }, { status: 400 })
+    }
     if (rows.some((row, i) => row.index !== i)) {
       await cleanupUpload(uploadId, user.id, thesisId)
       return NextResponse.json({ error: 'ترتيب أجزاء الملف غير مكتمل' }, { status: 400 })
