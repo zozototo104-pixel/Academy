@@ -129,18 +129,28 @@ export async function POST(req: NextRequest) {
     const procLog = procEnabled && Array.isArray(proctoring?.log) ? JSON.stringify(proctoring!.log!.slice(0, 200)) : null
     const procSnapshot = procEnabled && typeof proctoring?.snapshot === 'string' ? proctoring!.snapshot!.slice(0, 300000) : null
 
-    const attempt = await db.programExamAttempt.create({
+    const startedAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
+    const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
+    const allowedMs = (exam.durationMin + 2) * 60 * 1000
+    if (elapsedMs > allowedMs) return NextResponse.json({ error: 'انتهى وقت الاختبار' }, { status: 400 })
+    const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
+
+    const attempt = await db.programExamAttempt.update({
+      where: { id: startedAttempt.id },
       data: {
-        userId: user.id,
-        examId,
         status: 'SUBMITTED',
-        durationUsedMin: durationUsedMin ?? null,
+        durationUsedMin: serverDurationUsedMin,
         proctoringEnabled: procEnabled,
         proctoringLog: procLog,
         proctoringSnapshot: procSnapshot,
       },
     })
 
+    try {
     let totalScore = 0
     let maxTotal = 0
     const weakPoints: string[] = []
