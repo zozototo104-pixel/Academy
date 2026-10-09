@@ -1578,6 +1578,7 @@ model ProgramExamAttempt {
   status      String   @default("SUBMITTED") // SUBMITTED | GRADED
   feedback    String?  // JSON تقييم عام
   durationUsedMin Int?     // كم دقيقة استغرق الطالب فعلياً
+  startedAt   DateTime?
   submittedAt DateTime?
   // الاعتراض على النتيجة (Appeal) — يُحوَّل للمراجعة اليدوية من المشرف البشري/الإدارة
   appealStatus   String   @default("NONE") // NONE | PENDING | REVIEWED
