@@ -105,7 +105,10 @@ function safeOptions(value: unknown, type: string) {
 
 function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<QuestionBankSource> = {}) {
   const type = TYPES.has(String(raw.type || '').toUpperCase()) ? String(raw.type).toUpperCase() : 'MCQ'
-  const difficulty = DIFFICULTIES.has(String(raw.difficulty || '').toUpperCase()) ? String(raw.difficulty).toUpperCase() : 'MEDIUM'
+  const rawDifficulty = String(raw.difficulty || '').toUpperCase()
+  const difficulty = DIFFICULTIES.has(rawDifficulty) ? rawDifficulty : ''
+  const sourceEvidence = cleanText(raw.sourceEvidence, 1800)
+  const cognitiveSkill = cleanText(raw.cognitiveSkill, 40)
   const text = cleanText(raw.text || raw.question || fallback.title, 1200)
   const options = safeOptions(raw.options, type)
   let correctAnswer = raw.correctAnswer != null ? String(raw.correctAnswer) : null
