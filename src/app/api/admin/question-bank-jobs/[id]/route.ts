@@ -27,7 +27,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
         })
       : []
-    const selection = selectUnitExamQuestionsApprovedFirst(candidates, job.requested)
+    const requiredQuestions = unitExamRequiredQuestions(job.requested)
+    const selection = selectUnitExamQuestionsApprovedFirst(candidates, requiredQuestions)
     const activeLock = questionBankJobHasActiveLock(job)
     if (job.unitId && selection.readyToBuild && !activeLock && job.status !== 'COMPLETED') {
       await db.questionBankGenerationJob.updateMany({ where: { id: job.id, status: { not: 'COMPLETED' } }, data: { status: 'COMPLETED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date(), saved: Math.max(job.saved, selection.currentEligibleCount) } })
