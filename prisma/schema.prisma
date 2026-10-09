@@ -870,6 +870,24 @@ model ThesisSubmission {
   updatedAt   DateTime @updatedAt
 }
 
+model ThesisChunk {
+  id        String   @id @default(cuid())
+  thesisId  String
+  thesis    ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  index     Int
+  pageStart Int?
+  pageEnd   Int?
+  text      String
+  summary   String?
+  status    String   @default("EXTRACTED")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([thesisId, index])
+  @@index([thesisId, status, index])
+}
+
 model ThesisReviewNote {
   id        String   @id @default(cuid())
   thesisId  String
