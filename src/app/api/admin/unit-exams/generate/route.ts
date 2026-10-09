@@ -85,7 +85,7 @@ async function loadScopedQuestions(programId: string, unitId: string, requiredQu
     return { questions: approvedOnly.questions, selection: approvedOnly.selection, job: null, requiredQuestions }
   }
 
-  const queued = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false })
+  const queued = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false, manual: true })
   let latestJob: QuestionBankGenerationJob | null = queued
   let mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
 
