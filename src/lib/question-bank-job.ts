@@ -9,6 +9,25 @@ import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
+const JOB_FAILURE_PREFIX = 'QUESTION_BANK_JOB_FAILURES:'
+const JOB_TRACE_PREFIX = 'QUESTION_BANK_JOB_TRACE:'
+
+export type QuestionBankJobTrace = {
+  generated: number
+  saved: number
+  verifierRejected: number
+  rejected: number
+  rejectionReasons: Array<{ reason: string; count: number }>
+  aiTrace?: {
+    generatorProvider?: string | null
+    generatorModel?: string | null
+    verifierProvider?: string | null
+    verifierModel?: string | null
+    sameProviderVerifierFallback?: boolean
+  }
+}
+
+type JobFailureState = { lastError: string; count: number }
 
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
