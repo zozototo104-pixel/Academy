@@ -968,6 +968,14 @@ export function AdminSystemTab() {
               </div>
               <Switch checked={form.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS === '1'} onCheckedChange={(v) => set('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', v ? '1' : '0')} />
             </div>
+            {data.secretsEncryption && (!data.secretsEncryption.configured || data.secretsEncryption.unencryptedKeys?.length > 0) && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[10px] font-bold leading-relaxed text-amber-800 sm:col-span-2">
+                {!data.secretsEncryption.configured ? 'تنبيه: AACT_SECRETS_KEY غير مضبوط في Vercel؛ لا يمكن حفظ مفاتيح جديدة من لوحة الإدارة.' : `يوجد ${data.secretsEncryption.unencryptedKeys.length} مفتاح قديم غير مشفر.`}
+                {data.secretsEncryption.configured && !!data.secretsEncryption.unencryptedKeys?.length && (
+                  <Button type="button" size="sm" variant="outline" disabled={saving} onClick={encryptLegacySecrets} className="mr-2 h-7 border-amber-300 text-[10px] font-black text-amber-800">تشفير المفاتيح القديمة</Button>
+                )}
+              </div>
+            )}
             <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
               {textAiDiag?.lastResult && (
