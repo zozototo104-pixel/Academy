@@ -145,7 +145,8 @@ const cooldowns = new Map<string, { until: number; reason: string; status?: numb
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
-const freeModelsCache = new Map<string, { at: number; models: string[] }>()
+type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[] }
+const freeModelsCache = new Map<string, { at: number; models: string[]; capabilities?: Record<string, ModelCapability> }>()
 
 type TextAiSettingStore = {
   read(keys: string[]): Promise<Record<string, string>>
