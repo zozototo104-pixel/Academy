@@ -1543,7 +1543,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true })
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, opts.purpose)
           lastResult = { provider, model, ok: true, at }
           if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
