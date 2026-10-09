@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
       booksCount,
       v2CountsByBook,
       count: allItems.length,
+      total,
       displayedCount: items.length,
       limits: KNOWLEDGE_BANK_LIMITS,
       stats: categoryStats(items),
