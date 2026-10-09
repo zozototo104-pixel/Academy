@@ -989,9 +989,11 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
   const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
   const discoveredOrFallback = discoveredFree.length ? discoveredFree : staticDefaults
-  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))].filter(modelCapabilityAllowed)
+  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
+    .filter(modelCapabilityAllowed)
+    .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  return orderModelsByHealth(provider, allowed, taskLevel, explore)
+  return orderModelsByHealth(provider, allowed, taskLevel, explore, purpose)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
