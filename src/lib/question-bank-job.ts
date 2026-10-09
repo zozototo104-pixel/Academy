@@ -29,6 +29,20 @@ export type QuestionBankJobTrace = {
 
 type JobFailureState = { lastError: string; count: number }
 
+type ExistingQuestionBankJobState = { status: string; requested: number; retryAt?: Date | string | null }
+
+export function planQuestionBankJobManualReactivation(job: ExistingQuestionBankJobState, requested: number, manual: boolean) {
+  const normalizedRequested = Math.max(job.requested || 0, requested)
+  const reactivatesPausedOrFailed = manual && ['PAUSED', 'FAILED'].includes(job.status)
+  return {
+    shouldUpdate: reactivatesPausedOrFailed || job.requested < requested,
+    resetFailureCounter: reactivatesPausedOrFailed,
+    status: reactivatesPausedOrFailed ? 'QUEUED' : job.status === 'PAUSED' ? 'QUEUED' : job.status,
+    requested: normalizedRequested,
+    retryAt: reactivatesPausedOrFailed ? null : job.retryAt ?? null,
+  }
+}
+
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
