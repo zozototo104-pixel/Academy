@@ -212,7 +212,6 @@ export async function PATCH(req: NextRequest) {
     const textAi = await textAiDiagnostics()
     textAi.message = redactSecrets(textAi.message)
     const agent = await localAgentDiagnostics()
-    agent.error = redactSecrets(agent.error || '')
     return NextResponse.json({ ok: true, values, gemini, textAi, agent })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
