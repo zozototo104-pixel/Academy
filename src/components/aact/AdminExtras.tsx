@@ -409,6 +409,10 @@ export function AdminThesisTab() {
                           </Badge>
                           {t.defenseStatus === 'COMPLETED' && <span className="text-[10px] font-bold text-slate-500">انتهت الجلسة</span>}
                         </p>
+                        <p className="mt-1.5 text-[11px] font-bold text-slate-600">معالجة الملف: {t.extractionStatus || 'غير مرفوع'}{t.pageCount ? ` · ${t.pageCount} صفحة` : ''}{t.wordCount ? ` · ${t.wordCount} كلمة` : ''}</p>
+                        {t.extractionError && <p className="mt-1 text-[11px] font-bold text-red-600">خطأ المعالجة: {t.extractionError}</p>}
+                        {t.digest && <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-slate-50 p-2 text-[10px] text-slate-600">{JSON.stringify(t.digest, null, 2).slice(0, 1200)}</pre>}
+                        {t.defenseBreakdown && <pre className="mt-2 max-h-24 overflow-auto rounded-xl bg-amber-50 p-2 text-[10px] text-[#5c4d1a]">{JSON.stringify(t.defenseBreakdown, null, 2).slice(0, 900)}</pre>}
                         {t.aiRecommendation && (
                           <p className="mt-1.5 whitespace-pre-line text-[11px] font-semibold leading-relaxed text-[#5c4d1a]">{t.aiRecommendation}</p>
                         )}
