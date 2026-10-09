@@ -334,7 +334,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       }
       continue
     }
-    const familyCheck = sameProviderVerifierFallback ? { ok: true as const } : verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
+    const familyCheck = verifierFamilyAllowed(verifierContext, String(opts.generatorProvider), generatorFamily)
     if (!familyCheck.ok) {
       for (const item of prepared) {
         output[item.index] = applyPending(item.question, familyCheck.reason)
