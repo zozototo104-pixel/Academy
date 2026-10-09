@@ -486,8 +486,8 @@ ${answer.slice(0, 2500)}
     })
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('NO_JSON')
-    const parsed = JSON.parse(match[0])
-    const score = finiteScore(parsed.score0to10 ?? parsed.score)
+    const parsed = defenseEvaluationSchema.parse(JSON.parse(match[0]))
+    const score = finiteScore(parsed.score0to10)
     if (score == null) throw new Error('NO_SCORE')
     return {
       score,
