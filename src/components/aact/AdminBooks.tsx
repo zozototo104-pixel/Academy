@@ -2414,6 +2414,15 @@ export function AdminBooksTab() {
                           {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
                           {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
                         </div>}
+                        {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
+                          <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
+                          <p>الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
+                          {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
+                          {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
+                          {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
+                          {unit.questionBankJob.retryAt && <p>موعد إعادة المحاولة: {new Date(unit.questionBankJob.retryAt).toLocaleString('ar-SA')}</p>}
+                          {unit.questionBankJob.lastError && <p className="whitespace-pre-wrap text-red-700">آخر خطأ كامل: {unit.questionBankJob.lastError}</p>}
+                        </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
                           <Textarea defaultValue={unit.summary || ''} onBlur={(e) => e.target.value !== (unit.summary || '') && patchCurriculumUnit(unit, { summary: e.target.value })} className="min-h-20 bg-white text-sm leading-7" />
