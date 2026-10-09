@@ -176,7 +176,8 @@ export async function POST(req: NextRequest) {
           .filter((score): score is number => score != null)
         const currentScore = finiteScore(result.score)
         const scores = currentScore == null ? priorScores : [...priorScores, currentScore]
-        const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : null // من 100
+        const weighted = scoreDefenseBreakdown(scores.map((score, index) => ({ criterion: DEFENSE_CRITERIA[Math.min(index, DEFENSE_CRITERIA.length - 1)], score0to10: score })))
+        const aiScore = weighted.score
         const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
         const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
         await db.thesisSubmission.update({
