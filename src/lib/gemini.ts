@@ -426,6 +426,10 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
         return
       } catch (e) {
         lastErr = e
+        if (emittedAnyChunk) {
+          yield '\n\nانقطع الرد، أعد المحاولة.'
+          return
+        }
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
           if (attempt < 2) {
