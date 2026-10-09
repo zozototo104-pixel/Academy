@@ -419,35 +419,17 @@ export function isTransientGeminiError(e: any): boolean {
 
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
   if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
-    let emittedExternalChunk = false
-    try {
-      for await (const chunk of textAiStreamText(opts)) {
-        emittedExternalChunk = emittedExternalChunk || Boolean(chunk)
-        yield chunk
-      }
-      return
-    } catch (e) {
-      if (emittedExternalChunk) {
-        yield '\n\nانقطع الرد، أعد المحاولة.'
-        return
-      }
-      throw e
-    }
+    for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
+    return
   }
   if (await hasExternalTextAi()) {
-    let emittedExternalChunk = false
+    let shouldFallback = false
     try {
-      for await (const chunk of textAiStreamText(opts)) {
-        emittedExternalChunk = emittedExternalChunk || Boolean(chunk)
-        yield chunk
-      }
+      for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
       return
     } catch (e) {
-      if (emittedExternalChunk) {
-        yield '\n\nانقطع الرد، أعد المحاولة.'
-        return
-      }
-      if (!hasGemini()) throw e
+      shouldFallback = hasGemini()
+      if (!shouldFallback) throw e
     }
   }
 
