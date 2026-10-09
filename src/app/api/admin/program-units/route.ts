@@ -162,8 +162,10 @@ async function listProgramUnits(programId: string) {
         approvedQuestions: questionBankCountsByUnit.get(u.id)?.approved || 0,
         pendingReviewQuestions: questionBankCountsByUnit.get(u.id)?.pendingReview || 0,
         currentQuestions: (questionBankCountsByUnit.get(u.id)?.approved || 0) + (questionBankCountsByUnit.get(u.id)?.pendingReview || 0),
+        lastError: questionBankJobByUnit.get(u.id)!.lastError,
         retryAt: questionBankJobByUnit.get(u.id)!.retryAt,
         updatedAt: questionBankJobByUnit.get(u.id)!.updatedAt,
+        trace: questionBankTraceByJob.get(questionBankJobByUnit.get(u.id)!.id) || null,
       } : null,
       exam: u.exam
         ? {
