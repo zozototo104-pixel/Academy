@@ -1192,10 +1192,25 @@ export function AdminBooksTab() {
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean }>('/api/admin/unit-exams/generate', {
+      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
         method: 'POST',
         body: JSON.stringify({ programId, unitId: unit.id, count: 10, replace: true }),
       })
+      if (result?.ok === false && result.jobId) {
+        setCurriculumUnits((prev) => prev.map((item) => item.id === unit.id ? {
+          ...item,
+          questionBankJob: {
+            id: result.jobId!,
+            status: result.status || 'QUEUED',
+            requested: Number(result.requested || result.requiredQuestions || 10),
+            saved: Number(result.saved || 0),
+            approvedQuestions: Number(result.approvedQuestions || 0),
+            pendingReviewQuestions: Number(result.pendingReviewQuestions || 0),
+            currentQuestions: Number(result.currentQuestions || 0),
+            lastError: result.error || null,
+          },
+        } : item))
+      }
       await refreshCurriculumUnits(programId)
       await refreshProgramReadiness()
       if (result?.ok === false) {
