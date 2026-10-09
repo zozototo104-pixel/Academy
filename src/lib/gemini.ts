@@ -133,7 +133,7 @@ async function refreshFromDb(force = false): Promise<void> {
         readSetting('GEMINI_DISCUSSION_LIVE_MODEL'),
         readSetting('GEMINI_DISCUSSION_THINKING_LEVEL'),
       ])
-      dbKeyCache = key
+      dbKeyCache = [...decodeGeminiKeySetting(key, 'GEMINI_API_KEY'), ...decodeGeminiKeySetting(keys, 'GEMINI_API_KEYS')][0] || ''
       dbVoiceCache = voice
       dbTextModelCache = normalizeGeminiModelName(textModel)
       dbTtsModelCache = normalizeGeminiModelName(ttsModel)
