@@ -293,6 +293,8 @@ interface QuestionBankItemRow {
   modelAnswer?: string | null
   sourceEvidence?: string | null
   sourceLocator?: string | null
+  knowledgeItemId?: string | null
+  knowledgeTitle?: string | null
   pageStart?: number | null
   pageEnd?: number | null
   cognitiveSkill?: string | null
