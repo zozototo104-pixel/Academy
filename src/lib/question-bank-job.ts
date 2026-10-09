@@ -403,8 +403,12 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   try {
     const inserted = await generateBatch(job, stepDeadlineAt - 2_000)
     await resetJobFailureState(jobId)
-    job = await db.questionBankGenerationJob.update({ where: { id: jobId }, data: { saved: { increment: inserted }, status: job.saved + inserted >= job.requested ? 'COMPLETED' : 'QUEUED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: job.saved + inserted >= job.requested ? new Date() : null } })
-    return job
+    const completesBySavedCount = job.saved + inserted >= job.requested
+    await db.questionBankGenerationJob.updateMany({
+      where: { id: jobId, status: { not: 'COMPLETED' } },
+      data: { saved: { increment: inserted }, status: completesBySavedCount ? 'COMPLETED' : 'QUEUED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: completesBySavedCount ? new Date() : null },
+    })
+    return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   } catch (error: unknown) {
     const message = cleanText(await normalizeProviderError(error instanceof Error ? error.message : String(error)), 1000)
     const failure = await recordJobFailure(jobId, message)
