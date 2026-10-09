@@ -178,6 +178,7 @@ export function DefenseRoom({
   const [liveAdvisorLevel, setLiveAdvisorLevel] = useState(0)
   const [liveUserCaption, setLiveUserCaption] = useState('')
   const [liveAiCaption, setLiveAiCaption] = useState('')
+  const [liveThesisContext, setLiveThesisContext] = useState('')
   const [resumeHint, setResumeHint] = useState(false)
   const liveAdvisorRef = useRef<VoiceAgent | null>(null)
 
