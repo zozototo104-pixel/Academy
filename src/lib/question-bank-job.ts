@@ -7,6 +7,7 @@ import { buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
+import { selectUnitExamQuestionsApprovedFirst } from '@/lib/unit-exam-policy'
 
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
