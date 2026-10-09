@@ -378,7 +378,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
       data: repeatedLimitReached
         ? { status: 'FAILED', retryAt: null, lockedUntil: null, lastError: `فشلت وظيفة بنك الأسئلة بعد 3 محاولات متتالية بنفس الخطأ: ${message}`.slice(0, 1000), finishedAt: new Date() }
         : paused
-          ? { status: 'PAUSED', retryAt: new Date(Date.now() + Math.min(BOOK_READ_RETRY_MS, 60 * 60_000)), lockedUntil: null, lastError: message }
+          ? { status: 'PAUSED', retryAt: nextQuestionBankRetryAt(), lockedUntil: null, lastError: message }
           : { status: 'FAILED', retryAt: null, lockedUntil: null, lastError: message, finishedAt: new Date() },
     })
   }
