@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, context: Context) {
     const force = Boolean(body?.regenerate || body?.force)
     const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
     if (activeJob) {
-      if (activeJob.status === 'RUNNING' && activeJob.lockedUntil && activeJob.lockedUntil.getTime() <= Date.now()) {
+      if (activeJob.status === 'RUNNING' && (!activeJob.lockedUntil || activeJob.lockedUntil.getTime() <= Date.now())) {
         const failedJob = await db.unitGenerationJob.update({ where: { id: activeJob.id }, data: { status: 'FAILED', lastError: 'توقفت، أعد المحاولة', lockedUntil: null, finishedAt: new Date() } })
         return NextResponse.json({ ok: false, job: failedJob, error: 'توقفت، أعد المحاولة' }, { status: 409 })
       }
