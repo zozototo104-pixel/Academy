@@ -239,8 +239,12 @@ function knowledgeToSource(item: { id: string; title: string; category: string; 
   return { id: item.id, title: item.title, category: item.category, summary: item.summary, excerpt: item.excerpt, sourceNote: item.sourceNote, bookId: item.bookId, semester: item.semester, pageStart: item.pageStart, pageEnd: item.pageEnd }
 }
 
-function hasSourceGroundedFlag(question: { qualityFlags?: string[] }) {
+export function hasSourceGroundedFlag(question: { qualityFlags?: string[] }) {
   return Array.isArray(question.qualityFlags) && question.qualityFlags.includes('SOURCE_GROUNDED')
+}
+
+export function nextQuestionBankRetryAt(now = Date.now(), retryMs = BOOK_READ_RETRY_MS) {
+  return new Date(now + Math.min(retryMs, 60 * 60_000))
 }
 
 async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }, deadlineMs?: number) {
