@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
-import { hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow } from '../src/lib/question-bank-job'
+import { hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
+import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
