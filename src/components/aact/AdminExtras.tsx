@@ -168,6 +168,19 @@ export function AdminThesisTab() {
     }
   }
 
+  const reprocessThesis = async (thesis: Thesis) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', { method: 'PATCH', body: JSON.stringify({ id: thesis.id, action: 'REPROCESS' }) })
+      toast({ title: 'تمت إعادة تفعيل معالجة البحث', description: 'يمكن للطالب أو الإدارة تشغيل خطوات المعالجة من جديد.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة المعالجة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION' | 'REQUEST_FINAL_REVISION') => {
     const reviewNote = await promptAction({
       title: action === 'APPROVE_PLAN' ? 'اعتماد خطة البحث' : action === 'REQUEST_FINAL_REVISION' ? 'طلب تعديل البحث النهائي' : 'طلب تعديل خطة البحث',
