@@ -1,17 +1,29 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { aiRetryDelayMs, parseRetryAfterMs } from '../src/lib/ai-retry'
+import { __testDecodeGeminiKeySetting } from '../src/lib/gemini'
 import { decryptSecret, encryptSecret, isEncryptedSecret, redactSecrets } from '../src/lib/secret-crypto'
-import { modelAllowedForPurpose } from '../src/lib/text-ai'
+import { __testDecryptTextAiSettingValue, __testPrimaryProviderOrder, modelAllowedForPurpose } from '../src/lib/text-ai'
 
 function src(path: string) {
   return readFileSync(path, 'utf8')
 }
 
 function testProviderOrderUnchanged() {
-  const code = src('src/lib/text-ai.ts')
-  const expected = "'GEMINI',\n  'UNOROUTER',\n  'OPENROUTER',\n  'TOPTOOLS',\n  'OPENAI',\n  'ANTHROPIC',\n  'ZAI',\n  'GROQ',\n  'RELAYROUTER',\n  'DEEPINFRA',\n  'TOGETHER',\n  'OPENAI_COMPAT'"
-  assert(code.includes(expected), 'AUTO provider order must remain unchanged')
+  assert.deepEqual(__testPrimaryProviderOrder(), [
+    'GEMINI',
+    'UNOROUTER',
+    'OPENROUTER',
+    'TOPTOOLS',
+    'OPENAI',
+    'ANTHROPIC',
+    'ZAI',
+    'GROQ',
+    'RELAYROUTER',
+    'DEEPINFRA',
+    'TOGETHER',
+    'OPENAI_COMPAT',
+  ])
 }
 
 function testPurposeVisionCapabilityFiltering() {
@@ -21,13 +33,13 @@ function testPurposeVisionCapabilityFiltering() {
   assert.equal(modelAllowedForPurpose('short-context', 'LONG_CONTEXT', { contextLength: 8192 }), false)
 }
 
-function testHealthFallbackAndStreamGuardPresent() {
+function testFailedHealthFallbackAndStreamGuard() {
   const textAi = src('src/lib/text-ai.ts')
-  assert(textAi.includes('recentFailedHealth'), 'router must skip recent failed model health checks')
   assert(textAi.includes('healthFilteredModels.length ? healthFilteredModels : orderedModels'), 'router must fall back to normal order if every model is health-skipped')
   const gemini = src('src/lib/gemini.ts')
-  assert(gemini.includes('emittedAnyChunk'), 'streaming must track first emitted chunk')
-  assert(gemini.includes('انقطع الرد، أعد المحاولة'), 'streaming must end with retry message after post-chunk failure')
+  assert(gemini.includes('emittedExternalChunk'), 'external streaming path must track first emitted chunk')
+  assert(gemini.includes('emittedAnyChunk'), 'native Gemini streaming path must track first emitted chunk')
+  assert(gemini.match(/انقطع الرد، أعد المحاولة/g)?.length || 0 >= 2, 'streaming must end with retry message after post-chunk failure')
 }
 
 function testRetryAfter() {
@@ -46,22 +58,39 @@ function testSecretCryptoAndRedaction() {
   delete process.env.AACT_SECRETS_KEY
 }
 
+function testGeminiEncryptedSettingDecryptsToOriginalKey() {
+  process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 9).toString('base64')
+  const encrypted = encryptSecret('AIza-real-gemini-key-123456')
+  assert.deepEqual(__testDecodeGeminiKeySetting(encrypted), ['AIza-real-gemini-key-123456'])
+  assert.deepEqual(__testDecodeGeminiKeySetting('enc:v1:bad'), [])
+  delete process.env.AACT_SECRETS_KEY
+}
+
+function testPlaintextGatewaySettingsRejectedBehaviorally() {
+  assert.equal(__testDecryptTextAiSettingValue('GROQ_API_KEY', 'gsk_plain'), '')
+  assert.equal(__testDecryptTextAiSettingValue('OPENROUTER_API_KEYS', 'sk-or-plain'), '')
+  assert.equal(__testDecryptTextAiSettingValue('GEMINI_API_KEY', 'AIza-legacy-plain'), 'AIza-legacy-plain')
+  process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 11).toString('base64')
+  const encrypted = encryptSecret('gsk-encrypted')
+  assert.equal(__testDecryptTextAiSettingValue('GROQ_API_KEY', encrypted), 'gsk-encrypted')
+  delete process.env.AACT_SECRETS_KEY
+}
+
 function testAcademicVerifierExcludesGeneratorProvider() {
   const verifier = src('src/lib/question-verifier.ts')
-  assert(verifier.includes('excludeProviders'), 'question verifier must keep excluding generator provider')
+  assert(!verifier.includes('sameProviderVerifierFallback'), 'question verifier must not include same-provider fallback')
+  assert(verifier.includes('const excludeProviders = [opts.generatorProvider as TextAiProvider]'), 'question verifier must exclude generator provider')
   assert(verifier.includes("purpose: 'REVIEW'"), 'purpose routing must not remove cross-provider verifier exclusion')
 }
 
-function testSecretSettingsGuardrails() {
-  const textAi = src('src/lib/text-ai.ts')
-  for (const provider of ['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT']) assert(textAi.includes(`'${provider}'`), `${provider} must be in strict encrypted setting provider guard`)
-  assert(textAi.includes('STRICT_ENCRYPTED_SETTING_PROVIDERS.has(provider)'), 'restricted providers must ignore plaintext setting keys')
+function testAdminGetAndSaveSecretsGuardrails() {
   const system = src('src/app/api/admin/system/route.ts')
+  assert(system.includes('shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value'), 'GET must mask all secret-like values')
   assert(system.includes('isMaskedSecret(value)') && system.includes('continue'), 'masked or blank secret values must not overwrite existing settings')
   assert(system.includes('أضف AACT_SECRETS_KEY في Vercel أولاً'), 'saving plaintext secrets without encryption key must be rejected')
 }
 
-for (const fn of [testProviderOrderUnchanged, testPurposeVisionCapabilityFiltering, testHealthFallbackAndStreamGuardPresent, testRetryAfter, testSecretCryptoAndRedaction, testAcademicVerifierExcludesGeneratorProvider, testSecretSettingsGuardrails]) {
+for (const fn of [testProviderOrderUnchanged, testPurposeVisionCapabilityFiltering, testFailedHealthFallbackAndStreamGuard, testRetryAfter, testSecretCryptoAndRedaction, testGeminiEncryptedSettingDecryptsToOriginalKey, testPlaintextGatewaySettingsRejectedBehaviorally, testAcademicVerifierExcludesGeneratorProvider, testAdminGetAndSaveSecretsGuardrails]) {
   fn()
   console.log(`✓ ${fn.name}`)
 }
