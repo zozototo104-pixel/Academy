@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { questionBankJobCanRunStep, readQuestionBankJobTrace, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
 function clean(value: unknown, max = 120) {
