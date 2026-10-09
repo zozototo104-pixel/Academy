@@ -6,8 +6,11 @@ import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
+import { findRelevantThesisChunks, getThesisDigest, scoreDefenseBreakdown, summarizeDigestForPrompt } from '@/lib/thesis-context'
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
+const DEFENSE_CRITERIA = ['methodology', 'results', 'contribution', 'literature', 'presentation'] as const
+const DEFENSE_CRITERIA_LABELS: Record<typeof DEFENSE_CRITERIA[number], string> = { methodology: 'منهجية', results: 'نتائج', contribution: 'إسهام', literature: 'أدبيات', presentation: 'عرض' }
 
 type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; unavailable?: boolean }
 
