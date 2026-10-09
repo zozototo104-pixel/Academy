@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { BOOK_READ_RETRY_MS } from '@/lib/book-read-job-control'
 import { textAiCompleteJsonWithMetadata, textAiDiagnostics } from '@/lib/text-ai'
