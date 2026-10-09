@@ -1789,6 +1789,11 @@ export function AdminView() {
           </div>
         </TabsContent>
 
+        {/* مراجعة التصحيح اليدوي للمحاولات المعلقة */}
+        <TabsContent value="grading-review">
+          <AdminGradingReviewTab />
+        </TabsContent>
+
         {/* Students */}
         <TabsContent value="students">
           <div className="mt-4 space-y-3">
