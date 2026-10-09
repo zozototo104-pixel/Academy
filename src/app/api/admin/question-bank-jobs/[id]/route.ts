@@ -1,7 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { readQuestionBankJobTrace } from '@/lib/question-bank-job'
+import { questionBankJobCanRunStep, readQuestionBankJobTrace, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
