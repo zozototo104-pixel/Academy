@@ -448,7 +448,8 @@ async function aiEvaluate(
   answer: string,
   qNum: number,
   total: number,
-  studentAcademicContext?: string
+  studentAcademicContext?: string,
+  criterion: typeof DEFENSE_CRITERIA[number] = 'methodology'
 ): Promise<DefenseEvaluation> {
   try {
     const raw = await textAiCompleteJson({
