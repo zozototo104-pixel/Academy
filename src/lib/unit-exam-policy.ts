@@ -16,6 +16,12 @@ export type UnitExamSelection = {
 
 export const UNIT_EXAM_REVIEW_LABEL = 'يحتاج مراجعة'
 
+export function unitExamRequiredQuestions(value?: unknown) {
+  const numeric = Number(value ?? 10)
+  const normalized = Number.isFinite(numeric) ? numeric : 10
+  return Math.max(3, Math.min(20, Math.floor(normalized)))
+}
+
 export function unitExamQualityFlags(value: string | null | undefined): string[] {
   if (!value) return []
   try {
