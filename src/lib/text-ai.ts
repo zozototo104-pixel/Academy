@@ -881,6 +881,38 @@ function purposeModelStatsKey(purpose: TextAiPurpose | undefined, provider: stri
   return purpose ? `AI_MODEL_STATS:${purpose}:${provider}:${model}` : modelStatsKey(provider, model)
 }
 
+function modelHealthKey(provider: string, model: string): string {
+  return `AI_MODEL_HEALTH:${provider}:${model}`
+}
+
+type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string }
+
+function parseModelHealth(raw: unknown): ModelHealth | null {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'))
+    if (typeof parsed.ok !== 'boolean') return null
+    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), error: String(parsed.error || '').slice(0, 240) }
+  } catch {
+    return null
+  }
+}
+
+function recentFailedHealth(health: ModelHealth | null): boolean {
+  if (!health || health.ok) return false
+  const checkedAt = Date.parse(String(health.checkedAt || ''))
+  return Number.isFinite(checkedAt) && Date.now() - checkedAt < 30 * 60 * 1000
+}
+
+async function readModelHealth(provider: ConcreteProvider, models: string[]): Promise<Map<string, ModelHealth | null>> {
+  try {
+    const keys = models.map((model) => modelHealthKey(provider, model))
+    const rows = await settingStore().read(keys)
+    return new Map(models.map((model) => [model, parseModelHealth(rows[modelHealthKey(provider, model)])]))
+  } catch {
+    return new Map(models.map((model) => [model, null]))
+  }
+}
+
 function parseModelStats(raw: unknown): ModelStats {
   try {
     const parsed = JSON.parse(String(raw || '{}'))
