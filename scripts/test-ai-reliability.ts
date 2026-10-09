@@ -39,7 +39,7 @@ function testFailedHealthFallbackAndStreamGuard() {
   const gemini = src('src/lib/gemini.ts')
   assert(gemini.includes('emittedExternalChunk'), 'external streaming path must track first emitted chunk')
   assert(gemini.includes('emittedAnyChunk'), 'native Gemini streaming path must track first emitted chunk')
-  assert(gemini.match(/انقطع الرد، أعد المحاولة/g)?.length || 0 >= 2, 'streaming must end with retry message after post-chunk failure')
+  assert((gemini.match(/انقطع الرد، أعد المحاولة/g)?.length || 0) >= 2, 'streaming must end with retry message after post-chunk failure')
 }
 
 function testRetryAfter() {
