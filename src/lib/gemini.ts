@@ -585,7 +585,11 @@ export async function geminiVisionJson(opts: {
         lastErr = e
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(900 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: Date.now() + (opts.timeoutMs || 30_000), retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
