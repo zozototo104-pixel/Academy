@@ -831,6 +831,7 @@ model ThesisSubmission {
   extractionStatus String? // UPLOADED | EXTRACTING | ANALYZING | READY | FAILED
   extractionError  String?
   extractionLockedUntil DateTime?
+  extractionLockToken String?
   extractionPagesDone Int? @default(0)
   extractionTotalPages Int?
   wordCount Int?
