@@ -1516,6 +1516,7 @@ export function AdminBooksTab() {
       setQuestionBankItems((prev) => prev.map((q) => q.id === editingBankQuestion.id ? res.item : q))
       setEditingBankQuestion(null)
       toast({ title: 'تم تعديل السؤال' })
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
       if (programId) await refreshQuestionBank(programId)
     } catch (e: any) {
       toast({ title: 'تعذر تعديل السؤال', description: e.message, variant: 'destructive' })
