@@ -181,6 +181,7 @@ export async function POST(req: NextRequest) {
     const id = clean(body?.attemptId, 100)
     const detail = type === 'UNIT' ? await unitDetail(id) : await programDetail(id)
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
+    if (detail.status !== 'NEEDS_REVIEW') return NextResponse.json({ error: 'تم اعتماد هذه المحاولة مسبقاً' }, { status: 409 })
     const readiness = type === 'PROGRAM' ? await readinessForProgramAttempt(id) : null
     const graded: Array<{ answerId: string; points: number; feedback: string }> = []
     for (const answer of detail.answers) {
