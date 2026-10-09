@@ -88,7 +88,7 @@ export async function POST(_request: NextRequest, context: Context) {
       }
 
       return { chunksUpdated, knowledgeItemsUpdated, questionsUpdated }
-    })
+    }, { timeout: 120000, maxWait: 10000 })
 
     return NextResponse.json(result)
   } catch (error: any) {
