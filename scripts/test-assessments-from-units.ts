@@ -21,6 +21,20 @@ function routeFiles(dir = 'src/app/api'): string[] {
   })
 }
 
+function generatedMcq(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'MCQ',
+    text: 'ما المفهوم الرئيسي الذي يوضحه المصدر في هذا السؤال الأكاديمي؟',
+    options: ['أ', 'ب', 'ج'],
+    correctAnswer: 'أ',
+    sourceEvidence: 'هذا اقتباس موثق ومباشر من المصدر التعليمي المعتمد للسؤال.',
+    sourceIndex: 1,
+    difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
+    ...overrides,
+  }
+}
+
 function testUnitExamDoesNotFixCorrectAnswer() {
   const code = src('src/app/api/admin/unit-exams/generate/route.ts')
   assert(!code.includes('function buildQuestions'), 'اختبار الوحدة يجب ألا يستخدم buildQuestions القالبية')
