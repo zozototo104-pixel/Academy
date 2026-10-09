@@ -422,6 +422,7 @@ export async function POST(req: NextRequest) {
 async function aiOpening(title: string, abstract: string, studentAcademicContext?: string): Promise<string> {
   try {
     const text = await textAiComplete({
+      purpose: 'CHAT',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.`,
       history: [{
         role: 'user',
