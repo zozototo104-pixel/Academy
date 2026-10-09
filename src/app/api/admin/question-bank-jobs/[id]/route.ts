@@ -18,8 +18,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const jobId = clean(id, 120)
     if (!jobId) return NextResponse.json({ error: 'معرف وظيفة بنك الأسئلة مطلوب' }, { status: 400 })
-    let job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
-    if (!job) return NextResponse.json({ error: 'وظيفة بنك الأسئلة غير موجودة' }, { status: 404 })
+    const foundJob = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
+    if (!foundJob) return NextResponse.json({ error: 'وظيفة بنك الأسئلة غير موجودة' }, { status: 404 })
+    let job = foundJob
     const candidates = job.unitId
       ? await db.questionBankItem.findMany({
           where: { programId: job.programId, unitId: job.unitId, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
