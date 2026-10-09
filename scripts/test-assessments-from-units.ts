@@ -35,6 +35,20 @@ function generatedMcq(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function generatedOpenQuestion(type: 'SHORT' | 'ESSAY', modelAnswer: string, overrides: Record<string, unknown> = {}) {
+  return {
+    type,
+    text: 'ما النتيجة المباشرة التي يذكرها المصدر في هذا السياق التعليمي؟',
+    options: [],
+    sourceEvidence: 'هذا اقتباس موثق ومباشر من المصدر التعليمي المعتمد للسؤال.',
+    sourceIndex: 1,
+    difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
+    modelAnswer,
+    ...overrides,
+  }
+}
+
 function testUnitExamDoesNotFixCorrectAnswer() {
   const code = src('src/app/api/admin/unit-exams/generate/route.ts')
   assert(!code.includes('function buildQuestions'), 'اختبار الوحدة يجب ألا يستخدم buildQuestions القالبية')
