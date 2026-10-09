@@ -27,6 +27,7 @@ export async function GET() {
         defenseStatus: true,
         reviewNote: true,
         reviewNotes: { orderBy: { createdAt: 'desc' }, take: 10 },
+        fileStorageKey: true,
         extractionStatus: true,
         extractionError: true,
         pageCount: true,
