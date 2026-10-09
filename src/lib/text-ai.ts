@@ -926,9 +926,7 @@ async function readModelStats(provider: ConcreteProvider, models: readonly strin
 }
 
 async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }, purpose?: TextAiPurpose): Promise<void> {
-  try {
-    const key = modelStatsKey(provider, model)
-    const current = parseModelStats((await settingStore().read([key]))[key])
+  const updateStats = (current: ModelStats) => {
     const fail = { ...(current.fail || {}) }
     if (result.ok) current.success += 1
     else fail[result.reason || 'other'] = (fail[result.reason || 'other'] || 0) + 1
@@ -942,7 +940,12 @@ async function recordModelStats(provider: ConcreteProvider, model: string, resul
       current.evidenceTotal += 1
       if (result.evidenceOk) current.evidenceOk += 1
     }
-    await settingStore().write(key, JSON.stringify(current))
+    return current
+  }
+  try {
+    const keys = [modelStatsKey(provider, model), ...(purpose ? [purposeModelStatsKey(purpose, provider, model)] : [])]
+    const rows = await settingStore().read(keys)
+    for (const key of keys) await settingStore().write(key, JSON.stringify(updateStats(parseModelStats(rows[key]))))
   } catch {
     // Model health stats are best-effort and must not affect routing.
   }
