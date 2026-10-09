@@ -146,7 +146,10 @@ export async function GET(req: NextRequest) {
         options: q.options ? JSON.parse(q.options) : null,
         points: q.points,
       })),
-      previousAttempts,
+      previousAttempts: previousAttempts.map((attempt) => ({
+        ...attempt,
+        statusLabel: attempt.status === 'EXPIRED' ? 'انتهى الوقت دون تسليم' : attempt.status,
+      })),
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
