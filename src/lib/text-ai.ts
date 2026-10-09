@@ -790,7 +790,8 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     const parsed = persisted ? JSON.parse(persisted) : null
     if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
       const models = parsed.models.map(String).filter(validModelName)
-      freeModelsCache.set(cacheKey, { at: now, models })
+      const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities })
       return models
     }
   } catch {
