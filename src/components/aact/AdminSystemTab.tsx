@@ -1016,7 +1016,10 @@ export function AdminSystemTab() {
                     <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
                       <p className="mb-1 font-black">فحوص الصحة والغرض</p>
                       {textModelHealth.health.slice(0, 10).map((item) => (
-                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}</div>
+                        <div key={`${item.provider}:${item.model}`} className="flex items-center justify-between gap-2 text-[10px]">
+                          <span dir="ltr" className="truncate">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}</span>
+                          <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => toggleAiModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">{item.status === 'ميت' ? 'تفعيل' : 'تعطيل'}</Button>
+                        </div>
                       ))}
                     </div>
                   )}
