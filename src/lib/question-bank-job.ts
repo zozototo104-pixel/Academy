@@ -75,6 +75,72 @@ function evidenceText(item: { excerpt?: string | null; summary?: string | null }
   return cleanText(item.excerpt || item.summary, 2200)
 }
 
+function safeJsonRecord(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function failureKey(jobId: string) { return `${JOB_FAILURE_PREFIX}${jobId}` }
+function traceKey(jobId: string) { return `${JOB_TRACE_PREFIX}${jobId}` }
+
+function reasonCounts(reasons: string[]): Array<{ reason: string; count: number }> {
+  const counts = new Map<string, number>()
+  for (const reason of reasons.map((item) => cleanText(item, 220)).filter(Boolean)) counts.set(reason, (counts.get(reason) || 0) + 1)
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, count]) => ({ reason, count }))
+}
+
+async function saveJobTrace(jobId: string, trace: QuestionBankJobTrace) {
+  await db.setting.upsert({
+    where: { key: traceKey(jobId) },
+    update: { value: JSON.stringify(trace) },
+    create: { key: traceKey(jobId), value: JSON.stringify(trace) },
+  }).catch(() => null)
+}
+
+export async function readQuestionBankJobTrace(jobId: string): Promise<QuestionBankJobTrace | null> {
+  const row = await db.setting.findUnique({ where: { key: traceKey(jobId) } }).catch(() => null)
+  if (!row?.value) return null
+  const parsed = safeJsonRecord(row.value)
+  const rawReasons = Array.isArray(parsed.rejectionReasons) ? parsed.rejectionReasons : []
+  return {
+    generated: Number(parsed.generated || 0),
+    saved: Number(parsed.saved || 0),
+    verifierRejected: Number(parsed.verifierRejected || 0),
+    rejected: Number(parsed.rejected || 0),
+    rejectionReasons: rawReasons.map((item) => {
+      const entry = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+      return { reason: cleanText(entry.reason, 220) || 'UNKNOWN', count: Number(entry.count || 0) }
+    }).filter((item) => item.count > 0).slice(0, 3),
+    aiTrace: parsed.aiTrace && typeof parsed.aiTrace === 'object' ? parsed.aiTrace as QuestionBankJobTrace['aiTrace'] : undefined,
+  }
+}
+
+async function resetJobFailureState(jobId: string) {
+  await db.setting.deleteMany({ where: { key: { in: [failureKey(jobId)] } } }).catch(() => null)
+}
+
+async function recordJobFailure(jobId: string, message: string): Promise<JobFailureState> {
+  const previous = await db.setting.findUnique({ where: { key: failureKey(jobId) } }).catch(() => null)
+  const parsed = safeJsonRecord(previous?.value)
+  const lastError = cleanText(parsed.lastError, 1000)
+  const count = lastError && lastError === message ? Number(parsed.count || 0) + 1 : 1
+  const state = { lastError: message, count }
+  await db.setting.upsert({ where: { key: failureKey(jobId) }, update: { value: JSON.stringify(state) }, create: { key: failureKey(jobId), value: JSON.stringify(state) } }).catch(() => null)
+  return state
+}
+
+async function normalizeProviderError(message: string) {
+  if (!/AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|NO_PROVIDER|NOT_CONFIGURED|provider/i.test(message)) return message
+  const configured = Boolean(process.env.OPENAI_API_KEYS || process.env.OPENAI_API_KEY)
+  if (!configured) return 'OPENAI_API_KEYS غير موجود في هذه البيئة'
+  return message
+}
+
 async function claimQuestionBankJob(id: string, now = new Date()) {
   const updated = await db.questionBankGenerationJob.updateMany({
     where: {
