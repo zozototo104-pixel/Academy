@@ -415,8 +415,8 @@ async function aiOpening(title: string, abstract: string, studentAcademicContext
       history: [{
         role: 'user',
         text: `${studentAcademicContext ? `${studentAcademicContext.slice(0, 6500)}\n\n` : ''}افتتح جلسة مناقشة بحث التخرج بعنوان «${title}» بجملة ترحيب رسمية قصيرة، ثم اطرح السؤال الأول (من أصل ${QUESTIONS_COUNT}).
-السؤال الأول يجب أن يكون عن دوافع اختيار الموضوع وأهميته العملية، ويراعي تخصص الطالب وكتبه ونتائجه إن ظهرت في السياق.
-ملخص البحث: ${abstract.slice(0, 1200)}
+السؤال الأول يجب أن يغطي معيار المنهجية أو مشكلة البحث، ويراعي digest وخريطة أقسام البحث.
+Digest البحث: ${abstract.slice(0, 3000)}
 
 اكتب: ترحيب من سطرين + "السؤال الأول:" ثم السؤال. بدون أي تنسيق Markdown.`,
       }],
