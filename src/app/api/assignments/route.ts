@@ -121,24 +121,10 @@ export async function POST(req: NextRequest) {
         if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'حجم ملف الواجب كبير جداً؛ الحد الأقصى 6 ميجابايت' }, { status: 400 })
         const supported = ALLOWED_MIME.has(file.type) || ALLOWED_EXT.test(file.name)
         if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
-        const buffer = Buffer.from(await file.arrayBuffer())
+        pendingFileBuffer = Buffer.from(await file.arrayBuffer())
         fileName = file.name.slice(0, 220)
         mimeType = file.type
         size = file.size
-        try {
-          const stored = await storeFileBuffer({
-            namespace: `assignments/${user.id}`,
-            buffer,
-            fileName,
-            mimeType,
-          })
-          fileStorageProvider = stored.provider
-          fileStorageKey = stored.key
-          fileUrl = stored.url
-          data = null
-        } catch (storageError) {
-          return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
-        }
       }
     } else {
       const body = await req.json().catch(() => ({}))
