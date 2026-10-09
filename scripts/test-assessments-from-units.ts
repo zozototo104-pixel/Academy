@@ -127,6 +127,18 @@ function testPreviewPollingNudgesQuestionBankJob() {
   assert(unitRoute.includes('runQuestionBankGenerationJobStepsUntil'), 'ضغط زر الاختبار يجب أن يشغل runner متعدد الخطوات عبر after')
 }
 
+function testQuestionBankStepRoutesHaveMaxDuration() {
+  const offenders = routeFiles()
+    .map((file) => ({ file, code: src(file) }))
+    .filter(({ code }) => code.includes('runQuestionBankGenerationJobStep'))
+    .filter(({ code }) => {
+      const match = code.match(/export const maxDuration\s*=\s*(\d+)/)
+      return !match || Number(match[1]) < 120
+    })
+    .map(({ file }) => file)
+  assert(offenders.length === 0, `كل route يستدعي runQuestionBankGenerationJobStep يحتاج maxDuration >= 120: ${offenders.join(', ')}`)
+}
+
 function testQuestionBankRetryAtNotBeyondOneHour() {
   const now = Date.now()
   const retry = nextQuestionBankRetryAt(now, 365 * 24 * 60 * 60 * 1000)
