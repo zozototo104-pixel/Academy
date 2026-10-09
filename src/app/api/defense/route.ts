@@ -186,13 +186,10 @@ export async function POST(req: NextRequest) {
 
       if (answeredCount + 1 >= QUESTIONS_COUNT) {
         // آخر إجابة → ختام الجلسة والتوصية والمحضر التلقائي
-        const priorScores = history
-          .filter((m) => m.role === 'STUDENT')
-          .map((m) => finiteScore(m.score))
-          .filter((score): score is number => score != null)
+        const priorScores = history.filter((m) => m.role === 'STUDENT').map((m) => finiteScore(m.score))
         const currentScore = finiteScore(result.score)
-        const scores = currentScore == null ? priorScores : [...priorScores, currentScore]
-        const weighted = scoreDefenseBreakdown(scores.map((score, index) => ({ criterion: DEFENSE_CRITERIA[Math.min(index, DEFENSE_CRITERIA.length - 1)], score0to10: score })))
+        const scores = [...priorScores, currentScore]
+        const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
         const aiScore = weighted.score
         const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
         const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
