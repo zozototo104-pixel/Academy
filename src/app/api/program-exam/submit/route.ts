@@ -129,10 +129,16 @@ export async function POST(req: NextRequest) {
     const procLog = procEnabled && Array.isArray(proctoring?.log) ? JSON.stringify(proctoring!.log!.slice(0, 200)) : null
     const procSnapshot = procEnabled && typeof proctoring?.snapshot === 'string' ? proctoring!.snapshot!.slice(0, 300000) : null
 
+    const expiredAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'EXPIRED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
     const startedAttempt = await db.programExamAttempt.findFirst({
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
     })
+    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
