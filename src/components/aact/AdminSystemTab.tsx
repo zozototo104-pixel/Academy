@@ -970,9 +970,14 @@ export function AdminSystemTab() {
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
                   <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
                 </div>
-                <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
-                  {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                    {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkAllTextModelsNow} className="border-emerald-200 text-[10px] font-black text-emerald-700">
+                    فحص الكل هلأ
+                  </Button>
+                </div>
               </div>
               {textModelHealth ? (
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
