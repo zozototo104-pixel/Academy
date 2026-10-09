@@ -50,6 +50,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         select: {
           id: true,
+          knowledgeItemId: true,
           text: true,
           type: true,
           options: true,
@@ -69,13 +70,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       }),
       db.questionBankGenerationJob.findFirst({ where: { unitId: unit.id }, orderBy: { createdAt: 'desc' } }),
     ])
+    const knowledgeIds = [...new Set(items.map((item) => item.knowledgeItemId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+    const knowledgeItems = knowledgeIds.length
+      ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, pageStart: true, pageEnd: true, title: true } })
+      : []
+    const knowledgeById = new Map(knowledgeItems.map((item) => [item.id, item] as const))
     const requiredQuestions = unitExamRequiredQuestions(job?.requested)
     const questions = items.map((item) => {
       const notes = reviewNotes(item.reviewNotes)
+      const knowledge = item.knowledgeItemId ? knowledgeById.get(item.knowledgeItemId) : null
       return {
         ...item,
-        pageStart: null as number | null,
-        pageEnd: null as number | null,
+        pageStart: knowledge?.pageStart ?? null,
+        pageEnd: knowledge?.pageEnd ?? null,
+        knowledgeTitle: knowledge?.title ?? null,
         provider: nestedString(notes, 'aiProvenance', 'provider'),
         generatorModel: nestedString(notes, 'aiProvenance', 'model'),
         verifierProvider: nestedString(notes, 'verifier', 'provider'),
