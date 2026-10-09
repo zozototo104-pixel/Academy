@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { summarizeDigestForPrompt } from '@/lib/thesis-context'
 
 // POST /api/supervisor/thesis-review — تحليل وتدقيق مسودة بحث التخرج وتقديم ملاحظات علمية
 export async function POST(req: NextRequest) {
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest) {
     }
 
     const ragContext = await buildSupervisorContext(user.id)
+    const readyThesis = await db.thesisSubmission.findFirst({ where: { userId: user.id, extractionStatus: 'READY' }, orderBy: { updatedAt: 'desc' }, select: { title: true, digest: true, chunks: { where: { status: 'ANALYZED' }, orderBy: { index: 'asc' }, take: 12, select: { index: true, summary: true } } } })
+    const reviewText = readyThesis
+      ? `Digest البحث الكامل:\n${summarizeDigestForPrompt(readyThesis.digest, 7000)}\n\nملخصات المقاطع:\n${readyThesis.chunks.map((chunk) => `#${chunk.index}: ${chunk.summary || ''}`).join('\n').slice(0, 6000)}`
+      : `النص:\n"""${draft.slice(0, 9000)}"""`
     const zai = await getZAI()
 
     const raw = await chatWithRetry(zai, [
@@ -31,15 +36,15 @@ export async function POST(req: NextRequest) {
       {
         role: 'user',
         content: `${ragContext ? mergeContext(ragContext) + '\n\n' : ''}راجع مسودة بحث التخرج التالية وقدم تقييماً علمياً معمقاً:
-العنوان: ${String(title || 'غير محدد').slice(0, 200)}
-النص:
-"""${draft.slice(0, 9000)}"""
+العنوان: ${String(readyThesis?.title || title || 'غير محدد').slice(0, 200)}
+${reviewText}
 
 راجع بعناية: (1) وضوح الإشكالية وفرضيات البحث (2) ملاءمة المنهجية وأدوات جمع البيانات (3) تغطية الأدبيات والمراجع (4) صحة التحليل ودقة النتائج وربطها بالإشكالية (5) التطبيق العملي والتوصيات (6) اللغة والتنظيم والتوثيق.
 
-أجب بصيغة JSON فقط بدون أي نص إضافي:
+أجب بصيغة JSON فقط بدون أي نص إضافي، وضع scores من 0 إلى 100 لكل معيار:
 {
-  "overallScore": <درجة من 100 لجودة المسودة>,
+  "scores": {"problem": 0, "methodology": 0, "literature": 0, "analysis": 0, "application": 0, "language": 0},
+  "overallScore": <سيتم تجاهله وحسابه في السيرفر>,
   "verdict": "<حكم من سطر: ما الذي يجب فعله قبل المناقشة>",
   "strengths": ["<نقطة قوة 1>", "<نقطة قوة 2>", "<نقطة قوة 3>"],
   "weaknesses": ["<ملاحظة جوهرية تحتاج معالجة 1>", "<2>", "<3>"],
@@ -62,9 +67,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const weights: Record<string, number> = { problem: 20, methodology: 20, literature: 15, analysis: 20, application: 10, language: 15 }
+    const scores = parsed?.scores || {}
+    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + Math.max(0, Math.min(100, Number(scores[key]) || 0)) * weight, 0) / 100
+
     const feedback =
-      `تحليل مسودة البحث «${String(title || 'بدون عنوان')}»\n\n` +
-      `التقييم العام: ${Math.max(0, Math.min(100, Number(parsed.overallScore) || 0))}/100 — ${parsed.verdict || ''}\n\n` +
+      `تحليل مسودة البحث «${String(readyThesis?.title || title || 'بدون عنوان')}»\n\n` +
+      `التقييم العام: ${Math.round(weightedScore)}/100 — ${parsed.verdict || ''}\n\n` +
       `نقاط القوة:\n${(parsed.strengths || []).map((s: string) => `- ${s}`).join('\n')}\n\n` +
       `ملاحظات جوهرية:\n${(parsed.weaknesses || []).map((s: string) => `- ${s}`).join('\n')}\n\n` +
       `المنهجية: ${parsed.methodology || ''}\n\n` +
@@ -88,7 +97,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       review: {
-        overallScore: Math.max(0, Math.min(100, Number(parsed.overallScore) || 0)),
+        overallScore: Math.round(weightedScore),
         verdict: String(parsed.verdict || ''),
         strengths: (parsed.strengths || []).slice(0, 4).map(String),
         weaknesses: (parsed.weaknesses || []).slice(0, 4).map(String),

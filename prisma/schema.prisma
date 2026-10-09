@@ -828,6 +828,20 @@ model ThesisSubmission {
   fileStorageProvider String?
   fileStorageKey      String?
   fileUrl             String?
+  extractionStatus String? // UPLOADED | EXTRACTING | ANALYZING | READY | FAILED
+  extractionError  String?
+  extractionLockedUntil DateTime?
+  extractionLockToken String?
+  extractionPagesDone Int? @default(0)
+  extractionTotalPages Int?
+  wordCount Int?
+  pageCount Int?
+  digest Json?
+  extractedAt DateTime?
+  fileName String?
+  fileMime String?
+  fileSize Int?
+  defenseBreakdown Json?
   status      String   @default("SUBMITTED") // SUBMITTED | SCHEDULED | RESULT_APPROVED | NEEDS_REVISION
   defenseDate DateTime?
   committee   String?  // JSON array أسماء أعضاء اللجنة
@@ -849,11 +863,44 @@ model ThesisSubmission {
   defenseMessages  DefenseMessage[]
   defenseParticipants DefenseParticipant[]
   reviewNotes ThesisReviewNote[]
+  chunks ThesisChunk[]
   resultScore Float?
   passed      Boolean?
   reviewedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model ThesisChunk {
+  id        String   @id @default(cuid())
+  thesisId  String
+  thesis    ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  index     Int
+  pageStart Int?
+  pageEnd   Int?
+  text      String
+  summary   String?
+  status    String   @default("EXTRACTED")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([thesisId, index])
+  @@index([thesisId, status, index])
+}
+
+model ThesisUploadChunk {
+  id        String   @id @default(cuid())
+  uploadId  String
+  userId    String
+  thesisId  String
+  index     Int
+  data      String
+  createdAt DateTime @default(now())
+
+  @@unique([uploadId, index])
+  @@index([uploadId, userId, thesisId])
+  @@index([createdAt])
 }
 
 model ThesisReviewNote {

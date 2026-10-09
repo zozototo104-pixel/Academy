@@ -178,6 +178,7 @@ export function DefenseRoom({
   const [liveAdvisorLevel, setLiveAdvisorLevel] = useState(0)
   const [liveUserCaption, setLiveUserCaption] = useState('')
   const [liveAiCaption, setLiveAiCaption] = useState('')
+  const [liveThesisContext, setLiveThesisContext] = useState('')
   const [resumeHint, setResumeHint] = useState(false)
   const liveAdvisorRef = useRef<VoiceAgent | null>(null)
 
@@ -392,7 +393,7 @@ export function DefenseRoom({
     }
   }, [addAudioStreamToRecording])
 
-  const buildDefenseVoiceContext = useCallback((overrideMessages?: DefenseMsg[]) => {
+  const buildDefenseVoiceContext = useCallback((overrideMessages?: DefenseMsg[], thesisContextOverride = '') => {
     const recent = (overrideMessages || messages)
       .slice(-10)
       .map((m) => `${m.role === 'AI_EXPERT' ? 'سؤال رسمي' : m.role === 'AI_NOTE' ? 'مداخلة سابقة' : m.role === 'TRANSCRIPT' ? 'كلام الطالب' : m.role === 'STUDENT' ? 'إجابة مكتوبة' : 'نظام'}: ${m.content.slice(0, 450)}`)
@@ -404,14 +405,14 @@ export function DefenseRoom({
 أسلوبك الصوتي المطلوب: عربي محادثة طبيعي قريب من الشامي/الفلسطيني إن تكلم الطالب بهذه اللهجة. تجنب العربية الفصحى الإخبارية والرسمية إلا عند المصطلحات الأكاديمية فقط. جملة إلى ثلاث جمل قصيرة. استخدم عبارات طبيعية مثل: "تمام، فهمت عليك"، "اسمح لي أوقفك هون شوي"، "النقطة جيدة بس بدها دليل". ممنوع الأسلوب الآلي، وممنوع تعداد النقاط.
 
 موضوع المناقشة: ${thesisTitle}
-ملخص البحث: ${thesisAbstract.slice(0, 1200)}
+سياق البحث المعالج: ${(thesisContextOverride || liveThesisContext || thesisAbstract).slice(0, 6000)}
 اللجنة المعلنة: ${committee.join('، ') || 'لجنة الأكاديمية'}
 
 آخر ما ظهر في القاعة:
 ${recent || 'بدأت الجلسة للتو.'}
 
 قاعدة مهمة: إذا بدأ الطالب يتكلم لا تصمت طويلاً. تفاعل معه كمشرف يناقش لا كسؤال وجواب. ومع ذلك لا تعطِ قرار نجاح أو رسوب؛ القرار النهائي للجنة البشرية.`
-  }, [committee, messages, thesisAbstract, thesisTitle])
+  }, [committee, liveThesisContext, messages, thesisAbstract, thesisTitle])
 
   const stopLiveAdvisor = useCallback(() => {
     liveAdvisorRef.current?.stop()
@@ -425,7 +426,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     setLiveAiCaption('')
   }, [])
 
-  const startLiveAdvisor = useCallback((initialMessages?: DefenseMsg[]) => {
+  const startLiveAdvisor = useCallback(async (initialMessages?: DefenseMsg[]) => {
     if (!isStudent || finished || liveAdvisorRef.current) return
     // ألغِ أي نطق TTS محلي قبل تشغيل Gemini Live حتى لا يظهر صوتان متداخلان.
     suppressLocalTtsRef.current = true
@@ -447,8 +448,18 @@ ${recent || 'بدأت الجلسة للتو.'}
     recognitionRef.current?.abort()
     setListening(false)
     setInterim('')
+    let processedContext = liveThesisContext
+    if (!processedContext) {
+      try {
+        const response = await api<{ context: string }>(`/api/defense/context?thesisId=${encodeURIComponent(thesis.id)}`)
+        processedContext = response.context || ''
+        setLiveThesisContext(processedContext)
+      } catch {
+        processedContext = ''
+      }
+    }
     const agent = new VoiceAgent({
-      context: buildDefenseVoiceContext(initialMessages),
+      context: buildDefenseVoiceContext(initialMessages, processedContext),
       // صوت أخف من Charon الافتراضي حتى لا يظهر صوت الرجل الفصيح داخل المناقشة.
       voice: 'Aoede',
       logEndpoint: '/api/defense',
@@ -487,7 +498,7 @@ ${recent || 'بدأت الجلسة للتو.'}
         variant: 'destructive',
       })
     })
-  }, [addAudioStreamToRecording, buildDefenseVoiceContext, finished, isStudent, stopLiveAdvisor, toast])
+  }, [addAudioStreamToRecording, buildDefenseVoiceContext, finished, isStudent, liveThesisContext, stopLiveAdvisor, thesis.id, toast])
 
   const toggleLiveAdvisor = useCallback(() => {
     if (liveAdvisorRef.current || liveAdvisorOn) stopLiveAdvisor()

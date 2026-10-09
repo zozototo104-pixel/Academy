@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
@@ -26,6 +27,13 @@ export async function GET() {
         defenseStatus: true,
         reviewNote: true,
         reviewNotes: { orderBy: { createdAt: 'desc' }, take: 10 },
+        fileStorageKey: true,
+        extractionStatus: true,
+        extractionError: true,
+        pageCount: true,
+        wordCount: true,
+        digest: true,
+        defenseBreakdown: true,
         aiScore: true,
         aiRecommendation: true,
         defenseMinutes: true,
@@ -132,6 +140,30 @@ export async function PATCH(req: NextRequest) {
         emailThesisPlanDecision(thesis.user.email, thesis.user.name || 'الطالب', thesis.title, false).catch(() => {})
       }
       await audit(admin, 'REQUEST_THESIS_PLAN_REVISION', 'ThesisSubmission', id, thesis.title)
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
+    if (action === 'REPROCESS') {
+      if (thesis.defenseStatus === 'COMPLETED') return NextResponse.json({ error: 'لا يمكن إعادة معالجة بحث بعد اكتمال المناقشة' }, { status: 409 })
+      const updated = await db.$transaction(async (tx) => {
+        await tx.thesisChunk.deleteMany({ where: { thesisId: id } })
+        return tx.thesisSubmission.update({
+          where: { id },
+          data: {
+            extractionStatus: 'UPLOADED',
+            extractionError: null,
+            extractionPagesDone: 0,
+            extractionTotalPages: null,
+            extractionLockedUntil: null,
+            extractionLockToken: null,
+            pageCount: null,
+            wordCount: null,
+            digest: Prisma.JsonNull,
+            extractedAt: null,
+          },
+        })
+      })
+      await audit(admin, 'REPROCESS_THESIS', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
     }
 

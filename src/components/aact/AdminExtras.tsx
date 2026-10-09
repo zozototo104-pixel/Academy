@@ -62,6 +62,13 @@ interface Thesis {
   aiScore?: number | null
   aiRecommendation?: string | null
   defenseMinutes?: string | null
+  fileStorageKey?: string | null
+  extractionStatus?: string | null
+  extractionError?: string | null
+  pageCount?: number | null
+  wordCount?: number | null
+  digest?: any
+  defenseBreakdown?: any
   recordingSize?: number | null
   recordingDurationSec?: number | null
   hasRecording?: boolean | null
@@ -157,6 +164,19 @@ export function AdminThesisTab() {
       load()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reprocessThesis = async (thesis: Thesis) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', { method: 'PATCH', body: JSON.stringify({ id: thesis.id, action: 'REPROCESS' }) })
+      toast({ title: 'تمت إعادة تفعيل معالجة البحث', description: 'يمكن للطالب أو الإدارة تشغيل خطوات المعالجة من جديد.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة المعالجة', description: e.message, variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -390,6 +410,11 @@ export function AdminThesisTab() {
                           </Badge>
                           {t.defenseStatus === 'COMPLETED' && <span className="text-[10px] font-bold text-slate-500">انتهت الجلسة</span>}
                         </p>
+                        <p className="mt-1.5 text-[11px] font-bold text-slate-600">معالجة الملف: {t.extractionStatus || 'غير مرفوع'}{t.pageCount ? ` · ${t.pageCount} صفحة` : ''}{t.wordCount ? ` · ${t.wordCount} كلمة` : ''}</p>
+                        {t.status === 'SCHEDULED' && !t.extractionStatus && !t.fileStorageKey && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">مناقشة بدون ملف البحث</Badge>}
+                        {t.extractionError && <p className="mt-1 text-[11px] font-bold text-red-600">خطأ المعالجة: {t.extractionError}</p>}
+                        {t.digest && <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-slate-50 p-2 text-[10px] text-slate-600">{JSON.stringify(t.digest, null, 2).slice(0, 1200)}</pre>}
+                        {t.defenseBreakdown && <pre className="mt-2 max-h-24 overflow-auto rounded-xl bg-amber-50 p-2 text-[10px] text-[#5c4d1a]">{JSON.stringify(t.defenseBreakdown, null, 2).slice(0, 900)}</pre>}
                         {t.aiRecommendation && (
                           <p className="mt-1.5 whitespace-pre-line text-[11px] font-semibold leading-relaxed text-[#5c4d1a]">{t.aiRecommendation}</p>
                         )}
@@ -415,6 +440,11 @@ export function AdminThesisTab() {
                     )}
                   </div>
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
+                    {t.extractionStatus === 'FAILED' && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => reprocessThesis(t)} className="w-full justify-center border-red-200 font-bold text-red-700 hover:bg-red-50">
+                        إعادة المعالجة
+                      </Button>
+                    )}
                     {t.status === 'PLAN_SUBMITTED' && (
                       <>
                         <Button size="sm" onClick={() => thesisAction(t, 'APPROVE_PLAN')}
