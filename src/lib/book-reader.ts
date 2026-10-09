@@ -111,7 +111,7 @@ export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; p
   const ordered = numbers.map((page) => {
     const result = pageMap.get(page)
     if (!result) throw new Error(`BOOK_PAGE_MISSING_${page}`)
-    return { ...result, text: fixArabicPdfText(result.text) }
+    return result.textProvenance === 'NATIVE_TEXT' ? { ...result, text: fixArabicPdfText(result.text) } : result
   })
   const chunks = planBookChunks(ordered)
   for (let index = 0; index < chunks.length; index++) {
