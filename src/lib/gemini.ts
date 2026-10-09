@@ -1,5 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
+import { aiRetryDelayMs, wait } from '@/lib/ai-retry'
+import { STREAM_INTERRUPTED_RETRY_MESSAGE, streamWithNoFallbackAfterFirstChunk } from '@/lib/ai-stream-guard'
+import { decryptSecret, isEncryptedSecret, redactSecrets } from '@/lib/secret-crypto'
 import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiProvider, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
@@ -95,13 +98,38 @@ async function readSetting(key: string): Promise<string> {
   }
 }
 
+function parseGeminiKeys(value: string): string[] {
+  return String(value || '').split(/[\n,]+/).map((part) => part.trim()).filter(Boolean)
+}
+
+export function __testDecodeGeminiKeySetting(raw: string, keyName = 'GEMINI_API_KEY'): string[] {
+  return decodeGeminiKeySetting(raw, keyName)
+}
+
+function decodeGeminiKeySetting(raw: string, keyName: string): string[] {
+  const out: string[] = []
+  for (const value of parseGeminiKeys(raw)) {
+    if (isEncryptedSecret(value)) {
+      try {
+        out.push(decryptSecret(value).trim())
+      } catch (error) {
+        console.warn('[gemini] encrypted setting key skipped', { keyName, error: redactSecrets((error as any)?.message || error) })
+      }
+    } else if (!value.startsWith('enc:v1:')) {
+      out.push(value)
+    }
+  }
+  return out.filter(Boolean)
+}
+
 async function refreshFromDb(force = false): Promise<void> {
   if (!force && Date.now() - dbFetchedAt < 15_000) return
   if (dbInflight) return dbInflight
   dbInflight = (async () => {
     try {
-      const [key, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
+      const [key, keys, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
         readSetting('GEMINI_API_KEY'),
+        readSetting('GEMINI_API_KEYS'),
         readSetting('GEMINI_TTS_VOICE'),
         readSetting('GEMINI_TEXT_MODEL'),
         readSetting('GEMINI_TTS_MODEL'),
@@ -110,7 +138,7 @@ async function refreshFromDb(force = false): Promise<void> {
         readSetting('GEMINI_DISCUSSION_LIVE_MODEL'),
         readSetting('GEMINI_DISCUSSION_THINKING_LEVEL'),
       ])
-      dbKeyCache = key
+      dbKeyCache = [...decodeGeminiKeySetting(key, 'GEMINI_API_KEY'), ...decodeGeminiKeySetting(keys, 'GEMINI_API_KEYS')][0] || ''
       dbVoiceCache = voice
       dbTextModelCache = normalizeGeminiModelName(textModel)
       dbTtsModelCache = normalizeGeminiModelName(ttsModel)
@@ -161,9 +189,8 @@ export function isValidGeminiLiveModel(value: unknown): boolean {
 }
 
 function resolvedKey(): string {
-  // الأولوية: Vercel Environment Variables أولاً، ثم إعدادات المنصة كخيار احتياطي.
-  // مفاتيح Gemini المتعددة تُدار في text-ai router عبر GEMINI_API_KEYS.
-  return process.env.GEMINI_API_KEY?.trim() || dbKeyCache || ''
+  // نفس قاعدة الراوتر: إعدادات المنصة المفكوكة أولاً، ثم متغيرات Vercel كاحتياط.
+  return dbKeyCache || parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0] || ''
 }
 
 export async function ensureGeminiKey(): Promise<boolean> {
@@ -176,8 +203,8 @@ export function hasGemini(): boolean {
 }
 
 export function geminiKeySource(): 'env' | 'db' | 'none' {
-  if (process.env.GEMINI_API_KEY?.trim()) return 'env'
   if (dbKeyCache) return 'db'
+  if (parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0]) return 'env'
   return 'none'
 }
 
@@ -188,7 +215,7 @@ export async function geminiKeyDiagnostics(): Promise<{ source: 'env' | 'db' | '
   return {
     source: geminiKeySource(),
     adminKeySet: !!dbKeyCache,
-    envKeySet: !!process.env.GEMINI_API_KEY?.trim(),
+    envKeySet: !!parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0],
     activeMask: maskKey(key),
   }
 }
@@ -390,21 +417,19 @@ export function isTransientGeminiError(e: any): boolean {
   return status === 500 || status === 502 || status === 503 || status === 504 || /UNAVAILABLE|overloaded|high demand|service unavailable|temporar|try again|timeout|deadline/i.test(msg)
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
   if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
-    for await (const chunk of textAiStreamText(opts)) yield chunk
+    for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
     return
   }
   if (await hasExternalTextAi()) {
+    let shouldFallback = false
     try {
-      for await (const chunk of textAiStreamText(opts)) yield chunk
+      for await (const chunk of streamWithNoFallbackAfterFirstChunk(() => textAiStreamText(opts))) yield chunk
       return
     } catch (e) {
-      if (!hasGemini()) throw e
+      shouldFallback = hasGemini()
+      if (!shouldFallback) throw e
     }
   }
 
@@ -414,20 +439,32 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
   let lastErr: any
   for (const model of await textModelChain()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
+      let emittedAnyChunk = false
       try {
         const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts, false, model) })
         for await (const chunk of stream) {
           const text = (chunk as any).text as string | undefined
-          if (text) yield text
+          if (text) {
+            emittedAnyChunk = true
+            yield text
+          }
         }
         activeTextModel = model
         lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
         return
       } catch (e) {
         lastErr = e
+        if (emittedAnyChunk) {
+          yield STREAM_INTERRUPTED_RETRY_MESSAGE
+          return
+        }
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(700 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
@@ -480,7 +517,11 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
         if (String((e as { code?: string })?.code || '') === 'VALIDATION_REJECTED' || /INVALID_JSON|invalid_type|EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/i.test(String((e as Error)?.message || ''))) break
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(700 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
@@ -531,7 +572,11 @@ export async function geminiVisionJson(opts: {
         lastErr = e
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(900 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: Date.now() + (opts.timeoutMs || 30_000), retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
@@ -621,7 +666,11 @@ async function generateAudio(text: string): Promise<Buffer> {
         lastErr = e
         if (isAuthError(e)) throw e
         if (isTransientGeminiError(e)) {
-          if (attempt < 2) await wait(700 * attempt)
+          if (attempt < 2) {
+            const delay = aiRetryDelayMs(attempt - 1)
+            if (delay == null) break
+            await wait(delay)
+          }
           continue
         }
         if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break

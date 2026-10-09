@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse as UnsafeNextResponse } from 'next/server'
 import { performance } from 'perf_hooks'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
@@ -17,6 +17,11 @@ import {
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
 import { textAiDiagnostics } from '@/lib/text-ai'
+import { redactDeep } from '@/lib/secret-crypto'
+
+const NextResponse = {
+  json: (body: unknown, init?: ResponseInit) => UnsafeNextResponse.json(redactDeep(body), init),
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

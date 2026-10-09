@@ -422,6 +422,7 @@ export async function POST(req: NextRequest) {
 async function aiOpening(title: string, abstract: string, studentAcademicContext?: string): Promise<string> {
   try {
     const text = await textAiComplete({
+      purpose: 'CHAT',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية محترفة تتحدث العربية الفصحى.`,
       history: [{
         role: 'user',
@@ -464,6 +465,7 @@ async function aiEvaluate(
 ): Promise<DefenseEvaluation> {
   try {
     const raw = await textAiCompleteJson({
+      purpose: 'GRADING',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة أكاديمية، تقيّم إجابات الطلاب بموضوعية وتطرح الأسئلة التالية. ترجع JSON فقط.`,
       history: [{
         role: 'user',
@@ -519,6 +521,7 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
           : 'توصية بمراجعة البحث وإعادة المناقشة'
   try {
     const text = await textAiComplete({
+      purpose: 'REVIEW',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.`,
       history: [{
         role: 'user',

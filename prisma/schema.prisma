@@ -694,6 +694,19 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+model KeyRateWindow {
+  id          String   @id @default(cuid())
+  keyHash     String
+  window      String
+  windowStart DateTime
+  count       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([keyHash, window, windowStart])
+  @@index([windowStart])
+}
+
 // سجل الإشعارات البريدية المرسلة من المنصة (قابل للعرض في لوحة الإدارة)
 model EmailLog {
   id        String   @id @default(cuid())

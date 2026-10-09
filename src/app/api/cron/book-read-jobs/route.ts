@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
 import { runNextQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,6 +18,12 @@ export async function GET(request: NextRequest) {
   }
   const endAt = Date.now() + 240_000
   const outcomes: { jobId: string; outcome: string }[] = []
+
+  if (Date.now() < endAt - 90_000 && await claimAiHealthRun()) {
+    const health = await textAiCheckAllModelHealth({ maxMs: 40_000 }).catch((error) => ({ checked: 0, results: [], error: String((error as any)?.message || error) }))
+    outcomes.push({ jobId: 'AI_MODEL_HEALTH', outcome: `CHECKED_${health.checked}` })
+  }
+
   while (Date.now() < endAt - 48_000) {
     const questionJob = await runNextQuestionBankGenerationJobStep()
     if (!questionJob) break

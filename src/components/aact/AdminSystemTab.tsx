@@ -89,6 +89,7 @@ interface TextAiModelHealth {
   available: string[]
   excluded: Array<{ key: string; kind: string; reason: string; status?: number | null; until: string }>
   top: Array<{ provider: string; model: string; score: number; success: number; failCount: number; avgMs: number }>
+  health?: Array<{ provider: string; model: string; status: string; purposeScores?: Record<string, number>; health?: { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string } | null }>
 }
 
 interface BackupInspectResult {
@@ -106,6 +107,7 @@ interface BackupInspectResult {
 interface SystemData {
   values: Record<string, string>
   secretsSet: Record<string, boolean>
+  secretsEncryption?: { configured: boolean; unencryptedKeys: string[] }
   smtpEnabled: boolean
   resendConfigured?: boolean
   paymentMode: string
@@ -334,6 +336,57 @@ export function AdminSystemTab() {
       .then((r) => setTextModelHealth(r))
       .catch(() => setTextModelHealth(null))
       .finally(() => setTextModelHealthLoading(false))
+  }
+
+  const checkAllTextModelsNow = async () => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ ok: boolean; checked: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })
+      toast({ title: 'تم فحص صحة المزودين', description: `تم فحص ${result.checked || 0} نموذج.` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص المزودين', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
+  const toggleAiModel = async (provider: string, model: string) => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ ok: boolean; disabled: boolean }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'toggle-ai-model-dead', provider, modelName: model }) })
+      toast({ title: result.disabled ? 'تم تعطيل النموذج' : 'تم تفعيل النموذج', description: `${provider}/${model}` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر تغيير حالة النموذج', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
+  const addAcademicAllowlistModel = async (provider: string, model: string) => {
+    setTextModelHealthLoading(true)
+    try {
+      const allowlistItem = `${provider}:${model}`
+      const result = await api<{ ok: boolean; allowlist: string }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'add-academic-allowlist', allowlistItem }) })
+      set('AI_ACADEMIC_ALLOWLIST', result.allowlist || allowlistItem)
+      toast({ title: 'تمت الإضافة للمهام الحساسة', description: allowlistItem })
+    } catch (e: any) {
+      toast({ title: 'تعذر الإضافة للمهام الحساسة', description: e.message, variant: 'destructive' })
+    } finally {
+      setTextModelHealthLoading(false)
+    }
+  }
+
+  const encryptLegacySecrets = async () => {
+    setSaving(true)
+    try {
+      const result = await api<{ ok: boolean; encryptedCount: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'encrypt-legacy-secrets' }) })
+      toast({ title: 'تم تشفير المفاتيح القديمة', description: `تم تشفير ${result.encryptedCount || 0} قيمة.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تشفير المفاتيح', description: e.message, variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   useEffect(() => {
@@ -922,6 +975,7 @@ export function AdminSystemTab() {
             </div>
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'اختر GEMINI لاستخدام مفاتيح Gemini في Router، أو AUTO للتنقل بين كل المزودات.')}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'primary_first هو الأكثر وضوحاً. cost_saver يبدأ بالمزودات الأرخص/المفتوحة.')}
+            {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', 'اكتب provider:model فقط، مفصولة بفواصل. ممنوع auto.')}
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
@@ -929,6 +983,14 @@ export function AdminSystemTab() {
               </div>
               <Switch checked={form.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS === '1'} onCheckedChange={(v) => set('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', v ? '1' : '0')} />
             </div>
+            {data.secretsEncryption && (!data.secretsEncryption.configured || data.secretsEncryption.unencryptedKeys?.length > 0) && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[10px] font-bold leading-relaxed text-amber-800 sm:col-span-2">
+                {!data.secretsEncryption.configured ? 'تنبيه: AACT_SECRETS_KEY غير مضبوط في Vercel؛ لا يمكن حفظ مفاتيح جديدة من لوحة الإدارة.' : `يوجد ${data.secretsEncryption.unencryptedKeys.length} مفتاح قديم غير مشفر.`}
+                {data.secretsEncryption.configured && !!data.secretsEncryption.unencryptedKeys?.length && (
+                  <Button type="button" size="sm" variant="outline" disabled={saving} onClick={encryptLegacySecrets} className="mr-2 h-7 border-amber-300 text-[10px] font-black text-amber-800">تشفير المفاتيح القديمة</Button>
+                )}
+              </div>
+            )}
             <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
               {textAiDiag?.lastResult && (
@@ -957,9 +1019,14 @@ export function AdminSystemTab() {
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
                   <p className="text-[10px] text-slate-500">يعرض النماذج المكتشفة، المستبعدة مؤقتاً، وأفضل النماذج حسب سجل النجاح.</p>
                 </div>
-                <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
-                  {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={loadTextModelHealth} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                    {textModelHealthLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Bot className="ml-1 h-3 w-3" />} تحديث صحة النماذج
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={checkAllTextModelsNow} className="border-emerald-200 text-[10px] font-black text-emerald-700">
+                    فحص الكل هلأ
+                  </Button>
+                </div>
               </div>
               {textModelHealth ? (
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -979,6 +1046,20 @@ export function AdminSystemTab() {
                       <p className="mb-1 font-black">أفضل 5 حسب health score</p>
                       {textModelHealth.top.map((item) => (
                         <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — score {item.score.toFixed(2)} — ok {item.success} / fail {item.failCount} — avg {Math.round(item.avgMs || 0)}ms</div>
+                      ))}
+                    </div>
+                  )}
+                  {!!textModelHealth.health?.length && (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
+                      <p className="mb-1 font-black">فحوص الصحة والغرض</p>
+                      {textModelHealth.health.slice(0, 10).map((item) => (
+                        <div key={`${item.provider}:${item.model}`} className="flex items-center justify-between gap-2 text-[10px]">
+                          <span dir="ltr" className="truncate">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}</span>
+                          <div className="flex shrink-0 gap-1">
+                            <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => addAcademicAllowlistModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">أضف للمهام الحساسة</Button>
+                            <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => toggleAiModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">{item.status === 'ميت' ? 'تفعيل' : 'تعطيل'}</Button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}

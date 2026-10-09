@@ -124,6 +124,7 @@ export async function gradeEssayWithRubric(args: {
   const criteriaText = rubricInfo.criteria.map((item) => `- ${item.name}: ${item.weight}`).join('\n')
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
+    purpose: 'GRADING',
     routerPolicy: 'quality_first',
     temperature: 0.1,
     maxOutputTokens: 1800,

@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
+import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets } from '@/lib/secret-crypto'
 
 export type TextAiProvider =
   | 'GEMINI'
@@ -20,6 +21,7 @@ export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' 
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
+export type TextAiPurpose = 'CHAT' | 'ANALYSIS' | 'GENERATION' | 'GRADING' | 'VISION' | 'LONG_CONTEXT' | 'REVIEW'
 
 export interface TextAiTurn {
   role: 'user' | 'model'
@@ -34,6 +36,7 @@ export interface TextAiCallOpts {
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
+  purpose?: TextAiPurpose
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
@@ -142,7 +145,8 @@ const cooldowns = new Map<string, { until: number; reason: string; status?: numb
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
-const freeModelsCache = new Map<string, { at: number; models: string[] }>()
+type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[] }
+const freeModelsCache = new Map<string, { at: number; models: string[]; capabilities?: Record<string, ModelCapability> }>()
 
 type TextAiSettingStore = {
   read(keys: string[]): Promise<Record<string, string>>
@@ -505,11 +509,39 @@ function isSchemaFailureLike(e: any): boolean {
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
+const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
+
+function providerFromSettingKey(key: string): string {
+  for (const provider of [...STRICT_ENCRYPTED_SETTING_PROVIDERS, ...LEGACY_PLAINTEXT_SETTING_PROVIDERS]) if (key.startsWith(`${provider}_`)) return provider
+  return ''
+}
+
+function decryptSettingValue(key: string, raw: string): string {
+  const value = String(raw || '').trim()
+  if (!value || !isSecretKeyName(key)) return value
+  if (isEncryptedSecret(value)) {
+    try {
+      return decryptSecret(value).trim()
+    } catch (error) {
+      console.warn('[text-ai-router] encrypted setting key skipped', { key, error: redactSecrets((error as any)?.message || error) })
+      return ''
+    }
+  }
+  const provider = providerFromSettingKey(key)
+  if (STRICT_ENCRYPTED_SETTING_PROVIDERS.has(provider)) return ''
+  return value
+}
+
+export function __testDecryptTextAiSettingValue(key: string, raw: string): string {
+  return decryptSettingValue(key, raw)
+}
+
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
   try {
     const values = await settingStore().read(keys)
     const out: Record<string, string> = {}
-    for (const key of keys) out[key] = String(values[key] || '').trim()
+    for (const key of keys) out[key] = decryptSettingValue(key, String(values[key] || ''))
     return out
   } catch {
     return Object.fromEntries(keys.map((k) => [k, '']))
@@ -545,39 +577,39 @@ async function settings() {
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
     paidMonthlyLimitUsd: Math.max(0, Number(rows.AI_PAID_MONTHLY_LIMIT_USD || env('AI_PAID_MONTHLY_LIMIT_USD') || 0) || 0),
     openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
-    // الأولوية: Vercel Environment Variables أولاً، ثم إعدادات المنصة كخيار احتياطي.
-    geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
+    // الأولوية: إعدادات المنصة المشفرة أولاً، ثم Vercel Environment Variables كاحتياط.
+    geminiKeys: parseKeys(rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS, env('GEMINI_API_KEY'), env('GEMINI_API_KEYS')),
     geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
-    openaiKeys: parseKeys(env('OPENAI_API_KEY'), env('OPENAI_API_KEYS'), rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS),
+    openaiKeys: parseKeys(rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS, env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
     openaiBaseUrl: (rows.OPENAI_BASE_URL || env('OPENAI_BASE_URL') || 'https://api.openai.com/v1').replace(/\/$/, ''),
-    anthropicKeys: parseKeys(env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS'), rows.ANTHROPIC_API_KEY, rows.ANTHROPIC_API_KEYS),
+    anthropicKeys: parseKeys(rows.ANTHROPIC_API_KEY, rows.ANTHROPIC_API_KEYS, env('ANTHROPIC_API_KEY'), env('ANTHROPIC_API_KEYS')),
     anthropicModel: normalizeModel(rows.ANTHROPIC_TEXT_MODEL || env('ANTHROPIC_TEXT_MODEL'), ANTHROPIC_TEXT_MODELS),
-    zaiKeys: parseKeys(env('ZAI_API_KEY'), env('ZAI_API_KEYS'), rows.ZAI_API_KEY, rows.ZAI_API_KEYS),
+    zaiKeys: parseKeys(rows.ZAI_API_KEY, rows.ZAI_API_KEYS, env('ZAI_API_KEY'), env('ZAI_API_KEYS')),
     zaiModel: normalizeModel(rows.ZAI_TEXT_MODEL || env('ZAI_TEXT_MODEL'), ZAI_TEXT_MODELS),
     zaiBaseUrl: (rows.ZAI_API_BASE || env('ZAI_API_BASE') || 'https://api.z.ai/api/paas/v4').replace(/\/$/, ''),
-    groqKeys: parseKeys(env('GROQ_API_KEY'), env('GROQ_API_KEYS'), rows.GROQ_API_KEY, rows.GROQ_API_KEYS),
+    groqKeys: parseKeys(rows.GROQ_API_KEY, rows.GROQ_API_KEYS, env('GROQ_API_KEY'), env('GROQ_API_KEYS')),
     groqModel: normalizeModel(rows.GROQ_TEXT_MODEL || env('GROQ_TEXT_MODEL'), GROQ_TEXT_MODELS),
     groqBaseUrl: (rows.GROQ_API_BASE || env('GROQ_API_BASE') || 'https://api.groq.com/openai/v1').replace(/\/$/, ''),
-    openrouterKeys: parseKeys(env('OPENROUTER_API_KEY'), env('OPENROUTER_API_KEYS'), rows.OPENROUTER_API_KEY, rows.OPENROUTER_API_KEYS),
+    openrouterKeys: parseKeys(rows.OPENROUTER_API_KEY, rows.OPENROUTER_API_KEYS, env('OPENROUTER_API_KEY'), env('OPENROUTER_API_KEYS')),
     openrouterModel: normalizeModel(rows.OPENROUTER_TEXT_MODEL || env('OPENROUTER_TEXT_MODEL'), OPENROUTER_TEXT_MODELS),
     openrouterBaseUrl: (rows.OPENROUTER_BASE_URL || env('OPENROUTER_BASE_URL') || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
-    deepinfraKeys: parseKeys(env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS'), rows.DEEPINFRA_API_KEY, rows.DEEPINFRA_API_KEYS),
+    deepinfraKeys: parseKeys(rows.DEEPINFRA_API_KEY, rows.DEEPINFRA_API_KEYS, env('DEEPINFRA_API_KEY'), env('DEEPINFRA_API_KEYS')),
     deepinfraModel: normalizeModel(rows.DEEPINFRA_TEXT_MODEL || env('DEEPINFRA_TEXT_MODEL'), DEEPINFRA_TEXT_MODELS),
     deepinfraBaseUrl: (rows.DEEPINFRA_BASE_URL || env('DEEPINFRA_BASE_URL') || 'https://api.deepinfra.com/v1').replace(/\/$/, ''),
-    togetherKeys: parseKeys(env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS'), rows.TOGETHER_API_KEY, rows.TOGETHER_API_KEYS),
+    togetherKeys: parseKeys(rows.TOGETHER_API_KEY, rows.TOGETHER_API_KEYS, env('TOGETHER_API_KEY'), env('TOGETHER_API_KEYS')),
     togetherModel: normalizeModel(rows.TOGETHER_TEXT_MODEL || env('TOGETHER_TEXT_MODEL'), TOGETHER_TEXT_MODELS),
     togetherBaseUrl: (rows.TOGETHER_BASE_URL || env('TOGETHER_BASE_URL') || 'https://api.together.ai/v1').replace(/\/$/, ''),
-    unorouterKeys: parseKeys(env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS'), rows.UNOROUTER_API_KEY, rows.UNOROUTER_API_KEYS),
+    unorouterKeys: parseKeys(rows.UNOROUTER_API_KEY, rows.UNOROUTER_API_KEYS, env('UNOROUTER_API_KEY'), env('UNOROUTER_API_KEYS')),
     unorouterModel: normalizeModel(rows.UNOROUTER_TEXT_MODEL || env('UNOROUTER_TEXT_MODEL'), UNOROUTER_TEXT_MODELS),
     unorouterBaseUrl: (rows.UNOROUTER_BASE_URL || env('UNOROUTER_BASE_URL') || 'https://api.unorouter.com/v1').replace(/\/$/, ''),
-    relayrouterKeys: parseKeys(env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS'), rows.RELAYROUTER_API_KEY, rows.RELAYROUTER_API_KEYS),
+    relayrouterKeys: parseKeys(rows.RELAYROUTER_API_KEY, rows.RELAYROUTER_API_KEYS, env('RELAYROUTER_API_KEY'), env('RELAYROUTER_API_KEYS')),
     relayrouterModel: normalizeModel(rows.RELAYROUTER_TEXT_MODEL || env('RELAYROUTER_TEXT_MODEL'), RELAYROUTER_TEXT_MODELS),
     relayrouterBaseUrl: (rows.RELAYROUTER_BASE_URL || env('RELAYROUTER_BASE_URL') || 'https://relayrouter.io/v1').replace(/\/$/, ''),
-    topToolsKeys: parseKeys(env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS'), rows.TOPTOOLS_API_KEY, rows.TOPTOOLS_API_KEYS),
+    topToolsKeys: parseKeys(rows.TOPTOOLS_API_KEY, rows.TOPTOOLS_API_KEYS, env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
     topToolsModel: normalizeModel(rows.TOPTOOLS_TEXT_MODEL || env('TOPTOOLS_TEXT_MODEL'), TOPTOOLS_TEXT_MODELS),
     topToolsBaseUrl: (rows.TOPTOOLS_BASE_URL || env('TOPTOOLS_BASE_URL') || 'https://top-tools-ai.com/v1').replace(/\/$/, ''),
-    openaiCompatKeys: parseKeys(env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS'), rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS),
+    openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), OPENAI_COMPAT_TEXT_MODELS),
     openaiCompatBaseUrl: (rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '').replace(/\/$/, ''),
   }
@@ -667,6 +699,28 @@ function isTextLikeModel(row: any): boolean {
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
 }
 
+function capabilityFromModelRow(row: any): ModelCapability {
+  const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
+  const modalities = [
+    ...(Array.isArray(row?.modalities) ? row.modalities : []),
+    ...(Array.isArray(row?.input_modalities) ? row.input_modalities : []),
+    ...(Array.isArray(row?.supported_modalities) ? row.supported_modalities : []),
+    row?.architecture?.input_modalities,
+    row?.architecture?.modality,
+  ].flat().filter(Boolean).map((v: unknown) => String(v).toLowerCase())
+  const supportedParameters = [
+    ...(Array.isArray(row?.supported_parameters) ? row.supported_parameters : []),
+    ...(Array.isArray(row?.supportedParameters) ? row.supportedParameters : []),
+  ].map((v: unknown) => String(v))
+  const haystack = `${modelId(row)} ${modalities.join(' ')}`.toLowerCase()
+  return {
+    contextLength: Number.isFinite(contextLength) ? contextLength : undefined,
+    vision: /vision|image|multimodal|input_image|image_url/.test(haystack),
+    modalities,
+    supportedParameters,
+  }
+}
+
 function zeroish(value: unknown): boolean {
   if (value === 0) return true
   const n = Number(String(value ?? '').replace(/[^0-9.e-]/gi, ''))
@@ -723,12 +777,13 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
       .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' ? isStrongTopToolsTextModel(raw, id) : isFreeModel(raw, id)))
-    if (provider === 'TOPTOOLS') {
-      return rows
-        .sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
-        .map(({ id }) => id)
-    }
-    return rows.map(({ id }) => id)
+    const orderedRows = provider === 'TOPTOOLS'
+      ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
+      : rows
+    const models = orderedRows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels(provider, baseUrl, key), { at: Date.now(), models, capabilities })
+    return models
   } catch {
     return []
   }
@@ -746,7 +801,8 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     const parsed = persisted ? JSON.parse(persisted) : null
     if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
       const models = parsed.models.map(String).filter(validModelName)
-      freeModelsCache.set(cacheKey, { at: now, models })
+      const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities })
       return models
     }
   } catch {
@@ -759,12 +815,14 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     try {
       const response = await fetchWithTimeout(provider, `${root}/api/pricing/catalog`, { cache: 'no-store' }, aiDiscoveryTimeoutMs())
       const data: any = await response.json().catch(() => ({}))
-      models = rowsFromModelPayload(data)
+      const rows = rowsFromModelPayload(data)
         .filter((m) => m?.is_free === true)
         .filter((m) => m?.online !== false)
         .filter(isTextLikeModel)
-        .map((m) => normalizeFreeModelName(provider, modelId(m)))
-        .filter((name) => validModelName(name))
+        .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
+        .filter(({ id }) => validModelName(id))
+      models = rows.map(({ id }) => id)
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities: Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)])) })
     } catch {
       models = []
     }
@@ -773,9 +831,11 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   }
 
   models = [...new Set(models)]
-  freeModelsCache.set(cacheKey, { at: now, models })
+  const cachedWithCapabilities = freeModelsCache.get(cacheKey)
+  const capabilities = cachedWithCapabilities?.capabilities
+  freeModelsCache.set(cacheKey, { at: now, models, capabilities })
   if (models.length) {
-    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models })).catch(() => {})
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities })).catch(() => {})
   }
   return models
 }
@@ -804,10 +864,70 @@ function modelCapabilityAllowed(model: string): boolean {
   return true
 }
 
+function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: string): ModelCapability | null {
+  const cacheKey = cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])
+  return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
+}
+
+export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
+  if (!purpose) return true
+  if (purpose === 'VISION') {
+    if (!capability) return true
+    return capability.vision !== false && (capability.vision === true || !!capability.modalities?.some((m) => /image|vision/.test(m)))
+  }
+  if (purpose === 'LONG_CONTEXT') {
+    if (!capability || !capability.contextLength) return true
+    return capability.contextLength >= 64_000
+  }
+  return true
+}
+
 type ModelStats = { success: number; fail: Record<string, number>; avgMs: number; jsonOk: number; jsonTotal: number; evidenceOk: number; evidenceTotal: number }
 
 function modelStatsKey(provider: string, model: string): string {
   return `AI_MODEL_STATS:${provider}:${model}`
+}
+
+function purposeModelStatsKey(purpose: TextAiPurpose | undefined, provider: string, model: string): string {
+  return purpose ? `AI_MODEL_STATS:${purpose}:${provider}:${model}` : modelStatsKey(provider, model)
+}
+
+function modelHealthKey(provider: string, model: string): string {
+  return `AI_MODEL_HEALTH:${provider}:${model}`
+}
+
+type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string }
+
+function parseModelHealth(raw: unknown): ModelHealth | null {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'))
+    if (typeof parsed.ok !== 'boolean') return null
+    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), error: String(parsed.error || '').slice(0, 240) }
+  } catch {
+    return null
+  }
+}
+
+function recentFailedHealth(health: ModelHealth | null): boolean {
+  if (!health || health.ok) return false
+  const checkedAt = Date.parse(String(health.checkedAt || ''))
+  return Number.isFinite(checkedAt) && Date.now() - checkedAt < 30 * 60 * 1000
+}
+
+export function __testApplyRecentFailedHealthSkip(models: string[], failedModels: string[]): string[] {
+  const failed = new Set(failedModels)
+  const filtered = models.filter((model) => !failed.has(model))
+  return filtered.length ? filtered : models
+}
+
+async function readModelHealth(provider: ConcreteProvider, models: string[]): Promise<Map<string, ModelHealth | null>> {
+  try {
+    const keys = models.map((model) => modelHealthKey(provider, model))
+    const rows = await settingStore().read(keys)
+    return new Map(models.map((model) => [model, parseModelHealth(rows[modelHealthKey(provider, model)])]))
+  } catch {
+    return new Map(models.map((model) => [model, null]))
+  }
 }
 
 function parseModelStats(raw: unknown): ModelStats {
@@ -838,21 +958,24 @@ function healthScore(stats: ModelStats): number {
   return successRate * 0.55 + jsonRate * 0.2 + evidenceRate * 0.2 - latencyPenalty
 }
 
-async function readModelStats(provider: ConcreteProvider, models: readonly string[]): Promise<Map<string, ModelStats>> {
+async function readModelStats(provider: ConcreteProvider, models: readonly string[], purpose?: TextAiPurpose): Promise<Map<string, ModelStats>> {
   if (!models.length) return new Map()
   try {
-    const keys = models.map((model) => modelStatsKey(provider, model))
-    const rows = await settingStore().read(keys)
-    return new Map(models.map((model) => [model, parseModelStats(rows[modelStatsKey(provider, model)])]))
+    const purposeKeys = models.map((model) => purposeModelStatsKey(purpose, provider, model))
+    const generalKeys = models.map((model) => modelStatsKey(provider, model))
+    const rows = await settingStore().read([...purposeKeys, ...generalKeys])
+    return new Map(models.map((model) => {
+      const purposeStats = parseModelStats(rows[purposeModelStatsKey(purpose, provider, model)])
+      const total = purposeStats.success + Object.values(purposeStats.fail || {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+      return [model, total >= 5 ? purposeStats : parseModelStats(rows[modelStatsKey(provider, model)])]
+    }))
   } catch {
     return new Map(models.map((model) => [model, parseModelStats('')]))
   }
 }
 
-async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }): Promise<void> {
-  try {
-    const key = modelStatsKey(provider, model)
-    const current = parseModelStats((await settingStore().read([key]))[key])
+async function recordModelStats(provider: ConcreteProvider, model: string, result: { ok: boolean; reason?: string; ms: number; jsonOk?: boolean; evidenceOk?: boolean }, purpose?: TextAiPurpose): Promise<void> {
+  const updateStats = (current: ModelStats) => {
     const fail = { ...(current.fail || {}) }
     if (result.ok) current.success += 1
     else fail[result.reason || 'other'] = (fail[result.reason || 'other'] || 0) + 1
@@ -866,14 +989,19 @@ async function recordModelStats(provider: ConcreteProvider, model: string, resul
       current.evidenceTotal += 1
       if (result.evidenceOk) current.evidenceOk += 1
     }
-    await settingStore().write(key, JSON.stringify(current))
+    return current
+  }
+  try {
+    const keys = [modelStatsKey(provider, model), ...(purpose ? [purposeModelStatsKey(purpose, provider, model)] : [])]
+    const rows = await settingStore().read(keys)
+    for (const key of keys) await settingStore().write(key, JSON.stringify(updateStats(parseModelStats(rows[key]))))
   } catch {
     // Model health stats are best-effort and must not affect routing.
   }
 }
 
-async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean): Promise<string[]> {
-  const stats = await readModelStats(provider, models)
+async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean, purpose?: TextAiPurpose): Promise<string[]> {
+  const stats = await readModelStats(provider, models, purpose)
   const sorted = [...models].sort((a, b) => {
     const scoreDiff = healthScore(stats.get(b) || parseModelStats('')) - healthScore(stats.get(a) || parseModelStats(''))
     if (Math.abs(scoreDiff) > 0.03) return scoreDiff
@@ -890,7 +1018,7 @@ async function orderModelsByHealth(provider: ConcreteProvider, models: string[],
   return sorted
 }
 
-async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false): Promise<string[]> {
+async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false, purpose?: TextAiPurpose): Promise<string[]> {
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
@@ -910,9 +1038,11 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
   const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
   const discoveredOrFallback = discoveredFree.length ? discoveredFree : staticDefaults
-  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))].filter(modelCapabilityAllowed)
+  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
+    .filter(modelCapabilityAllowed)
+    .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  return orderModelsByHealth(provider, allowed, taskLevel, explore)
+  return orderModelsByHealth(provider, allowed, taskLevel, explore, purpose)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
@@ -929,6 +1059,10 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'TOGETHER',
   'OPENAI_COMPAT',
 ]
+
+export function __testPrimaryProviderOrder(): string[] {
+  return [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER]
+}
 
 function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvider[]): ConcreteProvider[] {
   return selected ? [selected, ...order.filter((provider) => provider !== selected)] : order
@@ -1020,6 +1154,61 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
         ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
         : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
+}
+
+export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
+  const s = await settings()
+  const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
+  const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
+  for (const provider of providerOrder(s)) {
+    if (Date.now() >= deadlineMs - 1000) break
+    const key = providerKeys(s, provider)[0]
+    if (!key) continue
+    for (const model of (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
+      if (Date.now() >= deadlineMs - 1000) break
+      const started = Date.now()
+      try {
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Math.min(Date.now() + 15_000, deadlineMs) })
+        const result = { provider, model, ok: true, latencyMs: Date.now() - started }
+        results.push(result)
+        await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
+      } catch (e: any) {
+        const result = { provider, model, ok: false, latencyMs: Date.now() - started, error: redactSecrets(e?.message || e).slice(0, 240) }
+        results.push(result)
+        await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
+      }
+    }
+  }
+  return { checked: results.length, results }
+}
+
+export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: string; model: string; status: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>> {
+  const rows = await settingStore().scan?.('AI_MODEL_') || {}
+  const models = new Map<string, { provider: string; model: string; status?: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
+  const ensure = (provider: string, model: string) => {
+    const id = `${provider}:${model}`
+    if (!models.has(id)) models.set(id, { provider, model, purposeScores: {} })
+    return models.get(id)!
+  }
+  for (const [key, value] of Object.entries(rows)) {
+    if (key.startsWith('AI_MODEL_HEALTH:')) {
+      const [, provider, ...modelParts] = key.split(':')
+      ensure(provider, modelParts.join(':')).health = parseModelHealth(value)
+    } else if (key.startsWith('AI_MODEL_STATS:')) {
+      const parts = key.split(':')
+      if (['CHAT', 'ANALYSIS', 'GENERATION', 'GRADING', 'VISION', 'LONG_CONTEXT', 'REVIEW'].includes(parts[1])) {
+        const [, purpose, provider, ...modelParts] = parts
+        ensure(provider, modelParts.join(':')).purposeScores![purpose] = healthScore(parseModelStats(value))
+      } else {
+        const [, provider, ...modelParts] = parts
+        ensure(provider, modelParts.join(':')).stats = parseModelStats(value)
+      }
+    } else if (key.startsWith('AI_MODEL_DEAD:')) {
+      const [, provider, ...modelParts] = key.split(':')
+      ensure(provider, modelParts.join(':')).status = 'ميت'
+    }
+  }
+  return [...models.values()].map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
 }
 
 export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
@@ -1117,7 +1306,7 @@ function statusFromError(e: any): number | undefined {
 function recordAttempt(attempt: TextAiAttemptDiagnostics) {
   recentAttempts = [...recentAttempts, attempt].slice(-50)
   const label = attempt.ok ? 'ok' : 'failed'
-  const error = attempt.error ? attempt.error.slice(0, 220) : undefined
+  const error = attempt.error ? redactSecrets(attempt.error).slice(0, 220) : undefined
   console.info('[text-ai-router]', label, {
     provider: attempt.provider,
     model: attempt.model,
@@ -1407,6 +1596,38 @@ async function recordPaidSpend(s: Settings, estimatedCost: number): Promise<void
   }
 }
 
+function rateWindowStart(window: 'rpm' | 'rpd') {
+  const now = new Date()
+  if (window === 'rpm') return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()))
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+}
+
+async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<boolean> {
+  try {
+    if (!hasDatabaseUrl()) return true
+    const settingKey = `AI_KEY_LIMIT:${provider}`
+    const raw = (await settingStore().read([settingKey]))[settingKey]
+    if (!raw) return true
+    const limits = JSON.parse(raw)
+    const hash = keyHashForRateLimit(key)
+    for (const window of ['rpm', 'rpd'] as const) {
+      const max = Number(limits?.[window] || 0)
+      if (!Number.isFinite(max) || max <= 0) continue
+      const windowStart = rateWindowStart(window)
+      await db.keyRateWindow.upsert({
+        where: { keyHash_window_windowStart: { keyHash: hash, window, windowStart } },
+        create: { keyHash: hash, window, windowStart, count: 1 },
+        update: { count: { increment: 1 } },
+      })
+      const row = await db.keyRateWindow.findUnique({ where: { keyHash_window_windowStart: { keyHash: hash, window, windowStart } }, select: { count: true } })
+      if ((row?.count || 0) > max) return false
+    }
+  } catch {
+    return true
+  }
+  return true
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
@@ -1438,11 +1659,14 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) continue
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels)
+    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, opts.purpose)
     const baseModels = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
-    const models = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
+    const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
       : baseModels
+    const health = await readModelHealth(provider, orderedModels)
+    const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
+    const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
     if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
@@ -1454,6 +1678,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
           continue
         }
+        if (!(await keyRateAllowed(provider, key))) continue
         if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
@@ -1462,7 +1687,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           opts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true })
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, opts.purpose)
           lastResult = { provider, model, ok: true, at }
           if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
@@ -1475,14 +1700,14 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = String(e?.message || e).slice(0, 240)
+          const msg = redactSecrets(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
           const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: opts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined })
+          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: opts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, opts.purpose)
           if (isSchemaFailureLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             break

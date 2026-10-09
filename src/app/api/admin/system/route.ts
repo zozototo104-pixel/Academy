@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse as UnsafeNextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
@@ -6,7 +6,12 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { textAiDiagnostics, textAiFreeModelsForProvider, textAiTestConnection } from '@/lib/text-ai'
+import { textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
+
+const NextResponse = {
+  json: (body: unknown, init?: ResponseInit) => UnsafeNextResponse.json(redactDeep(body), init),
+}
 
 const SYSTEM_KEYS = [
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_NAME', 'SMTP_ENABLED',
@@ -16,7 +21,7 @@ const SYSTEM_KEYS = [
   'USDT_WALLET_ADDRESS', 'USDT_BINANCE_PAY_USER_ID', 'USDT_BINANCE_PAY_QR_IMAGE_URL', 'USDT_NETWORK', 'USDT_PAYMENT_INSTRUCTIONS',
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
-  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS',
+  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST',
   'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
   'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
   'ZAI_API_KEY', 'ZAI_API_KEYS', 'ZAI_TEXT_MODEL', 'ZAI_API_BASE',
@@ -54,6 +59,21 @@ function mask(v: string): string {
   return `${v.slice(0, 3)}••••••${v.slice(-3)}`
 }
 
+function settingSecretMeta(key: string, value: string | undefined, envValue = '') {
+  const stored = String(value || '')
+  const encrypted = isEncryptedSecret(stored)
+  const source = stored ? 'settings' : envValue ? 'env' : 'none'
+  let last4 = secretLast4(envValue)
+  if (stored) {
+    try { last4 = secretLast4(encrypted ? decryptSecret(stored) : stored) } catch { last4 = '' }
+  }
+  return { hasValue: !!(stored || envValue), last4, encrypted, source }
+}
+
+function shouldEncryptSystemKey(key: string) {
+  return SECRET_KEYS.has(key) || isSecretKeyName(key)
+}
+
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
 export async function GET() {
   try {
@@ -61,11 +81,15 @@ export async function GET() {
     const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS } } })
     const values: Record<string, string> = {}
     for (const k of SYSTEM_KEYS) values[k] = ''
-    for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
+    const rowMap = Object.fromEntries(rows.map((row) => [row.key, row.value] as const))
+    for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
+    const secretMeta = Object.fromEntries(SYSTEM_KEYS.filter(shouldEncryptSystemKey).map((key) => [key, settingSecretMeta(key, rowMap[key], process.env[key] || '')]))
+    const unencryptedSecretKeys = SYSTEM_KEYS.filter((key) => shouldEncryptSystemKey(key) && rowMap[key] && !isEncryptedSecret(rowMap[key]))
     const smtp = await getSmtpConfig()
     const emails = await db.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
     const gemini = await geminiKeyDiagnostics()
     const textAi = await textAiDiagnostics()
+    textAi.message = redactSecrets(textAi.message)
     const agent = await localAgentDiagnostics()
     const payment = paymentDiagnostics(await getGatewayConfig())
     const resendKeyRow = await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }).catch(() => null)
@@ -90,6 +114,8 @@ export async function GET() {
     ]
     return NextResponse.json({
       values,
+      secretMeta,
+      secretsEncryption: { configured: hasSecretEncryptionKey(), unencryptedKeys: unencryptedSecretKeys },
       secretsSet: {
         SMTP_PASS: !!(await db.setting.findUnique({ where: { key: 'SMTP_PASS' } }))?.value,
         RESEND_API_KEY: !!(await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }))?.value,
@@ -149,14 +175,24 @@ export async function PATCH(req: NextRequest) {
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
       let value = String(body[key] ?? '').trim()
-      // الحقول السرية: القيمة المقنعة = لا تغيير. أمّا مفتاح Gemini تحديداً فيمكن تفريغه للرجوع إلى مفتاح Vercel الافتراضي.
-      if (SECRET_KEYS.has(key) && value.includes('••••')) continue
-      if (SECRET_KEYS.has(key) && value === '') {
-        if (key.startsWith('GEMINI_') || key.includes('API_KEY') || key.includes('API_KEYS') || key === 'AI_AGENT_API_KEY') {
-          await db.setting.delete({ where: { key } }).catch(() => null)
-          updates.push(key)
-        }
-        continue
+      // الحقول السرية: القيمة المقنعة أو الفارغة = لا تغيير حتى لا نمسح مفاتيح محفوظة بالخطأ.
+      const isSecret = shouldEncryptSystemKey(key)
+      if (isSecret && isMaskedSecret(value)) continue
+      if (isSecret && !isEncryptedSecret(value)) {
+        if (!hasSecretEncryptionKey()) return NextResponse.json({ error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
+        const last4 = secretLast4(value)
+        value = encryptSecret(value)
+        await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
+      }
+      if (key === 'AI_ACADEMIC_ALLOWLIST') {
+        const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
+        const items = value.split(',').map((item) => item.trim()).filter(Boolean)
+        const ok = items.every((item) => {
+          const [provider, model] = item.split(/:(.+)/).filter(Boolean)
+          return provider && model && allowedProviders.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item)
+        })
+        if (!ok) return NextResponse.json({ error: 'قائمة المهام الحساسة يجب أن تحتوي provider:model فقط وبدون auto' }, { status: 400 })
+        value = items.join(',')
       }
       if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key)) {
         value = normalizeGeminiModelName(value)
@@ -169,14 +205,16 @@ export async function PATCH(req: NextRequest) {
       })
       updates.push(key)
     }
+    clearSecretCache()
     if (updates.some((k) => k.startsWith('GEMINI_'))) invalidateGeminiKeyCache()
     await audit(admin, 'UPDATE_SETTINGS', 'Setting', null, `إعدادات النظام: ${updates.join(', ')}`)
     const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS } } })
     const values: Record<string, string> = {}
     for (const k of SYSTEM_KEYS) values[k] = ''
-    for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
+    for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
     const gemini = await geminiKeyDiagnostics()
     const textAi = await textAiDiagnostics()
+    textAi.message = redactSecrets(textAi.message)
     const agent = await localAgentDiagnostics()
     return NextResponse.json({ ok: true, values, gemini, textAi, agent })
   } catch (e: any) {
@@ -190,7 +228,34 @@ export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
-    const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider } = body || {}
+    const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'encrypt-legacy-secrets') {
+      if (!hasSecretEncryptionKey()) return NextResponse.json({ ok: false, error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
+      const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS.filter(shouldEncryptSystemKey) } } })
+      let encryptedCount = 0
+      for (const row of rows) {
+        if (!row.value || isEncryptedSecret(row.value)) continue
+        const encrypted = encryptSecret(row.value)
+        await db.setting.update({ where: { key: row.key }, data: { value: encrypted } })
+        encryptedCount += 1
+        await audit(admin, 'AI_KEY_UPDATED', 'Setting', row.key, `${row.key}:${secretLast4(row.value)}`)
+      }
+      clearSecretCache()
+      invalidateGeminiKeyCache()
+      return NextResponse.json({ ok: true, encryptedCount })
+    }
+    if (action === 'add-academic-allowlist') {
+      const item = String(allowlistItem || '').trim()
+      const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
+      const [provider, model] = item.split(/:(.+)/).filter(Boolean)
+      if (!provider || !model || !allowedProviders.has(provider.toUpperCase()) || !/^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) || /(^|:)auto$/i.test(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
+      const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
+      if (!current.includes(item)) current.push(item)
+      await db.setting.upsert({ where: { key: 'AI_ACADEMIC_ALLOWLIST' }, create: { key: 'AI_ACADEMIC_ALLOWLIST', value: current.join(',') }, update: { value: current.join(',') } })
+      await audit(admin, 'UPDATE_SETTINGS', 'Setting', 'AI_ACADEMIC_ALLOWLIST', `إضافة نموذج حساس: ${item}`)
+      return NextResponse.json({ ok: true, allowlist: current.join(',') })
+    }
     if (action === 'test-email') {
       const ok = await sendEmail({
         to: admin.email,
@@ -292,7 +357,22 @@ export async function POST(req: NextRequest) {
         .filter((row): row is TopModelRow => Boolean(row))
         .sort((a, b) => b.score - a.score)
         .slice(0, 5)
-      return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top })
+      const health = await textAiModelHealthSnapshot()
+      return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top, health })
+    }
+    if (action === 'text-ai-check-all') {
+      return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 40_000 })) })
+    }
+    if (action === 'toggle-ai-model-dead') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      const model = String(selectedLiveModel || body?.modelName || '').trim()
+      if (!provider || !model) return NextResponse.json({ error: 'المزود والنموذج مطلوبان' }, { status: 400 })
+      const key = `AI_MODEL_DEAD:${provider}:${model}`
+      const existing = await db.setting.findUnique({ where: { key } })
+      if (existing) await db.setting.delete({ where: { key } })
+      else await db.setting.create({ data: { key, value: JSON.stringify({ until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), reason: 'manual_admin_toggle', status: null }) } })
+      await audit(admin, existing ? 'AI_MODEL_ENABLED' : 'AI_MODEL_DISABLED', 'Setting', key, `${provider}:${model}`)
+      return NextResponse.json({ ok: true, disabled: !existing })
     }
     if (action === 'test-text-ai') {
       const diag = await textAiDiagnostics()
