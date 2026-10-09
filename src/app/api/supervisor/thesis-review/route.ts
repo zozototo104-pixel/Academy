@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
     }
 
     const ragContext = await buildSupervisorContext(user.id)
+    const readyThesis = await db.thesisSubmission.findFirst({ where: { userId: user.id, extractionStatus: 'READY' }, orderBy: { updatedAt: 'desc' }, select: { title: true, digest: true, chunks: { where: { status: 'ANALYZED' }, orderBy: { index: 'asc' }, take: 12, select: { index: true, summary: true } } } })
+    const reviewText = readyThesis
+      ? `Digest البحث الكامل:\n${summarizeDigestForPrompt(readyThesis.digest, 7000)}\n\nملخصات المقاطع:\n${readyThesis.chunks.map((chunk) => `#${chunk.index}: ${chunk.summary || ''}`).join('\n').slice(0, 6000)}`
+      : `النص:\n"""${draft.slice(0, 9000)}"""`
     const zai = await getZAI()
 
     const raw = await chatWithRetry(zai, [
