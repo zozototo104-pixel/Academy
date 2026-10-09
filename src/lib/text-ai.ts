@@ -1519,7 +1519,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) continue
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels)
+    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, opts.purpose)
     const baseModels = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
     const models = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
