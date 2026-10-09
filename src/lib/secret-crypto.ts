@@ -81,6 +81,7 @@ export function redactSecrets(text: unknown, knownSecrets: string[] = []) {
   out = out.replace(/sk-[A-Za-z0-9_\-]{12,}/g, 'sk-[redacted]')
   out = out.replace(/AIza[0-9A-Za-z_\-]{16,}/g, 'AIza[redacted]')
   out = out.replace(/Bearer\s+[A-Za-z0-9._\-]{12,}/gi, 'Bearer [redacted]')
+  out = out.replace(/enc:v1:[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+/g, 'enc:v1:[redacted]')
   out = out.replace(/([A-Za-z0-9_]*API[_-]?KEY[A-Za-z0-9_]*\s*[:=]\s*)[^\s,;"']{8,}/gi, '$1[redacted]')
   return out
 }
