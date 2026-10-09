@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
         studentAnswer: text || '(لم يجب)',
         ...resultMetadata(q),
       }
-      totalScore += graded.points
+      totalScore += clampedPoints
       return r
       })
     } catch (e: any) {
