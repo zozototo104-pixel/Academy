@@ -55,6 +55,17 @@ function mask(v: string): string {
   return `${v.slice(0, 3)}••••••${v.slice(-3)}`
 }
 
+function settingSecretMeta(key: string, value: string | undefined, envValue = '') {
+  const stored = String(value || '')
+  const encrypted = isEncryptedSecret(stored)
+  const source = stored ? 'settings' : envValue ? 'env' : 'none'
+  return { hasValue: !!(stored || envValue), last4: secretLast4(stored || envValue), encrypted, source }
+}
+
+function shouldEncryptSystemKey(key: string) {
+  return SECRET_KEYS.has(key) || isSecretKeyName(key)
+}
+
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
 export async function GET() {
   try {
