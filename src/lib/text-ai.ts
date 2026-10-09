@@ -1047,6 +1047,10 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'OPENAI_COMPAT',
 ]
 
+export function __testPrimaryProviderOrder(): string[] {
+  return [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER]
+}
+
 function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvider[]): ConcreteProvider[] {
   return selected ? [selected, ...order.filter((provider) => provider !== selected)] : order
 }
