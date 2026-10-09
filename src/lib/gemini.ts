@@ -97,6 +97,26 @@ async function readSetting(key: string): Promise<string> {
   }
 }
 
+function parseGeminiKeys(value: string): string[] {
+  return String(value || '').split(/[\n,]+/).map((part) => part.trim()).filter(Boolean)
+}
+
+function decodeGeminiKeySetting(raw: string, keyName: string): string[] {
+  const out: string[] = []
+  for (const value of parseGeminiKeys(raw)) {
+    if (isEncryptedSecret(value)) {
+      try {
+        out.push(decryptSecret(value).trim())
+      } catch (error) {
+        console.warn('[gemini] encrypted setting key skipped', { keyName, error: redactSecrets((error as any)?.message || error) })
+      }
+    } else if (!value.startsWith('enc:v1:')) {
+      out.push(value)
+    }
+  }
+  return out.filter(Boolean)
+}
+
 async function refreshFromDb(force = false): Promise<void> {
   if (!force && Date.now() - dbFetchedAt < 15_000) return
   if (dbInflight) return dbInflight
