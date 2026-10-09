@@ -877,6 +877,10 @@ function modelStatsKey(provider: string, model: string): string {
   return `AI_MODEL_STATS:${provider}:${model}`
 }
 
+function purposeModelStatsKey(purpose: TextAiPurpose | undefined, provider: string, model: string): string {
+  return purpose ? `AI_MODEL_STATS:${purpose}:${provider}:${model}` : modelStatsKey(provider, model)
+}
+
 function parseModelStats(raw: unknown): ModelStats {
   try {
     const parsed = JSON.parse(String(raw || '{}'))
