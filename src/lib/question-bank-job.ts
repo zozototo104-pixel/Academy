@@ -239,12 +239,26 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   return rows.length
 }
 
-export async function ensureQuestionBankGenerationJob(params: { programId: string; unitId?: string | null; requested?: number; startNew?: boolean }) {
+export async function ensureQuestionBankGenerationJob(params: { programId: string; unitId?: string | null; requested?: number; startNew?: boolean; manual?: boolean }) {
   const requested = Math.max(1, Math.min(60, Number(params.requested || 12)))
-  if (!params.startNew) {
-    const existing = await db.questionBankGenerationJob.findFirst({ where: { programId: params.programId, unitId: params.unitId || null, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
+  if (!params.startNew || params.manual) {
+    const statuses = params.manual ? ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'] : ['QUEUED', 'RUNNING', 'PAUSED']
+    const existing = await db.questionBankGenerationJob.findFirst({ where: { programId: params.programId, unitId: params.unitId || null, status: { in: statuses } }, orderBy: { createdAt: 'desc' } })
     if (existing) {
-      if (existing.requested < requested) return db.questionBankGenerationJob.update({ where: { id: existing.id }, data: { requested, status: existing.status === 'PAUSED' ? 'QUEUED' : existing.status, retryAt: null } })
+      const shouldReactivate = params.manual && ['PAUSED', 'FAILED'].includes(existing.status)
+      if (shouldReactivate) await resetJobFailureState(existing.id)
+      if (shouldReactivate || existing.requested < requested) {
+        return db.questionBankGenerationJob.update({
+          where: { id: existing.id },
+          data: {
+            requested: Math.max(existing.requested, requested),
+            status: shouldReactivate ? 'QUEUED' : existing.status === 'PAUSED' ? 'QUEUED' : existing.status,
+            retryAt: null,
+            lockedUntil: null,
+            finishedAt: shouldReactivate ? null : existing.finishedAt,
+          },
+        })
+      }
       return existing
     }
   }
