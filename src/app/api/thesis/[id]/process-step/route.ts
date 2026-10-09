@@ -179,9 +179,8 @@ export async function POST(_req: NextRequest, context: Context) {
     const thesis = await db.thesisSubmission.findUnique({ where: { id } })
     if (!thesis) return NextResponse.json({ error: 'الأطروحة غير موجودة' }, { status: 404 })
     if (thesis.userId !== user.id && user.role !== 'ADMIN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-    const ok = await claim(id)
-    if (!ok) return NextResponse.json({ ok: true, status: thesis.extractionStatus, locked: true })
-    let errorToPersist: string | undefined
+    const token = await claim(id)
+    if (!token) return NextResponse.json({ ok: true, status: thesis.extractionStatus, locked: true })
     try {
       const deadlineMs = Date.now() + 50_000
       let current = await db.thesisSubmission.findUnique({ where: { id } })
