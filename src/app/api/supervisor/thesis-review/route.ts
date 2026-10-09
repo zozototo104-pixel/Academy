@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { getZAI, chatWithRetry } from '@/lib/ai'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
+import { summarizeDigestForPrompt } from '@/lib/thesis-context'
 
 // POST /api/supervisor/thesis-review — تحليل وتدقيق مسودة بحث التخرج وتقديم ملاحظات علمية
 export async function POST(req: NextRequest) {
