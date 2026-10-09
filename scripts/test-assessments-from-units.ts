@@ -11,6 +11,15 @@ function src(path: string) {
   return readFileSync(path, 'utf8')
 }
 
+function routeFiles(dir = 'src/app/api'): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = join(dir, entry)
+    const stat = statSync(full)
+    if (stat.isDirectory()) return routeFiles(full)
+    return entry === 'route.ts' ? [full] : []
+  })
+}
+
 function testUnitExamDoesNotFixCorrectAnswer() {
   const code = src('src/app/api/admin/unit-exams/generate/route.ts')
   assert(!code.includes('function buildQuestions'), 'اختبار الوحدة يجب ألا يستخدم buildQuestions القالبية')
