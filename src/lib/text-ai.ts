@@ -820,9 +820,11 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   }
 
   models = [...new Set(models)]
-  freeModelsCache.set(cacheKey, { at: now, models })
+  const cachedWithCapabilities = freeModelsCache.get(cacheKey)
+  const capabilities = cachedWithCapabilities?.capabilities
+  freeModelsCache.set(cacheKey, { at: now, models, capabilities })
   if (models.length) {
-    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models })).catch(() => {})
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities })).catch(() => {})
   }
   return models
 }
