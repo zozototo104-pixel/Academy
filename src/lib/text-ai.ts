@@ -969,7 +969,7 @@ async function orderModelsByHealth(provider: ConcreteProvider, models: string[],
   return sorted
 }
 
-async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false): Promise<string[]> {
+async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false, purpose?: TextAiPurpose): Promise<string[]> {
   const selected = modelFor(s, provider)
   const staticDefaults: string[] =
     provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
