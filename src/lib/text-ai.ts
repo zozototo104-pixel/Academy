@@ -1173,7 +1173,7 @@ export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: str
     } else if (key.startsWith('AI_MODEL_STATS:')) {
       const parts = key.split(':')
       if (['CHAT', 'ANALYSIS', 'GENERATION', 'GRADING', 'VISION', 'LONG_CONTEXT', 'REVIEW'].includes(parts[1])) {
-        const [, , purpose, provider, ...modelParts] = parts
+        const [, purpose, provider, ...modelParts] = parts
         ensure(provider, modelParts.join(':')).purposeScores![purpose] = healthScore(parseModelStats(value))
       } else {
         const [, , provider, ...modelParts] = parts
