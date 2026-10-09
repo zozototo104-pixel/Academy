@@ -17,7 +17,8 @@ export function aiRetryDelayMs(attemptIndex: number, opts: { retryAfter?: string
   const random = Math.random() * 2 - 1
   const jittered = Math.round(base * (1 + random * jitterRatio))
   const retryAfter = parseRetryAfterMs(opts.retryAfter, now)
-  const preferred = retryAfter != null && retryAfter < remaining ? retryAfter : jittered
+  if (retryAfter != null && retryAfter >= remaining) return null
+  const preferred = retryAfter != null ? retryAfter : jittered
   if (preferred >= remaining) return null
   return Math.max(0, Math.floor(preferred))
 }
