@@ -80,12 +80,25 @@ function testInvalidJsonRejected() {
 
 function testModelPointsIgnored() {
   const result = parseEssayGradeJson(JSON.stringify({
-    criteria: [{ name: 'الدقة مقابل المصدر', weight: 100, score0to10: 5, comment: 'نصف الإجابة صحيح' }],
+    criteria: [
+      { name: 'الدقة مقابل المصدر', weight: 50, score0to10: 5, comment: 'نصف الدقة' },
+      { name: 'الشمول', weight: 30, score0to10: 5, comment: 'نصف الشمول' },
+      { name: 'الوضوح والتنظيم', weight: 20, score0to10: 5, comment: 'نصف الوضوح' },
+    ],
     points: 999,
     feedback: 'تعليق',
     confidence: 'HIGH',
   }), 20)
   assert.equal(result.points, 10)
+}
+
+function testMissingDefaultCriteriaCountAsZero() {
+  const result = parseEssayGradeJson(JSON.stringify({
+    criteria: [{ name: 'الدقة مقابل المصدر', weight: 100, score0to10: 5, comment: 'نصف الإجابة صحيح' }],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 20)
+  assert.equal(result.points, 5)
 }
 
 function testApprovalRejectsNullOpenAnswerPoints() {
