@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 
 export async function GET(req: NextRequest) {
   try {
