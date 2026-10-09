@@ -12,7 +12,7 @@ const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 const DEFENSE_CRITERIA = ['methodology', 'results', 'contribution', 'literature', 'presentation'] as const
 const DEFENSE_CRITERIA_LABELS: Record<typeof DEFENSE_CRITERIA[number], string> = { methodology: 'منهجية', results: 'نتائج', contribution: 'إسهام', literature: 'أدبيات', presentation: 'عرض' }
 
-type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; unavailable?: boolean }
+type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; criterion?: string; evidenceQuote?: string; unavailable?: boolean }
 
 function finiteScore(value: unknown): number | null {
   const score = Number(value)
