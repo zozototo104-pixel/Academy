@@ -397,6 +397,10 @@ const tests = [
   testUnitQuestionJobRequestedCanShrink,
   testProgramQuestionJobRequestedKeepsOldMaxBehavior,
   testDraftExamCanBeRebuiltReadyAfterApprovals,
+  testQuestionBankSanitizesTfBeforeNumericValidation,
+  testExamTimingUsesStartedAtNotClientDuration,
+  testBookReplacementProtectedWhenUnitsLinked,
+  testQuestionBankPatchValidatesCorrectAnswer,
   testQuestionBankRetryAtNotBeyondOneHour,
 ]
 
