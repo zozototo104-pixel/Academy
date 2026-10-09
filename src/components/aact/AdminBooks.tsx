@@ -319,6 +319,18 @@ function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
   return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
 }
 
+function bankQuestionOptions(question: QuestionBankItemRow): string[] {
+  try {
+    const parsed = JSON.parse(question.options || '[]')
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch { return [] }
+}
+
+function unitExamLabel(exam: CurriculumUnitReviewItem['exam'] | UnitQuestionReviewPayload['exam']) {
+  if (!exam?.id) return 'ما انبنى'
+  return exam.status === 'DRAFT' ? 'مسودة' : 'جاهز'
+}
+
 interface ExamImportQuestionRow {
   id: string
   order: number
