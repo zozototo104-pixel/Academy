@@ -208,7 +208,32 @@ export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json()
-    const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider } = body || {}
+    const { action, model: selectedLiveModel, purpose: livePurpose, provider: modelProvider, allowlistItem } = body || {}
+    if (action === 'encrypt-legacy-secrets') {
+      if (!hasSecretEncryptionKey()) return NextResponse.json({ ok: false, error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
+      const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS.filter(shouldEncryptSystemKey) } } })
+      let encryptedCount = 0
+      for (const row of rows) {
+        if (!row.value || isEncryptedSecret(row.value)) continue
+        const encrypted = encryptSecret(row.value)
+        await db.setting.update({ where: { key: row.key }, data: { value: encrypted } })
+        encryptedCount += 1
+        await audit(admin, 'AI_KEY_UPDATED', 'Setting', row.key, `${row.key}:${secretLast4(row.value)}`)
+      }
+      clearSecretCache()
+      invalidateGeminiKeyCache()
+      return NextResponse.json({ ok: true, encryptedCount })
+    }
+    if (action === 'add-academic-allowlist') {
+      const item = String(allowlistItem || '').trim()
+      if (!/^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) || /(^|:)auto$/i.test(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
+      const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
+      if (!current.includes(item)) current.push(item)
+      await db.setting.upsert({ where: { key: 'AI_ACADEMIC_ALLOWLIST' }, create: { key: 'AI_ACADEMIC_ALLOWLIST', value: current.join(',') }, update: { value: current.join(',') } })
+      await audit(admin, 'UPDATE_SETTINGS', 'Setting', 'AI_ACADEMIC_ALLOWLIST', `إضافة نموذج حساس: ${item}`)
+      return NextResponse.json({ ok: true, allowlist: current.join(',') })
+    }
     if (action === 'test-email') {
       const ok = await sendEmail({
         to: admin.email,
