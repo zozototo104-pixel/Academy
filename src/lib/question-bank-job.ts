@@ -398,6 +398,21 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   }
 }
 
+export async function runQuestionBankGenerationJobStepsUntil(jobId: string, options: { budgetMs?: number; maxSteps?: number } = {}) {
+  const endAt = Date.now() + Math.max(5_000, Math.min(options.budgetMs || 260_000, 260_000))
+  const maxSteps = Math.max(1, Math.min(options.maxSteps || 20, 20))
+  let steps = 0
+  let current = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
+  while (current && steps < maxSteps && Date.now() < endAt - 8_000 && questionBankJobCanRunStep(current)) {
+    current = await runQuestionBankGenerationJobStep(jobId, Math.min(endAt - 5_000, Date.now() + QUESTION_BANK_STEP_MS))
+    steps++
+    if (!current || current.saved >= current.requested || ['COMPLETED', 'FAILED'].includes(current.status)) break
+    if (questionBankJobHasActiveLock(current)) break
+    if (current.status === 'PAUSED' && current.retryAt && new Date(current.retryAt).getTime() > Date.now()) break
+  }
+  return current
+}
+
 export async function runNextQuestionBankGenerationJobStep(programId?: string) {
   const now = new Date()
   const job = await db.questionBankGenerationJob.findFirst({
