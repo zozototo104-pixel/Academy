@@ -350,6 +350,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     if (!q.cognitiveSkill) { traceReasons.push('COGNITIVE_SKILL_REQUIRED'); continue }
     if (!q.difficulty) { traceReasons.push('DIFFICULTY_REQUIRED'); continue }
     if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) { traceReasons.push(prepareMcqOptionsForStorage(item.options, item.correctAnswer).reason || 'MCQ_ANSWER_NOT_IN_OPTIONS'); continue }
+    if (q.type === 'TF' && q.correctAnswer == null) { traceReasons.push('TF_ANSWER_REQUIRED'); continue }
     const key = questionDuplicateKey(q.text, source.id)
     if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
     seen.add(key)
