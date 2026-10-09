@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
   }
   const endAt = Date.now() + 240_000
   const outcomes: { jobId: string; outcome: string }[] = []
-  const lastHealth = await db.setting.findUnique({ where: { key: 'AI_MODEL_HEALTH_LAST_CHECK' } }).catch(() => null)
+  const lastHealth = await db.setting.findUnique({ where: { key: 'AI_HEALTH_LAST_RUN' } }).catch(() => null)
   const lastHealthAt = Number(lastHealth?.value || 0) || 0
-  if (Date.now() - lastHealthAt > 60 * 60 * 1000) {
-    await db.setting.upsert({ where: { key: 'AI_MODEL_HEALTH_LAST_CHECK' }, create: { key: 'AI_MODEL_HEALTH_LAST_CHECK', value: String(Date.now()) }, update: { value: String(Date.now()) } }).catch(() => {})
-    const health = await textAiCheckAllModelHealth().catch((error) => ({ checked: 0, results: [], error: String((error as any)?.message || error) }))
+  if (Date.now() - lastHealthAt > 60 * 60 * 1000 && Date.now() < endAt - 90_000) {
+    await db.setting.upsert({ where: { key: 'AI_HEALTH_LAST_RUN' }, create: { key: 'AI_HEALTH_LAST_RUN', value: String(Date.now()) }, update: { value: String(Date.now()) } }).catch(() => {})
+    const health = await textAiCheckAllModelHealth({ maxMs: 40_000 }).catch((error) => ({ checked: 0, results: [], error: String((error as any)?.message || error) }))
     outcomes.push({ jobId: 'AI_MODEL_HEALTH', outcome: `CHECKED_${health.checked}` })
   }
   while (Date.now() < endAt - 48_000) {
