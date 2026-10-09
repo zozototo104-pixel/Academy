@@ -12,6 +12,13 @@ import { findRelevantThesisChunks, getThesisDigest, scoreDefenseBreakdown, summa
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 const DEFENSE_CRITERIA = ['methodology', 'results', 'contribution', 'literature', 'presentation'] as const
 const DEFENSE_CRITERIA_LABELS: Record<typeof DEFENSE_CRITERIA[number], string> = { methodology: 'منهجية', results: 'نتائج', contribution: 'إسهام', literature: 'أدبيات', presentation: 'عرض' }
+const defenseEvaluationSchema = z.object({
+  criterion: z.enum(DEFENSE_CRITERIA),
+  score0to10: z.number().min(0).max(10),
+  comment: z.string().default(''),
+  evidenceQuote: z.string().default(''),
+  nextQuestion: z.string().default(''),
+})
 
 type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; criterion?: string; evidenceQuote?: string; unavailable?: boolean }
 
