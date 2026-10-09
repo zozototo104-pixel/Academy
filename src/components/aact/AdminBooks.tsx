@@ -357,7 +357,19 @@ interface CurriculumUnitReviewItem {
     status: string
   } | null
   generationJob?: { id: string; status: string; phase: string; unitsDone: number; unitsTotal: number; lastError?: string | null; retryAt?: string | null } | null
-  questionBankJob?: { id: string; status: string; requested: number; saved: number; approvedQuestions: number; pendingReviewQuestions: number; currentQuestions: number; retryAt?: string | null; updatedAt?: string | null } | null
+  questionBankJob?: {
+    id: string
+    status: string
+    requested: number
+    saved: number
+    approvedQuestions: number
+    pendingReviewQuestions: number
+    currentQuestions: number
+    lastError?: string | null
+    retryAt?: string | null
+    updatedAt?: string | null
+    trace?: { generated: number; saved: number; verifierRejected: number; rejected: number; rejectionReasons: { reason: string; count: number }[]; aiTrace?: { generatorProvider?: string | null; generatorModel?: string | null; verifierProvider?: string | null; verifierModel?: string | null; sameProviderVerifierFallback?: boolean } } | null
+  } | null
   exam?: {
     id: string
     title: string
