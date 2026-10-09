@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { hasUnitExamAttempts } from '@/lib/outline-units'
-import { countUnitExamQuestionsNeedingReview, selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
-import { readQuestionBankJobTrace } from '@/lib/question-bank-job'
+import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions, UNIT_EXAM_REVIEW_LABEL } from '@/lib/unit-exam-policy'
+import { collectTimings, withServerTiming, withTiming } from '@/lib/timing'
+
+const QUESTION_BANK_TRACE_PREFIX = 'QUESTION_BANK_JOB_TRACE:'
 
 function cleanText(value: unknown, max = 2000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -73,8 +75,17 @@ function mapStudyGuide(guide: any | null) {
   }
 }
 
+function parseTrace(value: string | null | undefined) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
 async function listProgramUnits(programId: string) {
-  const units = await db.unit.findMany({
+  const units = await withTiming('program_units_units_findMany', () => db.unit.findMany({
     where: { programId },
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
     include: {
@@ -84,28 +95,31 @@ async function listProgramUnits(programId: string) {
           title: true,
           status: true,
           passScore: true,
-          questions: { select: { text: true } },
           _count: { select: { questions: true, attempts: true } },
         },
       },
     },
-  })
+  }))
   const unitIds = units.map((unit) => unit.id)
+  const examIds = units.map((unit) => unit.exam?.id).filter((id): id is string => Boolean(id))
   const outlineSectionIds = [...new Set(units.map((unit) => unit.outlineSectionId).filter((id): id is string => Boolean(id)))]
   const bookIds = [...new Set(units.map((unit) => unit.sourceBookId).filter((id): id is string => Boolean(id)))]
-  const [guides, jobs, questionBankJobs, questionBankCounts, questionBankCandidates, sections, books] = await Promise.all([
-    unitIds.length ? db.programStudyGuide.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
-    unitIds.length ? db.unitGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
-    unitIds.length ? db.questionBankGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : [],
-    unitIds.length ? db.questionBankItem.groupBy({ by: ['unitId', 'status'], where: { unitId: { in: unitIds }, status: { in: ['APPROVED', 'PENDING_REVIEW', 'REJECTED'] } }, _count: { _all: true } }) : [],
-    unitIds.length ? db.questionBankItem.findMany({ where: { unitId: { in: unitIds }, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } }, select: { id: true, unitId: true, status: true, qualityFlags: true }, orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }] }) : [],
-    outlineSectionIds.length ? db.bookOutlineSection.findMany({ where: { id: { in: outlineSectionIds } }, select: { id: true, title: true, pageStart: true, pageEnd: true, chunkStartIndex: true, chunkEndIndex: true } }) : [],
-    bookIds.length ? db.book.findMany({ where: { id: { in: bookIds } }, select: { id: true, title: true } }) : [],
+  const [guides, jobs, questionBankJobs, questionBankCounts, questionBankCandidates, reviewQuestionCounts, sections, books] = await Promise.all([
+    withTiming('program_units_guides_findMany', () => unitIds.length ? db.programStudyGuide.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : []),
+    withTiming('program_units_unitGenerationJobs_findMany', () => unitIds.length ? db.unitGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : []),
+    withTiming('program_units_questionBankJobs_findMany', () => unitIds.length ? db.questionBankGenerationJob.findMany({ where: { unitId: { in: unitIds } }, orderBy: { updatedAt: 'desc' } }) : []),
+    withTiming('program_units_questionBankCounts_groupBy', () => unitIds.length ? db.questionBankItem.groupBy({ by: ['unitId', 'status'], where: { unitId: { in: unitIds }, status: { in: ['APPROVED', 'PENDING_REVIEW', 'REJECTED'] } }, _count: { _all: true } }) : []),
+    withTiming('program_units_questionBankCandidates_findMany', () => unitIds.length ? db.questionBankItem.findMany({ where: { unitId: { in: unitIds }, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } }, select: { id: true, unitId: true, status: true, qualityFlags: true }, orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }] }) : []),
+    withTiming('program_units_reviewQuestionCounts_groupBy', () => examIds.length ? db.question.groupBy({ by: ['examId'], where: { examId: { in: examIds }, text: { contains: UNIT_EXAM_REVIEW_LABEL } }, _count: { _all: true } }) : []),
+    withTiming('program_units_outlineSections_findMany', () => outlineSectionIds.length ? db.bookOutlineSection.findMany({ where: { id: { in: outlineSectionIds } }, select: { id: true, title: true, pageStart: true, pageEnd: true, chunkStartIndex: true, chunkEndIndex: true } }) : []),
+    withTiming('program_units_books_findMany', () => bookIds.length ? db.book.findMany({ where: { id: { in: bookIds } }, select: { id: true, title: true } }) : []),
   ])
   const guideByUnit = new Map<string, any>()
   for (const guide of guides) if (guide.unitId && !guideByUnit.has(guide.unitId)) guideByUnit.set(guide.unitId, guide)
   const jobByUnit = new Map<string, any>()
   for (const job of jobs) if (!jobByUnit.has(job.unitId)) jobByUnit.set(job.unitId, job)
+  const reviewQuestionsByExam = new Map<string, number>()
+  for (const row of reviewQuestionCounts) reviewQuestionsByExam.set(row.examId, row._count._all)
   const questionBankJobByUnit = new Map<string, (typeof questionBankJobs)[number]>()
   for (const job of questionBankJobs) if (job.unitId && !questionBankJobByUnit.has(job.unitId)) questionBankJobByUnit.set(job.unitId, job)
   const questionBankCountsByUnit = new Map<string, { approved: number; pendingReview: number; rejected: number }>()
@@ -124,7 +138,9 @@ async function listProgramUnits(programId: string) {
     list.push({ id: item.id, status: item.status, qualityFlags: item.qualityFlags })
     questionBankCandidatesByUnit.set(item.unitId, list)
   }
-  const questionBankTraceByJob = new Map(await Promise.all([...questionBankJobByUnit.values()].map(async (job) => [job.id, await readQuestionBankJobTrace(job.id)] as const)))
+  const traceKeys = [...questionBankJobByUnit.values()].map((job) => `${QUESTION_BANK_TRACE_PREFIX}${job.id}`)
+  const traceRows = await withTiming('program_units_questionBankJobTraces_findMany', () => traceKeys.length ? db.setting.findMany({ where: { key: { in: traceKeys } }, select: { key: true, value: true } }) : [])
+  const questionBankTraceByJob = new Map(traceRows.map((row) => [row.key.slice(QUESTION_BANK_TRACE_PREFIX.length), parseTrace(row.value)] as const))
   const sectionById = new Map(sections.map((section) => [section.id, section] as const))
   const bookById = new Map(books.map((book) => [book.id, book] as const))
   return units.map((u) => {
@@ -193,7 +209,7 @@ async function listProgramUnits(programId: string) {
             passScore: u.exam.passScore,
             questionsCount: u.exam._count.questions,
             attemptsCount: u.exam._count.attempts,
-            reviewQuestionsCount: countUnitExamQuestionsNeedingReview(u.exam.questions),
+            reviewQuestionsCount: reviewQuestionsByExam.get(u.exam.id) || 0,
           }
         : null,
     }
@@ -202,21 +218,24 @@ async function listProgramUnits(programId: string) {
 
 // GET /api/admin/program-units?programId=...
 export async function GET(req: NextRequest) {
-  try {
-    await requireAdmin()
-    const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
-    if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const program = await db.program.findUnique({
-      where: { id: programId },
-      select: { id: true, titleAr: true, semestersCount: true, academicReadinessStatus: true },
-    })
-    if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    return NextResponse.json({ program, units: await listProgramUnits(programId) })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
-    console.error('program units GET error:', e)
-    return NextResponse.json({ error: 'تعذر تحميل وحدات البرنامج' }, { status: 500 })
-  }
+  const { result, metrics } = await collectTimings(async () => {
+    try {
+      await requireAdmin()
+      const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
+      if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+      const program = await withTiming('program_units_program_findUnique', () => db.program.findUnique({
+        where: { id: programId },
+        select: { id: true, titleAr: true, semestersCount: true, academicReadinessStatus: true },
+      }))
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      return NextResponse.json({ program, units: await listProgramUnits(programId) })
+    } catch (e: any) {
+      if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+      console.error('program units GET error:', e)
+      return NextResponse.json({ error: 'تعذر تحميل وحدات البرنامج' }, { status: 500 })
+    }
+  })
+  return withServerTiming(result, metrics)
 }
 
 // POST /api/admin/program-units — إضافة وحدة بشرية أثناء المراجعة
