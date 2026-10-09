@@ -200,15 +200,18 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const parsed = parseGeneratedQuestionCandidates(raw.text)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model })
+  const traceReasons: string[] = validation.rejected.map((item) => item.reason)
+  const verifierRejected = verified.filter((item) => !(item.qualityFlags || []).includes('SOURCE_GROUNDED'))
+  for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))
   const rows: any[] = []
   for (const item of verified) {
     const sourceIndex = Number(item.sourceIndex)
-    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) continue
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) { traceReasons.push('BAD_SOURCE_INDEX'); continue }
     const source = selected[sourceIndex - 1]
     const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceBookTitle: source.sourceNote })
-    if (!q.text || q.text.length < 12) continue
+    if (!q.text || q.text.length < 12) { traceReasons.push('EMPTY_QUESTION_TEXT'); continue }
     const key = questionDuplicateKey(q.text, source.id)
-    if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) continue
+    if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
     seen.add(key)
     ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
     rows.push({
@@ -217,6 +220,20 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     })
     if (rows.length >= count) break
   }
+  await saveJobTrace(job.id, {
+    generated: parsed.accepted.length + parsed.rejected,
+    saved: rows.length,
+    verifierRejected: verifierRejected.length,
+    rejected: traceReasons.length,
+    rejectionReasons: reasonCounts(traceReasons),
+    aiTrace: {
+      generatorProvider: raw.provider,
+      generatorModel: raw.model,
+      verifierProvider: cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null,
+      verifierModel: cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null,
+      sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
+    },
+  })
   if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')
   await db.questionBankItem.createMany({ data: rows })
   return rows.length
