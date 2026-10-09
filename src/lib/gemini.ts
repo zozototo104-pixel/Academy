@@ -122,8 +122,9 @@ async function refreshFromDb(force = false): Promise<void> {
   if (dbInflight) return dbInflight
   dbInflight = (async () => {
     try {
-      const [key, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
+      const [key, keys, voice, textModel, ttsModel, liveModel, supervisorLiveModel, discussionLiveModel, discussionThinkingLevel] = await Promise.all([
         readSetting('GEMINI_API_KEY'),
+        readSetting('GEMINI_API_KEYS'),
         readSetting('GEMINI_TTS_VOICE'),
         readSetting('GEMINI_TEXT_MODEL'),
         readSetting('GEMINI_TTS_MODEL'),
