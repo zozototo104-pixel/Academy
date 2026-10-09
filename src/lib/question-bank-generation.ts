@@ -97,18 +97,27 @@ function readableIssueSummary(candidate: unknown, index: number, issues: readonl
   return `index=${index} type=${type} field=${field} code=${code} reason="${reason}" question="${candidateText(candidate)}"`
 }
 
-export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number } {
+function structuralReasonCode(issues: readonly z.ZodIssue[]): string {
+  const field = (issues[0]?.path || []).map(String).join('.')
+  if (field === 'sourceEvidence') return 'SOURCE_EVIDENCE_REQUIRED'
+  if (field === 'difficulty') return 'DIFFICULTY_REQUIRED'
+  if (field === 'cognitiveSkill') return 'COGNITIVE_SKILL_REQUIRED'
+  if (field === 'options') return 'MCQ_REQUIRES_AT_LEAST_3_OPTIONS'
+  return `STRUCTURAL_${(field || 'QUESTION').toUpperCase()}`
+}
+
+export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number; rejectedReasons: string[] } {
   const parsed = parseQuestionBatchEnvelope(raw)
   const accepted: any[] = []
-  let rejected = 0
+  const rejectedReasons: string[] = []
   for (let index = 0; index < parsed.questions.length; index++) {
     const candidate = parsed.questions[index]
     const result = generatedQuestionSchema.safeParse(normalizeCandidate(candidate))
     if (result.success) accepted.push(result.data)
     else {
-      rejected += 1
+      rejectedReasons.push(structuralReasonCode(result.error.issues))
       console.warn(`question bank generated question rejected structurally: ${readableIssueSummary(candidate, index, result.error.issues)}`)
     }
   }
-  return { accepted, rejected }
+  return { accepted, rejected: rejectedReasons.length, rejectedReasons }
 }
