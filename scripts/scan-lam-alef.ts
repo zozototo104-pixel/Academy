@@ -84,11 +84,6 @@ function isAffectedText(text: string) {
   return totalCount(patternCounts(text)) > 0
 }
 
-function fixedText(value: string | null | undefined) {
-  if (value == null) return value
-  return fixArabicPdfText(value)
-}
-
 function scanOptionsJson(value: string | null | undefined, totals: Record<string, number>, dryTotals?: Record<string, number>) {
   if (!value) return { before: 0, after: 0 }
   let before = 0
