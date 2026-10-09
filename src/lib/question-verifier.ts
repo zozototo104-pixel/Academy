@@ -31,7 +31,6 @@ export type VerifiableQuestion = {
   verifierReason?: string
   verificationPending?: boolean
   verificationReason?: string
-  sameProviderVerifierFallback?: boolean
 }
 
 export type VerificationSource = { text: string; textProvenance?: TextProvenance | null }
