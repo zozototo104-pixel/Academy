@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ ok: true, thesis: updated })
   } catch (error: any) {
+    if (cleanupUploadId && cleanupUserId && cleanupThesisId) await cleanupUpload(cleanupUploadId, cleanupUserId, cleanupThesisId).catch(() => {})
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     console.error('thesis upload-chunk error:', error)
     return NextResponse.json({ error: 'تعذر رفع ملف البحث' }, { status: 500 })
