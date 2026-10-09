@@ -412,7 +412,7 @@ export function DefenseRoom({
 ${recent || 'بدأت الجلسة للتو.'}
 
 قاعدة مهمة: إذا بدأ الطالب يتكلم لا تصمت طويلاً. تفاعل معه كمشرف يناقش لا كسؤال وجواب. ومع ذلك لا تعطِ قرار نجاح أو رسوب؛ القرار النهائي للجنة البشرية.`
-  }, [committee, messages, thesisAbstract, thesisTitle])
+  }, [committee, liveThesisContext, messages, thesisAbstract, thesisTitle])
 
   const stopLiveAdvisor = useCallback(() => {
     liveAdvisorRef.current?.stop()
