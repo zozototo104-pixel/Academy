@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { questionBankJobCanRunStep, questionBankJobHasActiveLock, readQuestionBankJobTrace, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
-import { selectUnitExamQuestionsApprovedFirst } from '@/lib/unit-exam-policy'
+import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
