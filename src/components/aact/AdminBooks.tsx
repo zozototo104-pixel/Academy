@@ -3633,6 +3633,7 @@ export function AdminBooksTab() {
                       ) : (
                         <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>يحتاج تدقيق</Badge>
                       )}
+                      {q.verifierModel?.includes(':free') && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100" title={q.verifierModel}>تحقق بموديل مجاني</Badge>}
                       <Badge className={q.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
                         {q.status === 'APPROVED' ? 'معتمد' : q.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
                       </Badge>
