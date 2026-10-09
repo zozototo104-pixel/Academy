@@ -40,7 +40,6 @@ export async function POST(request: NextRequest, context: Context) {
     }
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
-    if (reread) await db.bookChunk.deleteMany({ where: { bookId: id } })
     try {
       const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
       return NextResponse.json({ ok: true, job, resumed: false })
