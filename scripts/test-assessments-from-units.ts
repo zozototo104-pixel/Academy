@@ -123,6 +123,8 @@ const tests = [
   testPausedFutureRetryManualReactivation,
   testEmptyBatchAdvancesQuestionBankCursor,
   testVerifierRejectedQuestionIsNotSaved,
+  testIncompleteMcqOptionsAreRejected,
+  testPreviewPollingNudgesQuestionBankJob,
   testQuestionBankRetryAtNotBeyondOneHour,
 ]
 
