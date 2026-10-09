@@ -125,8 +125,8 @@ async function testAiHealthClaimIsAtomicBehavior() {
       return []
     },
   }
-  assert.equal(await claimAiHealthRun(mockClient, 10_000_000), true)
-  assert.equal(await claimAiHealthRun(mockClient, 10_000_001), false)
+  assert.equal(await claimAiHealthRun(mockClient as any, 10_000_000), true)
+  assert.equal(await claimAiHealthRun(mockClient as any, 10_000_001), false)
 }
 
 function testAdminSystemGetShapeDoesNotExposeSecretsBehavior() {
