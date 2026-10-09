@@ -7,7 +7,8 @@ import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
-import { findRelevantThesisChunks, getThesisDigest, scoreDefenseBreakdown, summarizeDigestForPrompt } from '@/lib/thesis-context'
+import { findRelevantThesisChunks, getThesisDigest, summarizeDigestForPrompt } from '@/lib/thesis-context'
+import { scoreDefenseBreakdown } from '@/lib/thesis-defense-score'
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
 const DEFENSE_CRITERIA = ['methodology', 'results', 'contribution', 'literature', 'presentation'] as const
