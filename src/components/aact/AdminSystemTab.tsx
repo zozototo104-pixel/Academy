@@ -1000,6 +1000,14 @@ export function AdminSystemTab() {
                       ))}
                     </div>
                   )}
+                  {!!textModelHealth.health?.length && (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-700 sm:col-span-3">
+                      <p className="mb-1 font-black">فحوص الصحة والغرض</p>
+                      {textModelHealth.health.slice(0, 10).map((item) => (
+                        <div key={`${item.provider}:${item.model}`} dir="ltr" className="truncate text-[10px]">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="mt-2 text-[10px] text-slate-400">اضغط تحديث لعرض صحة النماذج لهذا المزود.</p>
