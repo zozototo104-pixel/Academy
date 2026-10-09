@@ -1550,6 +1550,8 @@ model ProgramQuestion {
   correctAnswer String?      // "0".."3" أو "0"=صح/"1"=خطأ
   modelAnswer   String?      // الإجابة النموذجية للأسئلة المقالية/القصيرة
   sourceEvidence String?     // دليل السؤال من الكتاب/بنك المعرفة حتى تراجع الإدارة مصدره الأكاديمي
+  knowledgeItemId String?
+  rubric       String?
   sourceBookTitle String?    // اسم الكتاب/المرجع الذي بُني عليه السؤال
   sourceChapter String?      // الفصل/الباب/المحور داخل الكتاب إن توفر
   sourceLocator String?      // محدد أدق: مقطع، صفحة، فقرة، عنوان فرعي، أو وصف مكان الدليل
