@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (!jobId) return NextResponse.json({ error: 'معرف وظيفة بنك الأسئلة مطلوب' }, { status: 400 })
     const job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     if (!job) return NextResponse.json({ error: 'وظيفة بنك الأسئلة غير موجودة' }, { status: 404 })
+    if (questionBankJobCanRunStep(job)) after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('question bank job status after() step failed:', error)))
     const [trace, grouped] = await Promise.all([
       readQuestionBankJobTrace(job.id),
       job.unitId
