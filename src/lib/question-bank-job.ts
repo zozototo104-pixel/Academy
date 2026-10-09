@@ -203,9 +203,9 @@ async function recordJobFailure(jobId: string, message: string): Promise<JobFail
 }
 
 async function normalizeProviderError(message: string) {
-  if (!/AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|NO_PROVIDER|NOT_CONFIGURED|provider/i.test(message)) return message
+  if (!/AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS|OPENAI_API_KEY/i.test(message)) return message
   const diagnostics = await textAiDiagnostics().catch(() => null)
-  if (!diagnostics?.openaiConfigured) return 'OPENAI_API_KEYS غير موجود في هذه البيئة'
+  if (!diagnostics?.openaiConfigured && /OPENAI|NO_PROVIDER|NOT_CONFIGURED/i.test(message)) return `${message} — OPENAI_API_KEYS غير موجود في هذه البيئة`
   return message
 }
 
