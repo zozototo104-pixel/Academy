@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
+import { decryptSecret, isEncryptedSecret, keyHashForRateLimit, redactSecrets } from '@/lib/secret-crypto'
 
 export type TextAiProvider =
   | 'GEMINI'
