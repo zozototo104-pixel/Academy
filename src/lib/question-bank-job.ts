@@ -271,7 +271,7 @@ export function questionBankJobHasActiveLock(job: { status: string; lockedUntil?
 }
 
 export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number }, now = Date.now()) {
-  if (job.saved >= job.requested) return false
+  if (job.saved >= unitExamRequiredQuestions(job.requested)) return false
   if (['COMPLETED', 'FAILED'].includes(job.status)) return false
   if (questionBankJobHasActiveLock(job, now)) return false
   if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > now) return false
