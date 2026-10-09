@@ -325,6 +325,9 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     const source = selected[sourceIndex - 1]
     const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
     if (!q.text || q.text.length < 12) { traceReasons.push('EMPTY_QUESTION_TEXT'); continue }
+    if (!q.sourceEvidence) { traceReasons.push('SOURCE_EVIDENCE_REQUIRED'); continue }
+    if (!q.cognitiveSkill) { traceReasons.push('COGNITIVE_SKILL_REQUIRED'); continue }
+    if (!q.difficulty) { traceReasons.push('DIFFICULTY_REQUIRED'); continue }
     if (q.type === 'MCQ' && safeOptions(item.options, 'MCQ').length < 3) { traceReasons.push('MCQ_REQUIRES_AT_LEAST_3_OPTIONS'); continue }
     const key = questionDuplicateKey(q.text, source.id)
     if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
