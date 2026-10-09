@@ -276,9 +276,19 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
     job = await db.questionBankGenerationJob.update({ where: { id: jobId }, data: { saved: { increment: inserted }, status: job.saved + inserted >= job.requested ? 'COMPLETED' : 'QUEUED', lockedUntil: null, lastError: null, finishedAt: job.saved + inserted >= job.requested ? new Date() : null } })
     return job
   } catch (error: any) {
-    const message = String(error?.message || error)
-    const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED/i.test(message)
-    return db.questionBankGenerationJob.update({ where: { id: jobId }, data: paused ? { status: 'PAUSED', retryAt: new Date(Date.now() + BOOK_READ_RETRY_MS), lockedUntil: null, lastError: message.slice(0, 1000) } : { status: 'FAILED', lockedUntil: null, lastError: message.slice(0, 1000), finishedAt: new Date() } })
+    const message = cleanText(await normalizeProviderError(String(error?.message || error)), 1000)
+    const failure = await recordJobFailure(jobId, message)
+    await saveJobTrace(jobId, { generated: 0, saved: 0, verifierRejected: 0, rejected: 1, rejectionReasons: reasonCounts([message]) })
+    const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+    const repeatedLimitReached = failure.count >= 3
+    return db.questionBankGenerationJob.update({
+      where: { id: jobId },
+      data: repeatedLimitReached
+        ? { status: 'PAUSED', retryAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), lockedUntil: null, lastError: `توقف بعد 3 محاولات متتالية بنفس الخطأ: ${message}`.slice(0, 1000) }
+        : paused
+          ? { status: 'PAUSED', retryAt: new Date(Date.now() + BOOK_READ_RETRY_MS), lockedUntil: null, lastError: message }
+          : { status: 'FAILED', lockedUntil: null, lastError: message, finishedAt: new Date() },
+    })
   }
 }
 
