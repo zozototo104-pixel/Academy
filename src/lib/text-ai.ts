@@ -1624,7 +1624,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          const msg = String(e?.message || e).slice(0, 240)
+          const msg = redactSecrets(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
           const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
