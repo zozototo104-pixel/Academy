@@ -15,6 +15,16 @@ function testWeightedDefenseScoreRedistributesMissingCriterion() {
   assert.equal(result.score, 70)
 }
 
+function testNullSecondDefenseQuestionKeepsThirdAsContribution() {
+  const result = scoreDefenseBreakdown([
+    { criterion: 'methodology', score0to10: 8 },
+    { criterion: 'results', score0to10: null },
+    { criterion: 'contribution', score0to10: 6 },
+  ])
+  assert.deepEqual(result.breakdown.map((item) => item.criterion), ['methodology', 'contribution'])
+  assert.equal(result.score, 71)
+}
+
 function testFakePdfDocxRejectedByMagicBytes() {
   const route = src('src/app/api/thesis/upload-chunk/route.ts')
   assert(route.includes("buffer.subarray(0, 4).toString() === '%PDF'"), 'PDF magic bytes must be checked')
