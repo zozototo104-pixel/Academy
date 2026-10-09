@@ -6,6 +6,8 @@ on:
     branches: [fix/arabic-lam-alef]
     paths:
       - 'scripts/scan-lam-alef.ts'
+      - 'scripts/test-arabic-pdf-text.ts'
+      - 'src/lib/arabic-pdf-text.ts'
       - '.github/workflows/scan-lam-alef.yml'
 
 jobs:
@@ -32,5 +34,8 @@ jobs:
       - name: Generate Prisma client
         run: bun run db:generate
 
-      - name: Run lam-alef diagnostic scan
-        run: bunx tsx scripts/scan-lam-alef.ts
+      - name: Run Arabic PDF text tests
+        run: bunx tsx scripts/test-arabic-pdf-text.ts
+
+      - name: Run lam-alef dry-run diagnostic scan
+        run: bunx tsx scripts/scan-lam-alef.ts --dry-run
