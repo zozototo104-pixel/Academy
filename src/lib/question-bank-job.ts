@@ -404,10 +404,20 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   try {
     const inserted = await generateBatch(job, stepDeadlineAt - 2_000)
     await resetJobFailureState(jobId)
-    const completesBySavedCount = job.saved + inserted >= job.requested
+    let readyToBuild = false
+    if (job.unitId) {
+      const candidates = await db.questionBankItem.findMany({
+        where: { programId: job.programId, unitId: job.unitId, qualityFlags: { contains: 'SOURCE_GROUNDED' }, status: { in: ['APPROVED', 'PENDING_REVIEW'] } },
+        select: { id: true, status: true, qualityFlags: true },
+        orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
+      })
+      readyToBuild = selectUnitExamQuestionsApprovedFirst(candidates, job.requested).readyToBuild
+    } else {
+      readyToBuild = job.saved + inserted >= job.requested
+    }
     await db.questionBankGenerationJob.updateMany({
       where: { id: jobId, status: { not: 'COMPLETED' } },
-      data: { saved: { increment: inserted }, status: completesBySavedCount ? 'COMPLETED' : 'QUEUED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: completesBySavedCount ? new Date() : null },
+      data: { saved: { increment: inserted }, status: readyToBuild ? 'COMPLETED' : 'QUEUED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: readyToBuild ? new Date() : null },
     })
     return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   } catch (error: unknown) {
