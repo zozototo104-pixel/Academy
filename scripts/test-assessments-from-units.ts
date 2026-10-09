@@ -106,6 +106,9 @@ const tests = [
   testUnitExamPendingReviewBlocksPublish,
   testUnitExamExcludesRejectedAndPrioritizesApproved,
   testPausedFutureRetryManualReactivation,
+  testEmptyBatchAdvancesQuestionBankCursor,
+  testVerifierRejectedQuestionIsNotSaved,
+  testQuestionBankRetryAtNotBeyondOneHour,
 ]
 
 for (const test of tests) {
