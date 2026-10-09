@@ -862,7 +862,7 @@ export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, c
   if (!purpose) return true
   if (purpose === 'VISION') {
     if (!capability) return true
-    return capability.vision !== false && (capability.vision === true || capability.modalities?.some((m) => /image|vision/.test(m)))
+    return capability.vision !== false && (capability.vision === true || !!capability.modalities?.some((m) => /image|vision/.test(m)))
   }
   if (purpose === 'LONG_CONTEXT') {
     if (!capability || !capability.contextLength) return true
