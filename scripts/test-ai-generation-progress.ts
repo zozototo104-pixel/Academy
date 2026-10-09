@@ -58,6 +58,7 @@ function generatedQuestion(n: number, overrides: Record<string, unknown> = {}) {
     correctAnswer: '0',
     sourceEvidence: 'هذا دليل حرفي طويل بما يكفي لاختبار شكل السؤال داخل بنك الأسئلة.',
     difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
     sourceIndex: 1,
     correctRationale: 'لأن الدليل يدعم الإجابة مباشرة.',
     ...overrides,
