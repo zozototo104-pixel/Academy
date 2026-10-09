@@ -1046,6 +1046,7 @@ export function AdminView() {
               <TabsTrigger value="books" className="gap-1 text-[10px] font-bold sm:text-xs">الكتب والاختبارات</TabsTrigger>
               <TabsTrigger value="quality" className="gap-1 text-[10px] font-bold sm:text-xs">مركز الجودة</TabsTrigger>
               <TabsTrigger value="attempts" className="gap-1 text-[10px] font-bold sm:text-xs">نتائج الامتحانات</TabsTrigger>
+              <TabsTrigger value="grading-review" className="gap-1 text-[10px] font-bold sm:text-xs">مراجعة التصحيح</TabsTrigger>
               <TabsTrigger value="thesis" className="gap-1 text-[10px] font-bold sm:text-xs">أبحاث التخرج والمناقشات</TabsTrigger>
               <TabsTrigger value="ai" className="gap-1 text-[10px] font-bold sm:text-xs">سجل المشرف الذكي</TabsTrigger>
             </TabsList>
