@@ -87,7 +87,6 @@ export async function GET() {
     const textAi = await textAiDiagnostics()
     textAi.message = redactSecrets(textAi.message)
     const agent = await localAgentDiagnostics()
-    agent.error = redactSecrets(agent.error || '')
     const payment = paymentDiagnostics(await getGatewayConfig())
     const resendKeyRow = await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }).catch(() => null)
     const mailFromRow = await db.setting.findUnique({ where: { key: 'MAIL_FROM' } }).catch(() => null)
