@@ -202,24 +202,22 @@ export async function POST(req: NextRequest) {
     const unitId = cleanText(body?.unitId, 80) || null
     await db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null)
     const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true })
-    const beforeSaved = backgroundJob.saved
-    const stepped = await runQuestionBankGenerationJobStep(backgroundJob.id)
-    const current = stepped || backgroundJob
+    after(() => runQuestionBankGenerationJobStep(backgroundJob.id).catch((error) => console.error('manual question bank after() step failed:', error)))
     await audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`)
     return NextResponse.json({
-      ok: ['COMPLETED', 'QUEUED', 'RUNNING'].includes(current.status),
-      job: current,
-      inserted: Math.max(0, Number(current.saved || 0) - Number(beforeSaved || 0)),
-      requested: current.requested,
-      saved: current.saved,
-      remaining: Math.max(0, Number(current.requested || 0) - Number(current.saved || 0)),
-      partial: Number(current.saved || 0) < Number(current.requested || 0),
-      paused: current.status === 'PAUSED',
-      error: current.lastError || undefined,
-      message: current.status === 'PAUSED' ? 'توقفت وظيفة بنك الأسئلة مؤقتاً لعدم توفر مزود أكاديمي. ستُستكمل من cron أو عند فتح الصفحة.' : undefined,
+      ok: false,
+      job: backgroundJob,
+      jobId: backgroundJob.id,
+      requested: backgroundJob.requested,
+      saved: backgroundJob.saved,
+      remaining: Math.max(0, Number(backgroundJob.requested || 0) - Number(backgroundJob.saved || 0)),
+      partial: true,
+      paused: backgroundJob.status === 'PAUSED',
+      error: backgroundJob.lastError || undefined,
+      message: 'تم تشغيل وظيفة بنك الأسئلة في الخلفية. ستُستكمل من after() والـ cron.',
       stats: await questionStats(programId),
       items: await listQuestions(programId),
-    }, { status: current.status === 'PAUSED' ? 503 : 200 })
+    }, { status: 202 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank POST error:', e)
