@@ -231,6 +231,8 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const id = cleanText(body?.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف السؤال مطلوب' }, { status: 400 })
+    const existing = await db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true } })
+    if (!existing) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
     const data: any = {}
     if (body?.status !== undefined) {
       const status = cleanText(body.status, 40)
