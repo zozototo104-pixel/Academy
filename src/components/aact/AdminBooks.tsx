@@ -2137,6 +2137,9 @@ export function AdminBooksTab() {
   }
 
   const hasGeneratingExam = exams.some((e) => e.status === 'GENERATING')
+  const activeUnitQuestionRows = unitQuestions ? unitQuestions.questions[unitQuestionsTab] || [] : []
+  const unitQuestionMissing = unitQuestions ? Math.max(0, unitQuestions.requiredQuestions - (unitQuestions.counts.APPROVED + unitQuestions.counts.PENDING_REVIEW)) : 0
+  const draftPendingCount = unitQuestions?.exam?.status === 'DRAFT' ? unitQuestions.counts.PENDING_REVIEW : 0
 
   if (loading) {
     return (
