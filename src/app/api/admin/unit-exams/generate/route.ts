@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-type UnitExamBankItem = Pick<QuestionBankItem, 'id' | 'status' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'sourceEvidence' | 'correctRationale' | 'qualityFlags' | 'usageCount' | 'createdAt'>
+type UnitExamBankItem = Pick<QuestionBankItem, 'id' | 'status' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'knowledgeItemId' | 'sourceEvidence' | 'rubric' | 'correctRationale' | 'qualityFlags' | 'usageCount' | 'createdAt'>
 type ScopedQuestionResult = { questions: UnitExamBankItem[]; selection: UnitExamSelection; requiredQuestions: number }
 
 function cleanText(value: unknown, max = 1200) {
