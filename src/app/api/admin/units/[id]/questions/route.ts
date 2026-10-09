@@ -18,6 +18,21 @@ function groupByStatus<T extends { status: string }>(items: T[]) {
   }
 }
 
+function reviewNotes(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch { return {} }
+}
+
+function nestedString(record: Record<string, unknown>, key: string, nestedKey: string) {
+  const nested = record[key]
+  if (!nested || typeof nested !== 'object' || Array.isArray(nested)) return null
+  const value = (nested as Record<string, unknown>)[nestedKey]
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
