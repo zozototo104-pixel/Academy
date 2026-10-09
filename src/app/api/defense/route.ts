@@ -186,6 +186,7 @@ export async function POST(req: NextRequest) {
             defenseStatus: 'COMPLETED',
             aiScore,
             aiRecommendation: rec,
+            defenseBreakdown: weighted as any,
             defenseMinutes: minutes,
             defenseCompletedAt: new Date(),
           },
