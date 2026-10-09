@@ -118,9 +118,10 @@ function candidateText(candidate: unknown): string {
   return String(candidate || '').replace(/\s+/g, ' ').trim().slice(0, 80)
 }
 
-function receivedValue(candidate: unknown, path: readonly (string | number)[]) {
+function receivedValue(candidate: unknown, path: readonly PropertyKey[]) {
   let current: unknown = candidate
   for (const part of path) {
+    if (typeof part === 'symbol') return undefined
     if (!current || typeof current !== 'object') return undefined
     current = (current as Record<string, unknown>)[String(part)]
   }
