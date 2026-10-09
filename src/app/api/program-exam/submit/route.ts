@@ -142,7 +142,13 @@ export async function POST(req: NextRequest) {
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
-    if (elapsedMs > allowedMs) return NextResponse.json({ error: 'انتهى وقت الاختبار' }, { status: 400 })
+    if (elapsedMs > allowedMs) {
+      await db.programExamAttempt.update({
+        where: { id: startedAttempt.id },
+        data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
+      })
+      return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
+    }
     const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
 
     const attempt = await db.programExamAttempt.update({
