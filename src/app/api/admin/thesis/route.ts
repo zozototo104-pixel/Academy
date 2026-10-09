@@ -141,6 +141,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, thesis: updated })
     }
 
+    if (action === 'REPROCESS') {
+      const updated = await db.thesisSubmission.update({
+        where: { id },
+        data: { extractionStatus: 'UPLOADED', extractionError: null, extractionPagesDone: 0, extractionLockedUntil: null, digest: undefined, extractedAt: null },
+      })
+      await db.thesisChunk.deleteMany({ where: { thesisId: id } })
+      await audit(admin, 'REPROCESS_THESIS', 'ThesisSubmission', id, thesis.title)
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
     if (action === 'REQUEST_FINAL_REVISION') {
       if (!['SUBMITTED', 'SCHEDULED'].includes(thesis.status)) {
         return NextResponse.json({ error: 'هذا الإجراء خاص بالبحث النهائي بعد تسليمه' }, { status: 400 })
