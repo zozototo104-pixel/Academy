@@ -6,25 +6,12 @@ import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { extractNumberedPdfPages, pagesNeedingOcr, planBookChunks, transcribeScannedDocumentWithVision } from '@/lib/book-reader'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiComplete, textAiCompleteJson } from '@/lib/text-ai'
+import { thesisDigestSchema } from '@/lib/thesis-digest'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
 type Context = { params: Promise<{ id: string }> }
-
-const digestSchema = z.object({
-  problem: z.string().default(''),
-  objectives: z.array(z.string()).default([]),
-  methodology: z.string().default(''),
-  sample: z.string().default(''),
-  tools: z.array(z.string()).default([]),
-  keyFindings: z.array(z.string()).default([]),
-  contributions: z.array(z.string()).default([]),
-  literatureCoverage: z.string().default(''),
-  referencesCount: z.number().int().min(0).default(0),
-  weaknesses: z.array(z.string()).default([]),
-  sectionMap: z.array(z.object({ title: z.string(), chunkFrom: z.number().int(), chunkTo: z.number().int() })).default([]),
-})
 
 function words(text: string) {
   return String(text || '').trim().split(/\s+/).filter(Boolean).length
