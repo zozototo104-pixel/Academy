@@ -324,7 +324,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     maxOutputTokens: 5200,
     stickyScope: `QUESTION_BANK_JOB:${job.programId}:${job.unitId || 'PROGRAM'}`,
     deadlineMs: Math.min(deadlineMs || Date.now() + QUESTION_BANK_STEP_MS, Date.now() + QUESTION_BANK_STEP_MS),
-    validate: (text) => { parseGeneratedQuestionCandidates(text) },
+    validate: (text) => { assertGeneratedBatchHasAcceptedCandidates(parseGeneratedQuestionCandidates(text)) },
   })
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
   const parsed = parseGeneratedQuestionCandidates(raw.text)
