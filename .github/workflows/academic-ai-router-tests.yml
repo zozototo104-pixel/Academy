@@ -2,7 +2,7 @@ name: Academic AI router tests
 
 on:
   push:
-    branches: [phase2/full-book-reading, phase2/enrich-knowledge, phase2/assessments-from-units, stage3/grading, stage3/thesis]
+    branches: [phase2/full-book-reading, phase2/enrich-knowledge, phase2/assessments-from-units, stage3/grading, stage3/thesis, stage4/ai-reliability]
   pull_request:
     branches: [main]
 
