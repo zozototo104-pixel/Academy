@@ -48,8 +48,12 @@ async function rejectIfUploadOwnedByAnother(uploadId: string, userId: string, th
 }
 
 export async function POST(req: NextRequest) {
+  let cleanupUploadId = ''
+  let cleanupUserId = ''
+  let cleanupThesisId = ''
   try {
     const user = await requireUser()
+    cleanupUserId = user.id
     await db.thesisUploadChunk.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
     const form = await req.formData()
     const thesisId = clean(form.get('thesisId'), 100)
