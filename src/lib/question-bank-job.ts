@@ -328,6 +328,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   })
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
   const parsed = parseGeneratedQuestionCandidates(raw.text)
+  assertGeneratedBatchHasAcceptedCandidates(parsed)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: 18_000 })
   const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]
