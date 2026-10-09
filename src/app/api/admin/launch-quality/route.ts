@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse as UnsafeNextResponse } from 'next/server'
 import { performance } from 'perf_hooks'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
