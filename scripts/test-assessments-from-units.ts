@@ -65,6 +65,16 @@ function testUnitExamExcludesRejectedAndPrioritizesApproved() {
   assert(selection.pendingReviewCount === 1, 'يجب استخدام PENDING_REVIEW فقط لاستكمال النقص بعد APPROVED')
 }
 
+function testPausedFutureRetryManualReactivation() {
+  const futureRetry = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const plan = planQuestionBankJobManualReactivation({ status: 'PAUSED', requested: 4, retryAt: futureRetry }, 10, true)
+  assert(plan.shouldUpdate, 'الضغط اليدوي يجب أن يعيد تفعيل job متوقف حتى لو retryAt في المستقبل')
+  assert(plan.resetFailureCounter, 'إعادة التفعيل اليدوي يجب أن تصفر عداد الفشل المتتالي')
+  assert(plan.status === 'QUEUED', 'job المتوقف يجب أن يعود إلى QUEUED عند الضغط اليدوي')
+  assert(plan.retryAt === null, 'retryAt يجب أن يصبح null عند إعادة التفعيل اليدوي')
+  assert(plan.requested === 10, 'requested يجب أن يرتفع إلى العدد المطلوب عند إعادة التفعيل')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
