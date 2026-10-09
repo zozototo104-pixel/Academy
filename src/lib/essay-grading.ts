@@ -43,7 +43,8 @@ export function pointsFromCriteria(criteria: EssayCriterionGrade[], maxPoints: n
   const totalWeight = criteria.reduce((sum, item) => sum + Math.max(0, Number(item.weight || 0)), 0)
   if (totalWeight <= 0) return 0
   const weighted = criteria.reduce((sum, item) => sum + (Math.max(0, Math.min(100, item.weight)) / totalWeight) * Math.max(0, Math.min(10, item.score0to10)), 0)
-  return clampPoints((weighted / 10) * Math.max(0, maxPoints), maxPoints)
+  const clamped = clampPoints((weighted / 10) * Math.max(0, maxPoints), maxPoints)
+  return Math.round(clamped * 100) / 100
 }
 
 export function parseEssayGradeJson(raw: string, maxPoints: number, rubric?: string | null): EssayGradeResult {
