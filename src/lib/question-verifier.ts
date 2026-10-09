@@ -307,6 +307,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         temperature: 0.1,
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
+        purpose: 'REVIEW',
         excludeProviders,
         excludeModelFamilies,
         deadlineMs: deadline,
