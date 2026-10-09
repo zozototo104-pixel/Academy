@@ -105,6 +105,8 @@ export async function GET() {
     ]
     return NextResponse.json({
       values,
+      secretMeta,
+      secretsEncryption: { configured: hasSecretEncryptionKey(), unencryptedKeys: unencryptedSecretKeys },
       secretsSet: {
         SMTP_PASS: !!(await db.setting.findUnique({ where: { key: 'SMTP_PASS' } }))?.value,
         RESEND_API_KEY: !!(await db.setting.findUnique({ where: { key: 'RESEND_API_KEY' } }))?.value,
