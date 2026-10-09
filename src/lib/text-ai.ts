@@ -766,12 +766,13 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
       .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' ? isStrongTopToolsTextModel(raw, id) : isFreeModel(raw, id)))
-    if (provider === 'TOPTOOLS') {
-      return rows
-        .sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
-        .map(({ id }) => id)
-    }
-    return rows.map(({ id }) => id)
+    const orderedRows = provider === 'TOPTOOLS'
+      ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
+      : rows
+    const models = orderedRows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels(provider, baseUrl, key), { at: Date.now(), models, capabilities })
+    return models
   } catch {
     return []
   }
