@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         programId: job.programId,
         unitId: job.unitId,
         status: job.status,
-        requested: job.requested,
+        requested: requiredQuestions,
         saved: job.saved,
         currentQuestions: selection.currentEligibleCount,
         readyToBuild: selection.readyToBuild,
