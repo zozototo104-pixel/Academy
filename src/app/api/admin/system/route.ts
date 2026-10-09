@@ -335,7 +335,11 @@ export async function POST(req: NextRequest) {
         .filter((row): row is TopModelRow => Boolean(row))
         .sort((a, b) => b.score - a.score)
         .slice(0, 5)
-      return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top })
+      const health = await textAiModelHealthSnapshot()
+      return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top, health })
+    }
+    if (action === 'text-ai-check-all') {
+      return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth()) })
     }
     if (action === 'test-text-ai') {
       const diag = await textAiDiagnostics()
