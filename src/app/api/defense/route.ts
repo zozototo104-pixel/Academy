@@ -491,9 +491,9 @@ ${answer.slice(0, 2500)}
     if (score == null) throw new Error('NO_SCORE')
     return {
       score,
-      criterion: String(parsed.criterion || criterion).slice(0, 40),
-      evidenceQuote: String(parsed.evidenceQuote || '').slice(0, 500),
-      feedback: String(parsed.comment || parsed.feedback || '').slice(0, 800),
+      criterion: parsed.criterion,
+      evidenceQuote: parsed.evidenceQuote.slice(0, 500),
+      feedback: parsed.comment.slice(0, 800),
       nextQuestion: String(parsed.nextQuestion || defaultQuestion(qNum + 1)).slice(0, 1200),
     }
   } catch {
