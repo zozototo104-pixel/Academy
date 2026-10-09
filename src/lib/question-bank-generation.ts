@@ -136,8 +136,7 @@ function readableIssueSummary(candidate: unknown, index: number, issues: readonl
   const code = issue?.code || 'invalid'
   const reason = issue?.message || 'غير صالح'
   const type = candidate && typeof candidate === 'object' && 'type' in candidate ? String((candidate as { type?: unknown }).type || 'UNKNOWN') : 'UNKNOWN'
-  const receivedPath = (issue?.path || []).filter((part): part is string | number => typeof part === 'string' || typeof part === 'number')
-  return `index=${index} type=${type} field=${field} code=${code} received="${receivedValue(candidate, receivedPath) ?? ''}" reason="${reason}" question="${candidateText(candidate)}"`
+  return `index=${index} type=${type} field=${field} code=${code} received="${receivedValue(candidate, issue?.path ?? []) ?? ''}" reason="${reason}" question="${candidateText(candidate)}"`
 }
 
 function structuralReasonCode(issues: readonly z.ZodIssue[]): string {
