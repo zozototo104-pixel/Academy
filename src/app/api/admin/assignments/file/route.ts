@@ -8,13 +8,13 @@ export async function GET(req: NextRequest) {
     await requireAdmin()
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
-    const submission = await db.assignmentSubmission.findUnique({ where: { id }, select: { fileName: true, mimeType: true, data: true } })
-    if (!submission?.data) return NextResponse.json({ error: 'لا يوجد ملف مرفق لهذا التسليم' }, { status: 404 })
-    const buffer = Buffer.from(submission.data, 'base64')
-    const name = encodeURIComponent(submission.fileName || 'assignment-submission')
-    return new NextResponse(new Uint8Array(buffer), {
+    const submission = await db.assignmentSubmission.findUnique({ where: { id }, select: { fileName: true, mimeType: true, data: true, fileStorageProvider: true, fileStorageKey: true, fileUrl: true } })
+    const stored = submission ? await getFileBufferFromStorageOrBase64({ provider: submission.fileStorageProvider, key: submission.fileStorageKey, url: submission.fileUrl, data: submission.data, mimeType: submission.mimeType }) : null
+    if (!stored) return NextResponse.json({ error: 'لا يوجد ملف مرفق لهذا التسليم' }, { status: 404 })
+    const name = encodeURIComponent(submission?.fileName || 'assignment-submission')
+    return new NextResponse(new Uint8Array(stored.buffer), {
       headers: {
-        'content-type': submission.mimeType || 'application/octet-stream',
+        'content-type': stored.mimeType || submission?.mimeType || 'application/octet-stream',
         'content-disposition': `inline; filename*=UTF-8''${name}`,
       },
     })
