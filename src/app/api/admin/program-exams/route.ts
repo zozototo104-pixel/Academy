@@ -83,9 +83,18 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         questions: { select: questionSelect },
-        _count: { select: { attempts: true } },
       },
     })
+    const examIds = exams.map((exam) => exam.id)
+    const attemptCounts = examIds.length
+      ? await db.programExamAttempt.groupBy({ by: ['examId', 'status'], where: { examId: { in: examIds }, status: { not: 'STARTED' } }, _count: { _all: true } })
+      : []
+    const attemptsByExam = new Map<string, Record<string, number>>()
+    for (const row of attemptCounts) {
+      const current = attemptsByExam.get(row.examId) || {}
+      current[row.status] = row._count._all
+      attemptsByExam.set(row.examId, current)
+    }
 
     return NextResponse.json({
       exams: exams.map((e) => {
