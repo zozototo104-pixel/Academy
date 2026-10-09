@@ -97,7 +97,7 @@ ${reviewText}
     return NextResponse.json({
       ok: true,
       review: {
-        overallScore: Math.max(0, Math.min(100, Number(parsed.overallScore) || 0)),
+        overallScore: Math.round(weightedScore),
         verdict: String(parsed.verdict || ''),
         strengths: (parsed.strengths || []).slice(0, 4).map(String),
         weaknesses: (parsed.weaknesses || []).slice(0, 4).map(String),
