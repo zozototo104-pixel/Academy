@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
     const form = await req.formData()
     const thesisId = clean(form.get('thesisId'), 100)
     const uploadId = clean(form.get('uploadId'), 120)
+    cleanupThesisId = thesisId
+    cleanupUploadId = uploadId
     const index = Number(form.get('index'))
     const total = Number(form.get('total'))
     const complete = String(form.get('complete') || '') === '1'
