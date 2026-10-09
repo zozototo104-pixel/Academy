@@ -219,6 +219,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (needsReview) {
+      const attempt = await db.$transaction(async (tx) => {
+        const created = await tx.examAttempt.create({ data: { userId: user.id, examId, status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
+        for (const prepared of answersToPersist) {
+          await tx.answer.create({ data: { attemptId: created.id, questionId: prepared.questionId, selectedOption: prepared.selectedOption ?? null, answerText: prepared.answerText ?? null, isCorrect: prepared.isCorrect, points: prepared.points, maxPoints: prepared.maxPoints, aiFeedback: prepared.aiFeedback } })
+        }
+        await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
+        return created
+      })
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', results: gradedResults.sort((a, b) => a.order - b.order) }, { status: 202 })
+    }
+
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const passed = percentage >= exam.passScore
 
