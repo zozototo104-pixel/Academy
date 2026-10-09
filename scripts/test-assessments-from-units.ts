@@ -169,6 +169,39 @@ function testArabicCognitiveSkillAnalyzeNormalizes() {
   assert(parsed.accepted[0].cognitiveSkill === 'ANALYZE', 'تحليل يجب أن تتحول إلى ANALYZE')
 }
 
+function testExpandedCognitiveSkillAliasesNormalize() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([
+    generatedMcq({ cognitiveSkill: 'معرفة' }),
+    generatedMcq({ cognitiveSkill: 'استيعاب' }),
+    generatedMcq({ cognitiveSkill: 'Comprehension' }),
+  ]))
+  assert(parsed.accepted.length === 3, 'مرادفات المهارة المعرفية الجديدة يجب أن تُقبل')
+  assert(parsed.accepted[0].cognitiveSkill === 'REMEMBER', 'معرفة يجب أن تتحول إلى REMEMBER')
+  assert(parsed.accepted[1].cognitiveSkill === 'UNDERSTAND', 'استيعاب يجب أن تتحول إلى UNDERSTAND')
+  assert(parsed.accepted[2].cognitiveSkill === 'UNDERSTAND', 'Comprehension يجب أن تتحول إلى UNDERSTAND')
+}
+
+function testShortConciseAnswerAccepted() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedOpenQuestion('SHORT', '27 مستجيباً')]))
+  assert(parsed.accepted.length === 1, 'سؤال SHORT بإجابة نموذجية قصيرة يجب أن يُقبل')
+}
+
+function testEssayShortAnswerRejected() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedOpenQuestion('ESSAY', 'قصير جداً')]))
+  assert(parsed.accepted.length === 0, 'سؤال ESSAY بإجابة أقل من 40 حرفاً يجب أن يُرفض')
+}
+
+function testAllStructurallyRejectedBatchThrows() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ options: ['أ', 'ب'], correctAnswer: 'أ' })]))
+  let thrown = false
+  try {
+    assertGeneratedBatchHasAcceptedCandidates(parsed)
+  } catch (error) {
+    thrown = error instanceof Error && error.message === 'QUESTION_BATCH_ALL_STRUCTURALLY_REJECTED'
+  }
+  assert(thrown, 'دفعة كل أسئلتها مرفوضة بنيوياً يجب أن ترمي QUESTION_BATCH_ALL_STRUCTURALLY_REJECTED')
+}
+
 function testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty() {
   const code = src('src/lib/question-bank-job.ts')
   assert(!code.includes('raw.sourceEvidence || fallback.excerpt'), 'sourceEvidence الناقص لا يجب أن يُستبدل بالمقتطف أو الملخص')
