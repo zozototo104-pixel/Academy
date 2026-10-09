@@ -354,6 +354,14 @@ export async function POST(req: NextRequest) {
       overall,
       results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
     })
+    } catch (postCreateError: any) {
+      const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
+      await db.programExamAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+      }).catch(() => {})
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة للمراجعة بسبب خطأ أثناء التصحيح.', ...reviewState }, { status: 202 })
+    }
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
