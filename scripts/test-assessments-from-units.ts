@@ -248,6 +248,34 @@ function testQuestionBankStepRoutesHaveMaxDuration() {
   assert(offenders.length === 0, `كل route يستدعي runQuestionBankGenerationJobStep يحتاج maxDuration >= 120: ${offenders.join(', ')}`)
 }
 
+function testQuestionBankJobCompletesWithSharedSelector() {
+  const statusRoute = src('src/app/api/admin/question-bank-jobs/[id]/route.ts')
+  assert(statusRoute.includes('selectUnitExamQuestionsApprovedFirst'), 'حالة job يجب أن تستخدم نفس selector الخاص ببناء اختبار الوحدة')
+  assert(statusRoute.includes('selection.readyToBuild') && statusRoute.includes("status: 'COMPLETED'"), 'عند readyToBuild يجب تعليم job كـ COMPLETED')
+  assert(statusRoute.includes('!activeLock'), 'لا يجب تعليم job كـ COMPLETED أثناء وجود lock فعّال')
+  const ui = src('src/components/aact/AdminBooks.tsx')
+  assert(ui.includes("unit.questionBankJob?.readyToBuild") && ui.includes('بناء الاختبار الآن'), 'زر الوحدة يجب أن يتحول إلى بناء الاختبار الآن عند readyToBuild')
+}
+
+function testLateQuestionBankStepDoesNotReopenCompleted() {
+  const code = src('src/lib/question-bank-job.ts')
+  const protectedUpdates = (code.match(/status:\s*\{\s*not:\s*'COMPLETED'\s*\}/g) || []).length
+  assert(protectedUpdates >= 2, 'نجاح أو فشل خطوة متأخرة لا يجب أن يغير job مكتمل')
+}
+
+function testUnitQuestionsApiScopesToSingleUnit() {
+  const code = src('src/app/api/admin/units/[id]/questions/route.ts')
+  assert(code.includes('where: { unitId: unit.id }'), 'أسئلة لوحة الوحدة يجب أن تقرأ unitId المحدد فقط')
+  assert(code.includes('selectUnitExamQuestionsApprovedFirst'), 'جاهزية أسئلة الوحدة يجب أن تستخدم نفس selector')
+}
+
+function testDraftExamCanBeRebuiltReadyAfterApprovals() {
+  const unitRoute = src('src/app/api/admin/unit-exams/generate/route.ts')
+  const ui = src('src/components/aact/AdminBooks.tsx')
+  assert(unitRoute.includes("const examStatus = reviewRequired ? 'DRAFT' : 'READY'"), 'إعادة بناء الاختبار من أسئلة معتمدة يجب أن يحوله إلى READY')
+  assert(ui.includes('تحديث الاختبار ونشره') && ui.includes('draftPendingCount === 0'), 'لوحة الوحدة يجب أن تعرض تحديث الاختبار ونشره بعد اعتماد كل الأسئلة')
+}
+
 function testQuestionBankRetryAtNotBeyondOneHour() {
   const now = Date.now()
   const retry = nextQuestionBankRetryAt(now, 365 * 24 * 60 * 60 * 1000)
