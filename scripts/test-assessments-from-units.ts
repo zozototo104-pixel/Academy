@@ -49,6 +49,20 @@ function generatedOpenQuestion(type: 'SHORT' | 'ESSAY', modelAnswer: string, ove
   }
 }
 
+function generatedTf(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'TF',
+    text: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
+    options: ['صح', 'خطأ'],
+    correctAnswer: 'صح',
+    sourceEvidence: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
+    sourceIndex: 1,
+    difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
+    ...overrides,
+  }
+}
+
 function testUnitExamDoesNotFixCorrectAnswer() {
   const code = src('src/app/api/admin/unit-exams/generate/route.ts')
   assert(!code.includes('function buildQuestions'), 'اختبار الوحدة يجب ألا يستخدم buildQuestions القالبية')
