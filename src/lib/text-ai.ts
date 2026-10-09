@@ -1135,8 +1135,9 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
 }
 
-export async function textAiCheckAllModelHealth(): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
+export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
   const s = await settings()
+  const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
   const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
   for (const provider of providerOrder(s)) {
     const key = providerKeys(s, provider)[0]
