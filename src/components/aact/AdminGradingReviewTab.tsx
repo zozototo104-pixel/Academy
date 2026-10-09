@@ -84,7 +84,7 @@ export default function AdminGradingReviewTab() {
       <Card>
         <CardContent className="p-4">
           {!selected ? <p className="text-sm font-bold text-slate-500">اختر محاولة لعرض الأسئلة المقالية وإقرار النتيجة.</p> : <div className="space-y-4">
-            <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline">إعادة التصحيح الآلي</Button><Button onClick={approve} className="bg-[#0f2b46] text-[#f5f0e1]">اعتماد النتيجة</Button></div>
+            <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div>
             {selected.answers.map((a) => <div key={a.answerId} className="rounded-2xl border p-3 text-sm">
               <p className="font-black text-[#0f2b46]">سؤال {a.order}: {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>
