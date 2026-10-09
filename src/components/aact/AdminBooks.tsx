@@ -3787,7 +3787,7 @@ export function AdminBooksTab() {
                     </div>
                     <p className="rounded-xl bg-slate-50 p-3 text-sm font-bold leading-7 text-[#0f2b46]">{q.text}</p>
                     {options.length > 0 && <div className="mt-2 grid gap-1">{options.map((option, index) => <p key={index} className={String(index) === String(q.correctAnswer) ? 'rounded-lg bg-emerald-50 p-2 font-black text-emerald-700' : 'rounded-lg bg-slate-50 p-2 font-bold text-slate-600'}>{index}. {option}{String(index) === String(q.correctAnswer) ? ' ✓' : ''}</p>)}</div>}
-                    {q.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل من الكتاب: {q.sourceEvidence}{q.pageStart != null ? ` · صفحة ${q.pageEnd && q.pageEnd !== q.pageStart ? `${q.pageStart}–${q.pageEnd}` : q.pageStart}` : ''}</p>}
+                    {q.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل من الكتاب: {q.sourceEvidence}{sourceReference ? ` · ${sourceReference}` : ''}</p>}
                     <p className="mt-2 text-[11px] font-bold text-slate-400">مولّد: {q.generatorModel || q.model || '؟'} · محقق: {q.verifierModel || '؟'}{q.verifierReason ? ` · سبب المحقق: ${q.verifierReason}` : ''}</p>
                   </article>
                 })}
