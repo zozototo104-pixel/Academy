@@ -568,6 +568,7 @@ export function AdminBooksTab() {
   const [updatingSourceBookId, setUpdatingSourceBookId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const latestProgramLoadRef = useRef('')
   const advanceRef = useRef(false)
   const [genSemester, setGenSemester] = useState('1')
   const [reviewingExam, setReviewingExam] = useState<{ id: string; title: string } | null>(null)
