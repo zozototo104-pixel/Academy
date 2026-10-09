@@ -143,11 +143,24 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'REPROCESS') {
-      const updated = await db.thesisSubmission.update({
-        where: { id },
-        data: { extractionStatus: 'UPLOADED', extractionError: null, extractionPagesDone: 0, extractionLockedUntil: null, digest: Prisma.JsonNull, extractedAt: null },
+      if (thesis.defenseStatus === 'COMPLETED') return NextResponse.json({ error: 'لا يمكن إعادة معالجة بحث بعد اكتمال المناقشة' }, { status: 409 })
+      const updated = await db.$transaction(async (tx) => {
+        await tx.thesisChunk.deleteMany({ where: { thesisId: id } })
+        return tx.thesisSubmission.update({
+          where: { id },
+          data: {
+            extractionStatus: 'UPLOADED',
+            extractionError: null,
+            extractionPagesDone: 0,
+            extractionTotalPages: null,
+            extractionLockedUntil: null,
+            pageCount: null,
+            wordCount: null,
+            digest: Prisma.JsonNull,
+            extractedAt: null,
+          },
+        })
       })
-      await db.thesisChunk.deleteMany({ where: { thesisId: id } })
       await audit(admin, 'REPROCESS_THESIS', 'ThesisSubmission', id, thesis.title)
       return NextResponse.json({ ok: true, thesis: updated })
     }
