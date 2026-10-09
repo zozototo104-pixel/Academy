@@ -1394,6 +1394,7 @@ model QuestionBankItem {
   correctAnswer String?
   modelAnswer   String?
   sourceEvidence String?
+  rubric       String?
   sourceBookTitle String?
   sourceLocator String?
   cognitiveSkill String?
