@@ -455,7 +455,7 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
       } catch (e) {
         lastErr = e
         if (emittedAnyChunk) {
-          yield '\n\nانقطع الرد، أعد المحاولة.'
+          yield STREAM_INTERRUPTED_RETRY_MESSAGE
           return
         }
         if (isAuthError(e)) throw e
