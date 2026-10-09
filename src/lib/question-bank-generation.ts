@@ -23,12 +23,31 @@ const generatedQuestionSchema = z.discriminatedUnion('type', [
   if (!q.options.includes(q.correctAnswer) && !/^[0-3]$/.test(q.correctAnswer)) ctx.addIssue({ code: 'custom', path: ['correctAnswer'], message: 'MCQ answer must match an option or its index' })
 })
 
+function normalizeDifficulty(value: unknown): 'EASY' | 'MEDIUM' | 'ADVANCED' | unknown {
+  const raw = String(value || '').trim()
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/[-_\s]+/g, ' ')
+  if (['easy', 'simple', 'basic', 'low', 'سهل', 'سهله', 'بسيط', 'بسيطه', 'اساسي', 'اساسيه', 'منخفض'].includes(normalized)) return 'EASY'
+  if (['medium', 'moderate', 'normal', 'intermediate', 'متوسط', 'متوسطه', 'عادي', 'عاديه', 'معتدل', 'معتدله'].includes(normalized)) return 'MEDIUM'
+  if (['advanced', 'hard', 'difficult', 'high', 'complex', 'متقدم', 'متقدمه', 'صعب', 'صعبه', 'عالي', 'عاليه', 'مركب', 'مركبه'].includes(normalized)) return 'ADVANCED'
+  if (/easy|basic|simple/.test(normalized)) return 'EASY'
+  if (/medium|moderate|intermediate/.test(normalized)) return 'MEDIUM'
+  if (/advanced|hard|difficult|complex/.test(normalized)) return 'ADVANCED'
+  return value
+}
+
 function normalizeCandidate(candidate: unknown): unknown {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
   const q: Record<string, unknown> = { ...(candidate as Record<string, unknown>) }
   const type = String(q.type || '').trim().toLowerCase()
   const aliases: Record<string, string> = { essay: 'ESSAY', 'مقالي': 'ESSAY', short_answer: 'SHORT', 'قصير': 'SHORT', true_false: 'TF', 'صح وخطأ': 'TF', 'صح/خطأ': 'TF', multiple_choice: 'MCQ', 'اختيار من متعدد': 'MCQ' }
   q.type = aliases[type] || type.toUpperCase()
+  if (q.difficulty != null) q.difficulty = normalizeDifficulty(q.difficulty)
   for (const [key, value] of Object.entries(q)) {
     if (typeof value === 'string') q[key] = value.trim()
   }
