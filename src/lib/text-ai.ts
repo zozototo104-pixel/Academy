@@ -1553,9 +1553,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     }
     const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, opts.purpose)
     const baseModels = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
-    const models = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
+    const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
       : baseModels
+    const health = await readModelHealth(provider, orderedModels)
+    const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
+    const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
     if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
