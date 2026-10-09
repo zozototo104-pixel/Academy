@@ -198,10 +198,12 @@ export async function PATCH(req: NextRequest) {
     const rows = await db.setting.findMany({ where: { key: { in: SYSTEM_KEYS } } })
     const values: Record<string, string> = {}
     for (const k of SYSTEM_KEYS) values[k] = ''
-    for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
+    for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
     const gemini = await geminiKeyDiagnostics()
     const textAi = await textAiDiagnostics()
+    textAi.message = redactSecrets(textAi.message)
     const agent = await localAgentDiagnostics()
+    agent.error = redactSecrets(agent.error || '')
     return NextResponse.json({ ok: true, values, gemini, textAi, agent })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
