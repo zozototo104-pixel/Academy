@@ -391,6 +391,16 @@ interface CurriculumUnitReviewItem {
   } | null
 }
 
+interface UnitQuestionReviewPayload {
+  unit: { id: string; title: string; programId: string }
+  requiredQuestions: number
+  readyToBuild: boolean
+  publishable: boolean
+  counts: { APPROVED: number; PENDING_REVIEW: number; REJECTED: number; total: number }
+  questions: { APPROVED: QuestionBankItemRow[]; PENDING_REVIEW: QuestionBankItemRow[]; REJECTED: QuestionBankItemRow[] }
+  exam: { id: string; title: string; status: string; questionsCount: number } | null
+}
+
 interface ProgramReadinessSnapshot {
   registrationStatus: 'OPEN' | 'CLOSED'
   academicReadinessStatus: 'NEEDS_PREPARATION' | 'IN_PREPARATION' | 'READY_FOR_REVIEW' | 'APPROVED'
