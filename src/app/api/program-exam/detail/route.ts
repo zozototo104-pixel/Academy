@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       where: { userId: user.id, examId, status: { not: 'STARTED' } },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
+        id: true, status: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
         appealStatus: true, appealResponse: true,
       },
       take: 10,
