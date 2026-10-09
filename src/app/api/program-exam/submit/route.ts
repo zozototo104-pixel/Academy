@@ -278,7 +278,15 @@ export async function POST(req: NextRequest) {
     let gradedEssayResults: GradedResult[]
     try {
       gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
-      const graded = await gradeEssayAnswer(q.text, q.modelAnswer || '', text, q.points, examAcademicContext)
+      const graded = await gradeEssayWithRubric({
+        question: q.text,
+        modelAnswer: q.modelAnswer || '',
+        rubric: q.rubric,
+        sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+        studentAnswer: text,
+        maxPoints: q.points,
+      })
+      const clampedPoints = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
       await db.programAnswer.create({
         data: {
           attemptId: attempt.id,
