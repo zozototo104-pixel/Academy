@@ -3758,6 +3758,42 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={unitQuestionsOpen} onOpenChange={(open) => { setUnitQuestionsOpen(open); if (!open) { setSelectedUnitQuestionIds([]); setUnitQuestions(null); setUnitQuestionsUnit(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">مراجعة أسئلة الوحدة</DialogTitle>
+            <DialogDescription>{unitQuestionsUnit?.title || unitQuestions?.unit.title || 'وحدة'} · بنك أسئلة الوحدة والاختبار في مكان واحد.</DialogDescription>
+          </DialogHeader>
+          {unitQuestionsLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div> : unitQuestions ? <div className="space-y-4">
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs font-bold text-indigo-900">
+              بنك أسئلة الوحدة: {unitQuestions.counts.APPROVED} معتمد · {unitQuestions.counts.PENDING_REVIEW} بانتظار المراجعة · {unitQuestions.counts.REJECTED} مرفوض — الاختبار: {unitExamLabel(unitQuestions.exam)}
+            </div>
+            <Tabs value={unitQuestionsTab} onValueChange={(value) => { setUnitQuestionsTab(value as typeof unitQuestionsTab); setSelectedUnitQuestionIds([]) }} dir="rtl">
+              <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="PENDING_REVIEW">بانتظار المراجعة ({unitQuestions.counts.PENDING_REVIEW})</TabsTrigger><TabsTrigger value="APPROVED">معتمد ({unitQuestions.counts.APPROVED})</TabsTrigger><TabsTrigger value="REJECTED">مرفوض ({unitQuestions.counts.REJECTED})</TabsTrigger></TabsList>
+              {(['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const).map((status) => <TabsContent key={status} value={status} className="space-y-3">
+                {status === 'PENDING_REVIEW' && activeUnitQuestionRows.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-2 text-xs font-bold"><Button size="sm" disabled={!selectedUnitQuestionIds.length || questionBankBusy === 'unit-approve-selected'} onClick={approveSelectedUnitQuestions} className="bg-emerald-700 text-white hover:bg-emerald-800">اعتماد الكل للمحددين ({selectedUnitQuestionIds.length})</Button></div>}
+                {activeUnitQuestionRows.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">ما في أسئلة لهالوحدة بعد{unitQuestions.counts.total === 0 && unitQuestionsUnit ? <div className="mt-3"><Button size="sm" onClick={() => generateUnitExam(unitQuestionsUnit)} className="bg-[#0f2b46] text-[#f5f0e1]">توليد أسئلة</Button></div> : null}</div> : activeUnitQuestionRows.map((q) => {
+                  const options = bankQuestionOptions(q)
+                  return <article key={q.id} className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-2"><Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge><Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge><Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{q.cognitiveSkill || 'UNDERSTAND'}</Badge>{q.verifierModel?.includes(':free') && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100" title={q.verifierModel}>تحقق بموديل مجاني</Badge>}</div>
+                      <div className="flex flex-wrap gap-2">{status === 'PENDING_REVIEW' && <label className="flex items-center gap-1 text-[11px] font-black text-slate-500"><input type="checkbox" checked={selectedUnitQuestionIds.includes(q.id)} onChange={(event) => setSelectedUnitQuestionIds((prev) => event.target.checked ? [...new Set([...prev, q.id])] : prev.filter((id) => id !== q.id))} /> تحديد</label>}<Button size="sm" variant="outline" onClick={() => openEditBankQuestion(q)} className="text-xs font-black">تعديل</Button><Button size="sm" disabled={questionBankBusy === q.id} onClick={() => patchUnitQuestion(q.id, 'APPROVED')} className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800">اعتماد</Button><Button size="sm" variant="outline" disabled={questionBankBusy === q.id} onClick={async () => patchUnitQuestion(q.id, 'REJECTED', window.prompt('سبب الرفض؟') || undefined)} className="border-red-200 text-xs font-black text-red-700">رفض</Button></div>
+                    </div>
+                    <p className="rounded-xl bg-slate-50 p-3 text-sm font-bold leading-7 text-[#0f2b46]">{q.text}</p>
+                    {options.length > 0 && <div className="mt-2 grid gap-1">{options.map((option, index) => <p key={index} className={String(index) === String(q.correctAnswer) ? 'rounded-lg bg-emerald-50 p-2 font-black text-emerald-700' : 'rounded-lg bg-slate-50 p-2 font-bold text-slate-600'}>{index}. {option}{String(index) === String(q.correctAnswer) ? ' ✓' : ''}</p>)}</div>}
+                    {q.sourceEvidence && <p className="mt-2 rounded-xl bg-[#fffaf0] p-3 font-bold leading-6 text-[#8a6d16]">الدليل من الكتاب: {q.sourceEvidence}{q.pageStart != null ? ` · صفحة ${q.pageEnd && q.pageEnd !== q.pageStart ? `${q.pageStart}–${q.pageEnd}` : q.pageStart}` : ''}</p>}
+                    <p className="mt-2 text-[11px] font-bold text-slate-400">مولّد: {q.model || '؟'} · محقق: {q.verifierModel || '؟'}{q.verifierReason ? ` · سبب المحقق: ${q.verifierReason}` : ''}</p>
+                  </article>
+                })}
+              </TabsContent>)}
+            </Tabs>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-[#0f2b46]">
+              {!unitQuestions.readyToBuild ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-[#0f2b46] text-[#f5f0e1]">توليد أسئلة إضافية (ناقص {unitQuestionMissing})</Button> : !unitQuestions.exam ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-indigo-700 text-white hover:bg-indigo-800">بناء الاختبار الآن</Button> : unitQuestions.exam.status === 'DRAFT' && draftPendingCount === 0 ? <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={runUnitQuestionPanelAction} className="bg-emerald-700 text-white hover:bg-emerald-800">تحديث الاختبار ونشره</Button> : unitQuestions.exam.status === 'DRAFT' ? <span className="text-amber-700">باقي {draftPendingCount} سؤال بانتظار المراجعة</span> : <span className="text-emerald-700">الاختبار جاهز للنشر للطلاب.</span>}
+            </div>
+          </div> : <p className="rounded-xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">اختر وحدة لعرض أسئلتها.</p>}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!editingBankQuestion} onOpenChange={(open) => !open && setEditingBankQuestion(null)}>
         <DialogContent className="max-w-2xl" dir="rtl">
           <DialogHeader>
