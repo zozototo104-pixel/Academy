@@ -73,18 +73,31 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const now = new Date()
+    const allowedMs = (exam.durationMin + 2) * 60 * 1000
     let startedAttempt = await db.programExamAttempt.findFirst({
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, startedAt: true },
+      select: { id: true, startedAt: true, createdAt: true },
     })
+    if (startedAttempt) {
+      const effectiveStartedAt = startedAttempt.startedAt || startedAttempt.createdAt
+      if (!startedAttempt.startedAt) {
+        startedAttempt = await db.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: effectiveStartedAt }, select: { id: true, startedAt: true, createdAt: true } })
+      }
+      if (effectiveStartedAt.getTime() + allowedMs < now.getTime()) {
+        await db.programExamAttempt.update({
+          where: { id: startedAttempt.id },
+          data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
+        })
+        startedAttempt = null
+      }
+    }
     if (!startedAttempt) {
       startedAttempt = await db.programExamAttempt.create({
-        data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
-        select: { id: true, startedAt: true },
+        data: { userId: user.id, examId, status: 'STARTED', startedAt: now },
+        select: { id: true, startedAt: true, createdAt: true },
       })
-    } else if (!startedAttempt.startedAt) {
-      startedAttempt = await db.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: new Date() }, select: { id: true, startedAt: true } })
     }
 
     const books = await db.book.findMany({
