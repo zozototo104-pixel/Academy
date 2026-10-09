@@ -80,7 +80,8 @@ async function extractPdf(thesis: any, buffer: Buffer, deadlineMs: number) {
         update: { pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, text: chunk.text, status: 'EXTRACTED' },
       })
     }
-    await tx.thesisSubmission.update({ where: { id: thesis.id }, data: { extractionStatus: last >= totalPages ? 'ANALYZING' : 'EXTRACTING', extractionPagesDone: last, extractionTotalPages: totalPages, pageCount: totalPages, wordCount: { increment: ordered.reduce((sum, page) => sum + words(page.text), 0) }, extractionError: null } })
+    const batchWords = ordered.reduce((sum, page) => sum + words(page.text), 0)
+    await tx.thesisSubmission.update({ where: { id: thesis.id }, data: { extractionStatus: last >= totalPages ? 'ANALYZING' : 'EXTRACTING', extractionPagesDone: last, extractionTotalPages: totalPages, pageCount: totalPages, wordCount: Number(thesis.wordCount || 0) + batchWords, extractionError: null } })
   })
   return { phase: last >= totalPages ? 'ANALYZING' : 'EXTRACTING', pagesDone: last, totalPages }
 }
