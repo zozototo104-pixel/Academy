@@ -340,6 +340,10 @@ const tests = [
   testQuestionBankJobCompletesWithSharedSelector,
   testLateQuestionBankStepDoesNotReopenCompleted,
   testUnitQuestionsApiScopesToSingleUnit,
+  testUnitQuestionsApiHydratesKnowledgePages,
+  testUnitQuestionPagesFallbackToLocator,
+  testUnitQuestionJobRequestedCanShrink,
+  testProgramQuestionJobRequestedKeepsOldMaxBehavior,
   testDraftExamCanBeRebuiltReadyAfterApprovals,
   testQuestionBankRetryAtNotBeyondOneHour,
 ]
