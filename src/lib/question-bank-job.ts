@@ -99,7 +99,7 @@ function safeOptions(value: unknown, type: string) {
   const arr = Array.isArray(value) ? value : []
   const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
   if (type === 'TF') return ['صح', 'خطأ']
-  if (type === 'MCQ') return options.length >= 3 ? options.slice(0, 4) : ['خيار أول', 'خيار ثانٍ', 'خيار ثالث', 'خيار رابع']
+  if (type === 'MCQ') return options.length >= 3 ? options.slice(0, 4) : []
   return []
 }
 
