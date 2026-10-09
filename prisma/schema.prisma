@@ -888,6 +888,20 @@ model ThesisChunk {
   @@index([thesisId, status, index])
 }
 
+model ThesisUploadChunk {
+  id        String   @id @default(cuid())
+  uploadId  String
+  userId    String
+  thesisId  String
+  index     Int
+  data      String
+  createdAt DateTime @default(now())
+
+  @@unique([uploadId, index])
+  @@index([uploadId, userId, thesisId])
+  @@index([createdAt])
+}
+
 model ThesisReviewNote {
   id        String   @id @default(cuid())
   thesisId  String
