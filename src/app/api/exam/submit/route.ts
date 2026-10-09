@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
             sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
             studentAnswer: essayText,
             maxPoints: q.points,
+            deadlineMs: Date.now() + 45_000,
           })
         } catch (e: any) {
           console.error('Essay grading failed; saving for manual review:', String(e?.message || e).slice(0, 300))
