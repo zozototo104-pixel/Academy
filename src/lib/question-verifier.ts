@@ -347,7 +347,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     for (const item of prepared) {
       const result = byIndex.get(item.index) || null
       if (item.literalPass && result?.valid) {
-        output[item.index] = applyAccepted(item.question, result, { ...verifierContext, sameProviderVerifierFallback })
+        output[item.index] = applyAccepted(item.question, result, verifierContext)
         logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: result.reason })
       } else {
         const reason = item.literalPass ? 'VERIFIER_REJECTED' : 'LITERAL_EVIDENCE_FAILED'
