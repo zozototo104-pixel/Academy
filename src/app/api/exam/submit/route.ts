@@ -15,7 +15,7 @@ type PreparedAnswer = {
   selectedOption?: number | null
   answerText?: string | null
   isCorrect: boolean | null
-  points: number
+  points: number | null
   maxPoints: number
   aiFeedback: string
 }
