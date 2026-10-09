@@ -438,6 +438,11 @@ export function AdminThesisTab() {
                     )}
                   </div>
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
+                    {t.extractionStatus === 'FAILED' && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => reprocessThesis(t)} className="w-full justify-center border-red-200 font-bold text-red-700 hover:bg-red-50">
+                        إعادة المعالجة
+                      </Button>
+                    )}
                     {t.status === 'PLAN_SUBMITTED' && (
                       <>
                         <Button size="sm" onClick={() => thesisAction(t, 'APPROVE_PLAN')}
