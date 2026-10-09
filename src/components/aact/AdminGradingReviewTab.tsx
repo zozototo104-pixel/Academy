@@ -17,6 +17,7 @@ export default function AdminGradingReviewTab() {
   const [selected, setSelected] = useState<ReviewDetail | null>(null)
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState<'regrade' | 'approve' | null>(null)
 
   const load = async () => {
     setLoading(true)
