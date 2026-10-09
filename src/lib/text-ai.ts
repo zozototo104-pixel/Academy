@@ -1135,6 +1135,58 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
 }
 
+export async function textAiCheckAllModelHealth(): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
+  const s = await settings()
+  const results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> = []
+  for (const provider of providerOrder(s)) {
+    const key = providerKeys(s, provider)[0]
+    if (!key) continue
+    for (const model of (await modelFallbacks(s, provider, 'GENERAL', false)).slice(0, 3)) {
+      const started = Date.now()
+      try {
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Date.now() + 15_000 })
+        const result = { provider, model, ok: true, latencyMs: Date.now() - started }
+        results.push(result)
+        await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
+      } catch (e: any) {
+        const result = { provider, model, ok: false, latencyMs: Date.now() - started, error: redactSecrets(e?.message || e).slice(0, 240) }
+        results.push(result)
+        await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
+      }
+    }
+  }
+  return { checked: results.length, results }
+}
+
+export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: string; model: string; status: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>> {
+  const rows = await settingStore().scan?.('AI_MODEL_') || {}
+  const models = new Map<string, { provider: string; model: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
+  const ensure = (provider: string, model: string) => {
+    const id = `${provider}:${model}`
+    if (!models.has(id)) models.set(id, { provider, model, purposeScores: {} })
+    return models.get(id)!
+  }
+  for (const [key, value] of Object.entries(rows)) {
+    if (key.startsWith('AI_MODEL_HEALTH:')) {
+      const [, , provider, ...modelParts] = key.split(':')
+      ensure(provider, modelParts.join(':')).health = parseModelHealth(value)
+    } else if (key.startsWith('AI_MODEL_STATS:')) {
+      const parts = key.split(':')
+      if (['CHAT', 'ANALYSIS', 'GENERATION', 'GRADING', 'VISION', 'LONG_CONTEXT', 'REVIEW'].includes(parts[1])) {
+        const [, , purpose, provider, ...modelParts] = parts
+        ensure(provider, modelParts.join(':')).purposeScores![purpose] = healthScore(parseModelStats(value))
+      } else {
+        const [, , provider, ...modelParts] = parts
+        ensure(provider, modelParts.join(':')).stats = parseModelStats(value)
+      }
+    } else if (key.startsWith('AI_MODEL_DEAD:')) {
+      const [, , provider, ...modelParts] = key.split(':')
+      ensure(provider, modelParts.join(':')).status = 'ميت'
+    }
+  }
+  return [...models.values()].map((row) => ({ ...row, status: row.status || (recentFailedHealth(row.health || null) ? 'فشل الفحص' : 'شغّال') }))
+}
+
 export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
   const s = await settings()
   const order = providerOrder(s)
