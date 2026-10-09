@@ -186,6 +186,21 @@ function testShortConciseAnswerAccepted() {
   assert(parsed.accepted.length === 1, 'سؤال SHORT بإجابة نموذجية قصيرة يجب أن يُقبل')
 }
 
+function testTfArabicCorrectAnswerAliasesNormalize() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([{
+    type: 'TF',
+    text: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
+    options: ['صح', 'خطأ'],
+    correctAnswer: 'صحيح',
+    sourceEvidence: 'يوفر الدليل إطاراً لدعم الأفراد بطرق تراعي كرامتهم وثقافتهم وقدراتهم.',
+    sourceIndex: 1,
+    difficulty: 'MEDIUM',
+    cognitiveSkill: 'UNDERSTAND',
+  }]))
+  assert(parsed.accepted.length === 1, 'إجابة TF بقيمة صحيح يجب أن تُقبل')
+  assert(parsed.accepted[0].correctAnswer === 'صح', 'صحيح يجب أن تتحول إلى صح')
+}
+
 function testEssayShortAnswerRejected() {
   const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedOpenQuestion('ESSAY', 'قصير جداً')]))
   assert(parsed.accepted.length === 0, 'سؤال ESSAY بإجابة أقل من 40 حرفاً يجب أن يُرفض')
