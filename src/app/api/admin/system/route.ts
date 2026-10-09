@@ -7,6 +7,7 @@ import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiMo
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { textAiDiagnostics, textAiFreeModelsForProvider, textAiTestConnection } from '@/lib/text-ai'
+import { clearSecretCache, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
 
 const SYSTEM_KEYS = [
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_NAME', 'SMTP_ENABLED',
