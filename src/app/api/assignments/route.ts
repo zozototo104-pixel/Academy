@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
     let fileStorageProvider: string | null = null
     let fileStorageKey: string | null = null
     let fileUrl: string | null = null
+    let pendingFileBuffer: Buffer | null = null
 
     if (contentType.includes('multipart/form-data')) {
       const fd = await req.formData()
