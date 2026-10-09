@@ -156,7 +156,9 @@ const tests = [
   testEmptyBatchAdvancesQuestionBankCursor,
   testVerifierRejectedQuestionIsNotSaved,
   testIncompleteMcqOptionsAreRejected,
+  testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty,
   testPreviewPollingNudgesQuestionBankJob,
+  testQuestionBankStepRoutesHaveMaxDuration,
   testQuestionBankRetryAtNotBeyondOneHour,
 ]
 
