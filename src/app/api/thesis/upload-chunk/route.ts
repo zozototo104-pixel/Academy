@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           extractionTotalPages: null,
           wordCount: null,
           pageCount: null,
-          digest: undefined,
+          digest: null,
           extractedAt: null,
         },
       })
