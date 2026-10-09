@@ -362,6 +362,19 @@ export function AdminSystemTab() {
     }
   }
 
+  const encryptLegacySecrets = async () => {
+    setSaving(true)
+    try {
+      const result = await api<{ ok: boolean; encryptedCount: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'encrypt-legacy-secrets' }) })
+      toast({ title: 'تم تشفير المفاتيح القديمة', description: `تم تشفير ${result.encryptedCount || 0} قيمة.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر تشفير المفاتيح', description: e.message, variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   useEffect(() => {
     setTextModelHealth(null)
   }, [catalogProviderForModels])
