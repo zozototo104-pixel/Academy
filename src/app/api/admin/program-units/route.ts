@@ -174,7 +174,7 @@ async function listProgramUnits(programId: string) {
       questionBankJob: qJob ? {
         id: qJob.id,
         status: qJob.status,
-        requested: qJob.requested,
+        requested: requiredQuestions,
         saved: qJob.saved,
         readyToBuild: qSelection.readyToBuild,
         approvedQuestions: questionBankCountsByUnit.get(u.id)?.approved || 0,
