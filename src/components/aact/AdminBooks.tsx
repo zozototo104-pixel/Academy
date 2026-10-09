@@ -1251,6 +1251,64 @@ export function AdminBooksTab() {
     }
   }
 
+  const loadUnitQuestions = async (unitId: string) => {
+    setUnitQuestionsLoading(true)
+    try {
+      const res = await api<UnitQuestionReviewPayload>(`/api/admin/units/${unitId}/questions`)
+      setUnitQuestions(res)
+      return res
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل أسئلة الوحدة', description: e.message, variant: 'destructive' })
+      return null
+    } finally {
+      setUnitQuestionsLoading(false)
+    }
+  }
+
+  const openUnitQuestionReview = async (unit: CurriculumUnitReviewItem) => {
+    setUnitQuestionsUnit(unit)
+    setUnitQuestionsTab('PENDING_REVIEW')
+    setSelectedUnitQuestionIds([])
+    setUnitQuestionsOpen(true)
+    await loadUnitQuestions(unit.id)
+  }
+
+  const patchUnitQuestion = async (questionId: string, status: 'APPROVED' | 'REJECTED', rejectedReason?: string) => {
+    setQuestionBankBusy(questionId)
+    try {
+      await api('/api/admin/question-bank', { method: 'PATCH', body: JSON.stringify({ id: questionId, status, rejectedReason }) })
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
+      if (programId) await refreshCurriculumUnits(programId)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const approveSelectedUnitQuestions = async () => {
+    if (!selectedUnitQuestionIds.length) return
+    if (!(await askAdminConfirm({ title: 'اعتماد الأسئلة المحددة', description: `سيتم اعتماد ${selectedUnitQuestionIds.length} سؤال من أسئلة الوحدة.`, confirmLabel: 'اعتماد الكل' }))) return
+    setQuestionBankBusy('unit-approve-selected')
+    try {
+      await Promise.all(selectedUnitQuestionIds.map((id) => api('/api/admin/question-bank', { method: 'PATCH', body: JSON.stringify({ id, status: 'APPROVED' }) })))
+      setSelectedUnitQuestionIds([])
+      if (unitQuestionsUnit) await loadUnitQuestions(unitQuestionsUnit.id)
+      if (programId) await refreshCurriculumUnits(programId)
+      toast({ title: 'تم اعتماد الأسئلة المحددة' })
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد الأسئلة', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const runUnitQuestionPanelAction = async () => {
+    if (!unitQuestionsUnit || !unitQuestions) return
+    await generateUnitExam(unitQuestionsUnit)
+    await loadUnitQuestions(unitQuestionsUnit.id)
+  }
+
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
     const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
