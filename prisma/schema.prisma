@@ -828,6 +828,19 @@ model ThesisSubmission {
   fileStorageProvider String?
   fileStorageKey      String?
   fileUrl             String?
+  extractionStatus String? // UPLOADED | EXTRACTING | ANALYZING | READY | FAILED
+  extractionError  String?
+  extractionLockedUntil DateTime?
+  extractionPagesDone Int? @default(0)
+  extractionTotalPages Int?
+  wordCount Int?
+  pageCount Int?
+  digest Json?
+  extractedAt DateTime?
+  fileName String?
+  fileMime String?
+  fileSize Int?
+  defenseBreakdown Json?
   status      String   @default("SUBMITTED") // SUBMITTED | SCHEDULED | RESULT_APPROVED | NEEDS_REVISION
   defenseDate DateTime?
   committee   String?  // JSON array أسماء أعضاء اللجنة
