@@ -313,7 +313,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const parsed = parseGeneratedQuestionCandidates(raw.text)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: 18_000 })
-  const traceReasons: string[] = validation.rejected.map((item) => item.reason)
+  const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]
   const verifierRejected = verified.filter((item) => !hasSourceGroundedFlag(item))
   for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))
   const groundedQuestions = verified.filter(hasSourceGroundedFlag)
