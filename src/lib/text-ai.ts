@@ -36,6 +36,7 @@ export interface TextAiCallOpts {
   json?: boolean
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
+  purpose?: TextAiPurpose
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
