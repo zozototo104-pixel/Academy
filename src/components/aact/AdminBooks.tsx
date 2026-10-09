@@ -1032,7 +1032,10 @@ export function AdminBooksTab() {
     if (workspaceTab !== 'units' || !programId) return
     const activeJobIds = curriculumUnits
       .map((unit) => unit.questionBankJob)
-      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job) && job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status))
+      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => {
+        if (!job) return false
+        return job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
+      })
       .map((job) => job.id)
     if (!activeJobIds.length) return
     const pollJobs = async () => {
