@@ -208,7 +208,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
     saveAnalyzed: async (chunk, items, id) => {
       // Keep the persistence batch short; no AI calls or per-item inserts in a transaction.
       const current = await db.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
-      if (current?.status !== 'EXTRACTED') return
+      if (!current || !['EXTRACTED', 'PENDING'].includes(current.status)) return
       await db.$transaction([
         db.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } }),
         db.bookKnowledgeItem.createMany({ data: items.map((item) => ({
