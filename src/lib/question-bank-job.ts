@@ -411,9 +411,10 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
         select: { id: true, status: true, qualityFlags: true },
         orderBy: [{ status: 'asc' }, { usageCount: 'asc' }, { createdAt: 'desc' }],
       })
-      readyToBuild = selectUnitExamQuestionsApprovedFirst(candidates, job.requested).readyToBuild
+      const requiredQuestions = unitExamRequiredQuestions(job.requested)
+      readyToBuild = selectUnitExamQuestionsApprovedFirst(candidates, requiredQuestions).readyToBuild
     } else {
-      readyToBuild = job.saved + inserted >= job.requested
+      readyToBuild = job.saved + inserted >= unitExamRequiredQuestions(job.requested)
     }
     await db.questionBankGenerationJob.updateMany({
       where: { id: jobId, status: { not: 'COMPLETED' } },
