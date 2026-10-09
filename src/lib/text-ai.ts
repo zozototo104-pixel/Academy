@@ -1160,7 +1160,7 @@ export async function textAiCheckAllModelHealth(): Promise<{ checked: number; re
 
 export async function textAiModelHealthSnapshot(): Promise<Array<{ provider: string; model: string; status: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>> {
   const rows = await settingStore().scan?.('AI_MODEL_') || {}
-  const models = new Map<string, { provider: string; model: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
+  const models = new Map<string, { provider: string; model: string; status?: string; health?: ModelHealth | null; stats?: ModelStats | null; purposeScores?: Record<string, number> }>()
   const ensure = (provider: string, model: string) => {
     const id = `${provider}:${model}`
     if (!models.has(id)) models.set(id, { provider, model, purposeScores: {} })
