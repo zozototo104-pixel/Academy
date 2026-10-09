@@ -951,8 +951,8 @@ async function recordModelStats(provider: ConcreteProvider, model: string, resul
   }
 }
 
-async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean): Promise<string[]> {
-  const stats = await readModelStats(provider, models)
+async function orderModelsByHealth(provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, explore: boolean, purpose?: TextAiPurpose): Promise<string[]> {
+  const stats = await readModelStats(provider, models, purpose)
   const sorted = [...models].sort((a, b) => {
     const scoreDiff = healthScore(stats.get(b) || parseModelStats('')) - healthScore(stats.get(a) || parseModelStats(''))
     if (Math.abs(scoreDiff) > 0.03) return scoreDiff
