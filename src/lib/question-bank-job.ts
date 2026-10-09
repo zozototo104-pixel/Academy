@@ -259,17 +259,17 @@ export async function ensureQuestionBankGenerationJob(params: { programId: strin
     const statuses = params.manual ? ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'] : ['QUEUED', 'RUNNING', 'PAUSED']
     const existing = await db.questionBankGenerationJob.findFirst({ where: { programId: params.programId, unitId: params.unitId || null, status: { in: statuses } }, orderBy: { createdAt: 'desc' } })
     if (existing) {
-      const shouldReactivate = params.manual && ['PAUSED', 'FAILED'].includes(existing.status)
-      if (shouldReactivate) await resetJobFailureState(existing.id)
-      if (shouldReactivate || existing.requested < requested) {
+      const plan = planQuestionBankJobManualReactivation(existing, requested, Boolean(params.manual))
+      if (plan.resetFailureCounter) await resetJobFailureState(existing.id)
+      if (plan.shouldUpdate) {
         return db.questionBankGenerationJob.update({
           where: { id: existing.id },
           data: {
-            requested: Math.max(existing.requested, requested),
-            status: shouldReactivate ? 'QUEUED' : existing.status === 'PAUSED' ? 'QUEUED' : existing.status,
-            retryAt: null,
+            requested: plan.requested,
+            status: plan.status,
+            retryAt: plan.retryAt,
             lockedUntil: null,
-            finishedAt: shouldReactivate ? null : existing.finishedAt,
+            finishedAt: plan.resetFailureCounter ? null : existing.finishedAt,
           },
         })
       }
