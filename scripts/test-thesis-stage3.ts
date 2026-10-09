@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { strict as assert } from 'node:assert'
 import { thesisDigestSchema } from '../src/lib/thesis-digest'
-import { scoreDefenseBreakdown } from '../src/lib/thesis-context'
+import { scoreDefenseBreakdown } from '../src/lib/thesis-defense-score'
 
 function src(path: string) {
   return readFileSync(path, 'utf8')
