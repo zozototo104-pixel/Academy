@@ -227,6 +227,9 @@ model Question {
   options       String? // JSON array for MCQ
   correctAnswer String? // index "0".."3" for MCQ
   modelAnswer   String? // rubric/model answer for ESSAY
+  knowledgeItemId String?
+  sourceEvidence String?
+  rubric        String?
   points        Int       @default(10)
   answers       Answer[]
 }
