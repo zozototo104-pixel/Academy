@@ -322,6 +322,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     system: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.',
     history: [{ role: 'user', text: `أنشئ ${count} سؤالاً موثقاً لبنك الأسئلة.\nالبرنامج: ${program.titleAr}\nالنطاق: ${scope.scopeLabel}\n\nمصادر المعرفة المسموحة فقط:\n${knowledgeText}\n\nأرجع {"questions":[...]} ويجب أن يحتوي كل سؤال على: type=MCQ|TF|SHORT|ESSAY, text, options, correctAnswer, modelAnswer, sourceEvidence اقتباس حرفي من نص المصدر, sourceIndex رقم المصدر, difficulty, cognitiveSkill, correctRationale.\nاستخدم هالقيم بالإنجليزي بالضبط: cognitiveSkill واحدة من REMEMBER|UNDERSTAND|APPLY|ANALYZE|EVALUATE|CREATE، وdifficulty واحدة من EASY|MEDIUM|ADVANCED.\nلأسئلة TF استخدم correctAnswer كنص "صح" أو "خطأ" فقط، ولا تستخدم رقماً.\nاجعل الدفعة متنوعة، واحرص على سؤال قصير أو صح/خطأ عند الإمكان. لا تكرر أي سؤال موجود أعلاه، ولا تستخدم أي مصدر خارج القائمة.${diversityInstruction}` }],
     taskLevel: 'ACADEMIC_CRITICAL',
+    purpose: 'GENERATION',
     routerPolicy: 'balanced',
     temperature: 0.2,
     maxOutputTokens: 5200,
