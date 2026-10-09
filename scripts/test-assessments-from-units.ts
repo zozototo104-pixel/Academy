@@ -352,6 +352,8 @@ const tests = [
   testExpandedCognitiveSkillAliasesNormalize,
   testShortConciseAnswerAccepted,
   testTfArabicCorrectAnswerAliasesNormalize,
+  testTfNumericAnswerUsesGeneratedOptionIndex,
+  testUnitExamTfOptionsStayStable,
   testEssayShortAnswerRejected,
   testAllStructurallyRejectedBatchThrows,
   testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty,
