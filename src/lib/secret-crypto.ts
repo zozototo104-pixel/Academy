@@ -65,7 +65,7 @@ export function clearSecretCache() {
 }
 
 export function isSecretKeyName(key: string) {
-  return /(?:^|_)(?:KEY|KEYS|SECRET|TOKEN)(?:_|$)/i.test(key) || /KEY|SECRET|TOKEN/i.test(key)
+  return /(?:^|_)(?:KEY|KEYS|SECRET|TOKEN|CREDENTIAL|PASSWORD|PASS)(?:_|$)/i.test(key) || /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i.test(key)
 }
 
 export function isMaskedSecret(value: unknown) {
