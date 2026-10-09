@@ -1072,7 +1072,7 @@ export function AdminBooksTab() {
       .map((unit) => unit.questionBankJob)
       .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => {
         if (!job) return false
-        return job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
+        return (job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) || job.status === 'RUNNING'
       })
       .map((job) => job.id)
     if (!activeJobIds.length) return
