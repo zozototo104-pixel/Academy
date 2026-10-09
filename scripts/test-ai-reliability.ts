@@ -52,7 +52,16 @@ function testAcademicVerifierExcludesGeneratorProvider() {
   assert(verifier.includes("purpose: 'REVIEW'"), 'purpose routing must not remove cross-provider verifier exclusion')
 }
 
-for (const fn of [testProviderOrderUnchanged, testPurposeVisionCapabilityFiltering, testHealthFallbackAndStreamGuardPresent, testRetryAfter, testSecretCryptoAndRedaction, testAcademicVerifierExcludesGeneratorProvider]) {
+function testSecretSettingsGuardrails() {
+  const textAi = src('src/lib/text-ai.ts')
+  for (const provider of ['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT']) assert(textAi.includes(`'${provider}'`), `${provider} must be in strict encrypted setting provider guard`)
+  assert(textAi.includes('STRICT_ENCRYPTED_SETTING_PROVIDERS.has(provider)'), 'restricted providers must ignore plaintext setting keys')
+  const system = src('src/app/api/admin/system/route.ts')
+  assert(system.includes('isMaskedSecret(value)') && system.includes('continue'), 'masked or blank secret values must not overwrite existing settings')
+  assert(system.includes('أضف AACT_SECRETS_KEY في Vercel أولاً'), 'saving plaintext secrets without encryption key must be rejected')
+}
+
+for (const fn of [testProviderOrderUnchanged, testPurposeVisionCapabilityFiltering, testHealthFallbackAndStreamGuardPresent, testRetryAfter, testSecretCryptoAndRedaction, testAcademicVerifierExcludesGeneratorProvider, testSecretSettingsGuardrails]) {
   fn()
   console.log(`✓ ${fn.name}`)
 }
