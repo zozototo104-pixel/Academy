@@ -97,7 +97,7 @@ function normalizeCandidate(candidate: unknown): unknown {
     else if (Array.isArray(q[key])) q[key] = q[key].map((v: unknown) => typeof v === 'string' ? v.trim() : v)
   }
   if (typeof q.correctAnswer === 'number') q.correctAnswer = String(q.correctAnswer)
-  if (q.type === 'TF' && q.correctAnswer != null) q.correctAnswer = normalizeTfCorrectAnswer(q.correctAnswer)
+  if (q.type === 'TF' && q.correctAnswer != null) q.correctAnswer = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
   return q
 }
 
