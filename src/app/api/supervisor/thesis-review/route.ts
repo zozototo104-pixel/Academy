@@ -67,9 +67,13 @@ ${reviewText}
       )
     }
 
+    const weights: Record<string, number> = { problem: 20, methodology: 20, literature: 15, analysis: 20, application: 10, language: 15 }
+    const scores = parsed?.scores || {}
+    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + Math.max(0, Math.min(100, Number(scores[key]) || 0)) * weight, 0) / 100
+
     const feedback =
-      `تحليل مسودة البحث «${String(title || 'بدون عنوان')}»\n\n` +
-      `التقييم العام: ${Math.max(0, Math.min(100, Number(parsed.overallScore) || 0))}/100 — ${parsed.verdict || ''}\n\n` +
+      `تحليل مسودة البحث «${String(readyThesis?.title || title || 'بدون عنوان')}»\n\n` +
+      `التقييم العام: ${Math.round(weightedScore)}/100 — ${parsed.verdict || ''}\n\n` +
       `نقاط القوة:\n${(parsed.strengths || []).map((s: string) => `- ${s}`).join('\n')}\n\n` +
       `ملاحظات جوهرية:\n${(parsed.weaknesses || []).map((s: string) => `- ${s}`).join('\n')}\n\n` +
       `المنهجية: ${parsed.methodology || ''}\n\n` +
