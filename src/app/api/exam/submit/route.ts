@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
       correctAnswerText?: string
     }[] = []
     const weakPoints: string[] = []
+    let needsReview = false
 
     for (const q of exam.questions) {
       maxTotal += q.points
