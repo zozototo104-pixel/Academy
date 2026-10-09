@@ -256,11 +256,9 @@ export async function POST(req: NextRequest) {
       if (thesis.defenseStatus !== 'IN_PROGRESS') {
         return NextResponse.json({ error: 'لا توجد جلسة جارية' }, { status: 400 })
       }
-      const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' } })
-      const scores = studentMsgs
-        .map((m) => finiteScore(m.score))
-        .filter((score): score is number => score != null)
-      const weighted = scoreDefenseBreakdown(scores.map((score, index) => ({ criterion: DEFENSE_CRITERIA[Math.min(index, DEFENSE_CRITERIA.length - 1)], score0to10: score })))
+      const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' }, orderBy: { createdAt: 'asc' } })
+      const scores = studentMsgs.map((m) => finiteScore(m.score))
+      const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
       const aiScore = weighted.score
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} جلسة مناقشة منتهية مبكراً` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
