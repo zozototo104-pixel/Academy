@@ -110,6 +110,8 @@ export async function GET(req: NextRequest) {
           if (q.status === 'PENDING_REVIEW') pending++
           if (q.status === 'REJECTED') rejected++
         }
+        const statusCounts = attemptsByExam.get(e.id) || {}
+        const attemptsCount = Object.values(statusCounts).reduce((sum, count) => sum + count, 0)
         return {
           id: e.id,
           title: e.title,
