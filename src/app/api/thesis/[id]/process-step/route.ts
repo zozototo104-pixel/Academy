@@ -51,16 +51,21 @@ async function resetExtraction(thesisId: string, status = 'UPLOADED') {
 
 async function claim(thesisId: string) {
   const now = new Date()
+  const token = randomUUID()
   const lockedUntil = new Date(Date.now() + 90_000)
   const updated = await db.thesisSubmission.updateMany({
     where: { id: thesisId, OR: [{ extractionLockedUntil: null }, { extractionLockedUntil: { lt: now } }] },
-    data: { extractionLockedUntil: lockedUntil },
+    data: { extractionLockedUntil: lockedUntil, extractionLockToken: token },
   })
-  return updated.count > 0
+  return updated.count > 0 ? token : null
 }
 
-async function release(thesisId: string, error?: string) {
-  await db.thesisSubmission.update({ where: { id: thesisId }, data: { extractionLockedUntil: null, ...(error ? { extractionStatus: 'FAILED', extractionError: error.slice(0, 1000) } : {}) } })
+async function release(thesisId: string, token: string) {
+  await db.thesisSubmission.updateMany({ where: { id: thesisId, extractionLockToken: token }, data: { extractionLockedUntil: null, extractionLockToken: null } })
+}
+
+async function failWithToken(thesisId: string, token: string, error: string) {
+  await db.thesisSubmission.updateMany({ where: { id: thesisId, extractionLockToken: token }, data: { extractionStatus: 'FAILED', extractionError: error.slice(0, 1000) } })
 }
 
 async function extractPdf(thesis: any, buffer: Buffer, deadlineMs: number) {
