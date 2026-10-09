@@ -184,9 +184,8 @@ export function isValidGeminiLiveModel(value: unknown): boolean {
 }
 
 function resolvedKey(): string {
-  // الأولوية: Vercel Environment Variables أولاً، ثم إعدادات المنصة كخيار احتياطي.
-  // مفاتيح Gemini المتعددة تُدار في text-ai router عبر GEMINI_API_KEYS.
-  return process.env.GEMINI_API_KEY?.trim() || dbKeyCache || ''
+  // نفس قاعدة الراوتر: إعدادات المنصة المفكوكة أولاً، ثم متغيرات Vercel كاحتياط.
+  return dbKeyCache || parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0] || ''
 }
 
 export async function ensureGeminiKey(): Promise<boolean> {
