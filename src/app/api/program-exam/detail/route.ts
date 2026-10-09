@@ -73,6 +73,20 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    let startedAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, startedAt: true },
+    })
+    if (!startedAttempt) {
+      startedAttempt = await db.programExamAttempt.create({
+        data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
+        select: { id: true, startedAt: true },
+      })
+    } else if (!startedAttempt.startedAt) {
+      startedAttempt = await db.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: new Date() }, select: { id: true, startedAt: true } })
+    }
+
     const books = await db.book.findMany({
       where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
       select: { id: true, title: true, author: true },
