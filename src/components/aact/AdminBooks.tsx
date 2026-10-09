@@ -2544,6 +2544,10 @@ export function AdminBooksTab() {
                           {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
                           {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
                         </div>}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] font-bold text-indigo-900">
+                          <span>بنك أسئلة الوحدة: {unit.questionBankSummary?.approved || 0} معتمد · {unit.questionBankSummary?.pendingReview || 0} بانتظار المراجعة · {unit.questionBankSummary?.rejected || 0} مرفوض — الاختبار: {unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'مسودة' : 'جاهز' : 'ما انبنى'}</span>
+                          <Button size="sm" variant="outline" className="h-7 rounded-full text-[10px] font-black" onClick={() => openUnitQuestionReview(unit)}>مراجعة أسئلة الوحدة</Button>
+                        </div>
                         {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
