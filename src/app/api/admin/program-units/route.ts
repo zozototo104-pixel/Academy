@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { hasUnitExamAttempts } from '@/lib/outline-units'
-import { countUnitExamQuestionsNeedingReview } from '@/lib/unit-exam-policy'
+import { countUnitExamQuestionsNeedingReview, selectUnitExamQuestionsApprovedFirst } from '@/lib/unit-exam-policy'
 import { readQuestionBankJobTrace } from '@/lib/question-bank-job'
 
 function cleanText(value: unknown, max = 2000) {
