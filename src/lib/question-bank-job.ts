@@ -303,7 +303,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))
   const groundedQuestions = verified.filter(hasSourceGroundedFlag)
 
-  const rows: Record<string, unknown>[] = []
+  const rows: Prisma.QuestionBankItemCreateManyInput[] = []
   for (const item of groundedQuestions) {
     const sourceIndex = Number(item.sourceIndex)
     if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) { traceReasons.push('BAD_SOURCE_INDEX'); continue }
