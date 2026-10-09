@@ -269,6 +269,37 @@ function testUnitQuestionsApiScopesToSingleUnit() {
   assert(code.includes('selectUnitExamQuestionsApprovedFirst'), 'جاهزية أسئلة الوحدة يجب أن تستخدم نفس selector')
 }
 
+function testUnitQuestionsApiHydratesKnowledgePages() {
+  const code = src('src/app/api/admin/units/[id]/questions/route.ts')
+  assert(code.includes('knowledgeItemId: true'), 'API أسئلة الوحدة يجب أن يقرأ knowledgeItemId من السؤال')
+  assert(code.includes('db.bookKnowledgeItem.findMany'), 'API أسئلة الوحدة يجب أن يجلب عناصر المعرفة باستعلام واحد')
+  assert(code.includes('select: { id: true, pageStart: true, pageEnd: true, title: true }'), 'استعلام عناصر المعرفة يجب أن يختار الحقول الموجودة فقط')
+  assert(code.includes('pageStart: knowledge?.pageStart ?? null'), 'السؤال المرتبط بعنصر معرفة يجب أن يأخذ pageStart من عنصر المعرفة')
+  assert(code.includes('pageEnd: knowledge?.pageEnd ?? null'), 'السؤال المرتبط بعنصر معرفة يجب أن يأخذ pageEnd من عنصر المعرفة')
+  assert(code.includes('knowledgeTitle: knowledge?.title ?? null'), 'السؤال المرتبط بعنصر معرفة يجب أن يرجع عنوان عنصر المعرفة')
+}
+
+function testUnitQuestionPagesFallbackToLocator() {
+  const api = src('src/app/api/admin/units/[id]/questions/route.ts')
+  const ui = src('src/components/aact/AdminBooks.tsx')
+  assert(api.includes('pageStart: knowledge?.pageStart ?? null') && api.includes('pageEnd: knowledge?.pageEnd ?? null'), 'السؤال بدون knowledgeItemId يجب أن يرجع صفحات null بدون كسر')
+  assert(ui.includes('sourceReference') && ui.includes('q.sourceLocator ||'), 'الواجهة يجب أن تعرض sourceLocator عندما لا توجد صفحات')
+  assert(ui.includes('صفحات ${q.pageStart}–${q.pageEnd}') && ui.includes('صفحة ${q.pageStart}'), 'الواجهة يجب أن تعرض صفحة X أو صفحات X–Y')
+}
+
+function testUnitQuestionJobRequestedCanShrink() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.includes('const requested = params.unitId ? unitExamRequiredQuestions(params.requested)'), 'مهام الوحدة يجب أن تخزن العدد المطلوب من helper الموحد')
+  assert(code.includes('existing.requested !== requested'), 'لو job وحدة موجود بعدد مختلف يجب تحديث requested للعدد الجديد')
+  assert(code.includes('requested,\n              status:'), 'تحديث job الوحدة يجب أن يكتب requested الجديد مباشرة')
+}
+
+function testProgramQuestionJobRequestedKeepsOldMaxBehavior() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.includes('planQuestionBankJobManualReactivation(existing, requested'), 'مهام البرنامج يجب أن تبقى تستخدم مخطط max القديم')
+  assert(code.includes('Math.max(existing.requested, requested)'), 'مخطط مهام البرنامج يجب أن يبقي requested الأكبر كما كان')
+}
+
 function testDraftExamCanBeRebuiltReadyAfterApprovals() {
   const unitRoute = src('src/app/api/admin/unit-exams/generate/route.ts')
   const ui = src('src/components/aact/AdminBooks.tsx')
