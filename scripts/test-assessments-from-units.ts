@@ -297,7 +297,7 @@ function testUnitQuestionJobRequestedCanShrink() {
 function testProgramQuestionJobRequestedKeepsOldMaxBehavior() {
   const code = src('src/lib/question-bank-job.ts')
   assert(code.includes('planQuestionBankJobManualReactivation(existing, requested'), 'مهام البرنامج يجب أن تبقى تستخدم مخطط max القديم')
-  assert(code.includes('Math.max(existing.requested, requested)'), 'مخطط مهام البرنامج يجب أن يبقي requested الأكبر كما كان')
+  assert(code.includes('Math.max(job.requested || 0, requested)'), 'مخطط مهام البرنامج يجب أن يبقي requested الأكبر كما كان')
 }
 
 function testDraftExamCanBeRebuiltReadyAfterApprovals() {
