@@ -32,6 +32,7 @@ export async function POST(request: NextRequest, context: Context) {
     const { id } = await context.params
     const body = await request.json().catch(() => ({}))
     const mode = body?.mode === 'ENRICH' ? 'ENRICH' : 'EXTRACT'
+    const reread = body?.reread === true && mode === 'EXTRACT'
     const book = await db.book.findUnique({ where: { id }, select: { id: true, programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     if (mode === 'ENRICH') {
