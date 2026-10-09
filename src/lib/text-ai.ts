@@ -1230,7 +1230,7 @@ function statusFromError(e: any): number | undefined {
 function recordAttempt(attempt: TextAiAttemptDiagnostics) {
   recentAttempts = [...recentAttempts, attempt].slice(-50)
   const label = attempt.ok ? 'ok' : 'failed'
-  const error = attempt.error ? attempt.error.slice(0, 220) : undefined
+  const error = attempt.error ? redactSecrets(attempt.error).slice(0, 220) : undefined
   console.info('[text-ai-router]', label, {
     provider: attempt.provider,
     model: attempt.model,
