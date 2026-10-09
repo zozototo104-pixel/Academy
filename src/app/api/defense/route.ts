@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
       const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
       await db.thesisSubmission.update({
         where: { id: thesis.id },
-        data: { defenseStatus: 'COMPLETED', aiScore, aiRecommendation: rec, defenseBreakdown: weighted as any, defenseMinutes: minutes, defenseCompletedAt: new Date() },
+        data: { defenseStatus: 'COMPLETED', aiScore, aiRecommendation: rec, defenseBreakdown: { ...(weighted as any), ...(legacyDefense ? { legacy: true } : {}) }, defenseMinutes: minutes, defenseCompletedAt: new Date() },
       })
       await db.defenseMessage.create({
         data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة — تقييم على الأسئلة المجاب عنها: ${scoreLabel(aiScore)} — تم توليد محضر الجلسة وأرشفته في ملف البحث` },
