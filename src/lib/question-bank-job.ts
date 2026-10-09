@@ -124,14 +124,10 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
   const sourceEvidence = cleanText(raw.sourceEvidence, 1800)
   const cognitiveSkill = cleanText(raw.cognitiveSkill, 40)
   const text = cleanText(raw.text || raw.question || fallback.title, 1200)
-  const options = safeOptions(raw.options, type)
-  let correctAnswer = raw.correctAnswer != null ? String(raw.correctAnswer) : null
-  if (type === 'MCQ' && correctAnswer != null && Number.isNaN(Number(correctAnswer))) {
-    const idx = options.findIndex((option) => cleanText(option, 260) === cleanText(correctAnswer, 260))
-    correctAnswer = idx >= 0 ? String(idx) : null
-  }
+  const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer) : null
+  const options = mcq ? mcq.options : safeOptions(raw.options, type)
+  let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer) : null
   if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
-  if (type === 'MCQ' && correctAnswer != null) correctAnswer = String(Math.max(0, Math.min(options.length - 1, Number(correctAnswer))))
   if (type === 'TF' && correctAnswer != null && !['0', '1'].includes(correctAnswer)) correctAnswer = /^صح|true$/iu.test(correctAnswer) ? '0' : /^خطأ|false$/iu.test(correctAnswer) ? '1' : null
   return {
     type,
