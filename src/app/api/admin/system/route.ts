@@ -78,7 +78,7 @@ export async function GET() {
     const values: Record<string, string> = {}
     for (const k of SYSTEM_KEYS) values[k] = ''
     const rowMap = Object.fromEntries(rows.map((row) => [row.key, row.value] as const))
-    for (const r of rows) values[r.key] = SECRET_KEYS.has(r.key) ? mask(r.value) : r.value
+    for (const r of rows) values[r.key] = shouldEncryptSystemKey(r.key) ? mask(r.value) : r.value
     const secretMeta = Object.fromEntries(SYSTEM_KEYS.filter(shouldEncryptSystemKey).map((key) => [key, settingSecretMeta(key, rowMap[key], process.env[key] || '')]))
     const unencryptedSecretKeys = SYSTEM_KEYS.filter((key) => shouldEncryptSystemKey(key) && rowMap[key] && !isEncryptedSecret(rowMap[key]))
     const smtp = await getSmtpConfig()
