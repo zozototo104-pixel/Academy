@@ -51,7 +51,7 @@ function parseRubricCriteria(rubric?: string | null): { description: string; cri
     if (Array.isArray(parsed)) {
       const criteria = parsed
         .map((item: any) => ({ name: cleanCriterionName(item?.name), weight: Number(item?.weight) }))
-        .filter((item) => item.name.length >= 2 && Number.isFinite(item.weight) && item.weight > 0)
+        .filter((item) => item.name.length >= 1 && Number.isFinite(item.weight) && item.weight > 0)
         .slice(0, 12)
       if (criteria.length) return { description: JSON.stringify(criteria), criteria }
     }
