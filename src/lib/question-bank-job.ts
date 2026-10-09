@@ -416,7 +416,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
       const requiredQuestions = unitExamRequiredQuestions(job.requested)
       readyToBuild = selectUnitExamQuestionsApprovedFirst(candidates, requiredQuestions).readyToBuild
     } else {
-      readyToBuild = job.saved + inserted >= unitExamRequiredQuestions(job.requested)
+      readyToBuild = job.saved + inserted >= job.requested
     }
     await db.questionBankGenerationJob.updateMany({
       where: { id: jobId, status: { not: 'COMPLETED' } },
