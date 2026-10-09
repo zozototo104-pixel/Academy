@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
     if (thesis.status !== 'SCHEDULED') {
       return NextResponse.json({ error: 'مناقشتك غير مجدولة' }, { status: 400 })
     }
+    if (['start', 'answer', 'end'].includes(String(action)) && thesis.extractionStatus !== 'READY') {
+      return NextResponse.json({ error: 'يجب رفع البحث ومعالجته قبل المناقشة' }, { status: 409 })
+    }
 
     // نافذة الدخول: يُسمح ببدء الجلسة من 15 دقيقة قبل الموعد المحدد (وليس قبلها)
     if (action === 'start' && thesis.defenseDate) {
