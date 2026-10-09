@@ -2461,8 +2461,14 @@ export function AdminBooksTab() {
                           {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
                         </div>}
                         {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
-                          <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
-                          <p>الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
+                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%` }} />
+                          </div>
+                          <p className="mt-2">الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
                           {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
                           {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
                           {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
