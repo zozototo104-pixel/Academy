@@ -166,14 +166,14 @@ export async function PATCH(req: NextRequest) {
     for (const key of SYSTEM_KEYS) {
       if (!(key in body)) continue
       let value = String(body[key] ?? '').trim()
-      // الحقول السرية: القيمة المقنعة = لا تغيير. أمّا مفتاح Gemini تحديداً فيمكن تفريغه للرجوع إلى مفتاح Vercel الافتراضي.
-      if (SECRET_KEYS.has(key) && value.includes('••••')) continue
-      if (SECRET_KEYS.has(key) && value === '') {
-        if (key.startsWith('GEMINI_') || key.includes('API_KEY') || key.includes('API_KEYS') || key === 'AI_AGENT_API_KEY') {
-          await db.setting.delete({ where: { key } }).catch(() => null)
-          updates.push(key)
-        }
-        continue
+      // الحقول السرية: القيمة المقنعة أو الفارغة = لا تغيير حتى لا نمسح مفاتيح محفوظة بالخطأ.
+      const isSecret = shouldEncryptSystemKey(key)
+      if (isSecret && isMaskedSecret(value)) continue
+      if (isSecret && !isEncryptedSecret(value)) {
+        if (!hasSecretEncryptionKey()) return NextResponse.json({ error: 'أضف AACT_SECRETS_KEY في Vercel أولاً' }, { status: 400 })
+        const last4 = secretLast4(value)
+        value = encryptSecret(value)
+        await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
       if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key)) {
         value = normalizeGeminiModelName(value)
