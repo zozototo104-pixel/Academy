@@ -296,6 +296,7 @@ interface QuestionBankItemRow {
   status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
   qualityFlags?: string | null
   verifierReason?: string | null
+  verifierModel?: string | null
 }
 
 function questionGroundingFlags(question: QuestionBankItemRow): string[] {
