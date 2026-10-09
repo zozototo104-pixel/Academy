@@ -1602,6 +1602,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
           continue
         }
+        if (!(await keyRateAllowed(provider, key))) continue
         if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
