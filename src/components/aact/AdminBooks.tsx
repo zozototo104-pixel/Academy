@@ -292,11 +292,19 @@ interface QuestionBankItemRow {
   correctAnswer?: string | null
   modelAnswer?: string | null
   sourceEvidence?: string | null
+  sourceLocator?: string | null
+  pageStart?: number | null
+  pageEnd?: number | null
+  cognitiveSkill?: string | null
   difficulty?: string | null
   status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED'
   qualityFlags?: string | null
   verifierReason?: string | null
   verifierModel?: string | null
+  verifierProvider?: string | null
+  provider?: string | null
+  model?: string | null
+  rejectedReason?: string | null
 }
 
 function questionGroundingFlags(question: QuestionBankItemRow): string[] {
