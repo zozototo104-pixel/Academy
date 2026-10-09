@@ -82,6 +82,7 @@ const tests = [
   testComprehensiveExamCoversUnits,
   testUnitExamPendingReviewBlocksPublish,
   testUnitExamExcludesRejectedAndPrioritizesApproved,
+  testPausedFutureRetryManualReactivation,
 ]
 
 for (const test of tests) {
