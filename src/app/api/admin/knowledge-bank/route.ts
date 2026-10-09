@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const showAll = req.nextUrl.searchParams.get('all') === '1'
     const allItems = await getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140)
     const items = showAll ? allItems : allItems.slice(0, 140)
-    const total = await db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ book: { semester: null } }, { book: { semester } }] } : {}) } })
+    const total = await db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { semester } : {}) } })
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
     const v2BookCounts = await db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
