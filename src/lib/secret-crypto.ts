@@ -85,6 +85,18 @@ export function redactSecrets(text: unknown, knownSecrets: string[] = []) {
   return out
 }
 
+export function redactDeep<T>(value: T, knownSecrets: string[] = [], seen = new WeakSet<object>()): T {
+  if (typeof value === 'string') return redactSecrets(value, knownSecrets) as T
+  if (value == null || typeof value !== 'object') return value
+  if (seen.has(value as object)) return '[Circular]' as T
+  seen.add(value as object)
+  if (Array.isArray(value)) return value.map((item) => redactDeep(item, knownSecrets, seen)) as T
+  if (value instanceof Date) return value as T
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) out[key] = redactDeep(item, knownSecrets, seen)
+  return out as T
+}
+
 export function keyHashForRateLimit(key: string) {
   return createHash('sha256').update(key).digest('hex').slice(0, 12)
 }
