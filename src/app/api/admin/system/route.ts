@@ -181,6 +181,16 @@ export async function PATCH(req: NextRequest) {
         value = encryptSecret(value)
         await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
+      if (key === 'AI_ACADEMIC_ALLOWLIST') {
+        const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
+        const items = value.split(',').map((item) => item.trim()).filter(Boolean)
+        const ok = items.every((item) => {
+          const [provider, model] = item.split(/:(.+)/).filter(Boolean)
+          return provider && model && allowedProviders.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item)
+        })
+        if (!ok) return NextResponse.json({ error: 'قائمة المهام الحساسة يجب أن تحتوي provider:model فقط وبدون auto' }, { status: 400 })
+        value = items.join(',')
+      }
       if (['GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key)) {
         value = normalizeGeminiModelName(value)
         if (['GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL'].includes(key) && value && !isValidGeminiLiveModel(value)) value = key === 'GEMINI_DISCUSSION_LIVE_MODEL' ? 'gemini-3.8-live-extended-thinking' : 'gemini-3.8-live'
