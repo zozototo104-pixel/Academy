@@ -37,6 +37,10 @@ export type VerificationSource = { text: string; textProvenance?: TextProvenance
 
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
+export function __testVerifierExcludedProviders(generatorProvider: TextAiProvider): TextAiProvider[] {
+  return [generatorProvider]
+}
+
 const verifierItemSchema = z.object({
   index: z.number().int().nonnegative(),
   valid: z.boolean(),
