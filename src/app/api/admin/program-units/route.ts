@@ -117,6 +117,13 @@ async function listProgramUnits(programId: string) {
     if (row.status === 'REJECTED') current.rejected += row._count._all
     questionBankCountsByUnit.set(row.unitId, current)
   }
+  const questionBankCandidatesByUnit = new Map<string, { id: string; status: string; qualityFlags: string | null }[]>()
+  for (const item of questionBankCandidates) {
+    if (!item.unitId) continue
+    const list = questionBankCandidatesByUnit.get(item.unitId) || []
+    list.push({ id: item.id, status: item.status, qualityFlags: item.qualityFlags })
+    questionBankCandidatesByUnit.set(item.unitId, list)
+  }
   const questionBankTraceByJob = new Map(await Promise.all([...questionBankJobByUnit.values()].map(async (job) => [job.id, await readQuestionBankJobTrace(job.id)] as const)))
   const sectionById = new Map(sections.map((section) => [section.id, section] as const))
   const bookById = new Map(books.map((book) => [book.id, book] as const))
