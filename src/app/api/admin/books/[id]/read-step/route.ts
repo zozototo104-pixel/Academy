@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, context: Context) {
     if (!job) return NextResponse.json({ error: 'BOOK_READ_JOB_NOT_FOUND' }, { status: 404 })
     return NextResponse.json({ ok: true, job })
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || error) }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-step GET error:', error)
+    return NextResponse.json({ error: 'تعذر تحميل حالة قراءة الكتاب' }, { status: 500 })
   }
 }
 
