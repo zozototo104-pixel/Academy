@@ -95,6 +95,20 @@ function rawRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
+export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unknown) {
+  const arr = Array.isArray(value) ? value : []
+  const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
+  if (options.length < 3) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_REQUIRES_AT_LEAST_3_OPTIONS' }
+  const answerText = cleanText(correctAnswer, 260)
+  const answerIndex = /^\d+$/.test(answerText) ? Number(answerText) : options.findIndex((option) => option === answerText)
+  if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_ANSWER_NOT_IN_OPTIONS' }
+  if (options.length <= 4) return { options, correctAnswer: String(answerIndex), reason: null as string | null }
+  const wrongIndexes = options.map((_, index) => index).filter((index) => index !== answerIndex).slice(0, 3)
+  const selectedIndexes = [...wrongIndexes, answerIndex].sort((a, b) => a - b)
+  const selectedOptions = selectedIndexes.map((index) => options[index])
+  return { options: selectedOptions, correctAnswer: String(selectedIndexes.indexOf(answerIndex)), reason: null as string | null }
+}
+
 function safeOptions(value: unknown, type: string) {
   const arr = Array.isArray(value) ? value : []
   const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
