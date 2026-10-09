@@ -526,6 +526,10 @@ function decryptSettingValue(key: string, raw: string): string {
   return value
 }
 
+export function __testDecryptTextAiSettingValue(key: string, raw: string): string {
+  return decryptSettingValue(key, raw)
+}
+
 async function readSettings(keys: string[]): Promise<Record<string, string>> {
   try {
     const values = await settingStore().read(keys)
