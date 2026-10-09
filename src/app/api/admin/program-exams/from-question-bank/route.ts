@@ -159,6 +159,8 @@ export async function POST(req: NextRequest) {
         options: q.options,
         correctAnswer: q.correctAnswer,
         modelAnswer: q.modelAnswer,
+        knowledgeItemId: q.knowledgeItemId,
+        rubric: q.rubric,
         sourceEvidence: q.sourceEvidence,
         sourceBookTitle: q.sourceBookTitle,
         sourceLocator: q.sourceLocator,

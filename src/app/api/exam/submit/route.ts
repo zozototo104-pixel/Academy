@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
+import { generateOverallFeedback } from '@/lib/ai'
+import { gradeEssayWithRubric } from '@/lib/essay-grading'
 
 interface SubmitAnswer {
   questionId: string
@@ -14,7 +15,7 @@ type PreparedAnswer = {
   selectedOption?: number | null
   answerText?: string | null
   isCorrect: boolean | null
-  points: number
+  points: number | null
   maxPoints: number
   aiFeedback: string
 }
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
     }
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
+    const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
+    const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
 
     let totalScore = 0
     let maxTotal = 0
@@ -97,6 +101,7 @@ export async function POST(req: NextRequest) {
       correctAnswerText?: string
     }[] = []
     const weakPoints: string[] = []
+    let needsReview = false
 
     for (const q of exam.questions) {
       maxTotal += q.points
@@ -153,15 +158,40 @@ export async function POST(req: NextRequest) {
           )
         }
 
-        let graded: { points: number; feedback: string }
+        let graded: { points: number; feedback: string; confidence?: string; criteria?: unknown }
         try {
-          graded = await gradeEssayAnswer(q.text, q.modelAnswer, essayText, q.points)
+          graded = await gradeEssayWithRubric({
+            question: q.text,
+            modelAnswer: q.modelAnswer,
+            rubric: q.rubric,
+            sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+            studentAnswer: essayText,
+            maxPoints: q.points,
+            deadlineMs: Date.now() + 45_000,
+          })
         } catch (e: any) {
-          console.error('Essay grading failed:', String(e?.message || e).slice(0, 300))
-          return NextResponse.json(
-            { error: 'تعذر التصحيح الذكي للسؤال المقالي الآن. لم يتم اعتماد المحاولة، حاول مرة أخرى بعد قليل.', code: 'AI_GRADING_UNAVAILABLE' },
-            { status: 503 }
-          )
+          console.error('Essay grading failed; saving for manual review:', String(e?.message || e).slice(0, 300))
+          needsReview = true
+          answersToPersist.push({
+            questionId: q.id,
+            answerText: essayText,
+            isCorrect: null,
+            points: null,
+            maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', reason: String(e?.message || e).slice(0, 300) }),
+          })
+          gradedResults.push({
+            questionId: q.id,
+            order: q.order,
+            type: q.type,
+            text: q.text,
+            isCorrect: null,
+            points: 0,
+            maxPoints: q.points,
+            aiFeedback: 'تم حفظ الإجابة للمراجعة اليدوية لأن التصحيح الآلي لم يكتمل.',
+            studentAnswer: essayText || '(لم يجب)',
+          })
+          continue
         }
 
         const pts = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
@@ -188,6 +218,18 @@ export async function POST(req: NextRequest) {
           studentAnswer: essayText || '(لم يجب)',
         })
       }
+    }
+
+    if (needsReview) {
+      const attempt = await db.$transaction(async (tx) => {
+        const created = await tx.examAttempt.create({ data: { userId: user.id, examId, status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
+        for (const prepared of answersToPersist) {
+          await tx.answer.create({ data: { attemptId: created.id, questionId: prepared.questionId, selectedOption: prepared.selectedOption ?? null, answerText: prepared.answerText ?? null, isCorrect: prepared.isCorrect, points: prepared.points, maxPoints: prepared.maxPoints, aiFeedback: prepared.aiFeedback } })
+        }
+        await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
+        return created
+      })
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', results: gradedResults.sort((a, b) => a.order - b.order) }, { status: 202 })
     }
 
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0

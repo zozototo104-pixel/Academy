@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { gradeEssayAnswer, generateOverallFeedback } from '@/lib/ai'
+import { generateOverallFeedback } from '@/lib/ai'
+import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
@@ -123,6 +124,9 @@ export async function POST(req: NextRequest) {
     )
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
+    const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
+    const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
 
     // 12.2: بيانات المراقبة الإلكترونية الاختيارية
     const procEnabled = !!proctoring?.enabled
@@ -274,32 +278,41 @@ export async function POST(req: NextRequest) {
     let gradedEssayResults: GradedResult[]
     try {
       gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
-      const graded = await gradeEssayAnswer(q.text, q.modelAnswer || '', text, q.points, examAcademicContext)
+      const graded = await gradeEssayWithRubric({
+        question: q.text,
+        modelAnswer: q.modelAnswer || '',
+        rubric: q.rubric,
+        sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+        studentAnswer: text,
+        maxPoints: q.points,
+        deadlineMs: Date.now() + 45_000,
+      })
+      const clampedPoints = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
       await db.programAnswer.create({
         data: {
           attemptId: attempt.id,
           questionId: q.id,
           answerText: text,
-          isCorrect: graded.points >= q.points * 0.6 ? true : graded.points > 0 ? null : false,
-          points: graded.points,
+          isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
+          points: clampedPoints,
           maxPoints: q.points,
           aiFeedback: graded.feedback,
         },
       })
-      if (graded.points < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
+      if (clampedPoints < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
       const r: GradedResult = {
         questionId: q.id,
         order: q.order,
         type: q.type,
         text: q.text,
-        isCorrect: graded.points >= q.points * 0.6,
-        points: graded.points,
+        isCorrect: clampedPoints >= q.points * 0.6,
+        points: clampedPoints,
         maxPoints: q.points,
         aiFeedback: q.correctRationale ? `${graded.feedback}\nمعيار التصحيح: ${q.correctRationale}` : graded.feedback,
         studentAnswer: text || '(لم يجب)',
         ...resultMetadata(q),
       }
-      totalScore += graded.points
+      totalScore += clampedPoints
       return r
       })
     } catch (e: any) {
@@ -327,6 +340,7 @@ export async function POST(req: NextRequest) {
       where: { id: attempt.id },
       data: {
         score: roundedScore,
+        finalScore: roundedScore,
         passed,
         status: 'GRADED',
         feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: readiness.maxExamScore, readiness }),

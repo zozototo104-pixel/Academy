@@ -42,6 +42,7 @@ const loadAdminQualityModule = () => import('@/components/aact/AdminQualityTab')
 const loadAdminSupervisorsModule = () => import('@/components/aact/AdminSupervisors')
 const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsAppInbox')
 const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
+const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
@@ -58,6 +59,7 @@ const AdminQualityTab = dynamic(() => loadAdminQualityModule().then((m) => m.Adm
 const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
 const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
@@ -1044,6 +1046,7 @@ export function AdminView() {
               <TabsTrigger value="books" className="gap-1 text-[10px] font-bold sm:text-xs">الكتب والاختبارات</TabsTrigger>
               <TabsTrigger value="quality" className="gap-1 text-[10px] font-bold sm:text-xs">مركز الجودة</TabsTrigger>
               <TabsTrigger value="attempts" className="gap-1 text-[10px] font-bold sm:text-xs">نتائج الامتحانات</TabsTrigger>
+              <TabsTrigger value="grading-review" className="gap-1 text-[10px] font-bold sm:text-xs">مراجعة التصحيح</TabsTrigger>
               <TabsTrigger value="thesis" className="gap-1 text-[10px] font-bold sm:text-xs">أبحاث التخرج والمناقشات</TabsTrigger>
               <TabsTrigger value="ai" className="gap-1 text-[10px] font-bold sm:text-xs">سجل المشرف الذكي</TabsTrigger>
             </TabsList>
@@ -1784,6 +1787,11 @@ export function AdminView() {
           </Card>
           <AdminPager page={currentAttemptPage} pageSize={attemptPageSize} total={attemptTotal} onPageChange={setAttemptPage} label="محاولة" />
           </div>
+        </TabsContent>
+
+        {/* مراجعة التصحيح اليدوي للمحاولات المعلقة */}
+        <TabsContent value="grading-review">
+          <AdminGradingReviewTab />
         </TabsContent>
 
         {/* Students */}

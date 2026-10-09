@@ -227,6 +227,9 @@ model Question {
   options       String? // JSON array for MCQ
   correctAnswer String? // index "0".."3" for MCQ
   modelAnswer   String? // rubric/model answer for ESSAY
+  knowledgeItemId String?
+  sourceEvidence String?
+  rubric        String?
   points        Int       @default(10)
   answers       Answer[]
 }
@@ -238,7 +241,7 @@ model ExamAttempt {
   exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
   score       Float?
   passed      Boolean?
-  status      String    @default("SUBMITTED") // SUBMITTED | GRADED
+  status      String    @default("SUBMITTED") // SUBMITTED | NEEDS_REVIEW | GRADED
   feedback    String? // AI overall feedback JSON { summary, strengths[], improvements[] }
   aiGraded    Boolean   @default(false)
   submittedAt DateTime  @default(now())
@@ -1391,6 +1394,7 @@ model QuestionBankItem {
   correctAnswer String?
   modelAnswer   String?
   sourceEvidence String?
+  rubric       String?
   sourceBookTitle String?
   sourceLocator String?
   cognitiveSkill String?
@@ -1546,6 +1550,8 @@ model ProgramQuestion {
   correctAnswer String?      // "0".."3" أو "0"=صح/"1"=خطأ
   modelAnswer   String?      // الإجابة النموذجية للأسئلة المقالية/القصيرة
   sourceEvidence String?     // دليل السؤال من الكتاب/بنك المعرفة حتى تراجع الإدارة مصدره الأكاديمي
+  knowledgeItemId String?
+  rubric       String?
   sourceBookTitle String?    // اسم الكتاب/المرجع الذي بُني عليه السؤال
   sourceChapter String?      // الفصل/الباب/المحور داخل الكتاب إن توفر
   sourceLocator String?      // محدد أدق: مقطع، صفحة، فقرة، عنوان فرعي، أو وصف مكان الدليل
