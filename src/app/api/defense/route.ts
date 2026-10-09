@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
             defenseStatus: 'COMPLETED',
             aiScore,
             aiRecommendation: rec,
-            defenseBreakdown: weighted as any,
+            defenseBreakdown: { ...(weighted as any), ...(legacyDefense ? { legacy: true } : {}) },
             defenseMinutes: minutes,
             defenseCompletedAt: new Date(),
           },
