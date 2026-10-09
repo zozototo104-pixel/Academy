@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
 type Context = { params: Promise<{ id: string }> }
 
 function fixNullableText(value: string | null | undefined) {
