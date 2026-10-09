@@ -68,7 +68,10 @@ async function extractPdf(thesis: any, buffer: Buffer, deadlineMs: number) {
   const pagesDone = Number(thesis.extractionPagesDone || 0)
   const last = Math.min(totalPages, pagesDone + 8)
   const nums = Array.from({ length: last - pagesDone }, (_, index) => pagesDone + index + 1)
-  if (!nums.length) return { phase: 'ANALYZING', pagesDone, totalPages }
+  if (!nums.length) {
+    await db.thesisSubmission.update({ where: { id: thesis.id }, data: { extractionStatus: 'ANALYZING', extractionTotalPages: totalPages, pageCount: totalPages } })
+    return { phase: 'ANALYZING', pagesDone, totalPages }
+  }
   const extracted = await extractNumberedPdfPages(buffer, nums)
   const ocrRanges = pagesNeedingOcr(extracted)
   if (ocrRanges.length && !enoughTime(deadlineMs, 20_000)) {
