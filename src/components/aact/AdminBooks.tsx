@@ -1777,8 +1777,8 @@ export function AdminBooksTab() {
     if (!ok) return
     setBookReadBusyId(bookId)
     try {
-      const result = await api<{ chunksUpdated: number; knowledgeItemsUpdated: number; questionsUpdated: number }>(`/api/admin/books/${bookId}/fix-text`, { method: 'POST', body: JSON.stringify({}) })
-      toast({ title: 'تم تصحيح النص العربي', description: `المقاطع: ${result.chunksUpdated} · عناصر المعرفة: ${result.knowledgeItemsUpdated} · الأسئلة: ${result.questionsUpdated}` })
+      const result = await api<{ chunksUpdated: number; knowledgeItemsUpdated: number; questionsUpdated: number; examQuestionsUpdated: number; unitsUpdated: number; studyGuidesUpdated: number }>(`/api/admin/books/${bookId}/fix-text`, { method: 'POST', body: JSON.stringify({}) })
+      toast({ title: 'تم تصحيح النص العربي', description: `المقاطع: ${result.chunksUpdated} · عناصر المعرفة: ${result.knowledgeItemsUpdated} · بنك الأسئلة: ${result.questionsUpdated} · أسئلة الاختبارات: ${result.examQuestionsUpdated} · الوحدات: ${result.unitsUpdated} · الأدلة: ${result.studyGuidesUpdated}` })
     } catch (error: any) {
       toast({ title: 'تعذر تصحيح النص العربي', description: String(error?.message || error), variant: 'destructive' })
     } finally {
