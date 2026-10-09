@@ -391,10 +391,6 @@ export function isTransientGeminiError(e: any): boolean {
   return status === 500 || status === 502 || status === 503 || status === 504 || /UNAVAILABLE|overloaded|high demand|service unavailable|temporar|try again|timeout|deadline/i.test(msg)
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<string> {
   if (opts.taskLevel === 'ACADEMIC_CRITICAL') {
     for await (const chunk of textAiStreamText(opts)) yield chunk
