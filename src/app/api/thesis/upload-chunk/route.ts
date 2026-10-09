@@ -14,10 +14,6 @@ function clean(value: unknown, max = 220) {
   return String(value || '').replace(/[\r\n]/g, ' ').trim().slice(0, max)
 }
 
-function key(uploadId: string, index: number) {
-  return `THESIS_UPLOAD_CHUNK:${uploadId}:${index}`
-}
-
 function isPdf(buffer: Buffer) {
   return buffer.subarray(0, 4).toString() === '%PDF'
 }
@@ -39,25 +35,39 @@ async function ownedThesis(userId: string, thesisId: string) {
   return db.thesisSubmission.findFirst({ where: { id: thesisId, userId } })
 }
 
+async function cleanupUpload(uploadId: string, userId: string, thesisId: string) {
+  await db.thesisUploadChunk.deleteMany({ where: { uploadId, userId, thesisId } })
+}
+
+async function rejectIfUploadOwnedByAnother(uploadId: string, userId: string, thesisId: string) {
+  const foreign = await db.thesisUploadChunk.findFirst({
+    where: { uploadId, OR: [{ userId: { not: userId } }, { thesisId: { not: thesisId } }] },
+    select: { id: true },
+  })
+  return !!foreign
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    await db.thesisUploadChunk.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
     const form = await req.formData()
     const thesisId = clean(form.get('thesisId'), 100)
     const uploadId = clean(form.get('uploadId'), 120)
     const index = Number(form.get('index'))
     const total = Number(form.get('total'))
     const complete = String(form.get('complete') || '') === '1'
-    const cancel = String(form.get('cancel') || '') === '1'
+    const cancel = String(form.get('cancel') || form.get('abort') || '') === '1'
     const fileName = clean(form.get('fileName'), 220)
     const mimeType = clean(form.get('mimeType'), 180)
     if (!thesisId || !uploadId || !Number.isInteger(total) || total <= 0) return NextResponse.json({ error: 'بيانات الرفع غير مكتملة' }, { status: 400 })
     const thesis = await ownedThesis(user.id, thesisId)
     if (!thesis) return NextResponse.json({ error: 'الأطروحة غير موجودة' }, { status: 404 })
+    if (await rejectIfUploadOwnedByAnother(uploadId, user.id, thesisId)) return NextResponse.json({ error: 'معرف الرفع لا يخص هذه الأطروحة' }, { status: 403 })
     if (thesis.status === 'SCHEDULED' || thesis.status === 'RESULT_APPROVED') return NextResponse.json({ error: 'لا يمكن رفع ملف جديد بعد جدولة المناقشة' }, { status: 409 })
     if (!ALLOWED_STATUSES.includes(thesis.status)) return NextResponse.json({ error: 'حالة البحث لا تسمح برفع ملف الآن' }, { status: 409 })
     if (cancel) {
-      await db.setting.deleteMany({ where: { key: { startsWith: `THESIS_UPLOAD_CHUNK:${uploadId}:` } } })
+      await cleanupUpload(uploadId, user.id, thesisId)
       return NextResponse.json({ ok: true, cancelled: true })
     }
     if (!complete) {
@@ -66,28 +76,39 @@ export async function POST(req: NextRequest) {
       if (!Number.isInteger(index) || index < 0 || index >= total) return NextResponse.json({ error: 'ترتيب الجزء غير صالح' }, { status: 400 })
       const buffer = Buffer.from(await blob.arrayBuffer())
       if (!buffer.length || buffer.byteLength > MAX_SIZE) return NextResponse.json({ error: 'حجم الجزء غير صالح' }, { status: 413 })
-      await db.setting.upsert({ where: { key: key(uploadId, index) }, create: { key: key(uploadId, index), value: buffer.toString('base64') }, update: { value: buffer.toString('base64') } })
+      await db.thesisUploadChunk.upsert({
+        where: { uploadId_index: { uploadId, index } },
+        create: { uploadId, userId: user.id, thesisId, index, data: buffer.toString('base64') },
+        update: { userId: user.id, thesisId, data: buffer.toString('base64') },
+      })
       return NextResponse.json({ ok: true, index })
     }
-    const rows = await db.setting.findMany({ where: { key: { startsWith: `THESIS_UPLOAD_CHUNK:${uploadId}:` } } })
+    const rows = await db.thesisUploadChunk.findMany({ where: { uploadId, userId: user.id, thesisId }, orderBy: { index: 'asc' } })
     if (rows.length !== total) return NextResponse.json({ error: `لم تصل كل أجزاء الملف (${rows.length}/${total})` }, { status: 400 })
-    const chunks = rows
-      .map((row) => ({ index: Number(row.key.split(':').pop()), value: row.value }))
-      .sort((a, b) => a.index - b.index)
-    if (chunks.some((chunk, i) => chunk.index !== i)) return NextResponse.json({ error: 'ترتيب أجزاء الملف غير مكتمل' }, { status: 400 })
-    const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk.value, 'base64')))
-    if (buffer.byteLength > MAX_SIZE) return NextResponse.json({ error: 'حجم الملف يتجاوز 20MB' }, { status: 413 })
+    if (rows.some((row, i) => row.index !== i)) {
+      await cleanupUpload(uploadId, user.id, thesisId)
+      return NextResponse.json({ error: 'ترتيب أجزاء الملف غير مكتمل' }, { status: 400 })
+    }
+    const buffer = Buffer.concat(rows.map((row) => Buffer.from(row.data, 'base64')))
+    if (buffer.byteLength > MAX_SIZE) {
+      await cleanupUpload(uploadId, user.id, thesisId)
+      return NextResponse.json({ error: 'حجم الملف يتجاوز 20MB' }, { status: 413 })
+    }
     const finalMime = validateMagic(buffer, mimeType, fileName)
-    if (!finalMime) return NextResponse.json({ error: 'يسمح فقط بملفات PDF أو DOCX صحيحة' }, { status: 400 })
+    if (!finalMime) {
+      await cleanupUpload(uploadId, user.id, thesisId)
+      return NextResponse.json({ error: 'يسمح فقط بملفات PDF أو DOCX صحيحة' }, { status: 400 })
+    }
     let stored
     try {
       stored = await storeFileBuffer({ buffer, fileName, mimeType: finalMime, namespace: 'thesis' })
     } catch (error) {
+      await cleanupUpload(uploadId, user.id, thesisId)
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
     const updated = await db.$transaction(async (tx) => {
       await tx.thesisChunk.deleteMany({ where: { thesisId } })
-      await tx.setting.deleteMany({ where: { key: { startsWith: `THESIS_UPLOAD_CHUNK:${uploadId}:` } } })
+      await tx.thesisUploadChunk.deleteMany({ where: { uploadId, userId: user.id, thesisId } })
       return tx.thesisSubmission.update({
         where: { id: thesisId },
         data: {
@@ -101,6 +122,7 @@ export async function POST(req: NextRequest) {
           extractionError: null,
           extractionPagesDone: 0,
           extractionTotalPages: null,
+          extractionLockedUntil: null,
           wordCount: null,
           pageCount: null,
           digest: Prisma.JsonNull,
