@@ -101,6 +101,10 @@ function parseGeminiKeys(value: string): string[] {
   return String(value || '').split(/[\n,]+/).map((part) => part.trim()).filter(Boolean)
 }
 
+export function __testDecodeGeminiKeySetting(raw: string, keyName = 'GEMINI_API_KEY'): string[] {
+  return decodeGeminiKeySetting(raw, keyName)
+}
+
 function decodeGeminiKeySetting(raw: string, keyName: string): string[] {
   const out: string[] = []
   for (const value of parseGeminiKeys(raw)) {
