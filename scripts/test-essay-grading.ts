@@ -109,7 +109,7 @@ function testApprovalRejectsNullOpenAnswerPoints() {
 }
 
 async function main() {
-  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testMissingAndExtraCriteria, testInvalidJsonRejected, testModelPointsIgnored, testApprovalRejectsNullOpenAnswerPoints]) {
+  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testMissingAndExtraCriteria, testInvalidJsonRejected, testModelPointsIgnored, testMissingDefaultCriteriaCountAsZero, testApprovalRejectsNullOpenAnswerPoints]) {
     fn()
     console.log(`✓ ${fn.name}`)
   }
