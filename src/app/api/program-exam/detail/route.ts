@@ -94,6 +94,11 @@ export async function GET(req: NextRequest) {
       }
     }
     if (!startedAttempt) {
+      const passedAttempt = await db.programExamAttempt.findFirst({
+        where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
+        select: { id: true },
+      })
+      if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة' }, { status: 403 })
       startedAttempt = await db.programExamAttempt.create({
         data: { userId: user.id, examId, status: 'STARTED', startedAt: now },
         select: { id: true, startedAt: true, createdAt: true },
