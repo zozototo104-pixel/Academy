@@ -478,11 +478,13 @@ ${answer.slice(0, 2500)}
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('NO_JSON')
     const parsed = JSON.parse(match[0])
-    const score = finiteScore(parsed.score)
+    const score = finiteScore(parsed.score0to10 ?? parsed.score)
     if (score == null) throw new Error('NO_SCORE')
     return {
       score,
-      feedback: String(parsed.feedback || '').slice(0, 800),
+      criterion: String(parsed.criterion || criterion).slice(0, 40),
+      evidenceQuote: String(parsed.evidenceQuote || '').slice(0, 500),
+      feedback: String(parsed.comment || parsed.feedback || '').slice(0, 800),
       nextQuestion: String(parsed.nextQuestion || defaultQuestion(qNum + 1)).slice(0, 1200),
     }
   } catch {
