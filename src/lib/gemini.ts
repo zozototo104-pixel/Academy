@@ -198,8 +198,8 @@ export function hasGemini(): boolean {
 }
 
 export function geminiKeySource(): 'env' | 'db' | 'none' {
-  if (process.env.GEMINI_API_KEY?.trim()) return 'env'
   if (dbKeyCache) return 'db'
+  if (parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0]) return 'env'
   return 'none'
 }
 
