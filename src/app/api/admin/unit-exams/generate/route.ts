@@ -3,7 +3,7 @@ import type { QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
-import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, type UnitExamSelection } from '@/lib/unit-exam-policy'
+import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, unitExamRequiredQuestions, type UnitExamSelection } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
