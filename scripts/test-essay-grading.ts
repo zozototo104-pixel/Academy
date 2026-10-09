@@ -95,10 +95,17 @@ function testApprovalRejectsNullOpenAnswerPoints() {
   assert(code.includes('ANSWER_NOT_IN_ATTEMPT'), 'اعتماد المراجعة يجب أن يتحقق من ملكية answerId للمحاولة')
 }
 
-for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testMissingAndExtraCriteria, testInvalidJsonRejected, testModelPointsIgnored, testApprovalRejectsNullOpenAnswerPoints]) {
-  fn()
-  console.log(`✓ ${fn.name}`)
+async function main() {
+  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testMissingAndExtraCriteria, testInvalidJsonRejected, testModelPointsIgnored, testApprovalRejectsNullOpenAnswerPoints]) {
+    fn()
+    console.log(`✓ ${fn.name}`)
+  }
+
+  await testEmptyAnswerZeroWithoutAi()
+  console.log('✓ testEmptyAnswerZeroWithoutAi')
 }
 
-await testEmptyAnswerZeroWithoutAi()
-console.log('✓ testEmptyAnswerZeroWithoutAi')
+main().catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})
