@@ -123,7 +123,7 @@ async function digest(thesisId: string) {
     history: [{ role: 'user', text: `من ملخصات مقاطع بحث التخرج التالية، استخرج digest JSON بالمفاتيح: problem, objectives[], methodology, sample, tools[], keyFindings[], contributions[], literatureCoverage, referencesCount, weaknesses[], sectionMap[{title, chunkFrom, chunkTo}].\n\n${summaries}` }],
   })
   const match = raw.match(/\{[\s\S]*\}/)
-  const parsed = digestSchema.parse(JSON.parse(match ? match[0] : raw))
+  const parsed = thesisDigestSchema.parse(JSON.parse(match ? match[0] : raw))
   await db.thesisSubmission.update({ where: { id: thesisId }, data: { digest: parsed as any, extractionStatus: 'READY', extractedAt: new Date(), extractionError: null } })
   return { phase: 'READY', digest: parsed }
 }
