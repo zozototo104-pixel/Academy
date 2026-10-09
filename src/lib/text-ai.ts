@@ -803,12 +803,14 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     try {
       const response = await fetchWithTimeout(provider, `${root}/api/pricing/catalog`, { cache: 'no-store' }, aiDiscoveryTimeoutMs())
       const data: any = await response.json().catch(() => ({}))
-      models = rowsFromModelPayload(data)
+      const rows = rowsFromModelPayload(data)
         .filter((m) => m?.is_free === true)
         .filter((m) => m?.online !== false)
         .filter(isTextLikeModel)
-        .map((m) => normalizeFreeModelName(provider, modelId(m)))
-        .filter((name) => validModelName(name))
+        .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
+        .filter(({ id }) => validModelName(id))
+      models = rows.map(({ id }) => id)
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities: Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)])) })
     } catch {
       models = []
     }
