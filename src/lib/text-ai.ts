@@ -1520,6 +1520,38 @@ async function recordPaidSpend(s: Settings, estimatedCost: number): Promise<void
   }
 }
 
+function rateWindowStart(window: 'rpm' | 'rpd') {
+  const now = new Date()
+  if (window === 'rpm') return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()))
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+}
+
+async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<boolean> {
+  try {
+    if (!hasDatabaseUrl()) return true
+    const settingKey = `AI_KEY_LIMIT:${provider}`
+    const raw = (await settingStore().read([settingKey]))[settingKey]
+    if (!raw) return true
+    const limits = JSON.parse(raw)
+    const hash = keyHashForRateLimit(key)
+    for (const window of ['rpm', 'rpd'] as const) {
+      const max = Number(limits?.[window] || 0)
+      if (!Number.isFinite(max) || max <= 0) continue
+      const windowStart = rateWindowStart(window)
+      await db.keyRateWindow.upsert({
+        where: { keyHash_window_windowStart: { keyHash: hash, window, windowStart } },
+        create: { keyHash: hash, window, windowStart, count: 1 },
+        update: { count: { increment: 1 } },
+      })
+      const row = await db.keyRateWindow.findUnique({ where: { keyHash_window_windowStart: { keyHash: hash, window, windowStart } }, select: { count: true } })
+      if ((row?.count || 0) > max) return false
+    }
+  } catch {
+    return true
+  }
+  return true
+}
+
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseSettings = await settings()
   const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
