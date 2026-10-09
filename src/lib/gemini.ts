@@ -411,11 +411,15 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
   let lastErr: any
   for (const model of await textModelChain()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
+      let emittedAnyChunk = false
       try {
         const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts, false, model) })
         for await (const chunk of stream) {
           const text = (chunk as any).text as string | undefined
-          if (text) yield text
+          if (text) {
+            emittedAnyChunk = true
+            yield text
+          }
         }
         activeTextModel = model
         lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
