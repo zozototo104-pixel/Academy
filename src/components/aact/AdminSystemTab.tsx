@@ -337,6 +337,18 @@ export function AdminSystemTab() {
       .finally(() => setTextModelHealthLoading(false))
   }
 
+  const checkAllTextModelsNow = async () => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ ok: boolean; checked: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })
+      toast({ title: 'تم فحص صحة المزودين', description: `تم فحص ${result.checked || 0} نموذج.` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر فحص المزودين', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
   useEffect(() => {
     setTextModelHealth(null)
   }, [catalogProviderForModels])
