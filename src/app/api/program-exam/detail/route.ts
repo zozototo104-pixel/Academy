@@ -117,6 +117,8 @@ export async function GET(req: NextRequest) {
         booksCount: books.length,
         books: books.map((b) => ({ id: b.id, title: b.title, author: b.author })),
         readiness,
+        attemptId: startedAttempt.id,
+        startedAt: startedAttempt.startedAt,
       },
       questions: exam.questions.map((q) => ({
         id: q.id,
