@@ -22,7 +22,9 @@ export async function GET(_request: NextRequest, context: Context) {
     }
     return NextResponse.json({ ok: true, job, enrichment })
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || 'UNAUTHORIZED') }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-job GET error:', error)
+    return NextResponse.json({ error: 'تعذر تحميل حالة قراءة الكتاب' }, { status: 500 })
   }
 }
 
