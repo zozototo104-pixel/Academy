@@ -16,7 +16,7 @@ const optionSchema = z.string().min(1).max(260)
 const generatedQuestionSchema = z.discriminatedUnion('type', [
   z.object({ ...commonQuestionFields, type: z.literal('MCQ'), options: z.array(optionSchema).min(3).max(6), correctAnswer: z.string().min(1).max(260), modelAnswer: z.string().max(1800).optional() }),
   z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(1800).optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(2).max(1800), rubric: z.unknown().optional() }),
   z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
 ]).superRefine((q, ctx) => {
   if (q.type !== 'MCQ') return
