@@ -332,6 +332,7 @@ function testQuestionBankSanitizesTfBeforeNumericValidation() {
   const tfNormalizeIndex = code.indexOf("type === 'TF' && correctAnswer != null")
   const numericValidationIndex = code.indexOf('Number.isNaN(Number(correctAnswer))')
   assert(tfNormalizeIndex >= 0 && numericValidationIndex >= 0 && tfNormalizeIndex < numericValidationIndex, 'تحويل إجابة TF النصية إلى 0/1 يجب أن يحدث قبل التحقق الرقمي')
+  for (const word of ['صح', 'صحيح', 'true', 'خطأ', 'خطا', 'خاطئ', 'false']) assert(code.includes(word), `sanitizeQuestion يجب أن يدعم مرادف TF: ${word}`)
   assert(code.includes('TF_ANSWER_REQUIRED'), 'أسئلة TF التي تبقى بلا correctAnswer صالح يجب أن تُرفض')
 }
 
