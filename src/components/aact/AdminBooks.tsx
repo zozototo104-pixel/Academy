@@ -1753,24 +1753,34 @@ export function AdminBooksTab() {
     for (const book of books) if (v2CountsByBook[book.id] > 0 && bookOutlines[book.id] === undefined) void loadBookOutline(book.id).catch(() => {})
   }, [workspaceTab, books, v2CountsByBook, bookOutlines, loadBookOutline])
 
-  const startBookReadJob = async (bookId: string, options: { reread?: boolean } = {}) => {
-    if (options.reread) {
-      const ok = await askAdminConfirm({
-        title: 'إعادة قراءة الكتاب',
-        description: 'سيعاد استخراج نص PDF الأصلي وتحديث مقاطع هذا الكتاب فقط. لن تُحذف أسئلة بنك الأسئلة أو تُعدّل تلقائياً.',
-        confirmLabel: 'إعادة القراءة',
-      })
-      if (!ok) return
-    }
+  const startBookReadJob = async (bookId: string) => {
     setBookReadBusyId(bookId)
     delete bookReadRetryRef.current[bookId]
     setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
     try {
-      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify(options.reread ? { reread: true } : {}) })
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({}) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
       if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
     } catch (error: any) {
-      toast({ title: options.reread ? 'تعذر إعادة قراءة الكتاب' : 'تعذر بدء قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+      toast({ title: 'تعذر بدء قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
+    }
+  }
+
+  const fixBookArabicText = async (bookId: string) => {
+    const ok = await askAdminConfirm({
+      title: 'تصحيح النص العربي',
+      description: 'سيتم تصحيح نص المقاطع وعناصر المعرفة وأسئلة بنك الأسئلة المرتبطة بهذا الكتاب فقط. لا يتم حذف المقاطع ولا إعادة تحليل AI.',
+      confirmLabel: 'تصحيح النص',
+    })
+    if (!ok) return
+    setBookReadBusyId(bookId)
+    try {
+      const result = await api<{ chunksUpdated: number; knowledgeItemsUpdated: number; questionsUpdated: number }>(`/api/admin/books/${bookId}/fix-text`, { method: 'POST', body: JSON.stringify({}) })
+      toast({ title: 'تم تصحيح النص العربي', description: `المقاطع: ${result.chunksUpdated} · عناصر المعرفة: ${result.knowledgeItemsUpdated} · الأسئلة: ${result.questionsUpdated}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر تصحيح النص العربي', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBookReadBusyId(null)
     }
