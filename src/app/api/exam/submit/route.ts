@@ -158,15 +158,39 @@ export async function POST(req: NextRequest) {
           )
         }
 
-        let graded: { points: number; feedback: string }
+        let graded: { points: number; feedback: string; confidence?: string; criteria?: unknown }
         try {
-          graded = await gradeEssayAnswer(q.text, q.modelAnswer, essayText, q.points)
+          graded = await gradeEssayWithRubric({
+            question: q.text,
+            modelAnswer: q.modelAnswer,
+            rubric: q.rubric,
+            sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+            studentAnswer: essayText,
+            maxPoints: q.points,
+          })
         } catch (e: any) {
-          console.error('Essay grading failed:', String(e?.message || e).slice(0, 300))
-          return NextResponse.json(
-            { error: 'تعذر التصحيح الذكي للسؤال المقالي الآن. لم يتم اعتماد المحاولة، حاول مرة أخرى بعد قليل.', code: 'AI_GRADING_UNAVAILABLE' },
-            { status: 503 }
-          )
+          console.error('Essay grading failed; saving for manual review:', String(e?.message || e).slice(0, 300))
+          needsReview = true
+          answersToPersist.push({
+            questionId: q.id,
+            answerText: essayText,
+            isCorrect: null,
+            points: null,
+            maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', reason: String(e?.message || e).slice(0, 300) }),
+          })
+          gradedResults.push({
+            questionId: q.id,
+            order: q.order,
+            type: q.type,
+            text: q.text,
+            isCorrect: null,
+            points: 0,
+            maxPoints: q.points,
+            aiFeedback: 'تم حفظ الإجابة للمراجعة اليدوية لأن التصحيح الآلي لم يكتمل.',
+            studentAnswer: essayText || '(لم يجب)',
+          })
+          continue
         }
 
         const pts = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
