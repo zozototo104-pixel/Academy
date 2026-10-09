@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const body = bodyRecord(await req.json().catch(() => ({})))
     const programId = cleanText(body.programId, 80)
     const unitId = cleanText(body.unitId, 80)
-    const requiredQuestions = Math.max(3, Math.min(20, Number(body.count || 10)))
+    const requiredQuestions = unitExamRequiredQuestions(body.count)
     const replace = body.replace !== false
 
     if (!programId || !unitId) return NextResponse.json({ ok: false, error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
