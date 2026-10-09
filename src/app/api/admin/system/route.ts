@@ -357,7 +357,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, provider, available: catalog.models || [], excluded, top, health })
     }
     if (action === 'text-ai-check-all') {
-      return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth()) })
+      return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth({ maxMs: 40_000 })) })
     }
     if (action === 'toggle-ai-model-dead') {
       const provider = String(modelProvider || '').trim().toUpperCase()
