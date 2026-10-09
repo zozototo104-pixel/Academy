@@ -44,19 +44,23 @@ function shuffleWithAnswer(options: string[], correctAnswer: string | null | und
   return { options: pairs.map((pair) => pair.option), correctAnswer: String(Math.max(0, nextCorrect)) }
 }
 
+function sourceFields(item: UnitExamBankItem) {
+  return { knowledgeItemId: item.knowledgeItemId || null, sourceEvidence: item.sourceEvidence || null, rubric: item.rubric || null }
+}
+
 function toExamQuestion(item: UnitExamBankItem, index: number, needsReview: boolean) {
   const type = String(item.type || 'MCQ').toUpperCase()
   const text = unitExamQuestionTextWithReviewLabel(item.text, needsReview)
   if (type === 'MCQ') {
     const shuffled = shuffleWithAnswer(parseStringArray(item.options), item.correctAnswer)
-    return { order: index + 1, type: 'MCQ', text: cleanText(text, 1200), options: JSON.stringify(shuffled.options), correctAnswer: shuffled.correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10 }
+    return { order: index + 1, type: 'MCQ', text: cleanText(text, 1200), options: JSON.stringify(shuffled.options), correctAnswer: shuffled.correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10, ...sourceFields(item) }
   }
   if (type === 'TF') {
     const answerText = cleanText(item.correctAnswer, 20)
     const correctAnswer = answerText === '1' || /^خطأ|false$/iu.test(answerText) ? '1' : '0'
-    return { order: index + 1, type: 'TF', text: cleanText(text, 1200), options: JSON.stringify(['صح', 'خطأ']), correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10 }
+    return { order: index + 1, type: 'TF', text: cleanText(text, 1200), options: JSON.stringify(['صح', 'خطأ']), correctAnswer, modelAnswer: cleanText(item.modelAnswer || item.correctRationale || item.sourceEvidence, 1800), points: 10, ...sourceFields(item) }
   }
-  return { order: index + 1, type: type === 'ESSAY' ? 'ESSAY' : 'SHORT', text: cleanText(text, 1200), options: JSON.stringify([]), correctAnswer: null, modelAnswer: cleanText(item.modelAnswer || item.sourceEvidence, 1800), points: 10 }
+  return { order: index + 1, type: type === 'ESSAY' ? 'ESSAY' : 'SHORT', text: cleanText(text, 1200), options: JSON.stringify([]), correctAnswer: null, modelAnswer: cleanText(item.modelAnswer || item.sourceEvidence, 1800), points: 10, ...sourceFields(item) }
 }
 
 async function unitQuestionCandidates(programId: string, unitId: string, requiredQuestions: number, includePending: boolean): Promise<UnitExamBankItem[]> {
