@@ -448,8 +448,18 @@ ${recent || 'بدأت الجلسة للتو.'}
     recognitionRef.current?.abort()
     setListening(false)
     setInterim('')
+    let processedContext = liveThesisContext
+    if (!processedContext) {
+      try {
+        const response = await api<{ context: string }>(`/api/defense/context?thesisId=${encodeURIComponent(thesisId)}`)
+        processedContext = response.context || ''
+        setLiveThesisContext(processedContext)
+      } catch {
+        processedContext = ''
+      }
+    }
     const agent = new VoiceAgent({
-      context: buildDefenseVoiceContext(initialMessages),
+      context: buildDefenseVoiceContext(initialMessages, processedContext),
       // صوت أخف من Charon الافتراضي حتى لا يظهر صوت الرجل الفصيح داخل المناقشة.
       voice: 'Aoede',
       logEndpoint: '/api/defense',
