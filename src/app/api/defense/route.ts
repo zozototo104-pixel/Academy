@@ -521,6 +521,7 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
           : 'توصية بمراجعة البحث وإعادة المناقشة'
   try {
     const text = await textAiComplete({
+      purpose: 'REVIEW',
       system: `${buildSupervisorPersonaBlock('DEFENSE')}\n\nأنت خبير ذكاء اصطناعي عضو لجنة مناقشة، تكتب توصية رسمية موجزة للجنة.`,
       history: [{
         role: 'user',
