@@ -349,6 +349,18 @@ export function AdminSystemTab() {
     }
   }
 
+  const toggleAiModel = async (provider: string, model: string) => {
+    setTextModelHealthLoading(true)
+    try {
+      const result = await api<{ ok: boolean; disabled: boolean }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'toggle-ai-model-dead', provider, modelName: model }) })
+      toast({ title: result.disabled ? 'تم تعطيل النموذج' : 'تم تفعيل النموذج', description: `${provider}/${model}` })
+      loadTextModelHealth()
+    } catch (e: any) {
+      toast({ title: 'تعذر تغيير حالة النموذج', description: e.message, variant: 'destructive' })
+      setTextModelHealthLoading(false)
+    }
+  }
+
   useEffect(() => {
     setTextModelHealth(null)
   }, [catalogProviderForModels])
