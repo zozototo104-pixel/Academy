@@ -272,6 +272,7 @@ const tests = [
   testArabicCognitiveSkillAnalyzeNormalizes,
   testExpandedCognitiveSkillAliasesNormalize,
   testShortConciseAnswerAccepted,
+  testTfArabicCorrectAnswerAliasesNormalize,
   testEssayShortAnswerRejected,
   testAllStructurallyRejectedBatchThrows,
   testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty,
