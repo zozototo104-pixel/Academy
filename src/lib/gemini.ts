@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
+import { aiRetryDelayMs, wait } from '@/lib/ai-retry'
 import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiProvider, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
