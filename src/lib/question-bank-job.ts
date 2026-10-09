@@ -66,6 +66,10 @@ type GeneratedQuestionCandidate = {
   qualityFlags?: unknown
 }
 
+export function assertGeneratedBatchHasAcceptedCandidates(parsed: { accepted: unknown[] }) {
+  if (!parsed.accepted.length) throw new Error('QUESTION_BATCH_ALL_STRUCTURALLY_REJECTED')
+}
+
 export function planQuestionBankJobManualReactivation(job: ExistingQuestionBankJobState, requested: number, manual: boolean) {
   const normalizedRequested = Math.max(job.requested || 0, requested)
   const reactivatesPausedOrFailed = manual && ['PAUSED', 'FAILED'].includes(job.status)
