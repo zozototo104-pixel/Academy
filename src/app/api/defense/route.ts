@@ -50,6 +50,7 @@ export async function GET() {
         defenseStatus: thesis.defenseStatus,
         aiScore: thesis.aiScore,
         aiRecommendation: thesis.aiRecommendation,
+        defenseBreakdown: thesis.defenseBreakdown,
         defenseMinutes: thesis.defenseMinutes,
         recordingSize: thesis.recordingSize,
         resultScore: thesis.resultScore,
