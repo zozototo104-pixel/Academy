@@ -155,6 +155,7 @@ export async function PATCH(req: NextRequest) {
             extractionPagesDone: 0,
             extractionTotalPages: null,
             extractionLockedUntil: null,
+            extractionLockToken: null,
             pageCount: null,
             wordCount: null,
             digest: Prisma.JsonNull,
