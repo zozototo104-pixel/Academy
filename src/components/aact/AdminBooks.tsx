@@ -1758,11 +1758,29 @@ export function AdminBooksTab() {
     delete bookReadRetryRef.current[bookId]
     setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
     try {
-      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST' })
+      const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({}) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
       if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
     } catch (error: any) {
       toast({ title: 'تعذر بدء قراءة الكتاب', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBookReadBusyId(null)
+    }
+  }
+
+  const fixBookArabicText = async (bookId: string) => {
+    const ok = await askAdminConfirm({
+      title: 'تصحيح النص العربي',
+      description: 'سيتم تصحيح نص المقاطع وعناصر المعرفة وأسئلة بنك الأسئلة والوحدات والأدلة وأسئلة الاختبارات المبنية المرتبطة بهذا الكتاب فقط. لا يتم حذف المقاطع ولا إعادة تحليل AI ولا لمس إجابات الطلاب.',
+      confirmLabel: 'تصحيح النص',
+    })
+    if (!ok) return
+    setBookReadBusyId(bookId)
+    try {
+      const result = await api<{ chunksUpdated: number; knowledgeItemsUpdated: number; questionsUpdated: number; examQuestionsUpdated: number; unitsUpdated: number; studyGuidesUpdated: number }>(`/api/admin/books/${bookId}/fix-text`, { method: 'POST', body: JSON.stringify({}) })
+      toast({ title: 'تم تصحيح النص العربي', description: `المقاطع: ${result.chunksUpdated} · عناصر المعرفة: ${result.knowledgeItemsUpdated} · بنك الأسئلة: ${result.questionsUpdated} · أسئلة الاختبارات: ${result.examQuestionsUpdated} · الوحدات: ${result.unitsUpdated} · الأدلة: ${result.studyGuidesUpdated}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر تصحيح النص العربي', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBookReadBusyId(null)
     }
@@ -2402,6 +2420,7 @@ export function AdminBooksTab() {
                             </div>
                             <div className="flex w-full flex-col flex-wrap gap-2 sm:flex-row">
                               <Button size="sm" variant="outline" onClick={() => startBookReadJob(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">قراءة وتحليل كامل</Button>
+                              <Button size="sm" variant="outline" onClick={() => fixBookArabicText(b.id)} disabled={bookReadBusyId === b.id} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">تصحيح النص العربي</Button>
                               {countForBook > 0 && <Button size="sm" variant="outline" disabled={outlineBusyId === b.id} onClick={() => buildOutlineForBook(b.id)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{outlineBusyId === b.id ? 'جارٍ بناء الفهرس...' : 'بناء فهرس الكتاب'}</Button>}
                               <Button size="sm" variant="outline" disabled={outlineDebugBusyId === b.id} onClick={() => loadOutlineDebug(b.id)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">{outlineDebugBusyId === b.id ? 'جارٍ التشخيص...' : 'تشخيص الفهرس'}</Button>
                               {countForBook > 0 && <Button size="sm" variant="outline" onClick={() => startBookEnrichment(b.id)} disabled={bookReadBusyId === b.id || (bookEnrichment[b.id]?.totalChunks > 0 && bookEnrichment[b.id]?.saturatedChunks >= bookEnrichment[b.id]?.totalChunks)} className="h-8 w-full px-2 text-[10px] font-black sm:w-auto">استخراج المزيد</Button>}

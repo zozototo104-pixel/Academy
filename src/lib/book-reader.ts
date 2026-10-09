@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib'
 import { db } from '@/lib/db'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { geminiVisionJson } from '@/lib/gemini'
+import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
@@ -110,7 +111,7 @@ export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; p
   const ordered = numbers.map((page) => {
     const result = pageMap.get(page)
     if (!result) throw new Error(`BOOK_PAGE_MISSING_${page}`)
-    return result
+    return result.textProvenance === 'NATIVE_TEXT' ? { ...result, text: fixArabicPdfText(result.text) } : result
   })
   const chunks = planBookChunks(ordered)
   for (let index = 0; index < chunks.length; index++) {

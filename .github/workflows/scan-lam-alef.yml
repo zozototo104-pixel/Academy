@@ -1,0 +1,41 @@
+name: Scan Arabic lam-alef PDF text
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/arabic-lam-alef]
+    paths:
+      - 'scripts/scan-lam-alef.ts'
+      - 'scripts/test-arabic-pdf-text.ts'
+      - 'src/lib/arabic-pdf-text.ts'
+      - '.github/workflows/scan-lam-alef.yml'
+
+jobs:
+  scan-lam-alef:
+    name: Scan lam-alef patterns
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Run Arabic PDF text tests
+        run: bunx tsx scripts/test-arabic-pdf-text.ts
+
+      - name: Run lam-alef dry-run diagnostic scan
+        run: bunx tsx scripts/scan-lam-alef.ts --dry-run
