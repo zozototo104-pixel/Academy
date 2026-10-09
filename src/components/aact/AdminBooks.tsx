@@ -1771,7 +1771,7 @@ export function AdminBooksTab() {
   const fixBookArabicText = async (bookId: string) => {
     const ok = await askAdminConfirm({
       title: 'تصحيح النص العربي',
-      description: 'سيتم تصحيح نص المقاطع وعناصر المعرفة وأسئلة بنك الأسئلة المرتبطة بهذا الكتاب فقط. لا يتم حذف المقاطع ولا إعادة تحليل AI.',
+      description: 'سيتم تصحيح نص المقاطع وعناصر المعرفة وأسئلة بنك الأسئلة والوحدات والأدلة وأسئلة الاختبارات المبنية المرتبطة بهذا الكتاب فقط. لا يتم حذف المقاطع ولا إعادة تحليل AI ولا لمس إجابات الطلاب.',
       confirmLabel: 'تصحيح النص',
     })
     if (!ok) return
