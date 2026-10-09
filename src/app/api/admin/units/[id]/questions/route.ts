@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { selectUnitExamQuestionsApprovedFirst } from '@/lib/unit-exam-policy'
+import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
