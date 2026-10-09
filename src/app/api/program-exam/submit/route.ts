@@ -285,6 +285,7 @@ export async function POST(req: NextRequest) {
         sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
         studentAnswer: text,
         maxPoints: q.points,
+        deadlineMs: Date.now() + 45_000,
       })
       const clampedPoints = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
       await db.programAnswer.create({
