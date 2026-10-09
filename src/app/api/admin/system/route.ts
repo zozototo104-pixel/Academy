@@ -234,7 +234,9 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'add-academic-allowlist') {
       const item = String(allowlistItem || '').trim()
-      if (!/^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) || /(^|:)auto$/i.test(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
+      const [provider, model] = item.split(/:(.+)/).filter(Boolean)
+      if (!provider || !model || !allowedProviders.has(provider.toUpperCase()) || !/^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) || /(^|:)auto$/i.test(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
       const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
       const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
       if (!current.includes(item)) current.push(item)
