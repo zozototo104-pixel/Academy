@@ -345,6 +345,17 @@ export async function POST(req: NextRequest) {
     if (action === 'text-ai-check-all') {
       return NextResponse.json({ ok: true, ...(await textAiCheckAllModelHealth()) })
     }
+    if (action === 'toggle-ai-model-dead') {
+      const provider = String(modelProvider || '').trim().toUpperCase()
+      const model = String(selectedLiveModel || body?.modelName || '').trim()
+      if (!provider || !model) return NextResponse.json({ error: 'المزود والنموذج مطلوبان' }, { status: 400 })
+      const key = `AI_MODEL_DEAD:${provider}:${model}`
+      const existing = await db.setting.findUnique({ where: { key } })
+      if (existing) await db.setting.delete({ where: { key } })
+      else await db.setting.create({ data: { key, value: JSON.stringify({ until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), reason: 'manual_admin_toggle', status: null }) } })
+      await audit(admin, existing ? 'AI_MODEL_ENABLED' : 'AI_MODEL_DISABLED', 'Setting', key, `${provider}:${model}`)
+      return NextResponse.json({ ok: true, disabled: !existing })
+    }
     if (action === 'test-text-ai') {
       const diag = await textAiDiagnostics()
       const test = await textAiTestConnection()
