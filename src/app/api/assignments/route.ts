@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
     let fileStorageProvider: string | null = null
     let fileStorageKey: string | null = null
     let fileUrl: string | null = null
+    let pendingFileBuffer: Buffer | null = null
 
     if (contentType.includes('multipart/form-data')) {
       const fd = await req.formData()
@@ -120,24 +121,10 @@ export async function POST(req: NextRequest) {
         if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'حجم ملف الواجب كبير جداً؛ الحد الأقصى 6 ميجابايت' }, { status: 400 })
         const supported = ALLOWED_MIME.has(file.type) || ALLOWED_EXT.test(file.name)
         if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
-        const buffer = Buffer.from(await file.arrayBuffer())
+        pendingFileBuffer = Buffer.from(await file.arrayBuffer())
         fileName = file.name.slice(0, 220)
         mimeType = file.type
         size = file.size
-        try {
-          const stored = await storeFileBuffer({
-            namespace: `assignments/${user.id}`,
-            buffer,
-            fileName,
-            mimeType,
-          })
-          fileStorageProvider = stored.provider
-          fileStorageKey = stored.key
-          fileUrl = stored.url
-          data = null
-        } catch (storageError) {
-          return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
-        }
       }
     } else {
       const body = await req.json().catch(() => ({}))
@@ -146,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!assignmentId) return NextResponse.json({ error: 'معرف الواجب مطلوب' }, { status: 400 })
-    if (!answerText && !fileStorageKey && !data) return NextResponse.json({ error: 'اكتب إجابتك أو أرفق ملف الواجب قبل التسليم' }, { status: 400 })
+    if (!answerText && !fileStorageKey && !pendingFileBuffer && !data) return NextResponse.json({ error: 'اكتب إجابتك أو أرفق ملف الواجب قبل التسليم' }, { status: 400 })
 
     const assignment = await db.programAssignment.findUnique({
       where: { id: assignmentId },
@@ -156,6 +143,27 @@ export async function POST(req: NextRequest) {
 
     const enrollment = await db.enrollment.findFirst({ where: { userId: user.id, programId: assignment.programId, status: { in: ['ACTIVE', 'COMPLETED'] } } })
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
+    const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays)
+    if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
+    const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true } })
+    if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })
+
+    if (pendingFileBuffer && fileName) {
+      try {
+        const stored = await storeFileBuffer({
+          namespace: `assignments/${user.id}`,
+          buffer: pendingFileBuffer,
+          fileName,
+          mimeType,
+        })
+        fileStorageProvider = stored.provider
+        fileStorageKey = stored.key
+        fileUrl = stored.url
+        data = null
+      } catch (storageError) {
+        return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
+      }
+    }
 
     const submission = await db.assignmentSubmission.upsert({
       where: { assignmentId_userId: { assignmentId, userId: user.id } },

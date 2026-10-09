@@ -75,7 +75,7 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { examId, answers, durationUsedMin, proctoring } = (await req.json()) as {
+    const { examId, answers, proctoring } = (await req.json()) as {
       examId: string
       answers: SubmitAnswer[]
       durationUsedMin?: number
@@ -129,18 +129,40 @@ export async function POST(req: NextRequest) {
     const procLog = procEnabled && Array.isArray(proctoring?.log) ? JSON.stringify(proctoring!.log!.slice(0, 200)) : null
     const procSnapshot = procEnabled && typeof proctoring?.snapshot === 'string' ? proctoring!.snapshot!.slice(0, 300000) : null
 
-    const attempt = await db.programExamAttempt.create({
+    const expiredAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'EXPIRED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+    const startedAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
+    if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
+    const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
+    const allowedMs = (exam.durationMin + 2) * 60 * 1000
+    if (elapsedMs > allowedMs) {
+      await db.programExamAttempt.update({
+        where: { id: startedAttempt.id },
+        data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
+      })
+      return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
+    }
+    const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
+
+    const attempt = await db.programExamAttempt.update({
+      where: { id: startedAttempt.id },
       data: {
-        userId: user.id,
-        examId,
         status: 'SUBMITTED',
-        durationUsedMin: durationUsedMin ?? null,
+        durationUsedMin: serverDurationUsedMin,
         proctoringEnabled: procEnabled,
         proctoringLog: procLog,
         proctoringSnapshot: procSnapshot,
       },
     })
 
+    try {
     let totalScore = 0
     let maxTotal = 0
     const weakPoints: string[] = []
@@ -344,6 +366,14 @@ export async function POST(req: NextRequest) {
       overall,
       results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
     })
+    } catch (postCreateError: any) {
+      const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
+      await db.programExamAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+      }).catch(() => {})
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة للمراجعة بسبب خطأ أثناء التصحيح.', ...reviewState }, { status: 202 })
+    }
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })

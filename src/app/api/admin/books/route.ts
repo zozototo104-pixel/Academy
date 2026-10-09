@@ -422,21 +422,34 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const updated = await db.book.update({
-      where: { id: bookId },
-      data: {
-        link,
-        fileName,
-        mimeType,
-        size,
-        data,
-        storageProvider,
-        storageKey,
-        fileUrl,
-        ...(textContent && textContent.length >= 160 ? { textContent: textContent.slice(0, MAX_BOOK_TEXT_CHARS) } : {}),
-        linkReadStatus,
-        linkReadNote: linkNote,
-      },
+    const replacingStoredFile = (file != null && file.size > 0) || storageKey !== book.storageKey || fileUrl !== book.fileUrl
+    if (replacingStoredFile) {
+      const linkedUnits = await db.unit.count({ where: { sourceBookId: bookId } })
+      if (linkedUnits > 0) return NextResponse.json({ error: 'الكتاب مربوط بوحدات' }, { status: 409 })
+    }
+
+    const updated = await db.$transaction(async (tx) => {
+      if (replacingStoredFile) {
+        await tx.bookChunk.deleteMany({ where: { bookId } })
+        await tx.bookKnowledgeItem.deleteMany({ where: { bookId, kbVersion: 2 } })
+        await tx.bookReadJob.deleteMany({ where: { bookId } })
+      }
+      return tx.book.update({
+        where: { id: bookId },
+        data: {
+          link,
+          fileName,
+          mimeType,
+          size,
+          data,
+          storageProvider,
+          storageKey,
+          fileUrl,
+          ...(textContent && textContent.length >= 160 ? { textContent: textContent.slice(0, MAX_BOOK_TEXT_CHARS) } : {}),
+          linkReadStatus,
+          linkReadNote: linkNote,
+        },
+      })
     })
 
     // لا نبني بنك المعرفة أثناء تحديث المصدر أيضاً؛ هذا الطلب مخصص لحفظ الملف/الرابط فقط.

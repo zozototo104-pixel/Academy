@@ -13,6 +13,8 @@ export async function GET(_request: NextRequest, context: Context) {
   try {
     await authorize()
     const { id } = await context.params
+    const book = await db.book.findUnique({ where: { id }, select: { id: true } })
+    if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
     const enrichment = {
       totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
@@ -22,7 +24,9 @@ export async function GET(_request: NextRequest, context: Context) {
     }
     return NextResponse.json({ ok: true, job, enrichment })
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || 'UNAUTHORIZED') }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-job GET error:', error)
+    return NextResponse.json({ error: 'تعذر تحميل حالة قراءة الكتاب' }, { status: 500 })
   }
 }
 
@@ -52,6 +56,8 @@ export async function POST(request: NextRequest, context: Context) {
       return NextResponse.json({ ok: true, job: winner, resumed: true })
     }
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || 'UNAUTHORIZED') }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-job POST error:', error)
+    return NextResponse.json({ error: 'تعذر بدء قراءة الكتاب' }, { status: 500 })
   }
 }

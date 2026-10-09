@@ -1575,9 +1575,10 @@ model ProgramExamAttempt {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   score       Float?
   passed      Boolean?
-  status      String   @default("SUBMITTED") // SUBMITTED | GRADED
+  status      String   @default("SUBMITTED") // STARTED | EXPIRED | SUBMITTED | GRADED | NEEDS_REVIEW
   feedback    String?  // JSON تقييم عام
   durationUsedMin Int?     // كم دقيقة استغرق الطالب فعلياً
+  startedAt   DateTime?
   submittedAt DateTime?
   // الاعتراض على النتيجة (Appeal) — يُحوَّل للمراجعة اليدوية من المشرف البشري/الإدارة
   appealStatus   String   @default("NONE") // NONE | PENDING | REVIEWED

@@ -131,9 +131,9 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
   const text = cleanText(raw.text || raw.question || fallback.title, 1200)
   const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer) : null
   const options = mcq ? mcq.options : safeOptions(raw.options, type)
-  let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer) : null
+  let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer).trim() : null
+  if (type === 'TF' && correctAnswer != null && !['0', '1'].includes(correctAnswer)) correctAnswer = /^(?:صح|صحيح|true)$/iu.test(correctAnswer) ? '0' : /^(?:خطأ|خطا|خاطئ|false)$/iu.test(correctAnswer) ? '1' : null
   if (correctAnswer != null && Number.isNaN(Number(correctAnswer))) correctAnswer = null
-  if (type === 'TF' && correctAnswer != null && !['0', '1'].includes(correctAnswer)) correctAnswer = /^صح|true$/iu.test(correctAnswer) ? '0' : /^خطأ|false$/iu.test(correctAnswer) ? '1' : null
   return {
     type,
     text,
@@ -350,6 +350,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     if (!q.cognitiveSkill) { traceReasons.push('COGNITIVE_SKILL_REQUIRED'); continue }
     if (!q.difficulty) { traceReasons.push('DIFFICULTY_REQUIRED'); continue }
     if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) { traceReasons.push(prepareMcqOptionsForStorage(item.options, item.correctAnswer).reason || 'MCQ_ANSWER_NOT_IN_OPTIONS'); continue }
+    if (q.type === 'TF' && q.correctAnswer == null) { traceReasons.push('TF_ANSWER_REQUIRED'); continue }
     const key = questionDuplicateKey(q.text, source.id)
     if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
     seen.add(key)

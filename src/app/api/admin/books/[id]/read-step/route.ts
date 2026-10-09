@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, context: Context) {
     if (!job) return NextResponse.json({ error: 'BOOK_READ_JOB_NOT_FOUND' }, { status: 404 })
     return NextResponse.json({ ok: true, job })
   } catch (error: any) {
-    return NextResponse.json({ error: String(error?.message || error) }, { status: 401 })
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    console.error('book read-step GET error:', error)
+    return NextResponse.json({ error: 'تعذر تحميل حالة قراءة الكتاب' }, { status: 500 })
   }
 }
 
@@ -51,7 +53,7 @@ export async function POST(_request: NextRequest, context: Context) {
       result = { phase: job.phase }
     }
     const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-    const updated = current?.status === 'COMPLETED'
+    const updated = current?.status && ['COMPLETED', 'FAILED', 'PAUSED'].includes(current.status)
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
       : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
     const enrichment = job.phase === 'ENRICH' ? {

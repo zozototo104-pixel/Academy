@@ -83,9 +83,18 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         questions: { select: questionSelect },
-        _count: { select: { attempts: true } },
       },
     })
+    const examIds = exams.map((exam) => exam.id)
+    const attemptCounts = examIds.length
+      ? await db.programExamAttempt.groupBy({ by: ['examId', 'status'], where: { examId: { in: examIds }, status: { not: 'STARTED' } }, _count: { _all: true } })
+      : []
+    const attemptsByExam = new Map<string, Record<string, number>>()
+    for (const row of attemptCounts) {
+      const current = attemptsByExam.get(row.examId) || {}
+      current[row.status] = row._count._all
+      attemptsByExam.set(row.examId, current)
+    }
 
     return NextResponse.json({
       exams: exams.map((e) => {
@@ -101,6 +110,8 @@ export async function GET(req: NextRequest) {
           if (q.status === 'PENDING_REVIEW') pending++
           if (q.status === 'REJECTED') rejected++
         }
+        const statusCounts = attemptsByExam.get(e.id) || {}
+        const attemptsCount = Object.values(statusCounts).reduce((sum, count) => sum + count, 0)
         return {
           id: e.id,
           title: e.title,
@@ -115,7 +126,10 @@ export async function GET(req: NextRequest) {
           totalPoints,
           pendingReview: pending,
           rejectedCount: rejected,
-          attemptsCount: e._count.attempts,
+          attemptsCount,
+          attemptStatusCounts: statusCounts,
+          attemptStatusLabels: { EXPIRED: 'انتهى الوقت دون تسليم' },
+          expiredAttemptsCount: statusCounts.EXPIRED || 0,
           createdAt: e.createdAt,
           ...(includeQuestions ? { questions: e.questions } : {}),
         }

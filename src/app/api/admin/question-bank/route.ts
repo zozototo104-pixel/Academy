@@ -231,6 +231,8 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const id = cleanText(body?.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف السؤال مطلوب' }, { status: 400 })
+    const existing = await db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true } })
+    if (!existing) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
     const data: any = {}
     if (body?.status !== undefined) {
       const status = cleanText(body.status, 40)
@@ -246,8 +248,20 @@ export async function PATCH(req: NextRequest) {
       const type = cleanText(body.type, 20)
       if (TYPES.has(type)) data.type = type
     }
-    if (body?.options !== undefined) data.options = JSON.stringify(safeOptions(body.options, data.type || 'MCQ'))
+    if (body?.options !== undefined) data.options = JSON.stringify(safeOptions(body.options, data.type || existing.type || 'MCQ'))
     if (body?.correctAnswer !== undefined) data.correctAnswer = cleanText(body.correctAnswer, 20)
+    const shouldValidateAnswer = body?.correctAnswer !== undefined || body?.options !== undefined || data.status === 'APPROVED'
+    if (shouldValidateAnswer) {
+      const finalType = data.type || existing.type
+      const finalOptions = safeJson(data.options ?? existing.options, [])
+      const finalCorrectAnswer = data.correctAnswer ?? existing.correctAnswer
+      if (finalType === 'MCQ') {
+        if (!Array.isArray(finalOptions) || finalOptions.length < 3 || finalOptions.length > 6) return NextResponse.json({ error: 'خيارات الاختيار المتعدد يجب أن تكون بين 3 و6' }, { status: 400 })
+        const answerIndex = Number(finalCorrectAnswer)
+        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= finalOptions.length) return NextResponse.json({ error: 'الإجابة الصحيحة خارج نطاق الخيارات' }, { status: 400 })
+      }
+      if (finalType === 'TF' && !['0', '1'].includes(String(finalCorrectAnswer))) return NextResponse.json({ error: 'إجابة صح/خطأ يجب أن تكون 0 أو 1' }, { status: 400 })
+    }
     const item = await db.questionBankItem.update({ where: { id }, data })
     await audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`)
     return NextResponse.json({ ok: true, item })

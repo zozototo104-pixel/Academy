@@ -91,7 +91,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'هذا الاعتراض محسوم مسبقاً' }, { status: 409 })
     }
 
-    const score = Math.max(0, Math.min(100, Number(finalScore)))
+    const numericFinalScore = Number(finalScore)
+    if (!Number.isFinite(numericFinalScore)) return NextResponse.json({ error: 'الدرجة النهائية غير صالحة' }, { status: 400 })
+    const score = Math.max(0, Math.min(100, numericFinalScore))
     const passed = score >= attempt.exam.passScore
 
     await db.programExamAttempt.update({

@@ -34,8 +34,10 @@ export async function GET(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const allItems = await getProgramKnowledgeItems(programId, semester, 140)
-    const items = req.nextUrl.searchParams.get('all') === '1' ? allItems : allItems.slice(0, 140)
+    const showAll = req.nextUrl.searchParams.get('all') === '1'
+    const allItems = await getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140)
+    const items = showAll ? allItems : allItems.slice(0, 140)
+    const total = await db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
     const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
     const v2BookCounts = await db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
@@ -51,6 +53,7 @@ export async function GET(req: NextRequest) {
       booksCount,
       v2CountsByBook,
       count: allItems.length,
+      total,
       displayedCount: items.length,
       limits: KNOWLEDGE_BANK_LIMITS,
       stats: categoryStats(items),
@@ -77,27 +80,35 @@ export async function POST(req: NextRequest) {
 
     if (action === 'sanitize' || action === 'clean') {
       if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-      const rows = await db.bookKnowledgeItem.findMany({ where: { programId }, take: 1200 })
-      const deleteIds: string[] = []
-      const updates: Promise<any>[] = []
-      for (const row of rows) {
-        const title = cleanAcademicGeneratedText(row.title, 220)
-        const summary = cleanAcademicGeneratedText(row.summary, 1600)
-        const excerpt = row.excerpt ? cleanAcademicGeneratedText(row.excerpt, 1800) : null
-        if (!title || !summary || looksLikeBrokenAcademicOutput(`${title}. ${summary}`) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) {
-          deleteIds.push(row.id)
-          continue
+      let deleted = 0
+      let updated = 0
+      let cursor: string | undefined
+      while (true) {
+        const rows = await db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 })
+        if (!rows.length) break
+        cursor = rows[rows.length - 1].id
+        const deleteIds: string[] = []
+        const updates: Promise<any>[] = []
+        for (const row of rows) {
+          const title = cleanAcademicGeneratedText(row.title, 220)
+          const summary = cleanAcademicGeneratedText(row.summary, 1600)
+          const excerpt = row.excerpt ? cleanAcademicGeneratedText(row.excerpt, 1800) : null
+          if (!title || !summary || looksLikeBrokenAcademicOutput(`${title}. ${summary}`) || (excerpt && looksLikeBrokenAcademicOutput(excerpt))) {
+            deleteIds.push(row.id)
+            continue
+          }
+          if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
+            updates.push(db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } }))
+          }
         }
-        if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
-          updates.push(db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } }))
-        }
+        if (deleteIds.length) { await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } }); deleted += deleteIds.length }
+        if (updates.length) { await Promise.all(updates); updated += updates.length }
+        if (rows.length < 500) break
       }
-      if (deleteIds.length) await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })
-      if (updates.length) await Promise.all(updates)
-      await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleteIds.length} عنصر مشوه وتحديث ${updates.length} عنصر`)
+      await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`)
       const items = await getProgramKnowledgeItems(programId, semester, 140)
       const message = items.length < KNOWLEDGE_BANK_LIMITS.minContextItems ? 'شغّل القراءة الكاملة أو استخراج المزيد' : null
-      return NextResponse.json({ ok: true, deleted: deleteIds.length, updated: updates.length, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
+      return NextResponse.json({ ok: true, deleted, updated, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
     }
 
     if (action === 'rebuild-book' || action === 'read-book-full') {

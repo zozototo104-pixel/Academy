@@ -73,6 +73,38 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const now = new Date()
+    const allowedMs = (exam.durationMin + 2) * 60 * 1000
+    let startedAttempt = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, startedAt: true, createdAt: true },
+    })
+    if (startedAttempt) {
+      const effectiveStartedAt = startedAttempt.startedAt || startedAttempt.createdAt
+      if (!startedAttempt.startedAt) {
+        startedAttempt = await db.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: effectiveStartedAt }, select: { id: true, startedAt: true, createdAt: true } })
+      }
+      if (effectiveStartedAt.getTime() + allowedMs < now.getTime()) {
+        await db.programExamAttempt.update({
+          where: { id: startedAttempt.id },
+          data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
+        })
+        startedAttempt = null
+      }
+    }
+    if (!startedAttempt) {
+      const passedAttempt = await db.programExamAttempt.findFirst({
+        where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
+        select: { id: true },
+      })
+      if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة' }, { status: 403 })
+      startedAttempt = await db.programExamAttempt.create({
+        data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
+        select: { id: true, startedAt: true, createdAt: true },
+      })
+    }
+
     const books = await db.book.findMany({
       where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
       select: { id: true, title: true, author: true },
@@ -80,10 +112,10 @@ export async function GET(req: NextRequest) {
     })
 
     const previousAttempts = await db.programExamAttempt.findMany({
-      where: { userId: user.id, examId },
+      where: { userId: user.id, examId, status: { not: 'STARTED' } },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
+        id: true, status: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
         appealStatus: true, appealResponse: true,
       },
       take: 10,
@@ -103,6 +135,8 @@ export async function GET(req: NextRequest) {
         booksCount: books.length,
         books: books.map((b) => ({ id: b.id, title: b.title, author: b.author })),
         readiness,
+        attemptId: startedAttempt.id,
+        startedAt: startedAttempt.startedAt,
       },
       questions: exam.questions.map((q) => ({
         id: q.id,
@@ -112,7 +146,10 @@ export async function GET(req: NextRequest) {
         options: q.options ? JSON.parse(q.options) : null,
         points: q.points,
       })),
-      previousAttempts,
+      previousAttempts: previousAttempts.map((attempt) => ({
+        ...attempt,
+        statusLabel: attempt.status === 'EXPIRED' ? 'انتهى الوقت دون تسليم' : attempt.status,
+      })),
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {

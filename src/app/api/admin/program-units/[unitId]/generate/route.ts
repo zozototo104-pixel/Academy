@@ -54,6 +54,14 @@ export async function POST(req: NextRequest, context: Context) {
     const { unitId } = await context.params
     const body = await req.json().catch(() => ({}))
     const force = Boolean(body?.regenerate || body?.force)
+    const activeJob = await db.unitGenerationJob.findFirst({ where: { unitId, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+    if (activeJob) {
+      if (activeJob.status === 'RUNNING' && (!activeJob.lockedUntil || activeJob.lockedUntil.getTime() <= Date.now())) {
+        const failedJob = await db.unitGenerationJob.update({ where: { id: activeJob.id }, data: { status: 'FAILED', lastError: 'توقفت، أعد المحاولة', lockedUntil: null, finishedAt: new Date() } })
+        return NextResponse.json({ ok: false, job: failedJob, error: 'توقفت، أعد المحاولة' }, { status: 409 })
+      }
+      return NextResponse.json({ ok: true, job: activeJob, resumed: true })
+    }
     const unit = await db.unit.findUnique({
       where: { id: unitId },
       include: { program: { select: { id: true, titleAr: true, titleEn: true } } },
@@ -69,10 +77,19 @@ export async function POST(req: NextRequest, context: Context) {
       return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
     }
 
-    const createdJob = await db.unitGenerationJob.create({
-      data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
-      select: { id: true },
-    })
+    let createdJob: { id: string }
+    try {
+      createdJob = await db.unitGenerationJob.create({
+        data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
+        select: { id: true },
+      })
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        const existing = await db.unitGenerationJob.findFirst({ where: { unitId: unit.id, status: { in: ['QUEUED', 'RUNNING'] } }, orderBy: { createdAt: 'desc' } })
+        if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
+      }
+      throw error
+    }
     job = createdJob
 
     const chunks = await db.bookChunk.findMany({

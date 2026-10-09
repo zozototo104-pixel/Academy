@@ -193,7 +193,7 @@ export async function analyzeStepWithStore(
 export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
   const store: AnalyzeStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, programId: true, phase: true, status: true } }),
-    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: 'EXTRACTED', id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
+    nextChunk: (bookId, excludeIds) => db.bookChunk.findFirst({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] }, id: { notIn: excludeIds } }, orderBy: { index: 'asc' }, select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, attempts: true } }),
     priorItems: async (bookId, chunkIndex) => {
       const chunks = await db.bookChunk.findMany({
         where: { bookId, index: { gte: Math.max(0, chunkIndex - 2), lte: chunkIndex } },
@@ -208,7 +208,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
     saveAnalyzed: async (chunk, items, id) => {
       // Keep the persistence batch short; no AI calls or per-item inserts in a transaction.
       const current = await db.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
-      if (current?.status !== 'EXTRACTED') return
+      if (!current || !['EXTRACTED', 'PENDING'].includes(current.status)) return
       await db.$transaction([
         db.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } }),
         db.bookKnowledgeItem.createMany({ data: items.map((item) => ({
@@ -230,6 +230,11 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
     complete: async (bookId, id) => {
       const remaining = await db.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
       if (remaining) return
+      const failed = await db.bookChunk.count({ where: { bookId, status: 'FAILED' } })
+      if (failed) {
+        await db.bookReadJob.update({ where: { id }, data: { phase: 'ANALYZE', status: 'FAILED', lastError: `${failed} مقطع فشل`, finishedAt: new Date(), lockedUntil: null, retryAt: null } })
+        return
+      }
       // One parameterized statement regardless of historical item count; reruns skip LEGACY rows.
       await db.$executeRaw`
         UPDATE "BookKnowledgeItem"
