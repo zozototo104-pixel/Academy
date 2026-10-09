@@ -57,7 +57,7 @@ function testDigestZodSchema() {
   assert.throws(() => thesisDigestSchema.parse({ referencesCount: -1 }), /too_small|Too small/)
 }
 
-for (const fn of [testWeightedDefenseScoreRedistributesMissingCriterion, testFakePdfDocxRejectedByMagicBytes, testRelevantArabicChunksUsesArabicNormalization, testDigestZodSchema]) {
+for (const fn of [testWeightedDefenseScoreRedistributesMissingCriterion, testNullSecondDefenseQuestionKeepsThirdAsContribution, testFakePdfDocxRejectedByMagicBytes, testRelevantArabicChunksUsesArabicNormalization, testDigestZodSchema]) {
   fn()
   console.log(`✓ ${fn.name}`)
 }
