@@ -384,6 +384,7 @@ interface CurriculumUnitReviewItem {
     status: string
     requested: number
     saved: number
+    readyToBuild?: boolean
     approvedQuestions: number
     pendingReviewQuestions: number
     currentQuestions: number
