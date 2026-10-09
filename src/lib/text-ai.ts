@@ -853,6 +853,24 @@ function modelCapabilityAllowed(model: string): boolean {
   return true
 }
 
+function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: string): ModelCapability | null {
+  const cacheKey = cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])
+  return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
+}
+
+export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
+  if (!purpose) return true
+  if (purpose === 'VISION') {
+    if (!capability) return true
+    return capability.vision !== false && (capability.vision === true || capability.modalities?.some((m) => /image|vision/.test(m)))
+  }
+  if (purpose === 'LONG_CONTEXT') {
+    if (!capability || !capability.contextLength) return true
+    return capability.contextLength >= 64_000
+  }
+  return true
+}
+
 type ModelStats = { success: number; fail: Record<string, number>; avgMs: number; jsonOk: number; jsonTotal: number; evidenceOk: number; evidenceTotal: number }
 
 function modelStatsKey(provider: string, model: string): string {
