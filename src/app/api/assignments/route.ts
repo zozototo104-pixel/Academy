@@ -148,6 +148,23 @@ export async function POST(req: NextRequest) {
     const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true } })
     if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })
 
+    if (pendingFileBuffer && fileName) {
+      try {
+        const stored = await storeFileBuffer({
+          namespace: `assignments/${user.id}`,
+          buffer: pendingFileBuffer,
+          fileName,
+          mimeType,
+        })
+        fileStorageProvider = stored.provider
+        fileStorageKey = stored.key
+        fileUrl = stored.url
+        data = null
+      } catch (storageError) {
+        return NextResponse.json({ error: storageErrorMessage(storageError) }, { status: 500 })
+      }
+    }
+
     const submission = await db.assignmentSubmission.upsert({
       where: { assignmentId_userId: { assignmentId, userId: user.id } },
       update: {
