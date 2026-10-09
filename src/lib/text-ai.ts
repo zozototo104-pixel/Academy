@@ -688,6 +688,28 @@ function isTextLikeModel(row: any): boolean {
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
 }
 
+function capabilityFromModelRow(row: any): ModelCapability {
+  const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
+  const modalities = [
+    ...(Array.isArray(row?.modalities) ? row.modalities : []),
+    ...(Array.isArray(row?.input_modalities) ? row.input_modalities : []),
+    ...(Array.isArray(row?.supported_modalities) ? row.supported_modalities : []),
+    row?.architecture?.input_modalities,
+    row?.architecture?.modality,
+  ].flat().filter(Boolean).map((v: unknown) => String(v).toLowerCase())
+  const supportedParameters = [
+    ...(Array.isArray(row?.supported_parameters) ? row.supported_parameters : []),
+    ...(Array.isArray(row?.supportedParameters) ? row.supportedParameters : []),
+  ].map((v: unknown) => String(v))
+  const haystack = `${modelId(row)} ${modalities.join(' ')}`.toLowerCase()
+  return {
+    contextLength: Number.isFinite(contextLength) ? contextLength : undefined,
+    vision: /vision|image|multimodal|input_image|image_url/.test(haystack),
+    modalities,
+    supportedParameters,
+  }
+}
+
 function zeroish(value: unknown): boolean {
   if (value === 0) return true
   const n = Number(String(value ?? '').replace(/[^0-9.e-]/gi, ''))
