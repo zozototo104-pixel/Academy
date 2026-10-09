@@ -2504,7 +2504,7 @@ export function AdminBooksTab() {
                             <Badge className={unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
                               {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال${unit.exam.status === 'DRAFT' ? ` · بانتظار اعتماد ${unit.exam.reviewQuestionsCount || 0} سؤال` : ''}` : 'لا يوجد اختبار وحدة'}
                             </Badge>
-                            {unit.exam?.status === 'DRAFT' && <Button size="sm" variant="link" className="h-6 px-1 text-[10px] font-black text-amber-700" onClick={() => { setWorkspaceTab('knowledge'); setQuestionBankOpen(true); setQuestionBankFilter((prev) => ({ ...prev, status: 'PENDING_REVIEW', grounding: 'GROUNDED' })) }}>راجع أسئلة بنك الأسئلة</Button>}
+                            {unit.exam?.status === 'DRAFT' && <Button size="sm" variant="link" className="h-6 px-1 text-[10px] font-black text-amber-700" onClick={() => openUnitQuestionReview(unit)}>انحفظ الاختبار كمسودة: {unit.exam.reviewQuestionsCount || unit.questionBankSummary?.pendingReview || 0} سؤال بانتظار مراجعتك. مراجعة أسئلة الوحدة</Button>}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {unit.outlineSectionId && <Button size="sm" variant="outline" disabled={unitBusyId === unit.id || unit.status === 'APPROVED'} onClick={() => generateOutlineUnitContent(unit, Boolean(unit.content?.length || unit.studyGuide?.id))} className="border-[#c9a227] bg-white text-xs font-bold text-[#a8841a]">
