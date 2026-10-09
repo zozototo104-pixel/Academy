@@ -731,6 +731,8 @@ export function AdminBooksTab() {
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
+    const loadToken = `${pid}:${Date.now()}`
+    latestProgramLoadRef.current = loadToken
     if (!silent) setLoadingBooks(true)
     try {
       const [b, e, a] = await Promise.all([
