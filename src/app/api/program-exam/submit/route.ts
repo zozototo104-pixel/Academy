@@ -124,6 +124,9 @@ export async function POST(req: NextRequest) {
     )
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
+    const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
+    const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
 
     // 12.2: بيانات المراقبة الإلكترونية الاختيارية
     const procEnabled = !!proctoring?.enabled
