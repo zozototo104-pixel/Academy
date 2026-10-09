@@ -86,7 +86,7 @@ async function loadScopedQuestions(programId: string, unitId: string, requiredQu
 
 async function queueQuestionBankJob(programId: string, unitId: string, requiredQuestions: number) {
   const job = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requiredQuestions, startNew: false, manual: true })
-  after(() => runQuestionBankGenerationJobStep(job.id).catch((error) => console.error('unit question bank after() step failed:', error)))
+  after(() => runQuestionBankGenerationJobStepsUntil(job.id, { budgetMs: 260_000 }).catch((error) => console.error('unit question bank after() runner failed:', error)))
   return job
 }
 
