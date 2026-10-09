@@ -740,6 +740,7 @@ export function AdminBooksTab() {
         api<{ exams: ExamRow[] }>(`/api/admin/program-exams?programId=${pid}`),
         api<{ assignments: AssignmentRow[] }>(`/api/admin/assignments?programId=${pid}`),
       ])
+      if (latestProgramLoadRef.current !== loadToken) return
       setBooks(b.books)
       setBookReadJobs({})
       setBookEnrichment({})
