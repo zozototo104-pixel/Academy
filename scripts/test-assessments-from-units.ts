@@ -123,6 +123,38 @@ function testIncompleteMcqOptionsAreRejected() {
   assert(code.includes('MCQ_REQUIRES_AT_LEAST_3_OPTIONS'), 'أسئلة MCQ الناقصة يجب أن ترفض بسبب عدد الخيارات')
 }
 
+function testMcqThreeOptionsAccepted() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ options: ['الأول', 'الثاني', 'الثالث'], correctAnswer: '2' })]))
+  assert(parsed.accepted.length === 1, 'سؤال MCQ بثلاثة خيارات يجب أن يُقبل')
+}
+
+function testMcqFiveOptionsKeepsFifthCorrectAnswer() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ options: ['أ', 'ب', 'ج', 'د', 'هـ'], correctAnswer: 'هـ' })]))
+  assert(parsed.accepted.length === 1, 'سؤال MCQ بخمسة خيارات وجواب نصي صحيح يجب أن يُقبل')
+  const reduced = prepareMcqOptionsForStorage(['أ', 'ب', 'ج', 'د', 'هـ'], 'هـ')
+  assert(reduced.options.length === 4, 'سؤال MCQ بخمسة خيارات يجب أن يُختصر إلى أربعة خيارات عند التخزين')
+  assert(reduced.options.includes('هـ'), 'الجواب الصحيح الخامس يجب أن يبقى ضمن الخيارات المخزنة')
+  assert(reduced.correctAnswer != null && reduced.options[Number(reduced.correctAnswer)] === 'هـ', 'رقم correctAnswer يجب أن يشير إلى الخيار الصحيح بعد الاختصار')
+}
+
+function testMcqTwoOptionsRejectedWithReason() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ options: ['أ', 'ب'], correctAnswer: 'أ' })]))
+  assert(parsed.accepted.length === 0, 'سؤال MCQ بخيارين يجب أن يُرفض')
+  assert(parsed.rejectedReasons.includes('MCQ_REQUIRES_AT_LEAST_3_OPTIONS'), 'سبب رفض خيارين يجب أن يكون MCQ_REQUIRES_AT_LEAST_3_OPTIONS')
+}
+
+function testMcqDuplicateOptionsRejectedWithReason() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ options: ['أ', 'أ', 'ج'], correctAnswer: 'أ' })]))
+  assert(parsed.accepted.length === 0, 'سؤال MCQ بخيارات مكررة يجب أن يُرفض')
+  assert(parsed.rejectedReasons.includes('MCQ_DUPLICATE_OPTIONS'), 'سبب رفض التكرار يجب أن يكون MCQ_DUPLICATE_OPTIONS')
+}
+
+function testArabicCognitiveSkillAnalyzeNormalizes() {
+  const parsed = parseGeneratedQuestionCandidates(JSON.stringify([generatedMcq({ cognitiveSkill: 'تحليل' })]))
+  assert(parsed.accepted.length === 1, 'المهارة المعرفية العربية تحليل يجب أن تُقبل')
+  assert(parsed.accepted[0].cognitiveSkill === 'ANALYZE', 'تحليل يجب أن تتحول إلى ANALYZE')
+}
+
 function testGeneratedQuestionsRequireExplicitEvidenceSkillAndDifficulty() {
   const code = src('src/lib/question-bank-job.ts')
   assert(!code.includes('raw.sourceEvidence || fallback.excerpt'), 'sourceEvidence الناقص لا يجب أن يُستبدل بالمقتطف أو الملخص')
