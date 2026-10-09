@@ -247,7 +247,8 @@ export async function POST(req: NextRequest) {
       const scores = studentMsgs
         .map((m) => finiteScore(m.score))
         .filter((score): score is number => score != null)
-      const aiScore = scores.length ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) : null
+      const weighted = scoreDefenseBreakdown(scores.map((score, index) => ({ criterion: DEFENSE_CRITERIA[Math.min(index, DEFENSE_CRITERIA.length - 1)], score0to10: score })))
+      const aiScore = weighted.score
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} جلسة مناقشة منتهية مبكراً` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
