@@ -489,69 +489,20 @@ async function ensureLaunchQualityDiagnosticStudent() {
 
 async function findDiagnosticStudent(studentId?: string) {
   if (studentId) {
-    return db.user.findFirst({
+    const explicit = await db.user.findMany({
       where: { id: studentId, role: 'STUDENT' },
       include: diagnosticStudentInclude,
+      take: 1,
     })
+    return chooseBestDiagnosticStudent(explicit)
   }
 
-  const stableStudent = await ensureLaunchQualityDiagnosticStudent().catch((error) => {
-    console.error('launch-quality diagnostic fixture error:', String(error?.message || error).slice(0, 500))
-    return null
-  })
-  if (stableStudent) return stableStudent
-
-  const richStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: {
-        some: {
-          status: { in: ['ACTIVE', 'COMPLETED'] },
-          program: {
-            is: {
-              OR: [
-                { units: { some: {} } },
-                { books: { some: {} } },
-                { studyGuides: { some: { status: 'PUBLISHED' } } },
-              ],
-            },
-          },
-        },
-      },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
+  const stableStudent = await ensureLaunchQualityDiagnosticStudent()
+  if (!stableStudent?.id) return null
+  return db.user.findFirst({
+    where: { id: stableStudent.id, role: 'STUDENT', email: LAUNCH_QUALITY_EMAIL },
     include: diagnosticStudentInclude,
   })
-  const rich = chooseBestDiagnosticStudent(richStudents)
-  if (rich) return rich
-
-  const enrolledStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: { some: { status: { in: ['ACTIVE', 'COMPLETED'] } } },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
-    include: diagnosticStudentInclude,
-  })
-  const enrolled = chooseBestDiagnosticStudent(enrolledStudents)
-  if (enrolled) return enrolled
-
-  const fallbackStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      OR: [
-        { theses: { some: {} } },
-        { ownedAdmissions: { some: {} } },
-        { academicMemory: { isNot: null } },
-      ],
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 25,
-    include: diagnosticStudentInclude,
-  })
-  return chooseBestDiagnosticStudent(fallbackStudents)
 }
 
 function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
