@@ -57,6 +57,9 @@ function testDefenseContextHasNoGeneralCatalog() {
   const context = buildDefenseOnlyContextForTest({ thesisTitle: 'بحث الطالب', digest: { keyFindings: ['نتيجة'] }, chunks: [] })
   assert(!context.includes('كتالوج البرامج'))
   assert(!context.includes('الدكتوراه المهنية'))
+  const system = buildPlatformAgentSystem('THESIS_DEFENSE', context)
+  assert(!system.includes('كتالوج مختصر للبرامج'))
+  assert(system.includes('استخدم بحث الطالب فقط'))
 }
 
 function testDefenseSessionRequiresScheduledThesis() {
