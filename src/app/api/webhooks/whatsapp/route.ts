@@ -283,6 +283,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
         },
         select: { id: true },
       })
+      pendingInboundMessages.set(event.id, message)
       eventIds.push(event.id)
     } catch (error: any) {
       if (isUniqueConstraintError(error)) {
