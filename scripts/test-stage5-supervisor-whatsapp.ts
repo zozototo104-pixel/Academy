@@ -59,6 +59,12 @@ function testDefenseContextHasNoGeneralCatalog() {
   assert(!context.includes('الدكتوراه المهنية'))
 }
 
+function testDefenseSessionRequiresScheduledThesis() {
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED' }), true)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SUBMITTED' }), false)
+  assert.equal(defenseSessionAllowedForTest(null), false)
+}
+
 function testSupervisorGeneralCatalogClassifier() {
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('ما هي البرامج الأخرى المتاحة؟'), true)
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('اشرح كتاب برنامجي الحالي'), false)
