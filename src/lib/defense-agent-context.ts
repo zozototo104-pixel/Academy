@@ -58,7 +58,7 @@ export async function findScheduledStudentDefense(userId: string, thesisId?: str
 
 export async function buildDefenseOnlyContextForStudent(userId: string, thesisId?: string | null) {
   const thesis = await findScheduledStudentDefense(userId, thesisId)
-  if (!thesis) return null
+  if (!defenseSessionAllowedForTest(thesis)) return null
   const programTitle = thesis.admission?.programRef?.titleAr || thesis.admission?.program || null
   return {
     thesisId: thesis.id,
