@@ -10,6 +10,10 @@ export const DEFENSE_AGENT_STRICT_RULES = [
   'إذا سأل الطالب خارج بحثه فاعتذر باختصار وأعد النقاش إلى المنهجية أو النتائج أو الأدبيات أو الإسهام أو العرض.',
 ].join('\n- ')
 
+export function defenseSessionAllowedForTest(thesis: { id?: string | null; status?: string | null } | null | undefined) {
+  return Boolean(thesis?.id && thesis.status === 'SCHEDULED')
+}
+
 function compact(value: unknown, max = 1200) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
