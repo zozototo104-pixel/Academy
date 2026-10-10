@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
               const result = await platformAgentStream({
                 userId: user.id,
                 messages: [...orderedMessages, { role: 'user', content: userText }],
-                uiContext: context,
+                uiContext: safeUiContext,
                 mode: chatMode,
               }, emitChunk)
               const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
