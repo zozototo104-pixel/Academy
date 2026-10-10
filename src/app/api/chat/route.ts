@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
     const { message, context, mode, stream } = await req.json()
+    const safeUiContext = wrapUntrustedUiContextForTest(context)
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
