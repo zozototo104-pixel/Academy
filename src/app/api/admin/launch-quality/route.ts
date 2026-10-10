@@ -511,7 +511,17 @@ function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticS
   const program = enrollment?.program
   const thesis = student.theses[0]
   const admission = student.ownedAdmissions[0]
+  const contextIncludes = {
+    studentName: context.includes(student.name),
+    programTitle: program ? context.includes(program.titleAr) : false,
+    firstBook: program?.books[0]?.title ? context.includes(program.books[0].title) : false,
+    firstUnit: program?.units[0]?.title ? context.includes(program.units[0].title) : false,
+    thesisTitle: thesis?.title ? context.includes(thesis.title) : false,
+    admissionReference: admission?.reference ? context.includes(admission.reference) : false,
+  }
   return {
+    diagnosticStudentId: student.id,
+    diagnosticStudentEmail: student.email,
     studentId: student.id,
     studentName: student.name,
     role: student.role,
