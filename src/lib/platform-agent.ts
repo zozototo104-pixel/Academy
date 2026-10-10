@@ -792,7 +792,7 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   return blocks.filter(Boolean).join('\n\n').slice(0, 32000)
 }
 
-function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
+export function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
   return `أنت "الوكيل الذكي المتكامل" لمنصة ${ACADEMY_INFO.nameAr}.
 
 الشخصية النشطة الآن: ${AGENT_AR[agent]}.
