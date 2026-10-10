@@ -303,6 +303,7 @@ export async function geminiLiveConnectConfig(
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
     realtimeInputConfig: { automaticActivityDetection: { disabled: false } },
   }
+  if (systemInstruction?.trim()) config.systemInstruction = { parts: [{ text: systemInstruction.trim().slice(0, 24000) }] }
 
   // مميزات Live الحديثة تُفعّل فقط مع عائلة Gemini 3 لتجنب INVALID_ARGUMENT عند الرجوع إلى بدائل 2.5.
   const isGemini3Live = /^gemini-3\./i.test(model) && /live/i.test(model)
