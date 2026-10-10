@@ -52,6 +52,18 @@ interface SupervisorRuntimeContext {
   committeeMemberFee: number
   contactEmail: string
   contactWhatsapp: string
+  academyNameAr: string
+  academyNameEn: string
+  academyFounded: string
+  academyTaglineAr: string
+  academyTaglineEn: string
+  academyProgramsText: string
+  admissionConditionsText: string
+  admissionDocumentsText: string
+  admissionStepsText: string
+  admissionGraduationText: string
+  admissionNoteText: string
+  accreditationBenefitsText: string
 }
 
 function aiTimeoutMs(configured: number | undefined, fallback: number) {
