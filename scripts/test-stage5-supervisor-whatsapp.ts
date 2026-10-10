@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { OFFICIAL_INFO_UNAVAILABLE_REPLY, officialValueOrUnavailable } from '../src/lib/ai'
 import { shouldCreateHumanHandoffForOpenConversation } from '../src/lib/human-handoff'
 import { formatProgramKnowledge, stripSupervisorContactDataForTest } from '../src/lib/supervisor-ai'
-import { maskWhatsAppPhoneForTest, waIdHashForTest } from '../src/app/api/webhooks/whatsapp/route'
+import { maskWhatsAppPhone, whatsappWaIdHash } from '../src/lib/whatsapp-privacy'
 
 function testSupervisorContextStripsPii() {
   const output = stripSupervisorContactDataForTest('اسم الطالب محمد، بريده test@example.com ورقمه +970 598 400 510')
