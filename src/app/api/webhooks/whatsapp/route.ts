@@ -40,6 +40,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const recentGreetingKeys = new Map<string, number>()
+const pendingInboundMessages = new Map<string, WhatsAppInboundMessage>()
 const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
