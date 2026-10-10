@@ -37,6 +37,7 @@ jobs:
       - run: bunx prisma generate
       - run: bunx tsx scripts/test-academic-ai-router.ts
       - run: bunx tsx scripts/test-ai-reliability.ts
+      - run: bunx tsx scripts/test-stage5-supervisor-whatsapp.ts
       - run: bunx tsx scripts/test-evidence-validator.ts
       - run: bunx tsx scripts/test-question-bank-evidence.ts
       - run: bunx tsx scripts/test-question-schema.ts
