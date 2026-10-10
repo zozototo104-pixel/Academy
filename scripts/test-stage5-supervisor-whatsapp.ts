@@ -71,6 +71,9 @@ function testDefenseSessionRequiresScheduledThesis() {
 function testSupervisorGeneralCatalogClassifier() {
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('ما هي البرامج الأخرى المتاحة؟'), true)
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('اشرح كتاب برنامجي الحالي'), false)
+  const defaultSupervisorSystem = buildPlatformAgentSystem('ACADEMIC_SUPERVISOR', 'برنامج الطالب المسجل: إدارة المخاطر')
+  assert(!defaultSupervisorSystem.includes('كتالوج مختصر للبرامج'))
+  assert(defaultSupervisorSystem.includes('برنامج الطالب المسجل وكتبه فقط'))
 }
 
 function testUiContextWrappedAsUntrusted() {
