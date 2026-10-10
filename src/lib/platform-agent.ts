@@ -775,8 +775,17 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   }
 
   if (user.role === 'STUDENT') {
-    const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
-    if (supervisorContext) blocks.push(supervisorContext)
+    if (agent === 'THESIS_DEFENSE') {
+      const defense = await buildDefenseOnlyContextForStudent(user.id).catch(() => null)
+      if (defense?.context) blocks.push(defense.context)
+    } else {
+      const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
+      if (supervisorContext) blocks.push(supervisorContext)
+      if (supervisorNeedsGeneralProgramCatalogForTest(query || '')) {
+        const catalog = await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => '')
+        if (catalog) blocks.push(`مختصر كتالوج البرامج الأخرى عند سؤال الطالب عنها صراحة:\n${catalog.slice(0, 4000)}`)
+      }
+    }
   }
 
   return blocks.filter(Boolean).join('\n\n').slice(0, 32000)
