@@ -556,22 +556,6 @@ function fallbackContactIntent(text: string): WhatsAppContactIntent {
   return { intent: 'OTHER', confidence: 0.4, reason: 'fallback-other' }
 }
 
-function parseContactIntentJson(raw: string): WhatsAppContactIntent | null {
-  try {
-    const parsed = JSON.parse(String(raw || '').trim())
-    const intent = String(parsed.intent || '').trim() as WhatsAppContactIntentKind
-    if (!['REQUEST_OFFICIAL_CONTACT', 'PROVIDED_OWN_CONTACT', 'OTHER'].includes(intent)) return null
-    const confidence = Number(parsed.confidence)
-    return {
-      intent,
-      confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0,
-      reason: String(parsed.reason || '').slice(0, 200),
-    }
-  } catch {
-    return null
-  }
-}
-
 async function classifyWhatsAppContactIntent(text: string): Promise<WhatsAppContactIntent> {
   if (!looksLikeContactIntentCandidate(text)) return { intent: 'OTHER', confidence: 0.95, reason: 'not-contact-candidate' }
   return fallbackContactIntent(text)
