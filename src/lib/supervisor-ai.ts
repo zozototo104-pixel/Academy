@@ -357,7 +357,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
         `آخر محادثات محفوظة لفهم السياق فقط:\n${recentMessages
           .slice()
           .reverse()
-          .map((m: any) => `${m.role === 'assistant' ? 'المشرف' : 'المستخدم'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${compactText(m.content, 180)}`)
+          .map((m: any) => `${m.role === 'assistant' ? 'المشرف' : 'المستخدم'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${safeContextText(m.content, 180)}`)
           .join('\n')}`
       )
     }
