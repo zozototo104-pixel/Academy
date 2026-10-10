@@ -33,9 +33,8 @@ function testWhatsAppNumberMaskedAndHashed() {
 }
 
 async function testHandoffIdempotencyIntentShape() {
-  const source = String(createHumanHandoffRequest).replace(/\s+/g, ' ')
-  assert(source.includes('findFirst'))
-  assert(source.includes("status: { in: ['NEW', 'IN_PROGRESS'] }"))
+  assert.equal(shouldCreateHumanHandoffForOpenConversation(null), true)
+  assert.equal(shouldCreateHumanHandoffForOpenConversation({ id: 'open-request' }), false)
 }
 
 async function main() {
