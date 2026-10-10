@@ -823,8 +823,7 @@ function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): st
 - الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}.
 - الاعتماد: رسوم تقديم طلب الاعتماد ${ACCREDITATION_GUIDE.applicationFee} دولار غير مستردة.
 
-كتالوج مختصر للبرامج:
-${staticProgramsDigest()}
+${agent === 'THESIS_DEFENSE' ? 'سياق المناقشة: لا تستخدم كتالوج البرامج العام في هذا الدور؛ استخدم بحث الطالب فقط.' : `كتالوج مختصر للبرامج:\n${staticProgramsDigest()}`}
 
 قواعد الإجابة:
 - اكتب بالعربية الواضحة المناسبة للهجات المستخدم.
