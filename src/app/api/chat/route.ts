@@ -15,6 +15,7 @@ import {
 } from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
+import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
 
 // GET /api/chat — سجل المحادثة (نصي وصوتي مع النسخ المفرّغ)
 export async function GET() {
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
     const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
     const { message, context, mode, stream } = await req.json()
+    const safeUiContext = wrapUntrustedUiContext(context)
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
               const result = await platformAgentStream({
                 userId: user.id,
                 messages: [...orderedMessages, { role: 'user', content: userText }],
-                uiContext: context,
+                uiContext: safeUiContext,
                 mode: chatMode,
               }, emitChunk)
               const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
@@ -170,7 +172,7 @@ export async function POST(req: NextRequest) {
       const result = await platformAgentComplete({
         userId: user.id,
         messages: [...orderedMessages, { role: 'user', content: userText }],
-        uiContext: context,
+        uiContext: safeUiContext,
         mode: chatMode,
       })
       const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)

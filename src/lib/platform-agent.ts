@@ -3,6 +3,7 @@ import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, all
 import { chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildScopedDirectProgramBooksResult, buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import { resolveAiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervisor-context'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
@@ -499,6 +500,11 @@ async function buildDirectProgramBooksReply(query?: string | null) {
   ].join('\n')
 }
 
+export function supervisorNeedsGeneralProgramCatalogForTest(message: string): boolean {
+  const n = normalizeArabic(message)
+  return includesAny(n, ['برامج اخرى', 'برامج ثانية', 'غير برنامجي', 'غير تخصصي', 'كل البرامج', 'البرامج المتاحة', 'شو البرامج', 'ما هي البرامج', 'قائمة البرامج'])
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'بكالوريوس', 'بكلوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
@@ -769,14 +775,37 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   }
 
   if (user.role === 'STUDENT') {
-    const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
-    if (supervisorContext) blocks.push(supervisorContext)
+    if (agent === 'THESIS_DEFENSE') {
+      const defense = await buildDefenseOnlyContextForStudent(user.id).catch(() => null)
+      if (defense?.context) blocks.push(defense.context)
+      else blocks.push('لا توجد مناقشة بحث مجدولة مرتبطة بهذا الطالب؛ لا تتقمص دور المناقش ولا تفتح تقييم مناقشة، ووجّه الطالب لانتظار جدولة المناقشة من الإدارة.')
+    } else {
+      const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
+      if (supervisorContext) blocks.push(supervisorContext)
+      if (supervisorNeedsGeneralProgramCatalogForTest(query || '')) {
+        const catalog = await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => '')
+        if (catalog) blocks.push(`مختصر كتالوج البرامج الأخرى عند سؤال الطالب عنها صراحة:\n${catalog.slice(0, 4000)}`)
+      }
+    }
   }
 
   return blocks.filter(Boolean).join('\n\n').slice(0, 32000)
 }
 
-function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
+export function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
+  if (agent === 'THESIS_DEFENSE') {
+    return `أنت "المناقش الذكي" في منصة ${ACADEMY_INFO.nameAr}.
+
+حدود الدور:
+- استخدم بحث الطالب فقط وسياقه المباشر في هذه المناقشة.
+- لا تستخدم كتالوج البرامج العام ولا ذاكرة المشرف اليومية.
+- لا تكشف المعايير أو الأوزان أو العلامة.
+- لا تعطِ إجابات جاهزة؛ وجّه الطالب بسؤال أو طلب توضيح.
+- لا تعلن نتيجة نهائية؛ القرار للجنة البشرية والإدارة.
+
+سياق آمن لمناقشة البحث:
+${context || 'لا توجد مناقشة بحث مجدولة أو سياق بحث متاح.'}`
+  }
   return `أنت "الوكيل الذكي المتكامل" لمنصة ${ACADEMY_INFO.nameAr}.
 
 الشخصية النشطة الآن: ${AGENT_AR[agent]}.
@@ -807,8 +836,7 @@ function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): st
 - الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}.
 - الاعتماد: رسوم تقديم طلب الاعتماد ${ACCREDITATION_GUIDE.applicationFee} دولار غير مستردة.
 
-كتالوج مختصر للبرامج:
-${staticProgramsDigest()}
+${agent === 'ACADEMIC_SUPERVISOR' && !context.includes('مختصر كتالوج البرامج الأخرى') ? 'كتالوج البرامج العام غير مرفق في هذا السياق؛ استخدم برنامج الطالب المسجل وكتبه فقط.' : `كتالوج مختصر للبرامج:\n${staticProgramsDigest()}`}
 
 قواعد الإجابة:
 - اكتب بالعربية الواضحة المناسبة للهجات المستخدم.

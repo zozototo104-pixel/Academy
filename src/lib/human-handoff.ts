@@ -326,6 +326,10 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   )
 }
 
+export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest: unknown): boolean {
+  return !existingOpenRequest
+}
+
 export async function createHumanHandoffRequest(args: {
   user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; role?: string | null }
   message: string
@@ -334,6 +338,17 @@ export async function createHumanHandoffRequest(args: {
 }) {
   const subject = String(args.message || '').trim().slice(0, 1500)
   if (!subject) return { ok: false, created: false }
+
+  const existing = await db.humanHandoffRequest.findFirst({
+    where: {
+      source: args.source,
+      sourceRef: args.sourceRef || args.user.id || null,
+      status: { in: ['NEW', 'IN_PROGRESS'] },
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => null)
+  if (existing && !shouldCreateHumanHandoffForOpenConversation(existing)) return { ok: true, created: false, id: existing.id }
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, email: true } }).catch(() => [])
   const displayName = args.user.name || (args.source === 'WHATSAPP' ? 'زائر واتساب' : 'مستخدم غير محدد الاسم')

@@ -69,7 +69,7 @@ export function getWhatsAppCloudConfig(fallbackPhoneNumberId?: string): WhatsApp
 
 export function verifyWhatsAppSignature(rawBody: string, signatureHeader: string | null, appSecret = process.env.WHATSAPP_APP_SECRET) {
   const secret = trim(appSecret)
-  if (!secret) return process.env.NODE_ENV !== 'production'
+  if (!secret) return process.env.WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS === '1'
   if (!signatureHeader || !signatureHeader.startsWith('sha256=')) return false
   try {
     const provided = Buffer.from(signatureHeader.replace(/^sha256=/, ''), 'hex')

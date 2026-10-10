@@ -489,69 +489,20 @@ async function ensureLaunchQualityDiagnosticStudent() {
 
 async function findDiagnosticStudent(studentId?: string) {
   if (studentId) {
-    return db.user.findFirst({
+    const explicit = await db.user.findMany({
       where: { id: studentId, role: 'STUDENT' },
       include: diagnosticStudentInclude,
+      take: 1,
     })
+    return chooseBestDiagnosticStudent(explicit)
   }
 
-  const stableStudent = await ensureLaunchQualityDiagnosticStudent().catch((error) => {
-    console.error('launch-quality diagnostic fixture error:', String(error?.message || error).slice(0, 500))
-    return null
-  })
-  if (stableStudent) return stableStudent
-
-  const richStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: {
-        some: {
-          status: { in: ['ACTIVE', 'COMPLETED'] },
-          program: {
-            is: {
-              OR: [
-                { units: { some: {} } },
-                { books: { some: {} } },
-                { studyGuides: { some: { status: 'PUBLISHED' } } },
-              ],
-            },
-          },
-        },
-      },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
+  const stableStudent = await ensureLaunchQualityDiagnosticStudent()
+  if (!stableStudent?.id) return null
+  return db.user.findFirst({
+    where: { id: stableStudent.id, role: 'STUDENT', email: LAUNCH_QUALITY_EMAIL },
     include: diagnosticStudentInclude,
   })
-  const rich = chooseBestDiagnosticStudent(richStudents)
-  if (rich) return rich
-
-  const enrolledStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: { some: { status: { in: ['ACTIVE', 'COMPLETED'] } } },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
-    include: diagnosticStudentInclude,
-  })
-  const enrolled = chooseBestDiagnosticStudent(enrolledStudents)
-  if (enrolled) return enrolled
-
-  const fallbackStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      OR: [
-        { theses: { some: {} } },
-        { ownedAdmissions: { some: {} } },
-        { academicMemory: { isNot: null } },
-      ],
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 25,
-    include: diagnosticStudentInclude,
-  })
-  return chooseBestDiagnosticStudent(fallbackStudents)
 }
 
 function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
@@ -560,7 +511,17 @@ function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticS
   const program = enrollment?.program
   const thesis = student.theses[0]
   const admission = student.ownedAdmissions[0]
+  const contextIncludes = {
+    studentName: context.includes(student.name),
+    programTitle: program ? context.includes(program.titleAr) : false,
+    firstBook: program?.books[0]?.title ? context.includes(program.books[0].title) : false,
+    firstUnit: program?.units[0]?.title ? context.includes(program.units[0].title) : false,
+    thesisTitle: thesis?.title ? context.includes(thesis.title) : false,
+    admissionReference: admission?.reference ? context.includes(admission.reference) : false,
+  }
   return {
+    diagnosticStudentId: student.id,
+    diagnosticStudentEmail: student.email,
     studentId: student.id,
     studentName: student.name,
     role: student.role,
@@ -573,14 +534,12 @@ function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticS
       hasFileAnalysis: !!student.academicMemory.lastFileAnalysis,
     } : null,
     contextChars: context.length,
-    contextIncludes: {
-      studentName: context.includes(student.name),
-      programTitle: program ? context.includes(program.titleAr) : false,
-      firstBook: program?.books[0]?.title ? context.includes(program.books[0].title) : false,
-      firstUnit: program?.units[0]?.title ? context.includes(program.units[0].title) : false,
-      thesisTitle: thesis?.title ? context.includes(thesis.title) : false,
-      admissionReference: admission?.reference ? context.includes(admission.reference) : false,
+    contextFound: {
+      programTitle: contextIncludes.programTitle ? program?.titleAr || null : null,
+      firstBook: contextIncludes.firstBook ? program?.books[0]?.title || null : null,
+      thesisTitle: contextIncludes.thesisTitle ? thesis?.title || null : null,
     },
+    contextIncludes,
   }
 }
 

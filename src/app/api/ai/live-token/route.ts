@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { createGeminiLiveEphemeralToken, ensureGeminiKey, type GeminiLivePurpose } from '@/lib/gemini'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage } from '@/lib/live-usage-guard'
+import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,19 +20,30 @@ async function handler(req: NextRequest) {
     if (liveLimit) return liveLimit
 
     const urlPurpose = req.nextUrl.searchParams.get('purpose')
+    const urlThesisId = req.nextUrl.searchParams.get('thesisId')
     let bodyPurpose: unknown = null
+    let bodyThesisId: unknown = null
     if (req.method === 'POST') {
       const body = await req.json().catch(() => null) as any
       bodyPurpose = body?.purpose
+      bodyThesisId = body?.thesisId
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
+    const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
+    let systemInstruction: string | undefined
+    if (purpose === 'DISCUSSION') {
+      if (!thesisId) return NextResponse.json({ error: 'thesisId مطلوب لفتح جلسة المناقشة الصوتية.' }, { status: 400 })
+      const defense = await buildDefenseOnlyContextForStudent(user.id, thesisId)
+      if (!defense) return NextResponse.json({ error: 'يجب وجود مناقشة مجدولة مرتبطة ببحثك قبل فتح جلسة المناقشة الصوتية.' }, { status: 409 })
+      systemInstruction = buildDefenseLiveSystemInstruction(defense.context)
+    }
     await ensureGeminiKey()
     const allowance = await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
     if (!allowance.ok) {
       return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
     }
 
-    const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: allowance.sessionLimitMinutes })
+    const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: allowance.sessionLimitMinutes, systemInstruction })
     const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: allowance.sessionLimitMinutes })
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })

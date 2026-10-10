@@ -293,7 +293,8 @@ export async function geminiDiscussionThinkingLevel(): Promise<GeminiThinkingLev
 
 export async function geminiLiveConnectConfig(
   purpose: GeminiLivePurpose = 'SUPERVISOR',
-  modelName?: string
+  modelName?: string,
+  systemInstruction?: string
 ): Promise<Record<string, unknown>> {
   const voice = await geminiTTSVoice()
   const model = normalizeGeminiModelName(modelName || await geminiActiveLiveModel(purpose))
@@ -302,6 +303,7 @@ export async function geminiLiveConnectConfig(
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
     realtimeInputConfig: { automaticActivityDetection: { disabled: false } },
   }
+  if (systemInstruction?.trim()) config.systemInstruction = { parts: [{ text: systemInstruction.trim().slice(0, 24000) }] }
 
   // مميزات Live الحديثة تُفعّل فقط مع عائلة Gemini 3 لتجنب INVALID_ARGUMENT عند الرجوع إلى بدائل 2.5.
   const isGemini3Live = /^gemini-3\./i.test(model) && /live/i.test(model)
@@ -329,13 +331,13 @@ export interface GeminiLiveTokenPayload {
 
 export async function createGeminiLiveEphemeralToken(
   purpose: GeminiLivePurpose = 'SUPERVISOR',
-  opts?: { sessionLimitMinutes?: number }
+  opts?: { sessionLimitMinutes?: number; systemInstruction?: string }
 ): Promise<GeminiLiveTokenPayload> {
   await refreshFromDb()
   const key = resolvedKey()
   if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
   const model = await geminiActiveLiveModel(purpose)
-  const config = await geminiLiveConnectConfig(purpose, model)
+  const config = await geminiLiveConnectConfig(purpose, model, opts?.systemInstruction)
   const sessionLimitMinutes = Math.max(1, Math.min(30, Math.floor(opts?.sessionLimitMinutes || 10)))
   const expireTime = new Date(Date.now() + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
