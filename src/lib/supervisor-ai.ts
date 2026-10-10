@@ -115,7 +115,7 @@ function formatStudyGuides(program: any): string {
   }).join('\n')
 }
 
-function formatProgramKnowledge(program: any): string {
+export function formatProgramKnowledge(program: any): string {
   const items = Array.isArray(program?.knowledgeItems) ? program.knowledgeItems : []
   if (!items.length) return ''
   return items.slice(0, 18).map((item: any, i: number) => {
