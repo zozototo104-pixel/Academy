@@ -240,7 +240,7 @@ function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage
 }
 
 function inboundEventPayload(message: WhatsAppInboundMessage) {
-  return {
+  return redactDeep({
     message: {
       id: message.id,
       fromHash: waIdHash(message.from),
