@@ -3,6 +3,7 @@ import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, all
 import { chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildScopedDirectProgramBooksResult, buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import { resolveAiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervisor-context'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
