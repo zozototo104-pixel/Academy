@@ -344,12 +344,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const parts: string[] = []
 
     if (profile) {
-      parts.push(
-        `بطاقة المستخدم: الاسم ${profile.name || 'غير محدد'} — البريد ${profile.email || 'غير متاح'}` +
-          (profile.phone ? ` — الهاتف ${profile.phone}` : '') +
-          (profile.country ? ` — الدولة ${profile.country}` : '') +
-          ` — الدور ${profile.role || 'غير محدد'}`
-      )
+      parts.push(`بطاقة المستخدم: الاسم الأول ${firstNameOnly(profile.name)} — الدور ${profile.role || 'غير محدد'}`)
     }
 
     if (memory) {
