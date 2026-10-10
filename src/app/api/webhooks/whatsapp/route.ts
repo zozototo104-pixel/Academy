@@ -575,29 +575,7 @@ function parseContactIntentJson(raw: string): WhatsAppContactIntent | null {
 
 async function classifyWhatsAppContactIntent(text: string): Promise<WhatsAppContactIntent> {
   if (!looksLikeContactIntentCandidate(text)) return { intent: 'OTHER', confidence: 0.95, reason: 'not-contact-candidate' }
-
-  const fallback = fallbackContactIntent(text)
-  if (fallback.confidence >= 0.78) return fallback
-
-  try {
-    if (!(await ensureGeminiKey())) return fallback
-    const raw = await withTimeout(geminiCompleteJson({
-      system: `صنّف نية رسالة واتساب واحدة بخصوص أرقام التواصل فقط. أرجع JSON صالحاً فقط بالشكل {"intent":"...","confidence":0..1,"reason":"..."}.
-الأنواع:
-REQUEST_OFFICIAL_CONTACT = المستخدم يسأل عن أرقام/واتساب/هاتف/بريد/طرق التواصل الرسمية للأكاديمية أو يريد أن يعرف كيف يتواصل مع الإدارة.
-PROVIDED_OWN_CONTACT = المستخدم يعطي رقمه أو يقول تواصلوا معي/اتصلوا علي/هذا رقمي أو يريد من الإدارة التواصل معه على رقم يقدمه.
-OTHER = أي شيء آخر، بما فيه سؤال عن سعر أو برنامج أو قبول حتى لو ذُكرت كلمة رقم بمعنى رقم طلب أو رقم برنامج.
-فرّق جيداً بين "شو أرقام التواصل؟" و"خد رقمي". لا تختار REQUEST_OFFICIAL_CONTACT لمجرد وجود رقم إذا كان الرقم يبدو رقم المستخدم نفسه.`,
-      history: [{ role: 'user', text }],
-      temperature: 0,
-      maxOutputTokens: 180,
-    }), 6_000, 'whatsapp_contact_intent')
-    const parsed = parseContactIntentJson(raw)
-    if (parsed && parsed.confidence >= 0.6) return parsed
-  } catch (error: any) {
-    console.warn('WhatsApp contact intent classifier failed:', String(error?.message || error || 'failed').slice(0, 220))
-  }
-  return fallback
+  return fallbackContactIntent(text)
 }
 
 async function buildOfficialContactReply(): Promise<string> {
