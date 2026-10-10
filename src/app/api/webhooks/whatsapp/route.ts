@@ -497,7 +497,13 @@ async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reas
     sender: 'BOT',
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,
   }).catch(() => {})
-  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: null })
+  const handoff = await createHumanHandoffRequest({
+    user: { name: 'زائر واتساب', phone: maskPhone(message.from) },
+    message: `${reason}\n\n${message.text || ''}`.trim(),
+    source: 'WHATSAPP',
+    sourceRef: conversationKey(message.from),
+  })
+  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
   await auditWhatsAppWebhook('WHATSAPP_AI_FALLBACK_SENT', {
     from: maskPhone(message.from),
     messageId: message.id,
