@@ -64,6 +64,10 @@ function waHashSecret() {
   return process.env.WHATSAPP_HASH_SECRET || process.env.NEXTAUTH_SECRET || 'aact-whatsapp-local-hash'
 }
 
+export function waIdHashForTest(from: string) {
+  return waIdHash(from)
+}
+
 function waIdHash(from: string) {
   return createHash('sha256').update(`${waHashSecret()}:${String(from || '')}`).digest('hex')
 }
