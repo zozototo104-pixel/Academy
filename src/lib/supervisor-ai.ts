@@ -16,6 +16,21 @@ function compactText(value?: string | null, max = 240): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+function stripContactData(value: unknown): string {
+  return String(value || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[بريد محجوب]')
+    .replace(/(?:\+|00)?\d[\d\s().-]{6,}\d/g, '[رقم محجوب]')
+}
+
+function firstNameOnly(value: unknown): string {
+  const name = stripContactData(value).replace(/\s+/g, ' ').trim()
+  return name.split(' ')[0] || 'غير محدد'
+}
+
+function safeContextText(value: unknown, max = 240): string {
+  return compactText(stripContactData(value), max)
+}
+
 function parseArray(value?: string | null): string[] {
   if (!value) return []
   try {
