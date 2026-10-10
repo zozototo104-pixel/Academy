@@ -688,9 +688,8 @@ ${weakPoints.map((w) => `- ${w}`).join('\n') || 'لا توجد نقاط ضعف �
     }
   }
 }
- : OFFICIAL_INFO_UNAVAILABLE_REPLY
-}
 
+/* duplicated legacy block disabled after restoring stage5 edits.
 function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
   const slug = String(p.slug || '')
   const titleAr = String(p.titleAr || '')
