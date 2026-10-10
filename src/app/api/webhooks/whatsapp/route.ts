@@ -641,7 +641,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 
   if (promptActive && !handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) {
     const handoff = await createHumanHandoffRequest({
-      user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
+      user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined },
       message: text,
       source: 'WHATSAPP',
       sourceRef: handoffKey,
