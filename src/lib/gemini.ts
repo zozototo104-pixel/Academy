@@ -293,7 +293,8 @@ export async function geminiDiscussionThinkingLevel(): Promise<GeminiThinkingLev
 
 export async function geminiLiveConnectConfig(
   purpose: GeminiLivePurpose = 'SUPERVISOR',
-  modelName?: string
+  modelName?: string,
+  systemInstruction?: string
 ): Promise<Record<string, unknown>> {
   const voice = await geminiTTSVoice()
   const model = normalizeGeminiModelName(modelName || await geminiActiveLiveModel(purpose))
