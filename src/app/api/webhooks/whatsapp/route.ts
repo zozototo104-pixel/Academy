@@ -659,8 +659,17 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
   }
 
   if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
+    if (!handoffOpen) {
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskedFrom || undefined },
+        message: text || 'طلب صريح للتواصل مع موظف',
+        source: 'WHATSAPP',
+        sourceRef: handoffKey,
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    }
     await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-    return HUMAN_SUPPORT_REPLY
+    return handoffOpen ? HUMAN_SUPPORT_REPLY : HUMAN_HANDOFF_CONFIRMATION_REPLY
   }
 
   const agentReply = await createOfficialWhatsAppAgentReply(message)
