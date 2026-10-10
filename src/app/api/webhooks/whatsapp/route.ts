@@ -256,7 +256,7 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       isVoice: Boolean(message.isVoice),
       originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
-  }
+  })
 }
 
 function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Date }) {
