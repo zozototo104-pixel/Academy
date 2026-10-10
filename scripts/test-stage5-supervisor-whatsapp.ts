@@ -78,7 +78,7 @@ function testUiContextWrappedAsUntrusted() {
 }
 
 async function main() {
-  for (const fn of [testSupervisorContextStripsPii, testSourceLineHasNoInventedPage, testUnavailableOfficialInfo, testWhatsAppNumberMaskedAndHashed, testHandoffIdempotencyIntentShape, testDefenseLiveUsesDefensePersonaAndScopedContext, testDefenseContextHasNoGeneralCatalog, testSupervisorGeneralCatalogClassifier, testUiContextWrappedAsUntrusted]) {
+  for (const fn of [testSupervisorContextStripsPii, testSourceLineHasNoInventedPage, testUnavailableOfficialInfo, testWhatsAppNumberMaskedAndHashed, testHandoffIdempotencyIntentShape, testDefenseLiveUsesDefensePersonaAndScopedContext, testDefenseContextHasNoGeneralCatalog, testDefenseSessionRequiresScheduledThesis, testSupervisorGeneralCatalogClassifier, testUiContextWrappedAsUntrusted]) {
     await fn()
     console.log(`✓ ${fn.name}`)
   }
