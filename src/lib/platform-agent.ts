@@ -778,6 +778,7 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
     if (agent === 'THESIS_DEFENSE') {
       const defense = await buildDefenseOnlyContextForStudent(user.id).catch(() => null)
       if (defense?.context) blocks.push(defense.context)
+      else blocks.push('لا توجد مناقشة بحث مجدولة مرتبطة بهذا الطالب؛ لا تتقمص دور المناقش ولا تفتح تقييم مناقشة، ووجّه الطالب لانتظار جدولة المناقشة من الإدارة.')
     } else {
       const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
       if (supervisorContext) blocks.push(supervisorContext)
