@@ -27,9 +27,9 @@ function testUnavailableOfficialInfo() {
 
 function testWhatsAppNumberMaskedAndHashed() {
   const phone = '+970598400510'
-  assert.notEqual(waIdHashForTest(phone), phone)
-  assert(maskWhatsAppPhoneForTest(phone).includes('****'))
-  assert(!maskWhatsAppPhoneForTest(phone).includes(phone))
+  assert.notEqual(whatsappWaIdHash(phone), phone)
+  assert(maskWhatsAppPhone(phone).includes('****'))
+  assert(!maskWhatsAppPhone(phone).includes(phone))
 }
 
 async function testHandoffIdempotencyIntentShape() {
