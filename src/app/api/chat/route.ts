@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       const result = await platformAgentComplete({
         userId: user.id,
         messages: [...orderedMessages, { role: 'user', content: userText }],
-        uiContext: context,
+        uiContext: safeUiContext,
         mode: chatMode,
       })
       const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
