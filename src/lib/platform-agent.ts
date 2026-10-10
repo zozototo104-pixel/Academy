@@ -500,6 +500,11 @@ async function buildDirectProgramBooksReply(query?: string | null) {
   ].join('\n')
 }
 
+export function supervisorNeedsGeneralProgramCatalogForTest(message: string): boolean {
+  const n = normalizeArabic(message)
+  return includesAny(n, ['برامج اخرى', 'برامج ثانية', 'غير برنامجي', 'غير تخصصي', 'كل البرامج', 'البرامج المتاحة', 'شو البرامج', 'ما هي البرامج', 'قائمة البرامج'])
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'بكالوريوس', 'بكلوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
