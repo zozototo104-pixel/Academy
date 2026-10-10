@@ -584,10 +584,10 @@ async function buildOfficialContactReply(): Promise<string> {
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
   const handoffKey = conversationKey(message.from)
   const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
-  const digits = String(message.from || '').replace(/\D/g, '')
+  const maskedFrom = maskPhone(message.from)
   const handoffOpen = await hasOpenHumanHandoffRequest({
     sourceRef: handoffKey,
-    phone: digits ? `+${digits}` : null,
+    phone: maskedFrom || null,
   })
   const text = String(message.text || '').trim()
   const recentMessages = storedInbound?.conversation?.id
