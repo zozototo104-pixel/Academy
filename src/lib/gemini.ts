@@ -337,7 +337,7 @@ export async function createGeminiLiveEphemeralToken(
   const key = resolvedKey()
   if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
   const model = await geminiActiveLiveModel(purpose)
-  const config = await geminiLiveConnectConfig(purpose, model)
+  const config = await geminiLiveConnectConfig(purpose, model, opts?.systemInstruction)
   const sessionLimitMinutes = Math.max(1, Math.min(30, Math.floor(opts?.sessionLimitMinutes || 10)))
   const expireTime = new Date(Date.now() + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
