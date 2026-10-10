@@ -16,6 +16,10 @@ function compactText(value?: string | null, max = 240): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+export function stripSupervisorContactDataForTest(value: unknown): string {
+  return stripContactData(value)
+}
+
 function stripContactData(value: unknown): string {
   return String(value || '')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[بريد محجوب]')
