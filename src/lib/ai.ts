@@ -135,7 +135,20 @@ export function officialValueOrUnavailable(value: unknown): string {
 
 function money(n: number | null | undefined): string {
   const value = Number(n || 0)
-  return Number.isFinite(value) && value > 0 ? String(value) + '(programs: ProgramCatalogItem[], categories: string[], fallback: number) {
+  return Number.isFinite(value) && value > 0 ? String(value) + ' دولار' : OFFICIAL_INFO_UNAVAILABLE_REPLY
+}
+
+function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
+  const slug = String(p.slug || '')
+  const titleAr = String(p.titleAr || '')
+  const titleEn = String(p.titleEn || '')
+  return slug.startsWith('qa-full-journey-')
+    || slug === 'launch-quality-diagnostic-program'
+    || titleAr.startsWith('برنامج جودة رحلة كاملة QA')
+    || titleEn.startsWith('QA Full Journey Program')
+}
+
+function minCatalogPrice(programs: ProgramCatalogItem[], categories: string[], fallback: number) {
   const prices = programs
     .filter((p) => categories.includes(p.category))
     .map((p) => Number(p.price || 0))
