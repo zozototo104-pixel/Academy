@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { getOfficialContact } from '@/lib/settings'
+import { redactDeep } from '@/lib/secret-crypto'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
