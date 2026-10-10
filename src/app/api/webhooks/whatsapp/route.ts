@@ -826,7 +826,8 @@ async function processWhatsAppEvent(eventId: string) {
   if (!claim.count) return
 
   const event = await db.whatsAppInboundEvent.findUnique({ where: { id: eventId } }).catch(() => null)
-  const message = inboundMessageFromEventPayload(event?.payload)
+  const message = pendingInboundMessages.get(eventId) || inboundMessageFromEventPayload(event?.payload)
+  pendingInboundMessages.delete(eventId)
   if (!event || !message) {
     await markInboundEventStatus(eventId, 'SKIPPED', 'Missing or invalid WhatsApp inbound event payload')
     return
