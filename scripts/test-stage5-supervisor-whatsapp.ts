@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { OFFICIAL_INFO_UNAVAILABLE_REPLY, officialValueOrUnavailable } from '../src/lib/ai'
-import { createHumanHandoffRequest } from '../src/lib/human-handoff'
+import { shouldCreateHumanHandoffForOpenConversation } from '../src/lib/human-handoff'
 import { formatProgramKnowledge, stripSupervisorContactDataForTest } from '../src/lib/supervisor-ai'
 import { maskWhatsAppPhoneForTest, waIdHashForTest } from '../src/app/api/webhooks/whatsapp/route'
 
