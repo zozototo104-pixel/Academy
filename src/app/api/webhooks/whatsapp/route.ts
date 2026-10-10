@@ -60,8 +60,12 @@ function conversationKey(from: string) {
   return `wa:${createHash('sha256').update(String(from || '')).digest('hex').slice(0, 32)}`
 }
 
+function waHashSecret() {
+  return process.env.WHATSAPP_HASH_SECRET || process.env.NEXTAUTH_SECRET || 'aact-whatsapp-local-hash'
+}
+
 function waIdHash(from: string) {
-  return createHash('sha256').update(String(from || '')).digest('hex')
+  return createHash('sha256').update(`${waHashSecret()}:${String(from || '')}`).digest('hex')
 }
 
 async function shouldSendImmediateGreeting(from: string) {
