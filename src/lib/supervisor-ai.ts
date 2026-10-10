@@ -215,7 +215,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const [profile, memory, recentMessages, admission, thesis, enrollments, activePrograms] = await Promise.all([
       userStore?.findUnique({
         where: { id: userId },
-        select: { name: true, email: true, phone: true, country: true, role: true, createdAt: true },
+        select: { name: true, role: true, createdAt: true },
       }).catch(() => null),
       memoryStore?.findUnique({ where: { userId } }).catch(() => null),
       chatStore?.findMany({
