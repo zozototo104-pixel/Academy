@@ -278,7 +278,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
               knowledgeItems: {
                 orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
                 take: 24,
-                select: { title: true, summary: true, excerpt: true, category: true, importance: true, semester: true, book: { select: { title: true } } },
+                select: { title: true, summary: true, excerpt: true, category: true, importance: true, semester: true, pageStart: true, pageEnd: true, sourceNote: true, book: { select: { title: true } } },
               },
               questionBankItems: {
                 where: { status: 'APPROVED' },
