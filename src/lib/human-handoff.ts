@@ -326,6 +326,10 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   )
 }
 
+export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest: unknown): boolean {
+  return !existingOpenRequest
+}
+
 export async function createHumanHandoffRequest(args: {
   user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; role?: string | null }
   message: string
