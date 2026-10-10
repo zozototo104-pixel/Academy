@@ -348,7 +348,7 @@ export async function createHumanHandoffRequest(args: {
     select: { id: true },
     orderBy: { createdAt: 'desc' },
   }).catch(() => null)
-  if (!shouldCreateHumanHandoffForOpenConversation(existing)) return { ok: true, created: false, id: existing.id }
+  if (existing && !shouldCreateHumanHandoffForOpenConversation(existing)) return { ok: true, created: false, id: existing.id }
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, email: true } }).catch(() => [])
   const displayName = args.user.name || (args.source === 'WHATSAPP' ? 'زائر واتساب' : 'مستخدم غير محدد الاسم')
