@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { createGeminiLiveEphemeralToken, ensureGeminiKey, type GeminiLivePurpose } from '@/lib/gemini'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage } from '@/lib/live-usage-guard'
+import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
