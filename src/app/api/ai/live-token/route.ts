@@ -32,6 +32,7 @@ async function handler(req: NextRequest) {
     const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
     let systemInstruction: string | undefined
     if (purpose === 'DISCUSSION') {
+      if (!thesisId) return NextResponse.json({ error: 'thesisId مطلوب لفتح جلسة المناقشة الصوتية.' }, { status: 400 })
       const defense = await buildDefenseOnlyContextForStudent(user.id, thesisId)
       if (!defense) return NextResponse.json({ error: 'يجب وجود مناقشة مجدولة مرتبطة ببحثك قبل فتح جلسة المناقشة الصوتية.' }, { status: 409 })
       systemInstruction = buildDefenseLiveSystemInstruction(defense.context)
