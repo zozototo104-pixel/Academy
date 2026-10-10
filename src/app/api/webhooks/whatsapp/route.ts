@@ -158,14 +158,8 @@ async function markWhatsAppHumanSupportPrompt(key: string, from: string, message
   }, key)
 }
 
-export function maskWhatsAppPhoneForTest(value?: string | null) {
-  return maskPhone(value)
-}
-
 function maskPhone(value?: string | null) {
-  const raw = String(value || '').replace(/\D/g, '')
-  if (!raw) return ''
-  return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
+  return maskWhatsAppPhone(value)
 }
 
 function summarizeNonMessageWhatsAppPayload(payload: any) {
