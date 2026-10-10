@@ -331,7 +331,7 @@ export interface GeminiLiveTokenPayload {
 
 export async function createGeminiLiveEphemeralToken(
   purpose: GeminiLivePurpose = 'SUPERVISOR',
-  opts?: { sessionLimitMinutes?: number }
+  opts?: { sessionLimitMinutes?: number; systemInstruction?: string }
 ): Promise<GeminiLiveTokenPayload> {
   await refreshFromDb()
   const key = resolvedKey()
