@@ -63,9 +63,10 @@ function testDefenseContextHasNoGeneralCatalog() {
 }
 
 function testDefenseSessionRequiresScheduledThesis() {
-  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date() }), true)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date(), extractionStatus: 'READY', digest: { problem: 'x' } }), true)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date() }), false)
   assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED' }), false)
-  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SUBMITTED', defenseDate: new Date() }), false)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SUBMITTED', defenseDate: new Date(), extractionStatus: 'READY', digest: { problem: 'x' } }), false)
   assert.equal(defenseSessionAllowedForTest(null), false)
 }
 
