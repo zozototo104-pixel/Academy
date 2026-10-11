@@ -5,6 +5,7 @@ import { buildScopedDirectProgramBooksResult, buildScopedProgramCatalogSnapshot 
 import { resolveAiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervisor-context'
+import { getSettings } from '@/lib/settings'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
