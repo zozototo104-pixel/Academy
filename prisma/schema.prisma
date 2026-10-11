@@ -571,6 +571,7 @@ model AcademyRepresentativeFile {
   @@index([representativeId, displayOrder])
   @@index([kind])
   @@index([storageProvider])
+  @@index([reviewStatus])
 }
 
 model AccreditationProfile {
