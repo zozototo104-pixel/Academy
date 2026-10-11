@@ -8,8 +8,8 @@ import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
   hasOpenHumanHandoffRequest,
-  HUMAN_HANDOFF_CONFIRMATION_REPLY,
-  HUMAN_SUPPORT_REPLY,
+  getHumanHandoffConfirmationReply,
+  getHumanSupportReply,
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import {
