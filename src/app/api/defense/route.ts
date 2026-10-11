@@ -124,12 +124,13 @@ export async function POST(req: NextRequest) {
       await db.defenseMessage.deleteMany({ where: { thesisId: thesis.id } })
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
       const digestContext = legacyDefense ? thesis.abstract : summarizeDigestForPrompt(digest, 6000)
+      const wholeThesisContext = legacyDefense ? '' : await buildThesisDefenseContextFromDb(thesis.id, { thesisTitle: thesis.title, focusQuery: 'افتتاح المناقشة: مشكلة البحث والمنهجية والنتائج والإسهام ونقاط الضعف', maxChars: 18000 })
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} ${digestContext.slice(0, 500)}` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
         legacyDefense
           ? `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nهذه مناقشة قديمة بدون ملف البحث المعالج؛ استخدم العنوان والملخص الكامل فقط.\nملخص البحث:\n${thesis.abstract}`
-          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nDigest البحث الكامل:\n${digestContext}\nاستخدم digest وخريطة الأقسام في صياغة الأسئلة، مع بقاء القرار النهائي للجنة البشرية.`
+          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nتصرف مثل مناقش بشري قرأ البحث كله.\n${wholeThesisContext}`
       )
       const opening = await aiOpening(thesis.title, digestContext, defenseAcademicContext)
       await db.thesisSubmission.update({
