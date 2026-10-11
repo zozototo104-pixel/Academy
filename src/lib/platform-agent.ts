@@ -627,7 +627,7 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
     ].filter(Boolean).join('\n\n').slice(0, 36000)
   } catch (error: any) {
     console.error('public platform snapshot error:', String(error?.message || error).slice(0, 400))
-    return `فهرس البرامج الثابت:\n${staticProgramsDigest(50)}`
+    return `فهرس البرامج المتاحة: ${OFFICIAL_INFO_UNAVAILABLE_REPLY}`
   }
 }
 
