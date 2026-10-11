@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
-import { chatComplete, type SupervisorPersona } from '@/lib/ai'
+import { ACADEMY_INFO } from '@/lib/academyData'
+import { OFFICIAL_INFO_UNAVAILABLE_REPLY, chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildScopedDirectProgramBooksResult, buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import { resolveAiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
