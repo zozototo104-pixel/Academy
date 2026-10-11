@@ -64,6 +64,31 @@ function testDefenseContextHasNoGeneralCatalog() {
   assert(system.includes('استخدم بحث الطالب فقط'))
 }
 
+function testDefenseContextUsesWholeThesisLateChunk() {
+  const chunks = Array.from({ length: 12 }, (_, i) => ({
+    index: i + 1,
+    text: i === 11 ? 'الخاتمة تعرض نتيجة متأخرة مهمة: نموذج التصعيد الثلاثي للمخاطر التشغيلية.' : `مقطع عام رقم ${i + 1}`,
+    summary: i === 11 ? 'نتيجة متأخرة عن نموذج التصعيد الثلاثي.' : `ملخص عام ${i + 1}`,
+    pageStart: i + 1,
+    pageEnd: i + 1,
+  }))
+  const context = buildThesisDefenseContextFromParts({
+    thesisTitle: 'إدارة المخاطر التشغيلية',
+    digest: {
+      problem: 'ضعف التصعيد المبكر للمخاطر.',
+      methodology: 'دراسة وصفية تحليلية.',
+      keyFindings: ['نموذج التصعيد الثلاثي للمخاطر التشغيلية.'],
+      sectionMap: [{ title: 'النتائج والخاتمة', chunkFrom: 10, chunkTo: 12 }],
+    },
+    chunks,
+    focusQuery: 'ناقش النتائج ونموذج التصعيد الثلاثي',
+  })
+  assert(context.includes('عدد مقاطع البحث المقروءة: 12'))
+  assert(context.includes('مقطع 12'))
+  assert(context.includes('نموذج التصعيد الثلاثي'))
+  assert(context.includes('خريطة ملخصات كل المقاطع'))
+}
+
 function testDefenseSessionRequiresScheduledThesis() {
   assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date(), extractionStatus: 'READY', digest: { problem: 'x' } }), true)
   assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date() }), false)
