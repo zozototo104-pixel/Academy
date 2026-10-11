@@ -642,7 +642,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       sourceRef: handoffKey,
     })
     await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    return HUMAN_HANDOFF_CONFIRMATION_REPLY
+    return getHumanHandoffConfirmationReply()
   }
 
   if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
