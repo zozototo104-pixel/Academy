@@ -5,25 +5,9 @@ import { getOfficialContact } from '@/lib/settings'
 import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
 import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 
-export const HUMAN_SUPPORT_REPLY = [
-  'أهلًا وسهلًا بك 🌟',
-  'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام التالية:',
-  '',
-  '📞 +972594403737',
-  '📞 +970 598 400 510',
-  '',
-  'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
-].join('\n')
+export const HUMAN_SUPPORT_REPLY = 'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي، اكتب اسمك وموضوعك باختصار وسيتم توجيهك للموظف المختص.'
 
-export const HUMAN_HANDOFF_CONFIRMATION_REPLY = [
-  'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
-  '',
-  'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
-  '',
-  'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
-  '📞 +972594403737',
-  '📞 +970 598 400 510',
-].join('\n')
+export const HUMAN_HANDOFF_CONFIRMATION_REPLY = 'تم استلام طلبك وتحويله لفريق الإدارة، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر البيانات الرسمية المسجلة.'
 
 export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
 
