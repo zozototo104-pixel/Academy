@@ -738,6 +738,9 @@ model HumanHandoffRequest {
   name        String
   email       String?
   phone       String?
+  phoneMasked String?
+  phoneHash   String?
+  phoneEncrypted String?
   subject     String
   message     String
   status      String   @default("NEW") // NEW | IN_PROGRESS | CONTACTED | CLOSED
