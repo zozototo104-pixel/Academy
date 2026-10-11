@@ -239,6 +239,7 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       id: message.id,
       fromHash: waIdHash(message.from),
       fromMasked: maskPhone(message.from),
+      fromEncrypted: encryptWhatsAppPhone(message.from) || null,
       text: message.text || '',
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
