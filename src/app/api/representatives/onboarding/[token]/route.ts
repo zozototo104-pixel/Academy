@@ -24,6 +24,61 @@ function text(value: unknown, max = 5000) {
   return String(value ?? '').trim().slice(0, max) || null
 }
 
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024
+const DOCUMENT_MAX_BYTES = 15 * 1024 * 1024
+
+function isPrivateHostAddress(address: string) {
+  const family = net.isIP(address)
+  if (!family) return true
+  if (family === 4) {
+    const [a, b] = address.split('.').map((x) => Number(x))
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+  }
+  const lower = address.toLowerCase()
+  return lower === '::1' || lower === '::' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:')
+}
+
+async function validatePublicHttpsUrl(raw: string) {
+  let parsed: URL
+  try { parsed = new URL(raw) } catch { throw new Error('INVALID_URL') }
+  if (parsed.protocol !== 'https:') throw new Error('URL_REQUIRES_HTTPS')
+  const host = parsed.hostname.toLowerCase()
+  const literal = net.isIP(host)
+  const addresses = literal ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => [])
+  if (!addresses.length || addresses.some((entry) => isPrivateHostAddress(entry.address))) throw new Error('URL_PRIVATE_HOST_REJECTED')
+  return parsed.toString()
+}
+
+function detectAllowedUpload(buffer: Buffer, fileName: string, declaredMime: string, assetType: string) {
+  const lower = String(fileName || '').toLowerCase()
+  const header = buffer.subarray(0, 16)
+  const isPdf = header.subarray(0, 4).toString('ascii') === '%PDF'
+  const isPng = header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  const isJpg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff
+  const isZip = header.subarray(0, 2).toString('ascii') === 'PK'
+  const image = assetType === 'profilePhoto'
+  const maxBytes = image ? IMAGE_MAX_BYTES : DOCUMENT_MAX_BYTES
+  if (buffer.byteLength > maxBytes) throw new Error('FILE_TOO_LARGE')
+  if (image) {
+    if (isPng) return { mimeType: 'image/png' }
+    if (isJpg) return { mimeType: 'image/jpeg' }
+    throw new Error('UNSUPPORTED_IMAGE_TYPE')
+  }
+  if (isPdf) return { mimeType: 'application/pdf' }
+  if (isPng) return { mimeType: 'image/png' }
+  if (isJpg) return { mimeType: 'image/jpeg' }
+  if (isZip && (lower.endsWith('.docx') || lower.endsWith('.xlsx') || lower.endsWith('.pptx'))) return { mimeType: declaredMime || 'application/zip' }
+  throw new Error('UNSUPPORTED_FILE_TYPE')
+}
+
+function uploadErrorResponse(error: unknown) {
+  const raw = String((error as any)?.message || error || '')
+  if (raw === 'FILE_TOO_LARGE') return NextResponse.json({ error: 'FILE_TOO_LARGE' }, { status: 413 })
+  if (raw.includes('URL_') || raw.includes('INVALID_URL')) return NextResponse.json({ error: raw }, { status: 400 })
+  if (raw.includes('UNSUPPORTED_')) return NextResponse.json({ error: raw }, { status: 400 })
+  return NextResponse.json({ error: 'UPLOAD_FAILED', message: storageErrorMessage(error) }, { status: 500 })
+}
+
 async function loadRepresentative(token: string) {
   return db.academyRepresentative.findFirst({
     where: { onboardingToken: token, deletedAt: null, status: { in: ['DRAFT', 'HIDDEN'] } },
