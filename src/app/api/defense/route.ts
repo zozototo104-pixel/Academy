@@ -169,15 +169,15 @@ export async function POST(req: NextRequest) {
 
       const criterion = DEFENSE_CRITERIA[Math.min(answeredCount, DEFENSE_CRITERIA.length - 1)]
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
-      const related = legacyDefense ? [] : await findRelevantThesisChunks(thesis.id, `${lastQuestion?.content || ''} ${answer} ${DEFENSE_CRITERIA_LABELS[criterion]}`, 2)
-      const relatedContext = related.map((chunk) => `مقطع #${chunk.index} صفحات ${chunk.pageStart ?? '-'}-${chunk.pageEnd ?? '-'}:\n${(chunk.summary || chunk.text).slice(0, 1800)}`).join('\n\n')
+      const focusQuery = `${lastQuestion?.content || ''} ${answer} ${DEFENSE_CRITERIA_LABELS[criterion]} ${criterion}`
+      const wholeThesisContext = legacyDefense ? '' : await buildThesisDefenseContextFromDb(thesis.id, { thesisTitle: thesis.title, focusQuery, maxChars: 18000 })
       const thesisContextForEval = legacyDefense ? thesis.abstract : summarizeDigestForPrompt(digest, 4500)
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} ${lastQuestion?.content || ''} ${answer}` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
         legacyDefense
           ? `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nمناقشة قديمة بدون ملف البحث؛ استخدم الملخص الكامل فقط.\nملخص البحث:\n${thesis.abstract}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nقيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
-          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nDigest:\n${thesisContextForEval}\n\nمقاطع ذات صلة:\n${relatedContext}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nقيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
+          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nتصرف مثل مناقش بشري قرأ البحث كاملًا. لا تقيّم خارج ملف البحث.\n${wholeThesisContext}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nإجابة الطالب بين حدود التقييم فقط. قيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
       )
       const result = await aiEvaluate(thesis.title, thesisContextForEval.slice(0, 2000), lastQuestion?.content || '', answer, answeredCount + 1, QUESTIONS_COUNT, defenseAcademicContext, criterion)
 
