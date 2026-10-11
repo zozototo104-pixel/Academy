@@ -145,7 +145,7 @@ function testUiContextWrappedAsUntrusted() {
 }
 
 async function main() {
-  for (const fn of [testSupervisorContextStripsPii, testSourceLineHasNoInventedPage, testUnavailableOfficialInfo, testWhatsAppNumberMaskedAndHashed, testHandoffIdempotencyIntentShape, testDefenseLiveUsesDefensePersonaAndScopedContext, testDefenseContextHasNoGeneralCatalog, testDefenseSessionRequiresScheduledThesis, testPlatformUserIdentityHasNoPii, testEncryptedVisitorPhoneForAdmin, testWhatsAppConversationStoresMaskedAndEncryptedSender, testSupervisorGeneralCatalogClassifier, testUiContextWrappedAsUntrusted]) {
+  for (const fn of [testSupervisorContextStripsPii, testSourceLineHasNoInventedPage, testUnavailableOfficialInfo, testWhatsAppNumberMaskedAndHashed, testHandoffIdempotencyIntentShape, testDefenseLiveUsesDefensePersonaAndScopedContext, testDefenseContextHasNoGeneralCatalog, testDefenseContextUsesWholeThesisLateChunk, testDefenseSessionRequiresScheduledThesis, testPlatformUserIdentityHasNoPii, testEncryptedVisitorPhoneForAdmin, testWhatsAppConversationStoresMaskedAndEncryptedSender, testSupervisorGeneralCatalogClassifier, testUiContextWrappedAsUntrusted]) {
     await fn()
     console.log(`✓ ${fn.name}`)
   }
