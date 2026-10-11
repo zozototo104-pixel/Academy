@@ -8,7 +8,6 @@ import {
   hadRecentHumanSupportPrompt,
   hasRecentHumanHandoffRequest,
   getHumanHandoffConfirmationReply,
-  getHumanSupportReply,
   looksLikeHumanHandoffDetails,
   wantsHumanSupport,
   withHumanHandoffActiveNote,
