@@ -344,8 +344,11 @@ function hasTokenAny(n: string, words: string[]) {
 }
 
 function hasThesisDefenseIntent(n: string) {
-  return hasTokenAny(n, ['بحث', 'بحثي', 'ابحاث', 'رسالتي', 'رسالة', 'اطروحة', 'اطروحتي', 'مناقشة', 'المناقشة', 'لجنة', 'منهجية', 'المنهجية', 'نتائج', 'النتائج', 'توصيات', 'دفاع'])
-    || includesAny(n, ['بحث تخرج', 'مشروع تخرج', 'لجنة مناقشة', 'عضو لجنة', 'عنوان بحثي', 'قبل المناقشة'])
+  const explicitDefense = hasTokenAny(n, ['مناقشة', 'المناقشة', 'لجنة', 'دفاع']) || includesAny(n, ['جلسة مناقشة', 'ابدأ المناقشة', 'ابدا المناقشة', 'ناقشني', 'لجنة مناقشة', 'عضو لجنة', 'جلسة الدفاع', 'اختبار المناقشة'])
+  if (explicitDefense) return true
+  const researchGuidanceOnly = includesAny(n, ['اختار عنوان', 'اختيار عنوان', 'كيف اكتب', 'طريقة كتابة', 'خطة بحث', 'اقتراح عنوان', 'ساعدني ببحث'])
+  if (researchGuidanceOnly) return false
+  return includesAny(n, ['بحث تخرج جاهز للمناقشة', 'قبل المناقشة', 'تحضير المناقشة'])
 }
 
 function hasStudentAcademicIntent(n: string) {
