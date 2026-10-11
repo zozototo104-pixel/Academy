@@ -279,7 +279,8 @@ export function buildSupervisorSystemPrompt(
 ): string {
   const contactEmail = runtime?.contactEmail || OFFICIAL_INFO_UNAVAILABLE_REPLY
   const contactWhatsapp = runtime?.contactWhatsapp || OFFICIAL_INFO_UNAVAILABLE_REPLY
-  const programCatalogText = runtime?.programCatalogText || OFFICIAL_INFO_UNAVAILABLE_REPLY
+  const includeGeneralCatalog = opts.includeGeneralCatalog !== false
+  const programCatalogText = includeGeneralCatalog ? (runtime?.programCatalogText || OFFICIAL_INFO_UNAVAILABLE_REPLY) : 'كتالوج البرامج العام غير مرفق في هذا السياق؛ استخدم برنامج الطالب وسياقه فقط.'
   const academyNameAr = runtime?.academyNameAr || OFFICIAL_INFO_UNAVAILABLE_REPLY
   const academyNameEn = runtime?.academyNameEn || OFFICIAL_INFO_UNAVAILABLE_REPLY
 
