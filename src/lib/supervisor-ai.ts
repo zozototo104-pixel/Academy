@@ -408,14 +408,17 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
     }
 
-    const catalogScope = options?.scope || 'STUDENT_SUPERVISOR'
-    const centralProgramCatalog = await buildScopedProgramCatalogSnapshot({ scope: catalogScope, query: options?.query || 'كتب الماجستير البرامج النشطة' }).catch(() => '')
-    if (centralProgramCatalog) {
-      parts.push(centralProgramCatalog)
-    } else if (Array.isArray(activePrograms) && activePrograms.length) {
-      parts.push(
-        `فهرس البرامج النشطة الرسمي من قاعدة بيانات المنصة. عند السؤال عن كتب الماجستير أو أي برنامج، استخرج الأسماء من هذه القائمة ولا تعطِ جواباً عاماً:\n${formatProgramCatalog(activePrograms)}`
-      )
+    const allowGeneralCatalog = supervisorAskedForOtherPrograms(options?.query)
+    if (allowGeneralCatalog) {
+      const catalogScope = options?.scope || 'STUDENT_SUPERVISOR'
+      const centralProgramCatalog = await buildScopedProgramCatalogSnapshot({ scope: catalogScope, query: options?.query || 'كتب الماجستير البرامج النشطة' }).catch(() => '')
+      if (centralProgramCatalog) {
+        parts.push(`مختصر كتالوج البرامج الأخرى لأن الطالب طلب ذلك صراحة:\n${centralProgramCatalog}`)
+      } else if (Array.isArray(activePrograms) && activePrograms.length) {
+        parts.push(
+          `فهرس البرامج النشطة الرسمي من قاعدة بيانات المنصة لأن الطالب طلب برامج أخرى صراحة:\n${formatProgramCatalog(activePrograms)}`
+        )
+      }
     }
 
     if (!enrollments?.length && !admission && !thesis) {
