@@ -259,7 +259,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
     const extracted = await extractDocumentText(buffer, file.type || 'application/octet-stream', file.name || 'file', 50000).catch(() => null)
     const created = await db.academyRepresentativeFile.create({
-      data: { representativeId: rep.id, kind, title, description, fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, extractedText: extracted?.readable ? extracted.text : null },
+      data: { representativeId: rep.id, kind, title, description, fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, extractedText: extracted?.readable ? extracted.text : null, reviewStatus: 'PENDING_REVIEW' },
     })
     return NextResponse.json({ file: created, extraction: extracted ? { readable: extracted.readable, reader: extracted.reader, note: extracted.note } : null })
   } catch (error) {
