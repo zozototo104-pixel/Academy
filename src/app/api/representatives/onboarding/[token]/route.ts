@@ -166,7 +166,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
       rawBio: text(body.rawBio, 12000) ?? rep.rawBio,
       worksSummary: text(body.worksSummary, 6000) ?? rep.worksSummary,
       achievements: text(body.achievements, 6000) ?? rep.achievements,
-      website: body.website ? await validatePublicHttpsUrl(String(body.website)).catch(() => rep.website) : rep.website,
+      website: safeWebsite,
       publicContactNote: text(body.publicContactNote, 1200) ?? rep.publicContactNote,
       onboardingStatus: submit ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE',
       onboardingSubmittedAt: submit ? new Date() : rep.onboardingSubmittedAt,
