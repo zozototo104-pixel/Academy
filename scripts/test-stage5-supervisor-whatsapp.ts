@@ -69,6 +69,13 @@ function testDefenseSessionRequiresScheduledThesis() {
   assert.equal(defenseSessionAllowedForTest(null), false)
 }
 
+function testPlatformUserIdentityHasNoPii() {
+  const identity = formatPlatformUserIdentityForTest({ name: 'محمد أحمد', role: 'STUDENT' } as any)
+  assert(identity.includes('الاسم الأول محمد'))
+  assert(!identity.includes('@'))
+  assert(!identity.includes('+970'))
+}
+
 function testEncryptedVisitorPhoneForAdmin() {
   process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 19).toString('base64')
   const raw = '+970598400510'
