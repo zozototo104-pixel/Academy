@@ -339,7 +339,7 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   const afterSubmit = lastSubmittedIdx >= 0 ? recent.slice(lastSubmittedIdx + 1) : recent
   return afterSubmit.some((m) =>
     (m.role === 'user' && wantsHumanSupport(m.content)) ||
-    (m.role === 'assistant' && m.content.includes('+972594403737') && m.content.includes('+970 598 400 510'))
+    (m.role === 'assistant' && m.content.includes('موظف حقيقي') && m.content.includes('الرقم الرسمي'))
   )
 }
 
