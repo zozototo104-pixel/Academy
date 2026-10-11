@@ -16,6 +16,7 @@ interface ChatCompleteOptions {
   timeoutMs?: number
   requireModelResponse?: boolean
   routerPolicy?: TextAiRouterPolicy
+  includeGeneralCatalog?: boolean
 }
 
 interface ProgramCatalogItem {
