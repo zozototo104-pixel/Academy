@@ -7,7 +7,7 @@ import { notify, audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { buildSupervisorContext, mergeContext, buildSupervisorPersonaBlock, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
-import { findRelevantThesisChunks, getThesisDigest, summarizeDigestForPrompt } from '@/lib/thesis-context'
+import { buildThesisDefenseContextFromDb, getThesisDigest, summarizeDigestForPrompt } from '@/lib/thesis-context'
 import { scoreDefenseBreakdown } from '@/lib/thesis-defense-score'
 
 const QUESTIONS_COUNT = 5 // عدد أسئلة اللجنة
@@ -124,12 +124,13 @@ export async function POST(req: NextRequest) {
       await db.defenseMessage.deleteMany({ where: { thesisId: thesis.id } })
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
       const digestContext = legacyDefense ? thesis.abstract : summarizeDigestForPrompt(digest, 6000)
+      const wholeThesisContext = legacyDefense ? '' : await buildThesisDefenseContextFromDb(thesis.id, { thesisTitle: thesis.title, focusQuery: 'افتتاح المناقشة: مشكلة البحث والمنهجية والنتائج والإسهام ونقاط الضعف', maxChars: 18000 })
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} ${digestContext.slice(0, 500)}` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
         legacyDefense
           ? `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nهذه مناقشة قديمة بدون ملف البحث المعالج؛ استخدم العنوان والملخص الكامل فقط.\nملخص البحث:\n${thesis.abstract}`
-          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nDigest البحث الكامل:\n${digestContext}\nاستخدم digest وخريطة الأقسام في صياغة الأسئلة، مع بقاء القرار النهائي للجنة البشرية.`
+          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nتصرف مثل مناقش بشري قرأ البحث كله.\n${wholeThesisContext}`
       )
       const opening = await aiOpening(thesis.title, digestContext, defenseAcademicContext)
       await db.thesisSubmission.update({
@@ -168,15 +169,15 @@ export async function POST(req: NextRequest) {
 
       const criterion = DEFENSE_CRITERIA[Math.min(answeredCount, DEFENSE_CRITERIA.length - 1)]
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
-      const related = legacyDefense ? [] : await findRelevantThesisChunks(thesis.id, `${lastQuestion?.content || ''} ${answer} ${DEFENSE_CRITERIA_LABELS[criterion]}`, 2)
-      const relatedContext = related.map((chunk) => `مقطع #${chunk.index} صفحات ${chunk.pageStart ?? '-'}-${chunk.pageEnd ?? '-'}:\n${(chunk.summary || chunk.text).slice(0, 1800)}`).join('\n\n')
+      const focusQuery = `${lastQuestion?.content || ''} ${answer} ${DEFENSE_CRITERIA_LABELS[criterion]} ${criterion}`
+      const wholeThesisContext = legacyDefense ? '' : await buildThesisDefenseContextFromDb(thesis.id, { thesisTitle: thesis.title, focusQuery, maxChars: 18000 })
       const thesisContextForEval = legacyDefense ? thesis.abstract : summarizeDigestForPrompt(digest, 4500)
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} ${lastQuestion?.content || ''} ${answer}` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
         legacyDefense
           ? `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nمناقشة قديمة بدون ملف البحث؛ استخدم الملخص الكامل فقط.\nملخص البحث:\n${thesis.abstract}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nقيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
-          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nDigest:\n${thesisContextForEval}\n\nمقاطع ذات صلة:\n${relatedContext}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nقيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
+          : `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nتصرف مثل مناقش بشري قرأ البحث كاملًا. لا تقيّم خارج ملف البحث.\n${wholeThesisContext}\n\nالسؤال الحالي: ${lastQuestion?.content || 'غير محدد'}.\nإجابة الطالب بين حدود التقييم فقط. قيّم وفق معيار ${criterion} (${DEFENSE_CRITERIA_LABELS[criterion]}).`
       )
       const result = await aiEvaluate(thesis.title, thesisContextForEval.slice(0, 2000), lastQuestion?.content || '', answer, answeredCount + 1, QUESTIONS_COUNT, defenseAcademicContext, criterion)
 
@@ -189,15 +190,21 @@ export async function POST(req: NextRequest) {
         const priorScores = history.filter((m) => m.role === 'STUDENT').map((m) => finiteScore(m.score))
         const currentScore = finiteScore(result.score)
         const scores = [...priorScores, currentScore]
-        const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
+        const weighted = scoreDefenseBreakdown(
+          DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })),
+          { requireAllCriteria: true },
+        )
         const aiScore = weighted.score
-        const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
+        const needsHumanReview = Boolean((weighted as any).needsReview)
+        const rec = needsHumanReview
+          ? 'تحتاج هذه المناقشة إلى مراجعة بشرية قبل اعتماد النتيجة، لأن سؤالاً أو أكثر من الأسئلة المكتملة لم يحصل على تقييم آلي صالح.'
+          : await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
         const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
         await db.thesisSubmission.update({
           where: { id: thesis.id },
           data: {
-            defenseStatus: 'COMPLETED',
-            aiScore,
+            defenseStatus: needsHumanReview ? 'NEEDS_REVIEW' : 'COMPLETED',
+            aiScore: needsHumanReview ? null : aiScore,
             aiRecommendation: rec,
             defenseBreakdown: { ...(weighted as any), ...(legacyDefense ? { legacy: true } : {}) },
             defenseMinutes: minutes,

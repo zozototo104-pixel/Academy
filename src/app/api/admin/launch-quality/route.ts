@@ -428,26 +428,34 @@ async function ensureLaunchQualityDiagnosticStudent() {
     await db.programAnswer.create({ data: { attemptId: attempt.id, questionId: programQuestion.id, selectedOption: 1, isCorrect: true, points: 20, maxPoints: 20, aiFeedback: 'صحيح؛ المؤشر يقيس اتجاه الخطر وفعالية الضوابط ولا يستبدلها.' } })
   }
 
-  await db.thesisSubmission.findFirst({ where: { userId: user.id, title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية' } }).then((existing) => existing || db.thesisSubmission.create({
-    data: {
-      userId: user.id,
-      admissionId: admission.id,
-      title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية',
-      abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
-      fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي.',
-      status: 'RESULT_APPROVED',
-      defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
-      committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
-      aiScore: 88,
-      aiRecommendation: 'يوصى بالنجاح مع تحسين ربط المؤشرات بخطة التصعيد.',
-      defenseStatus: 'COMPLETED',
-      defenseCompletedAt: new Date(),
-      defenseMinutes: 'ناقشت اللجنة الفرق بين مؤشرات الأداء ومؤشرات المخاطر، وطلبت أمثلة تطبيقية على حدود التصعيد.',
-      resultScore: 87,
-      passed: true,
-      reviewedAt: new Date(),
+  const thesisTitle = 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية'
+  const existingThesis = await db.thesisSubmission.findFirst({ where: { userId: user.id, title: thesisTitle } })
+  const scheduledThesisData = {
+    admissionId: admission.id,
+    title: thesisTitle,
+    abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
+    fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي والمناقشة المجدولة.',
+    status: 'SCHEDULED',
+    extractionStatus: 'READY',
+    digest: {
+      problem: 'قياس أثر مؤشرات المخاطر على الحوكمة المؤسسية.',
+      methodology: 'منهج وصفي تحليلي قائم على دراسة حالة ومقابلات داخلية.',
+      keyFindings: ['المؤشرات المبكرة تساعد الإدارة على التصعيد قبل تفاقم المخاطر.', 'ربط المؤشر بمالك واضح يزيد فعالية الضوابط.'],
+      sectionMap: [{ title: 'المنهجية والنتائج', chunkFrom: 1, chunkTo: 1 }],
     },
-  }))
+    defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
+    aiScore: null,
+    aiRecommendation: JSON.stringify({ diagnostic: true, note: 'مناقشة مجدولة لفحص سياق الدفاع قبل الإطلاق.' }),
+    defenseStatus: 'SCHEDULED',
+    defenseCompletedAt: null,
+    defenseMinutes: null,
+    resultScore: null,
+    passed: null,
+    reviewedAt: null,
+  }
+  if (existingThesis) await db.thesisSubmission.update({ where: { id: existingThesis.id }, data: scheduledThesisData })
+  else await db.thesisSubmission.create({ data: { userId: user.id, ...scheduledThesisData } })
 
   await db.studentAcademicMemory.upsert({
     where: { userId: user.id },
@@ -489,69 +497,20 @@ async function ensureLaunchQualityDiagnosticStudent() {
 
 async function findDiagnosticStudent(studentId?: string) {
   if (studentId) {
-    return db.user.findFirst({
+    const explicit = await db.user.findMany({
       where: { id: studentId, role: 'STUDENT' },
       include: diagnosticStudentInclude,
+      take: 1,
     })
+    return chooseBestDiagnosticStudent(explicit)
   }
 
-  const stableStudent = await ensureLaunchQualityDiagnosticStudent().catch((error) => {
-    console.error('launch-quality diagnostic fixture error:', String(error?.message || error).slice(0, 500))
-    return null
-  })
-  if (stableStudent) return stableStudent
-
-  const richStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: {
-        some: {
-          status: { in: ['ACTIVE', 'COMPLETED'] },
-          program: {
-            is: {
-              OR: [
-                { units: { some: {} } },
-                { books: { some: {} } },
-                { studyGuides: { some: { status: 'PUBLISHED' } } },
-              ],
-            },
-          },
-        },
-      },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
+  const stableStudent = await ensureLaunchQualityDiagnosticStudent()
+  if (!stableStudent?.id) return null
+  return db.user.findFirst({
+    where: { id: stableStudent.id, role: 'STUDENT', email: LAUNCH_QUALITY_EMAIL },
     include: diagnosticStudentInclude,
   })
-  const rich = chooseBestDiagnosticStudent(richStudents)
-  if (rich) return rich
-
-  const enrolledStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      enrollments: { some: { status: { in: ['ACTIVE', 'COMPLETED'] } } },
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
-    include: diagnosticStudentInclude,
-  })
-  const enrolled = chooseBestDiagnosticStudent(enrolledStudents)
-  if (enrolled) return enrolled
-
-  const fallbackStudents = await db.user.findMany({
-    where: {
-      role: 'STUDENT',
-      OR: [
-        { theses: { some: {} } },
-        { ownedAdmissions: { some: {} } },
-        { academicMemory: { isNot: null } },
-      ],
-    },
-    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 25,
-    include: diagnosticStudentInclude,
-  })
-  return chooseBestDiagnosticStudent(fallbackStudents)
 }
 
 function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
@@ -560,7 +519,17 @@ function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticS
   const program = enrollment?.program
   const thesis = student.theses[0]
   const admission = student.ownedAdmissions[0]
+  const contextIncludes = {
+    studentName: context.includes(student.name),
+    programTitle: program ? context.includes(program.titleAr) : false,
+    firstBook: program?.books[0]?.title ? context.includes(program.books[0].title) : false,
+    firstUnit: program?.units[0]?.title ? context.includes(program.units[0].title) : false,
+    thesisTitle: thesis?.title ? context.includes(thesis.title) : false,
+    admissionReference: admission?.reference ? context.includes(admission.reference) : false,
+  }
   return {
+    diagnosticStudentId: student.id,
+    diagnosticStudentEmail: student.email,
     studentId: student.id,
     studentName: student.name,
     role: student.role,
@@ -573,14 +542,12 @@ function buildContextCoverage(student: Awaited<ReturnType<typeof findDiagnosticS
       hasFileAnalysis: !!student.academicMemory.lastFileAnalysis,
     } : null,
     contextChars: context.length,
-    contextIncludes: {
-      studentName: context.includes(student.name),
-      programTitle: program ? context.includes(program.titleAr) : false,
-      firstBook: program?.books[0]?.title ? context.includes(program.books[0].title) : false,
-      firstUnit: program?.units[0]?.title ? context.includes(program.units[0].title) : false,
-      thesisTitle: thesis?.title ? context.includes(thesis.title) : false,
-      admissionReference: admission?.reference ? context.includes(admission.reference) : false,
+    contextFound: {
+      programTitle: contextIncludes.programTitle ? program?.titleAr || null : null,
+      firstBook: contextIncludes.firstBook ? program?.books[0]?.title || null : null,
+      thesisTitle: contextIncludes.thesisTitle ? thesis?.title || null : null,
     },
+    contextIncludes,
   }
 }
 

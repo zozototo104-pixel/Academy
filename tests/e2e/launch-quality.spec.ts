@@ -206,6 +206,7 @@ test.describe('AACT launch quality suite', () => {
       expect(route.totalMs, `Route ${route.path} total visible/network time is slow`).toBeLessThanOrEqual(route.threshold.totalMs)
     }
 
+    expect(ai.studentContext?.diagnosticStudentEmail, 'Launch quality must use the stable diagnostic student').toBe('launch.quality.student@aact.test')
     expect(ai.studentContext?.contextChars || 0, 'Supervisor context must contain enough student/curriculum/research data').toBeGreaterThan(500)
     expect(ai.summary?.hasUsefulContext, 'AI context must include useful student curriculum/research data').toBe(true)
     expect(ai.summary?.score || 0, `AI probe score is too low: ${JSON.stringify(ai.summary)}`).toBeGreaterThanOrEqual(75)

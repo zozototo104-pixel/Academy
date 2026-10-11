@@ -738,6 +738,9 @@ model HumanHandoffRequest {
   name        String
   email       String?
   phone       String?
+  phoneMasked String?
+  phoneHash   String?
+  phoneEncrypted String?
   subject     String
   message     String
   status      String   @default("NEW") // NEW | IN_PROGRESS | CONTACTED | CLOSED
@@ -751,6 +754,7 @@ model HumanHandoffRequest {
 
   @@index([status, createdAt])
   @@index([source, sourceRef])
+  @@index([phoneHash])
   @@index([requesterId, createdAt])
   @@index([contactMessageId])
 }
@@ -759,6 +763,7 @@ model WhatsAppConversation {
   id               String   @id @default(cuid())
   waId             String
   waIdHash         String   @unique
+  waIdEncrypted    String?
   phoneMasked      String
   displayName      String?
   phoneNumberId    String?

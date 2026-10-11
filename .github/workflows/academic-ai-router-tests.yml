@@ -2,7 +2,7 @@ name: Academic AI router tests
 
 on:
   push:
-    branches: [phase2/full-book-reading, phase2/enrich-knowledge, phase2/assessments-from-units, stage3/grading, stage3/thesis, stage4/ai-reliability]
+    branches: [phase2/full-book-reading, phase2/enrich-knowledge, phase2/assessments-from-units, stage3/grading, stage3/thesis, stage4/ai-reliability, stage5/supervisor-whatsapp]
   pull_request:
     branches: [main]
 
@@ -37,6 +37,7 @@ jobs:
       - run: bunx prisma generate
       - run: bunx tsx scripts/test-academic-ai-router.ts
       - run: bunx tsx scripts/test-ai-reliability.ts
+      - run: bunx tsx scripts/test-stage5-supervisor-whatsapp.ts
       - run: bunx tsx scripts/test-evidence-validator.ts
       - run: bunx tsx scripts/test-question-bank-evidence.ts
       - run: bunx tsx scripts/test-question-schema.ts

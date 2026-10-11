@@ -1,28 +1,45 @@
 import { db } from '@/lib/db'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { makeBasicEmailHtml, sendMail } from '@/lib/mail'
+import { getOfficialContact } from '@/lib/settings'
+import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
+import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 
-export const HUMAN_SUPPORT_REPLY = [
-  'أهلًا وسهلًا بك 🌟',
-  'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام التالية:',
-  '',
-  '📞 +972594403737',
-  '📞 +970 598 400 510',
-  '',
-  'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
-].join('\n')
+export const HUMAN_SUPPORT_REPLY = 'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي، اكتب اسمك وموضوعك باختصار وسيتم توجيهك للموظف المختص.'
 
-export const HUMAN_HANDOFF_CONFIRMATION_REPLY = [
-  'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
-  '',
-  'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
-  '',
-  'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
-  '📞 +972594403737',
-  '📞 +970 598 400 510',
-].join('\n')
+export const HUMAN_HANDOFF_CONFIRMATION_REPLY = 'تم استلام طلبك وتحويله لفريق الإدارة، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر البيانات الرسمية المسجلة.'
 
 export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
+
+async function officialContactLines() {
+  const contact = await getOfficialContact().catch(() => ({ phones: [], whatsapps: [], phone: '', whatsapp: '' } as any))
+  const numbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean)))
+  return numbers.length ? numbers.map((n) => `📞 ${n}`).join('\n') : 'هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة'
+}
+
+export async function getHumanSupportReply() {
+  const lines = await officialContactLines()
+  return [
+    'أهلًا وسهلًا بك 🌟',
+    'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام الرسمية التالية:',
+    '',
+    lines,
+    '',
+    'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
+  ].join('\n')
+}
+
+export async function getHumanHandoffConfirmationReply() {
+  const lines = await officialContactLines()
+  return [
+    'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
+    '',
+    'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
+    '',
+    'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
+    lines,
+  ].join('\n')
+}
 
 function normalizeArabic(text: string): string {
   return text
@@ -322,12 +339,36 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   const afterSubmit = lastSubmittedIdx >= 0 ? recent.slice(lastSubmittedIdx + 1) : recent
   return afterSubmit.some((m) =>
     (m.role === 'user' && wantsHumanSupport(m.content)) ||
-    (m.role === 'assistant' && m.content.includes('+972594403737') && m.content.includes('+970 598 400 510'))
+    (m.role === 'assistant' && m.content.includes('موظف حقيقي') && m.content.includes('الرقم الرسمي'))
   )
 }
 
+export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest: unknown): boolean {
+  return !existingOpenRequest
+}
+
+export function prepareEncryptedVisitorPhone(rawPhone?: string | null) {
+  const raw = String(rawPhone || '').trim()
+  if (!raw) return { phoneMasked: '', phoneHash: '', phoneEncrypted: '' }
+  const phoneMasked = maskWhatsAppPhone(raw)
+  const phoneHash = whatsappWaIdHash(raw)
+  let phoneEncrypted = ''
+  if (hasSecretEncryptionKey()) {
+    try { phoneEncrypted = encryptSecret(raw) } catch { phoneEncrypted = '' }
+  }
+  return { phoneMasked, phoneHash, phoneEncrypted }
+}
+
+export function decryptHumanHandoffPhoneForAdmin(record: { phoneEncrypted?: string | null; phoneMasked?: string | null; phone?: string | null }) {
+  const encrypted = String(record.phoneEncrypted || '').trim()
+  if (encrypted && isEncryptedSecret(encrypted)) {
+    try { return decryptSecret(encrypted) } catch { return record.phoneMasked || record.phone || '' }
+  }
+  return record.phoneMasked || record.phone || ''
+}
+
 export async function createHumanHandoffRequest(args: {
-  user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; role?: string | null }
+  user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; rawPhone?: string | null; role?: string | null }
   message: string
   source: 'CHAT' | 'WHATSAPP'
   sourceRef?: string | null
@@ -335,9 +376,22 @@ export async function createHumanHandoffRequest(args: {
   const subject = String(args.message || '').trim().slice(0, 1500)
   if (!subject) return { ok: false, created: false }
 
+  const existing = await db.humanHandoffRequest.findFirst({
+    where: {
+      source: args.source,
+      sourceRef: args.sourceRef || args.user.id || null,
+      status: { in: ['NEW', 'IN_PROGRESS'] },
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => null)
+  if (existing && !shouldCreateHumanHandoffForOpenConversation(existing)) return { ok: true, created: false, id: existing.id }
+
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, email: true } }).catch(() => [])
   const displayName = args.user.name || (args.source === 'WHATSAPP' ? 'زائر واتساب' : 'مستخدم غير محدد الاسم')
-  const contact = [args.user.email, args.user.phone].filter(Boolean).join(' / ') || 'لا توجد بيانات تواصل مسجلة'
+  const phonePrivacy = prepareEncryptedVisitorPhone(args.user.rawPhone || args.user.phone)
+  const safePhoneForDisplay = phonePrivacy.phoneMasked || args.user.phone || ''
+  const contact = [args.user.email, safePhoneForDisplay].filter(Boolean).join(' / ') || 'لا توجد بيانات تواصل مسجلة'
   const link = args.source === 'CHAT' && args.user.id ? `/admin?userId=${encodeURIComponent(args.user.id)}` : '/admin?tab=messages'
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || process.env.NEXTAUTH_URL || '').replace(/\/$/, '')
   const absoluteLink = appUrl ? `${appUrl}${link}` : link
@@ -354,7 +408,7 @@ export async function createHumanHandoffRequest(args: {
     data: {
       name: displayName.slice(0, 120),
       email: (args.user.email || 'human-handoff@aactacademy.local').slice(0, 180),
-      phone: args.user.phone || null,
+      phone: safePhoneForDisplay || null,
       subject: 'طلب تواصل بشري من الوكيل الذكي',
       message: body.slice(0, 3000),
     },
@@ -368,7 +422,10 @@ export async function createHumanHandoffRequest(args: {
       sourceRef: args.sourceRef || args.user.id || null,
       name: displayName.slice(0, 120),
       email: args.user.email || null,
-      phone: args.user.phone || null,
+      phone: safePhoneForDisplay || null,
+      phoneMasked: phonePrivacy.phoneMasked || null,
+      phoneHash: phonePrivacy.phoneHash || null,
+      phoneEncrypted: phonePrivacy.phoneEncrypted || null,
       subject: 'طلب تواصل بشري من الوكيل الذكي',
       message: subject,
       status: 'NEW',

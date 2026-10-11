@@ -1,9 +1,11 @@
 import { db } from '@/lib/db'
-import { ACADEMY_INFO, ADMISSION_FEES, ADMISSION_GUIDE, ACCREDITATION_GUIDE, allSeedPrograms } from '@/lib/academyData'
-import { chatComplete, type SupervisorPersona } from '@/lib/ai'
+import { ACADEMY_INFO } from '@/lib/academyData'
+import { OFFICIAL_INFO_UNAVAILABLE_REPLY, chatComplete, type SupervisorPersona } from '@/lib/ai'
 import { buildScopedDirectProgramBooksResult, buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import { resolveAiKnowledgeScope } from '@/lib/ai-knowledge-policy'
+import { buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
 import { buildHumanSupervisorAssignedStudentsContext } from '@/lib/human-supervisor-context'
+import { getSettings } from '@/lib/settings'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
@@ -342,8 +344,11 @@ function hasTokenAny(n: string, words: string[]) {
 }
 
 function hasThesisDefenseIntent(n: string) {
-  return hasTokenAny(n, ['بحث', 'بحثي', 'ابحاث', 'رسالتي', 'رسالة', 'اطروحة', 'اطروحتي', 'مناقشة', 'المناقشة', 'لجنة', 'منهجية', 'المنهجية', 'نتائج', 'النتائج', 'توصيات', 'دفاع'])
-    || includesAny(n, ['بحث تخرج', 'مشروع تخرج', 'لجنة مناقشة', 'عضو لجنة', 'عنوان بحثي', 'قبل المناقشة'])
+  const explicitDefense = hasTokenAny(n, ['مناقشة', 'المناقشة', 'لجنة', 'دفاع']) || includesAny(n, ['جلسة مناقشة', 'ابدأ المناقشة', 'ابدا المناقشة', 'ناقشني', 'لجنة مناقشة', 'عضو لجنة', 'جلسة الدفاع', 'اختبار المناقشة'])
+  if (explicitDefense) return true
+  const researchGuidanceOnly = includesAny(n, ['اختار عنوان', 'اختيار عنوان', 'كيف اكتب', 'طريقة كتابة', 'خطة بحث', 'اقتراح عنوان', 'ساعدني ببحث'])
+  if (researchGuidanceOnly) return false
+  return includesAny(n, ['بحث تخرج جاهز للمناقشة', 'قبل المناقشة', 'تحضير المناقشة'])
 }
 
 function hasStudentAcademicIntent(n: string) {
@@ -499,6 +504,11 @@ async function buildDirectProgramBooksReply(query?: string | null) {
   ].join('\n')
 }
 
+export function supervisorNeedsGeneralProgramCatalogForTest(message: string): boolean {
+  const n = normalizeArabic(message)
+  return includesAny(n, ['برامج اخرى', 'برامج ثانية', 'غير برنامجي', 'غير تخصصي', 'كل البرامج', 'البرامج المتاحة', 'شو البرامج', 'ما هي البرامج', 'قائمة البرامج'])
+}
+
 function routeAgent(message: string, role?: string | null): PlatformAgentKind {
   const n = normalizeArabic(message)
   if (role === 'ADMIN' && includesAny(n, ['احصائيات', 'تقرير', 'جودة', 'طلاب', 'طالب', 'طلبات', 'قبول', 'مدفوعات', 'اشراف', 'مشرفين', 'متعثرين', 'اعتراضات', 'لوحة', 'مؤشرات', 'منهاج', 'منهج', 'كتب', 'برنامج', 'تخصص', 'ماجستير', 'مجستير', 'ماستر', 'دكتوراه', 'دكتوراة', 'بكالوريوس', 'بكلوريوس', 'دبلوم'])) return 'ADMIN_QUALITY'
@@ -526,12 +536,21 @@ function personaForAgent(agent: PlatformAgentKind): SupervisorPersona {
   return 'CHAT'
 }
 
-function staticProgramsDigest(max = 40): string {
-  return allSeedPrograms.slice(0, max).map((p, i) => {
-    const fee = p.price ? ` — رسوم تقريبية ${p.price} دولار` : ''
-    const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-    return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${fee}`
-  }).join('\n')
+function staticProgramsDigest(_max = 40): string {
+  return OFFICIAL_INFO_UNAVAILABLE_REPLY
+}
+
+async function officialPlatformSettingsSummary(): Promise<string> {
+  const settings = await getSettings().catch(() => ({} as Record<string, string>))
+  const value = (key: string) => String(settings[key] || '').trim() || OFFICIAL_INFO_UNAVAILABLE_REPLY
+  return [
+    `شروط القبول: ${value('ADMISSION_CONDITIONS_TEXT')}`,
+    `الوثائق المطلوبة: ${value('ADMISSION_DOCUMENTS_TEXT')}`,
+    `خطوات التسجيل: ${value('ADMISSION_STEPS_TEXT')}`,
+    `رسوم تقديم القبول: ${value('FEE_APPLICATION')}`,
+    `الاعتماد: ${value('ACCREDITATION_BENEFITS_TEXT')}`,
+    `مدة إصدار الشهادة: ${value('CERTIFICATE_ISSUE_DAYS')}`,
+  ].join(' | ')
 }
 
 function publicQueryIntentNote(query?: string | null): string {
@@ -573,21 +592,7 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
       },
     }).catch(() => [])
 
-    const source = programs.length
-      ? programs
-      : allSeedPrograms.slice(0, 80).map((p: any) => ({
-        titleAr: p.titleAr,
-        titleEn: p.titleEn,
-        category: p.category,
-        hours: p.hours,
-        price: p.price,
-        description: p.description,
-        registrationStatus: 'OPEN',
-        academicReadinessStatus: 'SEED',
-        books: [],
-        units: [],
-        _count: { books: 0, units: 0, assignments: 0, programExams: 0, enrollments: 0 },
-      }))
+    const source = programs
 
     const scored = (source as any[])
       .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
@@ -612,18 +617,20 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
 
     const intentNote = publicQueryIntentNote(query)
     const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    const officialSettings = await officialPlatformSettingsSummary()
 
     return [
       'سياق عام من قاعدة بيانات المنصة للزائر. هذا السياق هو المصدر العملي عند أي سؤال عام عن البرامج أو التسجيل أو الكتب أو الرسوم. لا تكتفِ بسؤال توضيحي إذا كان يمكن إعطاء إجابة مفيدة من هذا الفهرس. إذا كان السؤال عن رسوم درجة عامة مثل الدكتوراه المهنية أو الماجستير المهني فاعرض البرامج المطابقة ورسومها المحددة من البيانات بدلاً من إعطاء نطاق عام.',
       paymentContext,
       intentNote ? `تحليل السؤال الحالي:\n${intentNote}` : '',
       focusedLines ? `مطابقات مباشرة لسؤال الزائر الحالي "${compactText(query, 160)}":\n${focusedLines}` : '',
-      `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || staticProgramsDigest(50)}`,
-      `قواعد القبول العامة: ${ADMISSION_GUIDE.conditions.join(' / ')}. الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}. رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.`,
+      `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || OFFICIAL_INFO_UNAVAILABLE_REPLY}`,
+      `معلومات رسمية من الإعدادات فقط: ${officialSettings}`,
+      'إذا أي معلومة رسمية غير موجودة في الإعدادات أو سجل البرنامج، قل: هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة.',
     ].filter(Boolean).join('\n\n').slice(0, 36000)
   } catch (error: any) {
     console.error('public platform snapshot error:', String(error?.message || error).slice(0, 400))
-    return `فهرس البرامج الثابت:\n${staticProgramsDigest(50)}`
+    return `فهرس البرامج المتاحة: ${OFFICIAL_INFO_UNAVAILABLE_REPLY}`
   }
 }
 
@@ -748,14 +755,20 @@ async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promi
   }
 }
 
+export function formatPlatformUserIdentityForTest(user: { name?: string | null; role?: string | null }) {
+  const firstName = String(user.name || '').trim().split(/\s+/)[0] || 'غير محدد'
+  return `المستخدم الحالي: الاسم الأول ${firstName} — الدور ${user.role || 'غير محدد'}.`
+}
+
 async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query?: string | null): Promise<string> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, phone: true, country: true, createdAt: true },
+    select: { id: true, name: true, role: true, createdAt: true },
   }).catch(() => null)
   if (!user) return ''
 
-  const base = `المستخدم الحالي: ${user.name} — الدور ${user.role} — البريد ${user.email}${user.country ? ` — الدولة ${user.country}` : ''}.`
+  const firstName = String(user.name || '').trim().split(/\s+/)[0] || 'غير محدد'
+  const base = `المستخدم الحالي: الاسم الأول ${firstName} — الدور ${user.role}.`
   const blocks = [base]
 
   const userScope = resolveAiKnowledgeScope({ role: user.role })
@@ -769,14 +782,37 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   }
 
   if (user.role === 'STUDENT') {
-    const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
-    if (supervisorContext) blocks.push(supervisorContext)
+    if (agent === 'THESIS_DEFENSE') {
+      const defense = await buildDefenseOnlyContextForStudent(user.id).catch(() => null)
+      if (defense?.context) blocks.push(defense.context)
+      else blocks.push('لا توجد مناقشة بحث مجدولة مرتبطة بهذا الطالب؛ لا تتقمص دور المناقش ولا تفتح تقييم مناقشة، ووجّه الطالب لانتظار جدولة المناقشة من الإدارة.')
+    } else {
+      const supervisorContext = await buildSupervisorContext(user.id, { scope: 'STUDENT_SUPERVISOR', query }).catch(() => '')
+      if (supervisorContext) blocks.push(supervisorContext)
+      if (supervisorNeedsGeneralProgramCatalogForTest(query || '')) {
+        const catalog = await buildScopedProgramCatalogSnapshot({ scope: userScope, query }).catch(() => '')
+        if (catalog) blocks.push(`مختصر كتالوج البرامج الأخرى عند سؤال الطالب عنها صراحة:\n${catalog.slice(0, 4000)}`)
+      }
+    }
   }
 
   return blocks.filter(Boolean).join('\n\n').slice(0, 32000)
 }
 
-function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
+export function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): string {
+  if (agent === 'THESIS_DEFENSE') {
+    return `أنت "المناقش الذكي" في منصة ${ACADEMY_INFO.nameAr}.
+
+حدود الدور:
+- استخدم بحث الطالب فقط وسياقه المباشر في هذه المناقشة.
+- لا تستخدم كتالوج البرامج العام ولا ذاكرة المشرف اليومية.
+- لا تكشف المعايير أو الأوزان أو العلامة.
+- لا تعطِ إجابات جاهزة؛ وجّه الطالب بسؤال أو طلب توضيح.
+- لا تعلن نتيجة نهائية؛ القرار للجنة البشرية والإدارة.
+
+سياق آمن لمناقشة البحث:
+${context || 'لا توجد مناقشة بحث مجدولة أو سياق بحث متاح.'}`
+  }
   return `أنت "الوكيل الذكي المتكامل" لمنصة ${ACADEMY_INFO.nameAr}.
 
 الشخصية النشطة الآن: ${AGENT_AR[agent]}.
@@ -800,15 +836,10 @@ function buildPlatformAgentSystem(agent: PlatformAgentKind, context: string): st
 - الوكالة والاعتماد: اشرح الطلبات والعقود والإلغاء والضوابط.
 - إذا كان السياق يحتوي ملف طالب أو بحثاً أو كتباً، ابدأ منه حرفياً قبل أي معلومات عامة.
 
-معلومات رسمية ثابتة:
-- البريد: ${ACADEMY_INFO.email} — واتساب: ${ACADEMY_INFO.whatsapp}.
-- رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee} دولار غير مستردة.
-- شروط القبول: ${ADMISSION_GUIDE.conditions.join(' / ')}.
-- الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}.
-- الاعتماد: رسوم تقديم طلب الاعتماد ${ACCREDITATION_GUIDE.applicationFee} دولار غير مستردة.
+معلومات رسمية:
+- اعتمد فقط على الإعدادات وسجلات البرامج الموجودة في السياق. إذا لم تجد المعلومة، قل: ${OFFICIAL_INFO_UNAVAILABLE_REPLY}.
 
-كتالوج مختصر للبرامج:
-${staticProgramsDigest()}
+${agent === 'ACADEMIC_SUPERVISOR' && !context.includes('مختصر كتالوج البرامج الأخرى') ? 'كتالوج البرامج العام غير مرفق في هذا السياق؛ استخدم برنامج الطالب المسجل وكتبه فقط.' : `كتالوج مختصر للبرامج:\n${staticProgramsDigest()}`}
 
 قواعد الإجابة:
 - اكتب بالعربية الواضحة المناسبة للهجات المستخدم.
@@ -1060,6 +1091,7 @@ export async function platformAgentComplete(opts: {
     skipGemini: true,
     timeoutMs,
     requireModelResponse: shouldPreferGemini,
+    includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }

@@ -1,15 +1,15 @@
-import { createHash } from 'crypto'
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
-import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { getOfficialContact } from '@/lib/settings'
+import { redactDeep } from '@/lib/secret-crypto'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
   hasOpenHumanHandoffRequest,
-  HUMAN_HANDOFF_CONFIRMATION_REPLY,
-  HUMAN_SUPPORT_REPLY,
+  getHumanHandoffConfirmationReply,
+  getHumanSupportReply,
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import {
@@ -39,6 +39,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const recentGreetingKeys = new Map<string, number>()
+const pendingInboundMessages = new Map<string, WhatsAppInboundMessage>()
 const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
@@ -46,7 +47,7 @@ const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
 const WHATSAPP_VOICE_HOURLY_LIMIT = 10
 const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة، ممكن تختصرها أو تكتب سؤالك؟'
 const WHATSAPP_VOICE_HANDOFF_REPLY = 'استلمنا رسالتك الصوتية ✅ تعذر تحليلها الآن بسبب ضغط/مشكلة مؤقتة، وسيتم تحويل المحادثة للموظف لمتابعة طلبك.'
-const WHATSAPP_AI_FALLBACK_REPLY = 'استلمنا رسالتك ✅ وسيتم الرد عليك قريباً.'
+const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
 function cleanupGreetingKeys() {
   const now = Date.now()
@@ -56,11 +57,11 @@ function cleanupGreetingKeys() {
 }
 
 function conversationKey(from: string) {
-  return `wa:${createHash('sha256').update(String(from || '')).digest('hex').slice(0, 32)}`
+  return `wa:${whatsappWaIdHash(from).slice(0, 32)}`
 }
 
 function waIdHash(from: string) {
-  return createHash('sha256').update(String(from || '')).digest('hex')
+  return whatsappWaIdHash(from)
 }
 
 async function shouldSendImmediateGreeting(from: string) {
@@ -158,9 +159,7 @@ async function markWhatsAppHumanSupportPrompt(key: string, from: string, message
 }
 
 function maskPhone(value?: string | null) {
-  const raw = String(value || '').replace(/\D/g, '')
-  if (!raw) return ''
-  return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
+  return maskWhatsAppPhone(value)
 }
 
 function summarizeNonMessageWhatsAppPayload(payload: any) {
@@ -235,10 +234,12 @@ function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage
 }
 
 function inboundEventPayload(message: WhatsAppInboundMessage) {
-  return {
+  return redactDeep({
     message: {
       id: message.id,
-      from: message.from,
+      fromHash: waIdHash(message.from),
+      fromMasked: maskPhone(message.from),
+      fromEncrypted: encryptWhatsAppPhone(message.from) || null,
       text: message.text || '',
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
@@ -250,7 +251,7 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       isVoice: Boolean(message.isVoice),
       originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
-  }
+  })
 }
 
 function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Date }) {
@@ -276,6 +277,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
         },
         select: { id: true },
       })
+      pendingInboundMessages.set(event.id, message)
       eventIds.push(event.id)
     } catch (error: any) {
       if (isUniqueConstraintError(error)) {
@@ -301,7 +303,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
 function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | null {
   const message = payload?.message || null
   const id = String(message?.id || '').trim()
-  const from = String(message?.from || '').trim()
+  const from = String(message?.from || '').trim() || decryptWhatsAppPhone(message?.fromEncrypted)
   if (!id || !from) return null
   return {
     id,
@@ -490,7 +492,13 @@ async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reas
     sender: 'BOT',
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,
   }).catch(() => {})
-  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: null })
+  const handoff = await createHumanHandoffRequest({
+    user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
+    message: `${reason}\n\n${message.text || ''}`.trim(),
+    source: 'WHATSAPP',
+    sourceRef: conversationKey(message.from),
+  })
+  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
   await auditWhatsAppWebhook('WHATSAPP_AI_FALLBACK_SENT', {
     from: maskPhone(message.from),
     messageId: message.id,
@@ -549,47 +557,27 @@ function fallbackContactIntent(text: string): WhatsAppContactIntent {
   return { intent: 'OTHER', confidence: 0.4, reason: 'fallback-other' }
 }
 
-function parseContactIntentJson(raw: string): WhatsAppContactIntent | null {
-  try {
-    const parsed = JSON.parse(String(raw || '').trim())
-    const intent = String(parsed.intent || '').trim() as WhatsAppContactIntentKind
-    if (!['REQUEST_OFFICIAL_CONTACT', 'PROVIDED_OWN_CONTACT', 'OTHER'].includes(intent)) return null
-    const confidence = Number(parsed.confidence)
-    return {
-      intent,
-      confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0,
-      reason: String(parsed.reason || '').slice(0, 200),
-    }
-  } catch {
-    return null
-  }
-}
-
 async function classifyWhatsAppContactIntent(text: string): Promise<WhatsAppContactIntent> {
   if (!looksLikeContactIntentCandidate(text)) return { intent: 'OTHER', confidence: 0.95, reason: 'not-contact-candidate' }
+  return fallbackContactIntent(text)
+}
 
-  const fallback = fallbackContactIntent(text)
-  if (fallback.confidence >= 0.78) return fallback
+type WhatsAppRoutingIntent = {
+  intent: 'REQUEST_OFFICIAL_CONTACT' | 'PROVIDED_OWN_CONTACT' | 'HANDOFF_DETAILS' | 'HUMAN_HANDOFF' | 'QUERY'
+  confidence: number
+  reason?: string
+  contactIntent?: WhatsAppContactIntent
+  handoffIntent?: Awaited<ReturnType<typeof analyzeHumanHandoffIntent>>
+}
 
-  try {
-    if (!(await ensureGeminiKey())) return fallback
-    const raw = await withTimeout(geminiCompleteJson({
-      system: `صنّف نية رسالة واتساب واحدة بخصوص أرقام التواصل فقط. أرجع JSON صالحاً فقط بالشكل {"intent":"...","confidence":0..1,"reason":"..."}.
-الأنواع:
-REQUEST_OFFICIAL_CONTACT = المستخدم يسأل عن أرقام/واتساب/هاتف/بريد/طرق التواصل الرسمية للأكاديمية أو يريد أن يعرف كيف يتواصل مع الإدارة.
-PROVIDED_OWN_CONTACT = المستخدم يعطي رقمه أو يقول تواصلوا معي/اتصلوا علي/هذا رقمي أو يريد من الإدارة التواصل معه على رقم يقدمه.
-OTHER = أي شيء آخر، بما فيه سؤال عن سعر أو برنامج أو قبول حتى لو ذُكرت كلمة رقم بمعنى رقم طلب أو رقم برنامج.
-فرّق جيداً بين "شو أرقام التواصل؟" و"خد رقمي". لا تختار REQUEST_OFFICIAL_CONTACT لمجرد وجود رقم إذا كان الرقم يبدو رقم المستخدم نفسه.`,
-      history: [{ role: 'user', text }],
-      temperature: 0,
-      maxOutputTokens: 180,
-    }), 6_000, 'whatsapp_contact_intent')
-    const parsed = parseContactIntentJson(raw)
-    if (parsed && parsed.confidence >= 0.6) return parsed
-  } catch (error: any) {
-    console.warn('WhatsApp contact intent classifier failed:', String(error?.message || error || 'failed').slice(0, 220))
-  }
-  return fallback
+async function classifyWhatsAppRoutingIntent(text: string, context: { promptActive: boolean; handoffOpen: boolean; recentMessages: { role: string; content: string }[] }): Promise<WhatsAppRoutingIntent> {
+  const contactIntent = await classifyWhatsAppContactIntent(text)
+  if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT' && contactIntent.confidence >= 0.62) return { intent: 'REQUEST_OFFICIAL_CONTACT', confidence: contactIntent.confidence, reason: contactIntent.reason, contactIntent }
+  if (contactIntent.intent === 'PROVIDED_OWN_CONTACT' && contactIntent.confidence >= 0.62) return { intent: 'PROVIDED_OWN_CONTACT', confidence: contactIntent.confidence, reason: contactIntent.reason, contactIntent }
+  const handoffIntent = await analyzeHumanHandoffIntent(text, context)
+  if (context.promptActive && !context.handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) return { intent: 'HANDOFF_DETAILS', confidence: handoffIntent.confidence, reason: handoffIntent.reason, handoffIntent }
+  if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) return { intent: 'HUMAN_HANDOFF', confidence: handoffIntent.confidence, reason: handoffIntent.reason, handoffIntent }
+  return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
 async function buildOfficialContactReply(): Promise<string> {
@@ -609,10 +597,10 @@ async function buildOfficialContactReply(): Promise<string> {
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
   const handoffKey = conversationKey(message.from)
   const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
-  const digits = String(message.from || '').replace(/\D/g, '')
+  const maskedFrom = maskPhone(message.from)
   const handoffOpen = await hasOpenHumanHandoffRequest({
     sourceRef: handoffKey,
-    phone: digits ? `+${digits}` : null,
+    phone: maskedFrom || null,
   })
   const text = String(message.text || '').trim()
   const recentMessages = storedInbound?.conversation?.id
@@ -627,61 +615,59 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
-  const contactIntent = await classifyWhatsAppContactIntent(text)
-  if (contactIntent.intent !== 'OTHER' && contactIntent.confidence >= 0.62) {
-    await auditWhatsAppWebhook('WHATSAPP_CONTACT_INTENT_CLASSIFIED', {
-      from: maskPhone(message.from),
-      text: text.slice(0, 180),
-      decision: contactIntent,
-    }, message.id)
-
-    if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT') {
-      return await buildOfficialContactReply()
-    }
-
-    if (contactIntent.intent === 'PROVIDED_OWN_CONTACT') {
-      if (!handoffOpen) {
-        const handoff = await createHumanHandoffRequest({
-          user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
-          message: text,
-          source: 'WHATSAPP',
-          sourceRef: handoffKey,
-        })
-        await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-      }
-      return handoffOpen
-        ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
-        : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
-    }
-  }
-
-  const handoffIntent = await analyzeHumanHandoffIntent(text, { promptActive, handoffOpen, recentMessages })
-  await auditWhatsAppWebhook('WHATSAPP_HANDOFF_INTENT_ANALYZED', {
+  const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
+  await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
     promptActive,
     handoffOpen,
-    decision: handoffIntent,
+    decision: routingIntent,
   }, message.id)
 
-  if (promptActive && !handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) {
+  if (routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT') return await buildOfficialContactReply()
+
+  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT') {
+    if (!handoffOpen) {
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
+        message: text,
+        source: 'WHATSAPP',
+        sourceRef: handoffKey,
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    }
+    return handoffOpen
+      ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
+      : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
+  }
+
+  if (routingIntent.intent === 'HANDOFF_DETAILS') {
     const handoff = await createHumanHandoffRequest({
-      user: { name: 'زائر واتساب', phone: digits ? `+${digits}` : undefined },
+      user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
       message: text,
       source: 'WHATSAPP',
       sourceRef: handoffKey,
     })
     await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    return HUMAN_HANDOFF_CONFIRMATION_REPLY
+    return getHumanHandoffConfirmationReply()
   }
 
-  if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
+  if (routingIntent.intent === 'HUMAN_HANDOFF') {
+    if (!handoffOpen) {
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
+        message: text || 'طلب صريح للتواصل مع موظف',
+        source: 'WHATSAPP',
+        sourceRef: handoffKey,
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    }
     await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-    return HUMAN_SUPPORT_REPLY
+    return handoffOpen ? getHumanSupportReply() : getHumanHandoffConfirmationReply()
   }
 
   const agentReply = await createOfficialWhatsAppAgentReply(message)
-  if (agentReply.trim() === HUMAN_SUPPORT_REPLY.trim()) {
+  if (agentReply.trim() === (await getHumanSupportReply()).trim()) {
     await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
   }
   return handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
@@ -715,7 +701,13 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
     await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
     if (prepared.requestHuman) {
-      await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: null })
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
+        message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
+        source: 'WHATSAPP',
+        sourceRef: conversationKey(inboundMessage.from),
+      })
+      await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
       await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
         from: maskPhone(inboundMessage.from),
         messageId: inboundMessage.id,
@@ -818,7 +810,8 @@ async function processWhatsAppEvent(eventId: string) {
   if (!claim.count) return
 
   const event = await db.whatsAppInboundEvent.findUnique({ where: { id: eventId } }).catch(() => null)
-  const message = inboundMessageFromEventPayload(event?.payload)
+  const message = pendingInboundMessages.get(eventId) || inboundMessageFromEventPayload(event?.payload)
+  pendingInboundMessages.delete(eventId)
   if (!event || !message) {
     await markInboundEventStatus(eventId, 'SKIPPED', 'Missing or invalid WhatsApp inbound event payload')
     return
