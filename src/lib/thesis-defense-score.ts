@@ -25,12 +25,12 @@ export function scoreDefenseBreakdown(
   }
   const normalized = keyed.filter((item): item is { criterion: string; score0to10: number; weight: number } => item.score0to10 != null)
   const totalWeight = normalized.reduce((sum, item) => sum + item.weight, 0)
-  if (!totalWeight) return { score: null, needsReview: Boolean(opts.requireAllCriteria), missingCriteria, breakdown: keyed }
+  if (!totalWeight) return { score: null, needsReview: Boolean(opts.requireAllCriteria), missingCriteria, breakdown: opts.requireAllCriteria ? keyed : normalized }
   const weighted = normalized.reduce((sum, item) => sum + item.score0to10 * item.weight, 0)
   return {
     score: Math.round((weighted / totalWeight) * 10),
     needsReview: false,
     missingCriteria,
-    breakdown: keyed,
+    breakdown: opts.requireAllCriteria ? keyed : normalized,
   }
 }
