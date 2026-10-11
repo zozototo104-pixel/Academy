@@ -5,7 +5,8 @@ import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForTest, defe
 import { decryptHumanHandoffPhoneForAdmin, prepareEncryptedVisitorPhone, shouldCreateHumanHandoffForOpenConversation } from '../src/lib/human-handoff'
 import { buildPlatformAgentSystem, formatPlatformUserIdentityForTest, supervisorNeedsGeneralProgramCatalogForTest } from '../src/lib/platform-agent'
 import { formatProgramKnowledge, stripSupervisorContactDataForTest } from '../src/lib/supervisor-ai'
-import { maskWhatsAppPhone, whatsappWaIdHash } from '../src/lib/whatsapp-privacy'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '../src/lib/whatsapp-privacy'
+import { decryptConversationWaIdForInternalUse, hashWhatsAppId, maskWhatsAppId } from '../src/lib/whatsapp-conversations'
 
 function testSupervisorContextStripsPii() {
   const output = stripSupervisorContactDataForTest('اسم الطالب محمد، بريده test@example.com ورقمه +970 598 400 510')
