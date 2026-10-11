@@ -167,16 +167,18 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
   }
 
   const messages = await recentWhatsAppAgentMessages(message)
+  const contact = await getOfficialContact().catch(() => ({} as any))
+  const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
   const result = await platformPublicAgentComplete({
     messages,
     channel: 'WHATSAPP',
-    uiContext: [
+    uiContext: wrapUntrustedUiContext([
       'المستخدم يتواصل عبر واتساب الرسمي للأكاديمية، وليس عبر نافذة الموقع.',
       `اسم جهة الاتصال إن وجد: ${message.name || 'غير متاح'}.`,
-      `رقم واتساب الرسمي للإدارة: ${ACADEMY_INFO.whatsappDisplay}.`,
+      `رقم واتساب الرسمي للإدارة من الإعدادات: ${officialNumbers}.`,
       'لا تكرر الترحيب بالاسم في كل رد؛ يكفي في بداية المحادثة أو بعد انقطاع واضح. إذا كانت الرسالة مجاملة قصيرة فأجب باختصار. إذا كان السؤال عن الأكاديمية أو البرامج أو الرسوم أو التسجيل فأعطِ تفصيلاً مفيداً حسب السؤال.',
       'إذا كانت الرسالة عن شركة تدريب أو تعاون أو شراكة أو وكالة أو اعتماد، عالجها كطلب تعاون مؤسسي واجمع معلومات الجهة وهدف التعاون؛ لا تعرض تحويل موظف إلا إذا طلب المستخدم ذلك صراحة.',
-    ].join(' '),
+    ].join(' ')),
   })
 
   return result.reply || 'أهلاً بك، كيف يمكنني مساعدتك في برامج الأكاديمية؟'
