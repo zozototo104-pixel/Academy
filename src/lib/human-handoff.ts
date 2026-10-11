@@ -27,6 +27,36 @@ export const HUMAN_HANDOFF_CONFIRMATION_REPLY = [
 
 export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
 
+async function officialContactLines() {
+  const contact = await getOfficialContact().catch(() => ({ phones: [], whatsapps: [], phone: '', whatsapp: '' } as any))
+  const numbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean)))
+  return numbers.length ? numbers.map((n) => `📞 ${n}`).join('\n') : 'هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة'
+}
+
+export async function getHumanSupportReply() {
+  const lines = await officialContactLines()
+  return [
+    'أهلًا وسهلًا بك 🌟',
+    'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك مراسلتنا عبر واتساب أو الاتصال على أحد الأرقام الرسمية التالية:',
+    '',
+    lines,
+    '',
+    'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
+  ].join('\n')
+}
+
+export async function getHumanHandoffConfirmationReply() {
+  const lines = await officialContactLines()
+  return [
+    'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
+    '',
+    'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
+    '',
+    'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
+    lines,
+  ].join('\n')
+}
+
 function normalizeArabic(text: string): string {
   return text
     .toLowerCase()
