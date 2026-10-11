@@ -332,6 +332,26 @@ export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest:
   return !existingOpenRequest
 }
 
+export function prepareEncryptedVisitorPhone(rawPhone?: string | null) {
+  const raw = String(rawPhone || '').trim()
+  if (!raw) return { phoneMasked: '', phoneHash: '', phoneEncrypted: '' }
+  const phoneMasked = maskWhatsAppPhone(raw)
+  const phoneHash = whatsappWaIdHash(raw)
+  let phoneEncrypted = ''
+  if (hasSecretEncryptionKey()) {
+    try { phoneEncrypted = encryptSecret(raw) } catch { phoneEncrypted = '' }
+  }
+  return { phoneMasked, phoneHash, phoneEncrypted }
+}
+
+export function decryptHumanHandoffPhoneForAdmin(record: { phoneEncrypted?: string | null; phoneMasked?: string | null; phone?: string | null }) {
+  const encrypted = String(record.phoneEncrypted || '').trim()
+  if (encrypted && isEncryptedSecret(encrypted)) {
+    try { return decryptSecret(encrypted) } catch { return record.phoneMasked || record.phone || '' }
+  }
+  return record.phoneMasked || record.phone || ''
+}
+
 export async function createHumanHandoffRequest(args: {
   user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; role?: string | null }
   message: string
