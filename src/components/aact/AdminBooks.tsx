@@ -1334,9 +1334,9 @@ export function AdminBooksTab() {
     }
   }
 
-  const runUnitQuestionPanelAction = async () => {
+  const runUnitQuestionPanelAction = async (countOverride?: number) => {
     if (!unitQuestionsUnit || !unitQuestions) return
-    await generateUnitExam(unitQuestionsUnit)
+    await generateUnitExam(unitQuestionsUnit, countOverride)
     await loadUnitQuestions(unitQuestionsUnit.id)
   }
 
