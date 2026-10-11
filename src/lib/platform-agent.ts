@@ -1091,6 +1091,7 @@ export async function platformAgentComplete(opts: {
     skipGemini: true,
     timeoutMs,
     requireModelResponse: shouldPreferGemini,
+    includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
