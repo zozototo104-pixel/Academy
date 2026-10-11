@@ -25,7 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     select: {
       id: true,
       files: {
-        where: { id: fileId },
+        where: { id: fileId, reviewStatus: 'APPROVED' },
         take: 1,
         select: {
           id: true,
