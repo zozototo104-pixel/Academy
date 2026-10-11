@@ -533,12 +533,21 @@ function personaForAgent(agent: PlatformAgentKind): SupervisorPersona {
   return 'CHAT'
 }
 
-function staticProgramsDigest(max = 40): string {
-  return allSeedPrograms.slice(0, max).map((p, i) => {
-    const fee = p.price ? ` — رسوم تقريبية ${p.price} دولار` : ''
-    const hours = p.hours ? ` — ${p.hours} ساعة` : ''
-    return `${i + 1}. ${p.titleAr}${p.titleEn ? ` (${p.titleEn})` : ''} — ${p.category}${hours}${fee}`
-  }).join('\n')
+function staticProgramsDigest(_max = 40): string {
+  return OFFICIAL_INFO_UNAVAILABLE_REPLY
+}
+
+async function officialPlatformSettingsSummary(): Promise<string> {
+  const settings = await getSettings().catch(() => ({} as Record<string, string>))
+  const value = (key: string) => String(settings[key] || '').trim() || OFFICIAL_INFO_UNAVAILABLE_REPLY
+  return [
+    `شروط القبول: ${value('ADMISSION_CONDITIONS_TEXT')}`,
+    `الوثائق المطلوبة: ${value('ADMISSION_DOCUMENTS_TEXT')}`,
+    `خطوات التسجيل: ${value('ADMISSION_STEPS_TEXT')}`,
+    `رسوم تقديم القبول: ${value('FEE_APPLICATION')}`,
+    `الاعتماد: ${value('ACCREDITATION_BENEFITS_TEXT')}`,
+    `مدة إصدار الشهادة: ${value('CERTIFICATE_ISSUE_DAYS')}`,
+  ].join(' | ')
 }
 
 function publicQueryIntentNote(query?: string | null): string {
