@@ -225,7 +225,7 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
     verifyUrl: includeToken && token ? representativeVerifyUrl(token, origin) : null,
     featured: row.featured,
     sortOrder: row.sortOrder,
-    files: Array.isArray(row.files) ? row.files.map((file: any) => ({
+    files: Array.isArray(row.files) ? row.files.filter((file: any) => (file.reviewStatus || 'APPROVED') === 'APPROVED').map((file: any) => ({
       id: file.id,
       kind: file.kind,
       title: file.title,
