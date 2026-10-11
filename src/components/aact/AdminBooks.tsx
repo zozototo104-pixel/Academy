@@ -1228,8 +1228,10 @@ export function AdminBooksTab() {
     }
   }
 
-  const generateUnitExam = async (unit: CurriculumUnitReviewItem) => {
+  const generateUnitExam = async (unit: CurriculumUnitReviewItem, countOverride?: number) => {
     if (!programId) return
+    const requestedCount = Math.max(3, Math.min(20, Math.floor(Number(countOverride || 10))))
+    const partialDraft = Boolean(countOverride && requestedCount < 10)
     const hasExam = Boolean(unit.exam?.id)
     const attemptsCount = unit.exam?.attemptsCount || 0
     if (attemptsCount > 0) {
