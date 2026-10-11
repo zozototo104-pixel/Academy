@@ -647,7 +647,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
   if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
     if (!handoffOpen) {
       const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskedFrom || undefined },
+        user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
         message: text || 'طلب صريح للتواصل مع موظف',
         source: 'WHATSAPP',
         sourceRef: handoffKey,
