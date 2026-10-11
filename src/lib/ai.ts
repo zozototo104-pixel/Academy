@@ -463,7 +463,7 @@ export async function chatComplete(
     console.error('Supervisor runtime context failed:', String(e?.message || e).slice(0, 300))
   }
 
-  const systemPrompt = buildSupervisorSystemPrompt(context, persona, runtime)
+  const systemPrompt = buildSupervisorSystemPrompt(context, persona, runtime, { includeGeneralCatalog: options.includeGeneralCatalog })
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
   const timeoutMs = aiTimeoutMs(options.timeoutMs, 22_000)
 
