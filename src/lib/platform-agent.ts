@@ -759,7 +759,8 @@ async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query
   }).catch(() => null)
   if (!user) return ''
 
-  const base = `المستخدم الحالي: ${user.name} — الدور ${user.role} — البريد ${user.email}${user.country ? ` — الدولة ${user.country}` : ''}.`
+  const firstName = String(user.name || '').trim().split(/\s+/)[0] || 'غير محدد'
+  const base = `المستخدم الحالي: الاسم الأول ${firstName} — الدور ${user.role}.`
   const blocks = [base]
 
   const userScope = resolveAiKnowledgeScope({ role: user.role })
