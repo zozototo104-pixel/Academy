@@ -621,8 +621,9 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
       paymentContext,
       intentNote ? `تحليل السؤال الحالي:\n${intentNote}` : '',
       focusedLines ? `مطابقات مباشرة لسؤال الزائر الحالي "${compactText(query, 160)}":\n${focusedLines}` : '',
-      `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || staticProgramsDigest(50)}`,
-      `قواعد القبول العامة: ${ADMISSION_GUIDE.conditions.join(' / ')}. الوثائق المطلوبة: ${ADMISSION_GUIDE.documents.join(' / ')}. رسوم تقديم القبول: ${ADMISSION_FEES.applicationFee}$ غير مستردة.`,
+      `فهرس البرامج والخدمات النشطة المتاحة للزائر:\n${generalLines || OFFICIAL_INFO_UNAVAILABLE_REPLY}`,
+      `معلومات رسمية من الإعدادات فقط: ${officialSettings}`,
+      'إذا أي معلومة رسمية غير موجودة في الإعدادات أو سجل البرنامج، قل: هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة.',
     ].filter(Boolean).join('\n\n').slice(0, 36000)
   } catch (error: any) {
     console.error('public platform snapshot error:', String(error?.message || error).slice(0, 400))
