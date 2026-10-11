@@ -436,6 +436,13 @@ async function ensureLaunchQualityDiagnosticStudent() {
     abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
     fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي والمناقشة المجدولة.',
     status: 'SCHEDULED',
+    extractionStatus: 'READY',
+    digest: {
+      problem: 'قياس أثر مؤشرات المخاطر على الحوكمة المؤسسية.',
+      methodology: 'منهج وصفي تحليلي قائم على دراسة حالة ومقابلات داخلية.',
+      keyFindings: ['المؤشرات المبكرة تساعد الإدارة على التصعيد قبل تفاقم المخاطر.', 'ربط المؤشر بمالك واضح يزيد فعالية الضوابط.'],
+      sectionMap: [{ title: 'المنهجية والنتائج', chunkFrom: 1, chunkTo: 1 }],
+    },
     defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
     committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
     aiScore: null,
