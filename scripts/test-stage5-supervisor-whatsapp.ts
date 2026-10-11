@@ -63,9 +63,23 @@ function testDefenseContextHasNoGeneralCatalog() {
 }
 
 function testDefenseSessionRequiresScheduledThesis() {
-  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED' }), true)
-  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SUBMITTED' }), false)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED', defenseDate: new Date() }), true)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SCHEDULED' }), false)
+  assert.equal(defenseSessionAllowedForTest({ id: 'thesis-1', status: 'SUBMITTED', defenseDate: new Date() }), false)
   assert.equal(defenseSessionAllowedForTest(null), false)
+}
+
+function testEncryptedVisitorPhoneForAdmin() {
+  process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 19).toString('base64')
+  const raw = '+970598400510'
+  const prepared = prepareEncryptedVisitorPhone(raw)
+  assert.equal(prepared.phoneMasked.includes('****'), true)
+  assert.notEqual(prepared.phoneHash, raw)
+  assert(prepared.phoneEncrypted.startsWith('enc:v1:'))
+  assert.equal(decryptHumanHandoffPhoneForAdmin(prepared), raw)
+  const serialized = JSON.stringify({ payload: { phone: prepared.phoneMasked, phoneEncrypted: prepared.phoneEncrypted } })
+  assert(!serialized.includes(raw))
+  delete process.env.AACT_SECRETS_KEY
 }
 
 function testSupervisorGeneralCatalogClassifier() {
