@@ -589,21 +589,7 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
       },
     }).catch(() => [])
 
-    const source = programs.length
-      ? programs
-      : allSeedPrograms.slice(0, 80).map((p: any) => ({
-        titleAr: p.titleAr,
-        titleEn: p.titleEn,
-        category: p.category,
-        hours: p.hours,
-        price: p.price,
-        description: p.description,
-        registrationStatus: 'OPEN',
-        academicReadinessStatus: 'SEED',
-        books: [],
-        units: [],
-        _count: { books: 0, units: 0, assignments: 0, programExams: 0, enrollments: 0 },
-      }))
+    const source = programs
 
     const scored = (source as any[])
       .map((program) => ({ program, score: scoreCatalogProgram(program, query) }))
