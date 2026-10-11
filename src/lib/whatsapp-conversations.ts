@@ -1,187 +1,121 @@
-import crypto from 'crypto'
 import { db } from '@/lib/db'
-import type { WhatsAppInboundMessage } from '@/lib/whatsapp-cloud'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 
-type ConversationStatus = 'BOT_ACTIVE' | 'HUMAN_REQUESTED' | 'HUMAN_ACTIVE' | 'CLOSED'
+const REQUESTED_TTL_MS = 24 * 60 * 60 * 1000
 
-type OutboundSender = 'BOT' | 'HUMAN' | 'SYSTEM'
-
-function digitsOnly(value?: string | null) {
+export function normalizeWaId(value: string | null | undefined) {
   return String(value || '').replace(/\D/g, '')
 }
 
-export function maskWhatsAppId(value?: string | null) {
-  const raw = digitsOnly(value)
-  if (!raw) return ''
-  return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
+export function maskWaId(value: string | null | undefined) {
+  return maskWhatsAppPhone(value)
 }
 
-export function hashWhatsAppId(value: string) {
-  const raw = digitsOnly(value) || String(value || '').trim()
-  return crypto.createHash('sha256').update(raw).digest('hex')
+export function hashWaId(value: string | null | undefined) {
+  return whatsappWaIdHash(normalizeWaId(value))
 }
 
-export function whatsappConversationKey(value: string) {
-  return `whatsapp:${hashWhatsAppId(value).slice(0, 24)}`
+export function conversationKey(value: string | null | undefined) {
+  return `wa:${hashWaId(value).slice(0, 32)}`
 }
 
-function compact(value: unknown, max = 1200) {
-  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max)
+export function decryptConversationWaIdForInternalUse(record: { waId?: string | null; waIdEncrypted?: string | null }) {
+  return decryptWhatsAppPhone(record.waIdEncrypted) || normalizeWaId(record.waId || '')
 }
 
-export async function upsertWhatsAppConversationFromInbound(message: WhatsAppInboundMessage) {
-  const waId = digitsOnly(message.from)
-  const waIdHash = hashWhatsAppId(waId)
-  const now = new Date()
-  const text = compact(message.text || `[${message.rawType || 'message'}]`, 1000)
-
+export async function getOrCreateWhatsAppConversation(waId: string, opts: { displayName?: string | null } = {}) {
+  const normalized = normalizeWaId(waId)
+  if (!normalized) return null
+  const waIdHash = hashWaId(normalized)
+  const masked = maskWaId(normalized)
+  const encrypted = encryptWhatsAppPhone(normalized)
   return db.whatsAppConversation.upsert({
     where: { waIdHash },
-    create: {
-      waId,
-      waIdHash,
-      phoneMasked: maskWhatsAppId(waId),
-      displayName: message.name || null,
-      phoneNumberId: message.phoneNumberId || null,
-      status: 'BOT_ACTIVE',
-      lastInboundAt: now,
-      lastMessageAt: now,
-      lastMessageText: text || null,
-    },
     update: {
-      waId,
-      phoneMasked: maskWhatsAppId(waId),
-      displayName: message.name || undefined,
-      phoneNumberId: message.phoneNumberId || undefined,
-      lastInboundAt: now,
-      lastMessageAt: now,
-      lastMessageText: text || null,
-      humanClosedAt: text ? null : undefined,
+      waId: masked,
+      waIdEncrypted: encrypted || undefined,
+      phoneMasked: masked,
+      displayName: opts.displayName || undefined,
+      lastInboundAt: new Date(),
+      updatedAt: new Date(),
+    },
+    create: {
+      waId: masked,
+      waIdHash,
+      waIdEncrypted: encrypted || null,
+      phoneMasked: masked,
+      displayName: opts.displayName || null,
+      status: 'ACTIVE',
+      lastInboundAt: new Date(),
     },
   })
 }
 
-export async function recordWhatsAppInboundMessage(message: WhatsAppInboundMessage) {
-  let conversation = await upsertWhatsAppConversationFromInbound(message)
-  if (conversation.status === 'CLOSED') {
-    conversation = await db.whatsAppConversation.update({
-      where: { id: conversation.id },
-      data: { status: 'BOT_ACTIVE', humanClosedAt: null },
-    })
-  }
-  const text = message.text || `رسالة غير نصية (${message.rawType || 'unknown'})`
-  const stored = await db.whatsAppConversationMessage.create({
-    data: {
-      conversationId: conversation.id,
-      whatsappMessageId: message.id || null,
-      direction: 'INBOUND',
-      sender: 'CUSTOMER',
-      text: text.slice(0, 4096),
-      rawType: message.rawType || null,
-      meta: {
-        phoneNumberId: message.phoneNumberId || null,
-        contactName: message.name || null,
-        kind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
-        mediaId: message.mediaId || null,
-        mediaMimeType: message.mediaMimeType || null,
-        mediaFileSize: message.mediaFileSize || null,
-        isVoice: Boolean(message.isVoice),
-      },
-    },
-  }).catch(() => null)
-  return { conversation, message: stored }
-}
-
-export async function recordWhatsAppOutboundMessage(args: {
-  waId: string
-  phoneNumberId?: string | null
-  text: string
-  sender: OutboundSender
-  whatsappMessageId?: string | null
-  sentById?: string | null
-  sentByName?: string | null
-  status?: string | null
-}) {
-  const waId = digitsOnly(args.waId)
-  const waIdHash = hashWhatsAppId(waId)
-  const now = new Date()
-  const conversation = await db.whatsAppConversation.upsert({
+export async function markWhatsAppConversationRequested(args: { waId: string; handoffRequestId?: string | null }) {
+  const normalized = normalizeWaId(args.waId)
+  if (!normalized) return null
+  const waIdHash = hashWaId(normalized)
+  const masked = maskWaId(normalized)
+  const encrypted = encryptWhatsAppPhone(normalized)
+  return db.whatsAppConversation.upsert({
     where: { waIdHash },
-    create: {
-      waId,
-      waIdHash,
-      phoneMasked: maskWhatsAppId(waId),
-      phoneNumberId: args.phoneNumberId || null,
-      status: 'BOT_ACTIVE',
-      lastOutboundAt: now,
-      lastMessageAt: now,
-      lastMessageText: args.text.slice(0, 1000),
-    },
     update: {
-      waId,
-      phoneNumberId: args.phoneNumberId || undefined,
-      lastOutboundAt: now,
-      lastMessageAt: now,
-      lastMessageText: args.text.slice(0, 1000),
-    },
-  })
-  await db.whatsAppConversationMessage.create({
-    data: {
-      conversationId: conversation.id,
-      whatsappMessageId: args.whatsappMessageId || null,
-      direction: 'OUTBOUND',
-      sender: args.sender,
-      text: args.text.slice(0, 4096),
-      status: args.status || 'SENT',
-      sentById: args.sentById || null,
-      sentByName: args.sentByName || null,
-      meta: { phoneNumberId: args.phoneNumberId || null },
-    },
-  }).catch(() => {})
-  return conversation
-}
-
-export async function markWhatsAppConversationRequested(args: {
-  waId: string
-  handoffRequestId?: string | null
-}) {
-  const waIdHash = hashWhatsAppId(args.waId)
-  await db.whatsAppConversation.updateMany({
-    where: { waIdHash, status: { not: 'HUMAN_ACTIVE' } },
-    data: {
+      waId: masked,
+      waIdEncrypted: encrypted || undefined,
+      phoneMasked: masked,
       status: 'HUMAN_REQUESTED',
+      humanRequestedAt: new Date(),
       handoffRequestId: args.handoffRequestId || undefined,
+      updatedAt: new Date(),
     },
-  }).catch(() => {})
+    create: {
+      waId: masked,
+      waIdHash,
+      waIdEncrypted: encrypted || null,
+      phoneMasked: masked,
+      status: 'HUMAN_REQUESTED',
+      humanRequestedAt: new Date(),
+      handoffRequestId: args.handoffRequestId || null,
+      lastInboundAt: new Date(),
+    },
+  })
 }
 
-export async function isWhatsAppConversationHumanActive(waId: string) {
-  const waIdHash = hashWhatsAppId(waId)
-  const conversation = await db.whatsAppConversation.findUnique({
+export async function isWhatsAppConversationHumanRequested(waId: string) {
+  const normalized = normalizeWaId(waId)
+  if (!normalized) return false
+  const row = await db.whatsAppConversation.findUnique({ where: { waIdHash: hashWaId(normalized) }, select: { status: true, humanRequestedAt: true } }).catch(() => null)
+  if (!row || row.status !== 'HUMAN_REQUESTED') return false
+  if (!row.humanRequestedAt) return true
+  return Date.now() - row.humanRequestedAt.getTime() < REQUESTED_TTL_MS
+}
+
+export async function markWhatsAppConversationAutoReplied(waId: string, message: string) {
+  const normalized = normalizeWaId(waId)
+  if (!normalized) return null
+  const waIdHash = hashWaId(normalized)
+  const masked = maskWaId(normalized)
+  const encrypted = encryptWhatsAppPhone(normalized)
+  return db.whatsAppConversation.upsert({
     where: { waIdHash },
-    select: { id: true, status: true },
-  }).catch(() => null)
-  return conversation?.status === 'HUMAN_ACTIVE'
-}
-
-export async function setWhatsAppConversationStatus(args: {
-  conversationId: string
-  status: ConversationStatus
-  adminId?: string | null
-  adminName?: string | null
-}) {
-  const now = new Date()
-  const data: any = { status: args.status }
-  if (args.status === 'HUMAN_ACTIVE') {
-    data.assignedToId = args.adminId || null
-    data.assignedToName = args.adminName || null
-    data.assignedAt = now
-    data.humanClosedAt = null
-  }
-  if (args.status === 'BOT_ACTIVE' || args.status === 'CLOSED') {
-    data.humanClosedAt = now
-    data.assignedToId = args.status === 'CLOSED' ? args.adminId || null : null
-    data.assignedToName = args.status === 'CLOSED' ? args.adminName || null : null
-  }
-  return db.whatsAppConversation.update({ where: { id: args.conversationId }, data })
+    update: {
+      waId: masked,
+      waIdEncrypted: encrypted || undefined,
+      phoneMasked: masked,
+      status: 'ACTIVE',
+      lastAutoReplyAt: new Date(),
+      lastAutoReplyText: String(message || '').slice(0, 2000),
+      updatedAt: new Date(),
+    },
+    create: {
+      waId: masked,
+      waIdHash,
+      waIdEncrypted: encrypted || null,
+      phoneMasked: masked,
+      status: 'ACTIVE',
+      lastAutoReplyAt: new Date(),
+      lastAutoReplyText: String(message || '').slice(0, 2000),
+      lastInboundAt: new Date(),
+    },
+  })
 }
