@@ -353,7 +353,7 @@ export function decryptHumanHandoffPhoneForAdmin(record: { phoneEncrypted?: stri
 }
 
 export async function createHumanHandoffRequest(args: {
-  user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; role?: string | null }
+  user: { id?: string | null; name?: string | null; email?: string | null; phone?: string | null; rawPhone?: string | null; role?: string | null }
   message: string
   source: 'CHAT' | 'WHATSAPP'
   sourceRef?: string | null
