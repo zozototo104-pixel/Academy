@@ -393,7 +393,7 @@ export async function createHumanHandoffRequest(args: {
     data: {
       name: displayName.slice(0, 120),
       email: (args.user.email || 'human-handoff@aactacademy.local').slice(0, 180),
-      phone: args.user.phone || null,
+      phone: safePhoneForDisplay || null,
       subject: 'طلب تواصل بشري من الوكيل الذكي',
       message: body.slice(0, 3000),
     },
