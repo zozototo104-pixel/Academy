@@ -562,6 +562,24 @@ async function classifyWhatsAppContactIntent(text: string): Promise<WhatsAppCont
   return fallbackContactIntent(text)
 }
 
+type WhatsAppRoutingIntent = {
+  intent: 'REQUEST_OFFICIAL_CONTACT' | 'PROVIDED_OWN_CONTACT' | 'HANDOFF_DETAILS' | 'HUMAN_HANDOFF' | 'QUERY'
+  confidence: number
+  reason?: string
+  contactIntent?: WhatsAppContactIntent
+  handoffIntent?: Awaited<ReturnType<typeof analyzeHumanHandoffIntent>>
+}
+
+async function classifyWhatsAppRoutingIntent(text: string, context: { promptActive: boolean; handoffOpen: boolean; recentMessages: { role: string; content: string }[] }): Promise<WhatsAppRoutingIntent> {
+  const contactIntent = await classifyWhatsAppContactIntent(text)
+  if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT' && contactIntent.confidence >= 0.62) return { intent: 'REQUEST_OFFICIAL_CONTACT', confidence: contactIntent.confidence, reason: contactIntent.reason, contactIntent }
+  if (contactIntent.intent === 'PROVIDED_OWN_CONTACT' && contactIntent.confidence >= 0.62) return { intent: 'PROVIDED_OWN_CONTACT', confidence: contactIntent.confidence, reason: contactIntent.reason, contactIntent }
+  const handoffIntent = await analyzeHumanHandoffIntent(text, context)
+  if (context.promptActive && !context.handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) return { intent: 'HANDOFF_DETAILS', confidence: handoffIntent.confidence, reason: handoffIntent.reason, handoffIntent }
+  if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) return { intent: 'HUMAN_HANDOFF', confidence: handoffIntent.confidence, reason: handoffIntent.reason, handoffIntent }
+  return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
+}
+
 async function buildOfficialContactReply(): Promise<string> {
   const contact: any = await getOfficialContact().catch(() => ({}))
   const whatsapps = contactValues(contact.whatsapp, contact.whatsapps)
