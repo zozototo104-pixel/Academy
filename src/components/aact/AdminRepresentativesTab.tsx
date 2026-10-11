@@ -68,7 +68,7 @@ type Representative = FormState & {
   onboardingStatus?: string | null
   onboardingSubmittedAt?: string | null
   sourceAgentApplicationId?: string | null
-  files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null }>
+  files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null; reviewStatus?: string | null; reviewNote?: string | null }>
 }
 
 function formFromRepresentative(rep: Representative): FormState {
