@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { OFFICIAL_INFO_UNAVAILABLE_REPLY, officialValueOrUnavailable } from '../src/lib/ai'
 import { wrapUntrustedUiContext } from '../src/lib/untrusted-context'
+import { buildThesisDefenseContextFromParts } from '../src/lib/thesis-context'
 import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForTest, defenseSessionAllowedForTest } from '../src/lib/defense-agent-context'
 import { decryptHumanHandoffPhoneForAdmin, prepareEncryptedVisitorPhone, shouldCreateHumanHandoffForOpenConversation } from '../src/lib/human-handoff'
 import { buildPlatformAgentSystem, formatPlatformUserIdentityForTest, supervisorNeedsGeneralProgramCatalogForTest } from '../src/lib/platform-agent'
