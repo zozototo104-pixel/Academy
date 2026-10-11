@@ -492,7 +492,7 @@ async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reas
     whatsappMessageId: sendResult?.messages?.[0]?.id || null,
   }).catch(() => {})
   const handoff = await createHumanHandoffRequest({
-    user: { name: 'زائر واتساب', phone: maskPhone(message.from) },
+    user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
     message: `${reason}\n\n${message.text || ''}`.trim(),
     source: 'WHATSAPP',
     sourceRef: conversationKey(message.from),
