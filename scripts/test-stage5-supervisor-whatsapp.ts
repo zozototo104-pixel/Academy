@@ -130,6 +130,29 @@ function testWhatsAppConversationStoresMaskedAndEncryptedSender() {
   delete process.env.AACT_SECRETS_KEY
 }
 
+function testCompletedDefenseWithUngradedCriterionNeedsReview() {
+  const result = scoreDefenseBreakdown([
+    { criterion: 'methodology', score0to10: 8 },
+    { criterion: 'results', score0to10: null },
+    { criterion: 'contribution', score0to10: 7 },
+    { criterion: 'literature', score0to10: 6 },
+    { criterion: 'presentation', score0to10: 9 },
+  ], { requireAllCriteria: true })
+  assert.equal(result.score, null)
+  assert.equal(result.needsReview, true)
+  assert.deepEqual(result.missingCriteria, ['results'])
+}
+
+function testEarlyEndedDefenseCanRedistributeAnsweredCriteria() {
+  const result = scoreDefenseBreakdown([
+    { criterion: 'methodology', score0to10: 8 },
+    { criterion: 'results', score0to10: null },
+    { criterion: 'contribution', score0to10: 6 },
+  ])
+  assert.equal(result.needsReview, false)
+  assert.equal(result.score, 71)
+}
+
 function testSupervisorGeneralCatalogClassifier() {
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('ما هي البرامج الأخرى المتاحة؟'), true)
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('اشرح كتاب برنامجي الحالي'), false)
