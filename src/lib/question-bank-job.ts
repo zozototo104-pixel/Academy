@@ -334,7 +334,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const parsed = parseGeneratedQuestionCandidates(raw.text)
   assertGeneratedBatchHasAcceptedCandidates(parsed)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
-  const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: 18_000 })
+  const verifierBudgetMs = Math.max(18_000, Math.min(45_000, (deadlineMs || Date.now() + QUESTION_BANK_STEP_MS) - Date.now() - 3_000))
+  const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs })
   const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]
   const verifierRejected = verified.filter((item) => !hasSourceGroundedFlag(item))
   for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))
