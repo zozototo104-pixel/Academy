@@ -615,44 +615,33 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
-  const contactIntent = await classifyWhatsAppContactIntent(text)
-  if (contactIntent.intent !== 'OTHER' && contactIntent.confidence >= 0.62) {
-    await auditWhatsAppWebhook('WHATSAPP_CONTACT_INTENT_CLASSIFIED', {
-      from: maskPhone(message.from),
-      text: text.slice(0, 180),
-      decision: contactIntent,
-    }, message.id)
-
-    if (contactIntent.intent === 'REQUEST_OFFICIAL_CONTACT') {
-      return await buildOfficialContactReply()
-    }
-
-    if (contactIntent.intent === 'PROVIDED_OWN_CONTACT') {
-      if (!handoffOpen) {
-        const handoff = await createHumanHandoffRequest({
-          user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
-          message: text,
-          source: 'WHATSAPP',
-          sourceRef: handoffKey,
-        })
-        await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-      }
-      return handoffOpen
-        ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
-        : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
-    }
-  }
-
-  const handoffIntent = await analyzeHumanHandoffIntent(text, { promptActive, handoffOpen, recentMessages })
-  await auditWhatsAppWebhook('WHATSAPP_HANDOFF_INTENT_ANALYZED', {
+  const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
+  await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
     promptActive,
     handoffOpen,
-    decision: handoffIntent,
+    decision: routingIntent,
   }, message.id)
 
-  if (promptActive && !handoffOpen && handoffIntent.isHandoffDetails && handoffIntent.confidence >= 0.55) {
+  if (routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT') return await buildOfficialContactReply()
+
+  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT') {
+    if (!handoffOpen) {
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
+        message: text,
+        source: 'WHATSAPP',
+        sourceRef: handoffKey,
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    }
+    return handoffOpen
+      ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
+      : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
+  }
+
+  if (routingIntent.intent === 'HANDOFF_DETAILS') {
     const handoff = await createHumanHandoffRequest({
       user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
       message: text,
@@ -663,7 +652,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     return getHumanHandoffConfirmationReply()
   }
 
-  if (handoffIntent.wantsHumanSupport && handoffIntent.confidence >= 0.55) {
+  if (routingIntent.intent === 'HUMAN_HANDOFF') {
     if (!handoffOpen) {
       const handoff = await createHumanHandoffRequest({
         user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
