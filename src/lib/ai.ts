@@ -274,7 +274,8 @@ export async function chatWithRetry(
 export function buildSupervisorSystemPrompt(
   context?: string,
   persona: SupervisorPersona = 'CHAT',
-  runtime?: SupervisorRuntimeContext
+  runtime?: SupervisorRuntimeContext,
+  opts: { includeGeneralCatalog?: boolean } = {},
 ): string {
   const contactEmail = runtime?.contactEmail || OFFICIAL_INFO_UNAVAILABLE_REPLY
   const contactWhatsapp = runtime?.contactWhatsapp || OFFICIAL_INFO_UNAVAILABLE_REPLY
