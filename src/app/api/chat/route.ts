@@ -99,10 +99,16 @@ export async function POST(req: NextRequest) {
                 source: 'CHAT',
                 sourceRef: user.id,
               })
-              reply = HUMAN_HANDOFF_CONFIRMATION_REPLY
+              reply = await getHumanHandoffConfirmationReply()
               await emitChunk(reply)
             } else if (wantsHumanSupport(userText)) {
-              reply = HUMAN_SUPPORT_REPLY
+              await createHumanHandoffRequest({
+                user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+                message: userText,
+                source: 'CHAT',
+                sourceRef: user.id,
+              })
+              reply = await getHumanHandoffConfirmationReply()
               await emitChunk(reply)
             } else {
               const result = await platformAgentStream({
