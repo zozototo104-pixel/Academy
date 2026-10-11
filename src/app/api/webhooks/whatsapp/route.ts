@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
 import { getOfficialContact } from '@/lib/settings'
 import { redactDeep } from '@/lib/secret-crypto'
-import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
