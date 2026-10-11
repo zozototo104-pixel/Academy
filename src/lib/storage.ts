@@ -88,6 +88,51 @@ function cleanStorageKey(value: string): string {
   return key
 }
 
+function isPrivateIp(address: string) {
+  const family = net.isIP(address)
+  if (!family) return true
+  if (family === 4) {
+    const parts = address.split('.').map((x) => Number(x))
+    const [a, b] = parts
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+  }
+  const lower = address.toLowerCase()
+  return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:') || lower === '::'
+}
+
+function configuredAllowedStorageHosts() {
+  const values = [
+    process.env.AACT_STORAGE_ALLOWED_HOSTS,
+    process.env.AACT_STORAGE_PUBLIC_BASE_URL,
+    process.env.AACT_S3_ENDPOINT,
+  ].flatMap((raw) => String(raw || '').split(/[;,\s]+/)).map((raw) => raw.trim()).filter(Boolean)
+  const hosts = new Set<string>()
+  for (const value of values) {
+    try {
+      hosts.add(new URL(value.includes('://') ? value : `https://${value}`).hostname.toLowerCase())
+    } catch {}
+  }
+  return hosts
+}
+
+async function assertSafeStorageFetchUrl(rawUrl: string) {
+  let parsed: URL
+  try { parsed = new URL(rawUrl) } catch { throw new Error('UNSAFE_STORAGE_URL') }
+  if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('UNSAFE_STORAGE_URL')
+  const host = parsed.hostname.toLowerCase()
+  if (!configuredAllowedStorageHosts().has(host)) throw new Error('STORAGE_HOST_NOT_ALLOWED')
+  const literal = net.isIP(host)
+  const addresses = literal ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => [])
+  if (!addresses.length || addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('STORAGE_PRIVATE_HOST_REJECTED')
+}
+
+async function safeFetchStoredUrl(rawUrl: string) {
+  await assertSafeStorageFetchUrl(rawUrl)
+  const res = await fetch(rawUrl, { cache: 'no-store', redirect: 'manual' })
+  if (res.status >= 300 && res.status < 400) throw new Error('STORAGE_REDIRECT_REJECTED')
+  return res
+}
+
 function getS3Config() {
   const endpoint = process.env.AACT_S3_ENDPOINT?.trim()
   const bucket = process.env.AACT_S3_BUCKET?.trim()
