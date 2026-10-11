@@ -614,6 +614,7 @@ async function buildPublicPlatformSnapshot(query?: string | null): Promise<strin
 
     const intentNote = publicQueryIntentNote(query)
     const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    const officialSettings = await officialPlatformSettingsSummary()
 
     return [
       'سياق عام من قاعدة بيانات المنصة للزائر. هذا السياق هو المصدر العملي عند أي سؤال عام عن البرامج أو التسجيل أو الكتب أو الرسوم. لا تكتفِ بسؤال توضيحي إذا كان يمكن إعطاء إجابة مفيدة من هذا الفهرس. إذا كان السؤال عن رسوم درجة عامة مثل الدكتوراه المهنية أو الماجستير المهني فاعرض البرامج المطابقة ورسومها المحددة من البيانات بدلاً من إعطاء نطاق عام.',
