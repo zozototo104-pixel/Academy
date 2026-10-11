@@ -191,6 +191,7 @@ function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officia
 
 function representativePublicFileUrl(row: any, file: any) {
   if (!row?.slug || !file?.id || !file.storageProvider || !file.storageKey) return null
+  if (file.storageProvider === 'external-url') return null
   return `/api/representatives/${encodeURIComponent(row.slug)}/files/${encodeURIComponent(file.id)}`
 }
 
