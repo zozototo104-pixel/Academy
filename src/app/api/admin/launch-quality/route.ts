@@ -428,26 +428,27 @@ async function ensureLaunchQualityDiagnosticStudent() {
     await db.programAnswer.create({ data: { attemptId: attempt.id, questionId: programQuestion.id, selectedOption: 1, isCorrect: true, points: 20, maxPoints: 20, aiFeedback: 'صحيح؛ المؤشر يقيس اتجاه الخطر وفعالية الضوابط ولا يستبدلها.' } })
   }
 
-  await db.thesisSubmission.findFirst({ where: { userId: user.id, title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية' } }).then((existing) => existing || db.thesisSubmission.create({
-    data: {
-      userId: user.id,
-      admissionId: admission.id,
-      title: 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية',
-      abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
-      fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي.',
-      status: 'RESULT_APPROVED',
-      defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
-      committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
-      aiScore: 88,
-      aiRecommendation: 'يوصى بالنجاح مع تحسين ربط المؤشرات بخطة التصعيد.',
-      defenseStatus: 'COMPLETED',
-      defenseCompletedAt: new Date(),
-      defenseMinutes: 'ناقشت اللجنة الفرق بين مؤشرات الأداء ومؤشرات المخاطر، وطلبت أمثلة تطبيقية على حدود التصعيد.',
-      resultScore: 87,
-      passed: true,
-      reviewedAt: new Date(),
-    },
-  }))
+  const thesisTitle = 'أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية'
+  const existingThesis = await db.thesisSubmission.findFirst({ where: { userId: user.id, title: thesisTitle } })
+  const scheduledThesisData = {
+    admissionId: admission.id,
+    title: thesisTitle,
+    abstract: 'يحلل البحث كيف تساعد مؤشرات المخاطر الرئيسية في تحسين قرارات الحوكمة وتوجيه الضوابط الداخلية قبل تفاقم المخاطر.',
+    fileNote: 'بحث تشخيصي داخلي لفحص سياق المشرف الذكي والمناقشة المجدولة.',
+    status: 'SCHEDULED',
+    defenseDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    committee: JSON.stringify(['خبير الحوكمة', 'خبير إدارة المخاطر', 'المستشار الذكي']),
+    aiScore: null,
+    aiRecommendation: JSON.stringify({ diagnostic: true, note: 'مناقشة مجدولة لفحص سياق الدفاع قبل الإطلاق.' }),
+    defenseStatus: 'SCHEDULED',
+    defenseCompletedAt: null,
+    defenseMinutes: null,
+    resultScore: null,
+    passed: null,
+    reviewedAt: null,
+  }
+  if (existingThesis) await db.thesisSubmission.update({ where: { id: existingThesis.id }, data: scheduledThesisData })
+  else await db.thesisSubmission.create({ data: { userId: user.id, ...scheduledThesisData } })
 
   await db.studentAcademicMemory.upsert({
     where: { userId: user.id },
