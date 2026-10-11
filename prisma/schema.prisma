@@ -763,6 +763,7 @@ model WhatsAppConversation {
   id               String   @id @default(cuid())
   waId             String
   waIdHash         String   @unique
+  waIdEncrypted    String?
   phoneMasked      String
   displayName      String?
   phoneNumberId    String?
