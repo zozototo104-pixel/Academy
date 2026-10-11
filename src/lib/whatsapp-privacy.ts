@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
 
 export function whatsappHashSecret() {
   return process.env.WHATSAPP_HASH_SECRET || process.env.NEXTAUTH_SECRET || 'aact-whatsapp-local-hash'
@@ -12,4 +13,16 @@ export function maskWhatsAppPhone(value?: string | null) {
   const raw = String(value || '').replace(/\D/g, '')
   if (!raw) return ''
   return raw.length <= 4 ? `****${raw}` : `${raw.slice(0, 3)}****${raw.slice(-4)}`
+}
+
+export function encryptWhatsAppPhone(rawPhone?: string | null) {
+  const raw = String(rawPhone || '').trim()
+  if (!raw || !hasSecretEncryptionKey()) return ''
+  try { return encryptSecret(raw) } catch { return '' }
+}
+
+export function decryptWhatsAppPhone(encrypted?: string | null) {
+  const value = String(encrypted || '').trim()
+  if (!value || !isEncryptedSecret(value)) return ''
+  try { return decryptSecret(value) } catch { return '' }
 }
