@@ -229,14 +229,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const description = text(form.get('description'), 1200)
 
   if (externalUrl && assetType === 'file') {
-    const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: kind || 'LINK', title, description, externalUrl, fileUrl: externalUrl, storageProvider: 'external-url', storageKey: externalUrl } })
-    return NextResponse.json({ file: created })
+    try {
+      const safeExternalUrl = await validatePublicHttpsUrl(externalUrl)
+      const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: kind || 'LINK', title, description, externalUrl: safeExternalUrl, fileUrl: safeExternalUrl, storageProvider: 'external-url', storageKey: safeExternalUrl, reviewStatus: 'PENDING_REVIEW' } })
+      return NextResponse.json({ file: created })
+    } catch (error) {
+      return uploadErrorResponse(error)
+    }
   }
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'NO_FILE' }, { status: 400 })
   const buffer = Buffer.from(await file.arrayBuffer())
   try {
-    const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: file.type || 'application/octet-stream', namespace: `representatives/${rep.id}` })
+    const detected = detectAllowedUpload(buffer, file.name || 'file', file.type || 'application/octet-stream', assetType)
+    const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives/${rep.id}` })
     if (assetType === 'profilePhoto') {
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
