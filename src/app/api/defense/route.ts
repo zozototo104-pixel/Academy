@@ -190,15 +190,21 @@ export async function POST(req: NextRequest) {
         const priorScores = history.filter((m) => m.role === 'STUDENT').map((m) => finiteScore(m.score))
         const currentScore = finiteScore(result.score)
         const scores = [...priorScores, currentScore]
-        const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
+        const weighted = scoreDefenseBreakdown(
+          DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })),
+          { requireAllCriteria: true },
+        )
         const aiScore = weighted.score
-        const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
+        const needsHumanReview = Boolean((weighted as any).needsReview)
+        const rec = needsHumanReview
+          ? 'تحتاج هذه المناقشة إلى مراجعة بشرية قبل اعتماد النتيجة، لأن سؤالاً أو أكثر من الأسئلة المكتملة لم يحصل على تقييم آلي صالح.'
+          : await aiRecommendation(thesis.title, user.name, aiScore, scores.length, result.feedback, defenseAcademicContext)
         const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
         await db.thesisSubmission.update({
           where: { id: thesis.id },
           data: {
-            defenseStatus: 'COMPLETED',
-            aiScore,
+            defenseStatus: needsHumanReview ? 'NEEDS_REVIEW' : 'COMPLETED',
+            aiScore: needsHumanReview ? null : aiScore,
             aiRecommendation: rec,
             defenseBreakdown: { ...(weighted as any), ...(legacyDefense ? { legacy: true } : {}) },
             defenseMinutes: minutes,
