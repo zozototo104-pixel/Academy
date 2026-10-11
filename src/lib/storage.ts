@@ -1,5 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'crypto'
+import { promises as dns } from 'dns'
 import { promises as fs } from 'fs'
+import net from 'net'
 import path from 'path'
 
 export type StoredFileProvider = 's3' | 'local' | 'external-url'
