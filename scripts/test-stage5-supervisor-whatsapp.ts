@@ -91,6 +91,18 @@ function testEncryptedVisitorPhoneForAdmin() {
   delete process.env.AACT_SECRETS_KEY
 }
 
+function testWhatsAppConversationStoresMaskedAndEncryptedSender() {
+  process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 21).toString('base64')
+  const raw = '+970598400510'
+  const encrypted = encryptWhatsAppPhone(raw)
+  assert(encrypted.startsWith('enc:v1:'))
+  assert.equal(decryptWhatsAppPhone(encrypted), raw)
+  assert.equal(maskWhatsAppId(raw).includes('****'), true)
+  assert.notEqual(hashWhatsAppId(raw), raw)
+  assert.equal(decryptConversationWaIdForInternalUse({ waId: maskWhatsAppId(raw), waIdEncrypted: encrypted }), raw)
+  delete process.env.AACT_SECRETS_KEY
+}
+
 function testSupervisorGeneralCatalogClassifier() {
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('ما هي البرامج الأخرى المتاحة؟'), true)
   assert.equal(supervisorNeedsGeneralProgramCatalogForTest('اشرح كتاب برنامجي الحالي'), false)
