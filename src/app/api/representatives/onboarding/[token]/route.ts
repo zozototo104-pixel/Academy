@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { promises as dns } from 'dns'
+import net from 'net'
 import { db } from '@/lib/db'
 import { extractDocumentText } from '@/lib/document-extract'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
