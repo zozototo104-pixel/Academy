@@ -3,7 +3,7 @@ import { OFFICIAL_INFO_UNAVAILABLE_REPLY, officialValueOrUnavailable } from '../
 import { wrapUntrustedUiContext } from '../src/lib/untrusted-context'
 import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForTest, defenseSessionAllowedForTest } from '../src/lib/defense-agent-context'
 import { decryptHumanHandoffPhoneForAdmin, prepareEncryptedVisitorPhone, shouldCreateHumanHandoffForOpenConversation } from '../src/lib/human-handoff'
-import { buildPlatformAgentSystem, supervisorNeedsGeneralProgramCatalogForTest } from '../src/lib/platform-agent'
+import { buildPlatformAgentSystem, formatPlatformUserIdentityForTest, supervisorNeedsGeneralProgramCatalogForTest } from '../src/lib/platform-agent'
 import { formatProgramKnowledge, stripSupervisorContactDataForTest } from '../src/lib/supervisor-ai'
 import { maskWhatsAppPhone, whatsappWaIdHash } from '../src/lib/whatsapp-privacy'
 
