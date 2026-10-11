@@ -348,7 +348,7 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (url && /^https?:\/\//i.test(url)) {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await safeFetchStoredUrl(url)
     if (!res.ok) return null
     return {
       buffer: Buffer.from(await res.arrayBuffer()),
