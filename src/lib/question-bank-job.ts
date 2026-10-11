@@ -447,14 +447,17 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
     const failure = await recordJobFailure(jobId, message)
     await saveJobTrace(jobId, { generated: 0, saved: 0, verifierRejected: 0, rejected: 1, rejectionReasons: reasonCounts([message]) })
     const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+    const emptyBatch = message === 'QUESTION_BANK_JOB_EMPTY_BATCH'
     const repeatedLimitReached = failure.count >= 3
     await db.questionBankGenerationJob.updateMany({
       where: { id: jobId, status: { not: 'COMPLETED' } },
       data: repeatedLimitReached
         ? { status: 'FAILED', retryAt: null, lockedUntil: null, lastError: `فشلت وظيفة بنك الأسئلة بعد 3 محاولات متتالية بنفس الخطأ: ${message}`.slice(0, 1000), finishedAt: new Date() }
-        : paused
-          ? { status: 'PAUSED', retryAt: nextQuestionBankRetryAt(), lockedUntil: null, lastError: message }
-          : { status: 'FAILED', retryAt: null, lockedUntil: null, lastError: message, finishedAt: new Date() },
+        : emptyBatch
+          ? { status: 'QUEUED', retryAt: null, lockedUntil: null, lastError: `${message} — تمت جدولة محاولة إنقاذ بمصدر/نافذة مختلفة`.slice(0, 1000), finishedAt: null }
+          : paused
+            ? { status: 'PAUSED', retryAt: nextQuestionBankRetryAt(), lockedUntil: null, lastError: message }
+            : { status: 'FAILED', retryAt: null, lockedUntil: null, lastError: message, finishedAt: new Date() },
     })
     return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   }
