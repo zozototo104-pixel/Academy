@@ -694,7 +694,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
     if (prepared.requestHuman) {
       const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined },
+        user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
         message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
         source: 'WHATSAPP',
         sourceRef: conversationKey(inboundMessage.from),
