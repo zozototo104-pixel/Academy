@@ -755,7 +755,7 @@ async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promi
 async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query?: string | null): Promise<string> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, phone: true, country: true, createdAt: true },
+    select: { id: true, name: true, role: true, createdAt: true },
   }).catch(() => null)
   if (!user) return ''
 
