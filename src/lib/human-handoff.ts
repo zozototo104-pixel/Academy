@@ -374,7 +374,9 @@ export async function createHumanHandoffRequest(args: {
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, email: true } }).catch(() => [])
   const displayName = args.user.name || (args.source === 'WHATSAPP' ? 'زائر واتساب' : 'مستخدم غير محدد الاسم')
-  const contact = [args.user.email, args.user.phone].filter(Boolean).join(' / ') || 'لا توجد بيانات تواصل مسجلة'
+  const phonePrivacy = prepareEncryptedVisitorPhone(args.user.rawPhone || args.user.phone)
+  const safePhoneForDisplay = phonePrivacy.phoneMasked || args.user.phone || ''
+  const contact = [args.user.email, safePhoneForDisplay].filter(Boolean).join(' / ') || 'لا توجد بيانات تواصل مسجلة'
   const link = args.source === 'CHAT' && args.user.id ? `/admin?userId=${encodeURIComponent(args.user.id)}` : '/admin?tab=messages'
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || process.env.NEXTAUTH_URL || '').replace(/\/$/, '')
   const absoluteLink = appUrl ? `${appUrl}${link}` : link
