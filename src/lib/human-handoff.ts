@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { makeBasicEmailHtml, sendMail } from '@/lib/mail'
+import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
+import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 
 export const HUMAN_SUPPORT_REPLY = [
   'أهلًا وسهلًا بك 🌟',
