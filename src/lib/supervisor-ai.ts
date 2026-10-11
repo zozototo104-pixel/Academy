@@ -76,6 +76,11 @@ function normalizeArabic(value?: string | null): string {
     .trim()
 }
 
+function supervisorAskedForOtherPrograms(query?: string | null) {
+  const n = normalizeArabic(query || '')
+  return ['برامج اخرى', 'برامج ثانية', 'غير برنامجي', 'غير تخصصي', 'كل البرامج', 'البرامج المتاحه', 'شو البرامج', 'ما هي البرامج', 'قائمه البرامج'].some((phrase) => n.includes(normalizeArabic(phrase)))
+}
+
 function looksLikeMastersProgram(program: any): boolean {
   const text = normalizeArabic([program?.titleAr, program?.titleEn, program?.category, program?.description].filter(Boolean).join(' '))
   const raw = [program?.titleAr, program?.titleEn, program?.category, program?.description].filter(Boolean).join(' ').toLowerCase()
