@@ -752,6 +752,11 @@ async function buildAcademicProgramCatalogSnapshot(query?: string | null): Promi
   }
 }
 
+export function formatPlatformUserIdentityForTest(user: { name?: string | null; role?: string | null }) {
+  const firstName = String(user.name || '').trim().split(/\s+/)[0] || 'غير محدد'
+  return `المستخدم الحالي: الاسم الأول ${firstName} — الدور ${user.role || 'غير محدد'}.`
+}
+
 async function buildUserSnapshot(userId: string, agent: PlatformAgentKind, query?: string | null): Promise<string> {
   const user = await db.user.findUnique({
     where: { id: userId },
