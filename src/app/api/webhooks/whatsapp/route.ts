@@ -303,7 +303,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
 function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | null {
   const message = payload?.message || null
   const id = String(message?.id || '').trim()
-  const from = String(message?.from || '').trim()
+  const from = String(message?.from || '').trim() || decryptWhatsAppPhone(message?.fromEncrypted)
   if (!id || !from) return null
   return {
     id,
