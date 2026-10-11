@@ -328,7 +328,27 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     maxOutputTokens: 5200,
     stickyScope: `QUESTION_BANK_JOB:${job.programId}:${job.unitId || 'PROGRAM'}`,
     deadlineMs: Math.min(deadlineMs || Date.now() + QUESTION_BANK_STEP_MS, Date.now() + QUESTION_BANK_STEP_MS),
-    validate: (text) => { assertGeneratedBatchHasAcceptedCandidates(parseGeneratedQuestionCandidates(text)) },
+    validate: (text) => {
+      const parsedForRouter = parseGeneratedQuestionCandidates(text)
+      assertGeneratedBatchHasAcceptedCandidates(parsedForRouter)
+      const validationForRouter = validateQuestionBatchAgainstKnowledge(parsedForRouter.accepted, evidenceSources, { provider: 'ROUTER_PRECHECK', model: 'ROUTER_PRECHECK' })
+      const hasFreshCandidate = validationForRouter.accepted.some((item) => {
+        const sourceIndex = Number(item.sourceIndex)
+        if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) return false
+        const source = selected[sourceIndex - 1]
+        const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
+        if (!q.text || q.text.length < 12 || !q.sourceEvidence || !q.cognitiveSkill || !q.difficulty) return false
+        if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) return false
+        if (q.type === 'TF' && q.correctAnswer == null) return false
+        const key = questionDuplicateKey(q.text, source.id)
+        return !seen.has(key) && !isDuplicateQuestionIdea(q.text, source.id, ideaHistory)
+      })
+      if (!hasFreshCandidate) {
+        const err: any = new Error('QUESTION_BANK_GENERATION_NO_FRESH_CANDIDATES')
+        err.code = 'VALIDATION_REJECTED'
+        throw err
+      }
+    },
   })
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
   const parsed = parseGeneratedQuestionCandidates(raw.text)
