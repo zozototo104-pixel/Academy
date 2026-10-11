@@ -150,6 +150,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
   const body = await req.json().catch(() => ({}))
   const submit = body.submit === true
+  let safeWebsite = rep.website
+  if (body.website) {
+    try { safeWebsite = await validatePublicHttpsUrl(String(body.website)) }
+    catch (error) { return uploadErrorResponse(error) }
+  }
 
   let updated = await db.academyRepresentative.update({
     where: { id: rep.id },
