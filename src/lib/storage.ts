@@ -110,7 +110,9 @@ function configuredAllowedStorageHosts() {
   for (const value of values) {
     try {
       hosts.add(new URL(value.includes('://') ? value : `https://${value}`).hostname.toLowerCase())
-    } catch {}
+    } catch {
+      continue
+    }
   }
   return hosts
 }
