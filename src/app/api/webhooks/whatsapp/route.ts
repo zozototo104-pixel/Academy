@@ -656,7 +656,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
     }
     await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-    return handoffOpen ? HUMAN_SUPPORT_REPLY : HUMAN_HANDOFF_CONFIRMATION_REPLY
+    return handoffOpen ? getHumanSupportReply() : getHumanHandoffConfirmationReply()
   }
 
   const agentReply = await createOfficialWhatsAppAgentReply(message)
