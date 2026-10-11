@@ -1251,7 +1251,7 @@ export function AdminBooksTab() {
     try {
       const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: 10, replace: true }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: requestedCount, replace: true }),
       })
       if (result?.ok === false && result.jobId) {
         setCurriculumUnits((prev) => prev.map((item) => item.id === unit.id ? {
