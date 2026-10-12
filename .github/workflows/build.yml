@@ -65,5 +65,8 @@ jobs:
       - name: Test representative file visibility and review boundaries
         run: bun run test:representatives
 
+      - name: Test account revocation and Google OAuth session security
+        run: bun run test:stage-b-sessions
+
       - name: Build Next.js application
         run: bun run build
