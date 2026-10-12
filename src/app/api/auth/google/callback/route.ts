@@ -56,7 +56,6 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   const target = new URL('/', appBaseUrl(req))
   target.searchParams.set('view', view)
   target.searchParams.set('oauth', 'google_ok')
-  const tokenJson = JSON.stringify(token)
   const targetJson = JSON.stringify(`${target.pathname}${target.search}`)
   const html = `<!doctype html>
 <html lang="ar" dir="rtl">
