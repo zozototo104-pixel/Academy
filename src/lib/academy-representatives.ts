@@ -230,13 +230,15 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
     verifyUrl: includeToken && token ? representativeVerifyUrl(token, origin) : null,
     featured: row.featured,
     sortOrder: row.sortOrder,
-    files: Array.isArray(row.files) ? row.files.filter((file: any) => (file.reviewStatus || 'APPROVED') === 'APPROVED').map((file: any) => ({
+    files: Array.isArray(row.files) ? row.files.filter((file: any) => includeToken || (file.reviewStatus || 'APPROVED') === 'APPROVED').map((file: any) => ({
       id: file.id,
       kind: file.kind,
       title: file.title,
       description: file.description,
       externalUrl: file.externalUrl,
       fileUrl: representativePublicFileUrl(row, file) || file.fileUrl,
+      reviewStatus: includeToken ? (file.reviewStatus || 'APPROVED') : undefined,
+      reviewNote: includeToken ? file.reviewNote : undefined,
     })) : [],
   }
 }
