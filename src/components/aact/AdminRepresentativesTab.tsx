@@ -116,6 +116,7 @@ export default function AdminRepresentativesTab() {
       const active = nextRows.find((row) => row.id === focusId) || (!focusId ? nextRows[0] : null)
       if (active) {
         setSelectedId(active.id)
+        setOnboardingLink('')
         setForm(formFromRepresentative(active))
       } else if (!nextRows.length) {
         setSelectedId('')
