@@ -300,6 +300,18 @@ export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFile
   const namespace = cleanSegment(input.namespace, 'uploads')
   const key = `${namespace}/${isoDateFolder()}/${randomUUID()}-${digest}-${cleanFileName(input.fileName)}`
 
+  if (namespace.startsWith('representatives-private/')) {
+    // Private onboarding files must never be written to a public webroot or public S3 endpoint.
+    const cfg = getS3Config()
+    if (cfg?.publicBaseUrl) throw new Error('PRIVATE_FILE_STORAGE_REQUIRES_PRIVATE_BUCKET')
+    const s3 = await putToS3CompatibleStorage(input, key, mimeType)
+    if (s3) return { ...s3, url: '' }
+    if (process.env.NODE_ENV === 'production') throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+    const root = path.join(process.cwd(), '.data', 'private-uploads')
+    await fs.mkdir(path.dirname(path.join(root, key)), { recursive: true })
+    await fs.writeFile(path.join(root, key), input.buffer)
+    return { provider: 'local', key, url: '', size: input.buffer.byteLength, mimeType }
+  }
   const s3 = await putToS3CompatibleStorage(input, key, mimeType)
   if (s3) return s3
 
