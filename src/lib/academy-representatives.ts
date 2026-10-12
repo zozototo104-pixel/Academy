@@ -135,6 +135,10 @@ export function createRepresentativeQrToken() {
   return `rep_${randomBytes(24).toString('base64url')}`
 }
 
+export function createRepresentativeOnboardingToken() {
+  return `rep_onb_${randomBytes(32).toString('base64url')}`
+}
+
 function verificationSecret() {
   return process.env.AACT_REPRESENTATIVE_CARD_SECRET || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET || 'aact-representative-local-secret'
 }
