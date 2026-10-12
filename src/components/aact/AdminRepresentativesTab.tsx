@@ -240,6 +240,26 @@ export default function AdminRepresentativesTab() {
     }
   }
 
+  async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
+    if (!form.id) return
+    setUploading(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر تحديث مراجعة الملف')
+      await load(form.id)
+      toast({ title: action === 'APPROVE' ? 'تم اعتماد الملف' : 'تم رفض الملف' })
+    } catch (e: any) {
+      toast({ title: 'فشل مراجعة الملف', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function rewrite() {
     if (!form.id) return toast({ title: 'احفظ الممثل أولاً' })
     setRewriting(true)
