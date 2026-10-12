@@ -20,10 +20,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const representative = await db.academyRepresentative.findFirst({ where: { id, deletedAt: null } })
   if (!representative) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  if (!['DRAFT', 'HIDDEN'].includes(representative.status)) {
+    return NextResponse.json({ error: 'ONBOARDING_REQUIRES_HIDDEN_REPRESENTATIVE' }, { status: 409 })
+  }
   const token = representative.onboardingToken || createRepresentativeOnboardingToken()
   const updated = await db.academyRepresentative.update({
     where: { id },
-    data: { onboardingToken: token, onboardingStatus: representative.onboardingStatus === 'SUBMITTED' ? 'SUBMITTED' : 'INVITED' },
+    data: { onboardingToken: token, onboardingStatus: ['SUBMITTED', 'SUBMITTED_REVIEW'].includes(representative.onboardingStatus || '') ? representative.onboardingStatus : 'INVITED' },
     select: { id: true, onboardingToken: true, onboardingStatus: true, fullName: true },
   })
   await audit(user.id, representative.onboardingToken ? 'GET_REPRESENTATIVE_ONBOARDING_LINK' : 'CREATE_REPRESENTATIVE_ONBOARDING_LINK', id, representative.fullName)
