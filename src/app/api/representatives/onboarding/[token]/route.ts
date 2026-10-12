@@ -266,6 +266,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     })
     return NextResponse.json({ file: created, extraction: extracted ? { readable: extracted.readable, reader: extracted.reader, note: extracted.note } : null })
   } catch (error) {
-    return NextResponse.json({ error: 'UPLOAD_FAILED', message: storageErrorMessage(error) }, { status: 500 })
+    return uploadErrorResponse(error)
   }
 }
