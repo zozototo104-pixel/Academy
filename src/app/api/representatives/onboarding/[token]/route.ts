@@ -88,6 +88,19 @@ function validOfficeArchive(buffer: Buffer, extension: string) {
     if (localOffset + 30 + localNameSize + localExtraSize + compressed > directoryOffset) return false
     const name = buffer.subarray(cursor + 46, cursor + 46 + nameSize).toString('utf8')
     if (!name || name.startsWith('/') || name.includes('..') || name.includes('\\') || buffer.subarray(localOffset + 30, localOffset + 30 + localNameSize).toString('utf8') !== name) return false
+    if (name === '[Content_Types].xml' || name === '_rels/.rels' || name === (extension === '.docx' ? 'word/document.xml' : extension === '.xlsx' ? 'xl/workbook.xml' : 'ppt/presentation.xml')) {
+      if (uncompressed === 0 || uncompressed > 2 * 1024 * 1024 || compressed === 0) return false
+      const payloadOffset = localOffset + 30 + localNameSize + localExtraSize
+      const payload = buffer.subarray(payloadOffset, payloadOffset + compressed)
+      let xml: string
+      try {
+        const decoded = method === 0 ? payload : inflateRawSync(payload, { maxOutputLength: 2 * 1024 * 1024 })
+        if (decoded.length !== uncompressed) return false
+        xml = new TextDecoder('utf-8', { fatal: true }).decode(decoded)
+      } catch { return false }
+      const root = name === '[Content_Types].xml' ? 'Types' : name === '_rels/.rels' ? 'Relationships' : extension === '.docx' ? 'document' : extension === '.xlsx' ? 'workbook' : 'presentation'
+      if (!new RegExp(`<\\s*(?:[A-Za-z][\\w.-]*:)?${root}(?:\\s|>)`).test(xml) || !xml.includes('</')) return false
+    }
     names.add(name)
     cursor = next
   }
