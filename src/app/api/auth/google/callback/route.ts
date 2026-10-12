@@ -39,8 +39,9 @@ function appBaseUrl(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const proto = req.headers.get('x-forwarded-proto') || 'https'
   if (host) {
-    const canonicalHost = host.replace(/^www\.aactacademy\.com$/i, 'aactacademy.com')
-    return `${proto}://${canonicalHost}`.replace(/\/$/, '')
+    // The token exchange redirect_uri must exactly match the host used when
+    // the cookie-bound state was created, including its www prefix.
+    return `${proto}://${host}`.replace(/\/$/, '')
   }
   const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
   return configured.replace(/\/$/, '')
@@ -56,7 +57,6 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   const target = new URL('/', appBaseUrl(req))
   target.searchParams.set('view', view)
   target.searchParams.set('oauth', 'google_ok')
-  const tokenJson = JSON.stringify(token)
   const targetJson = JSON.stringify(`${target.pathname}${target.search}`)
   const html = `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -76,7 +76,9 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   <div class="card"><div class="spin"></div><p>تم تسجيل الدخول عبر Google<br/>يتم فتح حسابك الآن…</p></div>
   <script>
     (function(){
-      try { localStorage.setItem('aact_token', ${tokenJson}); } catch(e) {}
+      // Discard both legacy Bearer tokens so the newly issued HttpOnly cookie wins.
+      try { sessionStorage.removeItem('aact_token'); } catch(e) {}
+      try { localStorage.removeItem('aact_token'); } catch(e) {}
       try { sessionStorage.setItem('aact_skip_startup', '1'); } catch(e) {}
       location.replace(${targetJson});
     })();
@@ -147,9 +149,9 @@ export async function GET(req: NextRequest) {
   store.delete(STATE_COOKIE)
 
   if (error) return authRedirect(req, { oauth_error: error })
-  // على بعض المتصفحات/الويب فيو قد لا تعود كوكي state في أول محاولة Google.
-  // لذلك نقبل state الموقّع ذاتياً حتى لا تفشل أول محاولة وترجع المستخدم لشاشة الدخول.
-  const validState = Boolean(code && state && ((expectedState && state === expectedState) || verifySignedState(state)))
+  // Google state must match the HttpOnly cookie created in this browser.
+  // A valid signature alone does not bind the callback to the original session.
+  const validState = Boolean(code && state && expectedState && safeEqual(state, expectedState) && verifySignedState(state))
   if (!validState) {
     return authRedirect(req, { oauth_error: 'invalid_state' })
   }
@@ -160,6 +162,9 @@ export async function GET(req: NextRequest) {
     if (!profile.emailVerified) return authRedirect(req, { oauth_error: 'email_not_verified' })
 
     const existing = await db.user.findUnique({ where: { email: profile.email } })
+    if (existing && existing.status !== 'ACTIVE') {
+      return authRedirect(req, { oauth_error: 'account_disabled' })
+    }
     const verifiedAt = new Date()
     const user = existing
       ? await db.user.update({

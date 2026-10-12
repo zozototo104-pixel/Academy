@@ -7,6 +7,8 @@ const SESSION_COOKIE = 'aact_session'
 const SESSION_DAYS = 30
 
 export async function createSession(userId: string) {
+  const account = await db.user.findUnique({ where: { id: userId }, select: { status: true } })
+  if (account?.status !== 'ACTIVE') throw new Error('ACCOUNT_DISABLED')
   const token = createHash('sha256')
     .update(randomBytes(32))
     .update(userId)
@@ -69,8 +71,8 @@ export async function getCurrentUser() {
       include: { user: true },
     })
     if (!session) return null
-    if (session.expiresAt < new Date()) {
-      await db.session.delete({ where: { id: session.id } }).catch(() => {})
+    if (session.expiresAt < new Date() || session.user.status !== 'ACTIVE') {
+      await db.session.deleteMany({ where: { id: session.id } }).catch(() => {})
       return null
     }
     return session.user

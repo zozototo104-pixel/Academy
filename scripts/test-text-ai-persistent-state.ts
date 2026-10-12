@@ -95,7 +95,7 @@ async function validationRejectedDoesNotWriteCooldown() {
   const store = makeStore()
   __setTextAiSettingStoreForTests(store)
   __resetTextAiStateForTests()
-  globalThis.fetch = (async () => geminiResponse('bad output')) as typeof fetch
+  globalThis.fetch = (async () => geminiResponse('bad output')) as unknown as typeof fetch
   try {
     await assert.rejects(
       () => textAiComplete({
@@ -136,7 +136,7 @@ async function paidBudgetExceededSkipsPaidProvider() {
   globalThis.fetch = (async () => {
     fetchCount++
     return geminiResponse('paid')
-  }) as typeof fetch
+  }) as unknown as typeof fetch
   try {
     await assert.rejects(() => textAiComplete({ system: 'test', history: [{ role: 'user', text: 'paid' }], taskLevel: 'ACADEMIC_CRITICAL' }))
     assert.equal(fetchCount, 0, 'paid provider must not be called after budget is exceeded')
@@ -158,7 +158,7 @@ async function failingStoreFallsBackWithoutThrowing() {
   }
   __setTextAiSettingStoreForTests(failing)
   __resetTextAiStateForTests()
-  globalThis.fetch = (async () => geminiResponse('fallback-ok')) as typeof fetch
+  globalThis.fetch = (async () => geminiResponse('fallback-ok')) as unknown as typeof fetch
   try {
     const result = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'fallback' }] })
     assert.equal(result, 'fallback-ok')
