@@ -49,6 +49,48 @@ async function validatePublicHttpsUrl(raw: string) {
   return parsed.toString()
 }
 
+function validOfficeArchive(buffer: Buffer, extension: string) {
+  // Validate the ZIP central directory and required OOXML members without extracting untrusted data.
+  const end = buffer.length - 22
+  let footer = -1
+  for (let i = end; i >= Math.max(0, end - 65535); i--) {
+    if (buffer.readUInt32LE(i) === 0x06054b50 && i + 22 + buffer.readUInt16LE(i + 20) === buffer.length) { footer = i; break }
+  }
+  if (footer < 0 || buffer.readUInt16LE(footer + 4) !== 0 || buffer.readUInt16LE(footer + 6) !== 0) return false
+  const count = buffer.readUInt16LE(footer + 10)
+  const directorySize = buffer.readUInt32LE(footer + 12)
+  const directoryOffset = buffer.readUInt32LE(footer + 16)
+  if (count < 2 || count > 2000 || directoryOffset + directorySize !== footer) return false
+  const names = new Set<string>()
+  let totalUncompressed = 0
+  let cursor = directoryOffset
+  for (let i = 0; i < count; i++) {
+    if (cursor + 46 > footer || buffer.readUInt32LE(cursor) !== 0x02014b50) return false
+    const nameSize = buffer.readUInt16LE(cursor + 28)
+    const extraSize = buffer.readUInt16LE(cursor + 30)
+    const commentSize = buffer.readUInt16LE(cursor + 32)
+    const next = cursor + 46 + nameSize + extraSize + commentSize
+    if (next > footer) return false
+    const compressed = buffer.readUInt32LE(cursor + 20)
+    const uncompressed = buffer.readUInt32LE(cursor + 24)
+    const localOffset = buffer.readUInt32LE(cursor + 42)
+    const method = buffer.readUInt16LE(cursor + 10)
+    if (![0, 8].includes(method) || compressed === 0xffffffff || uncompressed === 0xffffffff) return false
+    totalUncompressed += uncompressed
+    if (totalUncompressed > 100 * 1024 * 1024 || (compressed > 0 && uncompressed > compressed * 200)) return false
+    if (localOffset + 30 > directoryOffset || buffer.readUInt32LE(localOffset) !== 0x04034b50) return false
+    const localNameSize = buffer.readUInt16LE(localOffset + 26)
+    const localExtraSize = buffer.readUInt16LE(localOffset + 28)
+    if (localOffset + 30 + localNameSize + localExtraSize + compressed > directoryOffset) return false
+    const name = buffer.subarray(cursor + 46, cursor + 46 + nameSize).toString('utf8')
+    if (!name || name.startsWith('/') || name.includes('..') || name.includes('\\') || buffer.subarray(localOffset + 30, localOffset + 30 + localNameSize).toString('utf8') !== name) return false
+    names.add(name)
+    cursor = next
+  }
+  const documentPart = extension === '.docx' ? 'word/document.xml' : extension === '.xlsx' ? 'xl/workbook.xml' : 'ppt/presentation.xml'
+  return cursor === footer && names.has('[Content_Types].xml') && names.has('_rels/.rels') && names.has(documentPart)
+}
+
 function detectAllowedUpload(buffer: Buffer, fileName: string, declaredMime: string, assetType: string) {
   const lower = String(fileName || '').toLowerCase()
   const header = buffer.subarray(0, 16)
