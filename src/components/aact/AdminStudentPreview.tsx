@@ -240,7 +240,19 @@ export function AdminStudentPreview() {
           <Button onClick={() => navigate('admin')} variant="outline" className="border-[#c9a227]/50 bg-white/5 text-[#f5f0e1] hover:bg-white/10">
             <ArrowRight className="ml-1 h-4 w-4" /> العودة للإدارة
           </Button>
-          <Button onClick={load} className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]">تحديث المعاينة</Button>
+          <Button onClick={load} disabled={updatingStatus} className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]">تحديث المعاينة</Button>
+          {(s.status === 'ACTIVE' || s.status === 'DISABLED') && (
+            <Button
+              type="button"
+              disabled={updatingStatus}
+              onClick={() => void changeAccountStatus(s.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}
+              variant="outline"
+              className={s.status === 'ACTIVE' ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100' : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}
+            >
+              {updatingStatus ? 'جارٍ تحديث الحساب...' : s.status === 'ACTIVE' ? 'تعطيل حساب الطالب' : 'إعادة تفعيل حساب الطالب'}
+            </Button>
+          )}
+          {statusMessage && <p role="status" className="text-xs font-bold text-[#f5f0e1]">{statusMessage}</p>}
         </div>
       </div>
 
