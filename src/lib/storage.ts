@@ -229,7 +229,7 @@ function signS3Request(args: {
 
   return {
     url,
-    publicUrl: cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
+    publicUrl: privateRepresentative ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
     headers: { ...requestHeaders, authorization },
   }
 }
