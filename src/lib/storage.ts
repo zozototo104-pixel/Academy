@@ -162,6 +162,7 @@ function getS3Config() {
     accessKeyId,
     secretAccessKey,
     region: process.env.AACT_S3_REGION?.trim() || 'auto',
+    privateRepresentativeBucket: process.env.AACT_REPRESENTATIVE_PRIVATE_S3_BUCKET?.trim() || null,
     publicBaseUrl: process.env.AACT_STORAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, '') || null,
   }
 }
