@@ -285,6 +285,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { token } = await params
   const rep = await loadRepresentative(token)
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const maxRequestBytes = DOCUMENT_MAX_BYTES + 256 * 1024
+  const declaredLength = req.headers.get('content-length')
+  if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxRequestBytes)) {
+    return NextResponse.json({ error: 'FILE_TOO_LARGE' }, { status: 413 })
+  }
+  // Enforce the bound while streaming, including chunked requests without Content-Length.
+  if (req.body) {
+    const reader = req.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > maxRequestBytes) {
+          await reader.cancel().catch(() => {})
+          return NextResponse.json({ error: 'FILE_TOO_LARGE' }, { status: 413 })
+        }
+        chunks.push(value)
+      }
+    } finally { reader.releaseLock() }
+    req = new NextRequest(req.url, { method: 'POST', headers: req.headers, body: new Blob(chunks).stream(), duplex: 'half' })
+  }
   const form = await req.formData()
   const file = form.get('file')
   const externalUrl = text(form.get('externalUrl'), 800)
