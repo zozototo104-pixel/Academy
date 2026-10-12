@@ -51,5 +51,8 @@ jobs:
       - name: Run lint
         run: bun run lint
 
+      - name: Test representative file visibility and review boundaries
+        run: bun run test:representatives
+
       - name: Build Next.js application
         run: bun run build
