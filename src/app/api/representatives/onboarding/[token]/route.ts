@@ -256,7 +256,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (assetType === 'officialCard') {
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
-        data: { officialCardUrl: stored.url, officialCardName: file.name, officialCardMime: stored.mimeType, officialCardSize: stored.size, officialCardStorageProvider: stored.provider, officialCardStorageKey: stored.key, onboardingStatus: 'WAITING_PROFILE' },
+        data: { officialCardUrl: stored.url, officialCardName: file.name, officialCardMime: stored.mimeType, officialCardSize: stored.size, officialCardStorageProvider: stored.provider, officialCardStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },
       })
       return NextResponse.json({ representative: updated })
     }
