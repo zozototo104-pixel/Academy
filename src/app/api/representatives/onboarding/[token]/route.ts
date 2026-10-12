@@ -296,7 +296,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   try {
     const buffer = Buffer.from(await file.arrayBuffer())
     const detected = detectAllowedUpload(buffer, file.name || 'file', file.type || 'application/octet-stream', assetType)
-    const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives/${rep.id}` })
+    const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives-private/${rep.id}` })
     if (assetType === 'profilePhoto') {
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
