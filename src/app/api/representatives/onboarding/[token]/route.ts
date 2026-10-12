@@ -219,7 +219,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
       achievements: text(body.achievements, 6000) ?? rep.achievements,
       website: safeWebsite,
       publicContactNote: text(body.publicContactNote, 1200) ?? rep.publicContactNote,
-      onboardingStatus: submit ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE',
+      onboardingStatus: submit || rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE',
       onboardingSubmittedAt: submit ? new Date() : rep.onboardingSubmittedAt,
     },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
