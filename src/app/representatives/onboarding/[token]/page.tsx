@@ -75,7 +75,7 @@ export default function RepresentativeOnboardingPage() {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { method: 'POST', body })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر رفع الملف.')
-      await load()
+      await load(true)
     } catch (e: any) {
       setError(String(e?.message || e))
     } finally {
