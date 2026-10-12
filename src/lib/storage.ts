@@ -172,6 +172,7 @@ function signS3Request(args: {
   key: string
   payloadHash: string
   extraHeaders?: Record<string, string>
+  privateRepresentative?: boolean
 }) {
   const cfg = getS3Config()
   if (!cfg) return null
