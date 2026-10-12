@@ -127,7 +127,7 @@ export default function RepresentativeOnboardingPage() {
               <h2 className="font-black">رفع المرفقات</h2>
               <UploadBox label="الصورة الشخصية" accept="image/*" onFile={(file) => upload('profilePhoto', file)} uploading={uploading} />
               <UploadBox label="الكرنيه الرسمي إن وجد" accept="image/*,.pdf" onFile={(file) => upload('officialCard', file)} uploading={uploading} />
-              <UploadBox label="CV / كتب / أعمال" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} />
+              <UploadBox label="CV / كتب / أعمال" accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} />
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <h2 className="font-black">إضافة رابط أعمال</h2>
