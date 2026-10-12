@@ -159,6 +159,9 @@ export async function GET(req: NextRequest) {
     if (!profile.emailVerified) return authRedirect(req, { oauth_error: 'email_not_verified' })
 
     const existing = await db.user.findUnique({ where: { email: profile.email } })
+    if (existing && existing.status !== 'ACTIVE') {
+      return authRedirect(req, { oauth_error: 'account_disabled' })
+    }
     const verifiedAt = new Date()
     const user = existing
       ? await db.user.update({
