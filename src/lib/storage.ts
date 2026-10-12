@@ -92,12 +92,27 @@ function isPrivateIp(address: string) {
   const family = net.isIP(address)
   if (!family) return true
   if (family === 4) {
-    const parts = address.split('.').map((x) => Number(x))
-    const [a, b] = parts
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+    const [a, b, c] = address.split('.').map(Number)
+    return a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 192 && b === 0) || (a === 192 && b === 0 && c === 2) ||
+      (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+      (a === 203 && b === 0 && c === 113)
   }
   const lower = address.toLowerCase()
-  return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:') || lower === '::'
+  if (lower.startsWith('::ffff:')) {
+    const mapped = lower.slice(7)
+    if (net.isIP(mapped) === 4) return isPrivateIp(mapped)
+    const parts = mapped.split(':')
+    if (parts.length === 2 && parts.every((p) => /^[0-9a-f]{1,4}$/.test(p))) {
+      const v = parts.map((p) => parseInt(p, 16))
+      return isPrivateIp(`${v[0] >> 8}.${v[0] & 255}.${v[1] >> 8}.${v[1] & 255}`)
+    }
+    return true
+  }
+  // Only globally routable unicast IPv6 is eligible for remote fetches.
+  return !(/^[23][0-9a-f]{3}:/.test(lower)) || lower.startsWith('2001:db8:') || lower.startsWith('2001:')
 }
 
 function configuredAllowedStorageHosts() {
