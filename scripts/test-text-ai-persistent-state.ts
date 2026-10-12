@@ -158,7 +158,7 @@ async function failingStoreFallsBackWithoutThrowing() {
   }
   __setTextAiSettingStoreForTests(failing)
   __resetTextAiStateForTests()
-  globalThis.fetch = (async () => geminiResponse('fallback-ok')) as typeof fetch
+  globalThis.fetch = (async () => geminiResponse('fallback-ok')) as unknown as typeof fetch
   try {
     const result = await textAiComplete({ system: 'test', history: [{ role: 'user', text: 'fallback' }] })
     assert.equal(result, 'fallback-ok')
