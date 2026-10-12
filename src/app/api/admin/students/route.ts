@@ -327,9 +327,13 @@ export async function PATCH(req: NextRequest) {
     if (action === 'setStatus') {
       const status = clean(body?.status, 40)
       if (!['ACTIVE', 'DISABLED', 'ARCHIVED'].includes(status)) return NextResponse.json({ error: 'حالة غير صحيحة' }, { status: 400 })
-      const updated = await db.user.update({
-        where: { id: userId },
-        data: { status, archivedAt: status === 'ARCHIVED' ? new Date() : null },
+      const updated = await db.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id: userId },
+          data: { status, archivedAt: status === 'ARCHIVED' ? new Date() : null },
+        })
+        if (status !== 'ACTIVE') await tx.session.deleteMany({ where: { userId } })
+        return user
       })
       await audit({ id: admin.id, name: admin.name }, 'UPDATE_STUDENT_STATUS', 'User', userId, `تحديث حالة الطالب ${student.email} إلى ${status}`)
       return NextResponse.json({ ok: true, student: updated })
