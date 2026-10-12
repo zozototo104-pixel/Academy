@@ -59,7 +59,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   return new NextResponse(new Uint8Array(stored.buffer), {
     headers: {
       'Content-Type': mimeType,
-      'Cache-Control': 'public, max-age=300, s-maxage=3600',
+      'Cache-Control': 'private, no-store, max-age=0',
       'Content-Disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       'X-Content-Type-Options': 'nosniff',
     },
