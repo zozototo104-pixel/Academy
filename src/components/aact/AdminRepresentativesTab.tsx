@@ -402,12 +402,19 @@ export default function AdminRepresentativesTab() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
-                {(selected?.files || []).map((file) => (
-                  <div key={file.id} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><p className="break-all text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p></div>
-                    <div className="flex shrink-0 gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || file.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]"><ExternalLink className="h-4 w-4" /></a>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
-                  </div>
-                ))}
+                {(selected?.files || []).map((file) => {
+                  const reviewStatus = file.reviewStatus || 'APPROVED'
+                  return (
+                    <div key={file.id} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${reviewStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : reviewStatus === 'REJECTED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{reviewStatus === 'APPROVED' ? 'معتمد' : reviewStatus === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}</span></div>
+                        <p className="break-all text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p>
+                        {file.reviewNote && <p className="text-xs font-bold text-slate-500">ملاحظة المراجعة: {file.reviewNote}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || file.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]"><ExternalLink className="h-4 w-4" /></a>}{reviewStatus !== 'APPROVED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'APPROVE')} className="border-emerald-200 text-emerald-700" title="اعتماد الملف"><CheckCircle2 className="h-4 w-4" /></Button>}{reviewStatus !== 'REJECTED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'REJECT')} className="border-amber-200 text-amber-700" title="رفض الملف"><XCircle className="h-4 w-4" /></Button>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
+                    </div>
+                  )
+                })}
                 {!selected?.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
               </div>
             </CardContent>
