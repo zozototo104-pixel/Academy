@@ -39,8 +39,9 @@ function appBaseUrl(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const proto = req.headers.get('x-forwarded-proto') || 'https'
   if (host) {
-    const canonicalHost = host.replace(/^www\.aactacademy\.com$/i, 'aactacademy.com')
-    return `${proto}://${canonicalHost}`.replace(/\/$/, '')
+    // The token exchange redirect_uri must exactly match the host used when
+    // the cookie-bound state was created, including its www prefix.
+    return `${proto}://${host}`.replace(/\/$/, '')
   }
   const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
   return configured.replace(/\/$/, '')
