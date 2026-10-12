@@ -313,10 +313,15 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     return `${index + 1}. [${item.category}] ${item.title}\nالصفحات: ${item.pageStart ?? '؟'}–${item.pageEnd ?? item.pageStart ?? '؟'}\nنص المصدر: ${evidenceText(item).slice(0, 1800)}\nأسئلة موجودة لنفس المصدر لا تكررها: ${existingQuestions.length ? existingQuestions.map((q) => `«${q}»`).join('؛ ') : 'لا يوجد'}`
   }).join('\n\n')
   const requiredForJob = job.unitId ? unitExamRequiredQuestions(job.requested) : job.requested
-  const count = Math.min(4, job.batchSize || 4, Math.max(0, requiredForJob - job.saved))
+  const remainingForJob = Math.max(0, requiredForJob - job.saved)
+  const rescueMode = remainingForJob <= 2 || job.saved >= Math.max(6, requiredForJob - 2)
+  const count = rescueMode ? Math.min(2, remainingForJob) : Math.min(4, job.batchSize || 4, remainingForJob)
   if (count <= 0) return 0
   const diversityInstruction = selected.length <= 3
     ? '\nعدد المصادر قليل؛ اختر جانباً مختلفاً من النص ونوع سؤال مختلفاً عن الأسئلة الموجودة قدر الإمكان، ولا تكرر زاوية السؤال أو نفس المهارة المعرفية.'
+    : ''
+  const rescueInstruction = rescueMode
+    ? '\nوضع إنقاذ لإكمال آخر أسئلة فقط: أنتج سؤالاً أو سؤالين جديدين تماماً من زاوية غير مستخدمة. تجنب الأسئلة عن الغلاف، الناشر، أسماء المؤسسات، سنة الإصدار، وعنوان الدليل إلا إذا كان هذا هو موضوع الوحدة صراحة. غيّر نوع السؤال والمهارة المعرفية قدر الإمكان، ولا تقبل أي صياغة قريبة من الأسئلة الموجودة. استخدم تفصيلاً محدداً من المصدر لم يُسأل عنه بعد.'
     : ''
 
   const raw = await textAiCompleteJsonWithMetadata({
