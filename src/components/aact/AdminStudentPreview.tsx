@@ -32,6 +32,7 @@ interface PreviewData {
     phone?: string | null
     country?: string | null
     role: string
+    status: string
     createdAt: string
     academicMemory?: {
       profileDigest?: string | null
