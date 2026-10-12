@@ -236,7 +236,11 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
       title: file.title,
       description: file.description,
       externalUrl: file.externalUrl,
-      fileUrl: representativePublicFileUrl(row, file) || file.fileUrl,
+      fileUrl: (file.reviewStatus || 'APPROVED') === 'APPROVED'
+        ? (representativePublicFileUrl(row, file) || (file.storageKey ? null : file.fileUrl))
+        : (includeToken && file.storageKey
+          ? `/api/admin/representatives/${encodeURIComponent(row.id)}/files/${encodeURIComponent(file.id)}`
+          : null),
       reviewStatus: includeToken ? (file.reviewStatus || 'APPROVED') : undefined,
       reviewNote: includeToken ? file.reviewNote : undefined,
     })) : [],
