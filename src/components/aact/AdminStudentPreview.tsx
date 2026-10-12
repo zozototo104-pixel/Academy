@@ -157,6 +157,29 @@ export function AdminStudentPreview() {
     return () => window.clearTimeout(timer)
   }, [load])
 
+  const changeAccountStatus = async (status: 'ACTIVE' | 'DISABLED') => {
+    if (!id || !data || updatingStatus || data.student.status === status) return
+    const disabling = status === 'DISABLED'
+    const confirmed = window.confirm(disabling
+      ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
+      : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`)
+    if (!confirmed) return
+    setUpdatingStatus(true)
+    setStatusMessage(null)
+    try {
+      await api('/api/admin/students', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'setStatus', userId: id, status }),
+      })
+      setData((current) => current ? { ...current, student: { ...current.student, status } } : current)
+      setStatusMessage(disabling ? 'تم تعطيل الحساب وإنهاء جلساته.' : 'تم إعادة تفعيل الحساب. يستطيع الطالب تسجيل الدخول مجددًا.')
+    } catch (err: unknown) {
+      setStatusMessage(err instanceof Error ? err.message : 'تعذر تحديث حالة الحساب')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10">
