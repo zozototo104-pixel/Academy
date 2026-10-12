@@ -239,8 +239,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'NO_FILE' }, { status: 400 })
-  const buffer = Buffer.from(await file.arrayBuffer())
+  if (file.size > (assetType === 'profilePhoto' ? IMAGE_MAX_BYTES : DOCUMENT_MAX_BYTES)) {
+    return NextResponse.json({ error: 'FILE_TOO_LARGE' }, { status: 413 })
+  }
   try {
+    const buffer = Buffer.from(await file.arrayBuffer())
     const detected = detectAllowedUpload(buffer, file.name || 'file', file.type || 'application/octet-stream', assetType)
     const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives/${rep.id}` })
     if (assetType === 'profilePhoto') {
