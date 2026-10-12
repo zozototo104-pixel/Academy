@@ -129,6 +129,8 @@ export function AdminStudentPreview() {
   const [data, setData] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   const id = useMemo(() => {
     if (studentPreviewId) return studentPreviewId
