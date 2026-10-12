@@ -428,7 +428,7 @@ export default function AdminRepresentativesTab() {
                   <div>
                     <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
                     <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
-                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {selected.onboardingStatus === 'SUBMITTED' ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : 'لم يتم إرسال رابط'}</p>}
+                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {['SUBMITTED', 'SUBMITTED_REVIEW'].includes(selected.onboardingStatus) ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : selected.onboardingStatus === 'WAITING_PROFILE' ? 'بدأ استكمال الملف' : selected.onboardingStatus === 'NOT_SENT' ? 'لم يُنشأ رابط' : selected.onboardingStatus}</p>}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
