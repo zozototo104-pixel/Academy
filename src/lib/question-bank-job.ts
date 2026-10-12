@@ -155,7 +155,7 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
   const sourceEvidence = cleanText(raw.sourceEvidence, 1800)
   const cognitiveSkill = cleanText(raw.cognitiveSkill, 40)
   const text = cleanText(raw.text || raw.question || fallback.title, 1200)
-  const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer) : null
+  const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer, text) : null
   const options = mcq ? mcq.options : safeOptions(raw.options, type)
   let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer).trim() : null
   if (type === 'TF' && correctAnswer != null && !['0', '1'].includes(correctAnswer)) correctAnswer = /^(?:صح|صحيح|true)$/iu.test(correctAnswer) ? '0' : /^(?:خطأ|خطا|خاطئ|false)$/iu.test(correctAnswer) ? '1' : null
