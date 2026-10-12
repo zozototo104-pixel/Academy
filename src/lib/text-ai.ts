@@ -38,6 +38,7 @@ export interface TextAiCallOpts {
   taskLevel?: TextAiTaskLevel
   purpose?: TextAiPurpose
   excludeProviders?: TextAiProvider[]
+  preferredProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
   stickyScope?: string
