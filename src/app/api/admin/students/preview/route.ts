@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         phone: true,
         country: true,
         role: true,
+        status: true,
         createdAt: true,
         academicMemory: {
           select: {
