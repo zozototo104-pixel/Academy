@@ -32,10 +32,13 @@ function isPrivateHostAddress(address: string) {
   if (!family) return true
   if (family === 4) {
     const [a, b] = address.split('.').map((x) => Number(x))
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+    return a === 10 || a === 127 || a === 0 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51) || (a === 203 && b === 0)
   }
-  const lower = address.toLowerCase()
-  return lower === '::1' || lower === '::' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:')
+  const lower = address.toLowerCase().split('%')[0]
+  const mapped = lower.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/)
+  if (mapped) return isPrivateHostAddress(mapped[1])
+  const hex = lower.replace(/:/g, '')
+  return lower === '::1' || lower === '::' || lower.startsWith('fc') || lower.startsWith('fd') || /^fe[89ab]/.test(hex) || lower.startsWith('2001:db8:') || lower.startsWith('2001:') || lower.startsWith('ff')
 }
 
 async function validatePublicHttpsUrl(raw: string) {
