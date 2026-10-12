@@ -87,6 +87,8 @@ const STATUS_AR: Record<string, string> = {
   RESULT_APPROVED: 'تم اعتماد النتيجة',
   CERTIFIED: 'تم إصدار الشهادة',
   REJECTED: 'مرفوض',
+  DISABLED: 'معطّل',
+  ARCHIVED: 'مؤرشف',
   ACTIVE: 'نشط',
   COMPLETED: 'مكتمل',
   PAID: 'مدفوع',
