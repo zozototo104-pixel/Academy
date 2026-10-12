@@ -1,5 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'crypto'
+import { promises as dns } from 'dns'
 import { promises as fs } from 'fs'
+import net from 'net'
 import path from 'path'
 
 export type StoredFileProvider = 's3' | 'local' | 'external-url'
@@ -86,6 +88,68 @@ function cleanStorageKey(value: string): string {
   return key
 }
 
+function isPrivateIp(address: string) {
+  const family = net.isIP(address)
+  if (!family) return true
+  if (family === 4) {
+    const [a, b, c] = address.split('.').map(Number)
+    return a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 192 && b === 0) || (a === 192 && b === 0 && c === 2) ||
+      (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+      (a === 203 && b === 0 && c === 113)
+  }
+  const lower = address.toLowerCase()
+  if (lower.startsWith('::ffff:')) {
+    const mapped = lower.slice(7)
+    if (net.isIP(mapped) === 4) return isPrivateIp(mapped)
+    const parts = mapped.split(':')
+    if (parts.length === 2 && parts.every((p) => /^[0-9a-f]{1,4}$/.test(p))) {
+      const v = parts.map((p) => parseInt(p, 16))
+      return isPrivateIp(`${v[0] >> 8}.${v[0] & 255}.${v[1] >> 8}.${v[1] & 255}`)
+    }
+    return true
+  }
+  // Only globally routable unicast IPv6 is eligible for remote fetches.
+  return !(/^[23][0-9a-f]{3}:/.test(lower)) || lower.startsWith('2001:db8:') || lower.startsWith('2001:')
+}
+
+function configuredAllowedStorageHosts() {
+  const values = [
+    process.env.AACT_STORAGE_ALLOWED_HOSTS,
+    process.env.AACT_STORAGE_PUBLIC_BASE_URL,
+    process.env.AACT_S3_ENDPOINT,
+  ].flatMap((raw) => String(raw || '').split(/[;,\s]+/)).map((raw) => raw.trim()).filter(Boolean)
+  const hosts = new Set<string>()
+  for (const value of values) {
+    try {
+      hosts.add(new URL(value.includes('://') ? value : `https://${value}`).hostname.toLowerCase())
+    } catch {
+      continue
+    }
+  }
+  return hosts
+}
+
+async function assertSafeStorageFetchUrl(rawUrl: string) {
+  let parsed: URL
+  try { parsed = new URL(rawUrl) } catch { throw new Error('UNSAFE_STORAGE_URL') }
+  if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('UNSAFE_STORAGE_URL')
+  const host = parsed.hostname.toLowerCase()
+  if (!configuredAllowedStorageHosts().has(host)) throw new Error('STORAGE_HOST_NOT_ALLOWED')
+  const literal = net.isIP(host)
+  const addresses = literal ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => [])
+  if (!addresses.length || addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('STORAGE_PRIVATE_HOST_REJECTED')
+}
+
+async function safeFetchStoredUrl(rawUrl: string) {
+  await assertSafeStorageFetchUrl(rawUrl)
+  const res = await fetch(rawUrl, { cache: 'no-store', redirect: 'manual' })
+  if (res.status >= 300 && res.status < 400) throw new Error('STORAGE_REDIRECT_REJECTED')
+  return res
+}
+
 function getS3Config() {
   const endpoint = process.env.AACT_S3_ENDPOINT?.trim()
   const bucket = process.env.AACT_S3_BUCKET?.trim()
@@ -98,6 +162,7 @@ function getS3Config() {
     accessKeyId,
     secretAccessKey,
     region: process.env.AACT_S3_REGION?.trim() || 'auto',
+    privateRepresentativeBucket: process.env.AACT_REPRESENTATIVE_PRIVATE_S3_BUCKET?.trim() || null,
     publicBaseUrl: process.env.AACT_STORAGE_PUBLIC_BASE_URL?.trim().replace(/\/+$/, '') || null,
   }
 }
@@ -107,13 +172,19 @@ function signS3Request(args: {
   key: string
   payloadHash: string
   extraHeaders?: Record<string, string>
+  privateRepresentative?: boolean
 }) {
   const cfg = getS3Config()
   if (!cfg) return null
 
   const endpoint = new URL(cfg.endpoint)
+  const privateRepresentative = args.privateRepresentative || args.key.startsWith('representatives-private/')
+  const bucket = privateRepresentative ? cfg.privateRepresentativeBucket : cfg.bucket
+  if (!bucket || (privateRepresentative && bucket === cfg.bucket)) {
+    throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+  }
   const encodedKey = encodeS3Key(args.key)
-  const canonicalUri = `/${encodeS3PathPart(cfg.bucket)}/${encodedKey}`
+  const canonicalUri = `/${encodeS3PathPart(bucket)}/${encodedKey}`
   const url = `${endpoint.origin}${canonicalUri}`
   const now = new Date()
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
@@ -158,7 +229,7 @@ function signS3Request(args: {
 
   return {
     url,
-    publicUrl: cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
+    publicUrl: privateRepresentative ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
     headers: { ...requestHeaders, authorization },
   }
 }
@@ -238,6 +309,7 @@ export function storageErrorMessage(error: unknown): string {
 }
 
 export function getPublicStorageUrlForKey(key: string): string | null {
+  if (key.startsWith('representatives-private/')) return null
   const cfg = getS3Config()
   if (!cfg?.publicBaseUrl) return null
   return `${cfg.publicBaseUrl}/${encodeS3Key(cleanStorageKey(key))}`
@@ -251,6 +323,20 @@ export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFile
   const namespace = cleanSegment(input.namespace, 'uploads')
   const key = `${namespace}/${isoDateFolder()}/${randomUUID()}-${digest}-${cleanFileName(input.fileName)}`
 
+  if (namespace.startsWith('representatives-private/')) {
+    // Private onboarding files must never be written to a public webroot or public S3 endpoint.
+    const cfg = getS3Config()
+    if (cfg && (!cfg.privateRepresentativeBucket || cfg.privateRepresentativeBucket === cfg.bucket)) {
+      throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+    }
+    const s3 = await putToS3CompatibleStorage(input, key, mimeType)
+    if (s3) return { ...s3, url: '' }
+    if (process.env.NODE_ENV === 'production') throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+    const root = path.join(process.cwd(), '.data', 'private-uploads')
+    await fs.mkdir(path.dirname(path.join(root, key)), { recursive: true })
+    await fs.writeFile(path.join(root, key), input.buffer)
+    return { provider: 'local', key, url: '', size: input.buffer.byteLength, mimeType }
+  }
   const s3 = await putToS3CompatibleStorage(input, key, mimeType)
   if (s3) return s3
 
@@ -291,7 +377,9 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (provider === 'local' && key) {
-    const root = path.join(process.cwd(), 'public', 'uploads')
+    const root = key.startsWith('representatives-private/')
+      ? path.join(process.cwd(), '.data', 'private-uploads')
+      : path.join(process.cwd(), 'public', 'uploads')
     const absolutePath = path.join(root, key)
     try {
       return { buffer: await fs.readFile(absolutePath), mimeType }
@@ -301,7 +389,7 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (url && /^https?:\/\//i.test(url)) {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await safeFetchStoredUrl(url)
     if (!res.ok) return null
     return {
       buffer: Buffer.from(await res.arrayBuffer()),

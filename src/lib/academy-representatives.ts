@@ -135,6 +135,10 @@ export function createRepresentativeQrToken() {
   return `rep_${randomBytes(24).toString('base64url')}`
 }
 
+export function createRepresentativeOnboardingToken() {
+  return `rep_onb_${randomBytes(32).toString('base64url')}`
+}
+
 function verificationSecret() {
   return process.env.AACT_REPRESENTATIVE_CARD_SECRET || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET || 'aact-representative-local-secret'
 }
@@ -191,6 +195,7 @@ function representativePublicAssetUrl(row: any, asset: 'profilePhoto' | 'officia
 
 function representativePublicFileUrl(row: any, file: any) {
   if (!row?.slug || !file?.id || !file.storageProvider || !file.storageKey) return null
+  if (file.storageProvider === 'external-url') return null
   return `/api/representatives/${encodeURIComponent(row.slug)}/files/${encodeURIComponent(file.id)}`
 }
 
@@ -225,13 +230,19 @@ export function serializeRepresentative(row: any, origin?: string | null, includ
     verifyUrl: includeToken && token ? representativeVerifyUrl(token, origin) : null,
     featured: row.featured,
     sortOrder: row.sortOrder,
-    files: Array.isArray(row.files) ? row.files.map((file: any) => ({
+    files: Array.isArray(row.files) ? row.files.filter((file: any) => includeToken || (file.reviewStatus || 'APPROVED') === 'APPROVED').map((file: any) => ({
       id: file.id,
       kind: file.kind,
       title: file.title,
       description: file.description,
       externalUrl: file.externalUrl,
-      fileUrl: representativePublicFileUrl(row, file) || file.fileUrl,
+      fileUrl: (file.reviewStatus || 'APPROVED') === 'APPROVED'
+        ? (representativePublicFileUrl(row, file) || (file.storageKey ? null : file.fileUrl))
+        : (includeToken && file.storageKey
+          ? `/api/admin/representatives/${encodeURIComponent(row.id)}/files/${encodeURIComponent(file.id)}`
+          : null),
+      reviewStatus: includeToken ? (file.reviewStatus || 'APPROVED') : undefined,
+      reviewNote: includeToken ? file.reviewNote : undefined,
     })) : [],
   }
 }

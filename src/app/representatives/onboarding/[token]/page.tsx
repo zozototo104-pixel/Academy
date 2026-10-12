@@ -16,15 +16,15 @@ export default function RepresentativeOnboardingPage() {
   const [linkTitle, setLinkTitle] = useState('رابط أعمال')
   const [linkUrl, setLinkUrl] = useState('')
 
-  async function load() {
-    setLoading(true)
+  async function load(preserveForm = false) {
+    if (!preserveForm) setLoading(true)
     setError('')
     try {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error('رابط الاستكمال غير صالح أو انتهى.')
       setRep(data.representative)
-      setForm({
+      if (!preserveForm) setForm({
         degreeTitle: data.representative.degreeTitle || '',
         academicRank: data.representative.academicRank || '',
         city: data.representative.city || '',
@@ -75,7 +75,7 @@ export default function RepresentativeOnboardingPage() {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { method: 'POST', body })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر رفع الملف.')
-      await load()
+      await load(true)
     } catch (e: any) {
       setError(String(e?.message || e))
     } finally {
@@ -127,7 +127,7 @@ export default function RepresentativeOnboardingPage() {
               <h2 className="font-black">رفع المرفقات</h2>
               <UploadBox label="الصورة الشخصية" accept="image/*" onFile={(file) => upload('profilePhoto', file)} uploading={uploading} />
               <UploadBox label="الكرنيه الرسمي إن وجد" accept="image/*,.pdf" onFile={(file) => upload('officialCard', file)} uploading={uploading} />
-              <UploadBox label="CV / كتب / أعمال" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} />
+              <UploadBox label="CV / كتب / أعمال" accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} />
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <h2 className="font-black">إضافة رابط أعمال</h2>
@@ -138,7 +138,7 @@ export default function RepresentativeOnboardingPage() {
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
               <h2 className="font-black">الملفات الحالية</h2>
               <div className="mt-3 space-y-2">
-                {(rep?.files || []).map((file: any) => <p key={file.id} className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold">{file.title}</p>)}
+                {(rep?.files || []).map((file: any) => <p key={file.id} className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold">{file.title} — {file.reviewStatus === 'PENDING_REVIEW' ? 'بانتظار المراجعة' : file.reviewStatus === 'REJECTED' ? 'مرفوض' : 'معتمد'}{file.reviewNote ? ` (${file.reviewNote})` : ''}</p>)}
                 {!rep?.files?.length && <p className="text-xs font-bold text-slate-400">لا توجد ملفات بعد.</p>}
               </div>
             </div>

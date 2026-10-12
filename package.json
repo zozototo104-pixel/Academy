@@ -12,6 +12,8 @@
     "lint": "eslint . --max-warnings=54",
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
+    "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
+    "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
     "test:book-outline": "tsx scripts/test-book-outline.ts",
     "test:outline-units": "tsx scripts/test-outline-units.ts",
     "db:push": "tsx scripts/prisma-deploy.ts --push",

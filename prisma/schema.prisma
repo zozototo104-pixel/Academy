@@ -563,11 +563,15 @@ model AcademyRepresentativeFile {
   fileUrl          String?
   extractedText    String?
   displayOrder     Int      @default(0)
+  reviewStatus     String   @default("APPROVED")
+  reviewedAt       DateTime?
+  reviewNote       String?
   createdAt        DateTime @default(now())
 
   @@index([representativeId, displayOrder])
   @@index([kind])
   @@index([storageProvider])
+  @@index([reviewStatus])
 }
 
 model AccreditationProfile {

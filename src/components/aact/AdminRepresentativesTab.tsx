@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Loader2, Plus, Save, Trash2, Upload, Sparkles, QrCode, ExternalLink, Image as ImageIcon, FileText } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus, Save, Trash2, Upload, Sparkles, QrCode, ExternalLink, Image as ImageIcon, FileText, XCircle } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,7 +68,7 @@ type Representative = FormState & {
   onboardingStatus?: string | null
   onboardingSubmittedAt?: string | null
   sourceAgentApplicationId?: string | null
-  files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null }>
+  files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null; reviewStatus?: string | null; reviewNote?: string | null }>
 }
 
 function formFromRepresentative(rep: Representative): FormState {
@@ -95,6 +95,8 @@ export default function AdminRepresentativesTab() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [rewriting, setRewriting] = useState(false)
+  const [onboardingBusy, setOnboardingBusy] = useState(false)
+  const [onboardingLink, setOnboardingLink] = useState('')
   const [query, setQuery] = useState('')
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
@@ -114,9 +116,11 @@ export default function AdminRepresentativesTab() {
       const active = nextRows.find((row) => row.id === focusId) || (!focusId ? nextRows[0] : null)
       if (active) {
         setSelectedId(active.id)
+        if (active.id !== focusId) setOnboardingLink('')
         setForm(formFromRepresentative(active))
       } else if (!nextRows.length) {
         setSelectedId('')
+        setOnboardingLink('')
         setForm(EMPTY_FORM)
       }
       return nextRows
@@ -136,11 +140,13 @@ export default function AdminRepresentativesTab() {
 
   function newRepresentative() {
     setSelectedId('')
+    setOnboardingLink('')
     setForm(EMPTY_FORM)
   }
 
   function choose(rep: Representative) {
     setSelectedId(rep.id)
+    setOnboardingLink('')
     setForm(formFromRepresentative(rep))
   }
 
@@ -235,6 +241,67 @@ export default function AdminRepresentativesTab() {
       toast({ title: 'تم حذف الملف' })
     } catch (e: any) {
       toast({ title: 'فشل حذف الملف', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function createOnboardingLink() {
+    if (!form.id) return
+    setOnboardingBusy(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر إنشاء رابط الاستكمال')
+      setOnboardingLink(data.url || '')
+      await load(form.id)
+      toast({ title: 'تم تجهيز رابط الاستكمال', description: 'انسخ الرابط وأرسله للممثل لاستكمال ملفه.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء رابط الاستكمال', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setOnboardingBusy(false)
+    }
+  }
+
+  async function revokeOnboardingLink() {
+    if (!form.id) return
+    if (!confirm('هل تريد إلغاء رابط الاستكمال الحالي؟')) return
+    setOnboardingBusy(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر إلغاء رابط الاستكمال')
+      setOnboardingLink('')
+      await load(form.id)
+      toast({ title: 'تم إلغاء رابط الاستكمال' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إلغاء الرابط', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setOnboardingBusy(false)
+    }
+  }
+
+  async function copyOnboardingLink() {
+    if (!onboardingLink) return
+    await navigator.clipboard?.writeText(onboardingLink).catch(() => {})
+    toast({ title: 'تم نسخ رابط الاستكمال' })
+  }
+
+  async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
+    if (!form.id) return
+    setUploading(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر تحديث مراجعة الملف')
+      await load(form.id)
+      toast({ title: action === 'APPROVE' ? 'تم اعتماد الملف' : 'تم رفض الملف' })
+    } catch (e: any) {
+      toast({ title: 'فشل مراجعة الملف', description: String(e?.message || e), variant: 'destructive' })
     } finally {
       setUploading(false)
     }
@@ -356,6 +423,22 @@ export default function AdminRepresentativesTab() {
               <div className="min-w-0 break-words rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
                 يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
               </div>
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs font-bold leading-6 text-indigo-950">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
+                    <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
+                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {['SUBMITTED', 'SUBMITTED_REVIEW'].includes(selected.onboardingStatus) ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : selected.onboardingStatus === 'WAITING_PROFILE' ? 'بدأ استكمال الملف' : selected.onboardingStatus === 'NOT_SENT' ? 'لم يُنشأ رابط' : selected.onboardingStatus}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
+                    {onboardingLink && <Button type="button" variant="outline" onClick={copyOnboardingLink} className="border-indigo-200 bg-white text-indigo-700">نسخ الرابط</Button>}
+                    {onboardingLink && <a href={onboardingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700">فتح الرابط</a>}
+                    {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
+                  </div>
+                </div>
+                {onboardingLink && <p className="mt-3 break-all rounded-xl bg-white p-3 text-[11px] text-indigo-800">{onboardingLink}</p>}
+              </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
                 <AssetUploader label="الكرنيه الرسمي" hint="صورة أو PDF للكرنيه" icon={<QrCode className="h-4 w-4" />} accept="image/*,.pdf" onUpload={(file) => upload('officialCard', file)} uploading={uploading || !form.id} />
@@ -382,12 +465,19 @@ export default function AdminRepresentativesTab() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
-                {(selected?.files || []).map((file) => (
-                  <div key={file.id} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><p className="break-all text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p></div>
-                    <div className="flex shrink-0 gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || file.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]"><ExternalLink className="h-4 w-4" /></a>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
-                  </div>
-                ))}
+                {(selected?.files || []).map((file) => {
+                  const reviewStatus = file.reviewStatus || 'APPROVED'
+                  return (
+                    <div key={file.id} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-black text-[#0f2b46]">{file.title}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${reviewStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : reviewStatus === 'REJECTED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{reviewStatus === 'APPROVED' ? 'معتمد' : reviewStatus === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}</span></div>
+                        <p className="break-all text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p>
+                        {file.reviewNote && <p className="text-xs font-bold text-slate-500">ملاحظة المراجعة: {file.reviewNote}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || `/api/admin/representatives/${encodeURIComponent(form.id)}/files/${encodeURIComponent(file.id)}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]" title="عرض الملف للإدارة"><ExternalLink className="h-4 w-4" /></a>}{reviewStatus !== 'APPROVED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'APPROVE')} className="border-emerald-200 text-emerald-700" title="اعتماد الملف"><CheckCircle2 className="h-4 w-4" /></Button>}{reviewStatus !== 'REJECTED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'REJECT')} className="border-amber-200 text-amber-700" title="رفض الملف"><XCircle className="h-4 w-4" /></Button>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
+                    </div>
+                  )
+                })}
                 {!selected?.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
               </div>
             </CardContent>
