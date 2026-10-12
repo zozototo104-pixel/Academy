@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { createRepresentativeOnboardingToken } from '@/lib/academy-representatives'
-import { audit } from '@/lib/audit'
+
+async function audit(actorId: string, action: string, entityId: string, details: string) {
+  await db.auditLog.create({
+    data: { actorId, actorName: 'إدارة النظام', action, entity: 'AcademyRepresentative', entityId, details: details.slice(0, 3900) },
+  }).catch(() => {})
+}
 
 function appBaseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000').replace(/\/$/, '')
