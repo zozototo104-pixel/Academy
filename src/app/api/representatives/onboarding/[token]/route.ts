@@ -307,7 +307,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         chunks.push(value)
       }
     } finally { reader.releaseLock() }
-    req = new NextRequest(req.url, { method: 'POST', headers: req.headers, body: new Blob(chunks).stream(), duplex: 'half' })
+    req = new NextRequest(req.url, { method: 'POST', headers: req.headers, body: new Blob(chunks) })
   }
   const form = await req.formData()
   const file = form.get('file')
