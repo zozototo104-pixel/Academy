@@ -72,7 +72,7 @@ const db = {
       return { count }
     },
   },
-  $transaction: async <T>(work: (transaction: typeof db) => Promise<T>): Promise<T> => work(db),
+  $transaction: async <T>(work: (transaction: { user: { update: typeof db.user.update }; session: { deleteMany: typeof db.session.deleteMany } }) => Promise<T>): Promise<T> => work(db),
 }
 
 // Import production routes only after replacing their database and request-context dependencies.
