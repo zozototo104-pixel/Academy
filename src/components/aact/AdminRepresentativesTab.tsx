@@ -245,6 +245,47 @@ export default function AdminRepresentativesTab() {
     }
   }
 
+  async function createOnboardingLink() {
+    if (!form.id) return
+    setOnboardingBusy(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر إنشاء رابط الاستكمال')
+      setOnboardingLink(data.url || '')
+      await load(form.id)
+      toast({ title: 'تم تجهيز رابط الاستكمال', description: 'انسخ الرابط وأرسله للممثل لاستكمال ملفه.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء رابط الاستكمال', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setOnboardingBusy(false)
+    }
+  }
+
+  async function revokeOnboardingLink() {
+    if (!form.id) return
+    if (!confirm('هل تريد إلغاء رابط الاستكمال الحالي؟')) return
+    setOnboardingBusy(true)
+    try {
+      const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || 'تعذر إلغاء رابط الاستكمال')
+      setOnboardingLink('')
+      await load(form.id)
+      toast({ title: 'تم إلغاء رابط الاستكمال' })
+    } catch (e: any) {
+      toast({ title: 'تعذر إلغاء الرابط', description: String(e?.message || e), variant: 'destructive' })
+    } finally {
+      setOnboardingBusy(false)
+    }
+  }
+
+  async function copyOnboardingLink() {
+    if (!onboardingLink) return
+    await navigator.clipboard?.writeText(onboardingLink).catch(() => {})
+    toast({ title: 'تم نسخ رابط الاستكمال' })
+  }
+
   async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
     if (!form.id) return
     setUploading(true)
