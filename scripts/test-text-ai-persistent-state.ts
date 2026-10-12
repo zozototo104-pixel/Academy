@@ -95,7 +95,7 @@ async function validationRejectedDoesNotWriteCooldown() {
   const store = makeStore()
   __setTextAiSettingStoreForTests(store)
   __resetTextAiStateForTests()
-  globalThis.fetch = (async () => geminiResponse('bad output')) as typeof fetch
+  globalThis.fetch = (async () => geminiResponse('bad output')) as unknown as typeof fetch
   try {
     await assert.rejects(
       () => textAiComplete({
