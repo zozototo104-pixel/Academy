@@ -24,7 +24,7 @@ export default function RepresentativeOnboardingPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error('رابط الاستكمال غير صالح أو انتهى.')
       setRep(data.representative)
-      setForm({
+      if (!preserveForm) setForm({
         degreeTitle: data.representative.degreeTitle || '',
         academicRank: data.representative.academicRank || '',
         city: data.representative.city || '',
