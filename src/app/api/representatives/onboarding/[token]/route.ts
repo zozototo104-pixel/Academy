@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as dns } from 'dns'
 import net from 'net'
+import { inflateRawSync } from 'zlib'
 import { db } from '@/lib/db'
 import { extractDocumentText } from '@/lib/document-extract'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
