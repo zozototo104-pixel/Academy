@@ -50,7 +50,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   return new NextResponse(new Uint8Array(stored.buffer), {
     headers: {
       'Content-Type': stored.mimeType || fields.mimeType,
-      'Cache-Control': 'public, max-age=300, s-maxage=3600',
+      'Cache-Control': 'private, no-store, max-age=0',
+      'Content-Security-Policy': "sandbox; default-src 'none'",
       'Content-Disposition': 'inline',
       'X-Content-Type-Options': 'nosniff',
     },
