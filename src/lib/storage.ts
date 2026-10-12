@@ -178,8 +178,13 @@ function signS3Request(args: {
   if (!cfg) return null
 
   const endpoint = new URL(cfg.endpoint)
+  const privateRepresentative = args.privateRepresentative || args.key.startsWith('representatives-private/')
+  const bucket = privateRepresentative ? cfg.privateRepresentativeBucket : cfg.bucket
+  if (!bucket || (privateRepresentative && bucket === cfg.bucket)) {
+    throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+  }
   const encodedKey = encodeS3Key(args.key)
-  const canonicalUri = `/${encodeS3PathPart(cfg.bucket)}/${encodedKey}`
+  const canonicalUri = `/${encodeS3PathPart(bucket)}/${encodedKey}`
   const url = `${endpoint.origin}${canonicalUri}`
   const now = new Date()
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
