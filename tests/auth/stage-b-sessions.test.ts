@@ -286,7 +286,7 @@ describe('Google OAuth callback', () => {
       expect(redirectUri).toBe(`https://${host}/api/auth/google/callback`)
       const response = await completeGoogle(callbackRequest(host, state))
       expect(response.status).toBe(200)
-      expect(redirectUris).toEqual([redirectUri])
+      expect(redirectUris).toEqual([`https://${host}/api/auth/google/callback`])
       const sessionToken = cookieValues.get('aact_session')!
       expect(sessionToken).toBeTruthy()
       expect(cookieOptions.get('aact_session')?.httpOnly).toBe(true)
