@@ -109,7 +109,12 @@ function detectAllowedUpload(buffer: Buffer, fileName: string, declaredMime: str
   if (isPdf) return { mimeType: 'application/pdf' }
   if (isPng) return { mimeType: 'image/png' }
   if (isJpg) return { mimeType: 'image/jpeg' }
-  if (isZip && (lower.endsWith('.docx') || lower.endsWith('.xlsx') || lower.endsWith('.pptx'))) return { mimeType: declaredMime || 'application/zip' }
+  if (isZip) {
+    const extension = ['.docx', '.xlsx', '.pptx'].find((ext) => lower.endsWith(ext))
+    if (extension && validOfficeArchive(buffer, extension)) {
+      return { mimeType: extension === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : extension === '.xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
+    }
+  }
   throw new Error('UNSUPPORTED_FILE_TYPE')
 }
 
