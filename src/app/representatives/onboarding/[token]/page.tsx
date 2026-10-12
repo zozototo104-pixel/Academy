@@ -16,8 +16,8 @@ export default function RepresentativeOnboardingPage() {
   const [linkTitle, setLinkTitle] = useState('رابط أعمال')
   const [linkUrl, setLinkUrl] = useState('')
 
-  async function load() {
-    setLoading(true)
+  async function load(preserveForm = false) {
+    if (!preserveForm) setLoading(true)
     setError('')
     try {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { cache: 'no-store' })
