@@ -75,7 +75,7 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   <div class="card"><div class="spin"></div><p>تم تسجيل الدخول عبر Google<br/>يتم فتح حسابك الآن…</p></div>
   <script>
     (function(){
-      try { localStorage.setItem('aact_token', ${tokenJson}); } catch(e) {}
+      try { localStorage.removeItem('aact_token'); } catch(e) {}
       try { sessionStorage.setItem('aact_skip_startup', '1'); } catch(e) {}
       location.replace(${targetJson});
     })();
