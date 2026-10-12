@@ -307,7 +307,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         chunks.push(value)
       }
     } finally { reader.releaseLock() }
-    req = new NextRequest(req.url, { method: 'POST', headers: req.headers, body: new Blob(chunks) })
+    const boundedBody = new ArrayBuffer(size)
+    const bytes = new Uint8Array(boundedBody)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    req = new NextRequest(req.url, { method: 'POST', headers: req.headers, body: boundedBody })
   }
   const form = await req.formData()
   const file = form.get('file')
