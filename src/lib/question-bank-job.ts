@@ -101,18 +101,43 @@ function rawRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
-export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unknown) {
+function stableMcqPositionSeed(value: string) {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function distributeCorrectMcqPosition(options: string[], correctIndex: number, seed: string) {
+  if (options.length <= 1) return { options, correctAnswer: String(correctIndex) }
+  const correct = options[correctIndex]
+  const wrong = options.filter((_, index) => index !== correctIndex)
+  let target = stableMcqPositionSeed(seed || options.join('|')) % options.length
+  if (correctIndex === 0 && target === 0) target = Math.min(1, options.length - 1)
+  const distributed = [...wrong]
+  distributed.splice(target, 0, correct)
+  return { options: distributed, correctAnswer: String(target) }
+}
+
+export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unknown, seed = '') {
   const arr = Array.isArray(value) ? value : []
   const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
   if (options.length < 3) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_REQUIRES_AT_LEAST_3_OPTIONS' }
   const answerText = cleanText(correctAnswer, 260)
   const answerIndex = /^\d+$/.test(answerText) ? Number(answerText) : options.findIndex((option) => option === answerText)
   if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_ANSWER_NOT_IN_OPTIONS' }
-  if (options.length <= 4) return { options, correctAnswer: String(answerIndex), reason: null as string | null }
+  if (options.length <= 4) {
+    const distributed = distributeCorrectMcqPosition(options, answerIndex, seed || `${answerText}|${options.join('|')}`)
+    return { ...distributed, reason: null as string | null }
+  }
   const wrongIndexes = options.map((_, index) => index).filter((index) => index !== answerIndex).slice(0, 3)
-  const selectedIndexes = [...wrongIndexes, answerIndex].sort((a, b) => a - b)
+  const selectedIndexes = [...wrongIndexes, answerIndex]
   const selectedOptions = selectedIndexes.map((index) => options[index])
-  return { options: selectedOptions, correctAnswer: String(selectedIndexes.indexOf(answerIndex)), reason: null as string | null }
+  const selectedAnswerIndex = selectedIndexes.indexOf(answerIndex)
+  const distributed = distributeCorrectMcqPosition(selectedOptions, selectedAnswerIndex, seed || `${answerText}|${options.join('|')}`)
+  return { ...distributed, reason: null as string | null }
 }
 
 function safeOptions(value: unknown, type: string) {
