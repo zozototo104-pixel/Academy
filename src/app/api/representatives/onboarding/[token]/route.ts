@@ -249,7 +249,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (assetType === 'profilePhoto') {
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
-        data: { profilePhotoUrl: stored.url, profilePhotoName: file.name, profilePhotoMime: stored.mimeType, profilePhotoSize: stored.size, profilePhotoStorageProvider: stored.provider, profilePhotoStorageKey: stored.key, onboardingStatus: 'WAITING_PROFILE' },
+        data: { profilePhotoUrl: stored.url, profilePhotoName: file.name, profilePhotoMime: stored.mimeType, profilePhotoSize: stored.size, profilePhotoStorageProvider: stored.provider, profilePhotoStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },
       })
       return NextResponse.json({ representative: updated })
     }
