@@ -422,6 +422,22 @@ export default function AdminRepresentativesTab() {
               <div className="min-w-0 break-words rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
                 يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
               </div>
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs font-bold leading-6 text-indigo-950">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
+                    <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
+                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {selected.onboardingStatus === 'SUBMITTED' ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : 'لم يتم إرسال رابط'}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
+                    {onboardingLink && <Button type="button" variant="outline" onClick={copyOnboardingLink} className="border-indigo-200 bg-white text-indigo-700">نسخ الرابط</Button>}
+                    {onboardingLink && <a href={onboardingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700">فتح الرابط</a>}
+                    {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
+                  </div>
+                </div>
+                {onboardingLink && <p className="mt-3 break-all rounded-xl bg-white p-3 text-[11px] text-indigo-800">{onboardingLink}</p>}
+              </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
                 <AssetUploader label="الكرنيه الرسمي" hint="صورة أو PDF للكرنيه" icon={<QrCode className="h-4 w-4" />} accept="image/*,.pdf" onUpload={(file) => upload('officialCard', file)} uploading={uploading || !form.id} />
