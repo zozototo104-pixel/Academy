@@ -141,7 +141,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const { token } = await params
   const rep = await loadRepresentative(token)
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
-  return NextResponse.json({ representative: { ...serializeRepresentative(rep, originFrom(req), false), rawBio: rep.rawBio, onboardingStatus: rep.onboardingStatus, aiRewriteStatus: rep.aiRewriteStatus, aiRewriteNote: rep.aiRewriteNote } })
+  const visible = serializeRepresentative(rep, originFrom(req), false)
+  return NextResponse.json({ representative: { ...visible, files: rep.files.map((file) => ({ id: file.id, title: file.title, kind: file.kind, description: file.description, reviewStatus: file.reviewStatus || 'APPROVED', reviewNote: file.reviewNote, externalUrl: file.externalUrl, fileUrl: file.reviewStatus === 'APPROVED' ? visible.files.find((item) => item.id === file.id)?.fileUrl || null : null })), rawBio: rep.rawBio, onboardingStatus: rep.onboardingStatus, aiRewriteStatus: rep.aiRewriteStatus, aiRewriteNote: rep.aiRewriteNote } })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
