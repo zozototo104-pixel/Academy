@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Production or preview URL to test"
-        required: true
-        default: "https://academy-raqaba.vercel.app"
+        description: "QA/Preview URL to test; production is intentionally not the default"
+        required: false
+        default: ""
       run_voice_token:
         description: 'Create Gemini Live ephemeral token during voice readiness test'
         type: boolean
