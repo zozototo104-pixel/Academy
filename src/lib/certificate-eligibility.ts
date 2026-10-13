@@ -117,15 +117,16 @@ export async function evaluateProgramCertificateEligibility(input: {
     where: { userId_programId: { userId: resolvedUserId, programId: resolvedProgramId } },
     select: { id: true },
   })
-  const payments = await client.payment.findMany({
-    where: {
-      OR: [
-        ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
-        ...(admissionId ? [{ admissionId }] : []),
-      ],
-    },
-    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
-  })
+  const paymentFilters = [
+    ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
+    ...(admissionId ? [{ admissionId }] : []),
+  ]
+  const payments = paymentFilters.length
+    ? await client.payment.findMany({
+        where: { OR: paymentFilters },
+        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+      })
+    : []
   const financeError = paymentEligibilityError(payments, program?.price)
   if (financeError) {
     return {
