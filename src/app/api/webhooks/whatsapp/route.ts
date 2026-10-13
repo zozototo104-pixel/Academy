@@ -54,11 +54,11 @@ const WHATSAPP_VOICE_HANDOFF_REPLY = 'استلمنا رسالتك الصوتية
 const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
 function conversationKey(from: string) {
-  return `wa:${whatsappWaIdHash(from).slice(0, 32)}`
+  return `wa:${hashWhatsAppId(from).slice(0, 32)}`
 }
 
 function waIdHash(from: string) {
-  return whatsappWaIdHash(from)
+  return hashWhatsAppId(from)
 }
 
 async function markSimpleGreetingReplySent(key: string, from: string, messageId: string) {
