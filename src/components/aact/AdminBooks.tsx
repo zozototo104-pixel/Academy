@@ -192,6 +192,8 @@ interface AssignmentSubmissionRow {
   studentEmail?: string
   answerText?: string | null
   fileName?: string | null
+  fileUrl?: string | null
+  downloadUrl?: string | null
   mimeType?: string | null
   size?: number | null
   status: string
