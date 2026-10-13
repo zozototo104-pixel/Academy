@@ -131,6 +131,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'FEE_SERVICE_DEFAULT', value: '50', label: 'رسوم الخدمة المهنية الافتراضية (تُستخدم فقط للخدمات بدون سعر)', group: 'FEES', suffix: '$', inputType: 'number', help: 'سعر كل خدمة أو برنامج يُعدّل من قواعد القبول.' },
 
   // باقات الذكاء الاصطناعي — تبيع المنصة دقائق محادثة صوتية للطلاب بعد انتهاء الرصيد المجاني
+  { key: 'WHATSAPP_AI_ENABLED', value: 'true', label: 'تشغيل وكيل واتساب الآلي', group: 'AI', suffix: '', inputType: 'boolean', help: 'عند الإيقاف تحفظ رسائل واتساب وتحوّل للموظف بدون رد آلي.' },
   { key: 'AI_LIVE_PACKAGE_MINUTES', value: '60', label: 'عدد دقائق باقة المحادثة الصوتية الإضافية', group: 'AI', suffix: 'دقيقة', inputType: 'number' },
   { key: 'AI_LIVE_PACKAGE_PRICE_USD', value: '10', label: 'سعر باقة دقائق المحادثة الصوتية', group: 'AI', suffix: '$', inputType: 'number' },
 
