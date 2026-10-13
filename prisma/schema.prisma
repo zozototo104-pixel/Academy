@@ -460,11 +460,15 @@ model Certificate {
   issuedAt    DateTime @default(now())
   valid       Boolean  @default(true)
   userId      String?  // إن كان صاحبه مستخدماً مسجلاً
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
   enrollmentId String?
+  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
   admissionId String?
   agentId     String?
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
+
+  @@unique([enrollmentId, type])
 }
 
 model CertificateTemplate {
