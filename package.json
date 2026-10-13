@@ -16,8 +16,6 @@
     "test:ai-ui-wiring": "tsx scripts/test-ai-ui-wiring.ts",
     "test:prod-safety": "bun run db:generate && tsx scripts/test-prod-safety.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
-    "test:ai-ui-wiring": "tsx scripts/test-ai-ui-wiring.ts",
-    "test:stage-c-exams": "bun run db:generate && tsx scripts/test-stage-c-exams.ts",
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
     "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
     "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
