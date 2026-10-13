@@ -463,7 +463,7 @@ export function AdminThesisTab() {
                           className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                           طلب تعديل البحث النهائي
                         </Button>
-                        <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
+                        <Button size="sm" disabled={busy} onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
                           className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
                           <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
                         </Button>
