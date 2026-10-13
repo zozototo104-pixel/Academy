@@ -984,9 +984,14 @@ async function handleWhatsAppPost(req: NextRequest, deps: WhatsAppPostTestDeps =
 
   const eventIds: string[] = []
   let skippedDuplicates = 0
+  let skippedEchoes = 0
   const errors: string[] = []
   for (const message of messages) {
     try {
+      if (await isWhatsAppOutboundEcho(message.id, dbClient)) {
+        skippedEchoes += 1
+        continue
+      }
       const event = await dbClient.whatsAppInboundEvent.create({
         data: { waMessageId: message.id, waIdHash: waIdHash(message.from), phoneNumberId: message.phoneNumberId || null, messageType: message.rawType || null, payload: inboundEventPayload(message), status: 'RECEIVED' },
         select: { id: true },
