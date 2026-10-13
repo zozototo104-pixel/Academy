@@ -1295,6 +1295,75 @@ export function AdminSystemTab() {
               </Button>
             </div>
           </div>
+          <div className="rounded-2xl border border-cyan-100 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-[#0f2b46]">نقل الملفات للتخزين الخاص</h4>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">
+                  يفحص ملفات القبول والدفع والواجبات والبحث وتسليمات الخدمات، ثم ينقلها للتخزين الخاص على دفعات. التقرير لا يعرض أسماء أو إيميلات أو روابط.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => runPrivateFilesMaintenance('dry-run')} disabled={privateFilesBusy} variant="outline" className="border-cyan-200 font-black text-cyan-700">
+                  {privateFilesBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Info className="ml-2 h-4 w-4" />}
+                  فحص بدون تغيير
+                </Button>
+                <Button onClick={() => runPrivateFilesMaintenance('execute')} disabled={privateFilesBusy || !privateFilesScanned || privateFilesConfirm.trim() !== 'نعم انقل'} className="bg-cyan-700 font-black text-white hover:bg-cyan-800">
+                  {privateFilesBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Upload className="ml-2 h-4 w-4" />}
+                  تنفيذ النقل
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_220px]">
+              <div>
+                <Label className="text-[11px] font-black text-slate-600">تأكيد التنفيذ</Label>
+                <Input value={privateFilesConfirm} onChange={(e) => setPrivateFilesConfirm(e.target.value)} disabled={privateFilesBusy} placeholder="اكتب: نعم انقل" className="mt-1 font-bold" />
+              </div>
+              <div className="rounded-xl bg-cyan-50 p-3 text-[11px] font-black text-cyan-900 ring-1 ring-cyan-100">
+                <div>الدفعات: {privateFilesProgress.batches}</div>
+                <div className="mt-1">السجلات المعالجة: {privateFilesProgress.records}</div>
+                <div className="mt-1">الحالة: {privateFilesBusy ? 'قيد التشغيل' : privateFilesReport?.done ? 'مكتمل' : 'جاهز'}</div>
+              </div>
+            </div>
+            {privateFilesReport && (
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="min-w-full text-right text-[11px] font-bold">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="p-2">النوع</th>
+                      <th className="p-2">السجلات</th>
+                      <th className="p-2">سينقل/نُقل</th>
+                      <th className="p-2">موجود أصلاً</th>
+                      <th className="p-2">مفقود</th>
+                      <th className="p-2">تحديث storageKey</th>
+                      <th className="p-2">IDs المفقودة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {PRIVATE_FILE_TYPE_ORDER.map((source) => {
+                      const row = privateFilesReport.byType[source]
+                      return (
+                        <tr key={source} className="border-t border-slate-100">
+                          <td className="p-2 text-[#0f2b46]">{row?.label || source}</td>
+                          <td className="p-2">{row?.records || 0}</td>
+                          <td className="p-2">{row?.toMigrate || 0}</td>
+                          <td className="p-2">{row?.alreadyPrivate || 0}</td>
+                          <td className="p-2">{row?.missing || 0}</td>
+                          <td className="p-2">{row?.storageKeyUpdates || 0}</td>
+                          <td className="max-w-[260px] p-2 font-mono text-[10px]" dir="ltr">{row?.missingIds?.length ? row.missingIds.join(', ') : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {privateFilesReport.notes?.length ? (
+                  <div className="border-t border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-relaxed text-amber-900">
+                    {privateFilesReport.notes.map((note, index) => <div key={index}>• {note}</div>)}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
           <div className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
