@@ -232,6 +232,7 @@ export default function AdminRepresentativesTab() {
 
   async function deleteFile(fileId: string) {
     if (!form.id) return
+    if (!window.confirm('تأكيد حذف ملف الممثل؟ سيتم حذف السجل من لوحة المراجعة ولا يظهر للممثل أو للعامة.')) return
     setUploading(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, { method: 'DELETE' })
