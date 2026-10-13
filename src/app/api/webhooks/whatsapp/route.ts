@@ -704,6 +704,29 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
   const deadlineMs = Date.now() + MESSAGE_PROCESSING_BUDGET_MS
+
+  if (!(await isWhatsAppAiEnabled())) {
+    const storedInbound = await recordWhatsAppInboundMessage(message)
+    await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
+    if (!(await isWhatsAppConversationHumanActive(message.from))) {
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
+        message: message.text || `رسالة واتساب ${message.rawType || 'واردة'} أثناء إيقاف الوكيل الآلي`,
+        source: 'WHATSAPP',
+        sourceRef: conversationKey(message.from),
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    }
+    await auditWhatsAppWebhook('WHATSAPP_AI_DISABLED_HANDOFF', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      conversationId: storedInbound?.conversation?.id || null,
+      rawType: message.rawType || null,
+      note: 'WHATSAPP_AI_ENABLED is off; inbound saved and transferred without automated reply',
+    }, storedInbound?.conversation?.id || message.id)
+    return 'SKIPPED'
+  }
+
   if (message.rawType === 'audio') {
     await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
     await sendOfficialWhatsAppTypingIndicator(message).catch(() => null)
