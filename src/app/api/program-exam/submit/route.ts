@@ -91,8 +91,14 @@ export async function POST(req: NextRequest) {
       durationUsedMin?: number
       proctoring?: { enabled?: boolean; log?: { t: number; type: string }[]; snapshot?: string }
     }
-    if (!examId || !Array.isArray(answers)) {
+    if (typeof examId !== 'string' || !examId || examId.length > 128 || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'بيانات الاختبار غير مكتملة' }, { status: 400 })
+    }
+    if (answers.length > 150 || answers.some((a) => !a || typeof a.questionId !== 'string' || a.questionId.length > 128 ||
+      (a.answerText !== undefined && (typeof a.answerText !== 'string' || a.answerText.length > 12000)) ||
+      (a.selectedOption !== undefined && (!Number.isInteger(a.selectedOption) || a.selectedOption < 0 || a.selectedOption > 30))) ||
+      new Set(answers.map((a) => a.questionId)).size !== answers.length) {
+      return NextResponse.json({ error: 'الإجابات تجاوزت الحدود المسموحة أو تضمنت تكرارًا' }, { status: 400 })
     }
 
     const exam = await db.programExam.findUnique({
