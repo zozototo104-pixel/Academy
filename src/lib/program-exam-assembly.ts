@@ -41,7 +41,8 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; boo
   if (!verificationAccepted(item) || !item.sourceEvidence || !item.sourceLocator || !item.correctRationale) return false
   if (!SKILLS.has(item.cognitiveSkill || '') || !DIFFICULTIES.has(item.difficulty || '')) return false
   if (!TYPES.includes(item.type as ExamQuestionType) || !item.text?.trim()) return false
-  if (!validateLiteralEvidence({ evidence: item.sourceEvidence, sourceText: source.excerpt || source.summary }).ok) return false
+  if (!source.excerpt || !source.chunkText || !validateLiteralEvidence({ evidence: source.excerpt, sourceText: source.chunkText }).ok) return false
+  if (!validateLiteralEvidence({ evidence: item.sourceEvidence, sourceText: source.chunkText }).ok) return false
   if (item.type === 'MCQ' || item.type === 'TF') {
     const options = array(item.options)
     if (item.correctAnswer == null || !/^\d+$/.test(item.correctAnswer)) return false
