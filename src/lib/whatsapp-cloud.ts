@@ -66,44 +66,7 @@ function settingValue(values: Record<string, string>, key: string) {
 
 function usd(value: unknown) {
   const n = Number(value)
-  return Number.isFinite(n) && n > 0 ? `${n}import crypto from 'crypto'
-import { db } from '@/lib/db'
-import { platformPublicAgentComplete } from '@/lib/platform-agent'
-import { DEFAULT_OFFICIAL_CONTACT, DEFAULT_SETTINGS, getOfficialContact, getSettings } from '@/lib/settings'
-import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
-import { hashWhatsAppId } from '@/lib/whatsapp-conversations'
-import { unsignedWebhookTestsAllowed } from '@/lib/prod-safety'
-
-type WhatsAppConfig = {
-  accessToken: string
-  phoneNumberId: string
-  graphVersion: string
-}
-
-export type WhatsAppInboundMessage = {
-  id: string
-  from: string
-  text: string
-  name?: string
-  phoneNumberId?: string
-  rawType?: string
-  mediaId?: string
-  mediaMimeType?: string
-  mediaSha256?: string
-  mediaFileSize?: number
-  isVoice?: boolean
-  originKind?: 'TEXT' | 'VOICE'
-}
-
-function trim(value: unknown) {
-  return String(value || '').trim()
-}
-
-function compactText(value: unknown, max = 1200) {
-  return trim(value).replace(/\s+/g, ' ').slice(0, max)
-}
-
- : 'غير مضبوط حالياً'
+  return Number.isFinite(n) && n > 0 ? `${n}$` : 'غير مضبوط حالياً'
 }
 
 async function listPublicProgramsForWhatsApp() {
@@ -121,6 +84,16 @@ export async function resolveWhatsAppDirectSettingsReply(text: string, deps: Wha
   const values = await deps.getSettings().catch(() => DEFAULT_SETTING_VALUES)
   const contact = await deps.getOfficialContact().catch(() => DEFAULT_OFFICIAL_CONTACT)
 
+  if (includesFaqAny(q, ['طرق الدفع', 'طريقة الدفع', 'كيف ادفع', 'كيف أدفع', 'تحويل', 'usdt', 'binance', 'بينانس'])) {
+    const mode = settingValue(values, 'PAYMENT_MODE') || 'DIRECT_PAYMENT'
+    const usdt = settingValue(values, 'USDT_WALLET_ADDRESS')
+    const network = settingValue(values, 'USDT_NETWORK')
+    const parts = [`طرق الدفع المتاحة تضبطها الإدارة من لوحة المنصة. الوضع الحالي: ${mode}.`]
+    if (usdt) parts.push(`USDT: ${usdt}${network ? ` — الشبكة: ${network}` : ''}`)
+    parts.push('بعد إنشاء الطلب أو الفاتورة من بوابة الطالب، تُراجع الإدارة السداد وتؤكده.')
+    return parts.join('\n')
+  }
+
   if (includesFaqAny(q, ['رسوم', 'الرسم', 'السعر', 'سعر', 'تكلفه', 'تكلفة', 'كم بدفع', 'اقساط', 'قسط'])) {
     return [
       `رسوم التقديم: ${usd(settingValue(values, 'FEE_APPLICATION'))}.`,
@@ -136,57 +109,10 @@ export async function resolveWhatsAppDirectSettingsReply(text: string, deps: Wha
     return `بيانات التواصل الرسمية:\nالهاتف/واتساب: ${phones}\nالبريد: ${contact.email || 'غير مضبوط'}\nالعنوان: ${contact.address || 'غير مضبوط'}`
   }
 
-  if (includesFaqAny(q, ['طرق الدفع', 'طريقة الدفع', 'كيف ادفع', 'كيف أدفع', 'دفع', 'تحويل', 'usdt', 'binance', 'بينانس'])) {
-    const mode = settingValue(values, 'PAYMENT_MODE') || 'DIRECT_PAYMENT'
-    const usdt = settingValue(values, 'USDT_WALLET_ADDRESS')
-    const network = settingValue(values, 'USDT_NETWORK')
-    const parts = [`طرق الدفع المتاحة تضبطها الإدارة من لوحة المنصة. الوضع الحالي: ${mode}.`]
-    if (usdt) parts.push(`USDT: ${usdt}${network ? ` — الشبكة: ${network}` : ''}`)
-    parts.push('بعد إنشاء الطلب أو الفاتورة من بوابة الطالب، تُراجع الإدارة السداد وتؤكده.')
-    return parts.join('\n')
-  }
-
   if (includesFaqAny(q, ['برامج', 'البرامج', 'تخصصات', 'تخصص', 'ماجستير', 'دكتوراه', 'دبلوم', 'المتاحه', 'المتاحة'])) {
     const programs = await deps.listPrograms().catch(() => [])
     if (!programs.length) return 'البرامج المتاحة تظهر من كتالوج المنصة، لكن القائمة غير متاحة الآن. اكتب المجال المطلوب وسأوجهك للتسجيل أو التواصل مع الإدارة.'
-    return `من البرامج المتاحة حالياً:\n${programs.map((p, i) => `${i + 1}. ${p.titleAr || p.titleEn || 'برنامج'}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price}import crypto from 'crypto'
-import { db } from '@/lib/db'
-import { platformPublicAgentComplete } from '@/lib/platform-agent'
-import { DEFAULT_OFFICIAL_CONTACT, DEFAULT_SETTINGS, getOfficialContact, getSettings } from '@/lib/settings'
-import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
-import { hashWhatsAppId } from '@/lib/whatsapp-conversations'
-import { unsignedWebhookTestsAllowed } from '@/lib/prod-safety'
-
-type WhatsAppConfig = {
-  accessToken: string
-  phoneNumberId: string
-  graphVersion: string
-}
-
-export type WhatsAppInboundMessage = {
-  id: string
-  from: string
-  text: string
-  name?: string
-  phoneNumberId?: string
-  rawType?: string
-  mediaId?: string
-  mediaMimeType?: string
-  mediaSha256?: string
-  mediaFileSize?: number
-  isVoice?: boolean
-  originKind?: 'TEXT' | 'VOICE'
-}
-
-function trim(value: unknown) {
-  return String(value || '').trim()
-}
-
-function compactText(value: unknown, max = 1200) {
-  return trim(value).replace(/\s+/g, ' ').slice(0, max)
-}
-
- : ''}`).join('\n')}`
+    return `من البرامج المتاحة حالياً:\n${programs.map((p, i) => `${i + 1}. ${p.titleAr || p.titleEn || 'برنامج'}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price}$` : ''}`).join('\n')}`
   }
 
   if (includesFaqAny(q, ['مدة الشهاده', 'مدة الشهادة', 'متى تصدر', 'اصدار الشهاده', 'إصدار الشهادة', 'الشهاده', 'الشهادة'])) {
