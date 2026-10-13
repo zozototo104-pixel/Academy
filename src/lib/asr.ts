@@ -210,23 +210,24 @@ export async function transcribeAudioBase64(audioBase64: string, options: Transc
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) return ''
 
-  const skipZaiFallback = options.allowZaiFallback === false || isOggOrOpusMime(mimeType)
+  const prepared = await prepareAudioForAsr(clean, mimeType)
+  const skipZaiFallback = options.allowZaiFallback === false
 
   try {
-    const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
+    const geminiText = await transcribeWithGemini(prepared.clean, { ...options, mimeType: prepared.mimeType })
     if (geminiText !== null) return geminiText
   } catch (error) {
     const reason = String((error as any)?.message || error).slice(0, 300)
     if (skipZaiFallback) {
-      console.warn('Gemini ASR failed; ZAI fallback disabled for this audio:', JSON.stringify({ mimeType, reason }).slice(0, 500))
+      console.warn('Gemini ASR failed; audio fallback disabled:', JSON.stringify({ mimeType: prepared.mimeType, converted: prepared.converted, reason }).slice(0, 500))
       throw error
     }
-    console.warn('Gemini ASR failed, falling back to ZAI:', reason)
+    console.warn('Gemini ASR failed, falling back to audio-capable ASR:', JSON.stringify({ mimeType: prepared.mimeType, converted: prepared.converted, reason }).slice(0, 500))
   }
 
   if (skipZaiFallback) {
-    throw new Error(`Gemini ASR unavailable for ${mimeType}; ZAI fallback disabled.`)
+    throw new Error(`Gemini ASR unavailable for ${prepared.mimeType}; fallback disabled.`)
   }
 
-  return transcribeWithZai(clean)
+  return transcribeWithZai(prepared.clean)
 }
