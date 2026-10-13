@@ -903,6 +903,7 @@ export async function platformPublicAgentComplete(opts: {
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
   deadlineMs?: number
+  getProviderHealth?: typeof textAiModelHealthSnapshot
   __testDeps?: {
     analyzeConversationIntent?: typeof analyzeConversationIntent
     textAiComplete?: typeof textAiComplete
