@@ -7,7 +7,7 @@ export const maxDuration = 60
 
 function cronAuthorized(req: NextRequest) {
   const expected = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET || ''
-  if (!expected) return true
+  if (!expected) return false
   const header = req.headers.get('authorization') || ''
   return header === `Bearer ${expected}`
 }
