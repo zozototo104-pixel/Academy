@@ -1,13 +1,28 @@
 import { createHash } from 'crypto'
 import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
 
+function digitsOnly(value?: string | null) {
+  return String(value || '').replace(/\D/g, '')
+}
+
 export function whatsappHashSecret() {
   return process.env.WHATSAPP_HASH_SECRET || process.env.NEXTAUTH_SECRET || 'aact-whatsapp-local-hash'
 }
 
-export function whatsappWaIdHash(from: string) {
-  return createHash('sha256').update(`${whatsappHashSecret()}:${String(from || '')}`).digest('hex')
+export function isWhatsAppHashSecretExplicitlyConfigured() {
+  return Boolean(String(process.env.WHATSAPP_HASH_SECRET || '').trim())
 }
+
+export function normalizeWhatsAppIdForHash(from: string) {
+  return digitsOnly(from) || String(from || '').trim()
+}
+
+export function hashWhatsAppId(from: string) {
+  return createHash('sha256').update(`${whatsappHashSecret()}:${normalizeWhatsAppIdForHash(from)}`).digest('hex')
+}
+
+// Backward-compatible alias; new code should import hashWhatsAppId so there is one canonical implementation.
+export const whatsappWaIdHash = hashWhatsAppId
 
 /** Match an existing conversation hash using the current or an explicitly known old salt.
  * Never infer a WhatsApp recipient solely from its masked number.
