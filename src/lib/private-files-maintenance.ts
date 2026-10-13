@@ -210,9 +210,9 @@ async function defaultLocalLegacyExists(key: string) {
   return exists(path.join(process.cwd(), 'public', 'uploads', key))
 }
 
-async function defaultReadLegacyFile(item: PrivateFilesCandidate) {
-  if (isHttpUrl(item.legacyUrl)) return readStoredFile({ url: item.legacyUrl || '' })
-  return readStoredFile({ provider: 'local', key: item.key })
+async function defaultReadLegacyFile(item: PrivateFilesCandidate, options: { allowedHosts: Set<string>; maxBytes: number }) {
+  if (isHttpUrl(item.legacyUrl)) return readStoredFile({ url: item.legacyUrl || '', allowedHosts: options.allowedHosts, maxBytes: options.maxBytes, timeoutMs: 15_000 })
+  return readStoredFile({ provider: 'local', key: item.key, maxBytes: options.maxBytes })
 }
 
 async function defaultStorePrivateFile(item: PrivateFilesCandidate, file: { buffer: Buffer; mimeType: string }) {
