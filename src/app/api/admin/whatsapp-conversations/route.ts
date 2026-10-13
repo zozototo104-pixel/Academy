@@ -11,6 +11,14 @@ function jsonError(error: any, status = 500) {
   return NextResponse.json({ ok: false, error: String(error?.message || error || 'تعذر تنفيذ العملية') }, { status })
 }
 
+function adminConversationView<T extends { waIdEncrypted?: string | null; waIdHash: string; phoneMasked: string }>(conversation: T) {
+  const decrypted = decryptConversationWaIdForInternalUse(conversation)
+  const phoneNumber = decrypted && hashWhatsAppId(decrypted) === conversation.waIdHash ? decrypted : null
+  const { waIdEncrypted: _encrypted, ...visible } = conversation
+  void _encrypted
+  return { ...visible, phoneNumber }
+}
+
 function normalizeStatus(status: string | null) {
   const allowed = ['BOT_ACTIVE', 'HUMAN_REQUESTED', 'HUMAN_ACTIVE', 'CLOSED']
   return allowed.includes(String(status || '')) ? String(status) : null
