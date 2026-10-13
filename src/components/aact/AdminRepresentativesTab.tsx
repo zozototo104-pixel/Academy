@@ -290,6 +290,7 @@ export default function AdminRepresentativesTab() {
 
   async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
     if (!form.id) return
+    if (action === 'REJECT' && !window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
     setUploading(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, {
