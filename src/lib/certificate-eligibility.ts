@@ -1,5 +1,8 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { calculateFinalGrade, type FinalGradeResult } from '@/lib/final-grade'
+
+export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClient
 
 export const CERTIFICATE_PASS_SCORE = 51
 
