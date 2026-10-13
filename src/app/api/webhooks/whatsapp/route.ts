@@ -658,6 +658,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
+  const deadlineMs = Date.now() + MESSAGE_PROCESSING_BUDGET_MS
   if (message.rawType === 'audio') {
     await sendOfficialWhatsAppReadReceipt(message).catch(() => null)
     await sendOfficialWhatsAppTypingIndicator(message).catch(() => null)
