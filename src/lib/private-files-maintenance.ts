@@ -3,7 +3,7 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { isPrivateStorageKey, normalizeStorageKeyForPolicy } from '@/lib/prod-safety'
-import { getStorageDownloadPathForKey, readStoredFile, storeFileBufferAtKey } from '@/lib/storage'
+import { configuredAllowedStorageHosts, getStorageDownloadPathForKey, readStoredFile, storeFileBufferAtKey } from '@/lib/storage'
 
 type DbClient = PrismaClient | Prisma.TransactionClient | any
 export type PrivateFilesMode = 'dry-run' | 'execute'
