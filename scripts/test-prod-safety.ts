@@ -316,6 +316,7 @@ async function main() {
   testAiDeadlines()
   testAactTestRecipientBlocks()
   await testWhatsAppReliabilityBehavior()
+  await testWhatsAppWebhookHandlerBehavior()
   testWhatsAppUnsignedWebhookProductionBlock()
   testDependencyPins()
   console.log('✓ production safety behavioral checks passed')
