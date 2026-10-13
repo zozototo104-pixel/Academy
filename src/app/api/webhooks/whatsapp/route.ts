@@ -769,7 +769,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
         reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
       }, storedInbound?.conversation?.id || inboundMessage.id)
     }
-    return 'SENT'
+    return immediateOutcome.sent ? 'SENT' : 'SKIPPED'
   }
 
   if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
