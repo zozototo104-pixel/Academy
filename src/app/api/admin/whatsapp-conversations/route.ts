@@ -14,7 +14,7 @@ function jsonError(error: any, status = 500) {
 
 function adminConversationView<T extends { waIdEncrypted?: string | null; waIdHash: string; phoneMasked: string }>(conversation: T) {
   const decrypted = decryptConversationWaIdForInternalUse(conversation)
-  const phoneNumber = decrypted && hashWhatsAppId(decrypted) === conversation.waIdHash ? decrypted : null
+  const phoneNumber = decrypted && matchesWhatsAppWaIdHash(decrypted, conversation.waIdHash) ? decrypted : null
   const { waIdEncrypted: _encrypted, ...visible } = conversation
   void _encrypted
   return { ...visible, phoneNumber }
