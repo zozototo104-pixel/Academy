@@ -186,6 +186,263 @@ async function testWhatsAppReliabilityBehavior() {
   }
   const feesReply = await resolveWhatsAppDirectSettingsReply('كم رسوم الماجستير؟', faqDeps)
   assert(feesReply && feesReply.includes('700
+
+  const whatsappRoute = file('src/app/api/webhooks/whatsapp/route.ts')
+  assert(whatsappRoute.includes("{ status: 'RECEIVED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap RECEIVED retries at two attempts')
+  assert(whatsappRoute.includes("{ status: 'FAILED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap FAILED retries at two attempts')
+  assert(whatsappRoute.includes('processStaleWhatsAppInboundEvents'), 'WhatsApp stale-event cron processor must exist')
+  assert(whatsappRoute.includes('provider: meta.provider'), 'WhatsApp fallback audit must include provider')
+  assert(whatsappRoute.includes('classifierResult: meta.classifierResult'), 'WhatsApp fallback audit must include classifier result')
+
+  const cron = file('src/app/api/cron/whatsapp-retry/route.ts')
+  assert(cron.includes('processStaleWhatsAppInboundEvents(20)'), 'WhatsApp cron must pick up stale events')
+  const vercel = file('vercel.json')
+  assert(vercel.includes('/api/cron/whatsapp-retry') && vercel.includes('* * * * *'), 'WhatsApp retry cron must run every minute')
+
+  const failuresApi = file('src/app/api/admin/whatsapp-failures/route.ts')
+  assert(failuresApi.includes("action: 'WHATSAPP_AI_FALLBACK_SENT'"), 'admin failures API must read fallback audit logs')
+  assert(failuresApi.includes('take: 50'), 'admin failures API must return the latest 50 records')
+  const adminView = file('src/components/aact/AdminView.tsx')
+  assert(adminView.includes('إخفاقات الواتساب') && adminView.includes('AdminWhatsAppFailuresTab'), 'admin UI must expose WhatsApp failures tab')
+}
+
+function testWhatsAppUnsignedWebhookProductionBlock() {
+  assert(!unsignedWebhookTestsAllowed({ VERCEL_ENV: 'production', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests must never be allowed in production')
+  assert(unsignedWebhookTestsAllowed({ VERCEL_ENV: 'preview', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests may remain available outside production')
+  const cloud = file('src/lib/whatsapp-cloud.ts')
+  assert(cloud.includes('unsignedWebhookTestsAllowed()'), 'WhatsApp signature verification must use production-safe unsigned-test guard')
+}
+
+function testDependencyPins() {
+  const pkg = JSON.parse(file('package.json'))
+  assert(pkg.dependencies.next === '^16.4.0', 'Next.js dependency must be updated')
+  assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
+  assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
+}
+
+async function main() {
+  testProductionFixtureGuards()
+  testWorkflowTargetsQaOnly()
+  testFinallyCleanup()
+  testPrivateStoragePolicy()
+  await testFileAccessPolicyBehavior()
+  testOfficialSettingsDeploymentHook()
+  testAiDeadlines()
+  testAactTestRecipientBlocks()
+  await testWhatsAppReliabilityBehavior()
+  testWhatsAppUnsignedWebhookProductionBlock()
+  testDependencyPins()
+  console.log('✓ production safety behavioral checks passed')
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+) && feesReply.includes('رسوم التقديم'), 'WhatsApp fee questions must be answered from settings without AI')
+  const paymentReply = await resolveWhatsAppDirectSettingsReply('ما هي طرق الدفع؟', faqDeps)
+  assert(paymentReply && paymentReply.includes('طرق الدفع') && paymentReply.includes('DIRECT_PAYMENT'), 'WhatsApp payment questions must be answered from settings without AI')
+
+  const platformAgent = file('src/lib/platform-agent.ts')
+  assert(platformAgent.includes("taskLevel: 'GENERAL'"), 'WhatsApp visitor replies must use GENERAL task level')
+  assert(platformAgent.includes("purpose: 'CHAT'"), 'WhatsApp visitor replies must use chat/general router purpose')
+  assert(platformAgent.includes('return await runWhatsAppRouter()'), 'WhatsApp public replies must go through the full text AI router rather than Gemini direct')
+  assert(platformAgent.includes('runWhatsAppRouter([failedProvider])'), 'WhatsApp public replies must try one alternate healthy provider when time remains')
+  assert(platformAgent.includes('Date.now() + 4_000'), 'WhatsApp intent classifier deadline must be at most four seconds')
+  assert(platformAgent.includes('Date.now() + Math.min(20_000'), 'WhatsApp provider deadline must be at most twenty seconds')
+  assert(platformAgent.includes('continuing with local routing rules'), 'WhatsApp classifier failure must continue with local rules')
+
+  const whatsappRoute = file('src/app/api/webhooks/whatsapp/route.ts')
+  assert(whatsappRoute.includes("{ status: 'RECEIVED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap RECEIVED retries at two attempts')
+  assert(whatsappRoute.includes("{ status: 'FAILED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap FAILED retries at two attempts')
+  assert(whatsappRoute.includes('processStaleWhatsAppInboundEvents'), 'WhatsApp stale-event cron processor must exist')
+  assert(whatsappRoute.includes('provider: meta.provider'), 'WhatsApp fallback audit must include provider')
+  assert(whatsappRoute.includes('classifierResult: meta.classifierResult'), 'WhatsApp fallback audit must include classifier result')
+
+  const cron = file('src/app/api/cron/whatsapp-retry/route.ts')
+  assert(cron.includes('processStaleWhatsAppInboundEvents(20)'), 'WhatsApp cron must pick up stale events')
+  const vercel = file('vercel.json')
+  assert(vercel.includes('/api/cron/whatsapp-retry') && vercel.includes('* * * * *'), 'WhatsApp retry cron must run every minute')
+
+  const failuresApi = file('src/app/api/admin/whatsapp-failures/route.ts')
+  assert(failuresApi.includes("action: 'WHATSAPP_AI_FALLBACK_SENT'"), 'admin failures API must read fallback audit logs')
+  assert(failuresApi.includes('take: 50'), 'admin failures API must return the latest 50 records')
+  const adminView = file('src/components/aact/AdminView.tsx')
+  assert(adminView.includes('إخفاقات الواتساب') && adminView.includes('AdminWhatsAppFailuresTab'), 'admin UI must expose WhatsApp failures tab')
+}
+
+function testWhatsAppUnsignedWebhookProductionBlock() {
+  assert(!unsignedWebhookTestsAllowed({ VERCEL_ENV: 'production', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests must never be allowed in production')
+  assert(unsignedWebhookTestsAllowed({ VERCEL_ENV: 'preview', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests may remain available outside production')
+  const cloud = file('src/lib/whatsapp-cloud.ts')
+  assert(cloud.includes('unsignedWebhookTestsAllowed()'), 'WhatsApp signature verification must use production-safe unsigned-test guard')
+}
+
+function testDependencyPins() {
+  const pkg = JSON.parse(file('package.json'))
+  assert(pkg.dependencies.next === '^16.4.0', 'Next.js dependency must be updated')
+  assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
+  assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
+}
+
+async function main() {
+  testProductionFixtureGuards()
+  testWorkflowTargetsQaOnly()
+  testFinallyCleanup()
+  testPrivateStoragePolicy()
+  await testFileAccessPolicyBehavior()
+  testOfficialSettingsDeploymentHook()
+  testAiDeadlines()
+  testAactTestRecipientBlocks()
+  await testWhatsAppReliabilityBehavior()
+  testWhatsAppUnsignedWebhookProductionBlock()
+  testDependencyPins()
+  console.log('✓ production safety behavioral checks passed')
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+) && feesReply.includes('رسوم التقديم'), 'WhatsApp fee questions must be answered from settings without AI')
+  const paymentReply = await resolveWhatsAppDirectSettingsReply('ما هي طرق الدفع؟', faqDeps)
+  assert(paymentReply && paymentReply.includes('طرق الدفع') && paymentReply.includes('DIRECT_PAYMENT'), 'WhatsApp payment questions must be answered from settings without AI')
+
+  const platformAgent = file('src/lib/platform-agent.ts')
+  assert(platformAgent.includes("taskLevel: 'GENERAL'"), 'WhatsApp visitor replies must use GENERAL task level')
+  assert(platformAgent.includes("purpose: 'CHAT'"), 'WhatsApp visitor replies must use chat/general router purpose')
+  assert(platformAgent.includes('return await runWhatsAppRouter()'), 'WhatsApp public replies must go through the full text AI router rather than Gemini direct')
+  assert(platformAgent.includes('runWhatsAppRouter([failedProvider])'), 'WhatsApp public replies must try one alternate healthy provider when time remains')
+  assert(platformAgent.includes('Date.now() + 4_000'), 'WhatsApp intent classifier deadline must be at most four seconds')
+  assert(platformAgent.includes('Date.now() + Math.min(20_000'), 'WhatsApp provider deadline must be at most twenty seconds')
+  assert(platformAgent.includes('continuing with local routing rules'), 'WhatsApp classifier failure must continue with local rules')
+
+  const whatsappRoute = file('src/app/api/webhooks/whatsapp/route.ts')
+  assert(whatsappRoute.includes("{ status: 'RECEIVED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap RECEIVED retries at two attempts')
+  assert(whatsappRoute.includes("{ status: 'FAILED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap FAILED retries at two attempts')
+  assert(whatsappRoute.includes('processStaleWhatsAppInboundEvents'), 'WhatsApp stale-event cron processor must exist')
+  assert(whatsappRoute.includes('provider: meta.provider'), 'WhatsApp fallback audit must include provider')
+  assert(whatsappRoute.includes('classifierResult: meta.classifierResult'), 'WhatsApp fallback audit must include classifier result')
+
+  const cron = file('src/app/api/cron/whatsapp-retry/route.ts')
+  assert(cron.includes('processStaleWhatsAppInboundEvents(20)'), 'WhatsApp cron must pick up stale events')
+  const vercel = file('vercel.json')
+  assert(vercel.includes('/api/cron/whatsapp-retry') && vercel.includes('* * * * *'), 'WhatsApp retry cron must run every minute')
+
+  const failuresApi = file('src/app/api/admin/whatsapp-failures/route.ts')
+  assert(failuresApi.includes("action: 'WHATSAPP_AI_FALLBACK_SENT'"), 'admin failures API must read fallback audit logs')
+  assert(failuresApi.includes('take: 50'), 'admin failures API must return the latest 50 records')
+  const adminView = file('src/components/aact/AdminView.tsx')
+  assert(adminView.includes('إخفاقات الواتساب') && adminView.includes('AdminWhatsAppFailuresTab'), 'admin UI must expose WhatsApp failures tab')
+}
+
+function testWhatsAppUnsignedWebhookProductionBlock() {
+  assert(!unsignedWebhookTestsAllowed({ VERCEL_ENV: 'production', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests must never be allowed in production')
+  assert(unsignedWebhookTestsAllowed({ VERCEL_ENV: 'preview', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests may remain available outside production')
+  const cloud = file('src/lib/whatsapp-cloud.ts')
+  assert(cloud.includes('unsignedWebhookTestsAllowed()'), 'WhatsApp signature verification must use production-safe unsigned-test guard')
+}
+
+function testDependencyPins() {
+  const pkg = JSON.parse(file('package.json'))
+  assert(pkg.dependencies.next === '^16.4.0', 'Next.js dependency must be updated')
+  assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
+  assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
+}
+
+async function main() {
+  testProductionFixtureGuards()
+  testWorkflowTargetsQaOnly()
+  testFinallyCleanup()
+  testPrivateStoragePolicy()
+  await testFileAccessPolicyBehavior()
+  testOfficialSettingsDeploymentHook()
+  testAiDeadlines()
+  testAactTestRecipientBlocks()
+  await testWhatsAppReliabilityBehavior()
+  testWhatsAppUnsignedWebhookProductionBlock()
+  testDependencyPins()
+  console.log('✓ production safety behavioral checks passed')
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+) && feesReply.includes('رسوم التقديم'), 'WhatsApp fee questions must be answered from settings without AI')
+  const paymentReply = await resolveWhatsAppDirectSettingsReply('ما هي طرق الدفع؟', faqDeps)
+  assert(paymentReply && paymentReply.includes('طرق الدفع') && paymentReply.includes('DIRECT_PAYMENT'), 'WhatsApp payment questions must be answered from settings without AI')
+
+  const platformAgent = file('src/lib/platform-agent.ts')
+  assert(platformAgent.includes("taskLevel: 'GENERAL'"), 'WhatsApp visitor replies must use GENERAL task level')
+  assert(platformAgent.includes("purpose: 'CHAT'"), 'WhatsApp visitor replies must use chat/general router purpose')
+  assert(platformAgent.includes('return await runWhatsAppRouter()'), 'WhatsApp public replies must go through the full text AI router rather than Gemini direct')
+  assert(platformAgent.includes('runWhatsAppRouter([failedProvider])'), 'WhatsApp public replies must try one alternate healthy provider when time remains')
+  assert(platformAgent.includes('Date.now() + 4_000'), 'WhatsApp intent classifier deadline must be at most four seconds')
+  assert(platformAgent.includes('Date.now() + Math.min(20_000'), 'WhatsApp provider deadline must be at most twenty seconds')
+  assert(platformAgent.includes('continuing with local routing rules'), 'WhatsApp classifier failure must continue with local rules')
+
+  const whatsappRoute = file('src/app/api/webhooks/whatsapp/route.ts')
+  assert(whatsappRoute.includes("{ status: 'RECEIVED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap RECEIVED retries at two attempts')
+  assert(whatsappRoute.includes("{ status: 'FAILED', attempts: { lt: 2 } }"), 'WhatsApp event claim must cap FAILED retries at two attempts')
+  assert(whatsappRoute.includes('processStaleWhatsAppInboundEvents'), 'WhatsApp stale-event cron processor must exist')
+  assert(whatsappRoute.includes('provider: meta.provider'), 'WhatsApp fallback audit must include provider')
+  assert(whatsappRoute.includes('classifierResult: meta.classifierResult'), 'WhatsApp fallback audit must include classifier result')
+
+  const cron = file('src/app/api/cron/whatsapp-retry/route.ts')
+  assert(cron.includes('processStaleWhatsAppInboundEvents(20)'), 'WhatsApp cron must pick up stale events')
+  const vercel = file('vercel.json')
+  assert(vercel.includes('/api/cron/whatsapp-retry') && vercel.includes('* * * * *'), 'WhatsApp retry cron must run every minute')
+
+  const failuresApi = file('src/app/api/admin/whatsapp-failures/route.ts')
+  assert(failuresApi.includes("action: 'WHATSAPP_AI_FALLBACK_SENT'"), 'admin failures API must read fallback audit logs')
+  assert(failuresApi.includes('take: 50'), 'admin failures API must return the latest 50 records')
+  const adminView = file('src/components/aact/AdminView.tsx')
+  assert(adminView.includes('إخفاقات الواتساب') && adminView.includes('AdminWhatsAppFailuresTab'), 'admin UI must expose WhatsApp failures tab')
+}
+
+function testWhatsAppUnsignedWebhookProductionBlock() {
+  assert(!unsignedWebhookTestsAllowed({ VERCEL_ENV: 'production', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests must never be allowed in production')
+  assert(unsignedWebhookTestsAllowed({ VERCEL_ENV: 'preview', WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS: '1' } as any), 'unsigned WhatsApp tests may remain available outside production')
+  const cloud = file('src/lib/whatsapp-cloud.ts')
+  assert(cloud.includes('unsignedWebhookTestsAllowed()'), 'WhatsApp signature verification must use production-safe unsigned-test guard')
+}
+
+function testDependencyPins() {
+  const pkg = JSON.parse(file('package.json'))
+  assert(pkg.dependencies.next === '^16.4.0', 'Next.js dependency must be updated')
+  assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
+  assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
+}
+
+async function main() {
+  testProductionFixtureGuards()
+  testWorkflowTargetsQaOnly()
+  testFinallyCleanup()
+  testPrivateStoragePolicy()
+  await testFileAccessPolicyBehavior()
+  testOfficialSettingsDeploymentHook()
+  testAiDeadlines()
+  testAactTestRecipientBlocks()
+  await testWhatsAppReliabilityBehavior()
+  testWhatsAppUnsignedWebhookProductionBlock()
+  testDependencyPins()
+  console.log('✓ production safety behavioral checks passed')
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+) && feesReply.includes('رسوم التقديم'), 'WhatsApp fee questions must be answered from settings without AI')
+  const paymentReply = await resolveWhatsAppDirectSettingsReply('ما هي طرق الدفع؟', faqDeps)
+  assert(paymentReply && paymentReply.includes('طرق الدفع') && paymentReply.includes('DIRECT_PAYMENT'), 'WhatsApp payment questions must be answered from settings without AI')
+
+  const platformAgent = file('src/lib/platform-agent.ts')
   assert(platformAgent.includes("taskLevel: 'GENERAL'"), 'WhatsApp visitor replies must use GENERAL task level')
   assert(platformAgent.includes("purpose: 'CHAT'"), 'WhatsApp visitor replies must use chat/general router purpose')
   assert(platformAgent.includes('return await runWhatsAppRouter()'), 'WhatsApp public replies must go through the full text AI router rather than Gemini direct')
