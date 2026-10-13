@@ -778,6 +778,9 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     stopTypingRefresh()
   }
 
+  // The administrator may claim the conversation while the AI is generating.
+  if (await isWhatsAppConversationHumanActive(inboundMessage.from)) return 'SKIPPED'
+
   const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, reply, {
     phoneNumberId: inboundMessage.phoneNumberId,
     replyToMessageId: inboundMessage.id,
