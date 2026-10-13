@@ -265,6 +265,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'لا توجد جلسة جارية' }, { status: 400 })
       }
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' }, orderBy: { createdAt: 'asc' } })
+      if (studentMsgs.length < DEFENSE_CRITERIA.length) {
+        const rec = `انتهت الجلسة قبل تغطية المعايير الخمسة كاملة (${studentMsgs.length}/${DEFENSE_CRITERIA.length}). يجب مراجعة اللجنة البشرية للمحضر والتسجيل قبل أي علامة.`
+        const breakdown = {
+          needsReview: true,
+          reason: 'DEFENSE_CRITERIA_INCOMPLETE',
+          answeredCriteria: studentMsgs.length,
+          requiredCriteria: DEFENSE_CRITERIA.length,
+          criteria: DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: index < studentMsgs.length ? finiteScore(studentMsgs[index].score) : null })),
+          ...(legacyDefense ? { legacy: true } : {}),
+        }
+        await db.thesisSubmission.update({
+          where: { id: thesis.id },
+          data: { defenseStatus: 'NEEDS_REVIEW', aiScore: null, aiRecommendation: rec, defenseBreakdown: breakdown, defenseCompletedAt: new Date() },
+        })
+        await db.defenseMessage.create({
+          data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة قبل اكتمال معايير المناقشة — الحالة: تحتاج مراجعة بشرية — لا توجد علامة آلية.` },
+        })
+        await notify(user.id, 'DEFENSE', 'أنهيت جلسة المناقشة', 'انتهت الجلسة قبل تغطية المعايير الخمسة؛ أحيلت للمراجعة البشرية دون علامة آلية.', 'dashboard')
+        const messages = await db.defenseMessage.findMany({ where: { thesisId: thesis.id }, orderBy: { createdAt: 'asc' } })
+        return NextResponse.json({ ok: true, messages, completed: false, needsReview: true, aiScore: null, aiRecommendation: rec, minutes: null })
+      }
       const scores = studentMsgs.map((m) => finiteScore(m.score))
       const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
       const aiScore = weighted.score
