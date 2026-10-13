@@ -50,6 +50,7 @@ model User {
   aiLiveUsages  AiLiveUsage[]
   aiLiveCredits AiLiveCredit[]
   humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
+  certificates Certificate[]
 
   @@index([emailVerificationTokenHash])
   @@index([emailVerifiedAt])
