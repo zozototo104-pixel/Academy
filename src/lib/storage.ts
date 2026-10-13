@@ -230,9 +230,68 @@ function signS3Request(args: {
 
   return {
     url,
-    publicUrl: privateRepresentative ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
+    publicUrl: privateRepresentative || isPrivateStorageKey(args.key) ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
     headers: { ...requestHeaders, authorization },
   }
+}
+
+export function getStorageDownloadPathForKey(key: string): string {
+  return `/api/files/${encodeS3Key(cleanStorageKey(key))}`
+}
+
+function signedDownloadSecret() {
+  const secret = process.env.AACT_FILE_SIGNING_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || process.env.SESSION_SECRET || process.env.AUTH_SECRET || ''
+  if (!secret && process.env.NODE_ENV === 'production') throw new Error('FILE_SIGNING_SECRET_NOT_CONFIGURED')
+  return secret || 'aact-local-file-signing-secret'
+}
+
+export function signLocalStorageDownloadPath(key: string, expiresAtMs: number): string {
+  const cleanKey = cleanStorageKey(key)
+  const expires = String(Math.floor(expiresAtMs))
+  const signature = createHmac('sha256', signedDownloadSecret()).update(`${cleanKey}.${expires}`).digest('hex')
+  return `${getStorageDownloadPathForKey(cleanKey)}?download=1&expires=${encodeURIComponent(expires)}&signature=${signature}`
+}
+
+export function verifyLocalStorageDownloadSignature(key: string, expires: string | null, signature: string | null): boolean {
+  const cleanKey = cleanStorageKey(key)
+  const expiresMs = Number(expires || 0)
+  if (!Number.isFinite(expiresMs) || expiresMs <= Date.now() || !signature) return false
+  const expected = createHmac('sha256', signedDownloadSecret()).update(`${cleanKey}.${Math.floor(expiresMs)}`).digest('hex')
+  return createHash('sha256').update(signature).digest('hex') === createHash('sha256').update(expected).digest('hex')
+}
+
+export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300): string | null {
+  const cleanKey = cleanStorageKey(key)
+  const cfg = getS3Config()
+  if (!cfg) return signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
+
+  const endpoint = new URL(cfg.endpoint)
+  const privateRepresentative = cleanKey.startsWith('representatives-private/')
+  const bucket = privateRepresentative ? cfg.privateRepresentativeBucket : cfg.bucket
+  if (!bucket || (privateRepresentative && bucket === cfg.bucket)) throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+  const encodedKey = encodeS3Key(cleanKey)
+  const canonicalUri = `/${encodeS3PathPart(bucket)}/${encodedKey}`
+  const now = new Date()
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
+  const dateStamp = amzDate.slice(0, 8)
+  const scope = `${dateStamp}/${cfg.region}/s3/aws4_request`
+  const signedHeaders = 'host'
+  const query: Array<[string, string]> = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', `${cfg.accessKeyId}/${scope}`],
+    ['X-Amz-Date', amzDate],
+    ['X-Amz-Expires', String(Math.max(1, Math.min(300, Math.floor(expiresSeconds))))],
+    ['X-Amz-SignedHeaders', signedHeaders],
+  ]
+  const canonicalQuery = query.map(([k, v]) => `${encodeS3PathPart(k)}=${encodeS3PathPart(v)}`).sort().join('&')
+  const canonicalRequest = ['GET', canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n')
+  const kDate = hmac(`AWS4${cfg.secretAccessKey}`, dateStamp)
+  const kRegion = hmac(kDate, cfg.region)
+  const kService = hmac(kRegion, 's3')
+  const kSigning = hmac(kService, 'aws4_request')
+  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+  return `${endpoint.origin}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`
 }
 
 async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult | null> {
