@@ -927,7 +927,8 @@ export async function platformPublicAgentComplete(opts: {
   const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
-  const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000)
+  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000))
+  if (timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
