@@ -184,5 +184,8 @@ test.describe('AACT full platform journey suite', () => {
     await writeFile(mdPath, md(report), 'utf8')
     await testInfo.attach('full-journey-report-json', { path: jsonPath, contentType: 'application/json' })
     await testInfo.attach('full-journey-report-md', { path: mdPath, contentType: 'text/markdown' })
+    } finally {
+      if (cleanupTarget) await cleanupFullJourney(page.request, testInfo, cleanupTarget)
+    }
   })
 })
