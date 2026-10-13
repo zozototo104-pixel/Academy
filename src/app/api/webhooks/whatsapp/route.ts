@@ -575,7 +575,7 @@ async function buildOfficialContactReply(): Promise<string> {
   return `${lines.join('\n')}\n\nإذا أرسلت رقمك للتواصل، سنحوّله للموظف المختص للمتابعة.`
 }
 
-async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
+async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deadlineMs: number) {
   const handoffKey = conversationKey(message.from)
   const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
   const maskedFrom = maskPhone(message.from)
