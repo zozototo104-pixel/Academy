@@ -50,6 +50,7 @@ const AdminCertificatesTab = dynamic(() => loadAdminExtrasModule().then((m) => m
 const AdminSettingsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminSettingsTab), { ssr: false, loading: AdminTabLoader })
 const AdminAdminsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAdminsTab), { ssr: false, loading: AdminTabLoader })
 const AdminAuditTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
+const AdminWhatsAppFailuresTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminWhatsAppFailuresTab), { ssr: false, loading: AdminTabLoader })
 const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
 const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
 const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
