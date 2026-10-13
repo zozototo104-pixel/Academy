@@ -32,6 +32,7 @@ import {
   downloadOfficialWhatsAppMediaBase64,
   getOfficialWhatsAppMediaInfo,
 } from '@/lib/whatsapp-media'
+import { textAiDiagnostics } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
