@@ -1094,6 +1094,7 @@ export async function POST(req: NextRequest) {
     received: messages.length,
     queued: registered.eventIds.length,
     duplicates: registered.skippedDuplicates,
+    echoes: registered.skippedEchoes,
     ignoredPhoneMessages: ignoredPhoneMessages.length,
     errors: registered.errors.slice(0, 3),
     configured: officialWhatsAppConfigured(),
