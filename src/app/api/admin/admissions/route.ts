@@ -127,6 +127,11 @@ export async function GET(req: NextRequest) {
         ...app,
         notes: cleanNotes,
         documentReplacementRequest,
+        files: app.files.map((file) => ({
+          ...file,
+          fileUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+          downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+        })),
         programSlug: program?.slug || null,
         requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
