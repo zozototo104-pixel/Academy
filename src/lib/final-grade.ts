@@ -30,6 +30,12 @@ function avg(values: Array<number | null | undefined>) {
   return nums.reduce((a, b) => a + b, 0) / nums.length
 }
 
+function best(values: Array<number | null | undefined>) {
+  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  if (!nums.length) return null
+  return Math.max(...nums)
+}
+
 function component(key: string, label: string, weight: number, score: number | null): FinalGradeComponent {
   const ready = typeof score === 'number' && Number.isFinite(score)
   const rawScore = ready ? clampPercent(score) : null
