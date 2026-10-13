@@ -180,6 +180,78 @@ function testAactTestRecipientBlocks() {
   assert(hasAactTestRecipient('Admin <admin@example.com>; QA Student <student@aact.test>'), 'display-name recipient lists must be blocked')
 }
 
+function makeWhatsAppWebhookMockDb() {
+  const events = new Map<string, any>()
+  const byMessage = new Map<string, string>()
+  let nextId = 1
+  return {
+    events,
+    byMessage,
+    db: {
+      whatsAppInboundEvent: {
+        create: async (args: any) => {
+          const messageId = args.data.waMessageId
+          if (byMessage.has(messageId)) {
+            const error: any = new Error('Unique constraint failed on waMessageId')
+            error.code = 'P2002'
+            throw error
+          }
+          const id = `event-${nextId++}`
+          const row = { id, ...args.data, attempts: 0, updatedAt: new Date(Date.now() - 120_000) }
+          events.set(id, row)
+          byMessage.set(messageId, id)
+          return { id }
+        },
+        findUnique: async (args: any) => {
+          const id = args.where?.id || byMessage.get(args.where?.waMessageId)
+          return id ? events.get(id) || null : null
+        },
+      },
+      auditLog: { create: async () => ({ id: 'audit-1' }) },
+    },
+  }
+}
+
+async function testWhatsAppWebhookHandlerBehavior() {
+  const mock = makeWhatsAppWebhookMockDb()
+  const afterFns: Array<() => unknown> = []
+  const processed: string[] = []
+  const message = { id: 'wamid.1', from: '970599000001', text: 'أريد معرفة البرامج', phoneNumberId: 'phone-1', rawType: 'text', originKind: 'TEXT' as const }
+  const req = () => new NextRequest('https://academy.test/api/webhooks/whatsapp', { method: 'POST', headers: { 'x-hub-signature-256': 'sha256=test' }, body: JSON.stringify({ object: 'whatsapp_business_account' }) })
+  const deps = {
+    verifyWhatsAppSignature: () => true,
+    extractWhatsAppInboundMessages: () => [message],
+    db: mock.db,
+    after: (fn: () => unknown) => { afterFns.push(fn) },
+    processWhatsAppEvent: async (id: string) => { processed.push(id) },
+    audit: async () => null,
+    officialWhatsAppConfigured: () => true,
+    expectedWhatsAppPhoneNumberId: () => 'phone-1',
+  }
+  const first = await __handleWhatsAppPostForTests(req(), deps)
+  assert(first.status === 200, 'WhatsApp webhook handler must acknowledge Meta with 200 after saving the event')
+  const firstBody: any = await first.json()
+  assert(firstBody.queued === 1 && afterFns.length === 1, 'WhatsApp webhook handler must queue exactly one new event')
+  await Promise.resolve(afterFns[0]())
+  assert(processed.length === 1, 'WhatsApp webhook after() processor must run once for the saved event')
+
+  const duplicate = await __handleWhatsAppPostForTests(req(), deps)
+  const duplicateBody: any = await duplicate.json()
+  assert(duplicate.status === 200 && duplicateBody.queued === 0 && duplicateBody.duplicates === 1, 'two requests for the same WhatsApp message must not queue a second reply')
+  assert(processed.length === 1, 'duplicate WhatsApp messages must not send two replies')
+
+  const oldCronSecret = process.env.CRON_SECRET
+  const oldVercelCronSecret = process.env.VERCEL_CRON_SECRET
+  delete process.env.CRON_SECRET
+  delete process.env.VERCEL_CRON_SECRET
+  const cronDenied = await whatsappRetryCronGET(new NextRequest('https://academy.test/api/cron/whatsapp-retry'))
+  assert(cronDenied.status === 401, 'WhatsApp retry cron must fail closed when CRON_SECRET is missing')
+  if (oldCronSecret === undefined) delete process.env.CRON_SECRET
+  else process.env.CRON_SECRET = oldCronSecret
+  if (oldVercelCronSecret === undefined) delete process.env.VERCEL_CRON_SECRET
+  else process.env.VERCEL_CRON_SECRET = oldVercelCronSecret
+}
+
 async function testWhatsAppReliabilityBehavior() {
   const faqDeps = {
     getSettings: async () => ({ FEE_APPLICATION: '30', FEE_DIPLOMAS_MIN: '100', FEE_DIPLOMAS_MAX: '350', FEE_MASTERS: '700', FEE_DOCTORATE: '1300', PAYMENT_MODE: 'DIRECT_PAYMENT' }),
