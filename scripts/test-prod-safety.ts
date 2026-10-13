@@ -25,6 +25,13 @@ function file(path: string) {
   return readFileSync(join(process.cwd(), path), 'utf8')
 }
 
+function testDeadlineMath() {
+  const future = Date.now() + 30_000
+  const remaining = remainingDeadlineMs(future, 60_000)
+  assert(remaining > 25_000 && remaining <= 30_000, 'deadline after 30 seconds must return approximately 30000ms, not zero')
+  assert(remainingDeadlineMs(Date.now() - 1_000, 60_000) === 0, 'expired deadline must return zero')
+}
+
 function testProductionFixtureGuards() {
   assert(!qaProdFixturesAllowed({ VERCEL_ENV: 'production' } as any), 'production QA fixtures must be blocked by default')
   assert(qaProdFixturesAllowed({ VERCEL_ENV: 'production', QA_ALLOW_PROD_FIXTURES: 'true' } as any), 'explicit production QA fixture override must be honored')
