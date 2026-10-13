@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { deliverableStatusLabel, deliverableTypeLabel } from '@/lib/service-deliverables'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
