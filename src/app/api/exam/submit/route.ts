@@ -40,6 +40,10 @@ function parseOptionIndex(value: unknown): number | null {
   return Number.isInteger(n) && n >= 0 ? n : null
 }
 
+function unitAttemptDeadline(createdAt: Date) {
+  return createdAt.getTime() + UNIT_EXAM_DURATION_MIN * 60 * 1000 + UNIT_EXAM_SUBMIT_GRACE_MS
+}
+
 function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed: boolean, weakPoints: string[]) {
   return {
     summary: passed
