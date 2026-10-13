@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     await requireStudentAiSupervisorAccess(user)
     const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
+    const deadlineMs = deadlineFromNow(55_000)
     const { message, context, mode, stream } = await req.json()
     const safeUiContext = wrapUntrustedUiContext(context)
     if (!message?.trim()) {
