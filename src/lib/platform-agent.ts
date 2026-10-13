@@ -1011,6 +1011,12 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
+  if (isWhatsApp) {
+    // WhatsApp must not fall through to the legacy chatComplete path after router attempts;
+    // that path may use academic/local fallbacks and can touch real providers during mocked CI tests.
+    return { reply: AI_UNAVAILABLE_MESSAGE, agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
+  }
+
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
@@ -1020,7 +1026,7 @@ export async function platformPublicAgentComplete(opts: {
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
-        maxTokens: isWhatsApp ? 1600 : 1100,
+        maxTokens: 1100,
       }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
