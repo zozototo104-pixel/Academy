@@ -762,7 +762,8 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  const greetingDecision = await shouldSendImmediateGreeting(inboundMessage.from)
+  // A substantive question gets one answer; do not pre-send a separate greeting.
+  const greetingDecision = { ok: false }
   if (greetingDecision.ok) {
     try {
       const greetingText = buildOfficialWhatsAppImmediateGreeting(inboundMessage)
