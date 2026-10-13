@@ -166,22 +166,28 @@ function isHttpUrl(value: unknown) {
   return /^https?:\/\//i.test(String(value || '').trim())
 }
 
-function allowedLegacyHosts() {
-  const configured = String(process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean)
-  const appHosts = [process.env.NEXT_PUBLIC_APP_URL, process.env.APP_URL, process.env.NEXTAUTH_URL]
-    .map((value) => {
-      try { return value ? new URL(value).host.toLowerCase() : '' } catch { return '' }
-    })
-    .filter(Boolean)
-  return new Set([...configured, ...appHosts])
+function normalizeHostValues(values: Iterable<string>) {
+  const hosts = new Set<string>()
+  for (const value of values) {
+    const raw = String(value || '').trim()
+    if (!raw) continue
+    try { hosts.add(new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase()) } catch {}
+  }
+  return hosts
 }
 
-function isAllowedLegacyExternalUrl(value?: string | null) {
+function privateFilesMaintenanceAllowedHosts() {
+  return normalizeHostValues([
+    ...configuredAllowedStorageHosts(),
+    ...String(process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS || '').split(',').map((host) => host.trim()).filter(Boolean),
+  ])
+}
+
+function isAllowedLegacyExternalUrl(value: string | null | undefined, allowedHosts: Set<string>) {
   if (!isHttpUrl(value)) return false
-  const hosts = allowedLegacyHosts()
   try {
-    const host = new URL(String(value)).host.toLowerCase()
-    return hosts.size > 0 && hosts.has(host)
+    const host = new URL(String(value)).hostname.toLowerCase()
+    return allowedHosts.has(host)
   } catch {
     return false
   }
