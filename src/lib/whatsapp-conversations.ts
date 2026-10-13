@@ -213,7 +213,7 @@ export async function claimWhatsAppBotReply(args: {
         select: { id: true, replyForMessageId: true },
         orderBy: { createdAt: 'desc' },
       })
-      if (recentDuplicate) return { claimed: false, reason: 'RECENT_DUPLICATE_TEXT' as const, conversation, duplicate: recentDuplicate }
+      if (recentDuplicate) return { claimed: false, reason: 'RECENT_DUPLICATE_TEXT' as const, conversation, duplicate: recentDuplicate, message: null }
       const message = await tx.whatsAppConversationMessage.create({
         data: {
           conversationId: conversation.id,
