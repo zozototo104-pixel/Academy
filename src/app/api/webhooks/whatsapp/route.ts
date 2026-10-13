@@ -753,7 +753,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 
   if (prepared.immediateReply) {
     await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
+    const immediateOutcome = await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
     if (prepared.requestHuman) {
       const handoff = await createHumanHandoffRequest({
         user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
