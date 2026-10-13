@@ -345,7 +345,7 @@ export function ApplyView() {
   }
 
   const admissionDocLabel = (type: string) => {
-    return ([...REQUIRED_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_DOCS, ...flowDocs].find((d) => d.type === type)?.label || type)
+    return (resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || type)
   }
 
   const pickReplacementFile = (applicationId: string, type: string, f: File | null) => {
