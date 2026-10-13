@@ -715,7 +715,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     await recordWhatsAppOutboundMessage({
       waId: inboundMessage.from,
       phoneNumberId: inboundMessage.phoneNumberId,
-      text: SIMPLE_WHATSAPP_GREETING_REPLY,
+      text: greetingReply,
       sender: 'BOT',
       whatsappMessageId: sendResult?.messages?.[0]?.id || null,
     }).catch(() => {})
