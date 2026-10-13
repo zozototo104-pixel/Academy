@@ -15,6 +15,11 @@ import {
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
+import { deadlineFromNow } from '@/lib/prod-safety'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/chat — سجل المحادثة (نصي وصوتي مع النسخ المفرّغ)
 export async function GET() {
