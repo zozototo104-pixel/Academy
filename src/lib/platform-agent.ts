@@ -912,8 +912,6 @@ export async function platformPublicAgentComplete(opts: {
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   if (opts.channel !== 'WHATSAPP') assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
   const analyzeIntent = opts.__testDeps?.analyzeConversationIntent || analyzeConversationIntent
-  const completeText = opts.__testDeps?.textAiComplete || textAiComplete
-  const diagnostics = opts.__testDeps?.textAiDiagnostics || textAiDiagnostics
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const intentAnalysis = await analyzeIntent(opts.messages, opts.channel === 'WHATSAPP' ? { channel: opts.channel, role: 'PUBLIC' } : { channel: opts.channel, role: 'PUBLIC', deadlineMs: opts.deadlineMs })
     .catch((error) => {
