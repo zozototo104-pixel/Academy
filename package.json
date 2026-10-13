@@ -103,7 +103,7 @@
     "pdf-lib": "^1.17.1",
     "prisma": "^6.11.1",
     "qrcode": "^1.5.4",
-    "react": "^19.0.0",
+    "react": "^19.2.8",
     "react-day-picker": "^9.8.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.60.0",
