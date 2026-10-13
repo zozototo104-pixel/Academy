@@ -12,10 +12,6 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/cron/whatsapp-retry",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/cron/ai-health",
       "schedule": "0 * * * *"
     }
