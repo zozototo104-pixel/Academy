@@ -2406,6 +2406,13 @@ export function AdminSettingsTab() {
                     <div className="relative mt-2">
                       {structuredJsonControl ? (
                         structuredJsonControl
+                      ) : inputType === 'boolean' ? (
+                        <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2">
+                          <span className="text-xs font-black text-slate-600">{values[d.key] === 'true' ? 'مفعّل' : 'موقوف'}</span>
+                          <Button type="button" size="sm" variant={values[d.key] === 'true' ? 'default' : 'outline'} className="h-9 rounded-xl text-xs font-black" onClick={() => setValues({ ...values, [d.key]: values[d.key] === 'true' ? 'false' : 'true' })}>
+                            {values[d.key] === 'true' ? 'إيقاف' : 'تشغيل'}
+                          </Button>
+                        </div>
                       ) : inputType === 'textarea' || inputType === 'json' ? (
                         <Textarea
                           id={d.key}
@@ -2425,7 +2432,7 @@ export function AdminSettingsTab() {
                           onChange={(e) => setValues({ ...values, [d.key]: e.target.value })}
                         />
                       )}
-                      {d.suffix && inputType !== 'textarea' && inputType !== 'json' && (
+                      {d.suffix && inputType !== 'textarea' && inputType !== 'json' && inputType !== 'boolean' && (
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#a8841a]">{d.suffix}</span>
                       )}
                     </div>
