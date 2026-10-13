@@ -1,5 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { calculateFinalGrade } from '../src/lib/final-grade'
+import { evaluateProgramCertificateEligibility } from '../src/lib/certificate-eligibility'
 
 function file(path: string) {
   return readFileSync(join(process.cwd(), path), 'utf8')
@@ -7,6 +9,55 @@ function file(path: string) {
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
+}
+
+function mockDiplomaClient(programAttemptScores: number[]) {
+  const client: any = {
+    program: {
+      findUnique: async () => ({ category: 'DIPLOMA', price: 0 }),
+    },
+    exam: {
+      findMany: async () => [{ id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 51, unit: { title: 'الوحدة الأولى' } }],
+    },
+    examAttempt: {
+      findMany: async () => [{ score: 100, answers: [{ points: 100, maxPoints: 100 }] }],
+    },
+    programExam: {
+      findMany: async () => [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: 51 }],
+    },
+    programExamAttempt: {
+      findMany: async () => programAttemptScores.map((score) => ({ score, finalScore: score, answers: [{ points: score, maxPoints: 100 }] })),
+    },
+    programAssignment: {
+      findMany: async () => [{ id: 'assignment-1', title: 'واجب تطبيقي', points: 100 }],
+    },
+    assignmentSubmission: {
+      findUnique: async () => ({ status: 'GRADED', score: 100 }),
+    },
+    thesisSubmission: {
+      findFirst: async () => null,
+    },
+    enrollment: {
+      findUnique: async () => ({ id: 'enrollment-1' }),
+    },
+    payment: {
+      findMany: async () => [{ purpose: 'TUITION', status: 'WAIVED', amount: 0, amountCents: 0 }],
+    },
+  }
+  return client
+}
+
+async function testFinalGradeBehaviorWithMockData() {
+  const bestAttemptGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([60, 90]) })
+  const finalExam = bestAttemptGrade.components.find((component) => component.key === 'final_exam')
+  assert(finalExam?.score === 90, 'محاولتان ناجحتان 60 و90 يجب أن تعتمد أفضل محاولة 90 لا المتوسط')
+
+  const barelyFailing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  assert(!barelyFailing.ok, 'درجة 50.96 يجب ألا تنجح لأنها أقل من 51 خاماً')
+  assert(barelyFailing.score !== null && barelyFailing.score < 51, 'اختبار 50.96 يجب أن يبقى أقل من حد النجاح بدون تقريب للقرار')
+
+  const passing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([51]) })
+  assert(passing.ok, 'درجة 51 يجب أن تنجح')
 }
 
 function testCentralCompletionOnly() {
@@ -23,7 +74,9 @@ function testCentralCompletionOnly() {
   assert(central.includes('tx.enrollment.update'), 'central completion service must be the place that completes enrollment')
   assert(central.includes('tx.certificate.create'), 'central completion service must be the place that issues program certificates')
   assert(central.includes("SELECT nextval('\"Certificate_serial_seq\"')"), 'central completion must allocate certificate serials from the database sequence')
-  assert(central.includes('createProgramCompletionCertificateWithRetry'), 'central completion must retry certificate creation on unique serial conflicts')
+  assert(central.includes('isCertificateSerialUniqueConflict'), 'central completion must detect unique serial conflicts')
+  assert(central.includes('for (let attempt = 0; attempt < 3; attempt++)'), 'central completion must retry serial conflicts outside the transaction')
+  assert(!central.includes('createProgramCompletionCertificateWithRetry'), 'central completion must not retry P2002 inside the same transaction')
   const programSubmit = file('src/app/api/program-exam/submit/route.ts')
   assert(programSubmit.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'program exam submit must also delegate eligible completion to the central service')
   assert(programSubmit.includes("return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })"), 'program exam submit must return 400 for malformed JSON')
@@ -111,12 +164,19 @@ function testQuestionBankMethodologyUntouched() {
   assert(!generation.includes('Math.random()'), 'program exam generation must not switch to random question-bank methodology')
 }
 
-testCentralCompletionOnly()
-testEligibilityRequiresAllAcademicAndFinancialInputs()
-testAdminCertificatesUseCentralService()
-testUnitExamAttemptSafety()
-testDefenseIncompleteCriteriaNeedsReview()
-testSchemaAndMigrationSafety()
-testQuestionBankMethodologyUntouched()
+async function main() {
+  await testFinalGradeBehaviorWithMockData()
+  testCentralCompletionOnly()
+  testEligibilityRequiresAllAcademicAndFinancialInputs()
+  testAdminCertificatesUseCentralService()
+  testUnitExamAttemptSafety()
+  testDefenseIncompleteCriteriaNeedsReview()
+  testSchemaAndMigrationSafety()
+  testQuestionBankMethodologyUntouched()
+  console.log('✓ Stage C exam/certificate safety checks passed')
+}
 
-console.log('✓ Stage C exam/certificate safety checks passed')
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
