@@ -997,7 +997,7 @@ export async function platformPublicAgentComplete(opts: {
     try {
       return await runWhatsAppRouter()
     } catch (firstError: any) {
-      const diag = await textAiDiagnostics().catch(() => null)
+      const diag = await diagnostics().catch(() => null)
       const failedProvider = String(diag?.lastResult?.provider || '').toUpperCase() as TextAiProvider
       const canRetry = failedProvider && failedProvider !== 'AUTO' && remainingDeadlineMs(opts.deadlineMs, 0) > 2_500
       if (canRetry) {
