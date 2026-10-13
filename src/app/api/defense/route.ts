@@ -512,8 +512,8 @@ ${answer.slice(0, 2500)}
     return {
       score: null,
       unavailable: true,
-      feedback: 'تعذر توليد تقييم رقمي صالح من خبير الذكاء الاصطناعي لهذه الإجابة؛ لن تدخل هذه الإجابة في المتوسط الآلي، ويجب أن تراجعها اللجنة البشرية من التسجيل والمحضر.',
-      nextQuestion: defaultQuestion(qNum + 1),
+      feedback: AI_UNAVAILABLE_MESSAGE,
+      nextQuestion: '',
     }
   }
 }
