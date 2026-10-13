@@ -325,6 +325,7 @@ export async function POST(req: NextRequest) {
       await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
       return created
     })
+    claimedUnitAttemptId = null
 
     // إذا نجح في كل اختبارات البرنامج وحدد الوحدات → إصدار رقم شهادة
     let certificateNo: string | null = null
