@@ -188,12 +188,16 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
       if (next) {
         const eligibleTypeCount = next.candidates.filter((candidate) => candidate.item.type === selectedType).length
         const requested = Math.min(20, eligibleTypeCount + 4)
-        const lastJob = await db.questionBankGenerationJob.findFirst({ where: { programId: exam.programId, unitId: next.unit.id, sourceScope: `EXAM_${selectedType}` }, orderBy: { createdAt: 'desc' }, select: { status: true, lastError: true } })
-        if (lastJob?.status === 'FAILED' && !options.manual) errorNote = `توقف توليد أسئلة ${selectedType} للوحدة «${next.unit.title}»: ${lastJob.lastError || 'فشل التحقق أو المزود'}. استخدم استكمال بعد معالجة السبب.`
+        const lastJob = await db.questionBankGenerationJob.findFirst({ where: { programId: exam.programId, unitId: next.unit.id }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, lastError: true } })
+        if (lastJob?.status === 'FAILED' && !options.manual) errorNote = `توقف توليد بنك الأسئلة للوحدة «${next.unit.title}»: ${lastJob.lastError || 'فشل التحقق أو المزود'}. استخدم استكمال بعد معالجة السبب.`
         else {
-          const job = await ensureQuestionBankGenerationJob({ programId: exam.programId, unitId: next.unit.id, requested, startNew: false, manual: Boolean(options.manual), examQuestionType: selectedType })
+          const job = await ensureQuestionBankGenerationJob({ programId: exam.programId, unitId: next.unit.id, requested, startNew: lastJob?.status === 'COMPLETED', manual: Boolean(options.manual) })
           jobId = job.id
           if (job.status === 'FAILED') errorNote = job.lastError || 'فشل توليد أسئلة الوحدة'
+          else if (job.status !== 'COMPLETED') {
+            const step = await runQuestionBankGenerationJobStep(job.id)
+            if (step?.status === 'FAILED') errorNote = step.lastError || 'فشل توليد أسئلة الوحدة'
+          }
         }
       } else errorNote = 'لم تُستوفَ التغطية المتوازنة لجميع الوحدات، ولا توجد وحدة مؤهلة لتوليد بقية الأسئلة.'
     }
