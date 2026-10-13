@@ -161,6 +161,72 @@ async function testTooLargeFilesAreReportedAndNotStored() {
   assert(getStoreCalls() === 1, 'large files must not be stored while smaller files still migrate')
 }
 
+async function withRemoteLegacyMocks<T>(fetchImpl: typeof fetch, work: () => Promise<T>) {
+  const oldHosts = process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS
+  const oldFetch = globalThis.fetch
+  const oldLookup = (dns as any).lookup
+  process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS = 'legacy-files.test'
+  ;(dns as any).lookup = async () => [{ address: '93.184.216.34', family: 4 }]
+  ;(globalThis as any).fetch = fetchImpl
+  try {
+    return await work()
+  } finally {
+    if (oldHosts === undefined) delete process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS
+    else process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS = oldHosts
+    ;(dns as any).lookup = oldLookup
+    ;(globalThis as any).fetch = oldFetch
+  }
+}
+
+async function testLegacyAllowedHostOnlyAppliesToMaintenance() {
+  await withRemoteLegacyMocks(async () => new Response(Buffer.from('legacy-ok'), { headers: { 'content-type': 'application/pdf', 'content-length': '9' } }), async () => {
+    const ordinaryAllowed = await readStoredFile({ url: 'https://legacy-files.test/uploads/admissions/external.pdf', maxBytes: 25 })
+      .then(() => true)
+      .catch((error) => String(error?.message || error) !== 'STORAGE_HOST_NOT_ALLOWED')
+    assert(ordinaryAllowed === false, 'ordinary storage reads must reject legacy-only hosts')
+
+    const { db, admissions } = makeMockDb()
+    admissions.clear()
+    admissions.set('adm-external', { id: 'adm-external', storageKey: null, fileUrl: 'https://legacy-files.test/uploads/admissions/external.pdf' })
+    const { storage, getStoreCalls } = makeStorage(new Set(), { localKeys: new Set() })
+    const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage, maxFileBytes: 25 })
+    assert(report.byType.AdmissionDocument.externalUrl === 1, 'maintenance must classify legacy allowed host as رابط خارجي')
+    assert(getStoreCalls() === 1, 'maintenance must migrate from legacy allowed host with scoped policy')
+  })
+}
+
+async function testRemoteContentLengthTooLargeIsRejectedBeforeDownload() {
+  let bodyRead = false
+  await withRemoteLegacyMocks(async () => new Response(new ReadableStream({
+    pull(controller) {
+      bodyRead = true
+      controller.enqueue(new Uint8Array([1, 2, 3]))
+      controller.close()
+    },
+  }), { headers: { 'content-type': 'application/pdf', 'content-length': '100' } }), async () => {
+    const { db, admissions } = makeMockDb()
+    admissions.clear()
+    admissions.set('adm-big-remote', { id: 'adm-big-remote', storageKey: null, fileUrl: 'https://legacy-files.test/uploads/admissions/big.pdf' })
+    const { storage, getStoreCalls } = makeStorage(new Set(), { localKeys: new Set() })
+    const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage, maxFileBytes: 10 })
+    assert(report.byType.AdmissionDocument.tooLarge === 1 && report.byType.AdmissionDocument.tooLargeIds.includes('adm-big-remote'), 'content-length oversized legacy file must be reported as كبير جداً')
+    assert(getStoreCalls() === 0, 'content-length oversized legacy file must not be stored')
+    assert(bodyRead === false, 'oversized content-length must be rejected before reading the body')
+  })
+}
+
+async function testRemoteStreamStopsWhenLimitExceeded() {
+  await withRemoteLegacyMocks(async () => new Response(Buffer.alloc(20), { headers: { 'content-type': 'application/pdf' } }), async () => {
+    const { db, admissions } = makeMockDb()
+    admissions.clear()
+    admissions.set('adm-stream-big', { id: 'adm-stream-big', storageKey: null, fileUrl: 'https://legacy-files.test/uploads/admissions/stream-big.pdf' })
+    const { storage, getStoreCalls } = makeStorage(new Set(), { localKeys: new Set() })
+    const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage, maxFileBytes: 5 })
+    assert(report.byType.AdmissionDocument.tooLarge === 1 && report.byType.AdmissionDocument.tooLargeIds.includes('adm-stream-big'), 'stream without content-length must stop when it exceeds the limit')
+    assert(getStoreCalls() === 0, 'stream oversized legacy file must not be stored')
+  })
+}
+
 async function testBatchStopsBeforeDeadlineAndReturnsCursor() {
   const { db, admissions } = makeMockDb()
   admissions.set('adm-doc-2', { id: 'adm-doc-2', storageKey: null, fileUrl: '/uploads/admissions/adm-doc-2.pdf' })
