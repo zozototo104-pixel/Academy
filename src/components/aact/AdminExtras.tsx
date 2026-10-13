@@ -3011,8 +3011,13 @@ export function AdminWhatsAppFailuresTab() {
       .finally(() => setLoading(false))
   }, [toast])
   useEffect(() => {
-    void load(false)
-  }, [load])
+    let active = true
+    api<{ failures: WhatsAppFailureRow[] }>('/api/admin/whatsapp-failures')
+      .then((d) => { if (active) setRows(Array.isArray(d.failures) ? d.failures : []) })
+      .catch((e) => { if (active) toast({ title: 'تعذر تحميل إخفاقات الواتساب', description: e.message, variant: 'destructive' }) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [toast])
   return (
     <Card className="mt-4 border-red-100 bg-white/95">
       <CardContent className="space-y-4 p-4 sm:p-6">
