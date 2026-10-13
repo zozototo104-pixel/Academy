@@ -12,8 +12,9 @@ import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
 import { __handleFileGetForTests } from '../src/app/api/files/[...key]/route'
 import { DEFAULT_OFFICIAL_CONTACT } from '../src/lib/settings'
 import { resolveWhatsAppDirectSettingsReply } from '../src/lib/whatsapp-cloud'
-import { __handleWhatsAppPostForTests } from '../src/app/api/webhooks/whatsapp/route'
+import { __handleWhatsAppPostForTests, processStaleWhatsAppInboundEvents } from '../src/app/api/webhooks/whatsapp/route'
 import { GET as whatsappRetryCronGET } from '../src/app/api/cron/whatsapp-retry/route'
+import { platformPublicAgentComplete } from '../src/lib/platform-agent'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
