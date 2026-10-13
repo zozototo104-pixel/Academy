@@ -73,6 +73,7 @@ function testPrivateStoragePolicy() {
 
   const route = file('src/app/api/files/[...key]/route.ts')
   assert(route.includes('const SIGNED_URL_TTL_SECONDS = 5 * 60'), 'file route must issue 5-minute signed URLs')
+  assert(route.includes("readStoredFile({ provider: 'local', key })"), 'file route must serve authorized legacy local files through signed local downloads')
   assert(route.includes('user.role === \'ADMIN\''), 'file route must allow admins')
   assert(route.includes('admissionDocument'), 'file route must authorize admission document owners')
   assert(route.includes('paymentProof'), 'file route must authorize payment proof owners')
