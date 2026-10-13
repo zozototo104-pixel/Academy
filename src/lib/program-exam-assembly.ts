@@ -69,7 +69,9 @@ async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<Unit
     const sourceMap = new Map(sources.map((source) => [source.id, source]))
     const titles = await db.book.findMany({ where: { id: { in: [...new Set(sources.map((s) => s.bookId).filter((id): id is string => Boolean(id)))] } }, select: { id: true, title: true } })
     const bookTitles = new Map(titles.map((book) => [book.id, book.title]))
-    const pendingReviewCount = 0
+    const pendingReviewCount = await db.questionBankItem.count({
+      where: { programId, knowledgeItemId: { in: sources.map((source) => source.id) }, status: 'PENDING_REVIEW' },
+    })
     const questions = await db.questionBankItem.findMany({
       where: { programId, knowledgeItemId: { in: sources.map((source) => source.id) }, status: 'APPROVED', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
       orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }],
