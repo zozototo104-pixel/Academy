@@ -127,9 +127,9 @@ export async function POST(req: NextRequest) {
       if (conversation.status !== 'HUMAN_ACTIVE') {
         return NextResponse.json({ ok: false, error: 'يجب استلام المحادثة أولاً قبل الرد من لوحة الإدارة' }, { status: 409 })
       }
-      const recipientWaId = decryptConversationWaIdForInternalUse(conversation)
-      if (!recipientWaId || hashWhatsAppId(recipientWaId) !== conversation.waIdHash) {
-        return NextResponse.json({ ok: false, error: 'تعذر التحقق من رقم واتساب الخاص بالمحادثة' }, { status: 409 })
+      const recipientWaId = await recoverLegacyRecipient(conversation)
+      if (!recipientWaId) {
+        return NextResponse.json({ ok: false, error: 'الرقم الكامل غير متوفر في سجل هذه المحادثة القديمة. يمكن استعادته عند وصول رسالة جديدة من العميل، أو إدخال رقمه الصحيح والتحقق منه من لوحة الإدارة.' }, { status: 409 })
       }
       const freeformWindowOpen = Boolean(
         conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() <= 24 * 60 * 60 * 1000,
