@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
-import { recordWhatsAppOutboundMessage, setWhatsAppConversationStatus } from '@/lib/whatsapp-conversations'
+import { decryptConversationWaIdForInternalUse, hashWhatsAppId, recordWhatsAppOutboundMessage, setWhatsAppConversationStatus } from '@/lib/whatsapp-conversations'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
