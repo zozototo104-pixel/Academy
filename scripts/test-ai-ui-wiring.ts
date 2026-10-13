@@ -36,7 +36,8 @@ function testApprovedOnlyExamAssembly() {
 
   const unitRoute = file('src/app/api/admin/unit-exams/generate/route.ts')
   assert(unitRoute.includes('في ${scoped.selection.pendingReviewCount} أسئلة بانتظار المراجعة'), 'unit exam shortage message must expose pending review count')
-  assert(unitRoute.includes("const examStatus = 'READY'"), 'unit exams must not build drafts from pending questions')
+  assert(unitRoute.includes('const reviewRequired = false'), 'unit exams must not mark approved-only rebuilds as requiring review')
+  assert(unitRoute.includes("const examStatus = reviewRequired ? 'DRAFT' : 'READY'"), 'unit exam ready/draft contract must stay explicit for approved-only rebuilds')
 
   const assembly = file('src/lib/program-exam-assembly.ts')
   assert(assembly.includes("item.status !== 'APPROVED'"), 'program exam qualified items must be approved-only')
