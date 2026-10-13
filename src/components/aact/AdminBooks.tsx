@@ -1687,6 +1687,23 @@ export function AdminBooksTab() {
       for (const book of books) {
         void fetchBookReadJob(book.id).catch(() => {})
         const job = bookReadJobs[book.id]
+        if (job?.status === 'FAILED') {
+          const retry = bookReadRetryRef.current[book.id]
+          if (!retry || (retry.count < 3 && Date.now() >= retry.nextAt)) {
+            const count = (retry?.count || 0) + 1
+            const backoffMs = Math.min(60_000, 5_000 * (2 ** (count - 1)))
+            bookReadRetryRef.current[book.id] = { count, nextAt: Date.now() + backoffMs }
+            setBookReadRetryCounts((previous) => ({ ...previous, [book.id]: count }))
+            const retryRequest = job.chunksFailed > 0
+              ? api(`/api/admin/books/${book.id}/retry-failed-chunks`, { method: 'POST' })
+              : api(`/api/admin/books/${book.id}/read-job`, { method: 'POST', body: JSON.stringify({}) })
+            retryRequest
+              .then(() => fetchBookReadJob(book.id))
+              .then(() => advanceBookReadJob(book.id))
+              .catch((error) => console.error('auto failed book read retry failed:', error))
+          }
+          continue
+        }
         if (job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) {
           if (job.status === 'PAUSED' && job.retryAt && new Date(job.retryAt).getTime() > Date.now()) continue
           void advanceBookReadJob(book.id)
@@ -2492,7 +2509,7 @@ export function AdminBooksTab() {
                               {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
                               {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
                               {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
-                              {job.status === 'FAILED' && job.chunksFailed > 0 && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => retryFailedBookChunks(b.id)}>إعادة المحاولة للمقاطع الفاشلة</Button>}
+                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
                             </div>
                           })()}
                         </div>

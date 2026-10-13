@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
 import { ADMISSION_GUIDE, ACADEMY_INFO } from '@/lib/academyData'
-import { getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
+import { getServiceFlow } from '@/lib/service-flows'
+import { EXTRA_ADMISSION_DOCS, REQUIRED_ADMISSION_DOCS, SERVICE_REQUEST_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { SUPPORTED_COUNTRIES, normalizePhone, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -76,23 +77,8 @@ interface TrackedTuitionPlan {
   finalRequired?: number
 }
 
-const REQUIRED_DOCS = [
-  { type: 'DEGREE', label: 'الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'السيرة الذاتية (C.V)' },
-]
-
-const SERVICE_REQUEST_DOCS = [
-  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر عند الحاجة' },
-  { type: 'CV', label: 'السيرة الذاتية أو نبذة عن الخبرة' },
-  { type: 'SERVICE_FILE', label: 'ملف يوضح الاحتياج أو الوثائق الداعمة للخدمة' },
-]
-
-const EXTRA_DOCS = [
-  { type: 'EXPERIENCE', label: 'إثبات خبرات عملية' },
-  { type: 'TRANSCRIPT', label: 'كشف درجات منفصل' },
-]
+const REQUIRED_DOCS = REQUIRED_ADMISSION_DOCS
+const EXTRA_DOCS = EXTRA_ADMISSION_DOCS
 
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
@@ -246,22 +232,6 @@ export function ApplyView() {
 
   useEffect(() => {
     let alive = true
-    fetch('/api/settings', { headers: { Accept: 'application/json' } })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ values?: Record<string, string> }>
-      })
-      .then((d) => {
-        if (!alive) return
-        setGeneralDisclosureConsentText(d.values?.DISCLOSURE_CONSENT_TEXT || '')
-        setApplicationFee(Number(d.values?.FEE_APPLICATION || 30))
-      })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
-
-  useEffect(() => {
-    let alive = true
     let hadCache = false
 
     const cached = readCachedPrograms()
@@ -359,13 +329,14 @@ export function ApplyView() {
   const isServiceRequest = selectedFlow ? !selectedFlow.isStudyProgram : selectedCategory === 'SERVICE'
   const selectedProgramId = selectedProgram?.id || ''
   const selectedRules = selectedProgram?.admissionRules || null
-  const flowDocs = selectedFlow ? getServiceDocumentOptions(selectedFlow).map((d) => ({ type: d.type, label: d.label })) : []
-  const docLabelMap = new Map([...REQUIRED_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_DOCS, ...flowDocs].map((d) => [d.type, d]))
-  const ruleDocCodes = selectedRules?.requiredDocuments || []
-  const activeDocs = ruleDocCodes.length
-    ? ruleDocCodes.map((code) => docLabelMap.get(code) || { type: code, label: code })
-    : selectedFlow ? (flowDocs.length ? flowDocs : SERVICE_REQUEST_DOCS) : isServiceRequest ? SERVICE_REQUEST_DOCS : REQUIRED_DOCS
-  const requiredDocs = ruleDocCodes.length ? activeDocs : isServiceRequest ? [] : REQUIRED_DOCS
+  const resolvedDocs = resolveAdmissionRequiredDocuments({
+    slug: selectedProgram?.slug,
+    category: selectedProgram?.category || selectedCategory,
+    admissionRules: selectedRules,
+    isServiceRequest,
+  })
+  const activeDocs = resolvedDocs.activeDocs
+  const requiredDocs = resolvedDocs.requiredDocs
   const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
   const recentApplications = myApplications.slice(0, 5)
@@ -374,7 +345,7 @@ export function ApplyView() {
   }
 
   const admissionDocLabel = (type: string) => {
-    return ([...REQUIRED_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_DOCS, ...flowDocs].find((d) => d.type === type)?.label || type)
+    return (resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || type)
   }
 
   const pickReplacementFile = (applicationId: string, type: string, f: File | null) => {

@@ -55,59 +55,12 @@ function cleanQuestionOptions(values: unknown): string[] | undefined {
   return out.length >= 2 ? out : undefined
 }
 
-function fallbackQuestions(knowledge: any[], books: any[], count: number, level: string, specialty: string): GeneratedQuestion[] {
-  const items = knowledge.length ? knowledge : books.map((b: any) => ({ title: b.title, summary: b.description || b.readingDepth || b.assessmentOrientation || b.title, sourceNote: b.title, book: b }))
-  const out: GeneratedQuestion[] = []
-  const wanted = Math.max(1, Math.min(40, count || 8))
-  for (let i = 0; i < wanted; i++) {
-    const item = items[i % Math.max(1, items.length)] || { title: specialty || 'المقرر', summary: 'مفهوم تطبيقي من الكتاب' }
-    const title = String(item.title || 'مفهوم مهني').trim()
-    const summary = String(item.summary || item.excerpt || '').slice(0, 450)
-    if (i % 4 === 0) {
-      out.push({
-        type: 'SHORT',
-        text: `اشرح بإيجاز كيف يمكن تطبيق مفهوم «${title}» في سياق ${specialty || 'تخصص الطالب'}، مع ربط إجابتك بدليل من الكتاب.`,
-        modelAnswer: summary || `إجابة جيدة تربط مفهوم ${title} بموقف مهني وتوضح خطوات تطبيقه ونتائجه.`,
-        sourceEvidence: summary,
-        sourceBookTitle: item.book?.title || item.sourceNote || books[0]?.title || 'بنك المعرفة',
-        cognitiveSkill: 'APPLY',
-        difficulty: level.includes('دكتور') ? 'ADVANCED' : level.includes('ماجستير') ? 'MEDIUM' : 'EASY',
-        points: 4,
-      })
-    } else if (i % 4 === 1) {
-      out.push({
-        type: 'ESSAY',
-        text: `حلل أهمية «${title}» في ${specialty || 'الممارسة المهنية'}، ثم اذكر خطراً واحداً عند تطبيقه بشكل خاطئ.`,
-        modelAnswer: summary || `ينبغي أن توضح الإجابة معنى المفهوم، أهميته، أثره العملي، وخطر سوء التطبيق.`,
-        sourceEvidence: summary,
-        sourceBookTitle: item.book?.title || item.sourceNote || books[0]?.title || 'بنك المعرفة',
-        cognitiveSkill: 'ANALYZE',
-        difficulty: level.includes('دكتور') ? 'ADVANCED' : 'MEDIUM',
-        points: 6,
-      })
-    } else {
-      const correct = summary || `يرتبط المفهوم مباشرة بممارسات ${specialty || 'التخصص'} وفق الكتاب.`
-      out.push({
-        type: 'MCQ',
-        text: `أي العبارات التالية أدق في فهم «${title}» وفق سياق ${specialty || 'المقرر'}؟`,
-        options: [
-          correct.slice(0, 180),
-          'هو مصطلح عام لا يحتاج إلى ربط بالسياق المهني أو نتائج التطبيق.',
-          'يعتمد فقط على رأي الطالب ولا يحتاج إلى دليل من الكتاب.',
-          'يستخدم للحفظ النظري فقط ولا علاقة له بالقرارات أو الأداء المهني.',
-        ],
-        correctAnswer: '0',
-        modelAnswer: correct,
-        sourceEvidence: summary,
-        sourceBookTitle: item.book?.title || item.sourceNote || books[0]?.title || 'بنك المعرفة',
-        cognitiveSkill: i % 2 === 0 ? 'UNDERSTAND' : 'APPLY',
-        difficulty: 'MEDIUM',
-        correctRationale: 'الخيار الصحيح يربط المفهوم بالكتاب والسياق المهني بدلاً من الحفظ العام.',
-        points: 2,
-      })
-    }
-  }
-  return out
+export const AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
+
+function aiUnavailableError(): Error {
+  const error = new Error(AI_UNAVAILABLE_MESSAGE)
+  ;(error as Error & { code?: string }).code = 'AI_UNAVAILABLE'
+  return error
 }
 
 async function completionJson(system: string, prompt: string): Promise<any> {
@@ -133,9 +86,10 @@ async function completionJson(system: string, prompt: string): Promise<any> {
       temperature: 0.2,
       maxOutputTokens: 5000,
     })
-    return safeJson(out)
+    const parsed = safeJson(out)
+    if (parsed) return parsed
   }
-  return null
+  throw aiUnavailableError()
 }
 
 export async function generateSupervisorQuestions(opts: {
@@ -163,6 +117,7 @@ export async function generateSupervisorQuestions(opts: {
     }),
   ])
   const level = opts.levelLabel || (program?.category === 'DOCTORATE' ? 'دكتوراه مهنية' : program?.category === 'MASTERS' ? 'ماجستير مهني' : program?.category === 'DIPLOMA' ? 'دبلوم مهني' : 'برنامج مهني')
+  void level
   const specialty = opts.specialty || program?.titleAr || 'تخصص الطالب'
   const cleanKnowledge = knowledge.map((k: any) => ({
     ...k,
@@ -208,8 +163,9 @@ export async function generateSupervisorQuestions(opts: {
     }
   } catch (e) {
     console.error('supervisor assessment AI generation failed', e)
+    throw aiUnavailableError()
   }
-  return fallbackQuestions(cleanKnowledge, books, count, level, specialty)
+  throw aiUnavailableError()
 }
 
 export async function gradeSupervisorAttemptWithAi(opts: {
@@ -242,7 +198,7 @@ export async function gradeSupervisorAttemptWithAi(opts: {
       return `ID=${q.id}\nالسؤال: ${q.text}\nالنقاط: ${q.points}\nالإجابة النموذجية: ${q.modelAnswer || 'غير متاحة'}\nإجابة الطالب: ${studentAnswer}`
     }).join('\n---\n')}`
     let parsed: any = null
-    try { parsed = await completionJson(system, prompt) } catch (e) { console.error('ai grading failed', e) }
+    try { parsed = await completionJson(system, prompt) } catch (e) { console.error('ai grading failed', e); throw aiUnavailableError() }
     const grades = Array.isArray(parsed?.grades) ? parsed.grades : []
     for (const q of openQuestions) {
       const g = grades.find((x: any) => String(x.questionId) === q.id)

@@ -21,6 +21,7 @@ WHERE c."type" = 'PROGRAM_COMPLETION'
   AND c."userId" = e."userId"
   AND (c."program" = p."titleAr" OR c."program" = p."titleEn");
 
+-- Orphan enrollment links would break the FK. Audit and unlink them instead of aborting deploy.
 WITH orphaned AS (
   SELECT c."id", c."enrollmentId"
   FROM "Certificate" c
@@ -44,6 +45,7 @@ SET "enrollmentId" = NULL
 WHERE c."enrollmentId" IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM "Enrollment" e WHERE e."id" = c."enrollmentId");
 
+-- Historical orphan user links would break the user FK. Audit and unlink them too.
 WITH orphaned AS (
   SELECT c."id", c."userId"
   FROM "Certificate" c
@@ -67,6 +69,8 @@ SET "userId" = NULL
 WHERE c."userId" IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."id" = c."userId");
 
+-- Duplicate enrollment/type rows would break the unique index. Keep the newest valid row;
+-- unlink and invalidate the rest while preserving every certificate record.
 WITH ranked AS (
   SELECT
     c."id",

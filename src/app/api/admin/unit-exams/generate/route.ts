@@ -83,10 +83,9 @@ function selectItems(candidates: UnitExamBankItem[], requiredQuestions: number) 
 }
 
 async function loadScopedQuestions(programId: string, unitId: string, requiredQuestions: number): Promise<ScopedQuestionResult> {
-  const approvedOnly = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, false), requiredQuestions)
-  if (approvedOnly.selection.readyToBuild && approvedOnly.selection.publishable) return { questions: approvedOnly.questions, selection: approvedOnly.selection, requiredQuestions }
-  const mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
-  return { questions: mixed.questions, selection: mixed.selection, requiredQuestions }
+  const approvedAndPending = await unitQuestionCandidates(programId, unitId, requiredQuestions, true)
+  const approvedOnly = selectItems(approvedAndPending, requiredQuestions)
+  return { questions: approvedOnly.questions, selection: approvedOnly.selection, requiredQuestions }
 }
 
 async function queueQuestionBankJob(programId: string, unitId: string, requiredQuestions: number) {
@@ -124,13 +123,13 @@ export async function POST(req: NextRequest) {
         approvedQuestions: scoped.selection.approvedCount,
         pendingReviewQuestions: scoped.selection.pendingReviewCount,
         requiredQuestions,
-        error: `جارٍ تجهيز بنك الأسئلة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}`,
+        error: `لا يكفي عدد الأسئلة المعتمدة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}. في ${scoped.selection.pendingReviewCount} أسئلة بانتظار المراجعة.`,
       }, { status: 202 })
     }
 
-    const reviewRequired = scoped.selection.pendingReviewCount > 0
+    const reviewRequired = false
     const examStatus = reviewRequired ? 'DRAFT' : 'READY'
-    const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, item.status !== 'APPROVED'))
+    const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, reviewRequired))
 
     const result = await db.$transaction(async (tx) => {
       const exam = unit.exam

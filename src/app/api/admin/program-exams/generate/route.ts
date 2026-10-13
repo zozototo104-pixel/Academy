@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
     let exam = existing
     let resumed = Boolean(exam)
     let unitsForExam: Array<{ id: string; title: string; semester: number; order: number }> = []
-
     if (!exam) {
       const comprehensive = body.comprehensive === true || body.semester === 0 || body.semester === 'all'
       const semester = comprehensive ? 3 : Number(body.semester) === 2 ? 2 : 1
@@ -65,7 +64,6 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!exam) return NextResponse.json({ error: 'تعذر تحديد الامتحان' }, { status: 500 })
-
     if (!unitsForExam.length) {
       unitsForExam = await db.unit.findMany({
         where: { programId: exam.programId, ...(exam.semester === 3 ? {} : { semester: exam.semester }) },
@@ -74,14 +72,7 @@ export async function POST(req: NextRequest) {
       })
       if (!unitsForExam.length) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
     }
-
-    const unitBreakdown = unitsForExam.map((unit) => ({
-      unitId: unit.id,
-      title: unit.title,
-      semester: unit.semester,
-      order: unit.order,
-    }))
-
+    const unitBreakdown = unitsForExam.map((unit) => ({ unitId: unit.id, title: unit.title, semester: unit.semester, order: unit.order }))
     if (exam.status === 'REVIEW') {
       const count = await db.programQuestion.count({ where: { examId: exam.id, status: { not: 'REJECTED' } } })
       if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })

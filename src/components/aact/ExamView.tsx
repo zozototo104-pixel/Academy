@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api } from '@/lib/store'
+import { useAppStore, api, type ApiError } from '@/lib/store'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,14 @@ function fmtTime(totalSec: number): string {
   const mm = String(m).padStart(2, '0')
   const ss = String(s).padStart(2, '0')
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+function examErrorMessage(error: ApiError) {
+  if (error.code === 'SEM1_REQUIRED') return 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني.'
+  if (error.code === 'EXAM_NOT_READY_MARKED') return 'اضغط زر «جاهز للامتحان» من بوابة الطالب قبل بدء الاختبار.'
+  if (error.code === 'PENDING_PAYMENT') return 'تسجيلك بانتظار الدفع. سيتم تحويلك إلى صفحة السداد.'
+  if (error.code === 'ATTEMPT_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  return error.message
 }
 
 export function ExamView() {
@@ -223,7 +231,17 @@ export function ExamView() {
           draftLoadedRef.current = true
         }
       })
-      .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
+      .catch((e: ApiError) => {
+        const message = examErrorMessage(e)
+        toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
+        if (e.status === 402 || e.code === 'PENDING_PAYMENT') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
+        else if (e.status === 403 && e.code === 'ALREADY_PASSED') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
+        else if (e.status === 409 && e.code === 'ATTEMPT_EXPIRED') {
+          submittedRef.current = true
+          setSecondsLeft(null)
+          navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
+        }
+      })
       .finally(() => setLoading(false))
   }, [activeExamId, activeExamKind])
 
@@ -335,13 +353,22 @@ export function ExamView() {
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
+        const err = e as ApiError
+        if (err.status === 409 && err.code === 'ATTEMPT_EXPIRED') {
+          submittedRef.current = true
+          setSecondsLeft(null)
+          setSubmitting(false)
+          toast({ title: 'انتهى الوقت', description: 'انتهت المحاولة وحُسبت صفر', variant: 'destructive' })
+          navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
+          return
+        }
         submittedRef.current = false
-        toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+        toast({ title: 'خطأ', description: examErrorMessage(err), variant: 'destructive' })
       } finally {
         setSubmitting(false)
       }
     },
-    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled]
+    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled, navigate]
   )
 
   // المؤقت التنازلي للاختبارات الشاملة — تسليم تلقائي عند انتهاء الوقت
