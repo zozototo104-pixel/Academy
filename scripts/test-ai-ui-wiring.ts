@@ -81,10 +81,13 @@ function testNoAcademicFallbacks() {
 
 function testIncompleteDefenseNeedsReview() {
   const defense = file('src/app/api/defense/route.ts')
-  assert(defense.includes('studentMsgs.length < DEFENSE_CRITERIA.length'), 'defense end must check five criteria coverage')
+  assert(defense.includes('scoreDefenseBreakdown(criteriaScores, { requireAllCriteria: true })'), 'defense end must use scored criteria coverage')
+  assert(defense.includes('criteriaCovered.length < DEFENSE_CRITERIA.length'), 'defense end must not rely on message count only')
   assert(defense.includes("defenseStatus: 'NEEDS_REVIEW'"), 'incomplete defense must move to NEEDS_REVIEW')
   assert(defense.includes('aiScore: null'), 'incomplete defense must clear aiScore')
   assert(defense.includes('DEFENSE_CRITERIA_INCOMPLETE'), 'incomplete defense must record reason')
+  assert(defense.includes('noRebalance: true'), 'incomplete defense must record that no rebalance occurred')
+  assert(defense.includes('setTimeout(() => resolve(AI_UNAVAILABLE_MESSAGE), 4500)'), 'live defense timeout must return AI_UNAVAILABLE_MESSAGE')
   assert(defense.includes('لا توجد علامة آلية'), 'incomplete defense must avoid automatic scoring language')
 }
 
