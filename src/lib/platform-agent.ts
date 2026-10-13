@@ -908,6 +908,9 @@ export async function platformPublicAgentComplete(opts: {
   }
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
+  const analyzeIntent = opts.__testDeps?.analyzeConversationIntent || analyzeConversationIntent
+  const completeText = opts.__testDeps?.textAiComplete || textAiComplete
+  const diagnostics = opts.__testDeps?.textAiDiagnostics || textAiDiagnostics
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const classifierDeadlineMs = opts.channel === 'WHATSAPP'
     ? Math.min(opts.deadlineMs || Number.POSITIVE_INFINITY, Date.now() + 4_000)
