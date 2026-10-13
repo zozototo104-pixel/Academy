@@ -317,7 +317,7 @@ async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, 
   return {
     provider: 's3',
     key,
-    url: signed.publicUrl,
+    url: signed.publicUrl || (isPrivateStorageKey(key) ? getStorageDownloadPathForKey(key) : ''),
     size: input.buffer.byteLength,
     mimeType,
   }
