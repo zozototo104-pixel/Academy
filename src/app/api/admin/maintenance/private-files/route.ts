@@ -31,6 +31,7 @@ async function handlePost(req: NextRequest, deps: HandlerDeps = {}) {
       batchSize: 50,
       actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
       storage: deps.storage,
+      deadlineMs: Date.now() + 55_000,
     })
     return NextResponse.json(report)
   } catch (error: any) {
