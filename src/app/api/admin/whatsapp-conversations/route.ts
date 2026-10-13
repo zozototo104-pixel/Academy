@@ -20,6 +20,22 @@ function adminConversationView<T extends { waIdEncrypted?: string | null; waIdHa
   return { ...visible, phoneNumber }
 }
 
+function verifiedRecipient(value: string | null | undefined, expectedHash: string) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits.length >= 8 && digits.length <= 15 && hashWhatsAppId(digits) === expectedHash ? digits : null
+}
+
+async function recoverLegacyRecipient(conversation: { id: string; waId?: string | null; waIdEncrypted?: string | null; waIdHash: string; handoffRequestId?: string | null }) {
+  const existing = verifiedRecipient(decryptConversationWaIdForInternalUse(conversation), conversation.waIdHash)
+  if (existing) return existing
+  if (!conversation.handoffRequestId) return null
+  const handoff = await db.humanHandoffRequest.findFirst({
+    where: { id: conversation.handoffRequestId, source: 'WHATSAPP', phoneHash: conversation.waIdHash },
+    select: { phoneEncrypted: true },
+  })
+  return verifiedRecipient(decryptWhatsAppPhone(handoff?.phoneEncrypted), conversation.waIdHash)
+}
+
 function normalizeStatus(status: string | null) {
   const allowed = ['BOT_ACTIVE', 'HUMAN_REQUESTED', 'HUMAN_ACTIVE', 'CLOSED']
   return allowed.includes(String(status || '')) ? String(status) : null
