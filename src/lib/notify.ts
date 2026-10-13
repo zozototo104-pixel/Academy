@@ -12,6 +12,8 @@ export async function notify(
 ) {
   if (!userId) return
   try {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null)
+    if (isAactTestEmail(user?.email)) return
     await db.notification.create({ data: { userId, type, title, body, link } })
   } catch (e) {
     console.error('notify error', e)
