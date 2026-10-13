@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
           where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
           select: { id: true },
         })
-        if (passedAttempt) return { blocked: 'PASSED' as const }
+        if (passedAttempt) return { blocked: 'PASSED' as const, attempt: null }
         startedAttempt = await tx.programExamAttempt.create({
           data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
           select: { id: true, startedAt: true, createdAt: true },
