@@ -5,6 +5,7 @@ export const PRIVATE_STORAGE_PREFIXES = [
   'assignments/',
   'theses/',
   'backups/',
+  'service-deliverables/',
 ] as const
 
 export function normalizeStorageKeyForPolicy(value: unknown): string {
