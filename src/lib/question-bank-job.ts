@@ -186,6 +186,13 @@ function evidenceText(item: { excerpt?: string | null; summary?: string | null }
   return cleanText(item.excerpt || item.summary, 2200)
 }
 
+function verifierSourceText(item: QuestionBankSource) {
+  const original = cleanText(item.originalChunkText, 12000)
+  if (!original) return evidenceText(item)
+  const page = item.originalChunkPageStart == null ? '؟' : `${item.originalChunkPageStart}${item.originalChunkPageEnd != null && item.originalChunkPageEnd !== item.originalChunkPageStart ? `–${item.originalChunkPageEnd}` : ''}`
+  return `BookChunk #${item.originalChunkIndex ?? '؟'} — الصفحة ${page}\n${original}`
+}
+
 function safeJsonRecord(value: string | null | undefined): Record<string, unknown> {
   if (!value) return {}
   try {
