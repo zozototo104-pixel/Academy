@@ -105,6 +105,14 @@ function fmtTime(totalSec: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
+function examErrorMessage(error: ApiError) {
+  if (error.code === 'SEM1_REQUIRED') return 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني.'
+  if (error.code === 'EXAM_NOT_READY_MARKED') return 'اضغط زر «جاهز للامتحان» من بوابة الطالب قبل بدء الاختبار.'
+  if (error.code === 'PENDING_PAYMENT') return 'تسجيلك بانتظار الدفع. سيتم تحويلك إلى صفحة السداد.'
+  if (error.code === 'ATTEMPT_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  return error.message
+}
+
 export function ExamView() {
   const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
   const { toast } = useToast()
