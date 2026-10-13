@@ -198,7 +198,7 @@ export async function gradeSupervisorAttemptWithAi(opts: {
       return `ID=${q.id}\nالسؤال: ${q.text}\nالنقاط: ${q.points}\nالإجابة النموذجية: ${q.modelAnswer || 'غير متاحة'}\nإجابة الطالب: ${studentAnswer}`
     }).join('\n---\n')}`
     let parsed: any = null
-    try { parsed = await completionJson(system, prompt) } catch (e) { console.error('ai grading failed', e) }
+    try { parsed = await completionJson(system, prompt) } catch (e) { console.error('ai grading failed', e); throw aiUnavailableError() }
     const grades = Array.isArray(parsed?.grades) ? parsed.grades : []
     for (const q of openQuestions) {
       const g = grades.find((x: any) => String(x.questionId) === q.id)
