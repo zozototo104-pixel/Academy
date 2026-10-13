@@ -504,7 +504,7 @@ async function listPublicProgramsForWhatsApp() {
   })
 }
 
- : ''}`).join('\n')}`, context)
+    */
   }
 
   if (intent === 'CERTIFICATE') {
