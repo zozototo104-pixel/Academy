@@ -124,6 +124,66 @@ async function testRouteRejectsNonAdmin() {
   assert(response.status === 403, 'non-admin user must receive 403')
 }
 
+async function testDetailedReportCategoriesAndInvalidKeys() {
+  const oldHosts = process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS
+  process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS = 'allowed.test'
+  try {
+    const { db, admissions } = makeMockDb()
+    admissions.set('adm-local-2', { id: 'adm-local-2', storageKey: null, fileUrl: '/uploads/admissions/local-2.pdf' })
+    admissions.set('adm-external', { id: 'adm-external', storageKey: null, fileUrl: 'https://allowed.test/uploads/admissions/external.pdf' })
+    admissions.set('adm-bad-host', { id: 'adm-bad-host', storageKey: null, fileUrl: 'https://evil.test/uploads/admissions/blocked.pdf' })
+    admissions.set('adm-missing-key', { id: 'adm-missing-key', storageKey: null, fileUrl: 'not-a-private-file-reference' })
+    const { storage } = makeStorage(new Set(), { localKeys: new Set(['admissions/adm-doc-1.pdf', 'admissions/local-2.pdf']) })
+    const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'dry-run', batchSize: 50, storage })
+    const admission = report.byType.AdmissionDocument
+    assert(admission.localOnServer === 2, 'report must count files موجود محلياً على الخادم')
+    assert(admission.externalUrl === 1, 'report must count allowed رابط خارجي files')
+    assert(admission.disallowedHost === 1 && admission.disallowedHostIds.includes('adm-bad-host'), 'report must count مضيف غير مسموح with id')
+    assert(admission.missing === 1 && admission.missingIds.includes('adm-missing-key'), 'invalid keys must be counted as missing with id')
+  } finally {
+    if (oldHosts === undefined) delete process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS
+    else process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS = oldHosts
+  }
+}
+
+async function testTooLargeFilesAreReportedAndNotStored() {
+  const { db, admissions } = makeMockDb()
+  admissions.set('adm-big', { id: 'adm-big', storageKey: null, fileUrl: '/uploads/admissions/big.pdf' })
+  const { storage, getStoreCalls } = makeStorage(new Set(), {
+    localKeys: new Set(['admissions/adm-doc-1.pdf', 'admissions/big.pdf']),
+    readLegacyFile: async (item: any) => ({ buffer: Buffer.alloc(item.id === 'adm-big' ? 10 : 1), mimeType: 'application/pdf' }),
+  })
+  const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage, maxFileBytes: 5 })
+  const admission = report.byType.AdmissionDocument
+  assert(admission.tooLarge === 1 && admission.tooLargeIds.includes('adm-big'), 'large files must be reported as كبير جداً')
+  assert(getStoreCalls() === 1, 'large files must not be stored while smaller files still migrate')
+}
+
+async function testBatchStopsBeforeDeadlineAndReturnsCursor() {
+  const { db, admissions } = makeMockDb()
+  admissions.set('adm-doc-2', { id: 'adm-doc-2', storageKey: null, fileUrl: '/uploads/admissions/adm-doc-2.pdf' })
+  admissions.set('adm-doc-3', { id: 'adm-doc-3', storageKey: null, fileUrl: '/uploads/admissions/adm-doc-3.pdf' })
+  const { storage } = makeStorage(new Set(), { localKeys: new Set(['admissions/adm-doc-1.pdf', 'admissions/adm-doc-2.pdf', 'admissions/adm-doc-3.pdf']) })
+  const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'dry-run', batchSize: 3, storage, deadlineMs: Date.now() + 1 })
+  assert(report.processed === 1, 'adaptive batch must process at least one item before stopping')
+  assert(report.done === false && Boolean(report.nextCursor), 'adaptive batch must return nextCursor when it stops before deadline')
+}
+
+async function testLockReleasedOnErrorForSameRun() {
+  const { db, settings } = makeMockDb()
+  const { storage } = makeStorage(new Set(), {
+    readLegacyFile: async () => { throw new Error('boom') },
+  })
+  let failed = false
+  try {
+    await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage })
+  } catch {
+    failed = true
+  }
+  assert(failed, 'failing private file maintenance run must surface the error')
+  assert(!settings.has('MAINTENANCE_PRIVATE_FILES_LOCK'), 'lock must be released in finally when the same run fails')
+}
+
 async function main() {
   await testDryRunDoesNotMutate()
   await testExecuteUpdatesAndIsIdempotent()
