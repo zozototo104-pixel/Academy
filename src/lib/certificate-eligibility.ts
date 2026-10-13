@@ -94,7 +94,7 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
   }
 
-  const program = await db.program.findUnique({
+  const program = await client.program.findUnique({
     where: { id: resolvedProgramId },
     select: { category: true },
   })
