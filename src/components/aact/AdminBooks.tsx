@@ -3537,7 +3537,7 @@ export function AdminBooksTab() {
                           {e.status === 'REVIEW' && e.questionCount < FULL_EXAM_TARGET && (
                             <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50/80 p-3">
                               <p className="text-[11px] font-bold leading-relaxed text-orange-800">
-                                هذا امتحان جزئي فقط: {e.questionCount} من {FULL_EXAM_TARGET} سؤال. لا تنشره الآن إلا إذا كنت تريد امتحاناً مختصراً؛ اضغط استكمال التوليد ليكمل من الكتب دون تكرار.
+                                هذا امتحان غير مكتمل: {e.questionCount} من {FULL_EXAM_TARGET} سؤال. لا يمكن نشره قبل استكمال العدد والتحقق من التوثيق والتنوع والمراجعة البشرية.
                               </p>
                               <Button
                                 size="sm"
