@@ -36,6 +36,15 @@ async function recoverLegacyRecipient(conversation: { id: string; waId?: string 
   return verifiedRecipient(decryptWhatsAppPhone(handoff?.phoneEncrypted), conversation.waIdHash)
 }
 
+async function alignLegacyConversationIdentity(conversation: { id: string; waIdHash: string }, recipient: string) {
+  const currentHash = hashWhatsAppId(recipient)
+  if (currentHash === conversation.waIdHash) return true
+  const conflict = await db.whatsAppConversation.findUnique({ where: { waIdHash: currentHash }, select: { id: true } })
+  if (conflict && conflict.id !== conversation.id) return false
+  await db.whatsAppConversation.update({ where: { id: conversation.id, waIdHash: conversation.waIdHash }, data: { waIdHash: currentHash } })
+  return true
+}
+
 function normalizeStatus(status: string | null) {
   const allowed = ['BOT_ACTIVE', 'HUMAN_REQUESTED', 'HUMAN_ACTIVE', 'CLOSED']
   return allowed.includes(String(status || '')) ? String(status) : null
