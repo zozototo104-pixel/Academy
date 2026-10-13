@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
-import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
 const ALLOWED_MIME = new Set([
