@@ -110,8 +110,34 @@ export async function evaluateProgramCertificateEligibility(input: {
 
   const program = await client.program.findUnique({
     where: { id: resolvedProgramId },
-    select: { category: true },
+    select: { category: true, price: true },
   })
+
+  const enrollment = await client.enrollment.findUnique({
+    where: { userId_programId: { userId: resolvedUserId, programId: resolvedProgramId } },
+    select: { id: true },
+  })
+  const payments = await client.payment.findMany({
+    where: {
+      OR: [
+        ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
+        ...(admissionId ? [{ admissionId }] : []),
+      ],
+    },
+    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+  })
+  const financeError = paymentEligibilityError(payments, program?.price)
+  if (financeError) {
+    return {
+      ok: false,
+      score: finalGrade.score,
+      gradeLabel: certificateGradeLabel(finalGrade.score),
+      missing: ['الرسوم المدفوعة'],
+      components: finalGrade.components,
+      error: financeError,
+    }
+  }
+
   const requiresThesis = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
 
   if (requiresThesis) {
