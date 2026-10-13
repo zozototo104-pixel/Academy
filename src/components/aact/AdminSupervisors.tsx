@@ -59,7 +59,7 @@ export function AdminSupervisorsTab() {
   const resetPassword = async (id: string) => {
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ action: 'reset-supervisor-password', id, password: newPassword }) })
+      await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'reset-supervisor-password', id, password: newPassword }) })
       toast({ title: 'تم تحديث كلمة المرور', description: 'أبلغ المشرف بكلمة المرور الجديدة بشكل آمن.' })
       setResetFor(null)
       setNewPassword('')
