@@ -321,6 +321,11 @@ export function AdminSystemTab() {
   const [restoreConfirm, setRestoreConfirm] = useState('')
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restorePreview, setRestorePreview] = useState<BackupInspectResult | null>(null)
+  const [privateFilesBusy, setPrivateFilesBusy] = useState(false)
+  const [privateFilesReport, setPrivateFilesReport] = useState<PrivateFilesReport | null>(null)
+  const [privateFilesScanned, setPrivateFilesScanned] = useState(false)
+  const [privateFilesConfirm, setPrivateFilesConfirm] = useState('')
+  const [privateFilesProgress, setPrivateFilesProgress] = useState({ batches: 0, records: 0 })
 
   const load = () => {
     setLoading(true)
