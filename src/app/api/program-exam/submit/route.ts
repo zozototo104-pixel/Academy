@@ -389,6 +389,8 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
+    const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
