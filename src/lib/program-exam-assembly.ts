@@ -62,7 +62,7 @@ async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<Unit
       where: { programId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
       select: { id: true, bookId: true, excerpt: true, summary: true, title: true, pageStart: true, pageEnd: true },
     })
-    if (!sources.length) return { unit, candidates: [], scopeReady: false }
+    if (!sources.length) return { unit, candidates: [], sources: [], scopeReady: false }
     const sourceMap = new Map(sources.map((source) => [source.id, source]))
     const titles = await db.book.findMany({ where: { id: { in: [...new Set(sources.map((s) => s.bookId).filter((id): id is string => Boolean(id)))] } }, select: { id: true, title: true } })
     const bookTitles = new Map(titles.map((book) => [book.id, book.title]))
