@@ -12,6 +12,8 @@
     "lint": "eslint . --max-warnings=54",
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "settings:migrate:official-ai": "tsx scripts/migrate-official-ai-settings.ts",
+    "test:stage-c-exams": "bun run db:generate && tsx scripts/test-stage-c-exams.ts",
+    "test:ai-ui-wiring": "tsx scripts/test-ai-ui-wiring.ts",
     "test:prod-safety": "bun run db:generate && tsx scripts/test-prod-safety.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
