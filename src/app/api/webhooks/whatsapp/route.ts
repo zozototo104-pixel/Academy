@@ -1013,8 +1013,8 @@ async function handleWhatsAppPost(req: NextRequest, deps: WhatsAppPostTestDeps =
     scheduleAfter(() => processEvent(eventId).catch((error) => console.error('WhatsApp after-event processing failed:', String((error as any)?.message || error || 'failed').slice(0, 500))))
   }
 
-  await auditFn('WHATSAPP_WEBHOOK_RECEIVED', { received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, ignoredPhoneMessages: ignoredPhoneMessages.length, configured: configured(), errors: errors.slice(0, 3), messages: messages.map((message) => ({ id: message.id, from: maskPhone(message.from), text: message.text.slice(0, 180), phoneNumberId: message.phoneNumberId || null })) }, messages[0]?.id)
-  return NextResponse.json({ ok: true, received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, ignoredPhoneMessages: ignoredPhoneMessages.length, errors: errors.slice(0, 3), configured: configured() })
+  await auditFn('WHATSAPP_WEBHOOK_RECEIVED', { received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, echoes: skippedEchoes, ignoredPhoneMessages: ignoredPhoneMessages.length, configured: configured(), errors: errors.slice(0, 3), messages: messages.map((message) => ({ id: message.id, from: maskPhone(message.from), text: message.text.slice(0, 180), phoneNumberId: message.phoneNumberId || null })) }, messages[0]?.id)
+  return NextResponse.json({ ok: true, received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, echoes: skippedEchoes, ignoredPhoneMessages: ignoredPhoneMessages.length, errors: errors.slice(0, 3), configured: configured() })
 }
 
 export async function __handleWhatsAppPostForTests(req: NextRequest, deps: WhatsAppPostTestDeps) {
