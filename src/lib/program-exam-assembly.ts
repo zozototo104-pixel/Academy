@@ -164,11 +164,25 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
       await tx.questionBankItem.updateMany({ where: { id: { in: taken.map((candidate) => candidate.item.id) } }, data: { usageCount: { increment: 1 } } })
     }
     const questionCount = active.length + taken.length
-    const complete = questionCount >= PROGRAM_EXAM_TARGET && TYPES.every((type) => (byType[type] || 0) >= minTypes[type])
-    const note = complete ? null : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال موثق أو محفوظ؛ بانتظار أسئلة إضافية من بنك المعرفة V2. ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
+    // Preserve older questions without falsely declaring them source-verified.
+    // Verified-bank questions carry a durable bank-id marker; older records need a literal
+    // excerpt from one of this exam's actual V2 book sources before completion is claimed.
+    const legacyUnverified = active.filter((question) => {
+      if (array(question.qualityFlags).some((flag) => flag.startsWith('QUESTION_BANK_ITEM_ID:'))) return false
+      if (!question.sourceEvidence || !question.sourceLocator || !question.sourceBookTitle) return true
+      return !pools.some((pool) => pool.sources.some((source) =>
+        validateLiteralEvidence({ evidence: question.sourceEvidence, sourceText: source.excerpt || source.summary }).ok,
+      ))
+    }).length
+    const blockedByLegacy = questionCount >= PROGRAM_EXAM_TARGET && legacyUnverified > 0
+    const complete = questionCount >= PROGRAM_EXAM_TARGET && legacyUnverified === 0 && TYPES.every((type) => (byType[type] || 0) >= minTypes[type])
+    const status = complete ? 'REVIEW' : blockedByLegacy ? 'PAUSED' : 'GENERATING'
+    const note = complete ? null : blockedByLegacy
+      ? `تم حفظ ${questionCount} سؤالًا، لكن ${legacyUnverified} من الأسئلة القديمة لا يمكن مطابقة دليلها حرفيًا مع الكتب وبنك المعرفة V2. راجعها أو ارفض غير الموثق منها ثم استكمل، دون حذف تلقائي.`
+      : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
     const points = active.reduce((total, q) => total + q.points, 0) + taken.length * 2
-    await tx.programExam.update({ where: { id: examId }, data: { status: complete ? 'REVIEW' : 'GENERATING', errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
-    return { questionCount, inserted: taken.length, done: complete, status: complete ? 'REVIEW' : 'GENERATING', byType, byUnit }
+    await tx.programExam.update({ where: { id: examId }, data: { status, errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
+    return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
   }, { maxWait: 15_000, timeout: 20_000 })
 
   let jobId: string | null = null
