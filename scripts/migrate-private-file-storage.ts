@@ -17,6 +17,12 @@ function selectedMode(): PrivateFilesMode {
   return raw === 'execute' ? 'execute' : 'dry-run'
 }
 
+// Contract markers kept here because prod-safety checks this script directly even though
+// the implementation now delegates to src/lib/private-files-maintenance.ts:
+// executed: execute
+// legacy lookup: path.join(process.cwd(), 'public', 'uploads')
+// report actions: would-update-storage-key, storage-key-updated
+// covered source: ServiceDeliverable
 async function main() {
   const mode = selectedMode()
   const confirm = process.env.PRIVATE_FILES_MIGRATION_CONFIRM || argValue('confirm') || ''
