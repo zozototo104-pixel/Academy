@@ -60,15 +60,16 @@ function makeMockDb() {
     thesisSubmission: emptyModel,
     serviceDeliverable: emptyModel,
   }
-  return { db, admissions, auditLogs }
+  return { db, admissions, auditLogs, settings }
 }
 
-function makeStorage(privateKeys = new Set<string>()) {
+function makeStorage(privateKeys = new Set<string>(), options: { localKeys?: Set<string>; readLegacyFile?: (item: any) => Promise<{ buffer: Buffer; mimeType: string } | null> } = {}) {
   let storeCalls = 0
+  const localKeys = options.localKeys || new Set<string>(['admissions/adm-doc-1.pdf'])
   const storage = {
     privateFileExists: async (key: string) => privateKeys.has(key),
-    localLegacyExists: async (key: string) => key === 'admissions/adm-doc-1.pdf',
-    readLegacyFile: async () => ({ buffer: Buffer.from('legacy-file'), mimeType: 'application/pdf' }),
+    localLegacyExists: async (key: string) => localKeys.has(key),
+    readLegacyFile: options.readLegacyFile || (async () => ({ buffer: Buffer.from('legacy-file'), mimeType: 'application/pdf' })),
     storePrivateFile: async (item: any) => { storeCalls += 1; privateKeys.add(item.key) },
     downloadPathForKey: (key: string) => `/api/files/${key}`,
   }
