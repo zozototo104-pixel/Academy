@@ -31,7 +31,7 @@ export function AdminSupervisorsTab() {
   const load = async () => {
     setLoading(true)
     try {
-      const d = await api<{ supervisors: SupervisorRow[] }>('/api/admin/students?role=supervisors')
+      const d = await api<{ supervisors: SupervisorRow[] }>('/api/admin/supervisors')
       setSupervisors(d.supervisors || [])
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message || 'تعذر تحميل المشرفين', variant: 'destructive' })
