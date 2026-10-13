@@ -112,5 +112,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (wantsJson) {
     return NextResponse.json({ ok: true, url: signedUrl, expiresAt }, { headers: { 'Cache-Control': 'no-store' } })
   }
-  return NextResponse.redirect(new URL(signedUrl, req.url), { status: 302, headers: { 'Cache-Control': 'no-store' } })
+  const redirect = NextResponse.redirect(new URL(signedUrl, req.url), 302)
+  redirect.headers.set('Cache-Control', 'no-store')
+  return redirect
 }
