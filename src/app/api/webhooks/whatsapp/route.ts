@@ -244,9 +244,14 @@ function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Dat
 async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[]) {
   const eventIds: string[] = []
   let skippedDuplicates = 0
+  let skippedEchoes = 0
   const errors: string[] = []
   for (const message of messages) {
     try {
+      if (await isWhatsAppOutboundEcho(message.id)) {
+        skippedEchoes += 1
+        continue
+      }
       const event = await db.whatsAppInboundEvent.create({
         data: {
           waMessageId: message.id,
