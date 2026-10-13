@@ -22,7 +22,10 @@ export function isPrivateStorageKey(value: unknown): boolean {
 }
 
 export function isAactTestEmail(value: unknown): boolean {
-  return String(value || '').trim().toLowerCase().endsWith('@aact.test')
+  const raw = String(value || '').trim().toLowerCase()
+  const bracketMatch = raw.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/)
+  const email = bracketMatch?.[1] || raw
+  return email.endsWith('@aact.test')
 }
 
 export function hasAactTestRecipient(value: unknown): boolean {
