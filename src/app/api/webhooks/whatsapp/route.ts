@@ -190,6 +190,13 @@ function expectedWhatsAppPhoneNumberId() {
   return String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim()
 }
 
+async function isWhatsAppAiEnabled() {
+  const envValue = String(process.env.WHATSAPP_AI_ENABLED || '').trim()
+  const value = envValue || await getSetting('WHATSAPP_AI_ENABLED').catch(() => 'true')
+  const normalized = String(value || 'true').trim().toLowerCase()
+  return !['0', 'false', 'off', 'no', 'disabled', 'موقوف'].includes(normalized)
+}
+
 function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage[]) {
   const expected = expectedWhatsAppPhoneNumberId()
   if (!expected) return { accepted: messages, ignored: [] as WhatsAppInboundMessage[] }
