@@ -369,10 +369,11 @@ export function storageErrorMessage(error: unknown): string {
 }
 
 export function getPublicStorageUrlForKey(key: string): string | null {
-  if (key.startsWith('representatives-private/')) return null
+  const cleanKey = cleanStorageKey(key)
+  if (isPrivateStorageKey(cleanKey)) return null
   const cfg = getS3Config()
   if (!cfg?.publicBaseUrl) return null
-  return `${cfg.publicBaseUrl}/${encodeS3Key(cleanStorageKey(key))}`
+  return `${cfg.publicBaseUrl}/${encodeS3Key(cleanKey)}`
 }
 
 export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFileResult> {
