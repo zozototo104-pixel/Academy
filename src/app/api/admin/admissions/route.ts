@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
           supervisor: { select: { id: true, name: true } },
           payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
           theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
-          files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
+          files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true, storageKey: true } },
           deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
         },
       }),
