@@ -147,16 +147,19 @@ export async function POST(req: NextRequest) {
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
     if (elapsedMs > allowedMs) {
-      await db.programExamAttempt.update({
-        where: { id: startedAttempt.id },
+      // An already-submitted attempt must never be overwritten as expired.
+      await db.programExamAttempt.updateMany({
+        where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
         data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
       })
       return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
     }
     const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
 
-    const attempt = await db.programExamAttempt.update({
-      where: { id: startedAttempt.id },
+    // Atomic compare-and-set: exactly one request can claim a STARTED attempt.
+    // Other concurrent submissions are rejected before writing answers or grading.
+    const claimed = await db.programExamAttempt.updateMany({
+      where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
       data: {
         status: 'SUBMITTED',
         durationUsedMin: serverDurationUsedMin,
@@ -165,6 +168,10 @@ export async function POST(req: NextRequest) {
         proctoringSnapshot: procSnapshot,
       },
     })
+    if (claimed.count !== 1) {
+      return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
+    }
+    const attempt = startedAttempt
 
     try {
     let totalScore = 0
