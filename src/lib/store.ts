@@ -263,6 +263,8 @@ function isTransientFetchError(err: unknown): boolean {
   )
 }
 
+export type ApiError = Error & { data?: any; status?: number; code?: string }
+
 export async function api<T = any>(url: string, options?: RequestInit): Promise<T> {
   const token = getToken()
   const isForm = typeof FormData !== 'undefined' && options?.body instanceof FormData
