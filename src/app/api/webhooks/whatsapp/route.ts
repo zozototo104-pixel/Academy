@@ -632,6 +632,9 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
+  // A physical address is authoritative in admin settings, not in generated answers.
+  if (isOfficialAddressQuestion(text)) return await buildOfficialAddressReply()
+
   const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
   await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
