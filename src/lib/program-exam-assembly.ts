@@ -58,8 +58,9 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; boo
 async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<UnitPool[]> {
   return Promise.all(units.map(async (unit) => {
     if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) return { unit, candidates: [], sources: [], scopeReady: false }
-    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true } })
+    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true, text: true } })
     if (!chunks.length) return { unit, candidates: [], sources: [], scopeReady: false }
+    const chunkTextById = new Map(chunks.map((chunk) => [chunk.id, chunk.text]))
     const sources = await db.bookKnowledgeItem.findMany({
       where: { programId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
       select: { id: true, bookId: true, excerpt: true, summary: true, title: true, pageStart: true, pageEnd: true },
