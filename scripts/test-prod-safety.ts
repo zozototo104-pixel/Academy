@@ -264,6 +264,7 @@ async function testWhatsAppWebhookHandlerBehavior() {
 async function testWhatsAppPublicAgentWithMocks() {
   let lastProvider = 'GEMINI'
   let routerCalls = 0
+  let providerHealthCalls = 0
   const fallbackResult = await platformPublicAgentComplete({
     messages: [{ role: 'user', content: 'أريد معلومات عن شروط القبول في الأكاديمية' }],
     channel: 'WHATSAPP',
