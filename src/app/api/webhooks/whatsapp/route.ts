@@ -650,7 +650,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     return handoffOpen ? getHumanSupportReply() : getHumanHandoffConfirmationReply()
   }
 
-  const agentReply = await createOfficialWhatsAppAgentReply(message)
+  const agentReply = await createOfficialWhatsAppAgentReply(message, deadlineMs)
   if (agentReply.trim() === (await getHumanSupportReply()).trim()) {
     await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
   }
