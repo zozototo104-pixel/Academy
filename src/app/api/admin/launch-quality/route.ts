@@ -718,6 +718,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!qaProdFixturesAllowed()) {
+      return NextResponse.json(
+        { ok: false, error: 'QA launch-quality fixtures are blocked in production unless QA_ALLOW_PROD_FIXTURES=true is set.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store, max-age=0' } },
+      )
+    }
     await requireAdmin()
     const body = await req.json().catch(() => ({}))
     const runAi = body.runAi !== false
