@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { createSignedStorageUrlForKey, readStoredFile, signLocalStorageDownloadPath, verifyLocalStorageDownloadSignature } from '@/lib/storage'
 import { isPrivateStorageKey, normalizeStorageKeyForPolicy } from '@/lib/prod-safety'
+import { canAccessStorageKey } from '@/lib/file-access-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
