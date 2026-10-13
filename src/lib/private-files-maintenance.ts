@@ -83,7 +83,7 @@ export const PRIVATE_FILES_TYPE_LABELS: Record<PrivateFilesSource, string> = {
 }
 
 function emptyTypeReport(source: PrivateFilesSource): PrivateFilesTypeReport {
-  return { label: PRIVATE_FILES_TYPE_LABELS[source], records: 0, toMigrate: 0, alreadyPrivate: 0, missing: 0, storageKeyUpdates: 0, missingIds: [] }
+  return { label: PRIVATE_FILES_TYPE_LABELS[source], records: 0, toMigrate: 0, alreadyPrivate: 0, missing: 0, localOnServer: 0, externalUrl: 0, disallowedHost: 0, tooLarge: 0, storageKeyUpdates: 0, missingIds: [], disallowedHostIds: [], tooLargeIds: [] }
 }
 
 export function emptyPrivateFilesReport(mode: PrivateFilesMode, batchSize = 0): PrivateFilesMaintenanceReport {
