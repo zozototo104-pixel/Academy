@@ -70,7 +70,7 @@ export async function evaluateProgramCertificateEligibility(input: {
   const resolvedUserId = userId
   const resolvedProgramId = programId
   const admissionId = input.admissionId || null
-  const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId })
+  const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId, client })
   if (finalGrade.score === null) {
     return {
       ok: false,
