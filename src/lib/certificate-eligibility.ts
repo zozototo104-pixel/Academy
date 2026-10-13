@@ -47,7 +47,9 @@ export async function evaluateProgramCertificateEligibility(input: {
   userId?: string | null
   programId?: string | null
   admissionId?: string | null
+  client?: CertificateEligibilityDbClient
 }): Promise<ProgramCertificateEligibility> {
+  const client = input.client || db
   const userId = input.userId || null
   const programId = input.programId || null
   if (!userId || !programId) {
