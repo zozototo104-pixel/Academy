@@ -903,17 +903,10 @@ export async function platformPublicAgentComplete(opts: {
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
   deadlineMs?: number
-  getProviderHealth?: typeof textAiModelHealthSnapshot
-  __testDeps?: {
-    analyzeConversationIntent?: typeof analyzeConversationIntent
-    textAiComplete?: typeof textAiComplete
-    textAiDiagnostics?: typeof textAiDiagnostics
-  }
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   if (opts.channel !== 'WHATSAPP') assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
-  const analyzeIntent = opts.__testDeps?.analyzeConversationIntent || analyzeConversationIntent
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
-  const intentAnalysis = await analyzeIntent(opts.messages, opts.channel === 'WHATSAPP' ? { channel: opts.channel, role: 'PUBLIC' } : { channel: opts.channel, role: 'PUBLIC', deadlineMs: opts.deadlineMs })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, opts.channel === 'WHATSAPP' ? { channel: opts.channel, role: 'PUBLIC' } : { channel: opts.channel, role: 'PUBLIC', deadlineMs: opts.deadlineMs })
     .catch((error) => {
       console.warn('Public intent classifier failed; continuing with local routing rules.', error)
       return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
