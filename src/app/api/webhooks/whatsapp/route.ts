@@ -838,6 +838,29 @@ export async function processWhatsAppEvent(eventId: string) {
   }
 }
 
+export async function processStaleWhatsAppInboundEvents(limit = 20) {
+  const staleReceivedBefore = new Date(Date.now() - 60_000)
+  const staleProcessingBefore = new Date(Date.now() - STALE_PROCESSING_RETRY_MS)
+  const events = await db.whatsAppInboundEvent.findMany({
+    where: {
+      attempts: { lt: 2 },
+      OR: [
+        { status: { in: ['RECEIVED', 'FAILED'] }, updatedAt: { lt: staleReceivedBefore } },
+        { status: 'PROCESSING', updatedAt: { lt: staleProcessingBefore } },
+      ],
+    },
+    orderBy: { updatedAt: 'asc' },
+    take: Math.max(1, Math.min(50, limit)),
+    select: { id: true },
+  })
+  let processed = 0
+  for (const event of events) {
+    await processWhatsAppEvent(event.id)
+    processed += 1
+  }
+  return { checked: events.length, processed }
+}
+
 // Meta webhook verification for WhatsApp Business Platform.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
