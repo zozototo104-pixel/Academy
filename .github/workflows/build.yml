@@ -68,5 +68,8 @@ jobs:
       - name: Test account revocation and Google OAuth session security
         run: bun run test:stage-b-sessions
 
+      - name: Test stage C exam security invariants
+        run: bun test tests/exams/stage-c-exams.test.ts
+
       - name: Build Next.js application
         run: bun run build
