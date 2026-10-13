@@ -98,6 +98,14 @@ function isSimpleWhatsAppGreeting(text: string) {
 
 const SIMPLE_WHATSAPP_GREETING_REPLY = 'وعليكم السلام ورحمة الله 🌟\n\nكيف يمكنني مساعدتك اليوم؟'
 
+function simpleWhatsAppGreetingReply(text: string) {
+  const greeting = normalizeGreetingText(text)
+  if (greeting.includes('صباح')) return 'صباح النور 🌟 كيف يمكنني مساعدتك اليوم؟'
+  if (greeting.includes('مساء')) return 'مساء النور 🌟 كيف يمكنني مساعدتك اليوم؟'
+  if (greeting.includes('السلام') || greeting.startsWith('سلام')) return 'وعليكم السلام ورحمة الله 🌟 كيف يمكنني مساعدتك اليوم؟'
+  return 'أهلًا وسهلًا بك في الأكاديمية 🌟 كيف يمكنني مساعدتك اليوم؟'
+}
+
 async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
   const found = await db.auditLog.findFirst({
