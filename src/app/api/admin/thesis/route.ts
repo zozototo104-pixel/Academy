@@ -53,6 +53,9 @@ export async function GET() {
     })
     const theses = rows.map((t) => ({
       ...t,
+      fileUrl: t.fileStorageKey ? getStorageDownloadPathForKey(t.fileStorageKey) : null,
+      downloadUrl: t.fileStorageKey ? getStorageDownloadPathForKey(t.fileStorageKey) : null,
+      recordingUrl: t.recordingStorageKey ? getStorageDownloadPathForKey(t.recordingStorageKey) : null,
       abstract: t.abstract?.length > 700 ? `${t.abstract.slice(0, 700)}...` : t.abstract,
       aiRecommendation: t.aiRecommendation?.length && t.aiRecommendation.length > 900 ? `${t.aiRecommendation.slice(0, 900)}...` : t.aiRecommendation,
       defenseMinutes: t.defenseMinutes?.length && t.defenseMinutes.length > 2500 ? `${t.defenseMinutes.slice(0, 2500)}...` : t.defenseMinutes,
