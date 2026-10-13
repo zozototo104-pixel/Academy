@@ -101,7 +101,7 @@ export async function evaluateProgramCertificateEligibility(input: {
   const requiresThesis = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
 
   if (requiresThesis) {
-    const thesis = await db.thesisSubmission.findFirst({
+    const thesis = await client.thesisSubmission.findFirst({
       where: admissionId ? { admissionId } : { userId: resolvedUserId },
       orderBy: { updatedAt: 'desc' },
       select: { status: true, resultScore: true, passed: true },
