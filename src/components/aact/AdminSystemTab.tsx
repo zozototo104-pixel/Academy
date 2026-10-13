@@ -104,6 +104,33 @@ interface BackupInspectResult {
   errors?: Array<{ table: string; error?: string }>
 }
 
+type PrivateFilesSource = 'AdmissionDocument' | 'PaymentProof' | 'AssignmentSubmission' | 'ThesisSubmission' | 'ServiceDeliverable'
+
+interface PrivateFilesTypeReport {
+  label: string
+  records: number
+  toMigrate: number
+  alreadyPrivate: number
+  missing: number
+  storageKeyUpdates: number
+  missingIds: string[]
+}
+
+interface PrivateFilesReport {
+  ok: boolean
+  mode: 'dry-run' | 'execute'
+  executed: boolean
+  batchSize: number
+  processed: number
+  cursor: string | null
+  nextCursor: string | null
+  done: boolean
+  byType: Record<PrivateFilesSource, PrivateFilesTypeReport>
+  notes: string[]
+}
+
+const PRIVATE_FILE_TYPE_ORDER: PrivateFilesSource[] = ['AdmissionDocument', 'PaymentProof', 'AssignmentSubmission', 'ThesisSubmission', 'ServiceDeliverable']
+
 interface SystemData {
   values: Record<string, string>
   secretsSet: Record<string, boolean>
