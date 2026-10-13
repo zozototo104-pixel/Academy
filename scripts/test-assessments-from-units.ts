@@ -89,11 +89,15 @@ function testAssignmentsAndGuidesNoFallbackTemplates() {
 }
 
 function testComprehensiveExamCoversUnits() {
-  const code = src('src/app/api/admin/program-exams/generate/route.ts')
-  assert(code.includes('unitsForExam'), 'الامتحان العام يجب أن يبدأ من الوحدات')
-  assert(code.includes('comprehensive ? {} : { semester }'), 'الامتحان الشامل يجب أن يغطي كل الوحدات لا فصل واحد فقط')
-  assert(code.includes('unitBreakdown'), 'رد التوليد يجب أن يعرض توزيع الأسئلة لكل وحدة')
-  assert(!code.includes('book.textContent') && !code.includes('examSourceBooks') && !code.includes('generateExamQuestionBatch'), 'الامتحان العام لا يجب أن يستخدم book.textContent أو exam-source-chunks')
+  const route = src('src/app/api/admin/program-exams/generate/route.ts')
+  const assembly = src('src/lib/program-exam-assembly.ts')
+  assert(route.includes('advanceProgramExamFromVerifiedBank'), 'مسار توليد الامتحان يجب أن يستخدم التجميع الموثق من بنك الأسئلة')
+  assert(assembly.includes('db.unit.findMany') && assembly.includes('programId: exam.programId'), 'الامتحان العام يجب أن يبدأ من وحدات البرنامج')
+  assert(assembly.includes('exam.semester === 3 ? {} : { semester: exam.semester }'), 'الامتحان الشامل يجب أن يغطي الوحدات من جميع الفصول')
+  assert(assembly.includes('loadUnitPools(exam.programId, units)'), 'يجب أن يجلب الأسئلة بنطاق وحدات البرنامج')
+  assert(assembly.includes('byUnit[next.unitId]') && assembly.includes('unitDiff'), 'يجب أن يوازن اختيار الأسئلة بين الوحدات')
+  assert(assembly.includes('unitBreakdown') && assembly.includes('questionCount: result.byUnit[unit.id]'), 'رد التوليد يجب أن يعرض توزيع الأسئلة لكل وحدة')
+  assert(!route.includes('book.textContent') && !route.includes('examSourceBooks') && !route.includes('generateExamQuestionBatch') && !assembly.includes('book.textContent') && !assembly.includes('generateExamQuestionBatch'), 'الامتحان العام لا يجب أن يستخدم نص الكتاب الخام أو المولد القديم')
 }
 
 function testUnitExamPendingReviewBlocksPublish() {
