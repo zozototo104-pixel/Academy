@@ -336,6 +336,9 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
     return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
   }
 
+  const directReply = await resolveWhatsAppDirectSettingsReply(message.text).catch(() => null)
+  if (directReply) return directReply
+
   const messages = await recentWhatsAppAgentMessages(message)
   const contact = await getOfficialContact().catch(() => ({} as any))
   const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
