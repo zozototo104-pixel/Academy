@@ -779,9 +779,9 @@ async function processWhatsAppEvent(eventId: string) {
     where: {
       id: eventId,
       OR: [
-        { status: 'RECEIVED' },
-        { status: 'FAILED' },
-        { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
+        { status: 'RECEIVED', attempts: { lt: 2 } },
+        { status: 'FAILED', attempts: { lt: 2 } },
+        { status: 'PROCESSING', attempts: { lt: 2 }, updatedAt: { lt: staleBefore } },
       ],
     },
     data: { status: 'PROCESSING', attempts: { increment: 1 }, error: null },
