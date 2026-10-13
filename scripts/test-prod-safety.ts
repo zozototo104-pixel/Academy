@@ -7,7 +7,9 @@ import {
   qaProdFixturesAllowed,
   unsignedWebhookTestsAllowed,
 } from '../src/lib/prod-safety'
+import { NextRequest } from 'next/server'
 import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
+import { __handleFileGetForTests } from '../src/app/api/files/[...key]/route'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
