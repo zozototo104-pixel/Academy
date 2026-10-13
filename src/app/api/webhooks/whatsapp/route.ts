@@ -939,9 +939,9 @@ async function handleWhatsAppPost(req: NextRequest, deps: WhatsAppPostTestDeps =
       eventIds.push(event.id)
     } catch (error: any) {
       if (isUniqueConstraintError(error)) {
-        const existing = await dbClient.whatsAppInboundEvent.findUnique({ where: { waMessageId: message.id }, select: { id: true, status: true, updatedAt: true } }).catch(() => null)
-        if (existing && shouldRetryExistingInboundEvent(existing)) eventIds.push(existing.id)
-        else skippedDuplicates += 1
+        // Duplicate webhooks for the same WhatsApp message must never enqueue a second reply.
+        // Stale RECEIVED/FAILED rows are retried only by the minute cron.
+        skippedDuplicates += 1
       } else {
         errors.push(`register-event: ${String(error?.message || error || 'failed').slice(0, 220)}`)
       }
