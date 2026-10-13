@@ -112,6 +112,9 @@ export async function POST(req: NextRequest) {
       if (!encrypted) {
         return NextResponse.json({ ok: false, error: 'مفتاح تشفير أرقام واتساب غير متاح على الخادم' }, { status: 503 })
       }
+      if (!await alignLegacyConversationIdentity(conversation, candidate)) {
+        return NextResponse.json({ ok: false, error: 'الرقم مرتبط بمحادثة أخرى؛ يلزم مراجعة السجلين قبل الاستعادة' }, { status: 409 })
+      }
       await db.whatsAppConversation.update({ where: { id }, data: { waIdEncrypted: encrypted } })
       await db.auditLog.create({ data: { actorId: admin.id, actorName: admin.name, action: 'WHATSAPP_LEGACY_PHONE_RECOVERED', entity: 'WhatsAppConversation', entityId: id, details: conversation.phoneMasked } }).catch(() => {})
       return NextResponse.json({ ok: true })
