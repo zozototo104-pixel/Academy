@@ -468,6 +468,11 @@ async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reas
     from: maskPhone(message.from),
     messageId: message.id,
     reason: reason.slice(0, 300),
+    provider: meta.provider || null,
+    model: meta.model || null,
+    elapsedMs: meta.elapsedMs || null,
+    failureReason: meta.failureReason || reason.slice(0, 300),
+    classifierResult: meta.classifierResult || null,
   }, conversationKey(message.from))
 }
 
