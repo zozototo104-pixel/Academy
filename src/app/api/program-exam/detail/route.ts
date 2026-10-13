@@ -89,10 +89,11 @@ export async function GET(req: NextRequest) {
           startedAttempt = await tx.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: effectiveStartedAt }, select: { id: true, startedAt: true, createdAt: true } })
         }
         if (effectiveStartedAt.getTime() + allowedMs < now.getTime()) {
-          await tx.programExamAttempt.updateMany({
+          const expired = await tx.programExamAttempt.updateMany({
             where: { id: startedAttempt.id, status: 'STARTED' },
             data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
           })
+          if (expired.count !== 1) return { blocked: 'GRADING' as const, attempt: null }
           startedAttempt = null
         }
       }
