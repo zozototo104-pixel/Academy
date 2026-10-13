@@ -391,10 +391,13 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
       const parsedForRouter = parseGeneratedQuestionCandidates(text)
       assertGeneratedBatchHasAcceptedCandidates(parsedForRouter)
       const validationForRouter = validateQuestionBatchAgainstKnowledge(parsedForRouter.accepted, evidenceSources, { provider: 'ROUTER_PRECHECK', model: 'ROUTER_PRECHECK' })
-      const hasFreshCandidate = validationForRouter.accepted.some((item) => {
+      const literalAccepted = new Set(validationForRouter.accepted)
+      const hasFreshCandidate = parsedForRouter.accepted.some((item) => {
         const sourceIndex = Number(item.sourceIndex)
         if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) return false
         const source = selected[sourceIndex - 1]
+        const missingOriginal = sourcesMissingOriginal.has(source.id)
+        if (!missingOriginal && !literalAccepted.has(item)) return false
         const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
         if (!q.text || q.text.length < 12 || !q.sourceEvidence || !q.cognitiveSkill || !q.difficulty) return false
         if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) return false
