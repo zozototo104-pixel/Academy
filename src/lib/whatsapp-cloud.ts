@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { platformPublicAgentComplete } from '@/lib/platform-agent'
-import { getOfficialContact } from '@/lib/settings'
+import { DEFAULT_OFFICIAL_CONTACT, DEFAULT_SETTINGS, getOfficialContact, getSettings } from '@/lib/settings'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
 import { hashWhatsAppId } from '@/lib/whatsapp-conversations'
 import { unsignedWebhookTestsAllowed } from '@/lib/prod-safety'
