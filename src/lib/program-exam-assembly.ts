@@ -13,7 +13,7 @@ const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
 type ExamUnit = { id: string; title: string; semester: number; sourceBookId: string | null; chunkStartIndex: number | null; chunkEndIndex: number | null }
 type Candidate = { item: QuestionBankItem; unitId: string; unitTitle: string; sourceBookTitle: string; sourceChapter: string; sourceLocator: string }
 type UnitSource = { id: string; bookId: string | null; chunkText: string }
-type UnitPool = { unit: ExamUnit; candidates: Candidate[]; sources: UnitSource[]; scopeReady: boolean }
+type UnitPool = { unit: ExamUnit; candidates: Candidate[]; sources: UnitSource[]; scopeReady: boolean; pendingReviewCount: number }
 
 function array(value: string | null | undefined): string[] {
   try { const parsed: unknown = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] }
