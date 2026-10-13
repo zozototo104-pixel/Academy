@@ -37,7 +37,7 @@ function verificationAccepted(item: QuestionBankItem) {
 }
 function qualified(item: QuestionBankItem, source: { excerpt: string | null; bookId: string | null; chunkText: string }) {
   if (!item.knowledgeItemId || !source.bookId || item.bookId !== source.bookId || item.generatedBy !== 'AI') return false
-  if (!['APPROVED', 'PENDING_REVIEW'].includes(item.status) || !array(item.qualityFlags).includes('SOURCE_GROUNDED')) return false
+  if (item.status !== 'APPROVED' || !array(item.qualityFlags).includes('SOURCE_GROUNDED')) return false
   if (!verificationAccepted(item) || !item.sourceEvidence || !item.sourceLocator || !item.correctRationale) return false
   if (!SKILLS.has(item.cognitiveSkill || '') || !DIFFICULTIES.has(item.difficulty || '')) return false
   if (!TYPES.includes(item.type as ExamQuestionType) || !item.text?.trim()) return false
