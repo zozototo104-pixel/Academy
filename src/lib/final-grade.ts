@@ -78,9 +78,9 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
       where: { userId, examId: exam.id, status: 'GRADED', passed: true },
       select: { score: true, answers: { select: { points: true, maxPoints: true } } },
     })
-    const best = avg(attempts.map((attempt) => percentFromAnswers(attempt.answers) ?? attempt.score))
-    if (best == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
-    else bestScores.push(best)
+    const bestAttemptScore = best(attempts.map((attempt) => percentFromAnswers(attempt.answers) ?? attempt.score))
+    if (bestAttemptScore == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
+    else bestScores.push(bestAttemptScore)
   }
   return bestScores.length === exams.length ? avg(bestScores) : null
 }
