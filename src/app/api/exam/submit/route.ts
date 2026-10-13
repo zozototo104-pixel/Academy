@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
     if (claim.count !== 1) {
       return NextResponse.json({ error: 'تم تسليم المحاولة أو يجري تصحيحها بالفعل' }, { status: 409 })
     }
+    claimedUnitAttemptId = activeAttempt.id
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
