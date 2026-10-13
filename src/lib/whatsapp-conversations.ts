@@ -228,7 +228,7 @@ export async function claimWhatsAppBotReply(args: {
       return { claimed: true, reason: 'CLAIMED' as const, conversation, message }
     })
   } catch (error: any) {
-    if (isUniqueConstraintError(error)) return { claimed: false, reason: 'REPLY_ALREADY_CLAIMED' as const }
+    if (isUniqueConstraintError(error)) return { claimed: false, reason: 'REPLY_ALREADY_CLAIMED' as const, message: null }
     throw error
   }
 }
