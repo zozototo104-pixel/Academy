@@ -80,6 +80,18 @@ function testPrivateStoragePolicy() {
   assert(route.includes('assignmentSubmission'), 'file route must authorize assignment owners')
   assert(route.includes('thesisSubmission'), 'file route must authorize thesis owners')
   assert(route.includes('backups/'), 'file route must treat backups as admin-only private files')
+
+  const privateMigration = file('scripts/migrate-private-file-storage.ts')
+  assert(privateMigration.includes('executed: execute'), 'private file migration must default to dry-run and report execute mode')
+  assert(privateMigration.includes("public', 'uploads"), 'private file migration must inspect legacy public/uploads files')
+  assert(privateMigration.includes("private-uploads"), 'private file migration must copy into private storage')
+
+  const adminAdmissions = file('src/app/api/admin/admissions/route.ts')
+  assert(adminAdmissions.includes('getStorageDownloadPathForKey(file.storageKey)'), 'admin admission documents must expose protected file URLs')
+  const assignments = file('src/app/api/assignments/route.ts')
+  assert(assignments.includes('getStorageDownloadPathForKey(submission.fileStorageKey)'), 'student assignment files must expose protected file URLs')
+  const thesis = file('src/app/api/thesis/route.ts')
+  assert(thesis.includes('getStorageDownloadPathForKey(thesis.fileStorageKey)'), 'student thesis files must expose protected file URLs')
 }
 
 function testOfficialSettingsDeploymentHook() {
