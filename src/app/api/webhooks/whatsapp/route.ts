@@ -96,8 +96,6 @@ function isSimpleWhatsAppGreeting(text: string) {
   return greetings.has(normalized)
 }
 
-const SIMPLE_WHATSAPP_GREETING_REPLY = 'وعليكم السلام ورحمة الله 🌟\n\nكيف يمكنني مساعدتك اليوم؟'
-
 function simpleWhatsAppGreetingReply(text: string) {
   const greeting = normalizeGreetingText(text)
   if (greeting.includes('صباح')) return 'صباح النور 🌟 كيف يمكنني مساعدتك اليوم؟'
