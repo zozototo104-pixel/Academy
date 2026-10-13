@@ -176,7 +176,7 @@ export async function claimWhatsAppBotReply(args: {
 }) {
   const replyForMessageId = String(args.replyForMessageId || '').trim()
   const text = compact(args.text, 4096)
-  if (!replyForMessageId || !text) return { claimed: false, reason: 'INVALID_REPLY_CLAIM' as const }
+  if (!replyForMessageId || !text) return { claimed: false, reason: 'INVALID_REPLY_CLAIM' as const, message: null }
   const safe = safeConversationSenderFields(args.waId)
   const now = new Date()
   const recentSince = new Date(now.getTime() - Math.max(1, args.recentDuplicateWindowMs || 2 * 60 * 1000))
