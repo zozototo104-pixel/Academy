@@ -3984,7 +3984,7 @@ export function AdminBooksTab() {
                 {gradingDialog.submission.answerText ? gradingDialog.submission.answerText.slice(0, 1200) : 'لا يوجد نص مكتوب، راجع الملف المرفق إن وجد.'}
                 {gradingDialog.submission.answerText && gradingDialog.submission.answerText.length > 1200 ? '…' : ''}
                 {gradingDialog.submission.fileName && (
-                  <a href={`/api/admin/assignments/file?id=${gradingDialog.submission.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                  <a href={gradingDialog.submission.fileUrl || gradingDialog.submission.downloadUrl || `/api/admin/assignments/file?id=${gradingDialog.submission.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
                     <FileText className="h-3 w-3" /> فتح الملف المرفق: {gradingDialog.submission.fileName}
                   </a>
                 )}
