@@ -643,7 +643,7 @@ export function AdminThesisTab() {
           </DialogHeader>
           {showRecording && (
             <video
-              src={`/api/admin/defense-recording?thesisId=${showRecording.id}`}
+              src={showRecording.recordingUrl || `/api/admin/defense-recording?thesisId=${showRecording.id}`}
               controls
               className="w-full rounded-xl border bg-black"
             />
