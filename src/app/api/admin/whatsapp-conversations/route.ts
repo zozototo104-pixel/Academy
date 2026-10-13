@@ -22,7 +22,7 @@ function adminConversationView<T extends { waIdEncrypted?: string | null; waIdHa
 
 function verifiedRecipient(value: string | null | undefined, expectedHash: string) {
   const digits = String(value || '').replace(/\D/g, '')
-  return digits.length >= 8 && digits.length <= 15 && hashWhatsAppId(digits) === expectedHash ? digits : null
+  return digits.length >= 8 && digits.length <= 15 && matchesWhatsAppWaIdHash(digits, expectedHash) ? digits : null
 }
 
 async function recoverLegacyRecipient(conversation: { id: string; waId?: string | null; waIdEncrypted?: string | null; waIdHash: string; handoffRequestId?: string | null }) {
