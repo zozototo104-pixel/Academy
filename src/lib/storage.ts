@@ -493,8 +493,11 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
     for (const root of roots) {
       const absolutePath = path.join(root, key)
       try {
+        const stat = await fs.stat(absolutePath)
+        if (Number(input.maxBytes || 0) > 0 && stat.size > Number(input.maxBytes)) throw new Error('STORAGE_FILE_TOO_LARGE')
         return { buffer: await fs.readFile(absolutePath), mimeType }
-      } catch {
+      } catch (error: any) {
+        if (String(error?.message || error) === 'STORAGE_FILE_TOO_LARGE') throw error
         // Try next legacy location.
       }
     }
