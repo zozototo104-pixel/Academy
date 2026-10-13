@@ -109,6 +109,31 @@ function testPrivateStoragePolicy() {
   assert(deliverables.includes('getStorageDownloadPathForKey(storageKey)'), 'service deliverables must expose protected file URLs')
 }
 
+function mockFileAccessClient(key: string, owner: { userId: string; email: string }) {
+  const empty = { findFirst: async () => null }
+  return {
+    admissionDocument: {
+      findFirst: async (args: any) => args.where?.storageKey === key ? { admission: owner } : null,
+    },
+    serviceDeliverable: empty,
+    paymentProof: empty,
+    assignmentSubmission: empty,
+    thesisSubmission: empty,
+  }
+}
+
+async function testFileAccessPolicyBehavior() {
+  const key = 'admissions/legacy/passport.pdf'
+  const owner = { userId: 'student-owner', email: 'owner@example.com' }
+  const client = mockFileAccessClient(key, owner)
+  assert(await canAccessStorageKeyWithClient(client, key, { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }), 'file owner must be authorized')
+  assert(!(await canAccessStorageKeyWithClient(client, key, { id: 'student-other', email: 'other@example.com', role: 'STUDENT' })), 'another student must receive 403-equivalent denial')
+  assert(await canAccessStorageKeyWithClient(client, key, { id: 'admin-1', email: 'admin@example.com', role: 'ADMIN' }), 'admin must be authorized')
+
+  const backfilledLegacy = mockFileAccessClient('admissions/legacy/from-file-url.pdf', owner)
+  assert(await canAccessStorageKeyWithClient(backfilledLegacy, 'admissions/legacy/from-file-url.pdf', { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }), 'legacy fileUrl rows must open after storageKey backfill')
+}
+
 function testOfficialSettingsDeploymentHook() {
   const pkg = JSON.parse(file('package.json'))
   const build = String(pkg.scripts?.build || '')
