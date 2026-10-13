@@ -31,7 +31,7 @@ export function AdminSupervisorsTab() {
   const load = async () => {
     setLoading(true)
     try {
-      const d = await api<{ supervisors: SupervisorRow[] }>('/api/admin/students?role=supervisors')
+      const d = await api<{ supervisors: SupervisorRow[] }>('/api/admin/supervisors')
       setSupervisors(d.supervisors || [])
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message || 'تعذر تحميل المشرفين', variant: 'destructive' })
@@ -45,7 +45,7 @@ export function AdminSupervisorsTab() {
   const createSupervisor = async () => {
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'POST', body: JSON.stringify({ action: 'create-supervisor', ...form }) })
+      await api('/api/admin/supervisors', { method: 'POST', body: JSON.stringify(form) })
       toast({ title: 'تم إنشاء المشرف', description: 'يمكنه الآن الدخول من صفحة تسجيل الدخول بنفس البريد وكلمة المرور.' })
       setForm({ name: '', email: '', password: '', phone: '', country: '' })
       load()
@@ -59,7 +59,7 @@ export function AdminSupervisorsTab() {
   const resetPassword = async (id: string) => {
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ action: 'reset-supervisor-password', id, password: newPassword }) })
+      await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'reset-supervisor-password', id, password: newPassword }) })
       toast({ title: 'تم تحديث كلمة المرور', description: 'أبلغ المشرف بكلمة المرور الجديدة بشكل آمن.' })
       setResetFor(null)
       setNewPassword('')
@@ -71,9 +71,11 @@ export function AdminSupervisorsTab() {
   }
 
   const revoke = async (id: string) => {
+    const supervisor = supervisors.find((item) => item.id === id)
+    if (!window.confirm(`تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`)) return
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
+      await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
       toast({ title: 'تم إلغاء صلاحية المشرف', description: 'تحول الحساب إلى طالب عادي.' })
       load()
     } catch (e: any) {

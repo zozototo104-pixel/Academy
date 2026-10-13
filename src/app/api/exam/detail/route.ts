@@ -38,9 +38,41 @@ export async function GET(req: NextRequest) {
       orderBy: { order: 'asc' },
     })
 
-    // المحاولات السابقة
+    // بداية رسمية من الخادم. قفل صف الطالب يمنع طلبين متزامنين من إنشاء محاولتين نشطتين.
+    // لا نحتسب الوقت القادم من المتصفح؛ createdAt محفوظ من قاعدة البيانات.
+    const attemptState = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`
+      const passedAttempt = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'GRADED', passed: true },
+        select: { id: true },
+      })
+      if (passedAttempt) return { blocked: true as const, reason: 'PASSED_ALREADY' as const }
+      const grading = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'SUBMITTED' },
+        select: { id: true },
+      })
+      if (grading) return { blocked: true as const, reason: 'SUBMITTED' as const }
+      const existing = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'STARTED' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true },
+      })
+      const attempt = existing ?? await tx.examAttempt.create({
+        data: { userId: user.id, examId, status: 'STARTED' },
+        select: { id: true, createdAt: true },
+      })
+      return { blocked: false as const, attempt }
+    })
+    if (attemptState.blocked) {
+      return NextResponse.json(
+        { error: attemptState.reason === 'PASSED_ALREADY' ? 'لقد اجتزت هذا الاختبار بالفعل ولا يمكن بدء محاولة جديدة.' : 'هذه المحاولة قيد التصحيح بالفعل', code: attemptState.reason },
+        { status: 409 }
+      )
+    }
+
+    // المحاولات السابقة: لا نعرض محاولة جارية كأنها نتيجة سابقة.
     const attempts = await db.examAttempt.findMany({
-      where: { userId: user.id, examId },
+      where: { userId: user.id, examId, status: { notIn: ['STARTED', 'SUBMITTED'] } },
       orderBy: { submittedAt: 'desc' },
       take: 5,
     })

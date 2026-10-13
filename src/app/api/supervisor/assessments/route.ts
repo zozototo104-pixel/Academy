@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { notify } from '@/lib/notify'
-import { generateSupervisorQuestions, gradeSupervisorAttemptWithAi } from '@/lib/supervisor-assessment-ai'
+import { AI_UNAVAILABLE_MESSAGE, generateSupervisorQuestions, gradeSupervisorAttemptWithAi } from '@/lib/supervisor-assessment-ai'
 
 async function admissionForAccess(admissionId: string, user: any, mode: 'read' | 'write' = 'read') {
   const app = await db.admissionApplication.findUnique({ where: { id: admissionId } })
@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
     return createAssessment(body, user)
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
+    if (e?.code === 'AI_UNAVAILABLE' || e?.message === AI_UNAVAILABLE_MESSAGE) return NextResponse.json({ error: AI_UNAVAILABLE_MESSAGE, code: 'AI_UNAVAILABLE' }, { status: 503 })
     console.error('supervisor assessments POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر تنفيذ العملية' }, { status: 500 })
   }

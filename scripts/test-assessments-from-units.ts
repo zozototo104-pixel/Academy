@@ -101,8 +101,11 @@ function testUnitExamPendingReviewBlocksPublish() {
     { id: 'approved-1', status: 'APPROVED', qualityFlags: '["SOURCE_GROUNDED"]' },
     { id: 'pending-1', status: 'PENDING_REVIEW', qualityFlags: '["SOURCE_GROUNDED"]' },
   ], 2)
-  assert(selection.readyToBuild, 'اختبار الوحدة يجب أن يبنى عند اكتمال الحد الأدنى من approved + pending')
-  assert(!selection.publishable, 'اختبار الوحدة الذي يحتوي PENDING_REVIEW يجب ألا يكون قابلاً للنشر')
+  assert(!selection.readyToBuild, 'اختبار الوحدة يجب ألا يبنى حتى يكتمل الحد الأدنى من APPROVED فقط')
+  assert(!selection.publishable, 'اختبار الوحدة الذي ينقصه APPROVED يجب ألا يكون قابلاً للنشر حتى لو وُجدت PENDING_REVIEW')
+  assert(selection.pendingReviewCount === 1, 'أسئلة PENDING_REVIEW يجب أن تبقى محسوبة للمراجعة فقط')
+  assert(selection.currentEligibleCount === 1, 'العدد المؤهل للبناء يجب أن يحسب APPROVED فقط')
+  assert(!selection.selectedIds.includes('pending-1'), 'أسئلة PENDING_REVIEW يجب ألا تدخل selectedIds')
   assert(!canPublishUnitExamFromQuestions([{ text: '【يحتاج مراجعة】 سؤال غير معتمد' }]), 'نشر اختبار يحتوي شارة يحتاج مراجعة يجب أن يُمنع')
 }
 

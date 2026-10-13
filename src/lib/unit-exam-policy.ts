@@ -49,17 +49,17 @@ export function selectUnitExamQuestionsApprovedFirst(candidates: UnitExamBankCan
   const rejectedCount = candidates.filter((candidate) => candidate.status === 'REJECTED').length
   const approved = candidates.filter(isApprovedQuestion)
   const pending = candidates.filter(isPendingReviewQuestion)
-  const selected = [...approved, ...pending].slice(0, target)
-  const pendingReviewCount = selected.filter(isPendingReviewQuestion).length
-  const approvedCount = selected.filter(isApprovedQuestion).length
+  const selected = approved.slice(0, target)
+  const pendingReviewCount = pending.length
+  const approvedCount = approved.length
   return {
     selectedIds: selected.map((candidate) => candidate.id),
     approvedCount,
     pendingReviewCount,
     rejectedCount,
-    currentEligibleCount: approved.length + pending.length,
+    currentEligibleCount: approved.length,
     readyToBuild: selected.length >= target,
-    publishable: pendingReviewCount === 0 && selected.length >= target,
+    publishable: selected.length >= target,
   }
 }
 

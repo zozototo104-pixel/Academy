@@ -8,7 +8,8 @@ import { notify, audit } from '@/lib/notify'
 import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
 import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
-import { buildServiceAdmissionDefaults, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
+import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
+import { REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
@@ -19,14 +20,9 @@ import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, s
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { dollarsToCents } from '@/lib/money'
 
-// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
-// لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
-export const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
-]
+// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق.
+// المصدر التنفيذي المشترك مع ApplyView موجود في src/lib/admission-required-documents.ts.
+export const REQUIRED_DOCS = REQUIRED_ADMISSION_DOCS
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف
 const ALLOWED_MIME = [
@@ -247,13 +243,12 @@ export async function POST(req: NextRequest) {
 
     // ===== الخطوة 2: المستندات الرسمية أو مرفقات الخدمة المخصصة =====
     const uploadedTypes = new Set(files.map((f) => f.docType))
-    const rules = programRules
-    const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
-    const defaultDocMap = new Map(REQUIRED_DOCS.map((d) => [d.type, d.label]))
-    const requiredDocTypes = Array.isArray(rules.requiredDocuments) && rules.requiredDocuments.length
-      ? rules.requiredDocuments
-      : REQUIRED_DOCS.map((d) => d.type)
-    const requiredDocList = requiredDocTypes.map((type) => ({ type, label: serviceDocMap.get(type) || defaultDocMap.get(type) || type }))
+    const { requiredDocs: requiredDocList } = resolveAdmissionRequiredDocuments({
+      slug: programRec.slug,
+      category: programRec.category,
+      admissionRules: programRules,
+      isServiceRequest,
+    })
     const missing = stagedUpload ? [] : requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json(

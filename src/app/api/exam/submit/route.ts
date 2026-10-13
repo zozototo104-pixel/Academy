@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+
+const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
+const UNIT_EXAM_SUBMIT_GRACE_MS = 2 * 60 * 1000
 
 interface SubmitAnswer {
   questionId: string
@@ -36,6 +40,10 @@ function parseOptionIndex(value: unknown): number | null {
   return Number.isInteger(n) && n >= 0 ? n : null
 }
 
+function unitAttemptDeadline(createdAt: Date) {
+  return createdAt.getTime() + UNIT_EXAM_DURATION_MIN * 60 * 1000 + UNIT_EXAM_SUBMIT_GRACE_MS
+}
+
 function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed: boolean, weakPoints: string[]) {
   return {
     summary: passed
@@ -52,11 +60,30 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
 
 // POST /api/exam/submit — تسليم الاختبار والتصحيح الآلي وفق مفتاح الإجابة، وبالذكاء للأسئلة المقالية فقط
 export async function POST(req: NextRequest) {
+  let claimedUnitAttemptId: string | null = null
   try {
     const user = await requireUser()
-    const { examId, answers } = (await req.json()) as { examId: string; answers: SubmitAnswer[] }
-    if (!examId || !Array.isArray(answers)) {
+    const declaredLength = req.headers.get('content-length')
+    const maxPayloadBytes = 512 * 1024
+    if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxPayloadBytes)) {
+      return NextResponse.json({ error: 'حجم طلب الاختبار كبير جدًا' }, { status: 413 })
+    }
+    const payload = await req.text()
+    if (Buffer.byteLength(payload, 'utf8') > maxPayloadBytes) {
+      return NextResponse.json({ error: 'حجم طلب الاختبار كبير جدًا' }, { status: 413 })
+    }
+    let parsedPayload: { examId?: string; answers?: SubmitAnswer[] }
+    try {
+      parsedPayload = JSON.parse(payload)
+    } catch {
+      return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })
+    }
+    const { examId, answers } = parsedPayload
+    if (typeof examId !== 'string' || !examId || examId.length > 128 || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'بيانات الاختبار غير مكتملة' }, { status: 400 })
+    }
+    if (answers.length > 150 || answers.some((a) => !a || typeof a.questionId !== 'string' || a.questionId.length > 128 || (a.answerText !== undefined && (typeof a.answerText !== 'string' || a.answerText.length > 12000)) || (a.selectedOption != null && !['string', 'number'].includes(typeof a.selectedOption))) || new Set(answers.map((a) => a.questionId)).size !== answers.length) {
+      return NextResponse.json({ error: 'الإجابات تجاوزت الحدود المسموحة أو احتوت أسئلة مكررة' }, { status: 400 })
     }
 
     const exam = await db.exam.findUnique({
@@ -79,6 +106,51 @@ export async function POST(req: NextRequest) {
         { status: 402 }
       )
     }
+
+    const allowedQuestionIds = new Set(exam.questions.map((q) => q.id))
+    if (answers.some((a) => !allowedQuestionIds.has(a.questionId))) {
+      return NextResponse.json({ error: 'توجد إجابات لأسئلة لا تنتمي لهذا الاختبار' }, { status: 400 })
+    }
+    // Verify the published correction key before claiming an attempt.
+    // Invalid administrative question data must not lock the student out of a retry.
+    for (const question of exam.questions) {
+      if (question.type === 'MCQ' || question.type === 'TF') {
+        const options = parseQuestionOptions(question.options)
+        const correctIndex = parseOptionIndex(question.correctAnswer)
+        if (correctIndex === null || !options[correctIndex]) {
+          return NextResponse.json({ error: `مفتاح التصحيح غير مكتمل للسؤال رقم ${question.order}`, code: 'ANSWER_KEY_MISSING' }, { status: 422 })
+        }
+      } else if (!question.modelAnswer) {
+        return NextResponse.json({ error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${question.order}`, code: 'MODEL_ANSWER_MISSING' }, { status: 422 })
+      }
+    }
+    // Atomic claim before AI grading: only the first submission can grade this attempt.
+    const activeAttempt = await db.examAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    })
+    if (!activeAttempt) {
+      return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
+    }
+    if (Date.now() > unitAttemptDeadline(activeAttempt.createdAt)) {
+      await db.$transaction(async (tx) => {
+        await tx.examAttempt.updateMany({
+          where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+          data: { status: 'EXPIRED', submittedAt: new Date(), feedback: JSON.stringify({ summary: 'انتهت مدة اختبار الوحدة قبل التسليم.' }) },
+        })
+        await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
+      })
+      return NextResponse.json({ error: 'انتهت مدة الاختبار ولا يمكن قبول التسليم بعد الهامش المسموح.', code: 'UNIT_EXAM_EXPIRED' }, { status: 409 })
+    }
+    const claim = await db.examAttempt.updateMany({
+      where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+      data: { status: 'SUBMITTED', submittedAt: new Date() },
+    })
+    if (claim.count !== 1) {
+      return NextResponse.json({ error: 'تم تسليم المحاولة أو يجري تصحيحها بالفعل' }, { status: 409 })
+    }
+    claimedUnitAttemptId = activeAttempt.id
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
@@ -222,13 +294,14 @@ export async function POST(req: NextRequest) {
 
     if (needsReview) {
       const attempt = await db.$transaction(async (tx) => {
-        const created = await tx.examAttempt.create({ data: { userId: user.id, examId, status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
+        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
         for (const prepared of answersToPersist) {
           await tx.answer.create({ data: { attemptId: created.id, questionId: prepared.questionId, selectedOption: prepared.selectedOption ?? null, answerText: prepared.answerText ?? null, isCorrect: prepared.isCorrect, points: prepared.points, maxPoints: prepared.maxPoints, aiFeedback: prepared.aiFeedback } })
         }
         await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
         return created
       })
+      claimedUnitAttemptId = null
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', results: gradedResults.sort((a, b) => a.order - b.order) }, { status: 202 })
     }
 
@@ -245,9 +318,7 @@ export async function POST(req: NextRequest) {
     const feedbackJson = JSON.stringify(overall)
 
     const attempt = await db.$transaction(async (tx) => {
-      const created = await tx.examAttempt.create({
-        data: { userId: user.id, examId, status: 'SUBMITTED' },
-      })
+      const created = activeAttempt
 
       for (const prepared of answersToPersist) {
         await tx.answer.create({
@@ -278,46 +349,12 @@ export async function POST(req: NextRequest) {
       await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
       return created
     })
+    claimedUnitAttemptId = null
 
-    // إذا نجح في كل اختبارات البرنامج وحدد الوحدات → إصدار رقم شهادة
-    let certificateNo: string | null = null
-    const programUnits = await db.unit.count({ where: { programId: exam.unit.programId } })
-    const completed: string[] = JSON.parse(enrollment.completedUnits || '[]')
-    if (passed && programUnits > 0 && completed.length >= programUnits) {
-      if (!enrollment.certificateNo) {
-        certificateNo = `AACT-${new Date().getFullYear()}-${exam.unit.program.slug.toUpperCase().slice(0, 6)}-${attempt.id.slice(-6).toUpperCase()}`
-        const programExams = await db.exam.findMany({
-          where: { unit: { programId: exam.unit.programId } },
-          select: { id: true },
-        })
-        const bestScores = await db.examAttempt.findMany({
-          where: { userId: user.id, examId: { in: programExams.map((e) => e.id) }, passed: true },
-          orderBy: { score: 'desc' },
-        })
-        // أفضل درجة لكل امتحان (لا مجموع المحاولات — يمنع تضخيم المتوسط بالتكرار)
-        const bestByExam: Record<string, number> = {}
-        for (const b of bestScores) {
-          if (b.examId && b.score !== null && (!(b.examId in bestByExam) || b.score > bestByExam[b.examId])) {
-            bestByExam[b.examId] = b.score
-          }
-        }
-        const passedExams = new Set(Object.keys(bestByExam))
-        const allPassed = programExams.every((e) => passedExams.has(e.id))
-        if (allPassed) {
-          const avg = Math.round(
-            programExams.reduce((s, e) => s + (bestByExam[e.id] || 0), 0) / programExams.length
-          )
-          await db.enrollment.update({
-            where: { id: enrollment.id },
-            data: { status: 'COMPLETED', finalScore: avg, certificateNo },
-          })
-        } else {
-          certificateNo = null
-        }
-      } else {
-        certificateNo = enrollment.certificateNo
-      }
-    }
+    const completion = passed
+      ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+      : null
+    const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
 
     return NextResponse.json({
       ok: true,
@@ -332,6 +369,18 @@ export async function POST(req: NextRequest) {
       results: gradedResults.sort((a, b) => a.order - b.order),
     })
   } catch (e: any) {
+    if (claimedUnitAttemptId) {
+      try {
+        // A failed grading operation must not strand a student in SUBMITTED.
+        // Only the request that claimed this attempt may release an unpersisted claim.
+        await db.examAttempt.updateMany({
+          where: { id: claimedUnitAttemptId, status: 'SUBMITTED' },
+          data: { status: 'STARTED' },
+        })
+      } catch (recoveryError) {
+        console.error('Failed to release unsuccessful unit exam claim:', recoveryError)
+      }
+    }
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }

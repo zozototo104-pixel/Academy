@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
 
     let exam = existing
     let resumed = Boolean(exam)
+    let unitsForExam: Array<{ id: string; title: string; semester: number; order: number }> = []
     if (!exam) {
       const comprehensive = body.comprehensive === true || body.semester === 0 || body.semester === 'all'
       const semester = comprehensive ? 3 : Number(body.semester) === 2 ? 2 : 1
@@ -53,20 +54,33 @@ export async function POST(req: NextRequest) {
       } else {
         const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
         if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-        const unitsCount = await db.unit.count({ where: { programId, ...(comprehensive ? {} : { semester }) } })
-        if (!unitsCount) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
+        unitsForExam = await db.unit.findMany({
+          where: { programId, ...(comprehensive ? {} : { semester }) },
+          orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+          select: { id: true, title: true, semester: true, order: true },
+        })
+        if (!unitsForExam.length) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
         exam = await db.programExam.create({ data: { programId, semester, title: `${comprehensive ? 'الامتحان الشامل' : semester === 2 ? 'امتحان الفصل الثاني' : 'امتحان الفصل الأول'} — ${program.titleAr || ''}`, status: 'GENERATING', generatedBy: 'AI', durationMin: 120 } }) as typeof previous
       }
     }
     if (!exam) return NextResponse.json({ error: 'تعذر تحديد الامتحان' }, { status: 500 })
+    if (!unitsForExam.length) {
+      unitsForExam = await db.unit.findMany({
+        where: { programId: exam.programId, ...(exam.semester === 3 ? {} : { semester: exam.semester }) },
+        orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+        select: { id: true, title: true, semester: true, order: true },
+      })
+      if (!unitsForExam.length) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
+    }
+    const unitBreakdown = unitsForExam.map((unit) => ({ unitId: unit.id, title: unit.title, semester: unit.semester, order: unit.order }))
     if (exam.status === 'REVIEW') {
       const count = await db.programQuestion.count({ where: { examId: exam.id, status: { not: 'REJECTED' } } })
-      if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed })
+      if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
     }
     if (exam.status !== 'GENERATING') await db.programExam.update({ where: { id: exam.id }, data: { status: 'GENERATING', errorNote: null } })
     const result = await advanceProgramExamFromVerifiedBank(exam.id, { manual: action !== 'kick' })
     await audit({ id: admin.id, name: admin.name }, resumed ? 'RESUME_PROGRAM_EXAM_FROM_VERIFIED_BANK' : 'GENERATE_PROGRAM_EXAM_FROM_VERIFIED_BANK', 'ProgramExam', exam.id, `استكمال تراكمي من بنك المعرفة V2: ${result.questionCount}/${PROGRAM_EXAM_TARGET}`)
-    return NextResponse.json({ ...result, resumed, existingQuestions: result.questionCount - result.inserted, booksCount: null })
+    return NextResponse.json({ ...result, resumed, existingQuestions: result.questionCount - result.inserted, booksCount: null, unitBreakdown })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program-exam verified generation error:', error)

@@ -22,6 +22,7 @@ const defenseEvaluationSchema = z.object({
 })
 
 type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; criterion?: string; evidenceQuote?: string; unavailable?: boolean }
+const AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
 
 function finiteScore(value: unknown): number | null {
   const score = Number(value)
@@ -264,6 +265,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'لا توجد جلسة جارية' }, { status: 400 })
       }
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' }, orderBy: { createdAt: 'asc' } })
+      const criteriaScores = DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: finiteScore(studentMsgs[index]?.score) }))
+      const weightedForEnd = scoreDefenseBreakdown(criteriaScores, { requireAllCriteria: true })
+      const criteriaCovered = criteriaScores.filter((item) => item.score0to10 != null).map((item) => item.criterion)
+      const incompleteCriteria = criteriaCovered.length < DEFENSE_CRITERIA.length || Boolean((weightedForEnd as any).needsReview)
+      if (incompleteCriteria) {
+        const rec = `انتهت الجلسة قبل تغطية المعايير الخمسة المصححة كاملة (${criteriaCovered.length}/${DEFENSE_CRITERIA.length}). يجب مراجعة اللجنة البشرية للمحضر والتسجيل قبل أي علامة.`
+        const breakdown = {
+          ...(weightedForEnd as any),
+          needsReview: true,
+          reason: 'DEFENSE_CRITERIA_INCOMPLETE',
+          criteriaCovered,
+          answeredCriteria: criteriaCovered.length,
+          requiredCriteria: DEFENSE_CRITERIA.length,
+          noRebalance: true,
+          ...(legacyDefense ? { legacy: true } : {}),
+        }
+        await db.thesisSubmission.update({
+          where: { id: thesis.id },
+          data: { defenseStatus: 'NEEDS_REVIEW', aiScore: null, aiRecommendation: rec, defenseBreakdown: breakdown, defenseCompletedAt: new Date() },
+        })
+        await db.defenseMessage.create({
+          data: { thesisId: thesis.id, role: 'SYSTEM', content: `أنهى الطالب الجلسة قبل اكتمال معايير المناقشة — الحالة: تحتاج مراجعة بشرية — لا توجد علامة آلية.` },
+        })
+        await notify(user.id, 'DEFENSE', 'أنهيت جلسة المناقشة', 'انتهت الجلسة قبل تغطية المعايير الخمسة؛ أحيلت للمراجعة البشرية دون علامة آلية.', 'dashboard')
+        const messages = await db.defenseMessage.findMany({ where: { thesisId: thesis.id }, orderBy: { createdAt: 'asc' } })
+        return NextResponse.json({ ok: true, messages, completed: false, needsReview: true, aiScore: null, aiRecommendation: rec, minutes: null })
+      }
       const scores = studentMsgs.map((m) => finiteScore(m.score))
       const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
       const aiScore = weighted.score
@@ -323,7 +351,7 @@ export async function POST(req: NextRequest) {
       if (secondsFromLastNote >= 3 && cleanText.length >= 6) {
         const note = await Promise.race([
           aiLiveNote(thesis.title, thesis.abstract, thesis.id, user.id, transcriptText),
-          new Promise<string | null>((resolve) => setTimeout(() => resolve(fallbackLiveIntervention(transcriptText)), 4500)),
+          new Promise<string | null>((resolve) => setTimeout(() => resolve(AI_UNAVAILABLE_MESSAGE), 4500)),
         ])
         if (note) {
           savedNote = await db.defenseMessage.create({
@@ -443,9 +471,9 @@ Digest البحث: ${abstract.slice(0, 3000)}
       maxOutputTokens: 900,
       taskLevel: 'ACADEMIC_DRAFT',
     })
-    return text.trim() || defaultQuestion(1)
+    return text.trim() || AI_UNAVAILABLE_MESSAGE
   } catch {
-    return defaultQuestion(1)
+    return AI_UNAVAILABLE_MESSAGE
   }
 }
 
@@ -511,8 +539,8 @@ ${answer.slice(0, 2500)}
     return {
       score: null,
       unavailable: true,
-      feedback: 'تعذر توليد تقييم رقمي صالح من خبير الذكاء الاصطناعي لهذه الإجابة؛ لن تدخل هذه الإجابة في المتوسط الآلي، ويجب أن تراجعها اللجنة البشرية من التسجيل والمحضر.',
-      nextQuestion: defaultQuestion(qNum + 1),
+      feedback: AI_UNAVAILABLE_MESSAGE,
+      nextQuestion: '',
     }
   }
 }
@@ -547,21 +575,6 @@ async function aiRecommendation(title: string, name: string, aiScore: number | n
   } catch {
     return 'تعذر إصدار توصية آلية موثوقة. يجب أن تصدر التوصية من اللجنة البشرية بعد مراجعة تسجيل الجلسة وإجابات الطالب.'
   }
-}
-
-function fallbackLiveIntervention(latestChunk: string): string | null {
-  const latest = String(latestChunk || '').trim()
-  if (latest.length < 6) return null
-  if (/مش\s*عارف|لا\s*اعرف|ما\s*بعرف|مش\s*فاهم|لا\s*أعرف/i.test(latest)) {
-    return 'مداخلة المستشار الذكي: لا مشكلة، توقف هنا لحظة. حاول أن تعيد الفكرة بجملة واحدة: ما موضوع بحثك، وما المشكلة التي تريد حلها تحديداً؟'
-  }
-  if (/السلام|مرحبا|اهلا|أهلا/i.test(latest) && latest.length < 40) {
-    return 'مداخلة المستشار الذكي: أهلاً بك. لنبدأ عملياً: عرّفني بموضوع بحثك في جملة واضحة، ثم قل لماذا اخترته.'
-  }
-  if (/يعني|قصدي|اقصد/i.test(latest)) {
-    return 'مداخلة المستشار الذكي: فهمت أنك تحاول ضبط الفكرة. اسمح لي أقاطعك هنا: اربط ما تقوله مباشرة بسؤال البحث أو بالنتيجة التي وصلت إليها.'
-  }
-  return 'مداخلة المستشار الذكي: النقطة وصلت، لكن أريد منك توضيحها أكاديمياً أكثر. ما الدليل من بحثك أو المثال العملي الذي يؤيد كلامك؟'
 }
 
 // ===== 12.3: مداخلة حية من المستشار الذكي داخل المناقشة =====
@@ -611,11 +624,7 @@ ${dialog.slice(0, 4500)}
     return note && note.length > 30 ? note.slice(0, 900) : null
   } catch (e) {
     console.error('aiLiveNote error:', e)
-    const latest = String(latestChunk || '').trim()
-    if (latest.length >= 12) {
-      return `مداخلة المستشار الذكي: سمعت إجابتك، لكن أحتاج منك أن تربط كلامك مباشرة بعنوان البحث ومنهجيته. وضّح لي الآن: ما الدليل أو المثال العملي الذي يثبت هذه النقطة؟`
-    }
-    return null
+    return AI_UNAVAILABLE_MESSAGE
   }
 }
 

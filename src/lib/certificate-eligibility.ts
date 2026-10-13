@@ -1,5 +1,9 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { calculateFinalGrade, type FinalGradeResult } from '@/lib/final-grade'
+import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+
+export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClient
 
 export const CERTIFICATE_PASS_SCORE = 51
 
@@ -40,11 +44,26 @@ function failedComponentLabels(finalGrade: FinalGradeResult) {
     .map((component) => `${component.label} (${percent(component.score || 0)}%)`)
 }
 
+function isSettledPayment(status: string) {
+  return status === 'PAID' || status === 'WAIVED'
+}
+
+function paymentEligibilityError(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>, programPrice?: number | null) {
+  const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !isSettledPayment(p.status))
+  if (nonTuitionUnpaid.length) return 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
+  const total = roundMoney(inferTotalTuition(payments, Number(programPrice || 0)))
+  const paid = roundMoney(tuitionPaidTotal(payments))
+  if (total > 0 && paid < total) return `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${paid}$ من ${total}$.`
+  return null
+}
+
 export async function evaluateProgramCertificateEligibility(input: {
   userId?: string | null
   programId?: string | null
   admissionId?: string | null
+  client?: CertificateEligibilityDbClient
 }): Promise<ProgramCertificateEligibility> {
+  const client = input.client || db
   const userId = input.userId || null
   const programId = input.programId || null
   if (!userId || !programId) {
@@ -65,7 +84,7 @@ export async function evaluateProgramCertificateEligibility(input: {
   const resolvedUserId = userId
   const resolvedProgramId = programId
   const admissionId = input.admissionId || null
-  const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId })
+  const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId, client })
   if (finalGrade.score === null) {
     return {
       ok: false,
@@ -89,14 +108,41 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
   }
 
-  const program = await db.program.findUnique({
+  const program = await client.program.findUnique({
     where: { id: resolvedProgramId },
-    select: { category: true },
+    select: { category: true, price: true },
   })
+
+  const enrollment = await client.enrollment.findUnique({
+    where: { userId_programId: { userId: resolvedUserId, programId: resolvedProgramId } },
+    select: { id: true },
+  })
+  const paymentFilters = [
+    ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
+    ...(admissionId ? [{ admissionId }] : []),
+  ]
+  const payments = paymentFilters.length
+    ? await client.payment.findMany({
+        where: { OR: paymentFilters },
+        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+      })
+    : []
+  const financeError = paymentEligibilityError(payments, program?.price)
+  if (financeError) {
+    return {
+      ok: false,
+      score: finalGrade.score,
+      gradeLabel: certificateGradeLabel(finalGrade.score),
+      missing: ['الرسوم المدفوعة'],
+      components: finalGrade.components,
+      error: financeError,
+    }
+  }
+
   const requiresThesis = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
 
   if (requiresThesis) {
-    const thesis = await db.thesisSubmission.findFirst({
+    const thesis = await client.thesisSubmission.findFirst({
       where: admissionId ? { admissionId } : { userId: resolvedUserId },
       orderBy: { updatedAt: 'desc' },
       select: { status: true, resultScore: true, passed: true },

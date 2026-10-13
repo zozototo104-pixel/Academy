@@ -421,12 +421,12 @@ export function AdminThesisTab() {
                         {/* 12.3: محضر الجلسة والتسجيل المؤرشف */}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {t.defenseMinutes && (
-                            <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
                               <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة التلقائي
                             </Button>
                           )}
                           {t.recordingSize && (
-                            <Button size="sm" variant="outline" onClick={() => setShowRecording(t)} className="h-7 border-[#0f2b46]/30 bg-white/60 text-[10px] font-black text-[#0f2b46]">
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowRecording(t)} className="h-7 border-[#0f2b46]/30 bg-white/60 text-[10px] font-black text-[#0f2b46]">
                               <Video className="ml-1 h-3 w-3" /> تشغيل تسجيل الجلسة ({Math.round((t.recordingSize || 0) / 1024)} ك.ب)
                             </Button>
                           )}
@@ -447,11 +447,11 @@ export function AdminThesisTab() {
                     )}
                     {t.status === 'PLAN_SUBMITTED' && (
                       <>
-                        <Button size="sm" onClick={() => thesisAction(t, 'APPROVE_PLAN')}
+                        <Button size="sm" disabled={busy} onClick={() => thesisAction(t, 'APPROVE_PLAN')}
                           className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
                           <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد خطة البحث
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
                           className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                           طلب تعديل الخطة
                         </Button>
@@ -459,42 +459,42 @@ export function AdminThesisTab() {
                     )}
                     {t.status === 'SUBMITTED' && (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
                           className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                           طلب تعديل البحث النهائي
                         </Button>
-                        <Button size="sm" onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
+                        <Button size="sm" disabled={busy} onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
                           className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
                           <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
                         </Button>
                       </>
                     )}
                     {['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) && (
-                      <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
                         className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                         تحديث ملاحظة تعديل الخطة
                       </Button>
                     )}
                     {t.status === 'FINAL_NEEDS_REVISION' && (
-                      <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
                         className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                         تحديث ملاحظة تعديل البحث النهائي
                       </Button>
                     )}
                     {t.status === 'SCHEDULED' && (
                       <>
-                        <Button size="sm" onClick={() => setRoomThesis(t)}
+                        <Button size="sm" disabled={busy} onClick={() => setRoomThesis(t)}
                           className="w-full justify-center bg-[#c9a227] font-bold text-[#0f2b46] hover:bg-[#e0b83a]">
                           <Video className="ml-1 h-3.5 w-3.5" /> دخول قاعة المناقشة
                         </Button>
-                        <Button size="sm" onClick={() => setResulting(t)}
+                        <Button size="sm" disabled={busy} onClick={() => setResulting(t)}
                           className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
                           <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> تسجيل النتيجة
                         </Button>
                       </>
                     )}
                     {t.status === 'RESULT_APPROVED' && (t.defenseMinutes || t.recordingSize) && (
-                      <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="w-full justify-center border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="w-full justify-center border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
                         <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة
                       </Button>
                     )}

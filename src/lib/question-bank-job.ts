@@ -29,6 +29,11 @@ type QuestionBankSource = {
   semester: number | null
   pageStart: number | null
   pageEnd: number | null
+  chunkId?: string | null
+  originalChunkText?: string | null
+  originalChunkIndex?: number | null
+  originalChunkPageStart?: number | null
+  originalChunkPageEnd?: number | null
 }
 
 export type QuestionBankJobTrace = {
@@ -181,6 +186,17 @@ function evidenceText(item: { excerpt?: string | null; summary?: string | null }
   return cleanText(item.excerpt || item.summary, 2200)
 }
 
+function hasOriginalBookChunk(item: QuestionBankSource) {
+  return cleanText(item.originalChunkText, 40).length >= 40
+}
+
+function verifierSourceText(item: QuestionBankSource) {
+  const original = cleanText(item.originalChunkText, 12000)
+  if (!original) return ''
+  const page = item.originalChunkPageStart == null ? '؟' : `${item.originalChunkPageStart}${item.originalChunkPageEnd != null && item.originalChunkPageEnd !== item.originalChunkPageStart ? `–${item.originalChunkPageEnd}` : ''}`
+  return `BookChunk #${item.originalChunkIndex ?? '؟'} — الصفحة ${page}\n${original}`
+}
+
 function safeJsonRecord(value: string | null | undefined): Record<string, unknown> {
   if (!value) return {}
   try {
@@ -280,8 +296,8 @@ async function scopedKnowledge(job: { programId: string; unitId: string | null }
   return { unit: null, knowledge, title: 'بنك أسئلة البرنامج', scopeLabel: 'البرنامج كاملاً' }
 }
 
-function knowledgeToSource(item: { id: string; title: string; category: string; summary: string | null; excerpt: string | null; sourceNote: string | null; bookId: string | null; semester: number | null; pageStart: number | null; pageEnd: number | null }): QuestionBankSource {
-  return { id: item.id, title: item.title, category: item.category, summary: item.summary, excerpt: item.excerpt, sourceNote: item.sourceNote, bookId: item.bookId, semester: item.semester, pageStart: item.pageStart, pageEnd: item.pageEnd }
+function knowledgeToSource(item: { id: string; title: string; category: string; summary: string | null; excerpt: string | null; sourceNote: string | null; bookId: string | null; semester: number | null; pageStart: number | null; pageEnd: number | null; chunkId?: string | null }): QuestionBankSource {
+  return { id: item.id, title: item.title, category: item.category, summary: item.summary, excerpt: item.excerpt, sourceNote: item.sourceNote, bookId: item.bookId, semester: item.semester, pageStart: item.pageStart, pageEnd: item.pageEnd, chunkId: item.chunkId || null }
 }
 
 export function hasSourceGroundedFlag(question: { qualityFlags?: string[] }) {
@@ -314,9 +330,18 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
 
   const cursor = await readJobCursor(job.id)
   const window = planQuestionBankSourceWindow(knowledge.length, cursor, Math.min(8, knowledge.length))
-  const selected = window.indexes.map((index) => knowledge[index]).filter(Boolean)
+  let selected = window.indexes.map((index) => knowledge[index]).filter(Boolean)
   await saveJobCursor(job.id, window.nextCursor)
   if (!selected.length) throw new Error('QUESTION_BANK_JOB_NO_SOURCE_WINDOW')
+  const chunkRows = await db.bookChunk.findMany({
+    where: { id: { in: [...new Set(selected.map((item) => item.chunkId).filter((id): id is string => Boolean(id)))] } },
+    select: { id: true, index: true, pageStart: true, pageEnd: true, text: true },
+  })
+  const chunksById = new Map(chunkRows.map((chunk) => [chunk.id, chunk] as const))
+  selected = selected.map((item) => {
+    const chunk = item.chunkId ? chunksById.get(item.chunkId) : null
+    return chunk ? { ...item, originalChunkText: chunk.text, originalChunkIndex: chunk.index, originalChunkPageStart: chunk.pageStart, originalChunkPageEnd: chunk.pageEnd } : item
+  })
 
   const existing = await db.questionBankItem.findMany({
     where: { programId: job.programId, knowledgeItemId: { in: knowledge.map((item) => item.id) } },
@@ -332,7 +357,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     existingBySource.set(question.knowledgeItemId, list)
   }
 
-  const evidenceSources = selected.map((item) => ({ text: evidenceText(item) }))
+  const sourcesMissingOriginal = new Set(selected.filter((item) => !hasOriginalBookChunk(item)).map((item) => item.id))
+  const evidenceSources = selected.map((item) => ({ text: verifierSourceText(item) }))
   const knowledgeText = selected.map((item, index) => {
     const existingQuestions = existingBySource.get(item.id) || []
     return `${index + 1}. [${item.category}] ${item.title}\nالصفحات: ${item.pageStart ?? '؟'}–${item.pageEnd ?? item.pageStart ?? '؟'}\nنص المصدر: ${evidenceText(item).slice(0, 1800)}\nأسئلة موجودة لنفس المصدر لا تكررها: ${existingQuestions.length ? existingQuestions.map((q) => `«${q}»`).join('؛ ') : 'لا يوجد'}`
@@ -365,10 +391,13 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
       const parsedForRouter = parseGeneratedQuestionCandidates(text)
       assertGeneratedBatchHasAcceptedCandidates(parsedForRouter)
       const validationForRouter = validateQuestionBatchAgainstKnowledge(parsedForRouter.accepted, evidenceSources, { provider: 'ROUTER_PRECHECK', model: 'ROUTER_PRECHECK' })
-      const hasFreshCandidate = validationForRouter.accepted.some((item) => {
+      const literalAccepted = new Set(validationForRouter.accepted)
+      const hasFreshCandidate = parsedForRouter.accepted.some((item) => {
         const sourceIndex = Number(item.sourceIndex)
         if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) return false
         const source = selected[sourceIndex - 1]
+        const missingOriginal = sourcesMissingOriginal.has(source.id)
+        if (!missingOriginal && !literalAccepted.has(item)) return false
         const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
         if (!q.text || q.text.length < 12 || !q.sourceEvidence || !q.cognitiveSkill || !q.difficulty) return false
         if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) return false
@@ -395,7 +424,38 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const groundedQuestions = verified.filter(hasSourceGroundedFlag)
 
   const rows: Prisma.QuestionBankItemCreateManyInput[] = []
+  for (const item of parsed.accepted) {
+    const sourceIndex = Number(item.sourceIndex)
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) continue
+    const source = selected[sourceIndex - 1]
+    if (!sourcesMissingOriginal.has(source.id)) continue
+    const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
+    if (!q.text || q.text.length < 12) { traceReasons.push('EMPTY_QUESTION_TEXT'); continue }
+    if (!q.sourceEvidence) { traceReasons.push('SOURCE_EVIDENCE_REQUIRED'); continue }
+    if (!q.cognitiveSkill) { traceReasons.push('COGNITIVE_SKILL_REQUIRED'); continue }
+    if (!q.difficulty) { traceReasons.push('DIFFICULTY_REQUIRED'); continue }
+    if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) { traceReasons.push(prepareMcqOptionsForStorage(item.options, item.correctAnswer).reason || 'MCQ_ANSWER_NOT_IN_OPTIONS'); continue }
+    if (q.type === 'TF' && q.correctAnswer == null) { traceReasons.push('TF_ANSWER_REQUIRED'); continue }
+    const key = questionDuplicateKey(q.text, source.id)
+    if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
+    seen.add(key)
+    ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
+    traceReasons.push('لا يوجد مقطع أصلي')
+    rows.push({
+      ...buildQuestionBankRecord({
+        ...q,
+        qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING'],
+        verificationPending: true,
+        verificationReason: 'لا يوجد مقطع أصلي',
+        verifierReason: 'لا يوجد مقطع أصلي',
+        textProvenance: 'MISSING_ORIGINAL_BOOK_CHUNK',
+      }, { programId: job.programId, knowledgeItemId: source.id, bookId: source.bookId || null, semester: source.semester || scope.unit?.semester || null, provider: raw.provider, model: raw.model }),
+      unitId: job.unitId || null,
+    } as Prisma.QuestionBankItemCreateManyInput)
+    if (rows.length >= count) break
+  }
   for (const item of groundedQuestions) {
+    if (rows.length >= count) break
     const sourceIndex = Number(item.sourceIndex)
     if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) { traceReasons.push('BAD_SOURCE_INDEX'); continue }
     const source = selected[sourceIndex - 1]
