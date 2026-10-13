@@ -277,7 +277,9 @@ export async function POST(req: NextRequest) {
         rag,
         `وضع المشرف الحالي: عضو لجنة مناقشة بحث تخرج.\nعنوان البحث: ${thesis.title}.\nالجلسة انتهت مبكراً؛ اربط التوصية بملف الطالب ونتائجه وبحثه دون إصدار قرار نهائي بدلاً من اللجنة البشرية.`
       )
-      const rec = await aiRecommendation(thesis.title, user.name, aiScore, scores.length, 'جلسة مبتورة — أنهى الطالب الجلسة مبكراً.', defenseAcademicContext)
+      const rec = incompleteCriteria
+        ? 'تحتاج هذه المناقشة إلى مراجعة بشرية قبل اعتماد النتيجة، لأنها انتهت قبل تغطية معايير المناقشة الخمسة كاملة.'
+        : await aiRecommendation(thesis.title, user.name, aiScore, scores.length, 'جلسة مناقشة مكتملة المعايير.', defenseAcademicContext)
       const minutes = await aiMinutes(thesis.id, thesis.title, user.name, thesis.defenseDate, defenseAcademicContext)
       await db.thesisSubmission.update({
         where: { id: thesis.id },
