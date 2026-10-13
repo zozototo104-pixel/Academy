@@ -118,8 +118,14 @@ export function mergePrivateFilesReports(a: PrivateFilesMaintenanceReport, b: Pr
       toMigrate: left.toMigrate + right.toMigrate,
       alreadyPrivate: left.alreadyPrivate + right.alreadyPrivate,
       missing: left.missing + right.missing,
+      localOnServer: left.localOnServer + right.localOnServer,
+      externalUrl: left.externalUrl + right.externalUrl,
+      disallowedHost: left.disallowedHost + right.disallowedHost,
+      tooLarge: left.tooLarge + right.tooLarge,
       storageKeyUpdates: left.storageKeyUpdates + right.storageKeyUpdates,
       missingIds: [...new Set([...left.missingIds, ...right.missingIds])],
+      disallowedHostIds: [...new Set([...left.disallowedHostIds, ...right.disallowedHostIds])],
+      tooLargeIds: [...new Set([...left.tooLargeIds, ...right.tooLargeIds])],
     }
   }
   return merged
