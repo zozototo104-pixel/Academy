@@ -110,7 +110,7 @@ export async function POST(req: Request) {
         size: Number(stored.size || 0),
         storageProvider: stored.provider || null,
         storageKey: stored.key || null,
-        fileUrl: stored.url || null,
+        fileUrl: stored.key ? getStorageDownloadPathForKey(stored.key) : null,
         externalUrl: externalUrl || null,
         certificateId: certificateId || null,
         verificationUrl: verificationUrl || null,
