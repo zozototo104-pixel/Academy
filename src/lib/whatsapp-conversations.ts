@@ -144,6 +144,7 @@ export async function recordWhatsAppOutboundMessage(args: {
     data: {
       conversationId: conversation.id,
       whatsappMessageId: args.whatsappMessageId || null,
+      replyForMessageId: args.replyForMessageId || null,
       direction: 'OUTBOUND',
       sender: args.sender,
       text: args.text.slice(0, 4096),
