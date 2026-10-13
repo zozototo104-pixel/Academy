@@ -86,7 +86,7 @@ async function testDryRunDoesNotMutate() {
 }
 
 async function testExecuteUpdatesAndIsIdempotent() {
-  const { db, admissions } = makeMockDb()
+  const { db, admissions, auditLogs } = makeMockDb()
   const { storage, getStoreCalls } = makeStorage()
   let rejected = false
   try {
