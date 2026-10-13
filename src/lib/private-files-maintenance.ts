@@ -366,22 +366,39 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
   const readLegacyFile = storage.readLegacyFile || defaultReadLegacyFile
   const storePrivateFile = storage.storePrivateFile || defaultStorePrivateFile
   const downloadPathForKey = storage.downloadPathForKey || getStorageDownloadPathForKey
+  const maxFileBytes = Math.max(1, Number(input.maxFileBytes || DEFAULT_MAX_PRIVATE_FILE_BYTES))
+  const deadlineMs = Number(input.deadlineMs || (Date.now() + DEFAULT_BATCH_DEADLINE_MS))
 
   const report = emptyPrivateFilesReport(input.mode, batchSize)
   report.cursor = input.cursor || null
+  const notes = new Set<string>()
+  let releaseAtEnd = false
 
   try {
     const candidates = await collectPrivateFileCandidates(db)
-    const startIndex = cursor?.after ? candidates.findIndex((item) => cursorKey(item) > cursor.after!) : 0
-    const slice = candidates.slice(Math.max(0, startIndex), Math.max(0, startIndex) + batchSize)
+    const rawStartIndex = cursor?.after ? candidates.findIndex((item) => cursorKey(item) > cursor.after!) : 0
+    const startIndex = rawStartIndex >= 0 ? rawStartIndex : candidates.length
+    const limit = Math.min(candidates.length, startIndex + batchSize)
     let lastKey: string | null = cursor?.after || null
-    const notes = new Set<string>()
 
-    for (const item of slice) {
+    for (let index = startIndex; index < limit; index += 1) {
+      if (report.processed > 0 && Date.now() + BATCH_DEADLINE_SAFETY_MS >= deadlineMs) {
+        notes.add('توقفت الدفعة قبل انتهاء المهلة وأرجعت nextCursor للاستكمال الآمن.')
+        break
+      }
+
+      const item = candidates[index]
       lastKey = cursorKey(item)
       report.processed += 1
       const type = report.byType[item.source]
       type.records += 1
+
+      if (!item.key || !isPrivateStorageKey(item.key)) {
+        type.missing += 1
+        addMissingId(type, item.id)
+        notes.add('بعض السجلات لا تحتوي مفتاح تخزين خاص صالح؛ تم احتسابها مفقودة مع id السجل.')
+        continue
+      }
 
       const alreadyPrivate = await privateFileExists(item.key)
       if (alreadyPrivate) {
@@ -393,9 +410,18 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
         continue
       }
 
-      const legacyOnRunner = await localLegacyExists(item.key)
       const legacyIsRemoteUrl = isHttpUrl(item.legacyUrl)
-      if (!legacyOnRunner && !legacyIsRemoteUrl) {
+      const legacyRemoteAllowed = legacyIsRemoteUrl && isAllowedLegacyExternalUrl(item.legacyUrl)
+      const legacyOnRunner = legacyIsRemoteUrl ? false : await localLegacyExists(item.key)
+      if (legacyOnRunner) type.localOnServer += 1
+      if (legacyRemoteAllowed) type.externalUrl += 1
+      if (legacyIsRemoteUrl && !legacyRemoteAllowed) {
+        type.disallowedHost += 1
+        addDisallowedHostId(type, item.id)
+        notes.add('بعض روابط الملفات خارجية من مضيف غير مسموح؛ لم يتم تنزيلها أو نقلها.')
+        continue
+      }
+      if (!legacyOnRunner && !legacyRemoteAllowed) {
         type.missing += 1
         addMissingId(type, item.id)
         notes.add('بعض الملفات القديمة تشير إلى public/uploads، لكن هذا المسار غير موجود على الخادم الحالي. إذا كانت محفوظة على قرص Vercel المحلي القديم فلن يستطيع النظام قراءتها مباشرة؛ يلزم نقلها إلى تخزين قابل للوصول أو توفير نسخة على الخادم.')
@@ -414,18 +440,29 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
         addMissingId(type, item.id)
         continue
       }
+      if (legacy.buffer.byteLength > maxFileBytes) {
+        type.toMigrate -= 1
+        if (!item.hasStorageKey) type.storageKeyUpdates -= 1
+        type.tooLarge += 1
+        addTooLargeId(type, item.id)
+        notes.add(`بعض الملفات كبيرة جداً وتتجاوز حد ${Math.round(maxFileBytes / 1024 / 1024)}MB؛ لم يتم نقلها.`)
+        continue
+      }
       await storePrivateFile(item, legacy)
       await backfillDatabase(db, item, downloadPathForKey)
     }
 
-    report.done = slice.length < batchSize || (lastKey ? candidates.every((item) => cursorKey(item) <= lastKey!) : candidates.length === 0)
+    report.done = report.processed === 0 ? startIndex >= candidates.length : (lastKey ? candidates.every((item) => cursorKey(item) <= lastKey!) : candidates.length === 0)
     report.nextCursor = report.done ? null : encodeCursor({ after: lastKey, token })
     report.notes = [...notes]
     await auditBatch(db, input.actor, report)
-    if (report.done) await releaseLock(db, token)
+    releaseAtEnd = report.done
     return report
   } catch (error) {
-    await auditBatch(db, input.actor, { ...report, ok: true, done: false, notes: [...report.notes, `ERROR:${String((error as Error)?.message || error).slice(0, 80)}`] })
+    releaseAtEnd = true
+    await auditBatch(db, input.actor, { ...report, ok: true, done: false, notes: [...report.notes, ...notes, `ERROR:${String((error as Error)?.message || error).slice(0, 80)}`] })
     throw error
+  } finally {
+    if (releaseAtEnd) await releaseLock(db, token).catch(() => null)
   }
 }
