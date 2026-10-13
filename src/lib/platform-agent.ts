@@ -26,6 +26,8 @@ export type PlatformAgentKind =
 
 export type PlatformAgentEngine = 'LOCAL_RULE' | 'LOCAL_OPEN_SOURCE' | 'GEMINI' | 'MODEL_ROUTER_OR_FALLBACK'
 
+const AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
+
 const AGENT_AR: Record<PlatformAgentKind, string> = {
   ACADEMIC_SUPERVISOR: 'المشرف الذكي الأكاديمي',
   ADMISSIONS: 'وكيل القبول والتسجيل',
