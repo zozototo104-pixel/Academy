@@ -272,9 +272,10 @@ function fallbackIntentAnalysis(message: string): ConversationIntentAnalysis {
   return { intent: 'UNKNOWN', confidence: 0.2 }
 }
 
-async function analyzeConversationIntent(messages: { role: string; content: string }[], opts?: { channel?: string; role?: string | null }): Promise<ConversationIntentAnalysis> {
+async function analyzeConversationIntent(messages: { role: string; content: string }[], opts?: { channel?: string; role?: string | null; deadlineMs?: number }): Promise<ConversationIntentAnalysis> {
   const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
   const fallback = fallbackIntentAnalysis(last)
+  assertWithinDeadline(opts?.deadlineMs, 'Conversation intent analysis deadline exceeded')
   const ready = await ensureGeminiKey().catch(() => false)
   if (!ready) return fallback
   try {
