@@ -135,9 +135,9 @@ function testDefenseIncompleteCriteriaNeedsReview() {
   const defense = file('src/app/api/defense/route.ts')
   assert(defense.includes('{ requireAllCriteria: true }'), 'defense scoring must require all five criteria')
   assert(defense.includes('const incompleteCriteria = criteriaCovered.length < DEFENSE_CRITERIA.length'), 'defense must detect incomplete criteria coverage')
-  assert(defense.includes("defenseStatus: incompleteCriteria ? 'NEEDS_REVIEW' : 'COMPLETED'"), 'early defense ending must become NEEDS_REVIEW')
-  assert(defense.includes('const aiScore = incompleteCriteria ? null : weighted.score'), 'early defense ending must not rebalance partial scores')
-  assert(defense.includes('noRebalance: incompleteCriteria'), 'defense breakdown must record that no rebalance occurred')
+  assert(defense.includes("if (incompleteCriteria)") && defense.includes("data: { defenseStatus: 'NEEDS_REVIEW', aiScore: null"), 'early defense ending must become NEEDS_REVIEW')
+  assert(defense.includes('weightedForEnd = scoreDefenseBreakdown(criteriaScores, { requireAllCriteria: true })') && defense.includes('noRebalance: true'), 'early defense ending must not rebalance partial scores')
+  assert(defense.includes('reason: \'DEFENSE_CRITERIA_INCOMPLETE\''), 'defense breakdown must record incomplete criteria reason')
 }
 
 function testSchemaAndMigrationSafety() {
