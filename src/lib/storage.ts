@@ -35,6 +35,9 @@ interface ReadStoredFileInput {
   url?: string | null
   data?: string | null
   mimeType?: string | null
+  allowedHosts?: Iterable<string> | null
+  maxBytes?: number | null
+  timeoutMs?: number | null
 }
 
 function cleanSegment(value: string, fallback: string): string {
