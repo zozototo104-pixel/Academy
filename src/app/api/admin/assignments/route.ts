@@ -53,6 +53,8 @@ function mapAssignment(a: any) {
       studentEmail: s.user?.email,
       answerText: s.answerText,
       fileName: s.fileName,
+      fileUrl: s.fileStorageKey ? getStorageDownloadPathForKey(s.fileStorageKey) : null,
+      downloadUrl: s.fileStorageKey ? getStorageDownloadPathForKey(s.fileStorageKey) : null,
       mimeType: s.mimeType,
       size: s.size,
       status: s.status,
