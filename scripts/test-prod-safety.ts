@@ -35,6 +35,10 @@ function testWorkflowTargetsQaOnly() {
   assert(workflow.includes('QA_PREVIEW_BASE_URL'), 'full journey workflow should prefer QA preview URL')
   assert(workflow.includes('E2E_QA_ONLY: "1"'), 'full journey workflow must run in QA-only mode')
 
+  const launchQuality = file('.github/workflows/launch-quality.yml')
+  assert(!launchQuality.includes('default: "https://academy-raqaba.vercel.app"'), 'launch quality workflow must not default to production')
+  assert(launchQuality.includes('QA_PREVIEW_BASE_URL'), 'launch quality workflow should prefer QA preview URL')
+
   const validator = file('scripts/validate-e2e-base-url.sh')
   assert(validator.includes('academy-raqaba.vercel.app'), 'E2E validator must know production origin')
   assert(validator.includes('Refusing to run QA E2E against a production origin'), 'E2E validator must refuse production in QA-only mode')
