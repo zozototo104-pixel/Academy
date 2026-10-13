@@ -231,7 +231,17 @@ export function ExamView() {
           draftLoadedRef.current = true
         }
       })
-      .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
+      .catch((e: ApiError) => {
+        const message = examErrorMessage(e)
+        toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
+        if (e.status === 402 || e.code === 'PENDING_PAYMENT') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
+        else if (e.status === 403 && e.code === 'ALREADY_PASSED') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
+        else if (e.status === 409 && e.code === 'ATTEMPT_EXPIRED') {
+          submittedRef.current = true
+          setSecondsLeft(null)
+          navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
+        }
+      })
       .finally(() => setLoading(false))
   }, [activeExamId, activeExamKind])
 
