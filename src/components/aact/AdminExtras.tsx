@@ -470,7 +470,7 @@ export function AdminThesisTab() {
                       </>
                     )}
                     {['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) && (
-                      <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
                         className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                         تحديث ملاحظة تعديل الخطة
                       </Button>
