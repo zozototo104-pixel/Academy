@@ -90,6 +90,7 @@ export async function GET() {
         recordingMime: true,
         recordingSize: true,
         recordingDurationSec: true,
+        recordingStorageKey: true,
         resultScore: true,
         passed: true,
         extractionStatus: true,
