@@ -1,10 +1,9 @@
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { platformPublicAgentComplete } from '@/lib/platform-agent'
-import { DEFAULT_OFFICIAL_CONTACT, DEFAULT_SETTINGS, getOfficialContact, getSettings } from '@/lib/settings'
+import { getOfficialContact } from '@/lib/settings'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
 import { hashWhatsAppId } from '@/lib/whatsapp-conversations'
-import { unsignedWebhookTestsAllowed } from '@/lib/prod-safety'
 
 type WhatsAppConfig = {
   accessToken: string
@@ -36,101 +35,6 @@ function compactText(value: unknown, max = 1200) {
 }
 
 const WHATSAPP_CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
-
-type WhatsAppFaqDeps = {
-  getSettings: () => Promise<Record<string, string>>
-  getOfficialContact: () => Promise<any>
-  listPrograms: () => Promise<Array<{ titleAr: string; titleEn?: string | null; category?: string | null; price?: number | null; hours?: number | null }>>
-}
-
-const DEFAULT_SETTING_VALUES = Object.fromEntries(DEFAULT_SETTINGS.map((item) => [item.key, item.value])) as Record<string, string>
-
-function normalizeWhatsAppFaqText(value: unknown) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ة/g, 'ه')
-    .replace(/ى/g, 'ي')
-    .replace(/[ًٌٍَُِّْـ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function includesFaqAny(text: string, terms: string[]) {
-  return terms.some((term) => text.includes(term))
-}
-
-function settingValue(values: Record<string, string>, key: string) {
-  return String(values[key] ?? DEFAULT_SETTING_VALUES[key] ?? '').trim()
-}
-
-function usd(value: unknown) {
-  const n = Number(value)
-  return Number.isFinite(n) && n > 0 ? `${n}$` : 'غير مضبوط حالياً'
-}
-
-async function listPublicProgramsForWhatsApp() {
-  return db.program.findMany({
-    where: { active: true },
-    orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
-    take: 8,
-    select: { titleAr: true, titleEn: true, category: true, price: true, hours: true },
-  })
-}
-
-export async function resolveWhatsAppDirectSettingsReply(text: string, deps: WhatsAppFaqDeps = { getSettings, getOfficialContact, listPrograms: listPublicProgramsForWhatsApp }) {
-  const q = normalizeWhatsAppFaqText(text)
-  if (!q) return null
-  const values = await deps.getSettings().catch(() => DEFAULT_SETTING_VALUES)
-  const contact = await deps.getOfficialContact().catch(() => DEFAULT_OFFICIAL_CONTACT)
-
-  if (includesFaqAny(q, ['طرق الدفع', 'طريقة الدفع', 'كيف ادفع', 'كيف أدفع', 'تحويل', 'usdt', 'binance', 'بينانس'])) {
-    const mode = settingValue(values, 'PAYMENT_MODE') || 'DIRECT_PAYMENT'
-    const usdt = settingValue(values, 'USDT_WALLET_ADDRESS')
-    const network = settingValue(values, 'USDT_NETWORK')
-    const parts = [`طرق الدفع المتاحة تضبطها الإدارة من لوحة المنصة. الوضع الحالي: ${mode}.`]
-    if (usdt) parts.push(`USDT: ${usdt}${network ? ` — الشبكة: ${network}` : ''}`)
-    parts.push('بعد إنشاء الطلب أو الفاتورة من بوابة الطالب، تُراجع الإدارة السداد وتؤكده.')
-    return parts.join('\n')
-  }
-
-  if (includesFaqAny(q, ['رسوم', 'الرسم', 'السعر', 'سعر', 'تكلفه', 'تكلفة', 'كم بدفع', 'اقساط', 'قسط'])) {
-    return [
-      `رسوم التقديم: ${usd(settingValue(values, 'FEE_APPLICATION'))}.`,
-      `الدبلومات عادة من ${usd(settingValue(values, 'FEE_DIPLOMAS_MIN'))} إلى ${usd(settingValue(values, 'FEE_DIPLOMAS_MAX'))}.`,
-      `الماجستير المهني يبدأ من ${usd(settingValue(values, 'FEE_MASTERS'))}.`,
-      `الدكتوراه المهنية تبدأ من ${usd(settingValue(values, 'FEE_DOCTORATE'))}.`,
-      'إذا ذكرت اسم البرنامج أعطيك السعر المحدد له من إعدادات القبول.',
-    ].join('\n')
-  }
-
-  if (includesFaqAny(q, ['تواصل', 'اتواصل', 'رقم', 'واتساب', 'ايميل', 'بريد', 'عنوان', 'هاتف'])) {
-    const phones = Array.from(new Set([contact.phone, ...(contact.phones || []), contact.whatsapp, ...(contact.whatsapps || [])].filter(Boolean))).join(' / ') || 'غير مضبوط'
-    return `بيانات التواصل الرسمية:\nالهاتف/واتساب: ${phones}\nالبريد: ${contact.email || 'غير مضبوط'}\nالعنوان: ${contact.address || 'غير مضبوط'}`
-  }
-
-  if (includesFaqAny(q, ['برامج', 'البرامج', 'تخصصات', 'تخصص', 'ماجستير', 'دكتوراه', 'دبلوم', 'المتاحه', 'المتاحة'])) {
-    const programs = await deps.listPrograms().catch(() => [])
-    if (!programs.length) return 'البرامج المتاحة تظهر من كتالوج المنصة، لكن القائمة غير متاحة الآن. اكتب المجال المطلوب وسأوجهك للتسجيل أو التواصل مع الإدارة.'
-    return `من البرامج المتاحة حالياً:\n${programs.map((p, i) => `${i + 1}. ${p.titleAr || p.titleEn || 'برنامج'}${p.hours ? ` — ${p.hours} ساعة` : ''}${p.price ? ` — ${p.price}$` : ''}`).join('\n')}`
-  }
-
-  if (includesFaqAny(q, ['مدة الشهاده', 'مدة الشهادة', 'متى تصدر', 'اصدار الشهاده', 'إصدار الشهادة', 'الشهاده', 'الشهادة'])) {
-    const days = settingValue(values, 'CERTIFICATE_ISSUE_DAYS') || '30'
-    return `تصدر الشهادة عادة خلال ${days} يوماً بعد استكمال متطلبات البرنامج والرسوم ومراجعة كشوف الدرجات.`
-  }
-
-  if (includesFaqAny(q, ['اعتماد', 'الاعتماد', 'معتمده', 'معتمدة', 'ترخيص', 'توثيق'])) {
-    let accreditation: any = {}
-    try { accreditation = JSON.parse(settingValue(values, 'ACCREDITATION_PAGE') || '{}') } catch { accreditation = {} }
-    const trust = settingValue(values, 'TRUST_BANNER_TEXT')
-    const license = accreditation?.licenseNumber ? `رقم الترخيص/الاعتماد: ${accreditation.licenseNumber}.` : ''
-    const verify = accreditation?.licenseVerifyUrl ? `رابط التحقق: ${accreditation.licenseVerifyUrl}` : ''
-    return [trust || 'برامج الأكاديمية تدريب مهني، وقبول الشهادة يعود للجهة المستقبلة أو جهة العمل.', license, verify].filter(Boolean).join('\n')
-  }
-
-  return null
-}
 
 async function assertWhatsAppFreeformWindowOpen(to: string) {
   const waIdHash = hashWhatsAppId(to)
@@ -166,7 +70,7 @@ export function getWhatsAppCloudConfig(fallbackPhoneNumberId?: string): WhatsApp
 
 export function verifyWhatsAppSignature(rawBody: string, signatureHeader: string | null, appSecret = process.env.WHATSAPP_APP_SECRET) {
   const secret = trim(appSecret)
-  if (!secret) return unsignedWebhookTestsAllowed()
+  if (!secret) return process.env.WHATSAPP_ALLOW_UNSIGNED_WEBHOOK_TESTS === '1'
   if (!signatureHeader || !signatureHeader.startsWith('sha256=')) return false
   try {
     const provided = Buffer.from(signatureHeader.replace(/^sha256=/, ''), 'hex')
@@ -257,13 +161,10 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, deadlineMs?: number) {
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
   if (!message.text) {
     return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
   }
-
-  const directReply = await resolveWhatsAppDirectSettingsReply(message.text).catch(() => null)
-  if (directReply) return directReply
 
   const messages = await recentWhatsAppAgentMessages(message)
   const contact = await getOfficialContact().catch(() => ({} as any))
@@ -271,7 +172,6 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
   const result = await platformPublicAgentComplete({
     messages,
     channel: 'WHATSAPP',
-    deadlineMs,
     uiContext: wrapUntrustedUiContext([
       'المستخدم يتواصل عبر واتساب الرسمي للأكاديمية، وليس عبر نافذة الموقع.',
       `اسم جهة الاتصال إن وجد: ${message.name || 'غير متاح'}.`,
