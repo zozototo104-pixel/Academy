@@ -1881,7 +1881,7 @@ export function AdminSettingsTab() {
   const { toast } = useToast()
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [values, setValues] = useState<Record<string, string>>({})
-  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json'; help?: string }[]>([])
+  const [defs, setDefs] = useState<{ key: string; label: string; group: string; suffix: string; inputType?: 'number' | 'text' | 'textarea' | 'json' | 'boolean'; help?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [admins, setAdmins] = useState<SystemAdminAccount[]>([])
