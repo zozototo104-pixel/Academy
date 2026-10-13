@@ -369,10 +369,11 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
   const storage = input.storage || {}
   const privateFileExists = storage.privateFileExists || defaultPrivateFileExists
   const localLegacyExists = storage.localLegacyExists || defaultLocalLegacyExists
-  const readLegacyFile = storage.readLegacyFile || defaultReadLegacyFile
   const storePrivateFile = storage.storePrivateFile || defaultStorePrivateFile
   const downloadPathForKey = storage.downloadPathForKey || getStorageDownloadPathForKey
   const maxFileBytes = Math.max(1, Number(input.maxFileBytes || DEFAULT_MAX_PRIVATE_FILE_BYTES))
+  const allowedHosts = privateFilesMaintenanceAllowedHosts()
+  const readLegacyFile = storage.readLegacyFile || ((item: PrivateFilesCandidate) => defaultReadLegacyFile(item, { allowedHosts, maxBytes: maxFileBytes }))
   const deadlineMs = Number(input.deadlineMs || (Date.now() + DEFAULT_BATCH_DEADLINE_MS))
 
   const report = emptyPrivateFilesReport(input.mode, batchSize)
