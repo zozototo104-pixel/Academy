@@ -805,18 +805,8 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   // The administrator may claim the conversation while the AI is generating.
   if (await isWhatsAppConversationHumanActive(inboundMessage.from)) return 'SKIPPED'
 
-  const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, reply, {
-    phoneNumberId: inboundMessage.phoneNumberId,
-    replyToMessageId: inboundMessage.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: inboundMessage.from,
-    phoneNumberId: inboundMessage.phoneNumberId,
-    text: reply,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
-  return 'SENT'
+  const sendOutcome = await sendClaimedOfficialWhatsAppBotText(inboundMessage, reply)
+  return sendOutcome.sent ? 'SENT' : 'SKIPPED'
 }
 
 export async function processWhatsAppEvent(eventId: string) {
