@@ -89,8 +89,12 @@ function testSchemaAndMigrationSafety() {
   assert(schema.includes('user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)'), 'ThesisSubmission/ProgramExamAttempt user deletes must restrict')
 
   const migration = file('prisma/migrations/20261013153000_stage_c_completion_certificates/migration.sql')
-  assert(migration.includes('HAVING COUNT(*) > 1'), 'migration must check duplicates before creating Certificate(enrollmentId,type) unique index')
-  assert(migration.includes('Cannot add Certificate(enrollmentId,type) unique constraint'), 'migration must fail safely on duplicate certificates')
+  assert(migration.includes('CERTIFICATE_ORPHAN_ENROLLMENT_NULLIFIED'), 'migration must audit orphan certificate enrollment links before FK creation')
+  assert(migration.includes('CERTIFICATE_DUPLICATE_ENROLLMENT_TYPE_INVALIDATED'), 'migration must audit duplicate enrollment/type certificates')
+  assert(migration.includes('SET "enrollmentId" = NULL'), 'migration must unlink unsafe certificate rows instead of deleting them')
+  assert(migration.includes('"valid" = false'), 'migration must invalidate duplicate certificate rows instead of deleting them')
+  assert(!migration.includes('DELETE FROM "Certificate"'), 'migration must not delete certificates')
+  assert(migration.includes('CREATE SEQUENCE IF NOT EXISTS "Certificate_serial_seq"'), 'migration must create an atomic certificate serial sequence')
   assert(migration.includes('ON DELETE RESTRICT'), 'migration must apply restrictive foreign keys')
 }
 
