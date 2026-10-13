@@ -505,10 +505,10 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (url && /^https?:\/\//i.test(url)) {
-    const res = await safeFetchStoredUrl(url)
+    const res = await safeFetchStoredUrl(url, { allowedHosts: input.allowedHosts, maxBytes: input.maxBytes, timeoutMs: input.timeoutMs })
     if (!res.ok) return null
     return {
-      buffer: Buffer.from(await res.arrayBuffer()),
+      buffer: await readResponseBufferWithLimit(res, input.maxBytes),
       mimeType: res.headers.get('content-type') || mimeType,
     }
   }
