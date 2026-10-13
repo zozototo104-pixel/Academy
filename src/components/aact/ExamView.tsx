@@ -353,8 +353,17 @@ export function ExamView() {
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
+        const err = e as ApiError
+        if (err.status === 409 && err.code === 'ATTEMPT_EXPIRED') {
+          submittedRef.current = true
+          setSecondsLeft(null)
+          setSubmitting(false)
+          toast({ title: 'انتهى الوقت', description: 'انتهت المحاولة وحُسبت صفر', variant: 'destructive' })
+          navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
+          return
+        }
         submittedRef.current = false
-        toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+        toast({ title: 'خطأ', description: examErrorMessage(err), variant: 'destructive' })
       } finally {
         setSubmitting(false)
       }
