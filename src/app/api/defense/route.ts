@@ -265,14 +265,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'لا توجد جلسة جارية' }, { status: 400 })
       }
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' }, orderBy: { createdAt: 'asc' } })
-      if (studentMsgs.length < DEFENSE_CRITERIA.length) {
-        const rec = `انتهت الجلسة قبل تغطية المعايير الخمسة كاملة (${studentMsgs.length}/${DEFENSE_CRITERIA.length}). يجب مراجعة اللجنة البشرية للمحضر والتسجيل قبل أي علامة.`
+      const criteriaScores = DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: finiteScore(studentMsgs[index]?.score) }))
+      const weightedForEnd = scoreDefenseBreakdown(criteriaScores, { requireAllCriteria: true })
+      const criteriaCovered = criteriaScores.filter((item) => item.score0to10 != null).map((item) => item.criterion)
+      const incompleteCriteria = criteriaCovered.length < DEFENSE_CRITERIA.length || Boolean((weightedForEnd as any).needsReview)
+      if (incompleteCriteria) {
+        const rec = `انتهت الجلسة قبل تغطية المعايير الخمسة المصححة كاملة (${criteriaCovered.length}/${DEFENSE_CRITERIA.length}). يجب مراجعة اللجنة البشرية للمحضر والتسجيل قبل أي علامة.`
         const breakdown = {
+          ...(weightedForEnd as any),
           needsReview: true,
           reason: 'DEFENSE_CRITERIA_INCOMPLETE',
-          answeredCriteria: studentMsgs.length,
+          criteriaCovered,
+          answeredCriteria: criteriaCovered.length,
           requiredCriteria: DEFENSE_CRITERIA.length,
-          criteria: DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: index < studentMsgs.length ? finiteScore(studentMsgs[index].score) : null })),
+          noRebalance: true,
           ...(legacyDefense ? { legacy: true } : {}),
         }
         await db.thesisSubmission.update({
