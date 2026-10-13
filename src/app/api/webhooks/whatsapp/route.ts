@@ -48,13 +48,6 @@ const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة�
 const WHATSAPP_VOICE_HANDOFF_REPLY = 'استلمنا رسالتك الصوتية ✅ تعذر تحليلها الآن بسبب ضغط/مشكلة مؤقتة، وسيتم تحويل المحادثة للموظف لمتابعة طلبك.'
 const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
-function cleanupGreetingKeys() {
-  const now = Date.now()
-  for (const [key, ts] of recentGreetingKeys.entries()) {
-    if (now - ts > IMMEDIATE_GREETING_WINDOW_MS) recentGreetingKeys.delete(key)
-  }
-}
-
 function conversationKey(from: string) {
   return `wa:${whatsappWaIdHash(from).slice(0, 32)}`
 }
