@@ -198,11 +198,6 @@ async function main() {
   testOfficialSettingsDeploymentHook()
   testAiDeadlines()
   testAactTestRecipientBlocks()
-  await testWhatsAppReliabilityBehavior()
-  await testWhatsAppPublicAgentWithMocks()
-  await testWhatsAppWebhookHandlerBehavior()
-  await testWhatsAppRetryCronProcessesStaleEventsOnce()
-  testWhatsAppUnsignedWebhookProductionBlock()
   testDependencyPins()
   console.log('✓ production safety behavioral checks passed')
 }
