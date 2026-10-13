@@ -813,8 +813,16 @@ async function processWhatsAppEvent(eventId: string) {
     const msg = String(error?.message || error || 'unknown WhatsApp processing error').slice(0, 500)
     console.error('official WhatsApp event processing failed:', msg)
     let fallbackDelivered = false
+    const diag = await textAiDiagnostics().catch(() => null)
+    const lastResult = diag?.lastResult || null
     try {
-      await sendFallbackAndRequestHuman(message, msg)
+      await sendFallbackAndRequestHuman(message, msg, {
+        provider: lastResult?.provider || null,
+        model: lastResult?.model || null,
+        elapsedMs: null,
+        failureReason: lastResult?.error || msg,
+        classifierResult: error?.classifierResult || null,
+      })
       fallbackDelivered = true
     } catch (fallbackError: any) {
       console.error('official WhatsApp fallback reply failed:', String(fallbackError?.message || fallbackError || 'failed').slice(0, 500))
