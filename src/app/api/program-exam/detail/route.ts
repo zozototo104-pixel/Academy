@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     const tuitionGate = await enforceSemesterTuitionGate(user.id, exam.programId, exam.semester)
     if (!tuitionGate.ok) {
-      return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
+      return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan, programId: exam.programId }, { status: 402 })
     }
 
     // 12.2: الامتحانان متسلسلان وفق آلة الحالات — اجتياز امتحان الفصل الأول شرط لفتح الفصل الثاني
