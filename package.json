@@ -11,6 +11,7 @@
     "check:deploy": "bun run quality && bun run build",
     "lint": "eslint . --max-warnings=54",
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
+    "settings:migrate:official-ai": "tsx scripts/migrate-official-ai-settings.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
     "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
