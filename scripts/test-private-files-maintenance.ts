@@ -188,6 +188,10 @@ async function main() {
   await testDryRunDoesNotMutate()
   await testExecuteUpdatesAndIsIdempotent()
   await testRouteRejectsNonAdmin()
+  await testDetailedReportCategoriesAndInvalidKeys()
+  await testTooLargeFilesAreReportedAndNotStored()
+  await testBatchStopsBeforeDeadlineAndReturnsCursor()
+  await testLockReleasedOnErrorForSameRun()
   console.log('✓ private files maintenance behavioral checks passed')
 }
 
