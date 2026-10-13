@@ -343,14 +343,15 @@ async function putToLocalStorage(input: { buffer: Buffer }, key: string, mimeTyp
   if (process.env.NODE_ENV === 'production' && process.env.AACT_ALLOW_LOCAL_UPLOADS !== 'true') {
     throw new Error('FILE_STORAGE_NOT_CONFIGURED')
   }
-  const root = path.join(process.cwd(), 'public', 'uploads')
+  const privateKey = isPrivateStorageKey(key)
+  const root = privateKey ? path.join(process.cwd(), '.data', 'private-uploads') : path.join(process.cwd(), 'public', 'uploads')
   const absolutePath = path.join(root, key)
   await fs.mkdir(path.dirname(absolutePath), { recursive: true })
   await fs.writeFile(absolutePath, input.buffer)
   return {
     provider: 'local',
     key,
-    url: `/uploads/${key}`,
+    url: privateKey ? getStorageDownloadPathForKey(key) : `/uploads/${key}`,
     size: input.buffer.byteLength,
     mimeType,
   }
