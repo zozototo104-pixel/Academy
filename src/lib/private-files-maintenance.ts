@@ -24,8 +24,14 @@ export type PrivateFilesTypeReport = {
   toMigrate: number
   alreadyPrivate: number
   missing: number
+  localOnServer: number
+  externalUrl: number
+  disallowedHost: number
+  tooLarge: number
   storageKeyUpdates: number
   missingIds: string[]
+  disallowedHostIds: string[]
+  tooLargeIds: string[]
 }
 
 export type PrivateFilesMaintenanceReport = {
