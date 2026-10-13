@@ -426,7 +426,7 @@ export function AdminThesisTab() {
                             </Button>
                           )}
                           {t.recordingSize && (
-                            <Button size="sm" variant="outline" onClick={() => setShowRecording(t)} className="h-7 border-[#0f2b46]/30 bg-white/60 text-[10px] font-black text-[#0f2b46]">
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowRecording(t)} className="h-7 border-[#0f2b46]/30 bg-white/60 text-[10px] font-black text-[#0f2b46]">
                               <Video className="ml-1 h-3 w-3" /> تشغيل تسجيل الجلسة ({Math.round((t.recordingSize || 0) / 1024)} ك.ب)
                             </Button>
                           )}
