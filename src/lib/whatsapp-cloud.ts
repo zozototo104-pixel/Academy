@@ -122,7 +122,7 @@ export async function resolveWhatsAppDirectSettingsReply(text: string, deps: Wha
 
   if (includesFaqAny(q, ['اعتماد', 'الاعتماد', 'معتمده', 'معتمدة', 'ترخيص', 'توثيق'])) {
     let accreditation: any = {}
-    try { accreditation = JSON.parse(settingValue(values, 'ACCREDITATION_PAGE') || '{}') } catch {}
+    try { accreditation = JSON.parse(settingValue(values, 'ACCREDITATION_PAGE') || '{}') } catch { accreditation = {} }
     const trust = settingValue(values, 'TRUST_BANNER_TEXT')
     const license = accreditation?.licenseNumber ? `رقم الترخيص/الاعتماد: ${accreditation.licenseNumber}.` : ''
     const verify = accreditation?.licenseVerifyUrl ? `رابط التحقق: ${accreditation.licenseVerifyUrl}` : ''
