@@ -800,53 +800,78 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   })
   const thesisIds = theses.map((t) => t.id)
 
-  const counts: Record<string, number> = {}
-  const remember = (name: string, result: { count: number }) => { counts[name] = result.count }
+  const counts = await db.$transaction(async (tx) => {
+    const counts: Record<string, number> = {}
+    const remember = (name: string, result: { count: number }) => { counts[name] = result.count }
+    const programId = program?.id || '__none__'
+    const userId = student?.id || '__none__'
 
-  remember('contactMessages', await db.contactMessage.deleteMany({ where: { subject: contactSubject } }))
-  remember('emailLogs', await db.emailLog.deleteMany({ where: { OR: [{ to: email }, { subject: { contains: stamp } }] } }))
-  remember('auditLogs', await db.auditLog.deleteMany({
-    where: {
-      OR: [
-        { details: { contains: stamp } },
-        student ? { actorId: student.id } : undefined,
-        program ? { entityId: program.id } : undefined,
-        admissionIds.length ? { entityId: { in: admissionIds } } : undefined,
-        paymentIds.length ? { entityId: { in: paymentIds } } : undefined,
-      ].filter(Boolean) as any[],
-    },
-  }))
-  remember('certificates', await db.certificate.deleteMany({
-    where: {
-      OR: [
-        student ? { userId: student.id } : undefined,
-        admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
-        enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
-        { holderName: { contains: stamp } },
-        { program: { contains: stamp } },
-      ].filter(Boolean) as any[],
-    },
-  }))
-  remember('payments', await db.payment.deleteMany({ where: { id: { in: paymentIds } } }))
-  remember('serviceDeliverables', await db.serviceDeliverable.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
-  remember('admissionDocuments', await db.admissionDocument.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
-  const appealWhere = [
-    admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
-    student ? { userId: student.id } : undefined,
-    program ? { programId: program.id } : undefined,
-    enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
-  ].filter(Boolean) as any[]
-  remember('tuitionInstallmentAppeals', await db.tuitionInstallmentAppeal.deleteMany({
-    where: appealWhere.length ? { OR: appealWhere } : { id: '__none__' },
-  }))
-  remember('thesisReviewNotes', await db.thesisReviewNote.deleteMany({ where: thesisIds.length ? { thesisId: { in: thesisIds } } : { id: '__none__' } }))
-  remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
-  remember('studentAcademicMemory', await db.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
-  remember('notifications', await db.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
-  remember('admissions', await db.admissionApplication.deleteMany({ where: { id: { in: admissionIds } } }))
-  remember('enrollments', await db.enrollment.deleteMany({ where: { id: { in: enrollmentIds } } }))
-  remember('student', await db.user.deleteMany({ where: { email } }))
-  remember('program', await db.program.deleteMany({ where: { slug } }))
+    remember('programAnswers', await tx.programAnswer.deleteMany({ where: { OR: [{ attempt: { userId } }, { question: { exam: { programId } } }] } }))
+    remember('programExamAttempts', await tx.programExamAttempt.deleteMany({ where: { OR: [{ userId }, { exam: { programId } }] } }))
+    remember('programQuestions', await tx.programQuestion.deleteMany({ where: { exam: { programId } } }))
+    remember('programExams', await tx.programExam.deleteMany({ where: { programId } }))
+    remember('assignmentSubmissions', await tx.assignmentSubmission.deleteMany({ where: { OR: [{ userId }, { assignment: { programId } }] } }))
+    remember('programAssignments', await tx.programAssignment.deleteMany({ where: { programId } }))
+    remember('unitAnswers', await tx.answer.deleteMany({ where: { OR: [{ attempt: { userId } }, { question: { exam: { unit: { programId } } } }] } }))
+    remember('unitExamAttempts', await tx.examAttempt.deleteMany({ where: { OR: [{ userId }, { exam: { unit: { programId } } }] } }))
+    remember('unitQuestions', await tx.question.deleteMany({ where: { exam: { unit: { programId } } } }))
+    remember('unitExams', await tx.exam.deleteMany({ where: { unit: { programId } } }))
+    remember('examDrafts', await tx.examDraft.deleteMany({ where: { userId } }))
+    remember('studyGuides', await tx.programStudyGuide.deleteMany({ where: { programId } }))
+    remember('questionBankItems', await tx.questionBankItem.deleteMany({ where: { programId } }))
+    remember('knowledgeItems', await tx.bookKnowledgeItem.deleteMany({ where: { programId } }))
+    remember('bookUploadChunks', await tx.bookUploadChunk.deleteMany({ where: { book: { programId } } }))
+    remember('books', await tx.book.deleteMany({ where: { programId } }))
+    remember('units', await tx.unit.deleteMany({ where: { programId } }))
+    remember('thesisTopics', await tx.thesisTopic.deleteMany({ where: { programId } }))
+    remember('microCredentials', await tx.microCredential.deleteMany({ where: { programId } }))
+
+    remember('contactMessages', await tx.contactMessage.deleteMany({ where: { subject: contactSubject } }))
+    remember('emailLogs', await tx.emailLog.deleteMany({ where: { OR: [{ to: email }, { subject: { contains: stamp } }] } }))
+    remember('auditLogs', await tx.auditLog.deleteMany({
+      where: {
+        OR: [
+          { details: { contains: stamp } },
+          student ? { actorId: student.id } : undefined,
+          program ? { entityId: program.id } : undefined,
+          admissionIds.length ? { entityId: { in: admissionIds } } : undefined,
+          paymentIds.length ? { entityId: { in: paymentIds } } : undefined,
+        ].filter(Boolean) as any[],
+      },
+    }))
+    remember('certificates', await tx.certificate.deleteMany({
+      where: {
+        OR: [
+          student ? { userId: student.id } : undefined,
+          admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+          enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+          { holderName: { contains: stamp } },
+          { program: { contains: stamp } },
+        ].filter(Boolean) as any[],
+      },
+    }))
+    remember('payments', await tx.payment.deleteMany({ where: { id: { in: paymentIds } } }))
+    remember('serviceDeliverables', await tx.serviceDeliverable.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
+    remember('admissionDocuments', await tx.admissionDocument.deleteMany({ where: admissionIds.length ? { admissionId: { in: admissionIds } } : { id: '__none__' } }))
+    const appealWhere = [
+      admissionIds.length ? { admissionId: { in: admissionIds } } : undefined,
+      student ? { userId: student.id } : undefined,
+      program ? { programId: program.id } : undefined,
+      enrollmentIds.length ? { enrollmentId: { in: enrollmentIds } } : undefined,
+    ].filter(Boolean) as any[]
+    remember('tuitionInstallmentAppeals', await tx.tuitionInstallmentAppeal.deleteMany({
+      where: appealWhere.length ? { OR: appealWhere } : { id: '__none__' },
+    }))
+    remember('thesisReviewNotes', await tx.thesisReviewNote.deleteMany({ where: thesisIds.length ? { thesisId: { in: thesisIds } } : { id: '__none__' } }))
+    remember('theses', await tx.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
+    remember('studentAcademicMemory', await tx.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+    remember('notifications', await tx.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+    remember('admissions', await tx.admissionApplication.deleteMany({ where: { id: { in: admissionIds } } }))
+    remember('enrollments', await tx.enrollment.deleteMany({ where: { id: { in: enrollmentIds } } }))
+    remember('student', await tx.user.deleteMany({ where: { email } }))
+    remember('program', await tx.program.deleteMany({ where: { slug } }))
+    return counts
+  })
 
   return {
     stamp,
