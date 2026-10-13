@@ -970,7 +970,7 @@ export async function platformPublicAgentComplete(opts: {
     const started = Date.now()
     const providerDeadlineMs = Date.now() + Math.min(20_000, Math.max(1_000, remainingDeadlineMs(opts.deadlineMs, 20_000)))
     try {
-      const reply = await textAiComplete({
+      const reply = await completeText({
         system,
         history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
         temperature: 0.35,
