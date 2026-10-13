@@ -23,7 +23,11 @@ import {
   type WhatsAppInboundMessage,
 } from '@/lib/whatsapp-cloud'
 import {
+  claimWhatsAppBotReply,
+  failWhatsAppBotReply,
+  finalizeWhatsAppBotReply,
   isWhatsAppConversationHumanActive,
+  isWhatsAppOutboundEcho,
   markWhatsAppConversationRequested,
   recordWhatsAppInboundMessage,
   recordWhatsAppOutboundMessage,
