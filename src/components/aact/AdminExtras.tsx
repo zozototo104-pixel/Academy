@@ -423,6 +423,11 @@ export function AdminThesisTab() {
                         )}
                         {/* 12.3: محضر الجلسة والتسجيل المؤرشف */}
                         <div className="mt-2 flex flex-wrap gap-2">
+                          {(t.fileUrl || t.downloadUrl) && (
+                            <a href={t.fileUrl || t.downloadUrl || '#'} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-[#0f2b46]/20 bg-white/70 px-2 text-[10px] font-black text-[#0f2b46] hover:bg-slate-50">
+                              <FileSignature className="ml-1 h-3 w-3" /> فتح ملف البحث
+                            </a>
+                          )}
                           {t.defenseMinutes && (
                             <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
                               <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة التلقائي
