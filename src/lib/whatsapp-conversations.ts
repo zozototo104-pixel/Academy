@@ -113,6 +113,7 @@ export async function recordWhatsAppOutboundMessage(args: {
   text: string
   sender: OutboundSender
   whatsappMessageId?: string | null
+  replyForMessageId?: string | null
   sentById?: string | null
   sentByName?: string | null
   status?: string | null
