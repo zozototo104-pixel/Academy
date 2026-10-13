@@ -762,27 +762,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  // A substantive question gets one answer; do not pre-send a separate greeting.
-  const greetingDecision = { ok: false }
-  if (greetingDecision.ok) {
-    try {
-      const greetingText = buildOfficialWhatsAppImmediateGreeting(inboundMessage)
-      const greetingSend = await sendOfficialWhatsAppText(inboundMessage.from, greetingText, {
-        phoneNumberId: inboundMessage.phoneNumberId,
-        replyToMessageId: inboundMessage.id,
-      })
-      await recordWhatsAppOutboundMessage({
-        waId: inboundMessage.from,
-        phoneNumberId: inboundMessage.phoneNumberId,
-        text: greetingText,
-        sender: 'BOT',
-        whatsappMessageId: greetingSend?.messages?.[0]?.id || null,
-      }).catch(() => {})
-      await markImmediateGreetingSent(greetingDecision.key, inboundMessage.from, inboundMessage.id)
-    } catch (greetingError: any) {
-      console.warn('official WhatsApp immediate greeting failed:', String(greetingError?.message || greetingError || 'failed').slice(0, 220))
-    }
-  }
+  // A substantive question gets one answer; simple greetings are handled above.
 
   const stopTypingRefresh = keepTypingIndicatorAlive(
     inboundMessage,
