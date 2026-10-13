@@ -26,6 +26,8 @@ function testCentralCompletionOnly() {
   assert(central.includes('createProgramCompletionCertificateWithRetry'), 'central completion must retry certificate creation on unique serial conflicts')
   const programSubmit = file('src/app/api/program-exam/submit/route.ts')
   assert(programSubmit.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'program exam submit must also delegate eligible completion to the central service')
+  assert(programSubmit.includes("return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })"), 'program exam submit must return 400 for malformed JSON')
+  assert(submit.includes("return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })"), 'unit exam submit must return 400 for malformed JSON')
 }
 
 function testEligibilityRequiresAllAcademicAndFinancialInputs() {
