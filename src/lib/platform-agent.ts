@@ -1193,6 +1193,7 @@ export async function platformAgentStream(opts: {
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
       })) {
+        if (Date.now() >= providerDeadlineMs) throw new Error('Gemini platform agent stream timed out')
         const chunk = String(rawChunk || '')
         const delta = chunk.startsWith(reply) ? chunk.slice(reply.length) : chunk
         if (!delta) continue
