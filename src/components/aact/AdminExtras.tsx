@@ -624,7 +624,7 @@ export function AdminThesisTab() {
           )}
           {minutesThesis?.recordingSize && (
             <video
-              src={`/api/admin/defense-recording?thesisId=${minutesThesis.id}`}
+              src={minutesThesis.recordingUrl || `/api/admin/defense-recording?thesisId=${minutesThesis.id}`}
               controls
               className="w-full rounded-xl border"
             />
