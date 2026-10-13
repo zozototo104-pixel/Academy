@@ -473,7 +473,7 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
     return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
   }
 
-  const directReply = await resolveWhatsAppDirectSettingsReply(message.text).catch(() => null)
+  const directReply = await resolveWhatsAppDirectSettingsReply(message.text, undefined, { from: message.from }).catch(() => null)
   if (directReply) return directReply
 
   const messages = await recentWhatsAppAgentMessages(message)
