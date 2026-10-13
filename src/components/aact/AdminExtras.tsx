@@ -3003,14 +3003,16 @@ export function AdminWhatsAppFailuresTab() {
   const { toast } = useToast()
   const [rows, setRows] = useState<WhatsAppFailureRow[]>([])
   const [loading, setLoading] = useState(true)
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     api<{ failures: WhatsAppFailureRow[] }>('/api/admin/whatsapp-failures')
       .then((d) => setRows(Array.isArray(d.failures) ? d.failures : []))
       .catch((e) => toast({ title: 'تعذر تحميل إخفاقات الواتساب', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  }, [toast])
+  useEffect(() => {
+    void load()
+  }, [load])
   return (
     <Card className="mt-4 border-red-100 bg-white/95">
       <CardContent className="space-y-4 p-4 sm:p-6">
