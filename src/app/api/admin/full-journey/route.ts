@@ -958,6 +958,12 @@ export async function DELETE(req: NextRequest) {
 
 export async function POST() {
   try {
+    if (!qaProdFixturesAllowed()) {
+      return NextResponse.json(
+        { ok: false, error: 'QA fixtures are blocked in production unless QA_ALLOW_PROD_FIXTURES=true is set.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
     const adminUser = await requireAdmin()
     const admin = { id: adminUser.id, name: adminUser.name || 'QA Admin' }
     const stamp = runStamp()
