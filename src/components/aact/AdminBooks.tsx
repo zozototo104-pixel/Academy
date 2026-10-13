@@ -2507,7 +2507,7 @@ export function AdminBooksTab() {
                               {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
                               {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
                               {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
-                              {job.status === 'FAILED' && job.chunksFailed > 0 && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => retryFailedBookChunks(b.id)}>إعادة المحاولة للمقاطع الفاشلة</Button>}
+                              {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
                             </div>
                           })()}
                         </div>
