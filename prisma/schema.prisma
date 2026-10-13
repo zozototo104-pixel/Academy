@@ -248,7 +248,7 @@ model ExamAttempt {
   aiGraded    Boolean   @default(false)
   submittedAt DateTime  @default(now())
   createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   answers     Answer[]
 }
 
