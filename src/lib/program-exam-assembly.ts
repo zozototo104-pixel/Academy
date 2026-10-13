@@ -13,7 +13,7 @@ const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
 type ExamUnit = { id: string; title: string; semester: number; sourceBookId: string | null; chunkStartIndex: number | null; chunkEndIndex: number | null }
 type Candidate = { item: QuestionBankItem; unitId: string; unitTitle: string; sourceBookTitle: string; sourceChapter: string; sourceLocator: string }
 type UnitSource = { id: string; bookId: string | null; chunkText: string }
-type UnitPool = { unit: ExamUnit; candidates: Candidate[]; sources: UnitSource[]; scopeReady: boolean }
+type UnitPool = { unit: ExamUnit; candidates: Candidate[]; sources: UnitSource[]; scopeReady: boolean; pendingReviewCount: number }
 
 function array(value: string | null | undefined): string[] {
   try { const parsed: unknown = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] }
@@ -37,7 +37,7 @@ function verificationAccepted(item: QuestionBankItem) {
 }
 function qualified(item: QuestionBankItem, source: { excerpt: string | null; bookId: string | null; chunkText: string }) {
   if (!item.knowledgeItemId || !source.bookId || item.bookId !== source.bookId || item.generatedBy !== 'AI') return false
-  if (!['APPROVED', 'PENDING_REVIEW'].includes(item.status) || !array(item.qualityFlags).includes('SOURCE_GROUNDED')) return false
+  if (item.status !== 'APPROVED' || !array(item.qualityFlags).includes('SOURCE_GROUNDED')) return false
   if (!verificationAccepted(item) || !item.sourceEvidence || !item.sourceLocator || !item.correctRationale) return false
   if (!SKILLS.has(item.cognitiveSkill || '') || !DIFFICULTIES.has(item.difficulty || '')) return false
   if (!TYPES.includes(item.type as ExamQuestionType) || !item.text?.trim()) return false
@@ -57,20 +57,23 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; boo
 
 async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<UnitPool[]> {
   return Promise.all(units.map(async (unit) => {
-    if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) return { unit, candidates: [], sources: [], scopeReady: false }
+    if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) return { unit, candidates: [], sources: [], scopeReady: false, pendingReviewCount: 0 }
     const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true, text: true } })
-    if (!chunks.length) return { unit, candidates: [], sources: [], scopeReady: false }
+    if (!chunks.length) return { unit, candidates: [], sources: [], scopeReady: false, pendingReviewCount: 0 }
     const chunkTextById = new Map(chunks.map((chunk) => [chunk.id, chunk.text]))
     const sources = await db.bookKnowledgeItem.findMany({
       where: { programId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
       select: { id: true, bookId: true, chunkId: true, excerpt: true, title: true, pageStart: true, pageEnd: true },
     })
-    if (!sources.length) return { unit, candidates: [], sources: [], scopeReady: false }
+    if (!sources.length) return { unit, candidates: [], sources: [], scopeReady: false, pendingReviewCount: 0 }
     const sourceMap = new Map(sources.map((source) => [source.id, source]))
     const titles = await db.book.findMany({ where: { id: { in: [...new Set(sources.map((s) => s.bookId).filter((id): id is string => Boolean(id)))] } }, select: { id: true, title: true } })
     const bookTitles = new Map(titles.map((book) => [book.id, book.title]))
+    const pendingReviewCount = await db.questionBankItem.count({
+      where: { programId, knowledgeItemId: { in: sources.map((source) => source.id) }, status: 'PENDING_REVIEW' },
+    })
     const questions = await db.questionBankItem.findMany({
-      where: { programId, knowledgeItemId: { in: sources.map((source) => source.id) }, status: { in: ['APPROVED', 'PENDING_REVIEW'] }, qualityFlags: { contains: 'SOURCE_GROUNDED' } },
+      where: { programId, knowledgeItemId: { in: sources.map((source) => source.id) }, status: 'APPROVED', qualityFlags: { contains: 'SOURCE_GROUNDED' } },
       orderBy: [{ usageCount: 'asc' }, { createdAt: 'desc' }],
       take: 600,
     })
@@ -85,7 +88,7 @@ async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<Unit
         sourceLocator: [item.sourceLocator, source.pageStart ? `ص ${source.pageStart}${source.pageEnd && source.pageEnd !== source.pageStart ? `–${source.pageEnd}` : ''}` : ''].filter(Boolean).join(' — '),
       })
     }
-    return { unit, candidates, sources: sources.map((source) => ({ id: source.id, bookId: source.bookId, chunkText: chunkTextById.get(source.chunkId || '') || '' })), scopeReady: true }
+    return { unit, candidates, sources: sources.map((source) => ({ id: source.id, bookId: source.bookId, chunkText: chunkTextById.get(source.chunkId || '') || '' })), scopeReady: true, pendingReviewCount }
   }))
 }
 
@@ -118,6 +121,8 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
   if (!units.length) throw new Error('EXAM_UNITS_REQUIRED')
   const pools = await loadUnitPools(exam.programId, units)
   const eligible = pools.flatMap((pool) => pool.candidates)
+  const pendingReviewTotal = await db.questionBankItem.count({ where: { programId: exam.programId, status: 'PENDING_REVIEW' } })
+  const pendingReviewNote = `في ${pendingReviewTotal} أسئلة بانتظار المراجعة.`
   const minTypes = distribution(exam.program.category)
   const knowledgeUnits = new Map<string, string>()
   for (const candidate of eligible) if (candidate.item.knowledgeItemId) knowledgeUnits.set(candidate.item.knowledgeItemId, candidate.unitId)
@@ -182,7 +187,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
     const status = complete ? 'REVIEW' : blockedByLegacy ? 'PAUSED' : 'GENERATING'
     const note = complete ? null : blockedByLegacy
       ? `تم حفظ ${questionCount} سؤالًا، لكن ${legacyUnverified} من الأسئلة القديمة لا يمكن مطابقة دليلها حرفيًا مع الكتب وبنك المعرفة V2. راجعها أو ارفض غير الموثق منها ثم استكمل، دون حذف تلقائي.`
-      : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
+      : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال معتمد؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pendingReviewNote} ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
     const points = active.reduce((total, q) => total + q.points, 0) + taken.length * 2
     await tx.programExam.update({ where: { id: examId }, data: { status, errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
     return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
