@@ -52,6 +52,7 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
 
 // POST /api/exam/submit — تسليم الاختبار والتصحيح الآلي وفق مفتاح الإجابة، وبالذكاء للأسئلة المقالية فقط
 export async function POST(req: NextRequest) {
+  let claimedUnitAttemptId: string | null = null
   try {
     const user = await requireUser()
     const declaredLength = req.headers.get('content-length')
