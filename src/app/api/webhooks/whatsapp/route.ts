@@ -739,7 +739,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 
   let reply = ''
   try {
-    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
+    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound, deadlineMs), Math.max(1_000, deadlineMs - Date.now()), 'whatsapp_reply_generation')
   } finally {
     stopTypingRefresh()
   }
