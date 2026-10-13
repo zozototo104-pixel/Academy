@@ -292,8 +292,10 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
         const fallbackMessage = res.status === 403
           ? 'رفض الخادم الطلب 403. أعد تسجيل الدخول كإدارة، ثم جرّب مرة أخرى.'
           : `HTTP ${res.status}`
-        const err = new Error(data?.error || fallbackMessage) as Error & { data?: any }
+        const err = new Error(data?.error || fallbackMessage) as ApiError
         err.data = data
+        err.status = res.status
+        err.code = data?.code ? String(data.code) : undefined
         throw err
       }
       return data as T
