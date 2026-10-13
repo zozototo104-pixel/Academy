@@ -2,7 +2,7 @@ import type { QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { validateLiteralEvidence } from '@/lib/evidence-validator'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
-import { ensureQuestionBankGenerationJob } from '@/lib/question-bank-job'
+import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
 
 export const PROGRAM_EXAM_TARGET = 80
 export type ExamQuestionType = 'MCQ' | 'TF' | 'SHORT' | 'ESSAY'
