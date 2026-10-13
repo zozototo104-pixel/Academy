@@ -1136,7 +1136,7 @@ export async function platformAgentStream(opts: {
     }
   }
 
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
     const reply = await buildHumanSupportReply()
     await emit(reply)
