@@ -10,7 +10,7 @@ export const maxDuration = 30
 
 const SIGNED_URL_TTL_SECONDS = 5 * 60
 
-type RouteContext = { params: Promise<{ key?: string[] }> }
+type RouteContext = { params: { key?: string[] } | Promise<{ key?: string[] }> }
 
 function sameEmail(a: unknown, b: unknown) {
   const aa = String(a || '').trim().toLowerCase()
