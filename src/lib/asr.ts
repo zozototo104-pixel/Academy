@@ -1,4 +1,9 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai'
+import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { promises as fs } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { getZAI } from '@/lib/ai'
 
 type TranscribeAudioOptions = {
