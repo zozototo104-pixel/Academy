@@ -995,29 +995,10 @@ export async function platformPublicAgentComplete(opts: {
 
   if (isWhatsApp) {
     try {
-      return await runWhatsAppRouter()
-    } catch (firstError: any) {
-      const diag = await diagnostics().catch(() => null)
-      const failedProvider = String(diag?.lastResult?.provider || '').toUpperCase() as TextAiProvider
-      const remainingMs = remainingDeadlineMs(opts.deadlineMs, 20_000)
-      const hasHealthyAlternate = failedProvider && failedProvider !== 'AUTO'
-        ? await getProviderHealth().then((rows) => rows.some((row) => {
-            const provider = String(row.provider || '').toUpperCase()
-            if (!provider || provider === failedProvider || provider === 'AUTO') return false
-            const status = String(row.status || '').trim()
-            const healthOk = row.health ? row.health.ok === true : status === 'شغّال'
-            return healthOk && status !== 'ميت' && status !== 'فشل الفحص'
-          })).catch(() => false)
-        : false
-      const canRetry = Boolean(failedProvider && failedProvider !== 'AUTO' && remainingMs > 2_500 && hasHealthyAlternate)
-      if (canRetry) {
-        try {
-          return await runWhatsAppRouter([failedProvider])
-        } catch (secondError: any) {
-          console.error('WhatsApp public router fallback provider failed:', String(secondError?.message || secondError).slice(0, 400))
-        }
-      }
-      console.error('WhatsApp public router failed:', String(firstError?.message || firstError).slice(0, 400))
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
+    } catch (e: any) {
+      console.error('Gemini public WhatsApp agent failed:', String(e?.message || e).slice(0, 400))
     }
   }
 
