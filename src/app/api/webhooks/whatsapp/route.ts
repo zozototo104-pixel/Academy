@@ -445,7 +445,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
   }
 }
 
-async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string) {
+async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string, meta: Record<string, any> = {}) {
   const sendResult = await sendOfficialWhatsAppText(message.from, WHATSAPP_AI_FALLBACK_REPLY, {
     phoneNumberId: message.phoneNumberId,
     replyToMessageId: message.id,
