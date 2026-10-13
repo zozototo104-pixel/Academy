@@ -45,7 +45,9 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; sum
     const options = array(item.options)
     const correct = Number(item.correctAnswer)
     if (!Number.isInteger(correct) || correct < 0 || correct >= options.length || (item.type === 'MCQ' && options.length < 3) || (item.type === 'TF' && options.length !== 2)) return false
-    try { const reasons: unknown = JSON.parse(item.distractorRationales || '[]'); if (!Array.isArray(reasons) || !reasons.length) return false } catch { return false }
+    if (item.type === 'MCQ') {
+      try { const reasons: unknown = JSON.parse(item.distractorRationales || '[]'); if (!Array.isArray(reasons) || !reasons.length) return false } catch { return false }
+    }
   } else if (!item.modelAnswer?.trim()) return false
   return true
 }
