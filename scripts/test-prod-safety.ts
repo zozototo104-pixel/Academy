@@ -126,15 +126,15 @@ function testWhatsAppUnsignedWebhookProductionBlock() {
 
 function testDependencyPins() {
   const pkg = JSON.parse(file('package.json'))
-  assert(pkg.dependencies.next === '^16.3.4', 'Next.js dependency must be updated')
-  assert(pkg.dependencies.react === '^19.2.8', 'React dependency must be updated')
-  assert(pkg.dependencies['react-dom'] === '^19.2.8', 'React DOM dependency must be updated')
-  assert(pkg.devDependencies['eslint-config-next'] === '^16.3.4', 'eslint-config-next must match Next.js patch')
+  assert(pkg.dependencies.next === '^16.4.0', 'Next.js dependency must be updated')
+  assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
+  assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
 
   const lock = file('bun.lock')
-  assert(lock.includes('"next": "^16.3.4"'), 'bun.lock workspace dependency must include updated Next.js range')
-  assert(lock.includes('"react": "^19.2.8"'), 'bun.lock workspace dependency must include updated React range')
-  assert(lock.includes('"react-dom": "^19.2.8"'), 'bun.lock workspace dependency must include updated React DOM range')
+  assert(lock.includes('"next": "^16.4.0"'), 'bun.lock workspace dependency must include updated Next.js range')
+  assert(lock.includes('"react": "^19.3.0"'), 'bun.lock workspace dependency must include updated React range')
+  assert(lock.includes('"react-dom": "^19.3.0"'), 'bun.lock workspace dependency must include updated React DOM range')
 }
 
 testProductionFixtureGuards()
