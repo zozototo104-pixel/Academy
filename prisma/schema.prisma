@@ -875,7 +875,7 @@ model ThesisSubmission {
   committee   String?  // JSON array أسماء أعضاء اللجنة
   agentMember String?  // عضو من الوكيل الدولي (مقابل 100$)
   // المناقشة عبر الفيديو كونفرنس على المنصة مع خبير الذكاء الاصطناعي
-  defenseStatus    String? // IN_PROGRESS | COMPLETED
+  defenseStatus    String? // IN_PROGRESS | NEEDS_REVIEW | COMPLETED
   aiScore          Float?  // تقييم خبير الذكاء الاصطناعي 0-100
   aiRecommendation String? // توصية خبير الذكاء الاصطناعي للجنة
   defenseCompletedAt DateTime?
