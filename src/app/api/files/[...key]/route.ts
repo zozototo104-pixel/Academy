@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { createSignedStorageUrlForKey, readStoredFile, verifyLocalStorageDownloadSignature } from '@/lib/storage'
+import { createSignedStorageUrlForKey, readStoredFile, signLocalStorageDownloadPath, verifyLocalStorageDownloadSignature } from '@/lib/storage'
 import { isPrivateStorageKey, normalizeStorageKeyForPolicy } from '@/lib/prod-safety'
 
 export const runtime = 'nodejs'
