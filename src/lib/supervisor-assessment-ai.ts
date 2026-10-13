@@ -117,6 +117,7 @@ export async function generateSupervisorQuestions(opts: {
     }),
   ])
   const level = opts.levelLabel || (program?.category === 'DOCTORATE' ? 'دكتوراه مهنية' : program?.category === 'MASTERS' ? 'ماجستير مهني' : program?.category === 'DIPLOMA' ? 'دبلوم مهني' : 'برنامج مهني')
+  void level
   const specialty = opts.specialty || program?.titleAr || 'تخصص الطالب'
   const cleanKnowledge = knowledge.map((k: any) => ({
     ...k,
