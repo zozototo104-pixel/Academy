@@ -123,8 +123,23 @@ async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) 
 }
 
 async function nextCertificateSerial(tx: Tx) {
-  const count = await tx.certificate.count()
-  return `AACT-C-${new Date().getFullYear()}-${pad(count + 1, 5)}`
+  const rows = await tx.$queryRaw<Array<{ value: bigint | number }>>`SELECT nextval('"Certificate_serial_seq"') AS value`
+  const next = Number(rows[0]?.value || 0)
+  if (!Number.isFinite(next) || next <= 0) throw new Error('CERTIFICATE_SERIAL_SEQUENCE_UNAVAILABLE')
+  return `AACT-C-${new Date().getFullYear()}-${pad(next, 5)}`
+}
+
+async function createProgramCompletionCertificateWithRetry(tx: Tx, data: Parameters<Tx['certificate']['create']>[0]['data']) {
+  let lastError: unknown
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await tx.certificate.create({ data: { ...data, serial: await nextCertificateSerial(tx) } })
+    } catch (error: any) {
+      lastError = error
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && String(error.meta?.target || '').includes('serial'))) throw error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('CERTIFICATE_SERIAL_UNIQUE_RETRY_EXHAUSTED')
 }
 
 export async function completeEnrollmentIfEligible(input: CompleteEnrollmentInput): Promise<CompleteEnrollmentResult> {
