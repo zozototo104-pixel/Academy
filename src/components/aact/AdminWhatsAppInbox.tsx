@@ -230,7 +230,7 @@ export function AdminWhatsAppInboxTab() {
               ) : conversations.length ? conversations.map((c) => (
                 <button key={c.id} onClick={() => setSelectedId(c.id)} className={`w-full rounded-3xl border p-3 text-right transition ${selectedId === c.id ? 'border-[#0f2b46] bg-[#0f2b46] text-white' : 'border-slate-100 bg-slate-50 hover:bg-white'}`}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-black">{c.displayName || c.phoneMasked}</span>
+                    <span className="min-w-0 text-sm font-black"><span className="block truncate">{c.displayName || c.phoneNumber || c.phoneMasked}</span><span className="block text-[11px] font-bold opacity-80" dir="ltr">{c.phoneNumber || c.phoneMasked}</span></span>
                     <Badge className={`${statusTone(c.status)} border text-[10px]`}>{statusLabel[c.status]}</Badge>
                   </div>
                   <p className={`mt-1 line-clamp-2 text-xs font-bold ${selectedId === c.id ? 'text-blue-100' : 'text-slate-500'}`}>{c.lastMessageText || 'لا توجد رسائل محفوظة بعد'}</p>
