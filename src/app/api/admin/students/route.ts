@@ -11,6 +11,10 @@ function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max)
 }
 
+function isQaTestAccount(email: string | null | undefined) {
+  return String(email || '').trim().toLowerCase().endsWith('@aact.test')
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
