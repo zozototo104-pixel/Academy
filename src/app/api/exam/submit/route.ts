@@ -345,45 +345,10 @@ export async function POST(req: NextRequest) {
     })
     claimedUnitAttemptId = null
 
-    // إذا نجح في كل اختبارات البرنامج وحدد الوحدات → إصدار رقم شهادة
-    let certificateNo: string | null = null
-    const programUnits = await db.unit.count({ where: { programId: exam.unit.programId } })
-    const completed: string[] = JSON.parse(enrollment.completedUnits || '[]')
-    if (passed && programUnits > 0 && completed.length >= programUnits) {
-      if (!enrollment.certificateNo) {
-        certificateNo = `AACT-${new Date().getFullYear()}-${exam.unit.program.slug.toUpperCase().slice(0, 6)}-${attempt.id.slice(-6).toUpperCase()}`
-        const programExams = await db.exam.findMany({
-          where: { unit: { programId: exam.unit.programId } },
-          select: { id: true },
-        })
-        const bestScores = await db.examAttempt.findMany({
-          where: { userId: user.id, examId: { in: programExams.map((e) => e.id) }, passed: true },
-          orderBy: { score: 'desc' },
-        })
-        // أفضل درجة لكل امتحان (لا مجموع المحاولات — يمنع تضخيم المتوسط بالتكرار)
-        const bestByExam: Record<string, number> = {}
-        for (const b of bestScores) {
-          if (b.examId && b.score !== null && (!(b.examId in bestByExam) || b.score > bestByExam[b.examId])) {
-            bestByExam[b.examId] = b.score
-          }
-        }
-        const passedExams = new Set(Object.keys(bestByExam))
-        const allPassed = programExams.every((e) => passedExams.has(e.id))
-        if (allPassed) {
-          const avg = Math.round(
-            programExams.reduce((s, e) => s + (bestByExam[e.id] || 0), 0) / programExams.length
-          )
-          await db.enrollment.update({
-            where: { id: enrollment.id },
-            data: { status: 'COMPLETED', finalScore: avg, certificateNo },
-          })
-        } else {
-          certificateNo = null
-        }
-      } else {
-        certificateNo = enrollment.certificateNo
-      }
-    }
+    const completion = passed
+      ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+      : null
+    const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
 
     return NextResponse.json({
       ok: true,
