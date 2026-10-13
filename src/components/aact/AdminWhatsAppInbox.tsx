@@ -254,7 +254,8 @@ export function AdminWhatsAppInboxTab() {
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                     <div className="min-w-0">
-                      <p className="truncate text-base font-black">{activeConversation.displayName || activeConversation.phoneMasked}</p>
+                      <p className="truncate text-base font-black">{activeConversation.displayName || activeConversation.phoneNumber || activeConversation.phoneMasked}</p>
+                      <p className="truncate text-xs font-bold text-emerald-100" dir="ltr">{activeConversation.phoneNumber || activeConversation.phoneMasked}</p>
                       <p className="truncate text-[11px] font-bold text-emerald-100">{statusLabel[activeConversation.status]} {activeConversation.assignedToName ? `— ${activeConversation.assignedToName}` : ''}</p>
                     </div>
                   </div>
