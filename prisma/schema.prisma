@@ -845,7 +845,7 @@ model WhatsAppInboundEvent {
 model ThesisSubmission {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   admissionId String?
   admission   AdmissionApplication? @relation(fields: [admissionId], references: [id])
   title       String
