@@ -54,6 +54,9 @@ function testQuestionVerifierUsesOriginalBookChunk() {
   assert(job.includes('originalChunkPageStart'), 'verifier source must include page metadata')
   assert(job.includes('db.bookChunk.findMany'), 'question-bank job must fetch original BookChunk rows')
   assert(job.includes('text: verifierSourceText(item)'), 'question verifier must receive original chunk source text')
+  assert(job.includes("if (!original) return ''"), 'question verifier must not fall back to excerpt/summary when original BookChunk is missing')
+  assert(job.includes("verificationReason: 'لا يوجد مقطع أصلي'"), 'questions without original BookChunk must remain pending review with an explicit reason')
+  assert(job.includes("ORIGINAL_CHUNK_MISSING"), 'missing original BookChunk questions must be flagged for human review')
 
   const verifier = file('src/lib/question-verifier.ts')
   const literalEvidence = file('src/lib/evidence-validator.ts')
