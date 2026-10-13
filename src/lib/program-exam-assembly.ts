@@ -77,7 +77,7 @@ async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<Unit
     const candidates: Candidate[] = []
     for (const item of questions) {
       const source = sourceMap.get(item.knowledgeItemId || '')
-      if (!source || !qualified(item, source)) continue
+      if (!source || !qualified(item, { ...source, chunkText: chunkTextById.get(source.chunkId || '') || '' })) continue
       candidates.push({
         item, unitId: unit.id, unitTitle: unit.title,
         sourceBookTitle: bookTitles.get(source.bookId || '') || item.sourceBookTitle || '',
