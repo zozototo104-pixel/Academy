@@ -104,7 +104,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
   const allowed = await canAccessStorageKey(key, user)
   if (!allowed) return NextResponse.json({ error: 'غير مصرح لك بالوصول إلى هذا الملف' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
 
-  const signedUrl = createSignedStorageUrlForKey(key, SIGNED_URL_TTL_SECONDS)
+  const legacyLocal = await readStoredFile({ provider: 'local', key })
+  const signedUrl = legacyLocal
+    ? signLocalStorageDownloadPath(key, Date.now() + SIGNED_URL_TTL_SECONDS * 1000)
+    : createSignedStorageUrlForKey(key, SIGNED_URL_TTL_SECONDS)
   if (!signedUrl) return NextResponse.json({ error: 'تعذر إنشاء رابط تحميل آمن' }, { status: 500, headers: { 'Cache-Control': 'no-store' } })
 
   const expiresAt = new Date(Date.now() + SIGNED_URL_TTL_SECONDS * 1000).toISOString()
