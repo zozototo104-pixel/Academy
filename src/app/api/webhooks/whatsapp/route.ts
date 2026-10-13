@@ -707,7 +707,8 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 
   if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
     await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, SIMPLE_WHATSAPP_GREETING_REPLY, {
+    const greetingReply = simpleWhatsAppGreetingReply(inboundMessage.text)
+    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, greetingReply, {
       phoneNumberId: inboundMessage.phoneNumberId,
       replyToMessageId: inboundMessage.id,
     })
