@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
         where: { id: startedAttempt.id },
         data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
       })
-      return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
+      return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', attemptId: startedAttempt.id }, { status: 409 })
     }
     const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
 
