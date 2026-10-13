@@ -90,6 +90,9 @@ function testPrivateStoragePolicy() {
   assert(privateMigration.includes('executed: execute'), 'private file migration must default to dry-run and report execute mode')
   assert(privateMigration.includes("public', 'uploads"), 'private file migration must inspect legacy public/uploads files')
   assert(privateMigration.includes("private-uploads"), 'private file migration must copy into private storage')
+  assert(privateMigration.includes('storage-key-updated'), 'private file migration must update database storage keys after execute')
+  assert(privateMigration.includes('would-update-storage-key'), 'private file migration dry-run must report pending storage key backfills')
+  assert(privateMigration.includes('ServiceDeliverable'), 'private file migration must cover service deliverables')
 
   const adminAdmissions = file('src/app/api/admin/admissions/route.ts')
   assert(adminAdmissions.includes('getStorageDownloadPathForKey(file.storageKey)'), 'admin admission documents must expose protected file URLs')
