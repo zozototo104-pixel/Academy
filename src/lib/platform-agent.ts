@@ -899,9 +899,11 @@ export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
+  deadlineMs?: number
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC' })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC', deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
