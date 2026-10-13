@@ -54,7 +54,7 @@ async function testFinalGradeBehaviorWithMockData() {
 
   const barelyFailingGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
   const barelyFailingFinalExam = barelyFailingGrade.components.find((component) => component.key === 'final_exam')
-  assert(barelyFailingFinalExam?.score === 50.96, 'اختبار 50.96 يجب أن يبقى خاماً داخل مكوّن الاختبار النهائي بدون تقريب للقرار')
+  assert(typeof barelyFailingFinalExam?.score === 'number' && Math.abs(barelyFailingFinalExam.score - 50.96) < 0.001 && barelyFailingFinalExam.score < 51, 'اختبار 50.96 يجب أن يبقى خاماً داخل مكوّن الاختبار النهائي بدون تقريب للقرار')
   const barelyFailing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
   assert(!barelyFailing.ok, 'درجة 50.96 يجب ألا تنجح لأنها أقل من 51 خاماً')
 
