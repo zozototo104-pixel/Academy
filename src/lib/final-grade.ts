@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 
 export interface FinalGradeComponent {
@@ -15,8 +16,12 @@ export interface FinalGradeResult {
   missing: string[]
 }
 
-function round1(n: number) {
-  return Math.round(n * 10) / 10
+type DbClient = typeof db | Prisma.TransactionClient
+
+type ScoredAnswer = { points: number | null; maxPoints: number | null }
+
+function clampPercent(n: number) {
+  return Math.max(0, Math.min(100, n))
 }
 
 function avg(values: Array<number | null | undefined>) {
@@ -27,108 +32,169 @@ function avg(values: Array<number | null | undefined>) {
 
 function component(key: string, label: string, weight: number, score: number | null): FinalGradeComponent {
   const ready = typeof score === 'number' && Number.isFinite(score)
+  const rawScore = ready ? clampPercent(score) : null
   return {
     key,
     label,
     weight,
-    score: ready ? round1(Math.max(0, Math.min(100, score))) : null,
-    weighted: ready ? round1((Math.max(0, Math.min(100, score!)) * weight) / 100) : 0,
+    // Raw percentage: certification decisions compare this unrounded value.
+    score: rawScore,
+    weighted: rawScore == null ? 0 : (rawScore * weight) / 100,
     ready,
   }
 }
 
-async function unitQuizAverage(userId: string, programId: string, semester?: number) {
-  const rows = await db.examAttempt.findMany({
-    where: {
-      userId,
-      score: { not: null },
-      exam: { unit: { programId, ...(semester ? { semester } : {}) } },
-    },
-    select: { examId: true, score: true },
-    orderBy: { score: 'desc' },
+function percentFromAnswers(answers: ScoredAnswer[]) {
+  const max = answers.reduce((sum, answer) => sum + Math.max(0, Number(answer.maxPoints || 0)), 0)
+  if (max <= 0) return null
+  const points = answers.reduce((sum, answer) => sum + Math.max(0, Number(answer.points || 0)), 0)
+  return clampPercent((points / max) * 100)
+}
+
+function addMissing(missing: string[], label: string) {
+  if (!missing.includes(label)) missing.push(label)
+}
+
+async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
+  const exams = await client.exam.findMany({
+    where: { status: 'READY', unit: { programId, ...(semester ? { semester } : {}) } },
+    select: { id: true, title: true, passScore: true, unit: { select: { title: true } } },
+    orderBy: { unit: { order: 'asc' } },
   })
-  const best = new Map<string, number>()
-  for (const row of rows) {
-    if (!best.has(row.examId) && typeof row.score === 'number') best.set(row.examId, row.score)
+  if (!exams.length) {
+    addMissing(missing, semester ? `اختبارات وحدات الفصل ${semester}` : 'اختبارات الوحدات المطلوبة')
+    return null
   }
-  return avg([...best.values()])
-}
 
-async function semesterExamScore(userId: string, programId: string, semester?: number) {
-  const rows = await db.programExamAttempt.findMany({
-    where: {
-      userId,
-      score: { not: null },
-      exam: { programId, status: 'READY', ...(semester ? { semester } : {}) },
-    },
-    select: { score: true, finalScore: true, examId: true },
-    orderBy: [{ finalScore: 'desc' }, { score: 'desc' }],
-  })
-  const best = new Map<string, number>()
-  for (const row of rows) {
-    const score = typeof row.finalScore === 'number' ? row.finalScore : row.score
-    if (!best.has(row.examId) && typeof score === 'number') best.set(row.examId, score)
+  const bestScores: number[] = []
+  for (const exam of exams) {
+    const attempts = await client.examAttempt.findMany({
+      where: { userId, examId: exam.id, status: 'GRADED', passed: true },
+      select: { score: true, answers: { select: { points: true, maxPoints: true } } },
+    })
+    const best = avg(attempts.map((attempt) => percentFromAnswers(attempt.answers) ?? attempt.score))
+    if (best == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
+    else bestScores.push(best)
   }
-  return avg([...best.values()])
+  return bestScores.length === exams.length ? avg(bestScores) : null
 }
 
-async function assignmentAverage(userId: string, programId: string) {
-  const rows = await db.assignmentSubmission.findMany({
-    where: { userId, score: { not: null }, status: 'GRADED', assignment: { programId, status: 'PUBLISHED' } },
-    select: { score: true, assignment: { select: { points: true } } },
+async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
+  const exams = await client.programExam.findMany({
+    where: { programId, status: 'READY', ...(semester ? { semester } : {}) },
+    select: { id: true, title: true, semester: true, passScore: true },
+    orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
   })
-  return avg(rows.map((row) => {
-    if (typeof row.score !== 'number') return null
-    const points = Number(row.assignment.points || 0)
-    return points > 0 ? (row.score / points) * 100 : row.score
-  }))
+  if (!exams.length) {
+    addMissing(missing, semester ? `امتحان برنامج الفصل ${semester}` : 'امتحانات البرنامج المطلوبة')
+    return null
+  }
+
+  const bestScores: number[] = []
+  for (const exam of exams) {
+    const attempts = await client.programExamAttempt.findMany({
+      where: { userId, examId: exam.id, status: 'GRADED', passed: true, appealStatus: { not: 'PENDING' } },
+      select: { score: true, finalScore: true, answers: { select: { points: true, maxPoints: true } } },
+    })
+    const best = avg(attempts.map((attempt) => {
+      if (typeof attempt.finalScore === 'number') return attempt.finalScore
+      return percentFromAnswers(attempt.answers) ?? attempt.score
+    }))
+    if (best == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
+    else bestScores.push(best)
+  }
+  return bestScores.length === exams.length ? avg(bestScores) : null
 }
 
-async function thesisScores(userId: string, admissionId?: string | null) {
-  const thesis = await db.thesisSubmission.findFirst({
-    where: admissionId ? { admissionId } : { userId, resultScore: { not: null } },
+async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean) {
+  const assignments = await client.programAssignment.findMany({
+    where: { programId, status: 'PUBLISHED' },
+    select: { id: true, title: true, points: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (!assignments.length) {
+    if (requiredForGrade) addMissing(missing, 'الواجبات المنشورة المصححة')
+    return null
+  }
+
+  const scores: number[] = []
+  for (const assignment of assignments) {
+    const submission = await client.assignmentSubmission.findUnique({
+      where: { assignmentId_userId: { assignmentId: assignment.id, userId } },
+      select: { status: true, score: true },
+    })
+    if (!submission || submission.status !== 'GRADED' || typeof submission.score !== 'number') {
+      addMissing(missing, `واجب منشور غير مصحح: ${assignment.title}`)
+      continue
+    }
+    const points = Number(assignment.points || 0)
+    scores.push(points > 0 ? clampPercent((submission.score / points) * 100) : clampPercent(submission.score))
+  }
+  return scores.length === assignments.length ? avg(scores) : null
+}
+
+async function thesisScores(client: DbClient, userId: string, admissionId?: string | null) {
+  const thesis = await client.thesisSubmission.findFirst({
+    where: admissionId ? { admissionId } : { userId },
     orderBy: { updatedAt: 'desc' },
-    select: { resultScore: true, aiScore: true, passed: true },
+    select: { status: true, resultScore: true, aiScore: true, passed: true, defenseStatus: true },
   })
-  if (!thesis) return { research: null as number | null, defense: null as number | null }
-  const defense = typeof thesis.resultScore === 'number' ? thesis.resultScore : null
-  const research = typeof thesis.aiScore === 'number' ? thesis.aiScore : defense
+  const approved = thesis?.status === 'RESULT_APPROVED' && thesis.passed === true && typeof thesis.resultScore === 'number'
+  if (!approved) return { research: null as number | null, defense: null as number | null }
+  const defense = clampPercent(thesis!.resultScore as number)
+  const research = typeof thesis!.aiScore === 'number' ? clampPercent(thesis!.aiScore) : defense
   return { research, defense }
 }
 
-export async function calculateFinalGrade(input: { userId: string; programId: string; admissionId?: string | null }): Promise<FinalGradeResult> {
-  const program = await db.program.findUnique({ where: { id: input.programId }, select: { category: true } })
+export async function calculateFinalGrade(input: {
+  userId: string
+  programId: string
+  admissionId?: string | null
+  client?: DbClient
+}): Promise<FinalGradeResult> {
+  const client = input.client || db
+  const program = await client.program.findUnique({ where: { id: input.programId }, select: { category: true } })
   const category = program?.category || 'DIPLOMA'
-  const thesis = await thesisScores(input.userId, input.admissionId)
+  const missing: string[] = []
 
+  // These global checks intentionally run for every credential path: certification requires all
+  // published/ready required work, not only the weighted components displayed on the transcript.
+  await unitQuizAverage(client, input.userId, input.programId, missing)
+  await programExamAverage(client, input.userId, input.programId, missing)
+  const assignmentsForGlobalRequirement = await assignmentAverage(client, input.userId, input.programId, missing, false)
+
+  const thesis = await thesisScores(client, input.userId, input.admissionId)
   let components: FinalGradeComponent[]
   if (category === 'DOCTORATE') {
     components = [
-      component('reading_quizzes', 'اختبارات/تقارير القراءات المتقدمة', 8, await unitQuizAverage(input.userId, input.programId, 1)),
-      component('reading_exam', 'اختبار مرحلة القراءات المتقدمة', 12, await semesterExamScore(input.userId, input.programId, 1)),
-      component('analysis_quizzes', 'اختبارات/حالات التطبيق والتحليل', 8, await unitQuizAverage(input.userId, input.programId, 2)),
-      component('analysis_exam', 'اختبار مرحلة التطبيق والتحليل', 12, await semesterExamScore(input.userId, input.programId, 2)),
+      component('reading_quizzes', 'اختبارات/تقارير القراءات المتقدمة', 8, await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
+      component('reading_exam', 'اختبار مرحلة القراءات المتقدمة', 12, await programExamAverage(client, input.userId, input.programId, missing, 1)),
+      component('analysis_quizzes', 'اختبارات/حالات التطبيق والتحليل', 8, await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
+      component('analysis_exam', 'اختبار مرحلة التطبيق والتحليل', 12, await programExamAverage(client, input.userId, input.programId, missing, 2)),
       component('thesis', 'الأطروحة المهنية', 40, thesis.research),
       component('defense', 'المناقشة النهائية', 20, thesis.defense),
     ]
   } else if (category === 'MASTERS') {
     components = [
-      component('semester1_quizzes', 'اختبارات الفصل الأول القصيرة', 10, await unitQuizAverage(input.userId, input.programId, 1)),
-      component('semester1_exam', 'امتحان الفصل الأول', 15, await semesterExamScore(input.userId, input.programId, 1)),
-      component('semester2_quizzes', 'اختبارات الفصل الثاني القصيرة', 10, await unitQuizAverage(input.userId, input.programId, 2)),
-      component('semester2_exam', 'امتحان الفصل الثاني', 15, await semesterExamScore(input.userId, input.programId, 2)),
+      component('semester1_quizzes', 'اختبارات الفصل الأول القصيرة', 10, await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
+      component('semester1_exam', 'امتحان الفصل الأول', 15, await programExamAverage(client, input.userId, input.programId, missing, 1)),
+      component('semester2_quizzes', 'اختبارات الفصل الثاني القصيرة', 10, await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
+      component('semester2_exam', 'امتحان الفصل الثاني', 15, await programExamAverage(client, input.userId, input.programId, missing, 2)),
       component('thesis', 'بحث التخرج المهني', 30, thesis.research),
       component('defense', 'المناقشة النهائية', 20, thesis.defense),
     ]
   } else {
     components = [
-      component('quizzes', 'اختبارات قصيرة ومتابعة', 20, await unitQuizAverage(input.userId, input.programId)),
-      component('assignments', 'واجبات أو أنشطة تطبيقية', 20, await assignmentAverage(input.userId, input.programId)),
-      component('final_exam', 'الاختبار النهائي', 60, await semesterExamScore(input.userId, input.programId)),
+      component('quizzes', 'اختبارات قصيرة ومتابعة', 20, await unitQuizAverage(client, input.userId, input.programId, missing)),
+      component('assignments', 'واجبات أو أنشطة تطبيقية', 20, assignmentsForGlobalRequirement ?? await assignmentAverage(client, input.userId, input.programId, missing, true)),
+      component('final_exam', 'الاختبار النهائي', 60, await programExamAverage(client, input.userId, input.programId, missing)),
     ]
   }
 
-  const missing = components.filter((c) => !c.ready).map((c) => c.label)
+  for (const c of components) {
+    if (!c.ready) addMissing(missing, c.label)
+  }
+
   if (missing.length) return { score: null, components, missing }
-  return { score: round1(components.reduce((sum, c) => sum + c.weighted, 0)), components, missing }
+  return { score: components.reduce((sum, c) => sum + c.weighted, 0), components, missing }
 }
