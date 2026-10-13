@@ -32,6 +32,7 @@ interface PreviewData {
     phone?: string | null
     country?: string | null
     role: string
+    status: string
     createdAt: string
     academicMemory?: {
       profileDigest?: string | null
@@ -86,6 +87,8 @@ const STATUS_AR: Record<string, string> = {
   RESULT_APPROVED: 'تم اعتماد النتيجة',
   CERTIFIED: 'تم إصدار الشهادة',
   REJECTED: 'مرفوض',
+  DISABLED: 'معطّل',
+  ARCHIVED: 'مؤرشف',
   ACTIVE: 'نشط',
   COMPLETED: 'مكتمل',
   PAID: 'مدفوع',
@@ -128,6 +131,8 @@ export function AdminStudentPreview() {
   const [data, setData] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   const id = useMemo(() => {
     if (studentPreviewId) return studentPreviewId
@@ -153,6 +158,29 @@ export function AdminStudentPreview() {
     const timer = window.setTimeout(load, 0)
     return () => window.clearTimeout(timer)
   }, [load])
+
+  const changeAccountStatus = async (status: 'ACTIVE' | 'DISABLED') => {
+    if (!id || !data || updatingStatus || data.student.status === status) return
+    const disabling = status === 'DISABLED'
+    const confirmed = window.confirm(disabling
+      ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
+      : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`)
+    if (!confirmed) return
+    setUpdatingStatus(true)
+    setStatusMessage(null)
+    try {
+      await api('/api/admin/students', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'setStatus', userId: id, status }),
+      })
+      setData((current) => current ? { ...current, student: { ...current.student, status } } : current)
+      setStatusMessage(disabling ? 'تم تعطيل الحساب وإنهاء جلساته.' : 'تم إعادة تفعيل الحساب. يستطيع الطالب تسجيل الدخول مجددًا.')
+    } catch (err: unknown) {
+      setStatusMessage(err instanceof Error ? err.message : 'تعذر تحديث حالة الحساب')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -200,7 +228,8 @@ export function AdminStudentPreview() {
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:py-8">
       <div className="flex flex-col gap-3 rounded-3xl bg-[#0f2b46] p-5 text-[#f5f0e1] shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة إدارية — قراءة فقط</Badge>
+          <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة السجل الأكاديمي — قراءة فقط</Badge>
+          <span className="mb-3 mr-2 inline-block rounded-full border border-white/40 px-3 py-1 text-xs font-bold">حالة الحساب: {arStatus(s.status)}</span>
           <h1 className="flex items-center gap-2 text-2xl font-black sm:text-3xl">
             <UserRound className="h-6 w-6 text-[#c9a227]" /> {s.name}
           </h1>
@@ -211,7 +240,19 @@ export function AdminStudentPreview() {
           <Button onClick={() => navigate('admin')} variant="outline" className="border-[#c9a227]/50 bg-white/5 text-[#f5f0e1] hover:bg-white/10">
             <ArrowRight className="ml-1 h-4 w-4" /> العودة للإدارة
           </Button>
-          <Button onClick={load} className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]">تحديث المعاينة</Button>
+          <Button onClick={load} disabled={updatingStatus} className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]">تحديث المعاينة</Button>
+          {(s.status === 'ACTIVE' || s.status === 'DISABLED') && (
+            <Button
+              type="button"
+              disabled={updatingStatus}
+              onClick={() => void changeAccountStatus(s.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}
+              variant="outline"
+              className={s.status === 'ACTIVE' ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100' : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}
+            >
+              {updatingStatus ? 'جارٍ تحديث الحساب...' : s.status === 'ACTIVE' ? 'تعطيل حساب الطالب' : 'إعادة تفعيل حساب الطالب'}
+            </Button>
+          )}
+          {statusMessage && <p role="status" className="text-xs font-bold text-[#f5f0e1]">{statusMessage}</p>}
         </div>
       </div>
 
