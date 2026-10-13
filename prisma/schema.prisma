@@ -801,6 +801,7 @@ model WhatsAppConversationMessage {
   conversationId    String
   conversation      WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   whatsappMessageId String?
+  replyForMessageId String?  @unique // inbound waMessageId الذي يملك هذا الرد الآلي؛ يمنع ردين لنفس رسالة واتساب
   direction         String   // INBOUND | OUTBOUND
   sender            String   // CUSTOMER | BOT | HUMAN | SYSTEM
   text              String
