@@ -702,7 +702,8 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   const inboundMessage = prepared.message
   const storedInbound = await recordWhatsAppInboundMessage(inboundMessage)
 
-  if (await isWhatsAppConversationHumanActive(inboundMessage.from).catch(() => false)) {
+  // If the handoff state cannot be checked, fail closed instead of letting the bot reply.
+  if (await isWhatsAppConversationHumanActive(inboundMessage.from)) {
     try {
       await sendOfficialWhatsAppReadReceipt(inboundMessage)
     } catch (readError: any) {
