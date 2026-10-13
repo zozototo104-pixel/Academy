@@ -253,6 +253,85 @@ async function testWhatsAppWebhookHandlerBehavior() {
   else process.env.VERCEL_CRON_SECRET = oldVercelCronSecret
 }
 
+async function testWhatsAppPublicAgentWithMocks() {
+  let lastProvider = 'GEMINI'
+  let routerCalls = 0
+  const fallbackResult = await platformPublicAgentComplete({
+    messages: [{ role: 'user', content: 'أريد معلومات عن شروط القبول في الأكاديمية' }],
+    channel: 'WHATSAPP',
+    deadlineMs: Date.now() + 30_000,
+    __testDeps: {
+      analyzeConversationIntent: async () => ({ intent: 'ADMISSION', confidence: 0.9, suggestedAgent: 'ADMISSIONS', raw: '' } as any),
+      textAiComplete: async (opts: any) => {
+        routerCalls += 1
+        if (routerCalls === 1) {
+          lastProvider = 'GEMINI'
+          throw new Error('Gemini mock failure')
+        }
+        assert(Array.isArray(opts.excludeProviders) && opts.excludeProviders.includes('GEMINI'), 'WhatsApp router retry must exclude the failed provider')
+        lastProvider = 'OPENAI'
+        return 'رد من مزود بديل بدون رد احتياطي'
+      },
+      textAiDiagnostics: async () => ({ lastResult: { provider: lastProvider, model: `${lastProvider.toLowerCase()}-mock`, error: lastProvider === 'GEMINI' ? 'Gemini mock failure' : undefined } } as any),
+    },
+  } as any)
+  assert(routerCalls === 2, 'Gemini failure must trigger exactly one alternate-provider router retry')
+  assert(fallbackResult.reply.includes('رد من مزود بديل'), 'alternate provider must deliver the WhatsApp reply')
+  assert(!fallbackResult.reply.includes('المساعد غير متاح حالياً'), 'alternate-provider success must not send fallback unavailable text')
+
+  let classifierCalls = 0
+  let rulesRouterCalls = 0
+  const classifierFailureResult = await platformPublicAgentComplete({
+    messages: [{ role: 'user', content: 'ما شروط القبول في برامج التدريب؟' }],
+    channel: 'WHATSAPP',
+    deadlineMs: Date.now() + 30_000,
+    __testDeps: {
+      analyzeConversationIntent: async () => {
+        classifierCalls += 1
+        throw new Error('classifier timeout')
+      },
+      textAiComplete: async () => {
+        rulesRouterCalls += 1
+        return 'وصل الرد بعد فشل المصنف عبر القواعد والراوتر'
+      },
+      textAiDiagnostics: async () => ({ lastResult: { provider: 'OPENAI', model: 'openai-mock' } } as any),
+    },
+  } as any)
+  assert(classifierCalls === 1, 'classifier mock must be invoked once')
+  assert(rulesRouterCalls === 1, 'classifier failure must continue to the rules/router flow')
+  assert(classifierFailureResult.reply.includes('وصل الرد بعد فشل المصنف'), 'reply must be delivered after classifier failure')
+}
+
+async function testWhatsAppRetryCronProcessesStaleEventsOnce() {
+  const now = Date.now()
+  const rows = new Map<string, any>([
+    ['received-1', { id: 'received-1', status: 'RECEIVED', attempts: 0, updatedAt: new Date(now - 120_000) }],
+    ['failed-1', { id: 'failed-1', status: 'FAILED', attempts: 1, updatedAt: new Date(now - 120_000) }],
+  ])
+  const processed: string[] = []
+  const dbMock = {
+    whatsAppInboundEvent: {
+      findMany: async () => [...rows.values()]
+        .filter((row) => ['RECEIVED', 'FAILED'].includes(row.status) && row.attempts < 2 && row.updatedAt.getTime() < now - 60_000)
+        .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+        .map((row) => ({ id: row.id })),
+    },
+  }
+  const processor = async (id: string) => {
+    const row = rows.get(id)
+    if (!row || !['RECEIVED', 'FAILED'].includes(row.status)) return
+    processed.push(id)
+    row.status = 'DONE'
+    row.attempts += 1
+    row.updatedAt = new Date(now)
+  }
+  const first = await processStaleWhatsAppInboundEvents(20, { db: dbMock, processWhatsAppEvent: processor, now: () => now })
+  const second = await processStaleWhatsAppInboundEvents(20, { db: dbMock, processWhatsAppEvent: processor, now: () => now })
+  assert(first.processed === 2, 'WhatsApp retry cron must process old RECEIVED and FAILED events')
+  assert(second.processed === 0, 'calling WhatsApp retry cron twice must not process the same event twice')
+  assert(processed.join(',') === 'received-1,failed-1', 'each stale WhatsApp event must be processed exactly once')
+}
+
 async function testWhatsAppReliabilityBehavior() {
   const faqDeps = {
     getSettings: async () => ({ FEE_APPLICATION: '30', FEE_DIPLOMAS_MIN: '100', FEE_DIPLOMAS_MAX: '350', FEE_MASTERS: '700', FEE_DOCTORATE: '1300', PAYMENT_MODE: 'DIRECT_PAYMENT' }),
