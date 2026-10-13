@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         },
       })
       if (!conversation) return NextResponse.json({ ok: false, error: 'المحادثة غير موجودة' }, { status: 404 })
-      return NextResponse.json({ conversation: { ...conversation, messages: [...conversation.messages].reverse() } })
+      return NextResponse.json({ conversation: adminConversationView({ ...conversation, messages: [...conversation.messages].reverse() }) })
     }
 
     const status = normalizeStatus(url.searchParams.get('status'))
