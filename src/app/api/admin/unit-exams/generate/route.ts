@@ -127,9 +127,9 @@ export async function POST(req: NextRequest) {
       }, { status: 202 })
     }
 
-    const reviewRequired = scoped.selection.pendingReviewCount > 0
-    const examStatus = reviewRequired ? 'DRAFT' : 'READY'
-    const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, item.status !== 'APPROVED'))
+    const reviewRequired = false
+    const examStatus = 'READY'
+    const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, false))
 
     const result = await db.$transaction(async (tx) => {
       const exam = unit.exam
