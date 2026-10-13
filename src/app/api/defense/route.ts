@@ -265,8 +265,13 @@ export async function POST(req: NextRequest) {
       }
       const studentMsgs = await db.defenseMessage.findMany({ where: { thesisId: thesis.id, role: 'STUDENT' }, orderBy: { createdAt: 'asc' } })
       const scores = studentMsgs.map((m) => finiteScore(m.score))
-      const weighted = scoreDefenseBreakdown(DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })))
-      const aiScore = weighted.score
+      const criteriaCovered = DEFENSE_CRITERIA.filter((_, index) => scores[index] != null)
+      const weighted = scoreDefenseBreakdown(
+        DEFENSE_CRITERIA.map((criterion, index) => ({ criterion, score0to10: scores[index] ?? null })),
+        { requireAllCriteria: true },
+      )
+      const incompleteCriteria = criteriaCovered.length < DEFENSE_CRITERIA.length || Boolean((weighted as any).needsReview)
+      const aiScore = incompleteCriteria ? null : weighted.score
       const rag = await buildSupervisorContext(user.id, { scope: 'DEFENSE_EXAMINER', query: `${thesis.title} جلسة مناقشة منتهية مبكراً` }).catch(() => '')
       const defenseAcademicContext = mergeContext(
         rag,
