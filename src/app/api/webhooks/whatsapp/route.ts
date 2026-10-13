@@ -56,40 +56,6 @@ function waIdHash(from: string) {
   return whatsappWaIdHash(from)
 }
 
-async function shouldSendImmediateGreeting(from: string) {
-  cleanupGreetingKeys()
-  const key = conversationKey(from)
-  const now = Date.now()
-  const recent = recentGreetingKeys.get(key)
-  if (recent && now - recent < IMMEDIATE_GREETING_WINDOW_MS) return { ok: false, key }
-
-  const since = new Date(now - IMMEDIATE_GREETING_WINDOW_MS)
-  const previous = await db.auditLog.findFirst({
-    where: {
-      action: { in: ['WHATSAPP_IMMEDIATE_GREETING_SENT', 'WHATSAPP_SIMPLE_GREETING_REPLY_SENT'] },
-      entityId: key,
-      createdAt: { gte: since },
-    },
-    select: { id: true },
-  }).catch(() => null)
-
-  if (previous) {
-    recentGreetingKeys.set(key, now)
-    return { ok: false, key }
-  }
-
-  recentGreetingKeys.set(key, now)
-  return { ok: true, key }
-}
-
-async function markImmediateGreetingSent(key: string, from: string, messageId: string) {
-  await auditWhatsAppWebhook('WHATSAPP_IMMEDIATE_GREETING_SENT', {
-    from: maskPhone(from),
-    messageId,
-    windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
-  }, key)
-}
-
 async function markSimpleGreetingReplySent(key: string, from: string, messageId: string) {
   recentGreetingKeys.set(key, Date.now())
   await auditWhatsAppWebhook('WHATSAPP_SIMPLE_GREETING_REPLY_SENT', {
