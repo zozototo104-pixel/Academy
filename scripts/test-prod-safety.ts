@@ -63,6 +63,9 @@ function testPrivateStoragePolicy() {
   assert(storage.includes('if (isPrivateStorageKey(cleanKey)) return null'), 'private storage keys must never receive public URLs')
   assert(storage.includes('getStorageDownloadPathForKey'), 'private upload result must point to controlled download route')
 
+  const adminPayments = file('src/app/api/admin/payments/route.ts')
+  assert(adminPayments.includes('secureProofPayload'), 'admin payment proofs must rewrite private storage URLs to the controlled file route')
+
   const route = file('src/app/api/files/[...key]/route.ts')
   assert(route.includes('const SIGNED_URL_TTL_SECONDS = 5 * 60'), 'file route must issue 5-minute signed URLs')
   assert(route.includes('user.role === \'ADMIN\''), 'file route must allow admins')
