@@ -157,6 +157,106 @@ export async function recordWhatsAppOutboundMessage(args: {
   return conversation
 }
 
+export async function isWhatsAppOutboundEcho(whatsappMessageId?: string | null, dbClient: any = db) {
+  const id = String(whatsappMessageId || '').trim()
+  if (!id) return false
+  const found = await dbClient.whatsAppConversationMessage.findFirst({
+    where: { whatsappMessageId: id, direction: 'OUTBOUND' },
+    select: { id: true },
+  }).catch(() => null)
+  return Boolean(found)
+}
+
+export async function claimWhatsAppBotReply(args: {
+  waId: string
+  phoneNumberId?: string | null
+  text: string
+  replyForMessageId: string
+  recentDuplicateWindowMs?: number
+}) {
+  const replyForMessageId = String(args.replyForMessageId || '').trim()
+  const text = compact(args.text, 4096)
+  if (!replyForMessageId || !text) return { claimed: false, reason: 'INVALID_REPLY_CLAIM' as const }
+  const safe = safeConversationSenderFields(args.waId)
+  const now = new Date()
+  const recentSince = new Date(now.getTime() - Math.max(1, args.recentDuplicateWindowMs || 2 * 60 * 1000))
+  try {
+    return await db.$transaction(async (tx) => {
+      const conversation = await tx.whatsAppConversation.upsert({
+        where: { waIdHash: safe.waIdHash },
+        create: {
+          ...safe,
+          phoneNumberId: args.phoneNumberId || null,
+          status: 'BOT_ACTIVE',
+          lastOutboundAt: now,
+          lastMessageAt: now,
+          lastMessageText: text.slice(0, 1000),
+        },
+        update: {
+          waId: safe.waId,
+          waIdEncrypted: safe.waIdEncrypted || undefined,
+          phoneMasked: safe.phoneMasked,
+          phoneNumberId: args.phoneNumberId || undefined,
+          lastOutboundAt: now,
+          lastMessageAt: now,
+          lastMessageText: text.slice(0, 1000),
+        },
+      })
+      const recentDuplicate = await tx.whatsAppConversationMessage.findFirst({
+        where: {
+          conversationId: conversation.id,
+          direction: 'OUTBOUND',
+          sender: 'BOT',
+          text,
+          createdAt: { gte: recentSince },
+        },
+        select: { id: true, replyForMessageId: true },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (recentDuplicate) return { claimed: false, reason: 'RECENT_DUPLICATE_TEXT' as const, conversation, duplicate: recentDuplicate }
+      const message = await tx.whatsAppConversationMessage.create({
+        data: {
+          conversationId: conversation.id,
+          replyForMessageId,
+          direction: 'OUTBOUND',
+          sender: 'BOT',
+          text,
+          status: 'SENDING',
+          meta: { phoneNumberId: args.phoneNumberId || null, replyForMessageId },
+        },
+      })
+      return { claimed: true, reason: 'CLAIMED' as const, conversation, message }
+    })
+  } catch (error: any) {
+    if (isUniqueConstraintError(error)) return { claimed: false, reason: 'REPLY_ALREADY_CLAIMED' as const }
+    throw error
+  }
+}
+
+export async function finalizeWhatsAppBotReply(args: { claimMessageId: string; whatsappMessageId?: string | null; status?: string | null }) {
+  const id = String(args.claimMessageId || '').trim()
+  if (!id) return null
+  return db.whatsAppConversationMessage.update({
+    where: { id },
+    data: {
+      whatsappMessageId: args.whatsappMessageId || null,
+      status: args.status || 'SENT',
+    },
+  }).catch(() => null)
+}
+
+export async function failWhatsAppBotReply(args: { claimMessageId?: string | null; error?: string | null }) {
+  const id = String(args.claimMessageId || '').trim()
+  if (!id) return null
+  return db.whatsAppConversationMessage.update({
+    where: { id },
+    data: {
+      status: 'FAILED',
+      meta: { error: String(args.error || '').slice(0, 500) },
+    },
+  }).catch(() => null)
+}
+
 export async function markWhatsAppConversationRequested(args: {
   waId: string
   handoffRequestId?: string | null
