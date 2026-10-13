@@ -326,9 +326,18 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
 
   const cursor = await readJobCursor(job.id)
   const window = planQuestionBankSourceWindow(knowledge.length, cursor, Math.min(8, knowledge.length))
-  const selected = window.indexes.map((index) => knowledge[index]).filter(Boolean)
+  let selected = window.indexes.map((index) => knowledge[index]).filter(Boolean)
   await saveJobCursor(job.id, window.nextCursor)
   if (!selected.length) throw new Error('QUESTION_BANK_JOB_NO_SOURCE_WINDOW')
+  const chunkRows = await db.bookChunk.findMany({
+    where: { id: { in: [...new Set(selected.map((item) => item.chunkId).filter((id): id is string => Boolean(id)))] } },
+    select: { id: true, index: true, pageStart: true, pageEnd: true, text: true },
+  })
+  const chunksById = new Map(chunkRows.map((chunk) => [chunk.id, chunk] as const))
+  selected = selected.map((item) => {
+    const chunk = item.chunkId ? chunksById.get(item.chunkId) : null
+    return chunk ? { ...item, originalChunkText: chunk.text, originalChunkIndex: chunk.index, originalChunkPageStart: chunk.pageStart, originalChunkPageEnd: chunk.pageEnd } : item
+  })
 
   const existing = await db.questionBankItem.findMany({
     where: { programId: job.programId, knowledgeItemId: { in: knowledge.map((item) => item.id) } },
