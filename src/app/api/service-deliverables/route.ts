@@ -38,7 +38,7 @@ export async function GET() {
             mimeType: true,
             size: true,
             externalUrl: true,
-            fileUrl: true,
+            storageKey: true,
             certificateId: true,
             verificationUrl: true,
             meetingAt: true,
