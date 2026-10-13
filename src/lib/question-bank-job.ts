@@ -455,6 +455,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     if (rows.length >= count) break
   }
   for (const item of groundedQuestions) {
+    if (rows.length >= count) break
     const sourceIndex = Number(item.sourceIndex)
     if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) { traceReasons.push('BAD_SOURCE_INDEX'); continue }
     const source = selected[sourceIndex - 1]
