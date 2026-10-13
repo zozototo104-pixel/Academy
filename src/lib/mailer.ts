@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { db } from '@/lib/db'
+import { hasAactTestRecipient } from '@/lib/prod-safety'
 
 export interface SmtpConfig {
   host: string
