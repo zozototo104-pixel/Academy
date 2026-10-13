@@ -77,23 +77,8 @@ interface TrackedTuitionPlan {
   finalRequired?: number
 }
 
-const REQUIRED_DOCS = [
-  { type: 'DEGREE', label: 'الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'السيرة الذاتية (C.V)' },
-]
-
-const SERVICE_REQUEST_DOCS = [
-  { type: 'ID', label: 'الهوية الشخصية أو جواز السفر عند الحاجة' },
-  { type: 'CV', label: 'السيرة الذاتية أو نبذة عن الخبرة' },
-  { type: 'SERVICE_FILE', label: 'ملف يوضح الاحتياج أو الوثائق الداعمة للخدمة' },
-]
-
-const EXTRA_DOCS = [
-  { type: 'EXPERIENCE', label: 'إثبات خبرات عملية' },
-  { type: 'TRANSCRIPT', label: 'كشف درجات منفصل' },
-]
+const REQUIRED_DOCS = REQUIRED_ADMISSION_DOCS
+const EXTRA_DOCS = EXTRA_ADMISSION_DOCS
 
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
