@@ -444,9 +444,9 @@ Digest البحث: ${abstract.slice(0, 3000)}
       maxOutputTokens: 900,
       taskLevel: 'ACADEMIC_DRAFT',
     })
-    return text.trim() || defaultQuestion(1)
+    return text.trim() || AI_UNAVAILABLE_MESSAGE
   } catch {
-    return defaultQuestion(1)
+    return AI_UNAVAILABLE_MESSAGE
   }
 }
 
