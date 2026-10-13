@@ -1108,7 +1108,9 @@ export async function platformAgentStream(opts: {
   messages: { role: string; content: string }[]
   uiContext?: string
   mode?: 'TEXT' | 'VOICE' | string
+  deadlineMs?: number
 }, onChunk: (chunk: string) => void | Promise<void>): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Platform agent stream deadline exceeded')
   const emit = async (chunk: string) => {
     if (chunk) await onChunk(chunk)
   }
