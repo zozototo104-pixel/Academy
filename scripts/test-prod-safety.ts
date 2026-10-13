@@ -199,14 +199,21 @@ function testDependencyPins() {
   assert(lock.includes('"react-dom": "^19.3.0"'), 'bun.lock workspace dependency must include updated React DOM range')
 }
 
-testProductionFixtureGuards()
-testWorkflowTargetsQaOnly()
-testFinallyCleanup()
-testPrivateStoragePolicy()
-testOfficialSettingsDeploymentHook()
-testAiDeadlines()
-testAactTestRecipientBlocks()
-testWhatsAppUnsignedWebhookProductionBlock()
-testDependencyPins()
+async function main() {
+  testProductionFixtureGuards()
+  testWorkflowTargetsQaOnly()
+  testFinallyCleanup()
+  testPrivateStoragePolicy()
+  await testFileAccessPolicyBehavior()
+  testOfficialSettingsDeploymentHook()
+  testAiDeadlines()
+  testAactTestRecipientBlocks()
+  testWhatsAppUnsignedWebhookProductionBlock()
+  testDependencyPins()
+  console.log('✓ production safety behavioral checks passed')
+}
 
-console.log('✓ production safety behavioral checks passed')
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
