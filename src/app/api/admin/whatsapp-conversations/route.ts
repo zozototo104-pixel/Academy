@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       },
     })
     const counts = await db.whatsAppConversation.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => [])
-    return NextResponse.json({ conversations, counts })
+    return NextResponse.json({ conversations: conversations.map(adminConversationView), counts })
   } catch (error: any) {
     return jsonError(error, String(error?.message) === 'UNAUTHORIZED' ? 401 : 500)
   }
