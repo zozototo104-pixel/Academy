@@ -309,6 +309,15 @@ export function AdminWhatsAppInboxTab() {
                 </div>
 
                 <div className="border-t border-black/5 bg-[#f0f2f5] p-3">
+                  {!activeConversation.phoneNumber && (
+                    <div className="mb-3 space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-bold text-amber-900">هذه محادثة قديمة لا يتوفر رقمها الكامل. أدخل الرقم الدولي الذي تعرفه من مصدر موثوق لاستعادته؛ لن يُقبل إلا إذا تطابق مع هوية المحادثة المحفوظة.</p>
+                      <div className="flex gap-2">
+                        <Input dir="ltr" value={legacyPhone} onChange={(e) => setLegacyPhone(e.target.value)} placeholder="970xxxxxxxxx" className="bg-white" />
+                        <Button disabled={recoveringPhone || !legacyPhone.trim()} onClick={recoverPhone} className="shrink-0">{recoveringPhone ? 'جارٍ التحقق' : 'تحقق واحفظ'}</Button>
+                      </div>
+                    </div>
+                  )}
                   {activeConversation.status === 'HUMAN_ACTIVE' ? (
                     <div className="flex items-end gap-2">
                       <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="اكتب رد الموظف هنا..." className="min-h-12 rounded-3xl bg-white text-sm font-bold leading-7" />
