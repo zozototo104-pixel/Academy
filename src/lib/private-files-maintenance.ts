@@ -418,7 +418,7 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
       }
 
       const legacyIsRemoteUrl = isHttpUrl(item.legacyUrl)
-      const legacyRemoteAllowed = legacyIsRemoteUrl && isAllowedLegacyExternalUrl(item.legacyUrl)
+      const legacyRemoteAllowed = legacyIsRemoteUrl && isAllowedLegacyExternalUrl(item.legacyUrl, allowedHosts)
       const legacyOnRunner = legacyIsRemoteUrl ? false : await localLegacyExists(item.key)
       if (legacyOnRunner) type.localOnServer += 1
       if (legacyRemoteAllowed) type.externalUrl += 1
