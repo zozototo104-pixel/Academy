@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
     const activeAttempt = await db.examAttempt.findFirst({
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
-      select: { id: true },
+      select: { id: true, createdAt: true },
     })
     if (!activeAttempt) {
       return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
