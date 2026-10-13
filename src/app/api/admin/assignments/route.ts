@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { emailAssignmentGraded, emailAssignmentPublished } from '@/lib/mailer'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 function asString(value: unknown, max = 3000) {
   return String(value || '').trim().slice(0, max)
