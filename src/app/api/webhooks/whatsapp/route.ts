@@ -773,7 +773,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   return 'SENT'
 }
 
-async function processWhatsAppEvent(eventId: string) {
+export async function processWhatsAppEvent(eventId: string) {
   const staleBefore = new Date(Date.now() - STALE_PROCESSING_RETRY_MS)
   const claim = await db.whatsAppInboundEvent.updateMany({
     where: {
