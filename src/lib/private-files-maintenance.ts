@@ -166,6 +166,27 @@ function isHttpUrl(value: unknown) {
   return /^https?:\/\//i.test(String(value || '').trim())
 }
 
+function allowedLegacyHosts() {
+  const configured = String(process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean)
+  const appHosts = [process.env.NEXT_PUBLIC_APP_URL, process.env.APP_URL, process.env.NEXTAUTH_URL]
+    .map((value) => {
+      try { return value ? new URL(value).host.toLowerCase() : '' } catch { return '' }
+    })
+    .filter(Boolean)
+  return new Set([...configured, ...appHosts])
+}
+
+function isAllowedLegacyExternalUrl(value?: string | null) {
+  if (!isHttpUrl(value)) return false
+  const hosts = allowedLegacyHosts()
+  try {
+    const host = new URL(String(value)).host.toLowerCase()
+    return hosts.size > 0 && hosts.has(host)
+  } catch {
+    return false
+  }
+}
+
 async function exists(filePath: string) {
   try { await fs.stat(filePath); return true } catch { return false }
 }
