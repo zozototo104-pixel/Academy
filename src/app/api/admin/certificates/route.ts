@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { nextCertSerial } from '@/lib/settings'
 import { audit, notify } from '@/lib/notify'
 import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
-import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
-import { randomBytes } from 'crypto'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 // GET /api/admin/certificates — كل الشهادات الصادرة
 export async function GET(req: NextRequest) {
@@ -53,12 +50,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/certificates — إصدار شهادة برنامج بعد التحقق من الاستحقاق الأكاديمي والمالي
+// POST /api/admin/certificates — إصدار شهادة برنامج من مسار الإكمال المركزي فقط
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { admissionId, holderName, program, country, userId, financialOverrideReason } = await req.json()
-    const overrideReason = String(financialOverrideReason || '').trim()
+    const { admissionId, holderName, program, country, userId, enrollmentId } = await req.json()
 
     const app = admissionId
       ? await db.admissionApplication.findUnique({ where: { id: admissionId } })
@@ -79,82 +75,38 @@ export async function POST(req: NextRequest) {
           })
         : null
 
-    if (!resolvedHolderName || !resolvedProgramTitle) {
-      return NextResponse.json({ error: 'اسم صاحب الشهادة والبرنامج مطلوبان' }, { status: 400 })
-    }
-    if (!resolvedUserId || !resolvedProgram?.id) {
-      return NextResponse.json({ error: 'لا يمكن إصدار شهادة برنامج يدوياً دون ربطها بطالب وبرنامج دراسي للتحقق من النجاح الأكاديمي.' }, { status: 400 })
-    }
-
-    let financialOverrideUsed = false
-    if (app?.id) {
-      const allPayments = await db.payment.findMany({ where: { admissionId: app.id } })
-      const paymentRows = allPayments.map((p) => ({ purpose: p.purpose, status: p.status, amount: p.amount, amountCents: p.amountCents, waiverType: p.waiverType, waivedAmount: p.waivedAmount, waivedAmountCents: p.waivedAmountCents, originalAmount: p.originalAmount, originalAmountCents: p.originalAmountCents }))
-      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
-      const tuitionTotal = roundMoney(inferTotalTuition(paymentRows))
-      const tuitionPaid = roundMoney(tuitionPaidTotal(paymentRows))
-      const tuitionOk = tuitionTotal <= 0 || tuitionPaid >= tuitionTotal
-      const hasFinancialBlock = nonTuitionUnpaid.length > 0 || !tuitionOk
-      if (hasFinancialBlock && overrideReason.length > 0 && overrideReason.length < 6) {
-        return NextResponse.json({ error: 'سبب التجاوز المالي مطلوب ويجب ألا يقل عن 6 أحرف.' }, { status: 400 })
-      }
-      if (hasFinancialBlock && !overrideReason) {
-        return NextResponse.json(
-          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${tuitionPaid}$ من ${tuitionTotal}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
-          { status: 400 }
-        )
-      }
-      financialOverrideUsed = hasFinancialBlock && overrideReason.length >= 6
-    }
-
-    const eligibility = await evaluateProgramCertificateEligibility({
+    const result = await completeEnrollmentIfEligible({
+      enrollmentId: enrollmentId || null,
       userId: resolvedUserId,
-      programId: resolvedProgram.id,
+      programId: resolvedProgram?.id || null,
       admissionId: app?.id || null,
+      holderName: resolvedHolderName,
+      programTitle: resolvedProgramTitle,
+      country: app?.country || country || null,
+      requireEligible: true,
     })
-    if (!eligibility.ok) {
+
+    if (!result.ok || !result.certificate) {
       return NextResponse.json(
-        { error: eligibility.error || 'لا يمكن إصدار الشهادة قبل اكتمال شروط النجاح الأكاديمي.', eligibility },
-        { status: 400 }
+        { error: result.error || 'لا يمكن إصدار الشهادة قبل اكتمال التسجيل والدفع وشروط النجاح.', eligibility: result.eligibility, missing: result.missing, code: result.code },
+        { status: result.httpStatus || 422 }
       )
     }
 
-    const serial = await nextCertSerial()
-    const cert = await db.certificate.create({
-      data: {
-        serial,
-        qrToken: randomBytes(16).toString('hex'),
-        type: 'PROGRAM_COMPLETION',
-        holderName: resolvedHolderName,
-        program: resolvedProgramTitle,
-        grade: eligibility.gradeLabel,
-        country: (app?.country || country || '').trim() || null,
-        userId: resolvedUserId,
-        admissionId: app?.id || null,
-      },
-    })
-
-    if (app?.id) {
-      await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'CERTIFIED' } })
-    }
-    await db.enrollment.updateMany({
-      where: { userId: resolvedUserId, programId: resolvedProgram.id },
-      data: { certificateNo: cert.serial, status: 'COMPLETED', ...(eligibility.score !== null ? { finalScore: eligibility.score } : {}) },
-    })
-
-    const linkedUser = await db.user.findUnique({ where: { id: resolvedUserId }, select: { email: true, name: true } })
-    await notify(resolvedUserId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${serial} — متاحة في بوابة الطالب.`, 'dashboard')
+    const cert = result.certificate
+    const linkedUser = await db.user.findUnique({ where: { id: cert.userId }, select: { email: true, name: true } })
+    await notify(cert.userId, 'CERTIFICATE', 'تم إصدار شهادتك', `أُصدرت شهادتك لبرنامج «${cert.program}» برقم ${cert.serial} — متاحة في بوابة الطالب.`, 'dashboard')
     const email = app?.email || linkedUser?.email
-    if (email) await emailCertificateIssued(email, linkedUser?.name || cert.holderName, cert.program, serial)
+    if (email && result.certificateIssued) await emailCertificateIssued(email, linkedUser?.name || cert.holderName, cert.program, cert.serial)
 
     await audit(
       admin,
-      financialOverrideUsed ? 'ISSUE_CERTIFICATE_FINANCIAL_OVERRIDE' : 'ISSUE_CERTIFICATE',
+      result.certificateIssued ? 'ISSUE_CERTIFICATE' : 'COMPLETE_ENROLLMENT_EXISTING_CERTIFICATE',
       'Certificate',
       cert.id,
-      financialOverrideUsed ? `${serial} — ${cert.holderName} (${cert.program}) — تجاوز مالي: ${overrideReason}` : `${serial} — ${cert.holderName} (${cert.program})`
+      `${cert.serial} — ${cert.holderName} (${cert.program}) — enrollment=${result.enrollmentId || 'unknown'}`
     )
-    return NextResponse.json({ ok: true, certificate: cert, eligibility })
+    return NextResponse.json({ ok: true, certificate: cert, eligibility: result.eligibility, completed: result.completed })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
