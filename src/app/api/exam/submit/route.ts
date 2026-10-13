@@ -96,6 +96,19 @@ export async function POST(req: NextRequest) {
     if (answers.some((a) => !allowedQuestionIds.has(a.questionId))) {
       return NextResponse.json({ error: 'توجد إجابات لأسئلة لا تنتمي لهذا الاختبار' }, { status: 400 })
     }
+    // Verify the published correction key before claiming an attempt.
+    // Invalid administrative question data must not lock the student out of a retry.
+    for (const question of exam.questions) {
+      if (question.type === 'MCQ' || question.type === 'TF') {
+        const options = parseQuestionOptions(question.options)
+        const correctIndex = parseOptionIndex(question.correctAnswer)
+        if (correctIndex === null || !options[correctIndex]) {
+          return NextResponse.json({ error: `مفتاح التصحيح غير مكتمل للسؤال رقم ${question.order}`, code: 'ANSWER_KEY_MISSING' }, { status: 422 })
+        }
+      } else if (!question.modelAnswer) {
+        return NextResponse.json({ error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${question.order}`, code: 'MODEL_ANSWER_MISSING' }, { status: 422 })
+      }
+    }
     // Atomic claim before AI grading: only the first submission can grade this attempt.
     const activeAttempt = await db.examAttempt.findFirst({
       where: { userId: user.id, examId, status: 'STARTED' },
