@@ -230,7 +230,13 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
       await db.programExam.update({ where: { id: examId, status: 'GENERATING' }, data: { status: 'PAUSED', errorNote: errorNote.slice(0, 1000) } })
     }
   }
-  return { ok: true, examId, status: errorNote ? 'PAUSED' : result.status, done: result.done, inserted: result.inserted, questionCount: result.questionCount, requiredQuestions: PROGRAM_EXAM_TARGET, byType: result.byType, missingUnits: pools.filter((p) => !p.scopeReady).map((p) => ({ unitId: p.unit.id, title: p.unit.title, reason: 'UNIT_V2_KNOWLEDGE_REQUIRED' })), jobId, errorNote }
+  const unitBreakdown = units.map((unit) => ({
+    unitId: unit.id,
+    title: unit.title,
+    semester: unit.semester,
+    questionCount: result.byUnit[unit.id] || 0,
+  }))
+  return { ok: true, examId, status: errorNote ? 'PAUSED' : result.status, done: result.done, inserted: result.inserted, questionCount: result.questionCount, requiredQuestions: PROGRAM_EXAM_TARGET, byType: result.byType, unitBreakdown, missingUnits: pools.filter((p) => !p.scopeReady).map((p) => ({ unitId: p.unit.id, title: p.unit.title, reason: 'UNIT_V2_KNOWLEDGE_REQUIRED' })), jobId, errorNote }
 }
 
 export async function runNextGeneratingProgramExamStep() {
