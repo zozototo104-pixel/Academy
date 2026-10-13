@@ -173,6 +173,7 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
   const result = await platformPublicAgentComplete({
     messages,
     channel: 'WHATSAPP',
+    deadlineMs,
     uiContext: wrapUntrustedUiContext([
       'المستخدم يتواصل عبر واتساب الرسمي للأكاديمية، وليس عبر نافذة الموقع.',
       `اسم جهة الاتصال إن وجد: ${message.name || 'غير متاح'}.`,
