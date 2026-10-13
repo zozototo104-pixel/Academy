@@ -86,9 +86,10 @@ async function completionJson(system: string, prompt: string): Promise<any> {
       temperature: 0.2,
       maxOutputTokens: 5000,
     })
-    return safeJson(out)
+    const parsed = safeJson(out)
+    if (parsed) return parsed
   }
-  return null
+  throw aiUnavailableError()
 }
 
 export async function generateSupervisorQuestions(opts: {
