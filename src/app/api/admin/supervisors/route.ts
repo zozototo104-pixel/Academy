@@ -1,18 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, hashPassword } from '@/lib/auth'
-import { audit, AUDIT_ACTIONS } from '@/lib/notify'
+import { hashPassword, requireAdmin } from '@/lib/auth'
+import { audit } from '@/lib/notify'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 
-function publicSupervisor(u: any) {
+export const runtime = 'nodejs'
+
+function clean(value: unknown, max = 500) {
+  return String(value || '').trim().slice(0, max)
+}
+
+function normalizeEmail(value: unknown) {
+  return clean(value, 254).toLowerCase()
+}
+
+function validEmail(value: unknown) {
+  const email = normalizeEmail(value)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
+}
+
+function passwordStrengthError(value: unknown) {
+  const password = String(value || '')
+  if (password.length < 10) return 'كلمة المرور يجب أن تكون 10 أحرف على الأقل.'
+  if (!/[A-Za-z]/.test(password)) return 'كلمة المرور يجب أن تحتوي أحرفاً لاتينية على الأقل لتسهيل إدخالها من كل الأجهزة.'
+  if (!/\d/.test(password)) return 'كلمة المرور يجب أن تحتوي رقماً واحداً على الأقل.'
+  if (!/[^A-Za-z0-9]/.test(password)) return 'كلمة المرور يجب أن تحتوي رمزاً خاصاً واحداً على الأقل.'
+  return null
+}
+
+function supervisorPayload(row: any) {
   return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    phone: u.phone,
-    country: u.country,
-    role: u.role,
-    createdAt: u.createdAt,
-    supervisedCount: u._count?.supervisedAdmissions || 0,
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone || null,
+    country: row.country || null,
+    status: row.status,
+    createdAt: row.createdAt,
+    supervisedCount: row._count?.supervisedAdmissions || 0,
   }
 }
 
@@ -21,12 +46,21 @@ export async function GET() {
     await requireAdmin()
     const supervisors = await db.user.findMany({
       where: { role: 'SUPERVISOR' },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { supervisedAdmissions: true } } },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        country: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { supervisedAdmissions: true } },
+      },
     })
-    return NextResponse.json({ supervisors: supervisors.map(publicSupervisor) })
+    return NextResponse.json({ supervisors: supervisors.map(supervisorPayload) })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin supervisors GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل المشرفين' }, { status: 500 })
   }
@@ -35,45 +69,30 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { name, email, password, phone, country } = await req.json()
-    const emailNorm = String(email || '').trim().toLowerCase()
-    if (!String(name || '').trim() || !emailNorm || !String(password || '')) {
-      return NextResponse.json({ error: 'اسم المشرف والبريد وكلمة المرور مطلوبة' }, { status: 400 })
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-      return NextResponse.json({ error: 'صيغة بريد المشرف غير صحيحة' }, { status: 400 })
-    }
-    if (String(password).length < 6) {
-      return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' }, { status: 400 })
-    }
-    const existing = await db.user.findUnique({ where: { email: emailNorm } })
-    if (existing) {
-      if (existing.role !== 'SUPERVISOR') {
-        const updated = await db.user.update({
-          where: { id: existing.id },
-          data: { role: 'SUPERVISOR', name: String(name).trim(), phone: String(phone || '').trim() || existing.phone, country: String(country || '').trim() || existing.country },
-          include: { _count: { select: { supervisedAdmissions: true } } },
-        })
-        await audit(admin, AUDIT_ACTIONS.SYSTEM_UPDATE, 'User', updated.id, `ترقية المستخدم ${updated.email} إلى مشرف بشري`)
-        return NextResponse.json({ ok: true, supervisor: publicSupervisor(updated), promoted: true })
-      }
-      return NextResponse.json({ error: 'هذا البريد مسجل مسبقاً كمشرف' }, { status: 409 })
-    }
+    const limited = enforceApiRateLimit(req, 'admin-supervisors:create', 12, 60 * 1000, admin.id)
+    if (limited) return limited
+    const body = await req.json().catch(() => ({}))
+    const name = clean(body.name, 120)
+    const email = validEmail(body.email)
+    const password = String(body.password || '')
+    const phone = clean(body.phone, 80) || null
+    const country = clean(body.country, 80) || null
+    if (!name) return NextResponse.json({ error: 'اسم المشرف مطلوب' }, { status: 400 })
+    if (!email) return NextResponse.json({ error: 'صيغة بريد المشرف غير صحيحة' }, { status: 400 })
+    const passwordError = passwordStrengthError(password)
+    if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 })
+
+    const duplicate = await db.user.findUnique({ where: { email }, select: { id: true } })
+    if (duplicate) return NextResponse.json({ error: 'يوجد حساب بهذا البريد مسبقاً' }, { status: 409 })
+
     const supervisor = await db.user.create({
-      data: {
-        name: String(name).trim(),
-        email: emailNorm,
-        password: hashPassword(String(password)),
-        phone: String(phone || '').trim() || null,
-        country: String(country || '').trim() || null,
-        role: 'SUPERVISOR',
-      },
-      include: { _count: { select: { supervisedAdmissions: true } } },
+      data: { name, email, password: hashPassword(password), phone, country, role: 'SUPERVISOR', status: 'ACTIVE' },
+      select: { id: true, name: true, email: true, phone: true, country: true, status: true, createdAt: true, _count: { select: { supervisedAdmissions: true } } },
     })
-    await audit(admin, AUDIT_ACTIONS.SYSTEM_UPDATE, 'User', supervisor.id, `إنشاء حساب مشرف بشري ${supervisor.email}`)
-    return NextResponse.json({ ok: true, supervisor: publicSupervisor(supervisor) })
+    await audit({ id: admin.id, name: admin.name }, 'CREATE_SUPERVISOR', 'User', supervisor.id, `إنشاء حساب مشرف ${email}`)
+    return NextResponse.json({ ok: true, supervisor: supervisorPayload(supervisor) }, { status: 201 })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin supervisors POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر إنشاء المشرف' }, { status: 500 })
   }
@@ -82,26 +101,47 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id, action, password } = await req.json()
-    if (!id) return NextResponse.json({ error: 'معرّف المشرف مطلوب' }, { status: 400 })
-    const sup = await db.user.findUnique({ where: { id } })
-    if (!sup || sup.role !== 'SUPERVISOR') return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 404 })
-    if (action === 'reset-password') {
-      if (!String(password || '') || String(password).length < 6) return NextResponse.json({ error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' }, { status: 400 })
-      await db.user.update({ where: { id }, data: { password: hashPassword(String(password)) } })
-      await audit(admin, AUDIT_ACTIONS.SYSTEM_UPDATE, 'User', id, `إعادة تعيين كلمة مرور المشرف ${sup.email}`)
+    const limited = enforceApiRateLimit(req, 'admin-supervisors:update', 24, 60 * 1000, admin.id)
+    if (limited) return limited
+    const body = await req.json().catch(() => ({}))
+    const action = clean(body.action, 80)
+    const id = clean(body.id || body.userId, 120)
+    if (!id) return NextResponse.json({ error: 'معرف المشرف مطلوب' }, { status: 400 })
+    const supervisor = await db.user.findFirst({
+      where: { id, role: 'SUPERVISOR' },
+      select: { id: true, email: true, name: true, _count: { select: { supervisedAdmissions: true } } },
+    })
+    if (!supervisor) return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 404 })
+
+    if (action === 'reset-supervisor-password') {
+      const password = String(body.password || '')
+      const passwordError = passwordStrengthError(password)
+      if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 })
+      await db.$transaction([
+        db.user.update({ where: { id }, data: { password: hashPassword(password) } }),
+        db.session.deleteMany({ where: { userId: id } }),
+      ])
+      await audit({ id: admin.id, name: admin.name }, 'RESET_SUPERVISOR_PASSWORD', 'User', id, `إعادة تعيين كلمة مرور المشرف ${supervisor.email} وإبطال جلساته`)
       return NextResponse.json({ ok: true })
     }
-    if (action === 'revoke-role') {
-      const active = await db.admissionApplication.count({ where: { supervisorId: id } })
-      if (active > 0) return NextResponse.json({ error: 'لا يمكن إلغاء صلاحية المشرف قبل نقل الطلاب المعيّنين له إلى مشرف آخر' }, { status: 400 })
-      await db.user.update({ where: { id }, data: { role: 'STUDENT' } })
-      await audit(admin, AUDIT_ACTIONS.SYSTEM_UPDATE, 'User', id, `إلغاء صلاحية المشرف ${sup.email}`)
-      return NextResponse.json({ ok: true })
+
+    if (action === 'revoke-supervisor') {
+      const supervisedCount = supervisor._count.supervisedAdmissions || 0
+      if (supervisedCount > 0) {
+        return NextResponse.json({ error: `لا يمكن إلغاء صلاحية المشرف قبل نقل ${supervisedCount} طالب/طلب مرتبط به.`, code: 'SUPERVISOR_HAS_STUDENTS', supervisedCount }, { status: 409 })
+      }
+      const updated = await db.$transaction(async (tx) => {
+        const user = await tx.user.update({ where: { id }, data: { role: 'STUDENT' }, select: { id: true, name: true, email: true, role: true, status: true } })
+        await tx.session.deleteMany({ where: { userId: id } })
+        return user
+      })
+      await audit({ id: admin.id, name: admin.name }, 'REVOKE_SUPERVISOR', 'User', id, `إلغاء صلاحية المشرف ${supervisor.email}`)
+      return NextResponse.json({ ok: true, user: updated })
     }
-    return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
+
+    return NextResponse.json({ error: 'إجراء مشرف غير معروف' }, { status: 400 })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin supervisors PATCH error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر تحديث المشرف' }, { status: 500 })
   }
