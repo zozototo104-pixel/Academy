@@ -54,8 +54,12 @@ export async function POST(req: NextRequest) {
       } else {
         const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
         if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-        const unitsCount = await db.unit.count({ where: { programId, ...(comprehensive ? {} : { semester }) } })
-        if (!unitsCount) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
+        unitsForExam = await db.unit.findMany({
+          where: { programId, ...(comprehensive ? {} : { semester }) },
+          orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+          select: { id: true, title: true, semester: true, order: true },
+        })
+        if (!unitsForExam.length) return NextResponse.json({ error: 'لا توجد وحدات مقررة لهذا الامتحان. أكمل الكتب والوحدات وبنك المعرفة أولًا.' }, { status: 400 })
         exam = await db.programExam.create({ data: { programId, semester, title: `${comprehensive ? 'الامتحان الشامل' : semester === 2 ? 'امتحان الفصل الثاني' : 'امتحان الفصل الأول'} — ${program.titleAr || ''}`, status: 'GENERATING', generatedBy: 'AI', durationMin: 120 } }) as typeof previous
       }
     }
