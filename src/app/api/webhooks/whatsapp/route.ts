@@ -852,7 +852,7 @@ export async function processStaleWhatsAppInboundEvents(limit = 20, deps: { db?:
   })
   let processed = 0
   for (const event of events) {
-    await processWhatsAppEvent(event.id)
+    await processEvent(event.id)
     processed += 1
   }
   return { checked: events.length, processed }
