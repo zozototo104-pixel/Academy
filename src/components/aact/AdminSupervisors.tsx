@@ -71,9 +71,11 @@ export function AdminSupervisorsTab() {
   }
 
   const revoke = async (id: string) => {
+    const supervisor = supervisors.find((item) => item.id === id)
+    if (!window.confirm(`تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`)) return
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
+      await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
       toast({ title: 'تم إلغاء صلاحية المشرف', description: 'تحول الحساب إلى طالب عادي.' })
       load()
     } catch (e: any) {
