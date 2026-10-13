@@ -50,6 +50,47 @@ function isOggOrOpusMime(mimeType?: string | null) {
   return mime.includes('ogg') || mime.includes('opus')
 }
 
+function ffmpegBinary() {
+  return String(process.env.FFMPEG_BINARY || 'ffmpeg').trim() || 'ffmpeg'
+}
+
+async function transcodeOggOpusToWavBase64(cleanBase64: string, timeoutMs = 15_000) {
+  const id = randomUUID()
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aact-whatsapp-voice-'))
+  const input = path.join(dir, `${id}.ogg`)
+  const output = path.join(dir, `${id}.wav`)
+  await fs.writeFile(input, Buffer.from(cleanBase64, 'base64'))
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(ffmpegBinary(), ['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-ac', '1', '-ar', '16000', output], { stdio: ['ignore', 'ignore', 'pipe'] })
+      let stderr = ''
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL')
+        reject(new Error(`WHATSAPP_VOICE_TRANSCODE_TIMEOUT_${timeoutMs}ms`))
+      }, timeoutMs)
+      child.stderr?.on('data', (chunk) => { stderr += String(chunk).slice(0, 1000) })
+      child.on('error', (error) => {
+        clearTimeout(timer)
+        reject(new Error(`WHATSAPP_VOICE_TRANSCODE_FAILED: ${String(error.message || error).slice(0, 240)}`))
+      })
+      child.on('close', (code) => {
+        clearTimeout(timer)
+        if (code === 0) resolve()
+        else reject(new Error(`WHATSAPP_VOICE_TRANSCODE_FAILED: ffmpeg exited ${code}${stderr ? ` — ${stderr.slice(0, 240)}` : ''}`))
+      })
+    })
+    const wav = await fs.readFile(output)
+    return { clean: wav.toString('base64'), mimeType: 'audio/wav', converted: true }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+async function prepareAudioForAsr(cleanBase64: string, mimeType: string) {
+  if (!isOggOrOpusMime(mimeType)) return { clean: cleanBase64, mimeType, converted: false }
+  return transcodeOggOpusToWavBase64(cleanBase64)
+}
+
 function shouldWaitForGeminiFileState(state: string) {
   const normalized = String(state || '').toUpperCase()
   return normalized.includes('PROCESSING') || normalized.includes('PENDING') || normalized.includes('UNSPECIFIED')
