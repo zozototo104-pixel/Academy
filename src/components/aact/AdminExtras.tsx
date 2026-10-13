@@ -3026,7 +3026,7 @@ export function AdminWhatsAppFailuresTab() {
             <p className="text-lg font-black text-[#0f2b46]">إخفاقات الواتساب</p>
             <p className="text-xs font-bold text-slate-500">آخر 50 رد احتياطي مع إخفاء الرقم وبيانات المزود/الموديل وسبب الفشل.</p>
           </div>
-          <Button variant="outline" onClick={load} disabled={loading} className="font-bold">
+          <Button variant="outline" onClick={() => load()} disabled={loading} className="font-bold">
             {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
             تحديث
           </Button>
