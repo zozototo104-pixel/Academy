@@ -288,6 +288,7 @@ async function testWhatsAppPublicAgentWithMocks() {
       textAiDiagnostics: async () => ({ lastResult: { provider: lastProvider, model: `${lastProvider.toLowerCase()}-mock`, error: lastProvider === 'GEMINI' ? 'Gemini mock failure' : undefined } } as any),
     },
   } as any)
+  assert(providerHealthCalls === 1, 'WhatsApp alternate-provider retry must consult provider health')
   assert(routerCalls === 2, 'Gemini failure must trigger exactly one alternate-provider router retry')
   assert(fallbackResult.reply.includes('رد من مزود بديل'), 'alternate provider must deliver the WhatsApp reply')
   assert(!fallbackResult.reply.includes('المساعد غير متاح حالياً'), 'alternate-provider success must not send fallback unavailable text')
