@@ -161,7 +161,9 @@ async function testTooLargeFilesAreReportedAndNotStored() {
   assert(getStoreCalls() === 1, 'large files must not be stored while smaller files still migrate')
 }
 
-async function withRemoteLegacyMocks<T>(fetchImpl: typeof fetch, work: () => Promise<T>) {
+type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+async function withRemoteLegacyMocks<T>(fetchImpl: FetchMock, work: () => Promise<T>) {
   const oldHosts = process.env.PRIVATE_FILES_ALLOWED_LEGACY_HOSTS
   const oldFetch = globalThis.fetch
   const oldLookup = (dns as any).lookup
