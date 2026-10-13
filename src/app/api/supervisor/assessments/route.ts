@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { notify } from '@/lib/notify'
-import { generateSupervisorQuestions, gradeSupervisorAttemptWithAi } from '@/lib/supervisor-assessment-ai'
+import { AI_UNAVAILABLE_MESSAGE, generateSupervisorQuestions, gradeSupervisorAttemptWithAi } from '@/lib/supervisor-assessment-ai'
 
 async function admissionForAccess(admissionId: string, user: any, mode: 'read' | 'write' = 'read') {
   const app = await db.admissionApplication.findUnique({ where: { id: admissionId } })
