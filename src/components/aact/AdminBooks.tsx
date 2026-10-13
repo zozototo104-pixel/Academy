@@ -3647,7 +3647,7 @@ export function AdminBooksTab() {
                               {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                             </Button>
                           )}
-                          {(e.status === 'REVIEW' || e.status === 'READY') && (
+                          {(e.status === 'REVIEW' || e.status === 'READY' || (e.status === 'PAUSED' && e.questionCount > 0)) && (
                             <Button size="sm" onClick={() => setReviewingExam({ id: e.id, title: e.title })}
                               className={`h-8 text-[10px] font-black ${e.status === 'REVIEW' ? 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]' : 'border border-[#0f2b46]/20 bg-transparent text-[#0f2b46] hover:bg-slate-50'}`}>
                               <FileCheck2 className="ml-1 h-3 w-3" />
