@@ -958,12 +958,48 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
+  const runWhatsAppRouter = async (excludeProviders: TextAiProvider[] = []) => {
+    const started = Date.now()
+    const providerDeadlineMs = Date.now() + Math.min(20_000, Math.max(1_000, remainingDeadlineMs(opts.deadlineMs, 20_000)))
+    try {
+      const reply = await textAiComplete({
+        system,
+        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+        temperature: 0.35,
+        maxOutputTokens: 1200,
+        taskLevel: 'GENERAL',
+        purpose: 'CHAT',
+        routerPolicy: 'balanced',
+        excludeProviders,
+        deadlineMs: providerDeadlineMs,
+      })
+      const diag = await textAiDiagnostics().catch(() => null)
+      const result = diag?.lastResult
+      logPlatformProviderAttempt({ ok: true, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started })
+      return { reply: annotateReply(agent, reply, 'MODEL_ROUTER'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' as const }
+    } catch (e: any) {
+      const diag = await textAiDiagnostics().catch(() => null)
+      const result = diag?.lastResult
+      logPlatformProviderAttempt({ ok: false, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
+      throw e
+    }
+  }
+
   if (isWhatsApp) {
     try {
-      const geminiReply = await runGemini()
-      if (geminiReply) return geminiReply
-    } catch (e: any) {
-      console.error('Gemini public WhatsApp agent failed:', String(e?.message || e).slice(0, 400))
+      return await runWhatsAppRouter()
+    } catch (firstError: any) {
+      const diag = await textAiDiagnostics().catch(() => null)
+      const failedProvider = String(diag?.lastResult?.provider || '').toUpperCase() as TextAiProvider
+      const canRetry = failedProvider && failedProvider !== 'AUTO' && remainingDeadlineMs(opts.deadlineMs, 0) > 2_500
+      if (canRetry) {
+        try {
+          return await runWhatsAppRouter([failedProvider])
+        } catch (secondError: any) {
+          console.error('WhatsApp public router fallback provider failed:', String(secondError?.message || secondError).slice(0, 400))
+        }
+      }
+      console.error('WhatsApp public router failed:', String(firstError?.message || firstError).slice(0, 400))
     }
   }
 
