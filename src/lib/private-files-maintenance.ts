@@ -439,7 +439,20 @@ export async function runPrivateFilesMaintenanceBatch(input: RunPrivateFilesMain
       if (!item.hasStorageKey) type.storageKeyUpdates += 1
       if (input.mode !== 'execute') continue
 
-      const legacy = await readLegacyFile(item)
+      let legacy: { buffer: Buffer; mimeType: string } | null = null
+      try {
+        legacy = await readLegacyFile(item)
+      } catch (error: any) {
+        if (String(error?.message || error).includes('STORAGE_FILE_TOO_LARGE')) {
+          type.toMigrate -= 1
+          if (!item.hasStorageKey) type.storageKeyUpdates -= 1
+          type.tooLarge += 1
+          addTooLargeId(type, item.id)
+          notes.add(`بعض الملفات كبيرة جداً وتتجاوز حد ${Math.round(maxFileBytes / 1024 / 1024)}MB؛ لم يتم نقلها.`)
+          continue
+        }
+        throw error
+      }
       if (!legacy?.buffer?.byteLength) {
         type.toMigrate -= 1
         if (!item.hasStorageKey) type.storageKeyUpdates -= 1
