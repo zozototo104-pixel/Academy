@@ -102,6 +102,7 @@ export async function GET() {
         fileName: true,
         fileMime: true,
         fileSize: true,
+        fileStorageKey: true,
         createdAt: true,
         updatedAt: true,
       },
