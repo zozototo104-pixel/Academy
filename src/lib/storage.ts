@@ -436,7 +436,7 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (provider === 'local' && key) {
-    const root = key.startsWith('representatives-private/')
+    const root = isPrivateStorageKey(key)
       ? path.join(process.cwd(), '.data', 'private-uploads')
       : path.join(process.cwd(), 'public', 'uploads')
     const absolutePath = path.join(root, key)
