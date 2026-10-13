@@ -2119,7 +2119,7 @@ export function AdminBooksTab() {
         title: d.resumed ? 'تم استكمال التوليد' : 'بدأ التوليد',
         description: d.resumed
           ? `سيكمل من السؤال ${(d.existingQuestions || failedExam?.questionCount || 0) + 1} دون حذف الأسئلة السابقة — تابع الحالة بالأسفل`
-          : `خبير الذكاء الاصطناعي يقرأ ${d.booksCount} كتاباً ويحللها لتوليد أسئلة ${semLabel} — تابع الحالة بالأسفل`,
+          : `بدأ تجميع ${semLabel} من بنك الأسئلة الموثق وبنك المعرفة V2 حتى 80 سؤالًا؛ سيجري توليد النقص بالدفعات والتحقق من الأدلة — تابع العدد والحالة بالأسفل`,
       })
       await loadProgramData(programId, true)
     } catch (e: any) {
