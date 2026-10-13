@@ -54,7 +54,9 @@ function testQuestionVerifierUsesOriginalBookChunk() {
   assert(job.includes('text: verifierSourceText(item)'), 'question verifier must receive original chunk source text')
 
   const verifier = file('src/lib/question-verifier.ts')
-  assert(verifier.includes('normalizeArabicText') || verifier.includes('normalizeArabic'), 'question verifier must retain Arabic normalization')
+  const literalEvidence = file('src/lib/evidence-validator.ts')
+  assert(verifier.includes('validateLiteralEvidence'), 'question verifier must still call the literal evidence validator')
+  assert(literalEvidence.includes('normalizeArabic'), 'literal evidence validator must retain Arabic normalization')
 }
 
 function testNoAcademicFallbacks() {
