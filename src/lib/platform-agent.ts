@@ -966,33 +966,6 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  const runWhatsAppRouter = async (excludeProviders: TextAiProvider[] = []) => {
-    const started = Date.now()
-    const providerDeadlineMs = Date.now() + Math.min(20_000, Math.max(1_000, remainingDeadlineMs(opts.deadlineMs, 20_000)))
-    try {
-      const reply = await completeText({
-        system,
-        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
-        temperature: 0.35,
-        maxOutputTokens: 1200,
-        taskLevel: 'GENERAL',
-        purpose: 'CHAT',
-        routerPolicy: 'balanced',
-        excludeProviders,
-        deadlineMs: providerDeadlineMs,
-      })
-      const diag = await diagnostics().catch(() => null)
-      const result = diag?.lastResult
-      logPlatformProviderAttempt({ ok: true, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started })
-      return { reply: annotateReply(agent, reply, 'MODEL_ROUTER'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' as const }
-    } catch (e: any) {
-      const diag = await diagnostics().catch(() => null)
-      const result = diag?.lastResult
-      logPlatformProviderAttempt({ ok: false, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
-      throw e
-    }
-  }
-
   if (isWhatsApp) {
     try {
       const geminiReply = await runGemini()
