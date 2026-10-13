@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
 
     let exam = existing
     let resumed = Boolean(exam)
+    let unitsForExam: Array<{ id: string; title: string; semester: number; order: number }> = []
     if (!exam) {
       const comprehensive = body.comprehensive === true || body.semester === 0 || body.semester === 'all'
       const semester = comprehensive ? 3 : Number(body.semester) === 2 ? 2 : 1
