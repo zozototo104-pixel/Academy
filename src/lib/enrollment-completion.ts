@@ -187,19 +187,16 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 422, code: 'CERTIFICATE_IDENTITY_REQUIRED', error: 'اسم صاحب الشهادة واسم البرنامج مطلوبان لإصدار الشهادة.', enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null, eligibility }
   }
 
-  const certificate = existing || await tx.certificate.create({
-    data: {
-      serial: await nextCertificateSerial(tx),
-      qrToken: randomBytes(16).toString('hex'),
-      type: 'PROGRAM_COMPLETION',
-      holderName,
-      program: programTitle,
-      grade: eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null),
-      country: (input.country || matchedAdmission?.country || '').trim() || null,
-      userId: enrollment.userId,
-      enrollmentId: enrollment.id,
-      admissionId: matchedAdmission?.id || null,
-    },
+  const certificate = existing || await createProgramCompletionCertificateWithRetry(tx, {
+    qrToken: randomBytes(16).toString('hex'),
+    type: 'PROGRAM_COMPLETION',
+    holderName,
+    program: programTitle,
+    grade: eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null),
+    country: (input.country || matchedAdmission?.country || '').trim() || null,
+    userId: enrollment.userId,
+    enrollmentId: enrollment.id,
+    admissionId: matchedAdmission?.id || null,
   })
 
   await tx.enrollment.update({
