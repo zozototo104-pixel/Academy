@@ -54,9 +54,21 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { examId, answers } = (await req.json()) as { examId: string; answers: SubmitAnswer[] }
-    if (!examId || !Array.isArray(answers)) {
+    const declaredLength = req.headers.get('content-length')
+    const maxPayloadBytes = 512 * 1024
+    if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxPayloadBytes)) {
+      return NextResponse.json({ error: 'حجم طلب الاختبار كبير جدًا' }, { status: 413 })
+    }
+    const payload = await req.text()
+    if (Buffer.byteLength(payload, 'utf8') > maxPayloadBytes) {
+      return NextResponse.json({ error: 'حجم طلب الاختبار كبير جدًا' }, { status: 413 })
+    }
+    const { examId, answers } = JSON.parse(payload) as { examId: string; answers: SubmitAnswer[] }
+    if (typeof examId !== 'string' || !examId || examId.length > 128 || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'بيانات الاختبار غير مكتملة' }, { status: 400 })
+    }
+    if (answers.length > 150 || answers.some((a) => !a || typeof a.questionId !== 'string' || a.questionId.length > 128 || (a.answerText !== undefined && (typeof a.answerText !== 'string' || a.answerText.length > 12000)) || (a.selectedOption != null && !['string', 'number'].includes(typeof a.selectedOption))) || new Set(answers.map((a) => a.questionId)).size !== answers.length) {
+      return NextResponse.json({ error: 'الإجابات تجاوزت الحدود المسموحة أو احتوت أسئلة مكررة' }, { status: 400 })
     }
 
     const exam = await db.exam.findUnique({
