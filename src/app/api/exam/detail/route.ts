@@ -42,11 +42,16 @@ export async function GET(req: NextRequest) {
     // لا نحتسب الوقت القادم من المتصفح؛ createdAt محفوظ من قاعدة البيانات.
     const attemptState = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`
+      const passedAttempt = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'GRADED', passed: true },
+        select: { id: true },
+      })
+      if (passedAttempt) return { blocked: true as const, reason: 'PASSED_ALREADY' as const }
       const grading = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'SUBMITTED' },
         select: { id: true },
       })
-      if (grading) return { blocked: true as const }
+      if (grading) return { blocked: true as const, reason: 'SUBMITTED' as const }
       const existing = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
