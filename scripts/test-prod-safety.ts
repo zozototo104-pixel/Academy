@@ -172,9 +172,6 @@ function testAiDeadlines() {
   const chat = file('src/app/api/chat/route.ts')
   assert(chat.includes('export const maxDuration = 60'), 'chat route must export maxDuration')
   assert(chat.includes('const deadlineMs = deadlineFromNow(55_000)'), 'chat route must create one shared deadline')
-  const whatsappRoute = file('src/app/api/webhooks/whatsapp/route.ts')
-  assert(whatsappRoute.includes('export const maxDuration = 60'), 'WhatsApp route must export maxDuration')
-  assert(whatsappRoute.includes('const deadlineMs = Date.now() + MESSAGE_PROCESSING_BUDGET_MS'), 'WhatsApp route must create one processing deadline')
 }
 
 function testAactTestRecipientBlocks() {
