@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
           where: { id: startedAttempt.id },
           data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
         })
-        startedAttempt = null
+        return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', attemptId: startedAttempt.id }, { status: 409 })
       }
     }
     if (!startedAttempt) {
