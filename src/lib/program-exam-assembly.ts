@@ -123,7 +123,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
     // Repeated admin clicks and cron ticks cannot pick the same bank item simultaneously.
     await tx.$queryRaw`SELECT 1 AS acquired FROM pg_advisory_xact_lock(472918, hashtext(${examId}))`
     const currentExam = await tx.programExam.findUnique({ where: { id: examId }, select: { status: true } })
-    const existing = await tx.programQuestion.findMany({ where: { examId }, select: { text: true, type: true, status: true, order: true, points: true, knowledgeItemId: true, qualityFlags: true } })
+    const existing = await tx.programQuestion.findMany({ where: { examId }, select: { text: true, type: true, status: true, order: true, points: true, knowledgeItemId: true, qualityFlags: true, sourceEvidence: true, sourceBookTitle: true, sourceLocator: true } })
     const active = existing.filter((question) => question.status !== 'REJECTED')
     if (currentExam?.status !== 'GENERATING') return { questionCount: active.length, inserted: 0, done: currentExam?.status === 'REVIEW', status: currentExam?.status || 'REVIEW', byType: {} as Record<string, number>, byUnit: {} as Record<string, number> }
     const byType: Record<string, number> = Object.fromEntries(TYPES.map((type) => [type, active.filter((q) => q.type === type).length]))
