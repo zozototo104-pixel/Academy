@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
     })
-    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', attemptId: expiredAttempt.id }, { status: 409 })
+    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', legacyMessage: 'انتهى وقت هذه المحاولة', code: 'ATTEMPT_EXPIRED', attemptId: expiredAttempt.id }, { status: 409 })
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
