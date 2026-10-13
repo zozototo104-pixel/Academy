@@ -203,12 +203,12 @@ function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage
 }
 
 function inboundEventPayload(message: WhatsAppInboundMessage) {
-  return redactDeep({
+  const fromEncrypted = encryptWhatsAppPhone(message.from) || null
+  const payload = redactDeep({
     message: {
       id: message.id,
       fromHash: waIdHash(message.from),
       fromMasked: maskPhone(message.from),
-      fromEncrypted: encryptWhatsAppPhone(message.from) || null,
       text: message.text || '',
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
@@ -220,7 +220,12 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       isVoice: Boolean(message.isVoice),
       originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
-  })
+  }) as any
+  return { ...payload, message: { ...(payload?.message || {}), fromEncrypted } }
+}
+
+export function __inboundEventPayloadForTests(message: WhatsAppInboundMessage) {
+  return inboundEventPayload(message)
 }
 
 function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Date }) {
