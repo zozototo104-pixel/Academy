@@ -451,7 +451,7 @@ export function AdminThesisTab() {
                           className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
                           <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد خطة البحث
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
                           className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
                           طلب تعديل الخطة
                         </Button>
