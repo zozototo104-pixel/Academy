@@ -3045,7 +3045,7 @@ export function AdminBooksTab() {
                           <p className="mt-1 text-xs font-bold text-slate-500">{submission.studentName || 'طالب'} — {submission.studentEmail || 'بريد غير متوفر'}</p>
                           {submission.answerText && <p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">{submission.answerText.slice(0, 900)}{submission.answerText.length > 900 ? '…' : ''}</p>}
                           {submission.fileName && (
-                            <a href={`/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1d4ed8] hover:bg-blue-100">
+                            <a href={submission.fileUrl || submission.downloadUrl || `/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1d4ed8] hover:bg-blue-100">
                               <FileText className="h-3.5 w-3.5" /> ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}
                             </a>
                           )}
