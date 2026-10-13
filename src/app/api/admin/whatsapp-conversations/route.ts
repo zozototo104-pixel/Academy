@@ -157,8 +157,11 @@ export async function POST(req: NextRequest) {
       if (!recipientWaId) {
         return NextResponse.json({ ok: false, error: 'الرقم الكامل غير متوفر في سجل هذه المحادثة القديمة. يمكن استعادته عند وصول رسالة جديدة من العميل، أو إدخال رقمه الصحيح والتحقق منه من لوحة الإدارة.' }, { status: 409 })
       }
+      if (!await alignLegacyConversationIdentity(conversation, recipientWaId)) {
+        return NextResponse.json({ ok: false, error: 'الرقم مرتبط بمحادثة أخرى؛ يلزم مراجعة السجلين قبل الإرسال' }, { status: 409 })
+      }
       const freeformWindowOpen = Boolean(
-        conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() <= 24 * 60 * 60 * 1000,
+        conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() >= 0 && Date.now() - conversation.lastInboundAt.getTime() < 24 * 60 * 60 * 1000,
       )
       const sentText = freeformWindowOpen
         ? text
