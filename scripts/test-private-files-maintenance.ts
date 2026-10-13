@@ -1,6 +1,8 @@
+import { promises as dns } from 'dns'
 import { NextRequest } from 'next/server'
 import { runPrivateFilesMaintenanceBatch } from '../src/lib/private-files-maintenance'
 import { __privateFilesMaintenancePostForTests } from '../src/app/api/admin/maintenance/private-files/route'
+import { readStoredFile } from '../src/lib/storage'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
