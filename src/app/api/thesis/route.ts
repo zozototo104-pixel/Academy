@@ -114,8 +114,14 @@ export async function GET() {
           orderBy: { updatedAt: 'desc' },
         }))
       : null
+    const safeThesis = thesis ? {
+      ...thesis,
+      fileUrl: thesis.fileStorageKey ? getStorageDownloadPathForKey(thesis.fileStorageKey) : null,
+      downloadUrl: thesis.fileStorageKey ? getStorageDownloadPathForKey(thesis.fileStorageKey) : null,
+      recordingUrl: thesis.recordingStorageKey ? getStorageDownloadPathForKey(thesis.recordingStorageKey) : null,
+    } : null
     return NextResponse.json({
-      thesis,
+      thesis: safeThesis,
       thesisPlan,
       examsGate: gate,
       admission: admission
