@@ -836,6 +836,17 @@ export async function processWhatsAppEvent(eventId: string) {
     return
   }
 
+  if (await isWhatsAppOutboundEcho(message.id)) {
+    await markInboundEventStatus(eventId, 'SKIPPED', 'Ignored outbound WhatsApp echo message')
+    await auditWhatsAppWebhook('WHATSAPP_OUTBOUND_ECHO_IGNORED', {
+      eventId,
+      messageId: message.id,
+      from: maskPhone(message.from),
+      rawType: message.rawType || null,
+    }, eventId)
+    return
+  }
+
   try {
     const outcome = await processWhatsAppMessage(message)
     await markInboundEventStatus(eventId, outcome)
