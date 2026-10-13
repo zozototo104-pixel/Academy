@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     if (!enrollment) return NextResponse.json({ error: 'يجب التسجيل في البرنامج أولاً' }, { status: 403 })
     if (enrollment.status === 'PENDING_PAYMENT') {
       return NextResponse.json(
-        { error: 'تسجيلك بانتظار سداد الفاتورة — أكمل الدفع لفتح الاختبارات', code: 'PENDING_PAYMENT' },
+        { error: 'تسجيلك بانتظار سداد الفاتورة — أكمل الدفع لفتح الاختبارات', code: 'PENDING_PAYMENT', programId: exam.programId },
         { status: 402 }
       )
     }
