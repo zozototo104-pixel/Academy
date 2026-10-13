@@ -915,7 +915,7 @@ export async function platformPublicAgentComplete(opts: {
   const classifierDeadlineMs = opts.channel === 'WHATSAPP'
     ? Math.min(opts.deadlineMs || Number.POSITIVE_INFINITY, Date.now() + 4_000)
     : opts.deadlineMs
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC', deadlineMs: classifierDeadlineMs })
+  const intentAnalysis = await analyzeIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC', deadlineMs: classifierDeadlineMs })
     .catch((error) => {
       console.warn('Public intent classifier failed; continuing with local routing rules.', error)
       return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
