@@ -15,12 +15,13 @@ function clean(value: unknown, max = 120) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const limited = enforceApiRateLimit(req, 'admin-program-exam-generate', 8, 60_000, admin.id)
-    if (limited) return limited
     const body = await req.json().catch(() => ({}))
     const programId = clean(body.programId, 80)
     const examId = clean(body.examId, 80)
     const action = clean(body.action || (examId ? 'resume' : 'start'), 20)
+    // Automated admin-page continuation is deliberately faster than manual starts.
+    const limited = enforceApiRateLimit(req, action === 'kick' ? 'admin-program-exam-kick' : 'admin-program-exam-generate', action === 'kick' ? 40 : 8, 60_000, admin.id)
+    if (limited) return limited
     if (!['start', 'resume', 'kick', 'stop', 'rebuild'].includes(action)) return NextResponse.json({ error: 'إجراء غير مدعوم' }, { status: 400 })
     if (!programId && !examId) return NextResponse.json({ error: 'معرف البرنامج أو الامتحان مطلوب' }, { status: 400 })
 
