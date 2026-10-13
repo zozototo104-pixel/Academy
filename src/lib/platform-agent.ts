@@ -903,23 +903,10 @@ export async function platformPublicAgentComplete(opts: {
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
   deadlineMs?: number
-  getProviderHealth?: typeof textAiModelHealthSnapshot
-  __testDeps?: {
-    analyzeConversationIntent?: typeof analyzeConversationIntent
-    textAiComplete?: typeof textAiComplete
-    textAiDiagnostics?: typeof textAiDiagnostics
-  }
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
-  assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
-  const analyzeIntent = opts.__testDeps?.analyzeConversationIntent || analyzeConversationIntent
-  const completeText = opts.__testDeps?.textAiComplete || textAiComplete
-  const diagnostics = opts.__testDeps?.textAiDiagnostics || textAiDiagnostics
-  const getProviderHealth = opts.getProviderHealth || textAiModelHealthSnapshot
+  if (opts.channel !== 'WHATSAPP') assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
-  const classifierDeadlineMs = opts.channel === 'WHATSAPP'
-    ? Math.min(opts.deadlineMs || Number.POSITIVE_INFINITY, Date.now() + 4_000)
-    : opts.deadlineMs
-  const intentAnalysis = await analyzeIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC', deadlineMs: classifierDeadlineMs })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, opts.channel === 'WHATSAPP' ? { channel: opts.channel, role: 'PUBLIC' } : { channel: opts.channel, role: 'PUBLIC', deadlineMs: opts.deadlineMs })
     .catch((error) => {
       console.warn('Public intent classifier failed; continuing with local routing rules.', error)
       return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
@@ -947,8 +934,8 @@ export async function platformPublicAgentComplete(opts: {
   const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
-  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000))
-  if (timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
+  const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
+  if (!isWhatsApp && timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
@@ -970,66 +957,15 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  const runWhatsAppRouter = async (excludeProviders: TextAiProvider[] = []) => {
-    const started = Date.now()
-    const providerDeadlineMs = Date.now() + Math.min(20_000, Math.max(1_000, remainingDeadlineMs(opts.deadlineMs, 20_000)))
+  if (isWhatsApp) {
     try {
-      const reply = await completeText({
-        system,
-        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
-        temperature: 0.35,
-        maxOutputTokens: 1200,
-        taskLevel: 'GENERAL',
-        purpose: 'CHAT',
-        routerPolicy: 'balanced',
-        excludeProviders,
-        deadlineMs: providerDeadlineMs,
-      })
-      const diag = await diagnostics().catch(() => null)
-      const result = diag?.lastResult
-      logPlatformProviderAttempt({ ok: true, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started })
-      return { reply: annotateReply(agent, reply, 'MODEL_ROUTER'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' as const }
+      const geminiReply = await runGemini()
+      if (geminiReply) return geminiReply
     } catch (e: any) {
-      const diag = await diagnostics().catch(() => null)
-      const result = diag?.lastResult
-      logPlatformProviderAttempt({ ok: false, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
-      throw e
+      console.error('Gemini public WhatsApp agent failed:', String(e?.message || e).slice(0, 400))
     }
   }
 
-  if (isWhatsApp) {
-    try {
-      return await runWhatsAppRouter()
-    } catch (firstError: any) {
-      const diag = await diagnostics().catch(() => null)
-      const failedProvider = String(diag?.lastResult?.provider || '').toUpperCase() as TextAiProvider
-      const remainingMs = remainingDeadlineMs(opts.deadlineMs, 20_000)
-      const hasHealthyAlternate = failedProvider && failedProvider !== 'AUTO'
-        ? await getProviderHealth().then((rows) => rows.some((row) => {
-            const provider = String(row.provider || '').toUpperCase()
-            if (!provider || provider === failedProvider || provider === 'AUTO') return false
-            const status = String(row.status || '').trim()
-            const healthOk = row.health ? row.health.ok === true : status === 'شغّال'
-            return healthOk && status !== 'ميت' && status !== 'فشل الفحص'
-          })).catch(() => false)
-        : false
-      const canRetry = Boolean(failedProvider && failedProvider !== 'AUTO' && remainingMs > 2_500 && hasHealthyAlternate)
-      if (canRetry) {
-        try {
-          return await runWhatsAppRouter([failedProvider])
-        } catch (secondError: any) {
-          console.error('WhatsApp public router fallback provider failed:', String(secondError?.message || secondError).slice(0, 400))
-        }
-      }
-      console.error('WhatsApp public router failed:', String(firstError?.message || firstError).slice(0, 400))
-    }
-  }
-
-  if (isWhatsApp) {
-    // WhatsApp must not fall through to the legacy chatComplete path after router attempts;
-    // that path may use academic/local fallbacks and can touch real providers during mocked CI tests.
-    return { reply: AI_UNAVAILABLE_MESSAGE, agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
-  }
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
@@ -1040,7 +976,7 @@ export async function platformPublicAgentComplete(opts: {
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
-        maxTokens: 1100,
+        maxTokens: isWhatsApp ? 1600 : 1100,
       }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
