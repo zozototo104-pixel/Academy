@@ -6,6 +6,7 @@ import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 interface SubmitAnswer {
   questionId: string
