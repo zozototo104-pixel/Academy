@@ -401,6 +401,7 @@ function testDependencyPins() {
 }
 
 async function main() {
+  testDeadlineMath()
   testProductionFixtureGuards()
   testWorkflowTargetsQaOnly()
   testFinallyCleanup()
