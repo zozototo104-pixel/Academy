@@ -134,6 +134,25 @@ export function AdminWhatsAppInboxTab() {
     }
   }
 
+  async function recoverPhone() {
+    if (!activeConversation || !legacyPhone.trim() || recoveringPhone) return
+    setRecoveringPhone(true)
+    try {
+      await api('/api/admin/whatsapp-conversations', {
+        method: 'POST',
+        body: JSON.stringify({ id: activeConversation.id, action: 'recover_phone', phoneNumber: legacyPhone.trim() }),
+      })
+      setLegacyPhone('')
+      await loadDetail(activeConversation.id)
+      await loadList({ preserveSelected: true })
+      toast({ title: 'تم تأكيد رقم العميل وحفظه مشفرًا' })
+    } catch (e: any) {
+      toast({ title: 'تعذر استعادة الرقم', description: e?.message, variant: 'destructive' })
+    } finally {
+      setRecoveringPhone(false)
+    }
+  }
+
   async function sendReply() {
     if (!activeConversation || !reply.trim()) return
     setSending(true)
