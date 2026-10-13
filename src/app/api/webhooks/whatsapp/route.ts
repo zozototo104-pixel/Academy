@@ -277,7 +277,7 @@ async function registerInboundWhatsAppEvents(messages: WhatsAppInboundMessage[])
       console.error('WhatsApp inbound event registration failed:', msg)
     }
   }
-  return { eventIds, skippedDuplicates, errors }
+  return { eventIds, skippedDuplicates, skippedEchoes, errors }
 }
 
 function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | null {
