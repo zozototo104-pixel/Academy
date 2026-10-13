@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
         approvedQuestions: scoped.selection.approvedCount,
         pendingReviewQuestions: scoped.selection.pendingReviewCount,
         requiredQuestions,
-        error: `جارٍ تجهيز بنك الأسئلة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}`,
+        error: `لا يكفي عدد الأسئلة المعتمدة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}. في ${scoped.selection.pendingReviewCount} أسئلة بانتظار المراجعة.`,
       }, { status: 202 })
     }
 
