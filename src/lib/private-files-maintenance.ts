@@ -278,7 +278,7 @@ async function releaseLock(db: DbClient, token: string) {
 }
 
 function pushCandidate(rows: PrivateFilesCandidate[], item: PrivateFilesCandidate) {
-  if (item.key && isPrivateStorageKey(item.key)) rows.push(item)
+  rows.push(item)
 }
 
 export async function collectPrivateFileCandidates(db: DbClient): Promise<PrivateFilesCandidate[]> {
