@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { getServiceFlow } from '@/lib/service-flows'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 function jsonArray(value: unknown, fallback: any[] = []) {
   if (Array.isArray(value)) return value
@@ -89,6 +90,7 @@ export async function GET() {
         recordingMime: true,
         recordingSize: true,
         recordingDurationSec: true,
+        recordingStorageKey: true,
         resultScore: true,
         passed: true,
         extractionStatus: true,
@@ -100,6 +102,7 @@ export async function GET() {
         fileName: true,
         fileMime: true,
         fileSize: true,
+        fileStorageKey: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -111,8 +114,14 @@ export async function GET() {
           orderBy: { updatedAt: 'desc' },
         }))
       : null
+    const safeThesis = thesis ? {
+      ...thesis,
+      fileUrl: thesis.fileStorageKey ? getStorageDownloadPathForKey(thesis.fileStorageKey) : null,
+      downloadUrl: thesis.fileStorageKey ? getStorageDownloadPathForKey(thesis.fileStorageKey) : null,
+      recordingUrl: thesis.recordingStorageKey ? getStorageDownloadPathForKey(thesis.recordingStorageKey) : null,
+    } : null
     return NextResponse.json({
-      thesis,
+      thesis: safeThesis,
       thesisPlan,
       examsGate: gate,
       admission: admission

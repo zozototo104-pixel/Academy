@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { deliverableTypeLabel, normalizeDeliverableType } from '@/lib/service-deliverables'
 import { emailServiceDeliverablePublished } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
         size: Number(stored.size || 0),
         storageProvider: stored.provider || null,
         storageKey: stored.key || null,
-        fileUrl: stored.url || null,
+        fileUrl: stored.key ? getStorageDownloadPathForKey(stored.key) : null,
         externalUrl: externalUrl || null,
         certificateId: certificateId || null,
         verificationUrl: verificationUrl || null,

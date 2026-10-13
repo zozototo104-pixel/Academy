@@ -6,6 +6,8 @@ import { notify, audit } from '@/lib/notify'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { getSettings } from '@/lib/settings'
 import { dollarsToCents } from '@/lib/money'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
+import { isPrivateStorageKey } from '@/lib/prod-safety'
 
 function cleanText(value: unknown, max = 500) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -28,6 +30,14 @@ function roundMoney(value: number) {
 function hasPositivePrice(value: unknown): value is number {
   const n = Number(value)
   return Number.isFinite(n) && n > 0
+}
+
+function secureProofPayload(proof: any) {
+  if (!proof?.storageKey || !isPrivateStorageKey(proof.storageKey)) return proof
+  return {
+    ...proof,
+    storageUrl: getStorageDownloadPathForKey(proof.storageKey),
+  }
 }
 
 function tuitionFallbackForProgram(params: {
@@ -173,7 +183,11 @@ export async function GET(req: NextRequest) {
       manualAiLiveCreditCount: manualAiPendingCount,
       manualAiLiveCreditAmount: manualAiPendingSum._sum.amount || 0,
     }
-    return NextResponse.json({ payments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
+    const safePayments = payments.map((payment: any) => ({
+      ...payment,
+      proofs: (payment.proofs || []).map(secureProofPayload),
+    }))
+    return NextResponse.json({ payments: safePayments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })

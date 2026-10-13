@@ -8,6 +8,7 @@ import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-re
 import { calculateFinalGrade } from '@/lib/final-grade'
 import { nextAdmissionRef, nextInvoiceNo } from '@/lib/settings'
 import { dollarsToCents } from '@/lib/money'
+import { qaProdFixturesAllowed } from '@/lib/prod-safety'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -957,6 +958,12 @@ export async function DELETE(req: NextRequest) {
 
 export async function POST() {
   try {
+    if (!qaProdFixturesAllowed()) {
+      return NextResponse.json(
+        { ok: false, error: 'QA fixtures are blocked in production unless QA_ALLOW_PROD_FIXTURES=true is set.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
     const adminUser = await requireAdmin()
     const admin = { id: adminUser.id, name: adminUser.name || 'QA Admin' }
     const stamp = runStamp()

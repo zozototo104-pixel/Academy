@@ -16,6 +16,20 @@ const defaults: Record<string, string> = {
   ACCREDITATION_BENEFITS_TEXT: ACCREDITATION_GUIDE.benefits.join(' / '),
 }
 
+function isProductionDeployment() {
+  return process.env.VERCEL_ENV === 'production'
+}
+
+function isDatabaseUnavailableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code || '') : ''
+  return code === 'P1001' || message.includes("Can't reach database server") || message.includes('PrismaClientInitializationError')
+}
+
+function canSkipUnavailableDatabase() {
+  return !isProductionDeployment() && process.env.MIGRATE_OFFICIAL_AI_SETTINGS_REQUIRED !== 'true'
+}
+
 async function main() {
   let created = 0
   for (const [key, value] of Object.entries(defaults)) {
@@ -28,6 +42,12 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (isDatabaseUnavailableError(error) && canSkipUnavailableDatabase()) {
+    console.warn(JSON.stringify({ ok: true, skipped: true, reason: 'DATABASE_UNAVAILABLE', checked: Object.keys(defaults).length }, null, 2))
+    return
+  }
   console.error(error)
-  process.exit(1)
-}).finally(async () => db.$disconnect())
+  process.exitCode = 1
+}).finally(async () => {
+  await db.$disconnect().catch(() => {})
+})

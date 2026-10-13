@@ -192,6 +192,8 @@ interface AssignmentSubmissionRow {
   studentEmail?: string
   answerText?: string | null
   fileName?: string | null
+  fileUrl?: string | null
+  downloadUrl?: string | null
   mimeType?: string | null
   size?: number | null
   status: string
@@ -2959,7 +2961,7 @@ export function AdminBooksTab() {
                               </div>
                               {s.answerText && <p className="mt-2 rounded-lg bg-slate-50 p-2">{s.answerText.slice(0, 600)}{s.answerText.length > 600 ? '…' : ''}</p>}
                               {s.fileName && (
-                                <a href={`/api/admin/assignments/file?id=${s.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                                <a href={s.fileUrl || s.downloadUrl || `/api/admin/assignments/file?id=${s.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
                                   <FileText className="h-3 w-3" /> ملف مرفق: {s.fileName} {s.size ? `(${Math.ceil(s.size / 1024)} ك.ب)` : ''}
                                 </a>
                               )}
@@ -3060,7 +3062,7 @@ export function AdminBooksTab() {
                           <p className="mt-1 text-xs font-bold text-slate-500">{submission.studentName || 'طالب'} — {submission.studentEmail || 'بريد غير متوفر'}</p>
                           {submission.answerText && <p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">{submission.answerText.slice(0, 900)}{submission.answerText.length > 900 ? '…' : ''}</p>}
                           {submission.fileName && (
-                            <a href={`/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1d4ed8] hover:bg-blue-100">
+                            <a href={submission.fileUrl || submission.downloadUrl || `/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1d4ed8] hover:bg-blue-100">
                               <FileText className="h-3.5 w-3.5" /> ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}
                             </a>
                           )}
@@ -3999,7 +4001,7 @@ export function AdminBooksTab() {
                 {gradingDialog.submission.answerText ? gradingDialog.submission.answerText.slice(0, 1200) : 'لا يوجد نص مكتوب، راجع الملف المرفق إن وجد.'}
                 {gradingDialog.submission.answerText && gradingDialog.submission.answerText.length > 1200 ? '…' : ''}
                 {gradingDialog.submission.fileName && (
-                  <a href={`/api/admin/assignments/file?id=${gradingDialog.submission.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                  <a href={gradingDialog.submission.fileUrl || gradingDialog.submission.downloadUrl || `/api/admin/assignments/file?id=${gradingDialog.submission.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
                     <FileText className="h-3 w-3" /> فتح الملف المرفق: {gradingDialog.submission.fileName}
                   </a>
                 )}

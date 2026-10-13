@@ -16,6 +16,7 @@ import {
   extractAdmissionDocumentReplacement,
   stripAdmissionDocumentReplacement,
 } from '@/lib/admission-document-replacement'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 // آلة الحالات الرسمية وفق دليل الإجراءات (الترتيب الصحيح):
 // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$ عند التقديم) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
           supervisor: { select: { id: true, name: true } },
           payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
           theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
-          files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true } },
+          files: { select: { id: true, docType: true, fileName: true, size: true, mimeType: true, storageKey: true } },
           deliverables: { orderBy: { createdAt: 'desc' }, select: { id: true, type: true, status: true, title: true, description: true, fileName: true, mimeType: true, size: true, externalUrl: true, certificateId: true, verificationUrl: true, meetingAt: true, expiresAt: true, visibleToStudent: true, createdAt: true } },
         },
       }),
@@ -126,6 +127,11 @@ export async function GET(req: NextRequest) {
         ...app,
         notes: cleanNotes,
         documentReplacementRequest,
+        files: app.files.map((file) => ({
+          ...file,
+          fileUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+          downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+        })),
         programSlug: program?.slug || null,
         requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),

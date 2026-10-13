@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { api, getToken } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
@@ -62,6 +62,9 @@ interface Thesis {
   aiScore?: number | null
   aiRecommendation?: string | null
   defenseMinutes?: string | null
+  fileUrl?: string | null
+  downloadUrl?: string | null
+  recordingUrl?: string | null
   fileStorageKey?: string | null
   extractionStatus?: string | null
   extractionError?: string | null
@@ -411,7 +414,7 @@ export function AdminThesisTab() {
                           {t.defenseStatus === 'COMPLETED' && <span className="text-[10px] font-bold text-slate-500">انتهت الجلسة</span>}
                         </p>
                         <p className="mt-1.5 text-[11px] font-bold text-slate-600">معالجة الملف: {t.extractionStatus || 'غير مرفوع'}{t.pageCount ? ` · ${t.pageCount} صفحة` : ''}{t.wordCount ? ` · ${t.wordCount} كلمة` : ''}</p>
-                        {t.status === 'SCHEDULED' && !t.extractionStatus && !t.fileStorageKey && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">مناقشة بدون ملف البحث</Badge>}
+                        {t.status === 'SCHEDULED' && !t.extractionStatus && !(t.fileUrl || t.downloadUrl || t.fileStorageKey) && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">مناقشة بدون ملف البحث</Badge>}
                         {t.extractionError && <p className="mt-1 text-[11px] font-bold text-red-600">خطأ المعالجة: {t.extractionError}</p>}
                         {t.digest && <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-slate-50 p-2 text-[10px] text-slate-600">{JSON.stringify(t.digest, null, 2).slice(0, 1200)}</pre>}
                         {t.defenseBreakdown && <pre className="mt-2 max-h-24 overflow-auto rounded-xl bg-amber-50 p-2 text-[10px] text-[#5c4d1a]">{JSON.stringify(t.defenseBreakdown, null, 2).slice(0, 900)}</pre>}
@@ -420,6 +423,11 @@ export function AdminThesisTab() {
                         )}
                         {/* 12.3: محضر الجلسة والتسجيل المؤرشف */}
                         <div className="mt-2 flex flex-wrap gap-2">
+                          {(t.fileUrl || t.downloadUrl) && (
+                            <a href={t.fileUrl || t.downloadUrl || '#'} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-[#0f2b46]/20 bg-white/70 px-2 text-[10px] font-black text-[#0f2b46] hover:bg-slate-50">
+                              <FileSignature className="ml-1 h-3 w-3" /> فتح ملف البحث
+                            </a>
+                          )}
                           {t.defenseMinutes && (
                             <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
                               <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة التلقائي
@@ -616,7 +624,7 @@ export function AdminThesisTab() {
           )}
           {minutesThesis?.recordingSize && (
             <video
-              src={`/api/admin/defense-recording?thesisId=${minutesThesis.id}`}
+              src={minutesThesis.recordingUrl || `/api/admin/defense-recording?thesisId=${minutesThesis.id}`}
               controls
               className="w-full rounded-xl border"
             />
@@ -635,7 +643,7 @@ export function AdminThesisTab() {
           </DialogHeader>
           {showRecording && (
             <video
-              src={`/api/admin/defense-recording?thesisId=${showRecording.id}`}
+              src={showRecording.recordingUrl || `/api/admin/defense-recording?thesisId=${showRecording.id}`}
               controls
               className="w-full rounded-xl border bg-black"
             />
@@ -2978,6 +2986,77 @@ function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   const operational = OperationalAuditDisplay({ log })
   if (operational) return operational
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
+}
+
+interface WhatsAppFailureRow {
+  id: string
+  at: string
+  from?: string | null
+  provider?: string | null
+  model?: string | null
+  elapsedMs?: number | null
+  failureReason?: string | null
+  classifierResult?: any
+}
+
+export function AdminWhatsAppFailuresTab() {
+  const { toast } = useToast()
+  const [rows, setRows] = useState<WhatsAppFailureRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const load = useCallback((showSpinner = true) => {
+    if (showSpinner) setLoading(true)
+    api<{ failures: WhatsAppFailureRow[] }>('/api/admin/whatsapp-failures')
+      .then((d) => setRows(Array.isArray(d.failures) ? d.failures : []))
+      .catch((e) => toast({ title: 'تعذر تحميل إخفاقات الواتساب', description: e.message, variant: 'destructive' }))
+      .finally(() => setLoading(false))
+  }, [toast])
+  useEffect(() => {
+    let active = true
+    api<{ failures: WhatsAppFailureRow[] }>('/api/admin/whatsapp-failures')
+      .then((d) => { if (active) setRows(Array.isArray(d.failures) ? d.failures : []) })
+      .catch((e) => { if (active) toast({ title: 'تعذر تحميل إخفاقات الواتساب', description: e.message, variant: 'destructive' }) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [toast])
+  return (
+    <Card className="mt-4 border-red-100 bg-white/95">
+      <CardContent className="space-y-4 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-black text-[#0f2b46]">إخفاقات الواتساب</p>
+            <p className="text-xs font-bold text-slate-500">آخر 50 رد احتياطي مع إخفاء الرقم وبيانات المزود/الموديل وسبب الفشل.</p>
+          </div>
+          <Button variant="outline" onClick={() => load()} disabled={loading} className="font-bold">
+            {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-2 h-4 w-4" />}
+            تحديث
+          </Button>
+        </div>
+        {loading ? (
+          <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">جاري التحميل...</div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl bg-emerald-50 p-6 text-center text-sm font-black text-emerald-700">لا توجد ردود احتياطية حديثة.</div>
+        ) : (
+          <div className="space-y-3">
+            {rows.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-red-100 bg-red-50/50 p-3 text-xs font-bold text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-black text-[#0f2b46]">{row.from || 'رقم مخفي'}</span>
+                  <span className="text-slate-400">{new Date(row.at).toLocaleString('ar-EG')}</span>
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                  <span>المزود: {row.provider || 'غير معروف'}</span>
+                  <span>الموديل: {row.model || 'غير معروف'}</span>
+                  <span>الزمن: {row.elapsedMs ? `${row.elapsedMs}ms` : 'غير مسجل'}</span>
+                  <span>المصنّف: {row.classifierResult?.intent || 'غير متاح'}</span>
+                </div>
+                <p className="mt-2 text-red-700">سبب الفشل: {row.failureReason || 'غير محدد'}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function AdminAuditTab() {

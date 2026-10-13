@@ -72,12 +72,7 @@ function md(report: any) {
 test.describe('AACT full platform journey suite', () => {
   test.setTimeout(180_000)
 
-  let cleanupTarget: { token: string; stamp: string } | null = null
-
-  test.afterEach(async ({ request }, testInfo: TestInfo) => {
-    if (!cleanupTarget) return
-    const target = cleanupTarget
-    cleanupTarget = null
+  async function cleanupFullJourney(request: any, testInfo: TestInfo, target: { token: string; stamp: string }) {
     const cleanupRes = await request.delete('/api/admin/full-journey', {
       headers: { Authorization: `Bearer ${target.token}` },
       data: { stamp: target.stamp },
@@ -92,9 +87,11 @@ test.describe('AACT full platform journey suite', () => {
     if (!cleanupOk && testInfo.status !== 'failed') {
       throw new Error(`Full journey cleanup failed after artifact generation: ${cleanupRes.status()} ${JSON.stringify(cleanupBody).slice(0, 1000)}`)
     }
-  })
+  }
 
   test('student, service, payment, admin approval, installments, program access, and exam alignment work end-to-end', async ({ page }, testInfo: TestInfo) => {
+    let cleanupTarget: { token: string; stamp: string } | null = null
+    try {
     const admin = await loginAsAdmin(page)
 
     const setupRes = await page.request.post('/api/admin/full-journey', {
@@ -187,5 +184,8 @@ test.describe('AACT full platform journey suite', () => {
     await writeFile(mdPath, md(report), 'utf8')
     await testInfo.attach('full-journey-report-json', { path: jsonPath, contentType: 'application/json' })
     await testInfo.attach('full-journey-report-md', { path: mdPath, contentType: 'text/markdown' })
+    } finally {
+      if (cleanupTarget) await cleanupFullJourney(page.request, testInfo, cleanupTarget)
+    }
   })
 })

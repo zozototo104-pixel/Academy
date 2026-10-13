@@ -11,6 +11,8 @@ import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
+import { textAiComplete, textAiDiagnostics, textAiModelHealthSnapshot, type TextAiProvider } from '@/lib/text-ai'
+import { assertWithinDeadline, remainingDeadlineMs } from '@/lib/prod-safety'
 
 export type PlatformAgentKind =
   | 'ACADEMIC_SUPERVISOR'
@@ -23,6 +25,8 @@ export type PlatformAgentKind =
   | 'SUPPORT'
 
 export type PlatformAgentEngine = 'LOCAL_RULE' | 'LOCAL_OPEN_SOURCE' | 'GEMINI' | 'MODEL_ROUTER_OR_FALLBACK'
+
+const AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
 
 const AGENT_AR: Record<PlatformAgentKind, string> = {
   ACADEMIC_SUPERVISOR: 'المشرف الذكي الأكاديمي',
@@ -271,9 +275,10 @@ function fallbackIntentAnalysis(message: string): ConversationIntentAnalysis {
   return { intent: 'UNKNOWN', confidence: 0.2 }
 }
 
-async function analyzeConversationIntent(messages: { role: string; content: string }[], opts?: { channel?: string; role?: string | null }): Promise<ConversationIntentAnalysis> {
+async function analyzeConversationIntent(messages: { role: string; content: string }[], opts?: { channel?: string; role?: string | null; deadlineMs?: number }): Promise<ConversationIntentAnalysis> {
   const last = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
   const fallback = fallbackIntentAnalysis(last)
+  assertWithinDeadline(opts?.deadlineMs, 'Conversation intent analysis deadline exceeded')
   const ready = await ensureGeminiKey().catch(() => false)
   if (!ready) return fallback
   try {
@@ -281,6 +286,8 @@ async function analyzeConversationIntent(messages: { role: string; content: stri
       role: m.role === 'user' ? 'user' : 'assistant',
       content: compactText(m.content, 700),
     }))
+    const classifierTimeoutMs = remainingDeadlineMs(opts?.deadlineMs, 6500)
+    if (classifierTimeoutMs <= 0) return fallback
     const raw = await withPlatformTimeout(geminiCompleteJson({
       system: [
         'أنت محلل نية محادثة لمنصة أكاديمية. مهمتك فهم المقصود دلالياً من الرسالة الأخيرة ضمن سياق الرسائل السابقة، وليس مطابقة كلمات.',
@@ -300,7 +307,7 @@ async function analyzeConversationIntent(messages: { role: string; content: stri
       ],
       temperature: 0.05,
       maxOutputTokens: 700,
-    }), 6500, 'Conversation intent analysis timed out')
+    }), classifierTimeoutMs, 'Conversation intent analysis timed out')
     const parsed = parseJsonObject(raw)
     if (!parsed) return fallback
     const intent = normalizeIntentKind(parsed.intent)
@@ -895,9 +902,28 @@ export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
+  deadlineMs?: number
+  getProviderHealth?: typeof textAiModelHealthSnapshot
+  __testDeps?: {
+    analyzeConversationIntent?: typeof analyzeConversationIntent
+    textAiComplete?: typeof textAiComplete
+    textAiDiagnostics?: typeof textAiDiagnostics
+  }
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
+  const analyzeIntent = opts.__testDeps?.analyzeConversationIntent || analyzeConversationIntent
+  const completeText = opts.__testDeps?.textAiComplete || textAiComplete
+  const diagnostics = opts.__testDeps?.textAiDiagnostics || textAiDiagnostics
+  const getProviderHealth = opts.getProviderHealth || textAiModelHealthSnapshot
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC' })
+  const classifierDeadlineMs = opts.channel === 'WHATSAPP'
+    ? Math.min(opts.deadlineMs || Number.POSITIVE_INFINITY, Date.now() + 4_000)
+    : opts.deadlineMs
+  const intentAnalysis = await analyzeIntent(opts.messages, { channel: opts.channel, role: 'PUBLIC', deadlineMs: classifierDeadlineMs })
+    .catch((error) => {
+      console.warn('Public intent classifier failed; continuing with local routing rules.', error)
+      return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
+    })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
@@ -921,7 +947,8 @@ export async function platformPublicAgentComplete(opts: {
   const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
-  const timeoutMs = platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000)
+  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(isWhatsApp ? 42_000 : 22_000))
+  if (timeoutMs <= 0) throw new Error('Public platform agent deadline exceeded')
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
@@ -943,13 +970,65 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
+  const runWhatsAppRouter = async (excludeProviders: TextAiProvider[] = []) => {
+    const started = Date.now()
+    const providerDeadlineMs = Date.now() + Math.min(20_000, Math.max(1_000, remainingDeadlineMs(opts.deadlineMs, 20_000)))
+    try {
+      const reply = await completeText({
+        system,
+        history: opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'model' as const, text: m.content })),
+        temperature: 0.35,
+        maxOutputTokens: 1200,
+        taskLevel: 'GENERAL',
+        purpose: 'CHAT',
+        routerPolicy: 'balanced',
+        excludeProviders,
+        deadlineMs: providerDeadlineMs,
+      })
+      const diag = await diagnostics().catch(() => null)
+      const result = diag?.lastResult
+      logPlatformProviderAttempt({ ok: true, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started })
+      return { reply: annotateReply(agent, reply, 'MODEL_ROUTER'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' as const }
+    } catch (e: any) {
+      const diag = await diagnostics().catch(() => null)
+      const result = diag?.lastResult
+      logPlatformProviderAttempt({ ok: false, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started, status: providerStatusFromError(e), error: String(e?.message || e) })
+      throw e
+    }
+  }
+
   if (isWhatsApp) {
     try {
-      const geminiReply = await runGemini()
-      if (geminiReply) return geminiReply
-    } catch (e: any) {
-      console.error('Gemini public WhatsApp agent failed:', String(e?.message || e).slice(0, 400))
+      return await runWhatsAppRouter()
+    } catch (firstError: any) {
+      const diag = await diagnostics().catch(() => null)
+      const failedProvider = String(diag?.lastResult?.provider || '').toUpperCase() as TextAiProvider
+      const remainingMs = remainingDeadlineMs(opts.deadlineMs, 20_000)
+      const hasHealthyAlternate = failedProvider && failedProvider !== 'AUTO'
+        ? await getProviderHealth().then((rows) => rows.some((row) => {
+            const provider = String(row.provider || '').toUpperCase()
+            if (!provider || provider === failedProvider || provider === 'AUTO') return false
+            const status = String(row.status || '').trim()
+            const healthOk = row.health ? row.health.ok === true : status === 'شغّال'
+            return healthOk && status !== 'ميت' && status !== 'فشل الفحص'
+          })).catch(() => false)
+        : false
+      const canRetry = Boolean(failedProvider && failedProvider !== 'AUTO' && remainingMs > 2_500 && hasHealthyAlternate)
+      if (canRetry) {
+        try {
+          return await runWhatsAppRouter([failedProvider])
+        } catch (secondError: any) {
+          console.error('WhatsApp public router fallback provider failed:', String(secondError?.message || secondError).slice(0, 400))
+        }
+      }
+      console.error('WhatsApp public router failed:', String(firstError?.message || firstError).slice(0, 400))
     }
+  }
+
+  if (isWhatsApp) {
+    // WhatsApp must not fall through to the legacy chatComplete path after router attempts;
+    // that path may use academic/local fallbacks and can touch real providers during mocked CI tests.
+    return { reply: AI_UNAVAILABLE_MESSAGE, agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
   }
 
   const localCfg = await localAgentConfig().catch(() => null)
@@ -961,7 +1040,7 @@ export async function platformPublicAgentComplete(opts: {
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
-        maxTokens: isWhatsApp ? 1600 : 1100,
+        maxTokens: 1100,
       }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
@@ -992,7 +1071,9 @@ export async function platformAgentComplete(opts: {
   messages: { role: string; content: string }[]
   uiContext?: string
   mode?: 'TEXT' | 'VOICE' | string
+  deadlineMs?: number
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Platform agent deadline exceeded')
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
@@ -1009,7 +1090,7 @@ export async function platformAgentComplete(opts: {
     const directBooksReply = directBooksResult?.reply || await buildDirectProgramBooksReply(last).catch(() => null)
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
@@ -1019,7 +1100,8 @@ export async function platformAgentComplete(opts: {
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
-  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
+  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
+  if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
   const shouldPreferGemini = user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
@@ -1101,7 +1183,9 @@ export async function platformAgentStream(opts: {
   messages: { role: string; content: string }[]
   uiContext?: string
   mode?: 'TEXT' | 'VOICE' | string
+  deadlineMs?: number
 }, onChunk: (chunk: string) => void | Promise<void>): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Platform agent stream deadline exceeded')
   const emit = async (chunk: string) => {
     if (chunk) await onChunk(chunk)
   }
@@ -1127,7 +1211,7 @@ export async function platformAgentStream(opts: {
     }
   }
 
-  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role })
+  const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
     const reply = await buildHumanSupportReply()
     await emit(reply)
@@ -1153,7 +1237,9 @@ export async function platformAgentStream(opts: {
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
-  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
+  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
+  if (timeoutMs <= 0) throw new Error('Platform agent stream deadline exceeded')
+  const providerDeadlineMs = Date.now() + timeoutMs
   const shouldPreferGemini = user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
@@ -1179,6 +1265,7 @@ export async function platformAgentStream(opts: {
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
       })) {
+        if (Date.now() >= providerDeadlineMs) throw new Error('Gemini platform agent stream timed out')
         const chunk = String(rawChunk || '')
         const delta = chunk.startsWith(reply) ? chunk.slice(reply.length) : chunk
         if (!delta) continue

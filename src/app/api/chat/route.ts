@@ -15,6 +15,11 @@ import {
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
+import { deadlineFromNow } from '@/lib/prod-safety'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/chat — سجل المحادثة (نصي وصوتي مع النسخ المفرّغ)
 export async function GET() {
@@ -45,6 +50,7 @@ export async function POST(req: NextRequest) {
     await requireStudentAiSupervisorAccess(user)
     const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
+    const deadlineMs = deadlineFromNow(55_000)
     const { message, context, mode, stream } = await req.json()
     const safeUiContext = wrapUntrustedUiContext(context)
     if (!message?.trim()) {
@@ -115,6 +121,7 @@ export async function POST(req: NextRequest) {
                 messages: [...orderedMessages, { role: 'user', content: userText }],
                 uiContext: safeUiContext,
                 mode: chatMode,
+                deadlineMs,
               }, emitChunk)
               const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
               agentResult = result
@@ -185,6 +192,7 @@ export async function POST(req: NextRequest) {
         messages: [...orderedMessages, { role: 'user', content: userText }],
         uiContext: safeUiContext,
         mode: chatMode,
+        deadlineMs,
       })
       const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
       agentResult = result

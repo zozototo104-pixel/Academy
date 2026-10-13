@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { db } from '@/lib/db'
+import { hasAactTestRecipient } from '@/lib/prod-safety'
 
 export interface SmtpConfig {
   host: string
@@ -128,6 +129,10 @@ async function sendWithResend(input: SendEmailInput): Promise<boolean> {
 
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   try {
+    if (hasAactTestRecipient(input.to)) {
+      await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'AACT_TEST_RECIPIENT_BLOCKED' } }).catch((error) => { console.warn('Failed to log blocked test email.', error) })
+      return false
+    }
     const cfg = await getSmtpConfig()
     if (cfg.enabled) {
       const transporter = nodemailer.createTransport({

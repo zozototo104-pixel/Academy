@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { deliverableStatusLabel, deliverableTypeLabel } from '@/lib/service-deliverables'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,7 +38,7 @@ export async function GET() {
             mimeType: true,
             size: true,
             externalUrl: true,
-            fileUrl: true,
+            storageKey: true,
             certificateId: true,
             verificationUrl: true,
             meetingAt: true,
@@ -52,12 +53,17 @@ export async function GET() {
       const eligible = ['RESULT_APPROVED', 'CERTIFIED'].includes(app.status) && app.payments.length > 0 && app.payments.every((p) => p.status === 'PAID')
       return {
         ...app,
-        deliverables: eligible ? app.deliverables.map((d) => ({
-          ...d,
-          typeLabel: deliverableTypeLabel(d.type),
-          statusLabel: deliverableStatusLabel(d.status),
-          downloadUrl: `/api/service-deliverables/${d.id}/download`,
-        })) : [],
+        deliverables: eligible ? app.deliverables.map((d) => {
+          const { storageKey, ...safe } = d
+          const protectedUrl = storageKey ? getStorageDownloadPathForKey(storageKey) : null
+          return {
+            ...safe,
+            fileUrl: protectedUrl,
+            typeLabel: deliverableTypeLabel(d.type),
+            statusLabel: deliverableStatusLabel(d.status),
+            downloadUrl: protectedUrl || `/api/service-deliverables/${d.id}/download`,
+          }
+        }) : [],
       }
     })
     return NextResponse.json({ applications: rows, deliverables: rows.flatMap((a) => a.deliverables.map((d) => ({ ...d, application: { id: a.id, reference: a.reference, program: a.program } }))) })

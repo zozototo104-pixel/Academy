@@ -6,6 +6,7 @@ import { notify, audit } from '@/lib/notify'
 import { getSettings } from '@/lib/settings'
 import { emailDefenseScheduled, emailThesisFinalRevision, emailThesisPlanDecision, emailThesisResultApproved } from '@/lib/mailer'
 import { calculateFinalGrade } from '@/lib/final-grade'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,9 @@ export async function GET() {
         reviewNote: true,
         reviewNotes: { orderBy: { createdAt: 'desc' }, take: 10 },
         fileStorageKey: true,
+        fileUrl: true,
+        recordingStorageKey: true,
+        recordingUrl: true,
         extractionStatus: true,
         extractionError: true,
         pageCount: true,
@@ -47,14 +51,20 @@ export async function GET() {
         admission: { select: { id: true, reference: true, program: true, status: true, approvedAt: true, thesisDeadline: true } },
       },
     })
-    const theses = rows.map((t) => ({
-      ...t,
-      abstract: t.abstract?.length > 700 ? `${t.abstract.slice(0, 700)}...` : t.abstract,
-      aiRecommendation: t.aiRecommendation?.length && t.aiRecommendation.length > 900 ? `${t.aiRecommendation.slice(0, 900)}...` : t.aiRecommendation,
-      defenseMinutes: t.defenseMinutes?.length && t.defenseMinutes.length > 2500 ? `${t.defenseMinutes.slice(0, 2500)}...` : t.defenseMinutes,
-      hasRecording: !!t.recordingSize,
-      // مهم: لا نعيد recordingData هنا لأنه فيديو Base64 ثقيل جداً ويؤخر فتح تبويب الإدارة.
-    }))
+    const theses = rows.map((t) => {
+      const { fileStorageKey, recordingStorageKey, fileUrl: _legacyFileUrl, recordingUrl: _legacyRecordingUrl, ...safe } = t
+      return {
+        ...safe,
+        fileUrl: fileStorageKey ? getStorageDownloadPathForKey(fileStorageKey) : null,
+        downloadUrl: fileStorageKey ? getStorageDownloadPathForKey(fileStorageKey) : null,
+        recordingUrl: recordingStorageKey ? getStorageDownloadPathForKey(recordingStorageKey) : null,
+        abstract: t.abstract?.length > 700 ? `${t.abstract.slice(0, 700)}...` : t.abstract,
+        aiRecommendation: t.aiRecommendation?.length && t.aiRecommendation.length > 900 ? `${t.aiRecommendation.slice(0, 900)}...` : t.aiRecommendation,
+        defenseMinutes: t.defenseMinutes?.length && t.defenseMinutes.length > 2500 ? `${t.defenseMinutes.slice(0, 2500)}...` : t.defenseMinutes,
+        hasRecording: !!t.recordingSize,
+        // مهم: لا نعيد recordingData هنا لأنه فيديو Base64 ثقيل جداً ويؤخر فتح تبويب الإدارة.
+      }
+    })
     return NextResponse.json({ theses })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {

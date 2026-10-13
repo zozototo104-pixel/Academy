@@ -3,6 +3,7 @@ import { promises as dns } from 'dns'
 import { promises as fs } from 'fs'
 import net from 'net'
 import path from 'path'
+import { isPrivateStorageKey } from '@/lib/prod-safety'
 
 export type StoredFileProvider = 's3' | 'local' | 'external-url'
 
@@ -229,9 +230,68 @@ function signS3Request(args: {
 
   return {
     url,
-    publicUrl: privateRepresentative ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
+    publicUrl: privateRepresentative || isPrivateStorageKey(args.key) ? '' : cfg.publicBaseUrl ? `${cfg.publicBaseUrl}/${encodedKey}` : url,
     headers: { ...requestHeaders, authorization },
   }
+}
+
+export function getStorageDownloadPathForKey(key: string): string {
+  return `/api/files/${encodeS3Key(cleanStorageKey(key))}`
+}
+
+function signedDownloadSecret() {
+  const secret = process.env.AACT_FILE_SIGNING_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || process.env.SESSION_SECRET || process.env.AUTH_SECRET || ''
+  if (!secret && process.env.NODE_ENV === 'production') throw new Error('FILE_SIGNING_SECRET_NOT_CONFIGURED')
+  return secret || 'aact-local-file-signing-secret'
+}
+
+export function signLocalStorageDownloadPath(key: string, expiresAtMs: number): string {
+  const cleanKey = cleanStorageKey(key)
+  const expires = String(Math.floor(expiresAtMs))
+  const signature = createHmac('sha256', signedDownloadSecret()).update(`${cleanKey}.${expires}`).digest('hex')
+  return `${getStorageDownloadPathForKey(cleanKey)}?download=1&expires=${encodeURIComponent(expires)}&signature=${signature}`
+}
+
+export function verifyLocalStorageDownloadSignature(key: string, expires: string | null, signature: string | null): boolean {
+  const cleanKey = cleanStorageKey(key)
+  const expiresMs = Number(expires || 0)
+  if (!Number.isFinite(expiresMs) || expiresMs <= Date.now() || !signature) return false
+  const expected = createHmac('sha256', signedDownloadSecret()).update(`${cleanKey}.${Math.floor(expiresMs)}`).digest('hex')
+  return createHash('sha256').update(signature).digest('hex') === createHash('sha256').update(expected).digest('hex')
+}
+
+export function createSignedStorageUrlForKey(key: string, expiresSeconds = 300): string | null {
+  const cleanKey = cleanStorageKey(key)
+  const cfg = getS3Config()
+  if (!cfg) return signLocalStorageDownloadPath(cleanKey, Date.now() + Math.max(1, Math.min(300, expiresSeconds)) * 1000)
+
+  const endpoint = new URL(cfg.endpoint)
+  const privateRepresentative = cleanKey.startsWith('representatives-private/')
+  const bucket = privateRepresentative ? cfg.privateRepresentativeBucket : cfg.bucket
+  if (!bucket || (privateRepresentative && bucket === cfg.bucket)) throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
+  const encodedKey = encodeS3Key(cleanKey)
+  const canonicalUri = `/${encodeS3PathPart(bucket)}/${encodedKey}`
+  const now = new Date()
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
+  const dateStamp = amzDate.slice(0, 8)
+  const scope = `${dateStamp}/${cfg.region}/s3/aws4_request`
+  const signedHeaders = 'host'
+  const query: Array<[string, string]> = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', `${cfg.accessKeyId}/${scope}`],
+    ['X-Amz-Date', amzDate],
+    ['X-Amz-Expires', String(Math.max(1, Math.min(300, Math.floor(expiresSeconds))))],
+    ['X-Amz-SignedHeaders', signedHeaders],
+  ]
+  const canonicalQuery = query.map(([k, v]) => `${encodeS3PathPart(k)}=${encodeS3PathPart(v)}`).sort().join('&')
+  const canonicalRequest = ['GET', canonicalUri, canonicalQuery, `host:${endpoint.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n')
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n')
+  const kDate = hmac(`AWS4${cfg.secretAccessKey}`, dateStamp)
+  const kRegion = hmac(kDate, cfg.region)
+  const kService = hmac(kRegion, 's3')
+  const kSigning = hmac(kService, 'aws4_request')
+  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+  return `${endpoint.origin}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`
 }
 
 async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, mimeType: string): Promise<StoredFileResult | null> {
@@ -257,7 +317,7 @@ async function putToS3CompatibleStorage(input: { buffer: Buffer }, key: string, 
   return {
     provider: 's3',
     key,
-    url: signed.publicUrl,
+    url: signed.publicUrl || (isPrivateStorageKey(key) ? getStorageDownloadPathForKey(key) : ''),
     size: input.buffer.byteLength,
     mimeType,
   }
@@ -283,14 +343,15 @@ async function putToLocalStorage(input: { buffer: Buffer }, key: string, mimeTyp
   if (process.env.NODE_ENV === 'production' && process.env.AACT_ALLOW_LOCAL_UPLOADS !== 'true') {
     throw new Error('FILE_STORAGE_NOT_CONFIGURED')
   }
-  const root = path.join(process.cwd(), 'public', 'uploads')
+  const privateKey = isPrivateStorageKey(key)
+  const root = privateKey ? path.join(process.cwd(), '.data', 'private-uploads') : path.join(process.cwd(), 'public', 'uploads')
   const absolutePath = path.join(root, key)
   await fs.mkdir(path.dirname(absolutePath), { recursive: true })
   await fs.writeFile(absolutePath, input.buffer)
   return {
     provider: 'local',
     key,
-    url: `/uploads/${key}`,
+    url: privateKey ? getStorageDownloadPathForKey(key) : `/uploads/${key}`,
     size: input.buffer.byteLength,
     mimeType,
   }
@@ -309,10 +370,11 @@ export function storageErrorMessage(error: unknown): string {
 }
 
 export function getPublicStorageUrlForKey(key: string): string | null {
-  if (key.startsWith('representatives-private/')) return null
+  const cleanKey = cleanStorageKey(key)
+  if (isPrivateStorageKey(cleanKey)) return null
   const cfg = getS3Config()
   if (!cfg?.publicBaseUrl) return null
-  return `${cfg.publicBaseUrl}/${encodeS3Key(cleanStorageKey(key))}`
+  return `${cfg.publicBaseUrl}/${encodeS3Key(cleanKey)}`
 }
 
 export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFileResult> {
@@ -323,19 +385,16 @@ export async function storeFileBuffer(input: StoreFileInput): Promise<StoredFile
   const namespace = cleanSegment(input.namespace, 'uploads')
   const key = `${namespace}/${isoDateFolder()}/${randomUUID()}-${digest}-${cleanFileName(input.fileName)}`
 
-  if (namespace.startsWith('representatives-private/')) {
-    // Private onboarding files must never be written to a public webroot or public S3 endpoint.
+  if (isPrivateStorageKey(key)) {
+    // Private platform files must never be written to a public webroot or public S3 endpoint.
     const cfg = getS3Config()
-    if (cfg && (!cfg.privateRepresentativeBucket || cfg.privateRepresentativeBucket === cfg.bucket)) {
+    if (namespace.startsWith('representatives-private/') && cfg && (!cfg.privateRepresentativeBucket || cfg.privateRepresentativeBucket === cfg.bucket)) {
       throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
     }
     const s3 = await putToS3CompatibleStorage(input, key, mimeType)
-    if (s3) return { ...s3, url: '' }
+    if (s3) return { ...s3, url: namespace.startsWith('representatives-private/') ? '' : getStorageDownloadPathForKey(key) }
     if (process.env.NODE_ENV === 'production') throw new Error('PRIVATE_FILE_STORAGE_NOT_CONFIGURED')
-    const root = path.join(process.cwd(), '.data', 'private-uploads')
-    await fs.mkdir(path.dirname(path.join(root, key)), { recursive: true })
-    await fs.writeFile(path.join(root, key), input.buffer)
-    return { provider: 'local', key, url: '', size: input.buffer.byteLength, mimeType }
+    return putToLocalStorage(input, key, mimeType)
   }
   const s3 = await putToS3CompatibleStorage(input, key, mimeType)
   if (s3) return s3
@@ -377,15 +436,18 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (provider === 'local' && key) {
-    const root = key.startsWith('representatives-private/')
-      ? path.join(process.cwd(), '.data', 'private-uploads')
-      : path.join(process.cwd(), 'public', 'uploads')
-    const absolutePath = path.join(root, key)
-    try {
-      return { buffer: await fs.readFile(absolutePath), mimeType }
-    } catch {
-      return null
+    const roots = isPrivateStorageKey(key)
+      ? [path.join(process.cwd(), '.data', 'private-uploads'), path.join(process.cwd(), 'public', 'uploads')]
+      : [path.join(process.cwd(), 'public', 'uploads')]
+    for (const root of roots) {
+      const absolutePath = path.join(root, key)
+      try {
+        return { buffer: await fs.readFile(absolutePath), mimeType }
+      } catch {
+        // Try next legacy location.
+      }
     }
+    return null
   }
 
   if (url && /^https?:\/\//i.test(url)) {
