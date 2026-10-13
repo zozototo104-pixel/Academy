@@ -1002,11 +1002,6 @@ export async function platformPublicAgentComplete(opts: {
     }
   }
 
-  if (isWhatsApp) {
-    // WhatsApp must not fall through to the legacy chatComplete path after router attempts;
-    // that path may use academic/local fallbacks and can touch real providers during mocked CI tests.
-    return { reply: AI_UNAVAILABLE_MESSAGE, agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
-  }
 
   const localCfg = await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
