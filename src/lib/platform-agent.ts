@@ -283,6 +283,8 @@ async function analyzeConversationIntent(messages: { role: string; content: stri
       role: m.role === 'user' ? 'user' : 'assistant',
       content: compactText(m.content, 700),
     }))
+    const classifierTimeoutMs = remainingDeadlineMs(opts?.deadlineMs, 6500)
+    if (classifierTimeoutMs <= 0) return fallback
     const raw = await withPlatformTimeout(geminiCompleteJson({
       system: [
         'أنت محلل نية محادثة لمنصة أكاديمية. مهمتك فهم المقصود دلالياً من الرسالة الأخيرة ضمن سياق الرسائل السابقة، وليس مطابقة كلمات.',
