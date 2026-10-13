@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp-cloud'
-import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone, hashWhatsAppId as canonicalHashWhatsAppId, maskWhatsAppPhone } from '@/lib/whatsapp-privacy'
 
 type ConversationStatus = 'BOT_ACTIVE' | 'HUMAN_REQUESTED' | 'HUMAN_ACTIVE' | 'CLOSED'
 type OutboundSender = 'BOT' | 'HUMAN' | 'SYSTEM'
