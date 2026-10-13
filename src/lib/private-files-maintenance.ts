@@ -70,6 +70,9 @@ export type RunPrivateFilesMaintenanceBatchInput = {
 
 const LOCK_KEY = 'MAINTENANCE_PRIVATE_FILES_LOCK'
 const LOCK_TTL_MS = 10 * 60 * 1000
+const DEFAULT_MAX_PRIVATE_FILE_BYTES = 25 * 1024 * 1024
+const DEFAULT_BATCH_DEADLINE_MS = 50_000
+const BATCH_DEADLINE_SAFETY_MS = 5_000
 
 export const PRIVATE_FILES_TYPE_LABELS: Record<PrivateFilesSource, string> = {
   AdmissionDocument: 'قبول',
