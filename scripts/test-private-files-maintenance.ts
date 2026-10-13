@@ -76,12 +76,13 @@ function makeStorage(privateKeys = new Set<string>()) {
 }
 
 async function testDryRunDoesNotMutate() {
-  const { db, admissions } = makeMockDb()
+  const { db, admissions, auditLogs } = makeMockDb()
   const { storage, getStoreCalls } = makeStorage()
   const report = await runPrivateFilesMaintenanceBatch({ db, mode: 'dry-run', batchSize: 50, storage, actor: { id: 'admin-1', name: 'Admin' } })
   assert(report.byType.AdmissionDocument.toMigrate === 1, 'dry-run must report one admission document to migrate')
   assert(admissions.get('adm-doc-1')?.storageKey === null, 'dry-run must not update storageKey')
   assert(getStoreCalls() === 0, 'dry-run must not copy files')
+  assert(auditLogs.length === 1, 'dry-run batch must be written to AuditLog')
 }
 
 async function testExecuteUpdatesAndIsIdempotent() {
