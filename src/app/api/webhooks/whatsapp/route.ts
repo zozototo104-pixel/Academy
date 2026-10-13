@@ -482,17 +482,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
 }
 
 async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string, meta: Record<string, any> = {}) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, WHATSAPP_AI_FALLBACK_REPLY, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
-    text: WHATSAPP_AI_FALLBACK_REPLY,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
+  const sendOutcome = await sendClaimedOfficialWhatsAppBotText(message, WHATSAPP_AI_FALLBACK_REPLY)
   const handoff = await createHumanHandoffRequest({
     user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
     message: `${reason}\n\n${message.text || ''}`.trim(),
