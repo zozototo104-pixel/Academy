@@ -98,7 +98,9 @@ export async function GET(req: NextRequest) {
         where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
         select: { id: true },
       })
-      if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED', attemptId: passedAttempt.id }, { status: 403 })
+      if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED', attemptId: passedAttempt.id, programId: exam.programId }, { status: 403 })
+      const expiredAttempt = await db.programExamAttempt.findFirst({ where: { userId: user.id, examId, status: 'EXPIRED' }, orderBy: { createdAt: 'desc' }, select: { id: true } })
+      if (expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', attemptId: expiredAttempt.id, programId: exam.programId }, { status: 409 })
       startedAttempt = await db.programExamAttempt.create({
         data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
         select: { id: true, startedAt: true, createdAt: true },
