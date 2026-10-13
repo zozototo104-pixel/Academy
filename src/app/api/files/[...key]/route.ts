@@ -12,62 +12,6 @@ const SIGNED_URL_TTL_SECONDS = 5 * 60
 
 type RouteContext = { params: { key?: string[] } | Promise<{ key?: string[] }> }
 
-function sameEmail(a: unknown, b: unknown) {
-  const aa = String(a || '').trim().toLowerCase()
-  const bb = String(b || '').trim().toLowerCase()
-  return !!aa && !!bb && aa === bb
-}
-
-function isOwner(user: { id: string; email?: string | null; role?: string | null }, candidate?: { userId?: string | null; email?: string | null } | null) {
-  return !!candidate && (candidate.userId === user.id || sameEmail(candidate.email, user.email))
-}
-
-async function canAccessStorageKey(key: string, user: { id: string; email?: string | null; role?: string | null }) {
-  if (user.role === 'ADMIN') return true
-  if (normalizeStorageKeyForPolicy(key).startsWith('backups/')) return false
-
-  const admissionDocument = await db.admissionDocument.findFirst({
-    where: { storageKey: key },
-    select: { admission: { select: { userId: true, email: true } } },
-  })
-  if (isOwner(user, admissionDocument?.admission)) return true
-
-  const deliverable = await db.serviceDeliverable.findFirst({
-    where: { storageKey: key, status: 'PUBLISHED', visibleToStudent: true },
-    select: { admission: { select: { userId: true, email: true } } },
-  })
-  if (isOwner(user, deliverable?.admission)) return true
-
-  const proof = await db.paymentProof.findFirst({
-    where: { storageKey: key },
-    select: {
-      uploadedById: true,
-      payment: {
-        select: {
-          userId: true,
-          payerEmail: true,
-          admission: { select: { userId: true, email: true } },
-        },
-      },
-    },
-  })
-  if (proof && (proof.uploadedById === user.id || proof.payment.userId === user.id || sameEmail(proof.payment.payerEmail, user.email) || isOwner(user, proof.payment.admission))) return true
-
-  const assignment = await db.assignmentSubmission.findFirst({
-    where: { fileStorageKey: key },
-    select: { userId: true },
-  })
-  if (assignment?.userId === user.id) return true
-
-  const thesis = await db.thesisSubmission.findFirst({
-    where: { OR: [{ fileStorageKey: key }, { recordingStorageKey: key }] },
-    select: { userId: true },
-  })
-  if (thesis?.userId === user.id) return true
-
-  return false
-}
-
 export async function GET(req: NextRequest, context: RouteContext) {
   const params = await context.params
   const key = normalizeStorageKeyForPolicy((params.key || []).join('/'))
