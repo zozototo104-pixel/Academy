@@ -131,21 +131,27 @@ async function nextCertificateSerial(tx: Tx) {
 
 type ProgramCompletionCertificateCreateData = Omit<Prisma.CertificateUncheckedCreateInput, 'serial'>
 
-async function createProgramCompletionCertificateWithRetry(tx: Tx, data: ProgramCompletionCertificateCreateData) {
-  let lastError: unknown
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      return await tx.certificate.create({ data: { ...data, serial: await nextCertificateSerial(tx) } })
-    } catch (error: any) {
-      lastError = error
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && String(error.meta?.target || '').includes('serial'))) throw error
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('CERTIFICATE_SERIAL_UNIQUE_RETRY_EXHAUSTED')
+function isCertificateSerialUniqueConflict(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && error.code === 'P2002'
+    && String(error.meta?.target || '').includes('serial')
+}
+
+async function createProgramCompletionCertificate(tx: Tx, data: ProgramCompletionCertificateCreateData) {
+  return tx.certificate.create({ data: { ...data, serial: await nextCertificateSerial(tx) } })
 }
 
 export async function completeEnrollmentIfEligible(input: CompleteEnrollmentInput): Promise<CompleteEnrollmentResult> {
-  return db.$transaction(async (tx) => completeEnrollmentIfEligibleInTransaction(tx, input))
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await db.$transaction(async (tx) => completeEnrollmentIfEligibleInTransaction(tx, input))
+    } catch (error) {
+      lastError = error
+      if (!isCertificateSerialUniqueConflict(error)) throw error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('CERTIFICATE_SERIAL_UNIQUE_RETRY_EXHAUSTED')
 }
 
 export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: CompleteEnrollmentInput): Promise<CompleteEnrollmentResult> {
