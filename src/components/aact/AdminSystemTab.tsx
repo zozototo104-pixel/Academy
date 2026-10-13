@@ -642,7 +642,10 @@ export function AdminSystemTab() {
     cursor: null,
     nextCursor: null,
     done: false,
-    byType: Object.fromEntries(PRIVATE_FILE_TYPE_ORDER.map((source) => [source, { label: source, records: 0, toMigrate: 0, alreadyPrivate: 0, missing: 0, storageKeyUpdates: 0, missingIds: [] }])) as PrivateFilesReport['byType'],
+    byType: PRIVATE_FILE_TYPE_ORDER.reduce((acc, source) => {
+      acc[source] = { label: source, records: 0, toMigrate: 0, alreadyPrivate: 0, missing: 0, storageKeyUpdates: 0, missingIds: [] }
+      return acc
+    }, {} as Record<PrivateFilesSource, PrivateFilesTypeReport>),
     notes: [],
   })
 
