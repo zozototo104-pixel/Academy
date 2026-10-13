@@ -76,7 +76,16 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { examId, answers, proctoring } = (await req.json()) as {
+    const maxPayloadBytes = 512 * 1024
+    const declaredLength = req.headers.get('content-length')
+    if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxPayloadBytes)) {
+      return NextResponse.json({ error: 'حجم طلب التسليم كبير جدًا' }, { status: 413 })
+    }
+    const rawPayload = await req.text()
+    if (Buffer.byteLength(rawPayload, 'utf8') > maxPayloadBytes) {
+      return NextResponse.json({ error: 'حجم طلب التسليم كبير جدًا' }, { status: 413 })
+    }
+    const { examId, answers, proctoring } = JSON.parse(rawPayload) as {
       examId: string
       answers: SubmitAnswer[]
       durationUsedMin?: number
