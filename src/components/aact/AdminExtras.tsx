@@ -62,6 +62,9 @@ interface Thesis {
   aiScore?: number | null
   aiRecommendation?: string | null
   defenseMinutes?: string | null
+  fileUrl?: string | null
+  downloadUrl?: string | null
+  recordingUrl?: string | null
   fileStorageKey?: string | null
   extractionStatus?: string | null
   extractionError?: string | null
