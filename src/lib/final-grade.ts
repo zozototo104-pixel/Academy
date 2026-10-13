@@ -97,8 +97,8 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
       select: { score: true, finalScore: true, answers: { select: { points: true, maxPoints: true } } },
     })
     const best = avg(attempts.map((attempt) => {
-      if (typeof attempt.finalScore === 'number') return attempt.finalScore
-      return percentFromAnswers(attempt.answers) ?? attempt.score
+      // Use the raw answer-derived percentage for certification decisions; stored scores may be rounded for display.
+      return percentFromAnswers(attempt.answers) ?? attempt.finalScore ?? attempt.score
     }))
     if (best == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
     else bestScores.push(best)
