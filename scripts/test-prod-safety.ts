@@ -84,6 +84,8 @@ function testOfficialSettingsDeploymentHook() {
 
   const migration = file('scripts/migrate-official-ai-settings.ts')
   assert(migration.includes('if (existing) continue'), 'official settings migration must not overwrite existing values')
+  assert(migration.includes('DATABASE_UNAVAILABLE'), 'official settings migration must skip unavailable databases in non-production CI')
+  assert(migration.includes('MIGRATE_OFFICIAL_AI_SETTINGS_REQUIRED'), 'official settings migration must allow CI to require database-backed execution')
 }
 
 function testAiDeadlines() {
