@@ -105,6 +105,7 @@ async function testExecuteUpdatesAndIsIdempotent() {
   const second = await runPrivateFilesMaintenanceBatch({ db, mode: 'execute', confirm: 'نعم انقل', batchSize: 50, storage, actor: { id: 'admin-1', name: 'Admin' } })
   assert(second.byType.AdmissionDocument.alreadyPrivate === 1, 'second execute must treat the file as already private')
   assert(getStoreCalls() === 1, 'second execute must not copy the file again')
+  assert(auditLogs.length === 2, 'each successful execute batch must be written to AuditLog')
 }
 
 async function testRouteRejectsNonAdmin() {
