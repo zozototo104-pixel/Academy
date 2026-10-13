@@ -64,6 +64,8 @@ export type RunPrivateFilesMaintenanceBatchInput = {
   actor?: { id?: string | null; name?: string | null } | null
   storage?: PrivateFileStorageDeps
   lockTtlMs?: number
+  deadlineMs?: number
+  maxFileBytes?: number
 }
 
 const LOCK_KEY = 'MAINTENANCE_PRIVATE_FILES_LOCK'
