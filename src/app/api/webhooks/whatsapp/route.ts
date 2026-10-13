@@ -319,18 +319,43 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, text, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
+async function sendClaimedOfficialWhatsAppBotText(message: WhatsAppInboundMessage, text: string) {
+  const claim = await claimWhatsAppBotReply({
     waId: message.from,
     phoneNumberId: message.phoneNumberId,
     text,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
+    replyForMessageId: message.id,
+    recentDuplicateWindowMs: 2 * 60 * 1000,
+  })
+  if (!claim.claimed || !claim.message?.id) {
+    await auditWhatsAppWebhook('WHATSAPP_BOT_REPLY_SUPPRESSED', {
+      from: maskPhone(message.from),
+      messageId: message.id,
+      reason: claim.reason,
+      textPreview: text.slice(0, 180),
+    }, message.id)
+    return { sent: false, reason: claim.reason }
+  }
+
+  try {
+    const sendResult = await sendOfficialWhatsAppText(message.from, text, {
+      phoneNumberId: message.phoneNumberId,
+      replyToMessageId: message.id,
+    })
+    await finalizeWhatsAppBotReply({
+      claimMessageId: claim.message.id,
+      whatsappMessageId: sendResult?.messages?.[0]?.id || null,
+      status: 'SENT',
+    })
+    return { sent: true, whatsappMessageId: sendResult?.messages?.[0]?.id || null }
+  } catch (error: any) {
+    await failWhatsAppBotReply({ claimMessageId: claim.message.id, error: String(error?.message || error || 'send failed') })
+    throw error
+  }
+}
+
+async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
+  return sendClaimedOfficialWhatsAppBotText(message, text)
 }
 
 async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
