@@ -17,6 +17,8 @@
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
     "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
     "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
+    "storage:migrate-private-files:dry-run": "tsx scripts/migrate-private-file-storage.ts",
+    "storage:migrate-private-files": "tsx scripts/migrate-private-file-storage.ts --execute",
     "test:book-outline": "tsx scripts/test-book-outline.ts",
     "test:outline-units": "tsx scripts/test-outline-units.ts",
     "db:push": "tsx scripts/prisma-deploy.ts --push",
