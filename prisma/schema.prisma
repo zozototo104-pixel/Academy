@@ -42,6 +42,7 @@ model User {
   auditLogs      AuditLog[]
   programExamAttempts ProgramExamAttempt[]
   assignmentSubmissions AssignmentSubmission[]
+  certificates Certificate[]
   microCredentialAwards UserMicroCredential[]
   proposedThesisTopics ThesisTopic[] @relation("ThesisTopicProposer")
   reviewedThesisTopics ThesisTopic[] @relation("ThesisTopicReviewer")
