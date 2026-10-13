@@ -447,7 +447,7 @@ export function AdminThesisTab() {
                     )}
                     {t.status === 'PLAN_SUBMITTED' && (
                       <>
-                        <Button size="sm" onClick={() => thesisAction(t, 'APPROVE_PLAN')}
+                        <Button size="sm" disabled={busy} onClick={() => thesisAction(t, 'APPROVE_PLAN')}
                           className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
                           <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد خطة البحث
                         </Button>
