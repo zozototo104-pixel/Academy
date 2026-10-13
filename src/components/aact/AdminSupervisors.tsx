@@ -45,7 +45,7 @@ export function AdminSupervisorsTab() {
   const createSupervisor = async () => {
     setSaving(true)
     try {
-      await api('/api/admin/students', { method: 'POST', body: JSON.stringify({ action: 'create-supervisor', ...form }) })
+      await api('/api/admin/supervisors', { method: 'POST', body: JSON.stringify(form) })
       toast({ title: 'تم إنشاء المشرف', description: 'يمكنه الآن الدخول من صفحة تسجيل الدخول بنفس البريد وكلمة المرور.' })
       setForm({ name: '', email: '', password: '', phone: '', country: '' })
       load()
