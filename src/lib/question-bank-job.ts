@@ -357,6 +357,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     existingBySource.set(question.knowledgeItemId, list)
   }
 
+  const sourcesMissingOriginal = new Set(selected.filter((item) => !hasOriginalBookChunk(item)).map((item) => item.id))
   const evidenceSources = selected.map((item) => ({ text: verifierSourceText(item) }))
   const knowledgeText = selected.map((item, index) => {
     const existingQuestions = existingBySource.get(item.id) || []
