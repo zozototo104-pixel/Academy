@@ -11,7 +11,7 @@ import { localAgentConfig, localChatComplete } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { getOfficialContact } from '@/lib/settings'
 import { ensureGeminiKey, geminiActiveTextModel, geminiComplete, geminiCompleteJson, geminiDiscussionThinkingLevel, geminiStreamText, type GeminiThinkingLevel } from '@/lib/gemini'
-import { textAiComplete, textAiDiagnostics, type TextAiProvider } from '@/lib/text-ai'
+import { textAiComplete, textAiDiagnostics, textAiModelHealthSnapshot, type TextAiProvider } from '@/lib/text-ai'
 import { assertWithinDeadline, remainingDeadlineMs } from '@/lib/prod-safety'
 
 export type PlatformAgentKind =
