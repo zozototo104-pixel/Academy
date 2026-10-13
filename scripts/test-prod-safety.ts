@@ -126,7 +126,9 @@ function testAiDeadlines() {
 
 function testAactTestRecipientBlocks() {
   assert(isAactTestEmail('student@aact.test'), 'aact.test address must be detected')
+  assert(isAactTestEmail('QA Student <student@aact.test>'), 'aact.test display-name address must be detected')
   assert(hasAactTestRecipient('admin@example.com, student@aact.test'), 'mixed recipient list must be blocked')
+  assert(hasAactTestRecipient('Admin <admin@example.com>; QA Student <student@aact.test>'), 'display-name recipient lists must be blocked')
 
   const mailer = file('src/lib/mailer.ts')
   assert(mailer.includes('hasAactTestRecipient(input.to)'), 'mailer must block aact.test recipients before provider calls')
