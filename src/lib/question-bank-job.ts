@@ -292,8 +292,8 @@ async function scopedKnowledge(job: { programId: string; unitId: string | null }
   return { unit: null, knowledge, title: 'بنك أسئلة البرنامج', scopeLabel: 'البرنامج كاملاً' }
 }
 
-function knowledgeToSource(item: { id: string; title: string; category: string; summary: string | null; excerpt: string | null; sourceNote: string | null; bookId: string | null; semester: number | null; pageStart: number | null; pageEnd: number | null }): QuestionBankSource {
-  return { id: item.id, title: item.title, category: item.category, summary: item.summary, excerpt: item.excerpt, sourceNote: item.sourceNote, bookId: item.bookId, semester: item.semester, pageStart: item.pageStart, pageEnd: item.pageEnd }
+function knowledgeToSource(item: { id: string; title: string; category: string; summary: string | null; excerpt: string | null; sourceNote: string | null; bookId: string | null; semester: number | null; pageStart: number | null; pageEnd: number | null; chunkId?: string | null }): QuestionBankSource {
+  return { id: item.id, title: item.title, category: item.category, summary: item.summary, excerpt: item.excerpt, sourceNote: item.sourceNote, bookId: item.bookId, semester: item.semester, pageStart: item.pageStart, pageEnd: item.pageEnd, chunkId: item.chunkId || null }
 }
 
 export function hasSourceGroundedFlag(question: { qualityFlags?: string[] }) {
