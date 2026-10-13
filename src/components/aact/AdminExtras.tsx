@@ -487,7 +487,7 @@ export function AdminThesisTab() {
                           className="w-full justify-center bg-[#c9a227] font-bold text-[#0f2b46] hover:bg-[#e0b83a]">
                           <Video className="ml-1 h-3.5 w-3.5" /> دخول قاعة المناقشة
                         </Button>
-                        <Button size="sm" onClick={() => setResulting(t)}
+                        <Button size="sm" disabled={busy} onClick={() => setResulting(t)}
                           className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
                           <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> تسجيل النتيجة
                         </Button>
