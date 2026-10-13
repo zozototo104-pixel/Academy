@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
             data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
           })
           if (expired.count !== 1) return { blocked: 'GRADING' as const, attempt: null }
-          startedAttempt = null
+          return { blocked: 'EXPIRED' as const, attempt: null }
         }
       }
       if (!startedAttempt) {
