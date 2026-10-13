@@ -72,7 +72,13 @@ export async function POST(req: NextRequest) {
     if (Buffer.byteLength(payload, 'utf8') > maxPayloadBytes) {
       return NextResponse.json({ error: 'حجم طلب الاختبار كبير جدًا' }, { status: 413 })
     }
-    const { examId, answers } = JSON.parse(payload) as { examId: string; answers: SubmitAnswer[] }
+    let parsedPayload: { examId?: string; answers?: SubmitAnswer[] }
+    try {
+      parsedPayload = JSON.parse(payload)
+    } catch {
+      return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })
+    }
+    const { examId, answers } = parsedPayload
     if (typeof examId !== 'string' || !examId || examId.length > 128 || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'بيانات الاختبار غير مكتملة' }, { status: 400 })
     }
