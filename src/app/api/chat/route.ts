@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
                 messages: [...orderedMessages, { role: 'user', content: userText }],
                 uiContext: safeUiContext,
                 mode: chatMode,
+                deadlineMs,
               }, emitChunk)
               const hasSubmittedHandoff = await hasRecentHumanHandoffRequest(user.id)
               agentResult = result
