@@ -9,7 +9,7 @@ export interface SettingDef {
   label: string
   group: string // FEES | RULES | AI | CONTENT | CONTACT
   suffix: string // $ | يوم | شهر | % | دقيقة
-  inputType?: 'number' | 'text' | 'textarea' | 'json'
+  inputType?: 'number' | 'text' | 'textarea' | 'json' | 'boolean'
   help?: string
   secret?: boolean
 }
