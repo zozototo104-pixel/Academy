@@ -278,9 +278,7 @@ export async function POST(req: NextRequest) {
     const feedbackJson = JSON.stringify(overall)
 
     const attempt = await db.$transaction(async (tx) => {
-      const created = await tx.examAttempt.create({
-        data: { userId: user.id, examId, status: 'SUBMITTED' },
-      })
+      const created = activeAttempt
 
       for (const prepared of answersToPersist) {
         await tx.answer.create({
