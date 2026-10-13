@@ -243,7 +243,7 @@ model ExamAttempt {
   exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
   score       Float?
   passed      Boolean?
-  status      String    @default("SUBMITTED") // SUBMITTED | NEEDS_REVIEW | GRADED
+  status      String    @default("SUBMITTED") // STARTED | EXPIRED | SUBMITTED | NEEDS_REVIEW | GRADED
   feedback    String? // AI overall feedback JSON { summary, strengths[], improvements[] }
   aiGraded    Boolean   @default(false)
   submittedAt DateTime  @default(now())
