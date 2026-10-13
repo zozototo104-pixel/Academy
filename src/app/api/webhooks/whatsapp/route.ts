@@ -881,6 +881,91 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ ok: false, error: 'Invalid WhatsApp webhook verification token' }, { status: 403 })
 }
 
+type WhatsAppPostTestDeps = {
+  verifyWhatsAppSignature?: (rawBody: string, signatureHeader: string | null) => boolean
+  extractWhatsAppInboundMessages?: (payload: any) => WhatsAppInboundMessage[]
+  db?: any
+  after?: (fn: () => unknown) => void
+  processWhatsAppEvent?: (eventId: string) => Promise<unknown>
+  audit?: (action: string, details: Record<string, any>, entityId?: string | null) => Promise<unknown>
+  officialWhatsAppConfigured?: () => boolean
+  expectedWhatsAppPhoneNumberId?: () => string
+}
+
+async function handleWhatsAppPost(req: NextRequest, deps: WhatsAppPostTestDeps = {}) {
+  const rawBody = await req.text()
+  const verify = deps.verifyWhatsAppSignature || verifyWhatsAppSignature
+  const dbClient = deps.db || db
+  const auditFn = deps.audit || auditWhatsAppWebhook
+  const configured = deps.officialWhatsAppConfigured || officialWhatsAppConfigured
+  const extract = deps.extractWhatsAppInboundMessages || extractWhatsAppInboundMessages
+  const scheduleAfter = deps.after || ((fn: () => unknown) => after(fn))
+  const processEvent = deps.processWhatsAppEvent || processWhatsAppEvent
+  const expectedPhone = deps.expectedWhatsAppPhoneNumberId || expectedWhatsAppPhoneNumberId
+
+  if (!verify(rawBody, req.headers.get('x-hub-signature-256'))) {
+    await auditFn('WHATSAPP_WEBHOOK_REJECTED', {
+      reason: 'invalid_signature',
+      hasSignature: Boolean(req.headers.get('x-hub-signature-256')),
+      bodyBytes: rawBody.length,
+    })
+    return NextResponse.json({ ok: false, error: 'Invalid WhatsApp webhook signature' }, { status: 401 })
+  }
+
+  let payload: any = {}
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {}
+  } catch {
+    await auditFn('WHATSAPP_WEBHOOK_REJECTED', { reason: 'invalid_json', bodyBytes: rawBody.length })
+    return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const expected = expectedPhone()
+  const extractedMessages = extract(payload)
+  const messages = expected
+    ? extractedMessages.filter((message) => String(message.phoneNumberId || '').trim() === expected)
+    : extractedMessages
+  const ignoredPhoneMessages = expected ? extractedMessages.filter((message) => String(message.phoneNumberId || '').trim() !== expected) : []
+  if (!messages.length) {
+    const nonMessage = summarizeNonMessageWhatsAppPayload(payload)
+    await auditFn('WHATSAPP_WEBHOOK_RECEIVED', { received: 0, sent: 0, configured: configured(), ignoredPhoneMessages: ignoredPhoneMessages.length, note: 'no accepted inbound messages', object: payload?.object || null, entries: Array.isArray(payload?.entry) ? payload.entry.length : 0, statusUpdates: nonMessage.statusUpdates, webhookErrors: nonMessage.webhookErrors })
+    return NextResponse.json({ ok: true, received: 0, queued: 0, duplicates: 0, ignoredPhoneMessages: ignoredPhoneMessages.length, statusUpdates: nonMessage.statusUpdates.length, configured: configured() })
+  }
+
+  const eventIds: string[] = []
+  let skippedDuplicates = 0
+  const errors: string[] = []
+  for (const message of messages) {
+    try {
+      const event = await dbClient.whatsAppInboundEvent.create({
+        data: { waMessageId: message.id, waIdHash: waIdHash(message.from), phoneNumberId: message.phoneNumberId || null, messageType: message.rawType || null, payload: inboundEventPayload(message), status: 'RECEIVED' },
+        select: { id: true },
+      })
+      pendingInboundMessages.set(event.id, message)
+      eventIds.push(event.id)
+    } catch (error: any) {
+      if (isUniqueConstraintError(error)) {
+        const existing = await dbClient.whatsAppInboundEvent.findUnique({ where: { waMessageId: message.id }, select: { id: true, status: true, updatedAt: true } }).catch(() => null)
+        if (existing && shouldRetryExistingInboundEvent(existing)) eventIds.push(existing.id)
+        else skippedDuplicates += 1
+      } else {
+        errors.push(`register-event: ${String(error?.message || error || 'failed').slice(0, 220)}`)
+      }
+    }
+  }
+
+  for (const eventId of eventIds) {
+    scheduleAfter(() => processEvent(eventId).catch((error) => console.error('WhatsApp after-event processing failed:', String((error as any)?.message || error || 'failed').slice(0, 500))))
+  }
+
+  await auditFn('WHATSAPP_WEBHOOK_RECEIVED', { received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, ignoredPhoneMessages: ignoredPhoneMessages.length, configured: configured(), errors: errors.slice(0, 3), messages: messages.map((message) => ({ id: message.id, from: maskPhone(message.from), text: message.text.slice(0, 180), phoneNumberId: message.phoneNumberId || null })) }, messages[0]?.id)
+  return NextResponse.json({ ok: true, received: messages.length, queued: eventIds.length, duplicates: skippedDuplicates, ignoredPhoneMessages: ignoredPhoneMessages.length, errors: errors.slice(0, 3), configured: configured() })
+}
+
+export async function __handleWhatsAppPostForTests(req: NextRequest, deps: WhatsAppPostTestDeps) {
+  return handleWhatsAppPost(req, deps)
+}
+
 // Incoming official WhatsApp messages. The route validates and records inbound
 // events first, acknowledges Meta quickly, then processes each event after the
 // response. Idempotency lives in WhatsAppInboundEvent.waMessageId.
