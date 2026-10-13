@@ -32,6 +32,14 @@ function hasPositivePrice(value: unknown): value is number {
   return Number.isFinite(n) && n > 0
 }
 
+function secureProofPayload(proof: any) {
+  if (!proof?.storageKey || !isPrivateStorageKey(proof.storageKey)) return proof
+  return {
+    ...proof,
+    storageUrl: getStorageDownloadPathForKey(proof.storageKey),
+  }
+}
+
 function tuitionFallbackForProgram(params: {
   settings: Record<string, string>
   program?: { category?: string | null; price?: number | null } | null
