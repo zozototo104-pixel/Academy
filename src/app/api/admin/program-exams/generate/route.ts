@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     const unitBreakdown = unitsForExam.map((unit) => ({ unitId: unit.id, title: unit.title, semester: unit.semester, order: unit.order }))
     if (exam.status === 'REVIEW') {
       const count = await db.programQuestion.count({ where: { examId: exam.id, status: { not: 'REJECTED' } } })
-      if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed })
+      if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
     }
     if (exam.status !== 'GENERATING') await db.programExam.update({ where: { id: exam.id }, data: { status: 'GENERATING', errorNote: null } })
     const result = await advanceProgramExamFromVerifiedBank(exam.id, { manual: action !== 'kick' })
