@@ -174,7 +174,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
       if (array(question.qualityFlags).some((flag) => flag.startsWith('QUESTION_BANK_ITEM_ID:'))) return false
       if (!question.sourceEvidence || !question.sourceLocator || !question.sourceBookTitle) return true
       return !pools.some((pool) => pool.sources.some((source) =>
-        validateLiteralEvidence({ evidence: question.sourceEvidence, sourceText: source.excerpt || source.summary }).ok,
+        validateLiteralEvidence({ evidence: question.sourceEvidence, sourceText: source.chunkText }).ok,
       ))
     }).length
     const blockedByLegacy = questionCount >= PROGRAM_EXAM_TARGET && legacyUnverified > 0
