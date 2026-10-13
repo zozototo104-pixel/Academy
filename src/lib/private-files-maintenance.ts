@@ -171,7 +171,7 @@ function normalizeHostValues(values: Iterable<string>) {
   for (const value of values) {
     const raw = String(value || '').trim()
     if (!raw) continue
-    try { hosts.add(new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase()) } catch {}
+    try { hosts.add(new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase()) } catch { continue }
   }
   return hosts
 }
