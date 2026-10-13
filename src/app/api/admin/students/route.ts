@@ -348,10 +348,18 @@ export async function PATCH(req: NextRequest) {
       if (!enrollmentId) return NextResponse.json({ error: 'معرف التسجيل مطلوب' }, { status: 400 })
       const enrollment = await db.enrollment.findFirst({ where: { id: enrollmentId, userId }, include: { payments: true } })
       if (!enrollment) return NextResponse.json({ error: 'التسجيل غير موجود' }, { status: 404 })
+      if (!isQaTestAccount(student.email)) {
+        return NextResponse.json({ error: 'لا يمكن حذف تسجيل حساب حقيقي بسبب قيود السجلات الأكاديمية والمالية. استخدم التعطيل أو الأرشفة أو انقل البيانات يدوياً.' }, { status: 409 })
+      }
       const hasPaid = enrollment.payments.some((p) => p.status === 'PAID')
       if (hasPaid) return NextResponse.json({ error: 'لا يمكن إلغاء تسجيل مرتبط بمدفوعات مدفوعة. استخدم التعطيل أو الأرشفة.' }, { status: 400 })
-      await db.enrollment.delete({ where: { id: enrollmentId } })
-      await audit({ id: admin.id, name: admin.name }, 'CANCEL_STUDENT_ENROLLMENT', 'Enrollment', enrollmentId, `إلغاء تسجيل الطالب ${student.email}`)
+      await db.$transaction(async (tx) => {
+        await tx.certificate.deleteMany({ where: { enrollmentId } })
+        await tx.tuitionInstallmentAppeal.deleteMany({ where: { enrollmentId } })
+        await tx.payment.deleteMany({ where: { enrollmentId } })
+        await tx.enrollment.delete({ where: { id: enrollmentId } })
+      })
+      await audit({ id: admin.id, name: admin.name }, 'CANCEL_STUDENT_ENROLLMENT', 'Enrollment', enrollmentId, `إلغاء تسجيل طالب QA ${student.email}`)
       return NextResponse.json({ ok: true })
     }
 
