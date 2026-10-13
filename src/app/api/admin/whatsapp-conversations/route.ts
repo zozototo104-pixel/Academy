@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { decryptConversationWaIdForInternalUse, hashWhatsAppId, recordWhatsAppOutboundMessage, setWhatsAppConversationStatus } from '@/lib/whatsapp-conversations'
+import { decryptWhatsAppPhone, encryptWhatsAppPhone } from '@/lib/whatsapp-privacy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
