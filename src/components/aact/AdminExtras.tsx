@@ -421,7 +421,7 @@ export function AdminThesisTab() {
                         {/* 12.3: محضر الجلسة والتسجيل المؤرشف */}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {t.defenseMinutes && (
-                            <Button size="sm" variant="outline" onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
                               <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة التلقائي
                             </Button>
                           )}
