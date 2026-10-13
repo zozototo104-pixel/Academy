@@ -51,6 +51,10 @@ export async function PUT(req: NextRequest) {
       const inputType = def.inputType || 'number'
       let v = typeof val === 'string' ? val : JSON.stringify(val)
       if (inputType !== 'textarea') v = v.trim()
+      if (inputType === 'boolean') {
+        const normalized = v.trim().toLowerCase()
+        v = ['1', 'true', 'yes', 'on', 'enabled', 'مفعل', 'مفعّل'].includes(normalized) ? 'true' : 'false'
+      }
       if (inputType === 'number') {
         if (v === '' || isNaN(parseFloat(v))) continue
         v = String(parseFloat(v))
