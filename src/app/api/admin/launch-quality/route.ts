@@ -18,6 +18,7 @@ import {
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
 import { textAiDiagnostics } from '@/lib/text-ai'
 import { redactDeep } from '@/lib/secret-crypto'
+import { qaProdFixturesAllowed } from '@/lib/prod-safety'
 
 const NextResponse = {
   json: (body: unknown, init?: ResponseInit) => UnsafeNextResponse.json(redactDeep(body), init),
