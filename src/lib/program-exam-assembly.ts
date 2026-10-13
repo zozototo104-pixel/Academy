@@ -118,7 +118,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
   const maxPerUnit = Math.ceil(PROGRAM_EXAM_TARGET / units.length)
   const result = await db.$transaction(async (tx) => {
     // Repeated admin clicks and cron ticks cannot pick the same bank item simultaneously.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(472918, hashtext(${examId}))`
+    await tx.$queryRaw`SELECT 1 AS acquired FROM pg_advisory_xact_lock(472918, hashtext(${examId}))`
     const currentExam = await tx.programExam.findUnique({ where: { id: examId }, select: { status: true } })
     const existing = await tx.programQuestion.findMany({ where: { examId }, select: { text: true, type: true, status: true, order: true, points: true, knowledgeItemId: true, qualityFlags: true } })
     const active = existing.filter((question) => question.status !== 'REJECTED')
