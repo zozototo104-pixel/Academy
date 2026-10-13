@@ -277,6 +277,7 @@ export async function POST(req: NextRequest) {
         await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
         return created
       })
+      claimedUnitAttemptId = null
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', results: gradedResults.sort((a, b) => a.order - b.order) }, { status: 202 })
     }
 
