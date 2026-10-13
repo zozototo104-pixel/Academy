@@ -29,6 +29,11 @@ type QuestionBankSource = {
   semester: number | null
   pageStart: number | null
   pageEnd: number | null
+  chunkId?: string | null
+  originalChunkText?: string | null
+  originalChunkIndex?: number | null
+  originalChunkPageStart?: number | null
+  originalChunkPageEnd?: number | null
 }
 
 export type QuestionBankJobTrace = {
