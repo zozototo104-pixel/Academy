@@ -53,6 +53,8 @@ function mapAssignment(a: any, enrollmentCreatedAt: Date) {
       id: submission.id,
       answerText: submission.answerText,
       fileName: submission.fileName,
+      fileUrl: submission.fileStorageKey ? getStorageDownloadPathForKey(submission.fileStorageKey) : null,
+      downloadUrl: submission.fileStorageKey ? getStorageDownloadPathForKey(submission.fileStorageKey) : null,
       mimeType: submission.mimeType,
       size: submission.size,
       status: submission.status,
