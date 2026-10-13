@@ -22,6 +22,8 @@ function testCentralCompletionOnly() {
   assert(central.includes('evaluateProgramCertificateEligibility'), 'central completion must use certificate eligibility')
   assert(central.includes('tx.enrollment.update'), 'central completion service must be the place that completes enrollment')
   assert(central.includes('tx.certificate.create'), 'central completion service must be the place that issues program certificates')
+  assert(central.includes("SELECT nextval('\"Certificate_serial_seq\"')"), 'central completion must allocate certificate serials from the database sequence')
+  assert(central.includes('createProgramCompletionCertificateWithRetry'), 'central completion must retry certificate creation on unique serial conflicts')
   const programSubmit = file('src/app/api/program-exam/submit/route.ts')
   assert(programSubmit.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'program exam submit must also delegate eligible completion to the central service')
 }
