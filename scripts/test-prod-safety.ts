@@ -132,6 +132,18 @@ function mockFileAccessClient(key: string, owner: { userId: string; email: strin
   }
 }
 
+async function invokeProtectedFileRoute(key: string, user: any, allowed: boolean) {
+  const req = new NextRequest(`https://academy.test/api/files/${key}?format=json`, { headers: { accept: 'application/json' } })
+  return __handleFileGetForTests(req, { params: { key: key.split('/') } }, {
+    requireUser: async () => user,
+    canAccessStorageKey: async () => allowed,
+    readStoredFile: async () => ({ buffer: Buffer.from('private-file'), mimeType: 'application/pdf' }),
+    signLocalStorageDownloadPath: (storageKey: string) => `/api/files/${storageKey}?download=1&expires=1&signature=test-signature`,
+    createSignedStorageUrlForKey: () => null,
+    now: () => 1_700_000_000_000,
+  })
+}
+
 async function testFileAccessPolicyBehavior() {
   const key = 'admissions/legacy/passport.pdf'
   const owner = { userId: 'student-owner', email: 'owner@example.com' }
@@ -140,8 +152,21 @@ async function testFileAccessPolicyBehavior() {
   assert(!(await canAccessStorageKeyWithClient(client, key, { id: 'student-other', email: 'other@example.com', role: 'STUDENT' })), 'another student must receive 403-equivalent denial')
   assert(await canAccessStorageKeyWithClient(client, key, { id: 'admin-1', email: 'admin@example.com', role: 'ADMIN' }), 'admin must be authorized')
 
+  const ownerResponse = await invokeProtectedFileRoute(key, { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }, true)
+  assert(ownerResponse.status === 200, 'protected file route must return 200 for the owner')
+  const otherResponse = await invokeProtectedFileRoute(key, { id: 'student-other', email: 'other@example.com', role: 'STUDENT' }, false)
+  assert(otherResponse.status === 403, 'protected file route must return 403 for another student')
+  const adminResponse = await invokeProtectedFileRoute(key, { id: 'admin-1', email: 'admin@example.com', role: 'ADMIN' }, true)
+  assert(adminResponse.status === 200, 'protected file route must return 200 for admins')
+
   const backfilledLegacy = mockFileAccessClient('admissions/legacy/from-file-url.pdf', owner)
   assert(await canAccessStorageKeyWithClient(backfilledLegacy, 'admissions/legacy/from-file-url.pdf', { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }), 'legacy fileUrl rows must open after storageKey backfill')
+  const legacyResponse = await invokeProtectedFileRoute('admissions/legacy/from-file-url.pdf', { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }, true)
+  assert(legacyResponse.status === 200, 'legacy fileUrl rows must open through /api/files after backfill')
+
+  const serviceKey = 'service-deliverables/final/report.pdf'
+  const serviceResponse = await invokeProtectedFileRoute(serviceKey, { id: 'student-owner', email: 'owner@example.com', role: 'STUDENT' }, true)
+  assert(serviceResponse.status === 200, 'service-deliverables files must open through /api/files for authorized users')
 }
 
 function testOfficialSettingsDeploymentHook() {
