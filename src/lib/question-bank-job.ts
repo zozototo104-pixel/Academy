@@ -424,6 +424,36 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   const groundedQuestions = verified.filter(hasSourceGroundedFlag)
 
   const rows: Prisma.QuestionBankItemCreateManyInput[] = []
+  for (const item of parsed.accepted) {
+    const sourceIndex = Number(item.sourceIndex)
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) continue
+    const source = selected[sourceIndex - 1]
+    if (!sourcesMissingOriginal.has(source.id)) continue
+    const q = sanitizeQuestion(item, { title: source.title, summary: source.summary, excerpt: source.excerpt, sourceNote: source.sourceNote })
+    if (!q.text || q.text.length < 12) { traceReasons.push('EMPTY_QUESTION_TEXT'); continue }
+    if (!q.sourceEvidence) { traceReasons.push('SOURCE_EVIDENCE_REQUIRED'); continue }
+    if (!q.cognitiveSkill) { traceReasons.push('COGNITIVE_SKILL_REQUIRED'); continue }
+    if (!q.difficulty) { traceReasons.push('DIFFICULTY_REQUIRED'); continue }
+    if (q.type === 'MCQ' && (!q.options || q.correctAnswer == null)) { traceReasons.push(prepareMcqOptionsForStorage(item.options, item.correctAnswer).reason || 'MCQ_ANSWER_NOT_IN_OPTIONS'); continue }
+    if (q.type === 'TF' && q.correctAnswer == null) { traceReasons.push('TF_ANSWER_REQUIRED'); continue }
+    const key = questionDuplicateKey(q.text, source.id)
+    if (seen.has(key) || isDuplicateQuestionIdea(q.text, source.id, ideaHistory)) { traceReasons.push('DUPLICATE_QUESTION'); continue }
+    seen.add(key)
+    ideaHistory.push({ text: q.text, knowledgeItemId: source.id })
+    traceReasons.push('لا يوجد مقطع أصلي')
+    rows.push({
+      ...buildQuestionBankRecord({
+        ...q,
+        qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING'],
+        verificationPending: true,
+        verificationReason: 'لا يوجد مقطع أصلي',
+        verifierReason: 'لا يوجد مقطع أصلي',
+        textProvenance: 'MISSING_ORIGINAL_BOOK_CHUNK',
+      }, { programId: job.programId, knowledgeItemId: source.id, bookId: source.bookId || null, semester: source.semester || scope.unit?.semester || null, provider: raw.provider, model: raw.model }),
+      unitId: job.unitId || null,
+    } as Prisma.QuestionBankItemCreateManyInput)
+    if (rows.length >= count) break
+  }
   for (const item of groundedQuestions) {
     const sourceIndex = Number(item.sourceIndex)
     if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > selected.length) { traceReasons.push('BAD_SOURCE_INDEX'); continue }
