@@ -37,6 +37,9 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   assert(finalGrade.includes("submission.status !== 'GRADED'"), 'published assignments must be submitted and graded')
   assert(finalGrade.includes('thesisScores'), 'masters/doctorate eligibility must include thesis/defense scores')
   assert(finalGrade.includes('Raw percentage: certification decisions compare this unrounded value'), 'passing decisions must use raw scores and keep rounding for display only')
+  assert(finalGrade.includes('function best('), 'final grade must use a best-attempt helper')
+  assert(finalGrade.includes('const bestAttemptScore = best(attempts.map'), 'final grade must use the best successful attempt per exam rather than averaging attempts')
+  assert(!finalGrade.includes('const best = avg(attempts.map'), 'final grade must not average all successful attempts for a single exam')
 
   const eligibility = file('src/lib/certificate-eligibility.ts')
   assert(eligibility.includes('finalGrade.score < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must compare the raw final score against pass score')
