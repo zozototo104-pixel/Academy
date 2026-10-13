@@ -293,7 +293,7 @@ export function QuestionReviewDialog({
           </DialogDescription>
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
             <p className="mb-2 text-[11px] font-bold leading-relaxed text-amber-800">
-              إذا كانت الأسئلة القديمة مكررة أو خياراتها متشابهة، استخدم هذا الزر لإعادة بناء الامتحان من الكتب بالمنهجية الجديدة المتنوعة.
+الاستكمال يضيف أسئلة جديدة من بنك المعرفة V2 بعد التحقق من الكتاب، دون حذف الأسئلة السابقة أو مراجعاتها. راجع الأسئلة القديمة يدويًا إذا كانت تحتاج تعديلًا.
             </p>
             <div className="flex flex-wrap gap-2">
               {questions.length > 0 && questions.length < FULL_EXAM_TARGET && (
