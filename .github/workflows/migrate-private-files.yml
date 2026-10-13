@@ -1,0 +1,93 @@
+name: Migrate private files
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Migration mode"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - execute
+      confirm:
+        description: "For execute mode, type exactly: نعم انقل"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-private-files-production
+  cancel-in-progress: false
+
+jobs:
+  migrate-private-files:
+    name: Migrate private files
+    runs-on: ubuntu-latest
+    environment: production-maintenance
+    timeout-minutes: 60
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      AACT_S3_ENDPOINT: ${{ secrets.AACT_S3_ENDPOINT }}
+      AACT_S3_BUCKET: ${{ secrets.AACT_S3_BUCKET }}
+      AACT_S3_ACCESS_KEY_ID: ${{ secrets.AACT_S3_ACCESS_KEY_ID }}
+      AACT_S3_SECRET_ACCESS_KEY: ${{ secrets.AACT_S3_SECRET_ACCESS_KEY }}
+      AACT_S3_REGION: ${{ secrets.AACT_S3_REGION }}
+      AACT_STORAGE_PUBLIC_BASE_URL: ${{ secrets.AACT_STORAGE_PUBLIC_BASE_URL }}
+      AACT_STORAGE_ALLOWED_HOSTS: ${{ secrets.AACT_STORAGE_ALLOWED_HOSTS }}
+      AACT_FILE_SIGNING_SECRET: ${{ secrets.AACT_FILE_SIGNING_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Refuse execute without confirmation
+        if: ${{ github.event.inputs.mode == 'execute' && github.event.inputs.confirm != 'نعم انقل' }}
+        run: |
+          echo "Execute mode requires confirm input to be exactly: نعم انقل" >&2
+          exit 1
+
+      - name: Prepare reports directory
+        run: mkdir -p reports
+
+      - name: Run private file migration
+        run: |
+          bunx tsx scripts/migrate-private-file-storage.ts \
+            --mode "${{ github.event.inputs.mode }}" \
+            --report reports/private-files-migration-report.json \
+            --summary reports/private-files-migration-summary.md
+
+      - name: Write migration summary
+        if: always()
+        run: |
+          if [ -f reports/private-files-migration-summary.md ]; then
+            cat reports/private-files-migration-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# Private files migration report" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No sanitized report was produced. Check the job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sanitized migration report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-files-migration-report-${{ github.event.inputs.mode }}
+          path: reports/*
+          if-no-files-found: warn
+          retention-days: 30
