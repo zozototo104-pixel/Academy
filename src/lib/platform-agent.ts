@@ -304,7 +304,7 @@ async function analyzeConversationIntent(messages: { role: string; content: stri
       ],
       temperature: 0.05,
       maxOutputTokens: 700,
-    }), 6500, 'Conversation intent analysis timed out')
+    }), classifierTimeoutMs, 'Conversation intent analysis timed out')
     const parsed = parseJsonObject(raw)
     if (!parsed) return fallback
     const intent = normalizeIntentKind(parsed.intent)
