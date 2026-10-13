@@ -20,14 +20,9 @@ import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, s
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { dollarsToCents } from '@/lib/money'
 
-// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق
-// لا يُقبل طلب الالتحاق الدراسي إلا برفعها كاملة. أما الخدمات المهنية فتقبل مرفقات داعمة اختيارية.
-export const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
-]
+// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق.
+// المصدر التنفيذي المشترك مع ApplyView موجود في src/lib/admission-required-documents.ts.
+export const REQUIRED_DOCS = REQUIRED_ADMISSION_DOCS
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف
 const ALLOWED_MIME = [
