@@ -121,6 +121,8 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
   if (!units.length) throw new Error('EXAM_UNITS_REQUIRED')
   const pools = await loadUnitPools(exam.programId, units)
   const eligible = pools.flatMap((pool) => pool.candidates)
+  const pendingReviewTotal = pools.reduce((total, pool) => total + pool.pendingReviewCount, 0)
+  const pendingReviewNote = `في ${pendingReviewTotal} أسئلة بانتظار المراجعة.`
   const minTypes = distribution(exam.program.category)
   const knowledgeUnits = new Map<string, string>()
   for (const candidate of eligible) if (candidate.item.knowledgeItemId) knowledgeUnits.set(candidate.item.knowledgeItemId, candidate.unitId)
