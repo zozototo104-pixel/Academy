@@ -996,7 +996,9 @@ export async function platformAgentComplete(opts: {
   messages: { role: string; content: string }[]
   uiContext?: string
   mode?: 'TEXT' | 'VOICE' | string
+  deadlineMs?: number
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
+  assertWithinDeadline(opts.deadlineMs, 'Platform agent deadline exceeded')
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
