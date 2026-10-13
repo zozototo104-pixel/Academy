@@ -116,7 +116,7 @@ function isPrivateIp(address: string) {
   return !(/^[23][0-9a-f]{3}:/.test(lower)) || lower.startsWith('2001:db8:') || lower.startsWith('2001:')
 }
 
-function configuredAllowedStorageHosts() {
+export function configuredAllowedStorageHosts() {
   const values = [
     process.env.AACT_STORAGE_ALLOWED_HOSTS,
     process.env.AACT_STORAGE_PUBLIC_BASE_URL,
