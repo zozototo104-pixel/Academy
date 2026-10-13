@@ -44,6 +44,7 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; sum
   if (!validateLiteralEvidence({ evidence: item.sourceEvidence, sourceText: source.excerpt || source.summary }).ok) return false
   if (item.type === 'MCQ' || item.type === 'TF') {
     const options = array(item.options)
+    if (item.correctAnswer == null || !/^\d+$/.test(item.correctAnswer)) return false
     const correct = Number(item.correctAnswer)
     if (!Number.isInteger(correct) || correct < 0 || correct >= options.length || (item.type === 'MCQ' && options.length < 3) || (item.type === 'TF' && options.length !== 2)) return false
     if (item.type === 'MCQ') {
