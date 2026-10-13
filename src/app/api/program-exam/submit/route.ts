@@ -6,6 +6,7 @@ import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 interface SubmitAnswer {
   questionId: string
@@ -76,14 +77,30 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { examId, answers, proctoring } = (await req.json()) as {
-      examId: string
-      answers: SubmitAnswer[]
-      durationUsedMin?: number
-      proctoring?: { enabled?: boolean; log?: { t: number; type: string }[]; snapshot?: string }
+    const maxPayloadBytes = 512 * 1024
+    const declaredLength = req.headers.get('content-length')
+    if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxPayloadBytes)) {
+      return NextResponse.json({ error: 'حجم طلب التسليم كبير جدًا' }, { status: 413 })
     }
-    if (!examId || !Array.isArray(answers)) {
+    const rawPayload = await req.text()
+    if (Buffer.byteLength(rawPayload, 'utf8') > maxPayloadBytes) {
+      return NextResponse.json({ error: 'حجم طلب التسليم كبير جدًا' }, { status: 413 })
+    }
+    let parsedPayload: { examId?: string; answers?: SubmitAnswer[]; durationUsedMin?: number; proctoring?: { enabled?: boolean; log?: { t: number; type: string }[]; snapshot?: string } }
+    try {
+      parsedPayload = JSON.parse(rawPayload)
+    } catch {
+      return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })
+    }
+    const { examId, answers, proctoring } = parsedPayload
+    if (typeof examId !== 'string' || !examId || examId.length > 128 || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'بيانات الاختبار غير مكتملة' }, { status: 400 })
+    }
+    if (answers.length > 150 || answers.some((a) => !a || typeof a.questionId !== 'string' || a.questionId.length > 128 ||
+      (a.answerText !== undefined && (typeof a.answerText !== 'string' || a.answerText.length > 12000)) ||
+      (a.selectedOption !== undefined && (!Number.isInteger(a.selectedOption) || a.selectedOption < 0 || a.selectedOption > 30))) ||
+      new Set(answers.map((a) => a.questionId)).size !== answers.length) {
+      return NextResponse.json({ error: 'الإجابات تجاوزت الحدود المسموحة أو تضمنت تكرارًا' }, { status: 400 })
     }
 
     const exam = await db.programExam.findUnique({
@@ -142,21 +159,24 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
     })
-    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', legacyMessage: 'انتهى وقت هذه المحاولة', code: 'ATTEMPT_EXPIRED', attemptId: expiredAttempt.id }, { status: 409 })
+    if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
     if (elapsedMs > allowedMs) {
-      await db.programExamAttempt.update({
-        where: { id: startedAttempt.id },
+      // An already-submitted attempt must never be overwritten as expired.
+      await db.programExamAttempt.updateMany({
+        where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
         data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
       })
-      return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', attemptId: startedAttempt.id }, { status: 409 })
+      return NextResponse.json({ error: 'انتهى وقت هذه المحاولة' }, { status: 409 })
     }
     const serverDurationUsedMin = Math.max(0, Math.ceil(elapsedMs / 60000))
 
-    const attempt = await db.programExamAttempt.update({
-      where: { id: startedAttempt.id },
+    // Atomic compare-and-set: exactly one request can claim a STARTED attempt.
+    // Other concurrent submissions are rejected before writing answers or grading.
+    const claimed = await db.programExamAttempt.updateMany({
+      where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
       data: {
         status: 'SUBMITTED',
         durationUsedMin: serverDurationUsedMin,
@@ -165,6 +185,10 @@ export async function POST(req: NextRequest) {
         proctoringSnapshot: procSnapshot,
       },
     })
+    if (claimed.count !== 1) {
+      return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
+    }
+    const attempt = startedAttempt
 
     try {
     let totalScore = 0
@@ -366,6 +390,8 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
+    const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+
     return NextResponse.json({
       ok: true,
       attemptId: attempt.id,
@@ -378,6 +404,7 @@ export async function POST(req: NextRequest) {
       maxExamScore: readiness.maxExamScore,
       courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
+      certificateNo: completion?.ok ? completion.certificate?.serial || null : null,
       results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
     })
     } catch (postCreateError: any) {
