@@ -64,7 +64,10 @@ export async function GET(req: NextRequest) {
       return { blocked: false as const, attempt }
     })
     if (attemptState.blocked) {
-      return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح بالفعل' }, { status: 409 })
+      return NextResponse.json(
+        { error: attemptState.reason === 'PASSED_ALREADY' ? 'لقد اجتزت هذا الاختبار بالفعل ولا يمكن بدء محاولة جديدة.' : 'هذه المحاولة قيد التصحيح بالفعل', code: attemptState.reason },
+        { status: 409 }
+      )
     }
 
     // المحاولات السابقة: لا نعرض محاولة جارية كأنها نتيجة سابقة.
