@@ -10,6 +10,8 @@ import {
 import { NextRequest } from 'next/server'
 import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
 import { __handleFileGetForTests } from '../src/app/api/files/[...key]/route'
+import { DEFAULT_OFFICIAL_CONTACT } from '../src/lib/settings'
+import { resolveWhatsAppDirectSettingsReply } from '../src/lib/whatsapp-cloud'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
