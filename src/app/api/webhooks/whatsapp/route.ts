@@ -832,10 +832,13 @@ export async function processWhatsAppEvent(eventId: string) {
   }
 }
 
-export async function processStaleWhatsAppInboundEvents(limit = 20) {
-  const staleReceivedBefore = new Date(Date.now() - 60_000)
-  const staleProcessingBefore = new Date(Date.now() - STALE_PROCESSING_RETRY_MS)
-  const events = await db.whatsAppInboundEvent.findMany({
+export async function processStaleWhatsAppInboundEvents(limit = 20, deps: { db?: any; processWhatsAppEvent?: (eventId: string) => Promise<unknown>; now?: () => number } = {}) {
+  const dbClient = deps.db || db
+  const processEvent = deps.processWhatsAppEvent || processWhatsAppEvent
+  const nowMs = deps.now ? deps.now() : Date.now()
+  const staleReceivedBefore = new Date(nowMs - 60_000)
+  const staleProcessingBefore = new Date(nowMs - STALE_PROCESSING_RETRY_MS)
+  const events = await dbClient.whatsAppInboundEvent.findMany({
     where: {
       attempts: { lt: 2 },
       OR: [
