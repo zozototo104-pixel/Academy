@@ -183,7 +183,11 @@ export async function GET(req: NextRequest) {
       manualAiLiveCreditCount: manualAiPendingCount,
       manualAiLiveCreditAmount: manualAiPendingSum._sum.amount || 0,
     }
-    return NextResponse.json({ payments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
+    const safePayments = payments.map((payment: any) => ({
+      ...payment,
+      proofs: (payment.proofs || []).map(secureProofPayload),
+    }))
+    return NextResponse.json({ payments: safePayments, totals, total, pagination: adminPaginationMeta(page, pageSize, total) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
