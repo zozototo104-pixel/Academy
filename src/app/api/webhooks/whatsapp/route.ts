@@ -775,19 +775,9 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
     await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
     const greetingReply = simpleWhatsAppGreetingReply(inboundMessage.text)
-    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, greetingReply, {
-      phoneNumberId: inboundMessage.phoneNumberId,
-      replyToMessageId: inboundMessage.id,
-    })
-    await recordWhatsAppOutboundMessage({
-      waId: inboundMessage.from,
-      phoneNumberId: inboundMessage.phoneNumberId,
-      text: greetingReply,
-      sender: 'BOT',
-      whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-    }).catch(() => {})
-    await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
-    return 'SENT'
+    const greetingOutcome = await sendClaimedOfficialWhatsAppBotText(inboundMessage, greetingReply)
+    if (greetingOutcome.sent) await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
+    return greetingOutcome.sent ? 'SENT' : 'SKIPPED'
   }
 
   await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
