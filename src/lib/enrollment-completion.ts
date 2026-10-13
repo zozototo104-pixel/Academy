@@ -129,7 +129,9 @@ async function nextCertificateSerial(tx: Tx) {
   return `AACT-C-${new Date().getFullYear()}-${pad(next, 5)}`
 }
 
-async function createProgramCompletionCertificateWithRetry(tx: Tx, data: Parameters<Tx['certificate']['create']>[0]['data']) {
+type ProgramCompletionCertificateCreateData = Omit<Prisma.CertificateUncheckedCreateInput, 'serial'>
+
+async function createProgramCompletionCertificateWithRetry(tx: Tx, data: ProgramCompletionCertificateCreateData) {
   let lastError: unknown
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
