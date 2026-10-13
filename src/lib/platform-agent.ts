@@ -1025,7 +1025,8 @@ export async function platformAgentComplete(opts: {
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
-  const timeoutMs = platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000)
+  const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
+  if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
   const shouldPreferGemini = user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
