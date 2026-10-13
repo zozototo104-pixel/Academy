@@ -102,12 +102,12 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
       where: { userId, examId: exam.id, status: 'GRADED', passed: true, appealStatus: { not: 'PENDING' } },
       select: { score: true, finalScore: true, answers: { select: { points: true, maxPoints: true } } },
     })
-    const best = avg(attempts.map((attempt) => {
+    const bestAttemptScore = best(attempts.map((attempt) => {
       // Use the raw answer-derived percentage for certification decisions; stored scores may be rounded for display.
       return percentFromAnswers(attempt.answers) ?? attempt.finalScore ?? attempt.score
     }))
-    if (best == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
-    else bestScores.push(best)
+    if (bestAttemptScore == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
+    else bestScores.push(bestAttemptScore)
   }
   return bestScores.length === exams.length ? avg(bestScores) : null
 }
