@@ -83,10 +83,9 @@ function selectItems(candidates: UnitExamBankItem[], requiredQuestions: number) 
 }
 
 async function loadScopedQuestions(programId: string, unitId: string, requiredQuestions: number): Promise<ScopedQuestionResult> {
-  const approvedOnly = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, false), requiredQuestions)
-  if (approvedOnly.selection.readyToBuild && approvedOnly.selection.publishable) return { questions: approvedOnly.questions, selection: approvedOnly.selection, requiredQuestions }
-  const mixed = selectItems(await unitQuestionCandidates(programId, unitId, requiredQuestions, true), requiredQuestions)
-  return { questions: mixed.questions, selection: mixed.selection, requiredQuestions }
+  const approvedAndPending = await unitQuestionCandidates(programId, unitId, requiredQuestions, true)
+  const approvedOnly = selectItems(approvedAndPending, requiredQuestions)
+  return { questions: approvedOnly.questions, selection: approvedOnly.selection, requiredQuestions }
 }
 
 async function queueQuestionBankJob(programId: string, unitId: string, requiredQuestions: number) {
