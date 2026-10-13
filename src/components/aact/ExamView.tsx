@@ -368,7 +368,7 @@ export function ExamView() {
         setSubmitting(false)
       }
     },
-    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled]
+    [data, answeredCount, mcqAnswers, essayAnswers, startedAt, activeExamKind, proctorEnabled, navigate]
   )
 
   // المؤقت التنازلي للاختبارات الشاملة — تسليم تلقائي عند انتهاء الوقت
