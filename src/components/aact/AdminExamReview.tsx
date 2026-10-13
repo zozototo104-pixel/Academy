@@ -302,10 +302,6 @@ export function QuestionReviewDialog({
                   استكمال بقية الامتحان ({questions.length}/{FULL_EXAM_TARGET})
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={rebuildFromBooks} disabled={busy} className="border-amber-300 text-[10px] font-black text-amber-700 hover:bg-amber-100">
-                {busy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
-                إعادة بناء الامتحان من الكتب
-              </Button>
             </div>
           </div>
         </DialogHeader>
