@@ -14,8 +14,11 @@ export function maskWhatsAppId(value?: string | null) {
 }
 
 export function hashWhatsAppId(value: string) {
-  const raw = digitsOnly(value) || String(value || '').trim()
-  return whatsappWaIdHash(raw)
+  return canonicalHashWhatsAppId(value)
+}
+
+function isUniqueConstraintError(error: any) {
+  return error?.code === 'P2002' || String(error?.message || '').includes('Unique constraint failed')
 }
 
 export function whatsappConversationKey(value: string) {
