@@ -380,6 +380,18 @@ export async function POST(req: NextRequest) {
       results: gradedResults.sort((a, b) => a.order - b.order),
     })
   } catch (e: any) {
+    if (claimedUnitAttemptId) {
+      try {
+        // A failed grading operation must not strand a student in SUBMITTED.
+        // Only the request that claimed this attempt may release an unpersisted claim.
+        await db.examAttempt.updateMany({
+          where: { id: claimedUnitAttemptId, status: 'SUBMITTED' },
+          data: { status: 'STARTED' },
+        })
+      } catch (recoveryError) {
+        console.error('Failed to release unsuccessful unit exam claim:', recoveryError)
+      }
+    }
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
