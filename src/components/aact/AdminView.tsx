@@ -1072,6 +1072,7 @@ export function AdminView() {
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
               <TabsTrigger value="messages" className="gap-1 text-[10px] font-bold sm:text-xs">رسائل التواصل</TabsTrigger>
               <TabsTrigger value="whatsapp-inbox" className="gap-1 text-[10px] font-bold sm:text-xs">محادثات واتساب</TabsTrigger>
+              <TabsTrigger value="whatsapp-failures" className="gap-1 text-[10px] font-bold sm:text-xs">إخفاقات الواتساب</TabsTrigger>
             </TabsList>
           </div>
         </div>
