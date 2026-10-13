@@ -981,7 +981,7 @@ export async function platformPublicAgentComplete(opts: {
         excludeProviders,
         deadlineMs: providerDeadlineMs,
       })
-      const diag = await textAiDiagnostics().catch(() => null)
+      const diag = await diagnostics().catch(() => null)
       const result = diag?.lastResult
       logPlatformProviderAttempt({ ok: true, provider: result?.provider || 'TEXT_AI_ROUTER', model: result?.model || 'auto', agent, ms: Date.now() - started })
       return { reply: annotateReply(agent, reply, 'MODEL_ROUTER'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' as const }
