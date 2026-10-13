@@ -22,6 +22,7 @@ const defenseEvaluationSchema = z.object({
 })
 
 type DefenseEvaluation = { score: number | null; feedback: string; nextQuestion: string; criterion?: string; evidenceQuote?: string; unavailable?: boolean }
+const AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
 
 function finiteScore(value: unknown): number | null {
   const score = Number(value)
