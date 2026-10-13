@@ -8,6 +8,7 @@ import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-re
 import { calculateFinalGrade } from '@/lib/final-grade'
 import { nextAdmissionRef, nextInvoiceNo } from '@/lib/settings'
 import { dollarsToCents } from '@/lib/money'
+import { qaProdFixturesAllowed } from '@/lib/prod-safety'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
