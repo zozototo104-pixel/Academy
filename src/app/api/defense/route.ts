@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
       }
       await notify(user.id, 'DEFENSE', 'أنهيت جلسة المناقشة', `تقييم أولي ${scoreLabel(aiScore)} — محضر الجلسة تولّد تلقائياً وأُرشف في ملف بحثك مع تسجيل الجلسة.`, 'dashboard')
       const messages = await db.defenseMessage.findMany({ where: { thesisId: thesis.id }, orderBy: { createdAt: 'asc' } })
-      return NextResponse.json({ ok: true, messages, completed: true, aiScore, aiRecommendation: rec, minutes })
+      return NextResponse.json({ ok: true, messages, completed: !incompleteCriteria, needsReview: incompleteCriteria, aiScore, aiRecommendation: rec, minutes })
     }
 
     // ===== 12.3: تفريغ صوتي حي (Live Transcription) + رد مباشر من المستشار الذكي =====
