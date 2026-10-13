@@ -1167,6 +1167,7 @@ export async function platformAgentStream(opts: {
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent stream deadline exceeded')
+  const providerDeadlineMs = Date.now() + timeoutMs
   const shouldPreferGemini = user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
