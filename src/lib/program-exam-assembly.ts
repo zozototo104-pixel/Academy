@@ -85,7 +85,7 @@ async function loadUnitPools(programId: string, units: ExamUnit[]): Promise<Unit
         sourceLocator: [item.sourceLocator, source.pageStart ? `ص ${source.pageStart}${source.pageEnd && source.pageEnd !== source.pageStart ? `–${source.pageEnd}` : ''}` : ''].filter(Boolean).join(' — '),
       })
     }
-    return { unit, candidates, sources: sources.map((source) => ({ id: source.id, bookId: source.bookId, excerpt: source.excerpt, summary: source.summary })), scopeReady: true }
+    return { unit, candidates, sources: sources.map((source) => ({ id: source.id, bookId: source.bookId, chunkText: chunkTextById.get(source.chunkId || '') || '' })), scopeReady: true }
   }))
 }
 
