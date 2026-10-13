@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
       if (secondsFromLastNote >= 3 && cleanText.length >= 6) {
         const note = await Promise.race([
           aiLiveNote(thesis.title, thesis.abstract, thesis.id, user.id, transcriptText),
-          new Promise<string | null>((resolve) => setTimeout(() => resolve(fallbackLiveIntervention(transcriptText)), 4500)),
+          new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 4500)),
         ])
         if (note) {
           savedNote = await db.defenseMessage.create({
