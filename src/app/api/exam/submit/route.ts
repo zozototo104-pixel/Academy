@@ -92,6 +92,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const allowedQuestionIds = new Set(exam.questions.map((q) => q.id))
+    if (answers.some((a) => !allowedQuestionIds.has(a.questionId))) {
+      return NextResponse.json({ error: 'توجد إجابات لأسئلة لا تنتمي لهذا الاختبار' }, { status: 400 })
+    }
+    // Atomic claim before AI grading: only the first submission can grade this attempt.
+    const activeAttempt = await db.examAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+    if (!activeAttempt) {
+      return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
+    }
+    const claim = await db.examAttempt.updateMany({
+      where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+      data: { status: 'SUBMITTED', submittedAt: new Date() },
+    })
+    if (claim.count !== 1) {
+      return NextResponse.json({ error: 'تم تسليم المحاولة أو يجري تصحيحها بالفعل' }, { status: 409 })
+    }
+
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
     const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
