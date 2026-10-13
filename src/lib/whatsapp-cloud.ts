@@ -60,6 +60,71 @@ function includesFaqAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term))
 }
 
+type WhatsAppDirectReplyContext = {
+  from?: string | null
+  recentMessages?: Array<{ role?: string; direction?: string; sender?: string; text?: string; content?: string }>
+}
+
+type WhatsAppDirectIntent = 'PAYMENT' | 'FEES' | 'CONTACT' | 'PROGRAMS' | 'CERTIFICATE' | 'ACCREDITATION'
+
+function faqWords(text: string) {
+  return text.split(/\s+/).map((word) => word.trim()).filter(Boolean)
+}
+
+function normalizeReadyReplyText(value: string) {
+  return normalizeWhatsAppFaqText(value).replace(/\s+/g, ' ').trim()
+}
+
+function isStandaloneGenericFaqToken(q: string) {
+  return new Set(['رقم', 'واتساب', 'واتس', 'تواصل', 'التواصل', 'الشهاده', 'الشهادة', 'تحويل', 'سعر', 'رسوم']).has(q)
+}
+
+function classifyWhatsAppDirectSettingsIntent(q: string): WhatsAppDirectIntent | null {
+  const words = faqWords(q)
+  if (!q || words.length > 10 || isStandaloneGenericFaqToken(q)) return null
+  if (/(?:بخصوص|بشان|بشأن|حول|عن|خصوص).{0,30}(?:التسجيل|تسجيل|القبول|طلب|برنامج)/.test(q)) return null
+  if (/(?:كيف|شو|ما|ماهي|ما هي|ايش|اريد|بدي|ممكن|اعطيني|اين|وين|كم)/.test(q) || words.length <= 5) {
+    if (/(?:طرق الدفع|طريقه الدفع|طريقة الدفع|كيف ادفع|كيف الدفع|الدفع|usdt|بينانس|binance)/i.test(q) && !/^(?:تحويل|الدفع)$/.test(q)) return 'PAYMENT'
+    if (/(?:كم الرسوم|شو الرسوم|ما الرسوم|رسوم التسجيل|رسوم البرنامج|كم السعر|شو السعر|ما السعر|تكلفه|تكلفة|كم بدفع|الاقساط|اقساط|قسط)/.test(q) || /(?:سعر|رسوم).{0,16}(?:الدكتوراه|الماجستير|الدبلوم|البرنامج|التسجيل)/.test(q)) return 'FEES'
+    if (/(?:رقم التواصل|ارقام التواصل|بيانات التواصل|طرق التواصل|وسائل التواصل|رقمكم|ارقامكم|واتسابكم|واتسكم|رقم الاكاديميه|رقم الاكاديمية|هاتفكم|ايميلكم|بريدكم|كيف اتواصل معكم|كيف اتواصل وياكم|معلومات التواصل)/.test(q)) return 'CONTACT'
+    if (/(?:ما البرامج|شو البرامج|البرامج المتاحه|البرامج المتاحة|التخصصات المتاحه|التخصصات المتاحة|ما التخصصات|شو التخصصات|قائمه البرامج|قائمة البرامج)/.test(q)) return 'PROGRAMS'
+    if (/(?:مده الشهاده|مدة الشهادة|متى تصدر|اصدار الشهاده|اصدار الشهادة|إصدار الشهادة|موعد الشهاده|موعد الشهادة)/.test(q)) return 'CERTIFICATE'
+    if (/(?:الاعتماد|اعتماد|معتمده|معتمدة|ترخيص|توثيق).{0,30}(?:الاكاديميه|الاكاديمية|الشهاده|الشهادة|البرنامج|الدبلوم|الماجستير|الدكتوراه)?/.test(q) && !/^(?:اعتماد|الاعتماد|توثيق|ترخيص)$/.test(q)) return 'ACCREDITATION'
+  }
+  return null
+}
+
+async function directReplyWasRecentlySent(reply: string, context: WhatsAppDirectReplyContext = {}) {
+  const target = normalizeReadyReplyText(reply)
+  if (!target) return false
+  const contextMessages = (context.recentMessages || []).slice(-10)
+  if (contextMessages.some((message) => {
+    const role = String(message.role || '').toLowerCase()
+    const direction = String(message.direction || '').toUpperCase()
+    const sender = String(message.sender || '').toUpperCase()
+    const text = String(message.text || message.content || '')
+    return (role === 'assistant' || direction === 'OUTBOUND' || sender === 'BOT') && normalizeReadyReplyText(text) === target
+  })) return true
+  const from = String(context.from || '').trim()
+  if (!from) return false
+  const conversation = await db.whatsAppConversation.findUnique({
+    where: { waIdHash: hashWhatsAppId(from) },
+    select: {
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { direction: true, sender: true, text: true },
+      },
+    },
+  }).catch(() => null)
+  return Boolean((conversation?.messages || []).some((message) => message.direction === 'OUTBOUND' && message.sender === 'BOT' && normalizeReadyReplyText(message.text) === target))
+}
+
+async function suppressRepeatedDirectReply(reply: string, context?: WhatsAppDirectReplyContext) {
+  if (await directReplyWasRecentlySent(reply, context)) return null
+  return reply
+}
+
 function settingValue(values: Record<string, string>, key: string) {
   return String(values[key] ?? DEFAULT_SETTING_VALUES[key] ?? '').trim()
 }
