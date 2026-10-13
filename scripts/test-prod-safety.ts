@@ -100,6 +100,13 @@ function testPrivateStoragePolicy() {
   assert(assignments.includes('getStorageDownloadPathForKey(submission.fileStorageKey)'), 'student assignment files must expose protected file URLs')
   const thesis = file('src/app/api/thesis/route.ts')
   assert(thesis.includes('getStorageDownloadPathForKey(thesis.fileStorageKey)'), 'student thesis files must expose protected file URLs')
+  const adminAssignments = file('src/app/api/admin/assignments/route.ts')
+  assert(adminAssignments.includes('getStorageDownloadPathForKey(s.fileStorageKey)'), 'admin assignment submissions must expose protected file URLs')
+  const adminThesis = file('src/app/api/admin/thesis/route.ts')
+  assert(adminThesis.includes('getStorageDownloadPathForKey(fileStorageKey)'), 'admin thesis file URLs must be protected')
+  assert(adminThesis.includes('getStorageDownloadPathForKey(recordingStorageKey)'), 'admin thesis recording URLs must be protected')
+  const deliverables = file('src/app/api/service-deliverables/route.ts')
+  assert(deliverables.includes('getStorageDownloadPathForKey(storageKey)'), 'service deliverables must expose protected file URLs')
 }
 
 function testOfficialSettingsDeploymentHook() {
