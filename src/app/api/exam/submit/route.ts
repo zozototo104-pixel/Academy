@@ -127,6 +127,16 @@ export async function POST(req: NextRequest) {
     if (!activeAttempt) {
       return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
     }
+    if (Date.now() > unitAttemptDeadline(activeAttempt.createdAt)) {
+      await db.$transaction(async (tx) => {
+        await tx.examAttempt.updateMany({
+          where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+          data: { status: 'EXPIRED', submittedAt: new Date(), feedback: JSON.stringify({ summary: 'انتهت مدة اختبار الوحدة قبل التسليم.' }) },
+        })
+        await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
+      })
+      return NextResponse.json({ error: 'انتهت مدة الاختبار ولا يمكن قبول التسليم بعد الهامش المسموح.', code: 'UNIT_EXAM_EXPIRED' }, { status: 409 })
+    }
     const claim = await db.examAttempt.updateMany({
       where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
       data: { status: 'SUBMITTED', submittedAt: new Date() },
