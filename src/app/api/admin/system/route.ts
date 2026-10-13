@@ -8,6 +8,7 @@ import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-sour
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
 import { textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
+import { isWhatsAppHashSecretExplicitlyConfigured } from '@/lib/whatsapp-privacy'
 
 const NextResponse = {
   json: (body: unknown, init?: ResponseInit) => UnsafeNextResponse.json(redactDeep(body), init),
