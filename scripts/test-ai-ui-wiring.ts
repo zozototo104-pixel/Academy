@@ -42,7 +42,8 @@ function testApprovedOnlyExamAssembly() {
   const assembly = file('src/lib/program-exam-assembly.ts')
   assert(assembly.includes("item.status !== 'APPROVED'"), 'program exam qualified items must be approved-only')
   assert(assembly.includes("status: 'APPROVED'"), 'program exam candidate query must use APPROVED status')
-  assert(assembly.includes('pendingReviewCount'), 'program exam assembly must keep pending-review count for messaging')
+  assert(assembly.includes("status: 'PENDING_REVIEW'"), 'program exam assembly must count pending-review questions for messaging')
+  assert(assembly.includes("programId: exam.programId, status: 'PENDING_REVIEW'"), 'pending-review count must cover the program without SOURCE_GROUNDED filtering')
   assert(assembly.includes('في ${pendingReviewTotal} أسئلة بانتظار المراجعة'), 'program exam shortage message must include pending review count')
 }
 
