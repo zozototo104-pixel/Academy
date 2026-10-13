@@ -353,7 +353,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     existingBySource.set(question.knowledgeItemId, list)
   }
 
-  const evidenceSources = selected.map((item) => ({ text: evidenceText(item) }))
+  const evidenceSources = selected.map((item) => ({ text: verifierSourceText(item) }))
   const knowledgeText = selected.map((item, index) => {
     const existingQuestions = existingBySource.get(item.id) || []
     return `${index + 1}. [${item.category}] ${item.title}\nالصفحات: ${item.pageStart ?? '؟'}–${item.pageEnd ?? item.pageStart ?? '؟'}\nنص المصدر: ${evidenceText(item).slice(0, 1800)}\nأسئلة موجودة لنفس المصدر لا تكررها: ${existingQuestions.length ? existingQuestions.map((q) => `«${q}»`).join('؛ ') : 'لا يوجد'}`
