@@ -1652,7 +1652,7 @@ model ProgramExamAttempt {
   examId      String
   exam        ProgramExam @relation(fields: [examId], references: [id], onDelete: Cascade)
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   score       Float?
   passed      Boolean?
   status      String   @default("SUBMITTED") // STARTED | EXPIRED | SUBMITTED | GRADED | NEEDS_REVIEW
