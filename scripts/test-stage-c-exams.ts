@@ -41,6 +41,8 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   const eligibility = file('src/lib/certificate-eligibility.ts')
   assert(eligibility.includes('finalGrade.score < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must compare the raw final score against pass score')
   assert(!eligibility.includes('round1(finalGrade.score) < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must not use rounded score for pass/fail')
+  assert(eligibility.includes('paymentEligibilityError'), 'certificate eligibility must include paid-fee checks')
+  assert(eligibility.includes('tuitionPaidTotal'), 'certificate eligibility must require paid or waived tuition')
 
   const central = file('src/lib/enrollment-completion.ts')
   assert(central.includes('financialFailure'), 'central completion must include financial eligibility')
