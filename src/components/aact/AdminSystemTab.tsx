@@ -633,6 +633,76 @@ export function AdminSystemTab() {
     }
   }
 
+  const emptyPrivateFilesReport = (mode: 'dry-run' | 'execute'): PrivateFilesReport => ({
+    ok: true,
+    mode,
+    executed: mode === 'execute',
+    batchSize: 50,
+    processed: 0,
+    cursor: null,
+    nextCursor: null,
+    done: false,
+    byType: Object.fromEntries(PRIVATE_FILE_TYPE_ORDER.map((source) => [source, { label: source, records: 0, toMigrate: 0, alreadyPrivate: 0, missing: 0, storageKeyUpdates: 0, missingIds: [] }])) as PrivateFilesReport['byType'],
+    notes: [],
+  })
+
+  const mergePrivateFilesReports = (a: PrivateFilesReport, b: PrivateFilesReport): PrivateFilesReport => {
+    const merged = emptyPrivateFilesReport(b.mode)
+    merged.executed = a.executed || b.executed
+    merged.processed = a.processed + b.processed
+    merged.batchSize = b.batchSize || a.batchSize
+    merged.cursor = b.cursor
+    merged.nextCursor = b.nextCursor
+    merged.done = b.done
+    merged.notes = [...new Set([...(a.notes || []), ...(b.notes || [])])]
+    for (const source of PRIVATE_FILE_TYPE_ORDER) {
+      const left = a.byType[source]
+      const right = b.byType[source]
+      merged.byType[source] = {
+        label: right?.label || left?.label || source,
+        records: (left?.records || 0) + (right?.records || 0),
+        toMigrate: (left?.toMigrate || 0) + (right?.toMigrate || 0),
+        alreadyPrivate: (left?.alreadyPrivate || 0) + (right?.alreadyPrivate || 0),
+        missing: (left?.missing || 0) + (right?.missing || 0),
+        storageKeyUpdates: (left?.storageKeyUpdates || 0) + (right?.storageKeyUpdates || 0),
+        missingIds: [...new Set([...(left?.missingIds || []), ...(right?.missingIds || [])])],
+      }
+    }
+    return merged
+  }
+
+  const runPrivateFilesMaintenance = async (mode: 'dry-run' | 'execute') => {
+    if (mode === 'execute' && privateFilesConfirm.trim() !== 'نعم انقل') {
+      toast({ title: 'تأكيد مطلوب', description: 'اكتب «نعم انقل» قبل تنفيذ النقل.', variant: 'destructive' })
+      return
+    }
+    setPrivateFilesBusy(true)
+    setPrivateFilesProgress({ batches: 0, records: 0 })
+    if (mode === 'dry-run') setPrivateFilesScanned(false)
+    try {
+      let cursor: string | null = null
+      let aggregate = emptyPrivateFilesReport(mode)
+      let batches = 0
+      do {
+        const batch = await api<PrivateFilesReport>('/api/admin/maintenance/private-files', {
+          method: 'POST',
+          body: JSON.stringify({ mode, confirm: mode === 'execute' ? privateFilesConfirm.trim() : undefined, cursor }),
+        })
+        batches += 1
+        aggregate = mergePrivateFilesReports(aggregate, batch)
+        setPrivateFilesReport(aggregate)
+        setPrivateFilesProgress({ batches, records: aggregate.processed })
+        cursor = batch.nextCursor
+      } while (cursor)
+      if (mode === 'dry-run') setPrivateFilesScanned(true)
+      toast({ title: mode === 'dry-run' ? 'اكتمل الفحص بدون تغيير' : 'اكتمل تنفيذ النقل', description: `${aggregate.processed} سجل عبر ${batches} دفعات.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر تشغيل نقل الملفات', description: e.message, variant: 'destructive' })
+    } finally {
+      setPrivateFilesBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
