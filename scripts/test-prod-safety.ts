@@ -269,6 +269,10 @@ async function testWhatsAppPublicAgentWithMocks() {
     messages: [{ role: 'user', content: 'أريد معلومات عن شروط القبول في الأكاديمية' }],
     channel: 'WHATSAPP',
     deadlineMs: Date.now() + 30_000,
+    getProviderHealth: async () => {
+      providerHealthCalls += 1
+      return [{ provider: 'OPENAI', model: 'openai-mock', status: 'شغّال', health: { ok: true, checkedAt: new Date().toISOString() } }]
+    },
     __testDeps: {
       analyzeConversationIntent: async () => ({ intent: 'ADMISSION', confidence: 0.9, suggestedAgent: 'ADMISSIONS', raw: '' } as any),
       textAiComplete: async (opts: any) => {
