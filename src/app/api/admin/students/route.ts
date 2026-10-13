@@ -365,6 +365,7 @@ export async function PATCH(req: NextRequest) {
 
     if (action === 'safeDelete') {
       const blockers = await Promise.all([
+        db.enrollment.count({ where: { userId } }),
         db.payment.count({ where: { userId, status: 'PAID' } }),
         db.certificate.count({ where: { userId } }),
         db.examAttempt.count({ where: { userId } }),
@@ -374,10 +375,23 @@ export async function PATCH(req: NextRequest) {
       ])
       const totalBlockers = blockers.reduce((a, b) => a + b, 0)
       if (totalBlockers > 0) {
-        return NextResponse.json({ error: 'لا يمكن حذف طالب لديه سجلات أكاديمية/مدفوعات/شهادات. يمكن تعطيله أو أرشفته فقط.' }, { status: 400 })
+        return NextResponse.json({ error: 'لا يمكن حذف طالب لديه تسجيل أو سجلات أكاديمية/مدفوعات/شهادات. يمكن تعطيله أو أرشفته فقط.' }, { status: 400 })
       }
-      await db.user.delete({ where: { id: userId } })
-      await audit({ id: admin.id, name: admin.name }, 'SAFE_DELETE_STUDENT', 'User', userId, `حذف آمن لطالب تجريبي ${student.email}`)
+      if (!isQaTestAccount(student.email)) {
+        return NextResponse.json({ error: 'الحذف الآمن مسموح فقط لحسابات QA التجريبية. للحسابات الحقيقية استخدم التعطيل أو الأرشفة.' }, { status: 409 })
+      }
+      await db.$transaction(async (tx) => {
+        await tx.session.deleteMany({ where: { userId } })
+        await tx.chatFeedback.deleteMany({ where: { userId } })
+        await tx.chatMessage.deleteMany({ where: { userId } })
+        await tx.studentAcademicMemory.deleteMany({ where: { userId } })
+        await tx.notification.deleteMany({ where: { userId } })
+        await tx.userMicroCredential.deleteMany({ where: { userId } })
+        await tx.aiLiveUsage.deleteMany({ where: { userId } })
+        await tx.aiLiveCredit.deleteMany({ where: { userId } })
+        await tx.user.delete({ where: { id: userId } })
+      })
+      await audit({ id: admin.id, name: admin.name }, 'SAFE_DELETE_STUDENT', 'User', userId, `حذف آمن لطالب QA ${student.email}`)
       return NextResponse.json({ ok: true })
     }
 
