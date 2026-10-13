@@ -976,7 +976,7 @@ export async function platformPublicAgentComplete(opts: {
           ...opts.messages.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.content })),
         ],
         temperature: 0.35,
-        maxTokens: 1100,
+        maxTokens: isWhatsApp ? 1600 : 1100,
       }), timeoutMs, 'Local public platform agent timed out')
       return { reply: annotateReply(agent, reply, 'LOCAL_OPEN_SOURCE'), agent, engine: 'LOCAL_OPEN_SOURCE' }
     } catch (e: any) {
