@@ -131,8 +131,20 @@ export function mergePrivateFilesReports(a: PrivateFilesMaintenanceReport, b: Pr
   return merged
 }
 
+function addUniqueId(list: string[], id: string) {
+  if (!list.includes(id)) list.push(id)
+}
+
 function addMissingId(report: PrivateFilesTypeReport, id: string) {
-  if (!report.missingIds.includes(id)) report.missingIds.push(id)
+  addUniqueId(report.missingIds, id)
+}
+
+function addDisallowedHostId(report: PrivateFilesTypeReport, id: string) {
+  addUniqueId(report.disallowedHostIds, id)
+}
+
+function addTooLargeId(report: PrivateFilesTypeReport, id: string) {
+  addUniqueId(report.tooLargeIds, id)
 }
 
 export function legacyUrlToPrivateStorageKey(value: unknown) {
