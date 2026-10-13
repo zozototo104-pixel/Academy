@@ -25,6 +25,7 @@ type WaMessage = {
 type WaConversation = {
   id: string
   phoneMasked: string
+  phoneNumber?: string | null
   displayName?: string | null
   status: 'BOT_ACTIVE' | 'HUMAN_REQUESTED' | 'HUMAN_ACTIVE' | 'CLOSED'
   assignedToName?: string | null
