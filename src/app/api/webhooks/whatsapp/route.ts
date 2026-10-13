@@ -30,7 +30,6 @@ import {
   isWhatsAppOutboundEcho,
   markWhatsAppConversationRequested,
   recordWhatsAppInboundMessage,
-  recordWhatsAppOutboundMessage,
 } from '@/lib/whatsapp-conversations'
 import {
   downloadOfficialWhatsAppMediaBase64,
