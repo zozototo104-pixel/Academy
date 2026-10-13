@@ -53,8 +53,7 @@ export function remainingDeadlineMs(deadlineMs: number | undefined, fallbackMs: 
   if (!deadlineMs) return Math.max(0, Math.floor(fallbackMs))
   const remaining = Math.floor(deadlineMs - Date.now())
   if (remaining <= 0) return 0
-  const bounded = Math.min(Math.floor(fallbackMs), remaining)
-  return bounded >= minUsefulMs ? bounded : Math.max(0, bounded)
+  return remaining >= minUsefulMs ? remaining : Math.max(0, remaining)
 }
 
 export function assertWithinDeadline(deadlineMs: number | undefined, label = 'DEADLINE_EXCEEDED') {
