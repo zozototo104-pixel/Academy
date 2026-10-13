@@ -94,6 +94,20 @@ export async function POST(req: NextRequest) {
     const conversation = await db.whatsAppConversation.findUnique({ where: { id } })
     if (!conversation) return NextResponse.json({ ok: false, error: 'المحادثة غير موجودة' }, { status: 404 })
 
+    if (action === 'recover_phone') {
+      const candidate = verifiedRecipient(String(body?.phoneNumber || ''), conversation.waIdHash)
+      if (!candidate) {
+        return NextResponse.json({ ok: false, error: 'الرقم المدخل لا يطابق هوية هذه المحادثة؛ لم يتم تغيير أي بيانات' }, { status: 409 })
+      }
+      const encrypted = encryptWhatsAppPhone(candidate)
+      if (!encrypted) {
+        return NextResponse.json({ ok: false, error: 'مفتاح تشفير أرقام واتساب غير متاح على الخادم' }, { status: 503 })
+      }
+      await db.whatsAppConversation.update({ where: { id }, data: { waIdEncrypted: encrypted } })
+      await db.auditLog.create({ data: { actorId: admin.id, actorName: admin.name, action: 'WHATSAPP_LEGACY_PHONE_RECOVERED', entity: 'WhatsAppConversation', entityId: id, details: conversation.phoneMasked } }).catch(() => {})
+      return NextResponse.json({ ok: true })
+    }
+
     if (action === 'claim') {
       const updated = await setWhatsAppConversationStatus({ conversationId: id, status: 'HUMAN_ACTIVE', adminId: admin.id, adminName: admin.name })
       if (conversation.handoffRequestId) {
