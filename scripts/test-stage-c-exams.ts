@@ -52,9 +52,11 @@ async function testFinalGradeBehaviorWithMockData() {
   const finalExam = bestAttemptGrade.components.find((component) => component.key === 'final_exam')
   assert(finalExam?.score === 90, 'محاولتان ناجحتان 60 و90 يجب أن تعتمد أفضل محاولة 90 لا المتوسط')
 
+  const barelyFailingGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  const barelyFailingFinalExam = barelyFailingGrade.components.find((component) => component.key === 'final_exam')
+  assert(barelyFailingFinalExam?.score === 50.96, 'اختبار 50.96 يجب أن يبقى خاماً داخل مكوّن الاختبار النهائي بدون تقريب للقرار')
   const barelyFailing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
   assert(!barelyFailing.ok, 'درجة 50.96 يجب ألا تنجح لأنها أقل من 51 خاماً')
-  assert(barelyFailing.score !== null && barelyFailing.score < 51, 'اختبار 50.96 يجب أن يبقى أقل من حد النجاح بدون تقريب للقرار')
 
   const passing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([51]) })
   assert(passing.ok, 'درجة 51 يجب أن تنجح')
