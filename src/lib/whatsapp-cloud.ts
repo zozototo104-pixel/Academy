@@ -162,7 +162,7 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, deadlineMs?: number) {
   if (!message.text) {
     return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
   }
