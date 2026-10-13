@@ -13,7 +13,6 @@ import {
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import {
-  buildOfficialWhatsAppImmediateGreeting,
   createOfficialWhatsAppAgentReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
