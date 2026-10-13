@@ -403,6 +403,7 @@ export async function POST(req: NextRequest) {
       maxExamScore: readiness.maxExamScore,
       courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
+      certificateNo: completion?.ok ? completion.certificate?.serial || null : null,
       results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
     })
     } catch (postCreateError: any) {
