@@ -70,7 +70,7 @@ function testPrivateStoragePolicy() {
   assert(route.includes('paymentProof'), 'file route must authorize payment proof owners')
   assert(route.includes('assignmentSubmission'), 'file route must authorize assignment owners')
   assert(route.includes('thesisSubmission'), 'file route must authorize thesis owners')
-  assert(route.includes('backups/'))
+  assert(route.includes('backups/'), 'file route must treat backups as admin-only private files')
 }
 
 function testOfficialSettingsDeploymentHook() {
