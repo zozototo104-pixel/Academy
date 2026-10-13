@@ -7,6 +7,7 @@ import {
   qaProdFixturesAllowed,
   unsignedWebhookTestsAllowed,
 } from '../src/lib/prod-safety'
+import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
