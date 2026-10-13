@@ -59,6 +59,7 @@ function testPrivateStoragePolicy() {
     'assignments/submission.docx',
     'theses/final.pdf',
     'backups/export.zip',
+    'service-deliverables/result.pdf',
   ]) {
     assert(isPrivateStorageKey(key), `${key} must be classified as private`)
   }
