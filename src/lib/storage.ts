@@ -436,15 +436,18 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (provider === 'local' && key) {
-    const root = isPrivateStorageKey(key)
-      ? path.join(process.cwd(), '.data', 'private-uploads')
-      : path.join(process.cwd(), 'public', 'uploads')
-    const absolutePath = path.join(root, key)
-    try {
-      return { buffer: await fs.readFile(absolutePath), mimeType }
-    } catch {
-      return null
+    const roots = isPrivateStorageKey(key)
+      ? [path.join(process.cwd(), '.data', 'private-uploads'), path.join(process.cwd(), 'public', 'uploads')]
+      : [path.join(process.cwd(), 'public', 'uploads')]
+    for (const root of roots) {
+      const absolutePath = path.join(root, key)
+      try {
+        return { buffer: await fs.readFile(absolutePath), mimeType }
+      } catch {
+        // Try next legacy location.
+      }
     }
+    return null
   }
 
   if (url && /^https?:\/\//i.test(url)) {
