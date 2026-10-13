@@ -187,7 +187,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
     const status = complete ? 'REVIEW' : blockedByLegacy ? 'PAUSED' : 'GENERATING'
     const note = complete ? null : blockedByLegacy
       ? `تم حفظ ${questionCount} سؤالًا، لكن ${legacyUnverified} من الأسئلة القديمة لا يمكن مطابقة دليلها حرفيًا مع الكتب وبنك المعرفة V2. راجعها أو ارفض غير الموثق منها ثم استكمل، دون حذف تلقائي.`
-      : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
+      : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال معتمد؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pendingReviewNote} ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
     const points = active.reduce((total, q) => total + q.points, 0) + taken.length * 2
     await tx.programExam.update({ where: { id: examId }, data: { status, errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
     return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
