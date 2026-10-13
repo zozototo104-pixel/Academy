@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api } from '@/lib/store'
+import { useAppStore, api, type ApiError } from '@/lib/store'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
