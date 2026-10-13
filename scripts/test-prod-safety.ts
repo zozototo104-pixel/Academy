@@ -66,6 +66,7 @@ function testPrivateStoragePolicy() {
   const storage = file('src/lib/storage.ts')
   assert(storage.includes('if (isPrivateStorageKey(cleanKey)) return null'), 'private storage keys must never receive public URLs')
   assert(storage.includes('getStorageDownloadPathForKey'), 'private upload result must point to controlled download route')
+  assert(storage.includes("path.join(process.cwd(), 'public', 'uploads')"), 'private file reader must support legacy public/uploads fallback after authorization')
 
   const adminPayments = file('src/app/api/admin/payments/route.ts')
   assert(adminPayments.includes('secureProofPayload'), 'admin payment proofs must rewrite private storage URLs to the controlled file route')
