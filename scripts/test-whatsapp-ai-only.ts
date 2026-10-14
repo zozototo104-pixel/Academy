@@ -52,7 +52,8 @@ async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundM
     createAgentReply: async (_message, extraContext) => {
       modelCalls += 1
       assert(typeof extraContext === 'string', `${name}: model must receive explicit context`)
-      for (const expected of options.expectContext || []) assert(extraContext.includes(expected), `${name}: model context must include ${expected}`)
+      const context = extraContext
+      for (const expected of options.expectContext || []) assert(context.includes(expected), `${name}: model context must include ${expected}`)
       return `MODEL_ONLY_REPLY:${name}:${modelCalls}`
     },
     contextFlags: options.contextFlags as any,
