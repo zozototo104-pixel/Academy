@@ -331,7 +331,7 @@ export function ExamView() {
         }))
         const durationUsedMin = Math.max(1, Math.round((Date.now() - startedAt) / 60000))
         const isFinal = activeExamKind === 'final'
-        const d = await api<SubmitResult>(
+        const d = await api<any>(
           isFinal ? '/api/program-exam/submit' : '/api/exam/submit',
           {
             method: 'POST',
@@ -347,12 +347,18 @@ export function ExamView() {
             ),
           }
         )
-        setResult(d)
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
         api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
+        if (d?.status === 'NEEDS_REVIEW') {
+          setResult(null)
+          toast({ title: 'إجاباتك محفوظة للمراجعة', description: d.message || 'تم حفظ إجاباتك، وسيتم اعتماد النتيجة بعد مراجعة الإدارة.' })
+          navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
+          return
+        }
+        setResult(d as SubmitResult)
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
