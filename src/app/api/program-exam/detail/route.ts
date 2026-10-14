@@ -118,9 +118,9 @@ export async function GET(req: NextRequest) {
       }
       return { blocked: null, attempt: startedAttempt }
     })
-    if (attemptState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'ATTEMPT_SUBMITTED' }, { status: 409 })
+    if (attemptState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
     if (attemptState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
-    if (attemptState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
+    if (attemptState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'PASSED_ALREADY' }, { status: 403 })
     if (!attemptState.attempt) return NextResponse.json({ error: 'تعذر بدء الاختبار' }, { status: 409 })
     const startedAttempt = attemptState.attempt
 
