@@ -236,6 +236,7 @@ async function main() {
   await testFileAccessPolicyBehavior()
   testOfficialSettingsDeploymentHook()
   testAiDeadlines()
+  testGradingCertificateFlowRegressions()
   testAactTestRecipientBlocks()
   testDependencyPins()
   console.log('✓ production safety behavioral checks passed')
