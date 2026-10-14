@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs'
 import { __resolveWhatsAppBotReplyForTests } from '../src/app/api/webhooks/whatsapp/route'
 import type { WhatsAppInboundMessage } from '../src/lib/whatsapp-cloud'
 
