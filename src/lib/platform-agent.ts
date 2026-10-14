@@ -945,7 +945,10 @@ export async function platformPublicAgentComplete(opts: {
   const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
   const platformSnapshot = mergeContext(centralCatalogSnapshot, legacyPlatformSnapshot)
   const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
-  const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
+  const routingContext = localRoutingHints.length
+    ? ['إشارات وسياقات رسمية للذكاء فقط — ليست ردوداً جاهزة ولا يجوز نسخها دون تحليل سؤال المستخدم:', ...localRoutingHints].join('\n\n')
+    : ''
+  const context = mergeContext(mergeContext(mergeContext(baseContext, routingContext), conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
