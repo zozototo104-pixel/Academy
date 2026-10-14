@@ -56,19 +56,6 @@ async function buildOfficialContactLines() {
   return lines
 }
 
-async function buildHumanSupportReply() {
-  const contacts = await buildOfficialContactLines()
-  return [
-    'أهلًا وسهلًا بك 🌟',
-    contacts.length
-      ? 'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك استخدام بيانات التواصل الرسمية التالية:'
-      : 'يسعدنا خدمتك. بيانات التواصل غير مضبوطة حالياً، استخدم صفحة التواصل الرسمية من الموقع.',
-    ...contacts,
-    '',
-    'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
-  ].join('\n')
-}
-
 function normalizeArabic(text: string): string {
   return String(text || '')
     .toLowerCase()
