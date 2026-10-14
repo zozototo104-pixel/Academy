@@ -168,7 +168,7 @@ export function hashRepresentativeVerifier(value?: string | null) {
   return createHash('sha256').update(`${verificationSecret()}:${last4}`).digest('hex')
 }
 
-export function verifyRepresentativeLast4(input: string, phoneHash?: string | null, _emailHash?: string | null) {
+export function verifyRepresentativeLast4(input: string, phoneHash?: string | null) {
   const last4 = normalizeLast4(input)
   if (!last4 || !phoneHash) return false
   const candidate = createHash('sha256').update(`${verificationSecret()}:${last4}`).digest('hex')
