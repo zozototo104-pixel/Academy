@@ -181,14 +181,14 @@ export function verifyRepresentativeLast4(input: string, phoneHash?: string | nu
   }
 }
 
-export function representativeVerifyUrl(token: string, origin?: string | null) {
-  const base = String(process.env.NEXT_PUBLIC_APP_URL || origin || '').replace(/\/+$/, '')
-  return `${base || ''}/representatives/verify/${encodeURIComponent(token)}`
+export function representativeVerifyUrl(token: string, _origin?: string | null) {
+  const base = String(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
+  return `${base}/representatives/verify/${encodeURIComponent(token)}`
 }
 
 export async function representativeQrDataUrl(token: string, origin?: string | null, width = 512) {
   const url = representativeVerifyUrl(token, origin)
-  return QRCode.toDataURL(url || `/representatives/verify/${encodeURIComponent(token)}`, {
+  return QRCode.toDataURL(url, {
     margin: 4,
     width,
     color: { dark: '#0f2b46', light: '#FFFFFF' },
