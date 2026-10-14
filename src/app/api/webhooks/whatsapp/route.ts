@@ -455,6 +455,14 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
+type WhatsAppModelContextFlags = {
+  handoffCreated?: boolean
+  voiceNotTranscribed?: boolean
+  voiceTooLong?: boolean
+  nonTextMessage?: string | null
+  contactRequested?: boolean
+}
+
 type ResolveWhatsAppBotReplyDeps = {
   hasRecentAudit?: typeof hasRecentWhatsAppAudit
   hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
@@ -463,6 +471,7 @@ type ResolveWhatsAppBotReplyDeps = {
   createHandoff?: typeof createHumanHandoffRequest
   markRequested?: typeof markWhatsAppConversationRequested
   createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+  contextFlags?: WhatsAppModelContextFlags
 }
 
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
