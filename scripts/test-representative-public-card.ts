@@ -49,7 +49,6 @@ function mockRepresentative(overrides: Record<string, unknown> = {}) {
     profilePhotoUrl: '/profile.png',
     officialCardUrl: '/official-card.png',
     verifyPhoneLast4Hash: hashRepresentativeVerifier('+962790001234'),
-    verifyEmailLast4Hash: legacyEmailHash('.com'),
     deletedAt: null,
     featured: true,
     sortOrder: 1,
