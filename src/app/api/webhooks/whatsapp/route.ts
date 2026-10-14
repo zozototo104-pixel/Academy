@@ -502,6 +502,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
+  let handoffCreated = Boolean(deps.contextFlags?.handoffCreated)
   const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
   await audit('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
