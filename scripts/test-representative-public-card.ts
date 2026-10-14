@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createHash } from 'crypto'
 import QRCode from 'qrcode'
 import {
   hashRepresentativeVerifier,
