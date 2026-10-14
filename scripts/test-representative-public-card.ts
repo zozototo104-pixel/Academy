@@ -97,6 +97,13 @@ async function testSuspendedStatus() {
   assert(publicCard.active === false, 'non-active representative must not be active')
 }
 
+async function testExpiredStatus() {
+  const publicCard = serializeRepresentativePublicCard(mockRepresentative({ status: 'ACTIVE', validUntil: new Date('2020-01-01T00:00:00.000Z') }), 'https://academy.test')
+  assert(publicCard.cardStatus === 'EXPIRED', 'past validUntil must make representative card expired')
+  assert(publicCard.statusLabel === 'منتهي الصلاحية ❌', 'expired representative card must have a clear status label')
+  assert(publicCard.active === false, 'expired representative card must not be active')
+}
+
 async function testWrongToken() {
   const db = makeDb(mockRepresentative())
   const res = await handleRepresentativeVerifyGet(new NextRequest('https://academy.test/api/representatives/verify/bad'), 'bad', db)
