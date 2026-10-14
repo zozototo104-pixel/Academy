@@ -503,7 +503,7 @@ export async function GET(req: NextRequest) {
       createdAt: app.createdAt,
       email: app.email,
       phone: app.phone,
-      documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
+      documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size, fileUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null, downloadUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null })),
       documentReplacementRequest,
       replacementUploadToken: app.status === 'DOCUMENTS_NEED_REPLACEMENT' && documentReplacementRequest ? createAdmissionUploadToken(app) : null,
       payments: app.payments || [],
