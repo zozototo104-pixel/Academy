@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bunx prisma migrate resolve --schema prisma/schema.prisma --applied '${{ inputs.migration_name }}'
+          bunx prisma migrate resolve --schema prisma/schema.prisma --applied "$MIGRATION_NAME"
 
       - name: Show migration status after resolve
         shell: bash
