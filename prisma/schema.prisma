@@ -1662,7 +1662,7 @@ model ProgramExamAttempt {
   startedAt   DateTime?
   submittedAt DateTime?
   // الاعتراض على النتيجة (Appeal) — يُحوَّل للمراجعة اليدوية من المشرف البشري/الإدارة
-  appealStatus   String   @default("NONE") // NONE | PENDING | REVIEWED
+  appealStatus   String?  @default("NONE") // NONE | PENDING | REVIEWED
   appealReason   String?
   appealResponse String?
   finalScore     Float?   // الدرجة النهائية بعد المراجعة اليدوية
