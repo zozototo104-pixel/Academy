@@ -373,32 +373,6 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
   }
 }
 
-async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, WHATSAPP_AI_FALLBACK_REPLY, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
-    text: WHATSAPP_AI_FALLBACK_REPLY,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
-  const handoff = await createHumanHandoffRequest({
-    user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
-    message: `${reason}\n\n${message.text || ''}`.trim(),
-    source: 'WHATSAPP',
-    sourceRef: conversationKey(message.from),
-  })
-  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-  await auditWhatsAppWebhook('WHATSAPP_AI_FALLBACK_SENT', {
-    from: maskPhone(message.from),
-    messageId: message.id,
-    reason: reason.slice(0, 300),
-  }, conversationKey(message.from))
-}
-
 type WhatsAppContactIntentKind = 'REQUEST_OFFICIAL_CONTACT' | 'PROVIDED_OWN_CONTACT' | 'OTHER'
 
 type WhatsAppContactIntent = {
