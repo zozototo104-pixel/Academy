@@ -161,10 +161,15 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
 
 async function completeReviewedAttemptIfEligible(type: AttemptType, attemptId: string, passed: boolean) {
   if (!passed) return null
-  const attempt = type === 'UNIT'
-    ? await db.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
-    : await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
-  const programId = type === 'UNIT' ? attempt?.exam?.unit?.programId : attempt?.exam?.programId
+  if (type === 'UNIT') {
+    const attempt = await db.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
+    const programId = attempt?.exam?.unit?.programId
+    if (!attempt?.userId || !programId) return null
+    const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
+    return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+  }
+  const attempt = await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
+  const programId = attempt?.exam?.programId
   if (!attempt?.userId || !programId) return null
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
   return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
