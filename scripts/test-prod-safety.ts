@@ -174,6 +174,21 @@ function testAiDeadlines() {
   assert(chat.includes('const deadlineMs = deadlineFromNow(55_000)'), 'chat route must create one shared deadline')
 }
 
+function testWhatsAppMinimalSafety() {
+  const route = file('src/app/api/webhooks/whatsapp/route.ts')
+  assert(route.includes('const fromEncrypted = encryptWhatsAppPhone(message.from) || null'), 'WhatsApp inbound payload must keep the encrypted sender before redaction')
+  assert(route.includes('return { ...payload, message: { ...(payload?.message || {}), fromEncrypted } }'), 'WhatsApp inbound payload must restore encrypted sender after redactDeep')
+  assert(route.includes('decryptWhatsAppPhone(message?.fromEncrypted)'), 'saved WhatsApp inbound events must recover the encrypted sender for cron/after processing')
+  assert(route.includes("{ status: 'RECEIVED' }") && route.includes("{ status: 'FAILED' }"), 'WhatsApp event processing must atomically claim RECEIVED or FAILED events')
+  assert(!route.includes("{ status: 'PROCESSING', updatedAt"), 'WhatsApp event processing must not double-claim an in-flight event')
+  assert(route.includes('if (!claim.count) return'), 'WhatsApp event processing must skip when the atomic claim was not acquired')
+  assert(route.includes('allowZaiFallback: true'), 'WhatsApp voice transcription must allow the audio fallback path')
+  const adminView = file('src/components/aact/AdminView.tsx')
+  const adminExtras = file('src/components/aact/AdminExtras.tsx')
+  assert(!adminView.includes('AdminWhatsAppFailuresTab') && !adminView.includes('whatsapp-failures') && !adminView.includes('إخفاقات الواتساب'), 'AdminView must not expose WhatsApp failures UI')
+  assert(!adminExtras.includes('AdminWhatsAppFailuresTab') && !adminExtras.includes('whatsapp-failures') && !adminExtras.includes('إخفاقات الواتساب'), 'AdminExtras must not expose WhatsApp failures UI')
+}
+
 function testAactTestRecipientBlocks() {
   assert(isAactTestEmail('student@aact.test'), 'aact.test address must be detected')
   assert(isAactTestEmail('QA Student <student@aact.test>'), 'aact.test display-name address must be detected')
