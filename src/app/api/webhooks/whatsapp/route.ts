@@ -294,7 +294,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
-        immediateReply: WHATSAPP_VOICE_TOO_LONG_REPLY,
+        failureReason: 'voice_file_too_large',
       }
     }
 
