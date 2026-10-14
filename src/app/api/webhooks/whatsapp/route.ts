@@ -264,21 +264,19 @@ async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   return count > WHATSAPP_VOICE_HOURLY_LIMIT
 }
 
-async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string; requestHuman?: boolean; failureReason?: string }> {
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; failureReason?: string }> {
   if (message.rawType !== 'audio') return { message }
 
   if (await hasExceededVoiceHourlyLimit(message)) {
     return {
-      message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
-      immediateReply: 'وصلتنا عدة رسائل صوتية خلال وقت قصير. ممكن تكتب سؤالك نصاً أو تحاول لاحقاً؟',
+      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسائل صوتية كثيرة خلال ساعة واحدة، ولم يتم تفريغ هذه الرسالة بسبب حد الاستخدام المؤقت. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
+      failureReason: 'voice_hourly_limit',
     }
   }
 
   if (!message.mediaId) {
     return {
-      message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
-      requestHuman: true,
+      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية، لكن ملف الصوت غير متاح للقراءة أو لم يصل media_id من واتساب. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
       failureReason: 'missing_media_id',
     }
   }
