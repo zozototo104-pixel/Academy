@@ -81,10 +81,11 @@ function testWhatsAppSourceWiring() {
 async function main() {
   testWhatsAppSourceWiring()
   await assertModelOnlyCase('greeting', { text: 'السلام عليكم' }, 'QUERY')
-  await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT')
-  await assertModelOnlyCase('program-books', { text: 'شو الكتب المقررة لدبلوم الإسعاف النفسي؟' }, 'QUERY')
-  await assertModelOnlyCase('human-handoff', { text: 'بدي موظف يحكيني' }, 'HUMAN_HANDOFF', { expectHandoff: true })
-  await assertModelOnlyCase('image', { text: '', rawType: 'image', mediaMimeType: 'image/jpeg' }, 'QUERY')
+  await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT', { expectContext: ['contactRequested=true'] })
+  await assertModelOnlyCase('program-books', { text: 'شو الكتب المقررة لدبلوم الإسعاف النفسي؟' }, 'QUERY', { expectContext: ['contactRequested=false'] })
+  await assertModelOnlyCase('human-handoff', { text: 'بدي موظف يحكيني' }, 'HUMAN_HANDOFF', { expectHandoff: true, expectContext: ['handoffCreated=true'] })
+  await assertModelOnlyCase('voice-failed', { text: '🎤 رسالة صوتية تعذر تفريغها إلى نص.', rawType: 'audio', isVoice: true, originKind: 'VOICE' }, 'QUERY', { contextFlags: { voiceNotTranscribed: true, nonTextMessage: 'audio' }, expectContext: ['voiceNotTranscribed=true', 'nonTextMessage=audio'] })
+  await assertModelOnlyCase('image', { text: '', rawType: 'image', mediaMimeType: 'image/jpeg' }, 'QUERY', { contextFlags: { nonTextMessage: 'image' }, expectContext: ['nonTextMessage=image'] })
   console.log('✓ WhatsApp model-only reply checks passed')
 }
 
