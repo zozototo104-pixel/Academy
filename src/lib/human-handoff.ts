@@ -315,6 +315,32 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   return recent.some((m) => m.role === 'user' && wantsHumanSupport(m.content))
 }
 
+export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
+
+async function officialContactLines() {
+  const contact = await getOfficialContact().catch(() => ({ phones: [], whatsapps: [], phone: '', whatsapp: '' } as any))
+  const numbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean)))
+  return numbers.length ? numbers.map((n) => `📞 ${n}`).join('\n') : 'هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة'
+}
+
+export async function getHumanHandoffConfirmationReply() {
+  const lines = await officialContactLines()
+  return [
+    'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
+    '',
+    'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
+    '',
+    'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
+    lines,
+  ].join('\n')
+}
+
+export function withHumanHandoffActiveNote(reply: string) {
+  if (!reply.trim()) return reply
+  if (reply.includes('طلبك السابق للتواصل مع الإدارة')) return reply
+  return `${reply.trim()}${HUMAN_HANDOFF_ACTIVE_NOTE}`
+}
+
 export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest: unknown): boolean {
   return !existingOpenRequest
 }
