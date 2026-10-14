@@ -163,11 +163,8 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
 }
 
 export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
-  if (!message.text) {
-    return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
-  }
-
-  const messages = await recentWhatsAppAgentMessages(message)
+  const modelMessage = message.text ? message : { ...message, text: '[رسالة واتساب غير نصية أو فارغة]' }
+  const messages = await recentWhatsAppAgentMessages(modelMessage)
   const contact = await getOfficialContact().catch(() => ({} as any))
   const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
   const result = await platformPublicAgentComplete({
