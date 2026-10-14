@@ -762,14 +762,12 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 }
 
 async function processWhatsAppEvent(eventId: string) {
-  const staleBefore = new Date(Date.now() - STALE_PROCESSING_RETRY_MS)
   const claim = await db.whatsAppInboundEvent.updateMany({
     where: {
       id: eventId,
       OR: [
         { status: 'RECEIVED' },
         { status: 'FAILED' },
-        { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
       ],
     },
     data: { status: 'PROCESSING', attempts: { increment: 1 }, error: null },
