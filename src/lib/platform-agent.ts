@@ -1156,6 +1156,7 @@ export async function platformAgentStream(opts: {
 
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
+  const platformRoutingHints: string[] = []
 
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = resolveAiKnowledgeScope({ role: user.role, mode: opts.mode })
