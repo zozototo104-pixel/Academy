@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { requireAdmin, requireUser } from '@/lib/auth'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
 
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest) {
     })
     if (!attempt || attempt.userId !== user.id) {
       return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
+    }
+    if (attempt.status !== 'GRADED') {
+      return NextResponse.json({ error: 'لا يمكن تقديم اعتراض إلا على محاولة مصححة ومعتمدة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
     }
     if (attempt.appealStatus === 'PENDING') {
       return NextResponse.json({ error: 'اعتراضك قيد المراجعة بالفعل' }, { status: 409 })
@@ -79,5 +83,54 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     return NextResponse.json({ error: 'خطأ في تحميل حالة الاعتراض' }, { status: 500 })
+  }
+}
+
+// PATCH /api/program-exam/appeal — قرار الإدارة على الاعتراض
+export async function PATCH(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const body = await req.json().catch(() => ({}))
+    const attemptId = String(body?.attemptId || '').trim()
+    const action = String(body?.action || '').trim().toUpperCase()
+    const response = String(body?.response || body?.appealResponse || '').trim().slice(0, 2000)
+    const finalScoreInput = body?.finalScore
+    if (!attemptId) return NextResponse.json({ error: 'معرف المحاولة مطلوب' }, { status: 400 })
+    if (!['APPROVE', 'ACCEPT', 'REJECT'].includes(action)) return NextResponse.json({ error: 'قرار الاعتراض غير صالح' }, { status: 400 })
+
+    const attempt = await db.programExamAttempt.findUnique({
+      where: { id: attemptId },
+      select: { id: true, userId: true, status: true, appealStatus: true, score: true, finalScore: true, exam: { select: { passScore: true, programId: true } } },
+    })
+    if (!attempt) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
+    if (attempt.status !== 'GRADED') return NextResponse.json({ error: 'لا يمكن البت في اعتراض إلا على محاولة مصححة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
+    if (attempt.appealStatus !== 'PENDING') return NextResponse.json({ error: 'لا يوجد اعتراض قيد المراجعة لهذه المحاولة' }, { status: 409 })
+
+    let completion: Awaited<ReturnType<typeof completeEnrollmentIfEligible>> | null = null
+    if (action === 'APPROVE' || action === 'ACCEPT') {
+      const finalScore = Number(finalScoreInput)
+      if (!Number.isFinite(finalScore)) return NextResponse.json({ error: 'اعتماد الاعتراض يحتاج درجة نهائية رقمية' }, { status: 400 })
+      const clamped = Math.max(0, Math.min(100, Math.round(finalScore * 10) / 10))
+      const passed = clamped >= attempt.exam.passScore
+      await db.programExamAttempt.update({
+        where: { id: attempt.id },
+        data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: response || 'تم قبول الاعتراض واعتماد الدرجة النهائية بعد المراجعة.' },
+      })
+      if (passed) {
+        const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
+        completion = enrollment ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+      }
+      return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
+    }
+
+    await db.programExamAttempt.update({
+      where: { id: attempt.id },
+      data: { appealStatus: 'REVIEWED', appealResponse: response || 'تم رفض الاعتراض بعد المراجعة.' },
+    })
+    return NextResponse.json({ ok: true, finalScore: attempt.finalScore ?? attempt.score, passed: attempt.score != null ? attempt.score >= attempt.exam.passScore : attempt.finalScore != null ? attempt.finalScore >= attempt.exam.passScore : null })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('appeal PATCH error:', e)
+    return NextResponse.json({ error: 'تعذر اعتماد قرار الاعتراض' }, { status: 500 })
   }
 }

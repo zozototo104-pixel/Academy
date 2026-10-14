@@ -1,16 +1,12 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { transcribeAudioBase64 } from '@/lib/asr'
-import { getOfficialContact } from '@/lib/settings'
 import { redactDeep } from '@/lib/secret-crypto'
 import { decryptWhatsAppPhone, encryptWhatsAppPhone, maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 import {
   analyzeHumanHandoffIntent,
   createHumanHandoffRequest,
   hasOpenHumanHandoffRequest,
-  getHumanHandoffConfirmationReply,
-  getHumanSupportReply,
-  withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import {
   createOfficialWhatsAppAgentReply,
@@ -37,15 +33,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const recentGreetingKeys = new Map<string, number>()
 const pendingInboundMessages = new Map<string, WhatsAppInboundMessage>()
-const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
 const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
 const WHATSAPP_VOICE_HOURLY_LIMIT = 10
-const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة، ممكن تختصرها أو تكتب سؤالك؟'
-const WHATSAPP_VOICE_HANDOFF_REPLY = 'استلمنا رسالتك الصوتية ✅ تعذر تحليلها الآن بسبب ضغط/مشكلة مؤقتة، وسيتم تحويل المحادثة للموظف لمتابعة طلبك.'
 const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
 function conversationKey(from: string) {
@@ -56,54 +48,6 @@ function waIdHash(from: string) {
   return whatsappWaIdHash(from)
 }
 
-async function markSimpleGreetingReplySent(key: string, from: string, messageId: string) {
-  recentGreetingKeys.set(key, Date.now())
-  await auditWhatsAppWebhook('WHATSAPP_SIMPLE_GREETING_REPLY_SENT', {
-    from: maskPhone(from),
-    messageId,
-    windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
-  }, key)
-}
-
-function normalizeGreetingText(value: string) {
-  return String(value || '')
-    .trim()
-    .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function isSimpleWhatsAppGreeting(text: string) {
-  const normalized = normalizeGreetingText(text)
-  if (!normalized) return false
-  const greetings = new Set([
-    'السلام عليكم',
-    'سلام عليكم',
-    'وعليكم السلام',
-    'السلام عليكم ورحمه الله',
-    'السلام عليكم ورحمه الله وبركاته',
-    'مرحبا',
-    'هلا',
-    'اهلا',
-    'اهلا وسهلا',
-    'صباح الخير',
-    'مساء الخير',
-  ])
-  return greetings.has(normalized)
-}
-
-function simpleWhatsAppGreetingReply(text: string) {
-  const greeting = normalizeGreetingText(text)
-  if (greeting.includes('صباح')) return 'صباح النور 🌟 كيف يمكنني مساعدتك اليوم؟'
-  if (greeting.includes('مساء')) return 'مساء النور 🌟 كيف يمكنني مساعدتك اليوم؟'
-  if (greeting.includes('السلام') || greeting.startsWith('سلام')) return 'وعليكم السلام ورحمة الله 🌟 كيف يمكنني مساعدتك اليوم؟'
-  return 'أهلًا وسهلًا بك في الأكاديمية 🌟 كيف يمكنني مساعدتك اليوم؟'
-}
-
 async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
   const found = await db.auditLog.findFirst({
@@ -112,14 +56,6 @@ async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
     orderBy: { createdAt: 'desc' },
   }).catch(() => null)
   return !!found
-}
-
-async function markWhatsAppHumanSupportPrompt(key: string, from: string, messageId: string) {
-  await auditWhatsAppWebhook('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', {
-    from: maskPhone(from),
-    messageId,
-    nextExpected: 'name_and_subject',
-  }, key)
 }
 
 function maskPhone(value?: string | null) {
@@ -308,20 +244,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, text, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
-    text,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
-}
-
 async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   const since = new Date(Date.now() - 60 * 60 * 1000)
   const count = await db.whatsAppInboundEvent.count({
@@ -334,21 +256,19 @@ async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   return count > WHATSAPP_VOICE_HOURLY_LIMIT
 }
 
-async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; immediateReply?: string; requestHuman?: boolean; failureReason?: string }> {
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; failureReason?: string }> {
   if (message.rawType !== 'audio') return { message }
 
   if (await hasExceededVoiceHourlyLimit(message)) {
     return {
-      message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
-      immediateReply: 'وصلتنا عدة رسائل صوتية خلال وقت قصير. ممكن تكتب سؤالك نصاً أو تحاول لاحقاً؟',
+      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسائل صوتية كثيرة خلال ساعة واحدة، ولم يتم تفريغ هذه الرسالة بسبب حد الاستخدام المؤقت. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
+      failureReason: 'voice_hourly_limit',
     }
   }
 
   if (!message.mediaId) {
     return {
-      message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
-      requestHuman: true,
+      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية، لكن ملف الصوت غير متاح للقراءة أو لم يصل media_id من واتساب. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
       failureReason: 'missing_media_id',
     }
   }
@@ -360,13 +280,13 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       return {
         message: {
           ...message,
-          text: '🎤 رسالة صوتية طويلة أو كبيرة الحجم.',
+          text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية طويلة أو كبيرة الحجم، ولم يتم تفريغها إلى نص. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.',
           mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
           mediaFileSize: fileSize,
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
-        immediateReply: WHATSAPP_VOICE_TOO_LONG_REPLY,
+        failureReason: 'voice_file_too_large',
       }
     }
 
@@ -398,8 +318,6 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
-        immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
-        requestHuman: true,
         failureReason: 'empty_transcript',
       }
     }
@@ -436,9 +354,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       error: msg,
     }, message.id)
     return {
-      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها؛ تم تحويلها للموظف لمتابعة الطلب.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
-      requestHuman: true,
+      message: { ...message, text: `سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية، لكن تفريغ الصوت فشل بسبب: ${msg}. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.`, originKind: 'VOICE' },
       failureReason: msg,
     }
   }
@@ -478,13 +394,6 @@ type WhatsAppContactIntent = {
   reason?: string
 }
 
-function contactValues(primary?: unknown, list?: unknown): string[] {
-  const values = [primary, ...(Array.isArray(list) ? list : [])]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-  return Array.from(new Set(values))
-}
-
 function normalizeIntentText(text: string): string {
   return String(text || '')
     .replace(/[\u064b-\u065f\u0670]/g, '')
@@ -497,6 +406,29 @@ function normalizeIntentText(text: string): string {
     .trim()
 }
 
+function normalizedIntentTokens(value: string) {
+  return normalizeIntentText(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+}
+
+function includesIntentPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedIntentTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
+}
+
+function hasAnyIntentPhrase(text: string, phrases: string[]) {
+  const tokens = normalizedIntentTokens(text)
+  return phrases.some((phrase) => includesIntentPhraseByWholeTokens(tokens, phrase))
+}
+
 function hasPhoneLikeValue(text: string): boolean {
   return /(?:\+?\d[\d\s().-]{6,}\d)/.test(text)
 }
@@ -504,13 +436,13 @@ function hasPhoneLikeValue(text: string): boolean {
 function looksLikeContactIntentCandidate(text: string): boolean {
   const n = normalizeIntentText(text)
   if (hasPhoneLikeValue(n)) return true
-  return /(?:تواصل|التواصل|واتساب|واتس|رقم|ارقام|نمره|نمرة|هاتف|جوال|موبايل|اتصل|اتصال|كلم|كلمني|احكي|بريد|ايميل|email|phone|whatsapp|call|contact)/i.test(n)
+  return hasAnyIntentPhrase(n, ['تواصل', 'التواصل', 'واتساب', 'واتس', 'رقم', 'ارقام', 'نمره', 'نمرة', 'هاتف', 'جوال', 'موبايل', 'اتصل', 'اتصال', 'كلم', 'كلمني', 'احكي', 'بريد', 'ايميل', 'email', 'phone', 'whatsapp', 'call', 'contact'])
 }
 
 function fallbackContactIntent(text: string): WhatsAppContactIntent {
   const n = normalizeIntentText(text)
   const hasPhone = hasPhoneLikeValue(n)
-  const givesOwnContact = /(?:رقمي|نمري|نمرتي|هذا رقمي|هذا الرقم|خد رقمي|خذ رقمي|تواصلوا معي|تواصل معي|اتصلوا علي|اتصل علي|كلمني|كلموني|ابعثولي|راسلوني|على هذا الرقم|ع هذا الرقم)/.test(n)
+  const givesOwnContact = hasAnyIntentPhrase(n, ['رقمي', 'نمري', 'نمرتي', 'هذا رقمي', 'هذا الرقم', 'خد رقمي', 'خذ رقمي', 'تواصلوا معي', 'تواصل معي', 'اتصلوا علي', 'اتصل علي', 'كلمني', 'كلموني', 'ابعثولي', 'راسلوني', 'على هذا الرقم', 'ع هذا الرقم'])
   if (hasPhone && givesOwnContact) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.78, reason: 'fallback-own-contact' }
   if (hasPhone && /^(?:\+?\d[\d\s().-]{6,}\d)\s*$/.test(n)) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.72, reason: 'fallback-phone-only' }
 
@@ -544,42 +476,50 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
-function isOfficialAddressQuestion(text: string) {
-  const normalized = normalizeIntentText(text).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
-  if (/\b(?:website|url|web)\b|(?:رابط|الكتروني|التسجيل|المنصه)/i.test(normalized)) return false
-  const asksWhere = /(?:وين|اين|فين|ماذا|ما هو|شو|اعطيني|اريد|بدي|ممكن|where|location|address)/i.test(normalized)
-  const mentionsPlace = /(?:موقع|عنوان|مقر|مكان|تقع|توجد|location|address)/i.test(normalized)
-  const directlyAsksAddress = /(?:عنوانكم|موقعكم|مقركم|عنوان الاكاديميه|موقع الاكاديميه|مقر الاكاديميه)/.test(normalized)
-  return (asksWhere && mentionsPlace) || directlyAsksAddress
+type WhatsAppResolveDeps = {
+  classifyRoutingIntent?: typeof classifyWhatsAppRoutingIntent
+  createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+  hasRecentAudit?: typeof hasRecentWhatsAppAudit
+  hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
+  createHandoff?: typeof createHumanHandoffRequest
+  markRequested?: typeof markWhatsAppConversationRequested
+  audit?: typeof auditWhatsAppWebhook
 }
 
-async function buildOfficialAddressReply(): Promise<string> {
-  const contact = await getOfficialContact()
-  const address = String(contact?.address || '').trim()
-  return address
-    ? `عنوان الأكاديمية الرسمي بحسب إعدادات الأكاديمية: ${address}`
-    : 'عنوان الأكاديمية غير محدد حالياً في إعدادات التواصل الرسمية. يمكن للإدارة تحديثه من لوحة الإعدادات.'
+function routingIntentContext(intent: WhatsAppRoutingIntent, handoffOpen: boolean, handoffCreated: boolean) {
+  const lines = [
+    `تصنيف داخلي لاستخدام النموذج فقط: ${intent.intent}.`,
+    intent.reason ? `سبب التصنيف الداخلي: ${intent.reason}.` : '',
+  ].filter(Boolean)
+  if (intent.intent === 'REQUEST_OFFICIAL_CONTACT') {
+    lines.push('المستخدم يطلب بيانات التواصل الرسمية. استخدم معلومات الإعدادات الرسمية الموجودة في سياق النموذج، وصغ الجواب بنفسك دون رد جاهز.')
+  }
+  if (intent.intent === 'PROVIDED_OWN_CONTACT') {
+    lines.push(handoffCreated
+      ? 'المستخدم أرسل بيانات تواصل خاصة به، وتم تسجيل طلب تحويل لموظف. صغ تأكيداً مناسباً عبر النموذج دون نص ثابت.'
+      : 'المستخدم أرسل بيانات تواصل خاصة به، وكان لديه طلب تحويل مفتوح بالفعل. صغ توضيحاً مناسباً عبر النموذج دون نص ثابت.')
+  }
+  if (intent.intent === 'HANDOFF_DETAILS' || intent.intent === 'HUMAN_HANDOFF') {
+    lines.push(handoffCreated
+      ? 'تم تسجيل طلب تحويل لموظف. صغ أنت تأكيد التحويل للمستخدم دون استخدام رد جاهز.'
+      : 'يوجد طلب تحويل لموظف مفتوح مسبقاً. صغ أنت الرد المناسب للمستخدم دون استخدام رد جاهز.')
+  }
+  if (handoffOpen) lines.push('معلومة سياقية: يوجد طلب تحويل سابق مفتوح لهذه المحادثة. لا تضف ملاحظة جاهزة؛ صغها ضمن جوابك إذا كانت مفيدة.')
+  return lines.join('\n')
 }
 
-async function buildOfficialContactReply(): Promise<string> {
-  const contact: any = await getOfficialContact().catch(() => ({}))
-  const whatsapps = contactValues(contact.whatsapp, contact.whatsapps)
-  const phones = contactValues(contact.phone, contact.phones)
-  const email = String(contact.email || '').trim()
-  const lines = ['بيانات التواصل الرسمية للأكاديمية:']
-  if (whatsapps.length) lines.push(`واتساب: ${whatsapps.join(' / ')}`)
-  if (phones.length) lines.push(`هاتف: ${phones.join(' / ')}`)
-  if (email) lines.push(`البريد الرسمي: ${email}`)
-  if (contact.responsiblePerson) lines.push(`مسؤول التواصل: ${String(contact.responsiblePerson).trim()}`)
-  if (lines.length === 1) return 'بيانات التواصل الرسمية غير مضبوطة حالياً في الإعدادات. يمكنك فتح صفحة التواصل الرسمية من الموقع لمتابعة طلبك.'
-  return `${lines.join('\n')}\n\nإذا أرسلت رقمك للتواصل، سنحوّله للموظف المختص للمتابعة.`
-}
-
-async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
+async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
   const handoffKey = conversationKey(message.from)
-  const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
+  const hasRecentAudit = deps.hasRecentAudit || hasRecentWhatsAppAudit
+  const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
+  const createHandoff = deps.createHandoff || createHumanHandoffRequest
+  const markRequested = deps.markRequested || markWhatsAppConversationRequested
+  const createAgentReply = deps.createAgentReply || createOfficialWhatsAppAgentReply
+  const classifyRoutingIntent = deps.classifyRoutingIntent || classifyWhatsAppRoutingIntent
+  const audit = deps.audit || auditWhatsAppWebhook
+  const promptActive = await hasRecentAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
   const maskedFrom = maskPhone(message.from)
-  const handoffOpen = await hasOpenHumanHandoffRequest({
+  const handoffOpen = await hasOpenHandoff({
     sourceRef: handoffKey,
     phone: maskedFrom || null,
   })
@@ -596,11 +536,8 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
-  // A physical address is authoritative in admin settings, not in generated answers.
-  if (isOfficialAddressQuestion(text)) return await buildOfficialAddressReply()
-
-  const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
-  await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
+  const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
+  await audit('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
     promptActive,
@@ -608,53 +545,25 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     decision: routingIntent,
   }, message.id)
 
-  if (routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT') return await buildOfficialContactReply()
-
-  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT') {
+  let handoffCreated = false
+  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT' || routingIntent.intent === 'HANDOFF_DETAILS' || routingIntent.intent === 'HUMAN_HANDOFF') {
     if (!handoffOpen) {
-      const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
-        message: text,
-        source: 'WHATSAPP',
-        sourceRef: handoffKey,
-      })
-      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    }
-    return handoffOpen
-      ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
-      : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
-  }
-
-  if (routingIntent.intent === 'HANDOFF_DETAILS') {
-    const handoff = await createHumanHandoffRequest({
-      user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
-      message: text,
-      source: 'WHATSAPP',
-      sourceRef: handoffKey,
-    })
-    await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    return getHumanHandoffConfirmationReply()
-  }
-
-  if (routingIntent.intent === 'HUMAN_HANDOFF') {
-    if (!handoffOpen) {
-      const handoff = await createHumanHandoffRequest({
+      const handoff = await createHandoff({
         user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
-        message: text || 'طلب صريح للتواصل مع موظف',
+        message: text || (routingIntent.intent === 'HUMAN_HANDOFF' ? 'طلب صريح للتواصل مع موظف' : 'بيانات تواصل من زائر واتساب'),
         source: 'WHATSAPP',
         sourceRef: handoffKey,
       })
-      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      await markRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      handoffCreated = true
     }
-    await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-    return handoffOpen ? getHumanSupportReply() : getHumanHandoffConfirmationReply()
   }
 
-  const agentReply = await createOfficialWhatsAppAgentReply(message)
-  if (agentReply.trim() === (await getHumanSupportReply()).trim()) {
-    await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-  }
-  return handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
+  return createAgentReply(message, routingIntentContext(routingIntent, handoffOpen, handoffCreated))
+}
+
+export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
+  return resolveWhatsAppBotReply(message, storedInbound, deps)
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
@@ -682,45 +591,6 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     return 'SKIPPED'
   }
 
-  if (prepared.immediateReply) {
-    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
-    if (prepared.requestHuman) {
-      const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
-        message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
-        source: 'WHATSAPP',
-        sourceRef: conversationKey(inboundMessage.from),
-      })
-      await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
-      await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
-        from: maskPhone(inboundMessage.from),
-        messageId: inboundMessage.id,
-        conversationId: storedInbound?.conversation?.id || null,
-        reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
-      }, storedInbound?.conversation?.id || inboundMessage.id)
-    }
-    return 'SENT'
-  }
-
-  if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
-    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    const greetingReply = simpleWhatsAppGreetingReply(inboundMessage.text)
-    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, greetingReply, {
-      phoneNumberId: inboundMessage.phoneNumberId,
-      replyToMessageId: inboundMessage.id,
-    })
-    await recordWhatsAppOutboundMessage({
-      waId: inboundMessage.from,
-      phoneNumberId: inboundMessage.phoneNumberId,
-      text: greetingReply,
-      sender: 'BOT',
-      whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-    }).catch(() => {})
-    await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
-    return 'SENT'
-  }
-
   await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
     console.warn('official WhatsApp read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
   })
@@ -728,7 +598,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  // A substantive question gets one answer; simple greetings are handled above.
+  // Every bot reply, including greetings and media clarification, is generated by the AI model.
 
   const stopTypingRefresh = keepTypingIndicatorAlive(
     inboundMessage,

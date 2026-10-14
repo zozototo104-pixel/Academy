@@ -200,6 +200,45 @@ function testAiDeadlines() {
   assert(chat.includes('const deadlineMs = deadlineFromNow(55_000)'), 'chat route must create one shared deadline')
 }
 
+function testGradingCertificateFlowRegressions() {
+  const schema = file('prisma/schema.prisma')
+  assert(schema.includes('appealStatus   String?  @default("NONE")'), 'program exam appealStatus must be nullable')
+  assert(file('prisma/migrations/202610141307_program_exam_appeal_status_nullable/migration.sql').includes('ALTER COLUMN "appealStatus" DROP NOT NULL'), 'appealStatus nullable migration must be present')
+
+  const finalGrade = file('src/lib/final-grade.ts')
+  assert(finalGrade.includes("OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }]"), 'final grade must include normal attempts with null appealStatus')
+  assert(finalGrade.includes("attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number'"), 'final grade must prefer reviewed appeal finalScore')
+
+  for (const route of ['src/app/api/exam/detail/route.ts', 'src/app/api/exam/submit/route.ts', 'src/app/api/program-exam/detail/route.ts', 'src/app/api/program-exam/submit/route.ts', 'src/app/api/admin/program-exam-questions/route.ts']) {
+    const code = file(route)
+    assert(code.includes('EXAM_HAS_NO_QUESTIONS'), `${route} must reject exams with no published questions/points`)
+  }
+
+  const programDetail = file('src/app/api/program-exam/detail/route.ts')
+  assert(programDetail.includes("code: 'ALREADY_PASSED'") && programDetail.includes("code: 'SUBMITTED'"), 'program exam detail must keep compatible already-passed and submitted blocking codes')
+
+  const attemptsReview = file('src/app/api/admin/attempts-review/route.ts')
+  assert(attemptsReview.includes('completeEnrollmentIfEligible') && attemptsReview.includes('completeReviewedAttemptIfEligible'), 'review approval must complete enrollment after transaction')
+
+  const appeal = file('src/app/api/program-exam/appeal/route.ts')
+  assert(appeal.includes("attempt.status !== 'GRADED'"), 'appeals must only be accepted for graded attempts')
+  assert(appeal.includes('finalScore: clamped') && appeal.includes('completeEnrollmentIfEligible'), 'accepted appeals must set finalScore and try certificate completion')
+
+  const examView = file('src/components/aact/ExamView.tsx')
+  assert(examView.includes("d?.status === 'NEEDS_REVIEW'") && examView.includes('إجاباتك محفوظة للمراجعة'), 'ExamView must handle NEEDS_REVIEW without score display')
+  for (const code of ['PASSED_ALREADY', 'SUBMITTED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'EXAM_HAS_NO_QUESTIONS']) assert(examView.includes(code), `ExamView must handle ${code}`)
+
+  const defenseRoom = file('src/components/aact/DefenseRoom.tsx')
+  assert(defenseRoom.includes("thesis.defenseStatus === 'NEEDS_REVIEW' || thesis.needsReview === true"), 'DefenseRoom must detect committee review state')
+  assert(defenseRoom.includes('المناقشة قيد مراجعة اللجنة') && defenseRoom.includes('disabled={busy || defenseUnderReview'), 'DefenseRoom must block actions while under review')
+
+  for (const workflow of ['.github/workflows/prisma-baseline-prepare.yml', '.github/workflows/prisma-baseline-mark-applied.yml']) {
+    const code = file(workflow)
+    const runBlocks = code.split(/\n\s*run: \|\n/).slice(1).join('\n')
+    assert(!runBlocks.includes('${{ inputs.'), `${workflow} must not use inputs context directly inside run blocks`)
+  }
+}
+
 function testAactTestRecipientBlocks() {
   assert(isAactTestEmail('student@aact.test'), 'aact.test address must be detected')
   assert(isAactTestEmail('QA Student <student@aact.test>'), 'aact.test display-name address must be detected')
@@ -223,6 +262,7 @@ async function main() {
   await testFileAccessPolicyBehavior()
   testOfficialSettingsDeploymentHook()
   testAiDeadlines()
+  testGradingCertificateFlowRegressions()
   testAactTestRecipientBlocks()
   testDependencyPins()
   console.log('✓ production safety behavioral checks passed')

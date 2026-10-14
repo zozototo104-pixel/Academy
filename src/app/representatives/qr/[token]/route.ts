@@ -18,12 +18,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   }
 
   const url = new URL(req.url)
+  const download = url.searchParams.get('download') === '1' || url.searchParams.get('size') === '1024'
   const verifyUrl = representativeVerifyUrl(token, `${url.protocol}//${url.host}`)
+  const width = download ? 1024 : 512
   const png = await QRCode.toBuffer(verifyUrl, {
     type: 'png',
-    width: 720,
-    margin: 2,
-    color: { dark: '#0f2b46', light: '#ffffff' },
+    width,
+    margin: 4,
+    color: { dark: '#0f2b46', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
   })
 
   const imageBody = new Uint8Array(png)
@@ -31,7 +34,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=300',
-      'Content-Disposition': `inline; filename="aact-representative-${representative.id}.png"`,
+      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="aact-representative-${representative.id}-${width}.png"`,
     },
   })
 }

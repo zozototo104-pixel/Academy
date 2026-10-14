@@ -109,7 +109,11 @@ function examErrorMessage(error: ApiError) {
   if (error.code === 'SEM1_REQUIRED') return 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني.'
   if (error.code === 'EXAM_NOT_READY_MARKED') return 'اضغط زر «جاهز للامتحان» من بوابة الطالب قبل بدء الاختبار.'
   if (error.code === 'PENDING_PAYMENT') return 'تسجيلك بانتظار الدفع. سيتم تحويلك إلى صفحة السداد.'
-  if (error.code === 'ATTEMPT_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  if (error.code === 'PASSED_ALREADY' || error.code === 'ALREADY_PASSED') return 'لقد اجتزت هذا الاختبار سابقاً. سيتم توجيهك للنتائج.'
+  if (error.code === 'SUBMITTED' || error.code === 'ATTEMPT_SUBMITTED') return 'محاولتك محفوظة وقيد التصحيح. سيتم توجيهك للنتائج.'
+  if (error.code === 'ATTEMPT_EXPIRED' || error.code === 'UNIT_EXAM_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  if (error.code === 'ATTEMPT_ALREADY_CLAIMED') return 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل. سيتم توجيهك للنتائج.'
+  if (error.code === 'EXAM_HAS_NO_QUESTIONS') return 'هذا الاختبار غير جاهز للنشر لأنه لا يحتوي أسئلة منشورة صالحة بعد.'
   return error.message
 }
 
@@ -235,8 +239,7 @@ export function ExamView() {
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
         if (e.status === 402 || e.code === 'PENDING_PAYMENT') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
-        else if (e.status === 403 && e.code === 'ALREADY_PASSED') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
-        else if (e.status === 409 && e.code === 'ATTEMPT_EXPIRED') {
+        else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
@@ -328,7 +331,7 @@ export function ExamView() {
         }))
         const durationUsedMin = Math.max(1, Math.round((Date.now() - startedAt) / 60000))
         const isFinal = activeExamKind === 'final'
-        const d = await api<SubmitResult>(
+        const d = await api<any>(
           isFinal ? '/api/program-exam/submit' : '/api/exam/submit',
           {
             method: 'POST',
@@ -344,21 +347,27 @@ export function ExamView() {
             ),
           }
         )
-        setResult(d)
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
         api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
+        if (d?.status === 'NEEDS_REVIEW') {
+          setResult(null)
+          toast({ title: 'إجاباتك محفوظة للمراجعة', description: d.message || 'تم حفظ إجاباتك، وسيتم اعتماد النتيجة بعد مراجعة الإدارة.' })
+          navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
+          return
+        }
+        setResult(d as SubmitResult)
         toast({ title: 'تم التصحيح!', description: `نتيجتك: ${d.score}%` })
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
         const err = e as ApiError
-        if (err.status === 409 && err.code === 'ATTEMPT_EXPIRED') {
+        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           setSubmitting(false)
-          toast({ title: 'انتهى الوقت', description: 'انتهت المحاولة وحُسبت صفر', variant: 'destructive' })
+          toast({ title: 'تنبيه الاختبار', description: examErrorMessage(err), variant: 'destructive' })
           navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
           return
         }

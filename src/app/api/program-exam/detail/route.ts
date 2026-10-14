@@ -29,6 +29,10 @@ export async function GET(req: NextRequest) {
           : 'الاختبار غير متاح حالياً'
       return NextResponse.json({ error: note }, { status: 400 })
     }
+    const publishedPoints = exam.questions.reduce((sum, question) => sum + Math.max(0, Number(question.points || 0)), 0)
+    if (!exam.questions.length || publishedPoints <= 0) {
+      return NextResponse.json({ error: 'الاختبار لا يحتوي أسئلة منشورة صالحة بعد', code: 'EXAM_HAS_NO_QUESTIONS' }, { status: 409 })
+    }
 
     const enrollment = await db.enrollment.findUnique({
       where: { userId_programId: { userId: user.id, programId: exam.programId } },
@@ -54,7 +58,7 @@ export async function GET(req: NextRequest) {
       })
       if (sem1 && sem1._count.questions > 0) {
         const passedSem1 = await db.programExamAttempt.findFirst({
-          where: { userId: user.id, examId: sem1.id, passed: true, appealStatus: { not: 'PENDING' } },
+          where: { userId: user.id, examId: sem1.id, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
         })
         if (!passedSem1) {
           return NextResponse.json(
@@ -103,7 +107,7 @@ export async function GET(req: NextRequest) {
         })
         if (submitted) return { blocked: 'GRADING' as const, attempt: null }
         const passedAttempt = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
+          where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
           select: { id: true },
         })
         if (passedAttempt) return { blocked: 'PASSED' as const, attempt: null }
@@ -114,7 +118,7 @@ export async function GET(req: NextRequest) {
       }
       return { blocked: null, attempt: startedAttempt }
     })
-    if (attemptState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'ATTEMPT_SUBMITTED' }, { status: 409 })
+    if (attemptState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
     if (attemptState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
     if (attemptState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
     if (!attemptState.attempt) return NextResponse.json({ error: 'تعذر بدء الاختبار' }, { status: 409 })

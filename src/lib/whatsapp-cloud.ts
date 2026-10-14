@@ -162,12 +162,17 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
-  if (!message.text) {
-    return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
-  }
+function whatsAppMessageTextForModel(message: WhatsAppInboundMessage) {
+  const text = String(message.text || '').trim()
+  if (text) return text
+  const type = message.rawType || message.originKind || 'غير نصي'
+  const mime = message.mediaMimeType ? `، نوع الملف: ${message.mediaMimeType}` : ''
+  return `سياق واتساب للنموذج: المستخدم أرسل رسالة ${type}${mime}، ولم يتوفر نص قابل للقراءة منها. حلّل نوع الرسالة وصغ رداً مناسباً دون استخدام نص جاهز.`
+}
 
-  const messages = await recentWhatsAppAgentMessages(message)
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext = '') {
+  const agentMessage = { ...message, text: whatsAppMessageTextForModel(message) }
+  const messages = await recentWhatsAppAgentMessages(agentMessage)
   const contact = await getOfficialContact().catch(() => ({} as any))
   const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
   const result = await platformPublicAgentComplete({
@@ -179,16 +184,12 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
       `رقم واتساب الرسمي للإدارة من الإعدادات: ${officialNumbers}.`,
       'لا تكرر الترحيب بالاسم في كل رد؛ يكفي في بداية المحادثة أو بعد انقطاع واضح. إذا كانت الرسالة مجاملة قصيرة فأجب باختصار. إذا كان السؤال عن الأكاديمية أو البرامج أو الرسوم أو التسجيل فأعطِ تفصيلاً مفيداً حسب السؤال.',
       'إذا كانت الرسالة عن شركة تدريب أو تعاون أو شراكة أو وكالة أو اعتماد، عالجها كطلب تعاون مؤسسي واجمع معلومات الجهة وهدف التعاون؛ لا تعرض تحويل موظف إلا إذا طلب المستخدم ذلك صراحة.',
-    ].join(' ')),
+      extraContext ? `سياق داخلي إضافي للنموذج فقط وليس رداً جاهزاً: ${extraContext}` : '',
+    ].filter(Boolean).join(' ')),
   })
 
-  return result.reply || 'أهلاً بك، كيف يمكنني مساعدتك في برامج الأكاديمية؟'
-}
-
-export function buildOfficialWhatsAppImmediateGreeting(message: WhatsAppInboundMessage) {
-  const name = compactText(message.name, 60)
-  const displayName = name || 'ضيفنا الكريم'
-  return `أهلاً وسهلاً بك ${displayName} في الأكاديمية الأمريكية للاستشارات والتدريب.\nأنا هنا لمساعدتك في أي شيء يخص المنصة التعليمية AACT، وسأجهز لك الرد المناسب الآن.`
+  if (!result.reply?.trim()) throw new Error('WHATSAPP_AI_EMPTY_REPLY')
+  return result.reply
 }
 
 async function sendOfficialWhatsAppMessageStatus(message: WhatsAppInboundMessage, includeTyping: boolean) {

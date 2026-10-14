@@ -30,6 +30,8 @@ jobs:
       # Prisma validates datasource env vars even when this workflow only reads schema.prisma.
       # This dummy URL is never used to connect to a database; production DB access belongs to the separate mark-applied workflow.
       DATABASE_URL: postgresql://baseline:baseline@localhost:5432/baseline?schema=public
+      MIGRATION_NAME: ${{ inputs.migration_name }}
+      PUSH_BRANCH: ${{ inputs.push_branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
             echo "Invalid migration_name: $name"
             echo "Use only letters, numbers, underscore, and dash."
@@ -75,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           mkdir -p "prisma/migrations/$name"
           bunx prisma migrate diff \
             --from-empty \
@@ -100,13 +102,13 @@ jobs:
       - name: Upload generated baseline artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prisma-baseline-migration-${{ inputs.migration_name }}
-          path: prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          name: prisma-baseline-migration-${{ env.MIGRATION_NAME }}
+          path: prisma/migrations/${{ env.MIGRATION_NAME }}/migration.sql
           if-no-files-found: error
           retention-days: 7
 
       - name: Push review branch
-        if: ${{ inputs.push_branch }}
+        if: ${{ env.PUSH_BRANCH == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -114,7 +116,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          git add "prisma/migrations/$MIGRATION_NAME/migration.sql"
           git commit -m "Add Prisma baseline migration"
           git push origin "$branch"
           echo "Created review branch: $branch"
