@@ -27,6 +27,7 @@ export async function GET() {
           programId: true,
           createdAt: true,
           programRef: { select: { titleAr: true, slug: true, category: true } },
+          files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } },
         },
       }),
       db.payment.findMany({
