@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { makeBasicEmailHtml, sendMail } from '@/lib/mail'
-import { getOfficialContact } from '@/lib/settings'
 import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
 import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
 
