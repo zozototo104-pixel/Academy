@@ -406,6 +406,29 @@ function normalizeIntentText(text: string): string {
     .trim()
 }
 
+function normalizedIntentTokens(value: string) {
+  return normalizeIntentText(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+}
+
+function includesIntentPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedIntentTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
+}
+
+function hasAnyIntentPhrase(text: string, phrases: string[]) {
+  const tokens = normalizedIntentTokens(text)
+  return phrases.some((phrase) => includesIntentPhraseByWholeTokens(tokens, phrase))
+}
+
 function hasPhoneLikeValue(text: string): boolean {
   return /(?:\+?\d[\d\s().-]{6,}\d)/.test(text)
 }
@@ -413,7 +436,7 @@ function hasPhoneLikeValue(text: string): boolean {
 function looksLikeContactIntentCandidate(text: string): boolean {
   const n = normalizeIntentText(text)
   if (hasPhoneLikeValue(n)) return true
-  return /(?:تواصل|التواصل|واتساب|واتس|رقم|ارقام|نمره|نمرة|هاتف|جوال|موبايل|اتصل|اتصال|كلم|كلمني|احكي|بريد|ايميل|email|phone|whatsapp|call|contact)/i.test(n)
+  return hasAnyIntentPhrase(n, ['تواصل', 'التواصل', 'واتساب', 'واتس', 'رقم', 'ارقام', 'نمره', 'نمرة', 'هاتف', 'جوال', 'موبايل', 'اتصل', 'اتصال', 'كلم', 'كلمني', 'احكي', 'بريد', 'ايميل', 'email', 'phone', 'whatsapp', 'call', 'contact'])
 }
 
 function fallbackContactIntent(text: string): WhatsAppContactIntent {
