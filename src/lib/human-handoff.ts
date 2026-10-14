@@ -318,11 +318,11 @@ export async function hasRecentHumanHandoffRequest(userId: string, days = 7) {
 
 export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; content: string }>) {
   const recent = messages.slice(-8)
-  const lastSubmittedIdx = recent.findLastIndex((m) => m.role === 'assistant' && m.content.includes('تم استلام طلبك وتحويله لفريق الإدارة'))
+  const lastSubmittedIdx = recent.findLastIndex((m) => m.role === 'assistant' && wantsHumanSupport(m.content) && /(?:تحويل|تواصل|موظف|اداره|إدارة)/.test(normalizeArabic(m.content)))
   const afterSubmit = lastSubmittedIdx >= 0 ? recent.slice(lastSubmittedIdx + 1) : recent
   return afterSubmit.some((m) =>
     (m.role === 'user' && wantsHumanSupport(m.content)) ||
-    (m.role === 'assistant' && m.content.includes('موظف حقيقي') && m.content.includes('الرقم الرسمي'))
+    (m.role === 'assistant' && wantsHumanSupport(m.content))
   )
 }
 
