@@ -64,6 +64,8 @@ interface PaymentProofSummary {
   note?: string | null
   adminNote?: string | null
   fileName: string
+  fileUrl?: string | null
+  downloadUrl?: string | null
   mimeType: string
   fileSize: number
   createdAt: string
