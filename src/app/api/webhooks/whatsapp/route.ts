@@ -500,6 +500,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
   const markRequested = deps.markRequested || markWhatsAppConversationRequested
   const createAgentReply = deps.createAgentReply || createOfficialWhatsAppAgentReply
   const classifyRoutingIntent = deps.classifyRoutingIntent || classifyWhatsAppRoutingIntent
+  const audit = deps.audit || auditWhatsAppWebhook
   const promptActive = await hasRecentAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
   const maskedFrom = maskPhone(message.from)
   const handoffOpen = await hasOpenHandoff({
