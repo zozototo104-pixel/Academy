@@ -521,10 +521,18 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
         sourceRef: handoffKey,
       })
       await markRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      handoffCreated = true
     }
   }
 
-  const extraContext = JSON.stringify({ routingIntent, promptActive, handoffOpen }).slice(0, 1200)
+  const contactRequested = routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT'
+  const extraContext = [
+    `handoffCreated=${handoffCreated ? 'true' : 'false'}`,
+    `voiceNotTranscribed=${deps.contextFlags?.voiceNotTranscribed ? 'true' : 'false'}`,
+    `voiceTooLong=${deps.contextFlags?.voiceTooLong ? 'true' : 'false'}`,
+    `nonTextMessage=${deps.contextFlags?.nonTextMessage || 'none'}`,
+    `contactRequested=${contactRequested ? 'true' : 'false'}`,
+  ].join('; ')
   return createAgentReply(message, extraContext)
 }
 
