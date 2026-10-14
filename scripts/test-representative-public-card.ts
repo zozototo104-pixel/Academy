@@ -97,7 +97,7 @@ async function testSuspendedStatus() {
 
 async function testWrongToken() {
   const db = makeDb(mockRepresentative())
-  const res = await __representativeVerifyGetForTests(new NextRequest('https://academy.test/api/representatives/verify/bad'), 'bad', db)
+  const res = await handleRepresentativeVerifyGet(new NextRequest('https://academy.test/api/representatives/verify/bad'), 'bad', db)
   const body = await json(res as any)
   assert(res.status === 404, 'wrong token must return 404')
   assert(body.message === 'هذا الرمز غير مسجل لدى الأكاديمية', 'wrong token must return the clear Arabic message')
