@@ -249,6 +249,14 @@ export async function analyzeHumanHandoffIntent(message: string, context?: {
   }
 }
 
+const HUMAN_HANDOFF_CONFIRMATION_REPLY_AR = 'تم إرسال طلبك إلى موظف بشري، وسيقوم الفريق المختص بمراجعة رسالتك والتواصل معك عبر بياناتك المسجلة أو من خلال هذه المحادثة.'
+const HUMAN_HANDOFF_CONFIRMATION_REPLY_EN = 'Your request has been sent to a human staff member. The appropriate team will review your message and follow up through your registered contact details or this conversation.'
+const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
+
+export async function getHumanHandoffConfirmationReply(language: 'ar' | 'en' = 'ar') {
+  return language === 'en' ? HUMAN_HANDOFF_CONFIRMATION_REPLY_EN : HUMAN_HANDOFF_CONFIRMATION_REPLY_AR
+}
+
 export function withHumanHandoffActiveNote(reply: string) {
   if (!reply.trim()) return reply
   if (reply.includes('طلبك السابق للتواصل مع الإدارة')) return reply
