@@ -223,14 +223,39 @@ function approvedPublicFiles(row: any): RepresentativePublicFile[] {
     })) : []
 }
 
+export function formatRepresentativeDate(value?: Date | string | null) {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+export function representativeCardStatus(row: any, now = new Date()) {
+  const rawStatus = String(row?.status || '').toUpperCase()
+  const validUntil = row?.validUntil ? new Date(row.validUntil) : null
+  if (validUntil && !Number.isNaN(validUntil.getTime()) && validUntil.getTime() < now.getTime()) {
+    return { code: 'EXPIRED', label: 'منتهي الصلاحية ❌', message: 'انتهت صلاحية بطاقة هذا الممثل، ولا تُعد سارية حالياً.', active: false }
+  }
+  if (rawStatus === 'ACTIVE') {
+    return { code: 'ACTIVE', label: 'فعّال — ممثل معتمد ✅', message: 'بطاقة الممثل فعّالة ومعتمدة حالياً لدى الأكاديمية.', active: true }
+  }
+  return { code: 'SUSPENDED', label: 'موقوف / غير ساري ❌', message: 'بطاقة هذا الممثل موقوفة أو غير سارية حالياً لدى الأكاديمية.', active: false }
+}
+
 export function serializeRepresentativePublicCard(row: any, origin?: string | null) {
   const token = row.qrToken || null
+  const cardStatus = representativeCardStatus(row)
   return {
     id: row.id,
     slug: row.slug,
     status: row.status,
-    statusLabel: row.status === 'ACTIVE' ? 'ممثل معتمد ✅' : 'موقوف / غير ساري ❌',
-    active: row.status === 'ACTIVE',
+    cardStatus: cardStatus.code,
+    statusLabel: cardStatus.label,
+    statusMessage: cardStatus.message,
+    active: cardStatus.active,
+    cardNumber: row.cardNumber,
+    validFrom: formatRepresentativeDate(row.validFrom),
+    validUntil: formatRepresentativeDate(row.validUntil),
     fullName: row.fullName,
     displayTitle: row.displayTitle,
     degreeTitle: row.degreeTitle,
