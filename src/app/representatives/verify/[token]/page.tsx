@@ -128,6 +128,10 @@ export default async function RepresentativeVerifyPage({ params }: PageProps) {
               <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">النطاق</p><p className="mt-1 text-sm font-bold">{rep.territory || rep.city || 'غير محدد'}</p></div>
               <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">مجال التمثيل</p><p className="mt-1 text-sm font-bold">{rep.specialization || 'غير محدد'}</p></div>
               <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">نوع التمثيل</p><p className="mt-1 text-sm font-bold">{rep.representativeRole || 'غير محدد'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">رقم البطاقة</p><p className="mt-1 text-sm font-bold">{rep.cardNumber || 'غير محدد'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">بداية الصلاحية</p><p className="mt-1 text-sm font-bold">{fmtDate(rep.validFrom)}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">نهاية الصلاحية</p><p className="mt-1 text-sm font-bold">{fmtDate(rep.validUntil)}</p></div>
+              <div className="rounded-2xl bg-white p-3 md:col-span-2"><p className="text-[11px] font-black text-slate-500">حالة البطاقة</p><p className="mt-1 text-sm font-bold">{rep.statusMessage}</p></div>
             </div>
           </div>
 
