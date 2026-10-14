@@ -135,6 +135,13 @@ async function testNoPhoneCannotExpand() {
   assert(res.status === 403, 'representative without registered phone hash must not unlock expanded profile')
 }
 
+async function testRateLimitUnavailableFailsClosed() {
+  const db = makeDb(mockRepresentative())
+  db.auditLog.count = async () => { throw new Error('db down') }
+  const res = await handleRepresentativeVerifyPost(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '1234' }), headers: { 'content-type': 'application/json' } }), 'token-ok', db)
+  assert(res.status === 503, 'rate limiter database failure must fail closed with 503')
+}
+
 async function testRateLimitSixthAttempt() {
   const db = makeDb(mockRepresentative())
   const req = () => new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '0000' }), headers: { 'content-type': 'application/json', 'x-forwarded-for': '9.9.9.9' } })
