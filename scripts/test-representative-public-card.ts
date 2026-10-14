@@ -154,6 +154,7 @@ async function main() {
   await testWrongToken()
   await testPostCorrectPhoneLast4()
   await testEmailLast4Rejected()
+  await testNoPhoneCannotExpand()
   await testRateLimitSixthAttempt()
   await testQrEncodesSameUrl()
   console.log('✓ representative public card behavioral checks passed')
