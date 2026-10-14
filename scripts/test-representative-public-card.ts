@@ -184,6 +184,7 @@ async function main() {
   await testExpiredStatus()
   await testWrongToken()
   await testPostCorrectPhoneLast4()
+  await testArabicAndPersianDigitsNormalize()
   await testEmailLast4Rejected()
   await testNoPhoneCannotExpand()
   await testRateLimitUnavailableFailsClosed()
