@@ -124,7 +124,7 @@ async function testRateLimitSixthAttempt() {
   const db = makeDb(mockRepresentative())
   const req = () => new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '0000' }), headers: { 'content-type': 'application/json', 'x-forwarded-for': '9.9.9.9' } })
   for (let i = 0; i < 5; i += 1) {
-    const res = await __representativeVerifyPostForTests(req(), 'token-ok', db)
+    const res = await handleRepresentativeVerifyPost(req(), 'token-ok', db)
     assert(res.status === 403, `attempt ${i + 1} must be invalid before limit`)
   }
   const sixth = await __representativeVerifyPostForTests(req(), 'token-ok', db)
