@@ -1449,10 +1449,11 @@ ${recent || 'بدأت الجلسة للتو.'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAnswer() } }}
-                placeholder={`اكتب إجابتك على السؤال (${answeredCount + 1} من 5) أو استخدم الميكروفون…`}
+                placeholder={defenseUnderReview ? 'المناقشة قيد مراجعة اللجنة' : `اكتب إجابتك على السؤال (${answeredCount + 1} من 5) أو استخدم الميكروفون…`}
+                disabled={defenseUnderReview}
                 className="min-h-16 flex-1 border-white/20 bg-white/95 text-xs text-[#0f2b46] placeholder:text-slate-400"
               />
-              <Button size="sm" onClick={() => sendAnswer()} disabled={busy || !input.trim()} className="h-9 flex-1 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+              <Button size="sm" onClick={() => sendAnswer()} disabled={busy || defenseUnderReview || !input.trim()} className="h-9 flex-1 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
