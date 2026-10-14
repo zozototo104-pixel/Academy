@@ -1178,14 +1178,10 @@ export async function platformAgentStream(opts: {
 
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
-    const reply = await buildHumanSupportReply()
-    await emit(reply)
-    return { reply, agent: 'SUPPORT', engine: 'GEMINI' }
+    platformRoutingHints.push('المصنّف فهم أن المستخدم يريد موظفاً أو دعماً بشرياً؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
-    const reply = await buildHumanSupportReply()
-    await emit(reply)
-    return { reply, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+    platformRoutingHints.push('قواعد التصنيف وجدت طلب تواصل/موظف؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
     const reply = await buildDynamicPaymentMethodsReply()
