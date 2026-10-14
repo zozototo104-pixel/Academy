@@ -31,6 +31,9 @@ const EMPTY_FORM = {
   id: '',
   slug: '',
   status: 'ACTIVE',
+  cardNumber: '',
+  validFrom: '',
+  validUntil: '',
   fullName: '',
   displayTitle: '',
   degreeTitle: '',
@@ -71,8 +74,14 @@ type Representative = FormState & {
   files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null; reviewStatus?: string | null; reviewNote?: string | null }>
 }
 
+function toDateInput(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
 function formFromRepresentative(rep: Representative): FormState {
-  return { ...EMPTY_FORM, ...rep, featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
+  return { ...EMPTY_FORM, ...rep, validFrom: toDateInput(rep.validFrom as any), validUntil: toDateInput(rep.validUntil as any), featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
 }
 
 function shouldAutoRewriteAfterUpload(assetType: string, extras?: Record<string, string>) {
@@ -382,6 +391,9 @@ export default function AdminRepresentativesTab() {
               <CountryCombobox value={form.country} onChange={(value) => update('country', value)} />
               <div><Label>المنطقة الجغرافية</Label><Input value={form.region} onChange={(e) => update('region', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الصفة المعروضة</Label><Input value={form.displayTitle} onChange={(e) => update('displayTitle', e.target.value)} placeholder="ممثل الأكاديمية في..." className="mt-2 rounded-2xl" /></div>
+              <div><Label>رقم البطاقة</Label><Input value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} placeholder="REP-2026-0001" className="mt-2 rounded-2xl" /></div>
+              <div><Label>بداية الصلاحية</Label><Input type="date" value={form.validFrom} onChange={(e) => update('validFrom', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>نهاية الصلاحية</Label><Input type="date" value={form.validUntil} onChange={(e) => update('validUntil', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الدرجة العلمية</Label><Input value={form.degreeTitle} onChange={(e) => update('degreeTitle', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الرتبة العلمية</Label><Input value={form.academicRank} onChange={(e) => update('academicRank', e.target.value)} placeholder="بروفيسور / دكتور..." className="mt-2 rounded-2xl" /></div>
               <div><Label>المدينة</Label><Input value={form.city} onChange={(e) => update('city', e.target.value)} className="mt-2 rounded-2xl" /></div>
@@ -456,12 +468,12 @@ export default function AdminRepresentativesTab() {
               </div>
               <div className="rounded-2xl border border-[#c9a227]/20 bg-amber-50 p-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  {selected?.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-24 w-24 rounded-xl bg-white p-2" />}
+                  {selected?.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-64 w-64 min-h-[256px] min-w-[256px] rounded-xl bg-white p-4 [image-rendering:pixelated]" />}
                   <div>
                     <p className="text-sm font-black text-[#0f2b46]">رابط التحقق الآمن</p>
                     {selected?.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
-                    {selected?.qrToken && <a href={`/representatives/qr/${selected.qrToken}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG للمسح والطباعة</a>}
-                    <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق يحتاج آخر 4 أرقام من الجوال أو الإيميل المسجل.</p>
+                    {selected?.qrToken && <a href={`/representatives/qr/${selected.qrToken}?download=1`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG كبيرة للمسح والطباعة</a>}
+                    <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق الموسّع يحتاج آخر 4 أرقام من الجوال المسجل فقط.</p>
                   </div>
                 </div>
               </div>

@@ -493,6 +493,9 @@ model AcademyRepresentative {
   id                 String   @id @default(cuid())
   slug               String   @unique
   status             String   @default("ACTIVE") // ACTIVE | DRAFT | HIDDEN | ARCHIVED
+  cardNumber         String?
+  validFrom          DateTime?
+  validUntil         DateTime?
   fullName           String
   displayTitle       String?
   degreeTitle        String?

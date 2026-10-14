@@ -24,6 +24,13 @@ function int(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? Math.floor(n) : fallback
 }
 
+function optionalDate(value: unknown) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 async function uniqueSlug(base: string, excludeId: string) {
   const clean = normalizeRepresentativeSlug(base)
   for (let i = 0; i < 20; i += 1) {
@@ -43,6 +50,9 @@ async function audit(actorId: string, action: string, entityId: string, details:
 function dataFromBody(body: any) {
   const data: any = {
     status: text(body.status, 30) || 'ACTIVE',
+    cardNumber: text(body.cardNumber, 120),
+    validFrom: optionalDate(body.validFrom),
+    validUntil: optionalDate(body.validUntil),
     fullName: text(body.fullName, 220),
     displayTitle: text(body.displayTitle, 260),
     degreeTitle: text(body.degreeTitle, 220),
@@ -94,7 +104,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       slug,
       onboardingStatus: data.status === 'ACTIVE' ? 'APPROVED' : current.onboardingStatus,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
-      verifyEmailLast4Hash: hashRepresentativeVerifier(data.email),
       updatedById: user.id,
     },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
