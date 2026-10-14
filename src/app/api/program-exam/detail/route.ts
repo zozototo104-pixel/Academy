@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       })
       if (sem1 && sem1._count.questions > 0) {
         const passedSem1 = await db.programExamAttempt.findFirst({
-          where: { userId: user.id, examId: sem1.id, passed: true, appealStatus: { not: 'PENDING' } },
+          where: { userId: user.id, examId: sem1.id, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
         })
         if (!passedSem1) {
           return NextResponse.json(
