@@ -471,7 +471,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
   const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
   const createHandoff = deps.createHandoff || createHumanHandoffRequest
   const markRequested = deps.markRequested || markWhatsAppConversationRequested
-  const createAgentReply = deps.createAgentReply || createOfficialWhatsAppAgentReply
+  const createAgentReply = deps.createAgentReply || ((msg: WhatsAppInboundMessage) => createOfficialWhatsAppAgentReply(msg))
   const classifyRoutingIntent = deps.classifyRoutingIntent || classifyWhatsAppRoutingIntent
   const audit = deps.audit || auditWhatsAppWebhook
   const promptActive = await hasRecentAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
