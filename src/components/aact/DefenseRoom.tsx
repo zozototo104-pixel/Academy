@@ -69,6 +69,7 @@ interface DefenseThesis {
   committee?: string | null
   agentMember?: string | null
   defenseStatus?: string | null
+  needsReview?: boolean | null
   aiScore?: number | null
   aiRecommendation?: string | null
   defenseMinutes?: string | null
