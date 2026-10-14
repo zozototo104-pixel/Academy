@@ -30,6 +30,8 @@ jobs:
       # Prisma validates datasource env vars even when this workflow only reads schema.prisma.
       # This dummy URL is never used to connect to a database; production DB access belongs to the separate mark-applied workflow.
       DATABASE_URL: postgresql://baseline:baseline@localhost:5432/baseline?schema=public
+      MIGRATION_NAME: ${{ inputs.migration_name }}
+      PUSH_BRANCH: ${{ inputs.push_branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
