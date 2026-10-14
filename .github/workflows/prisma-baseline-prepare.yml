@@ -108,7 +108,7 @@ jobs:
           retention-days: 7
 
       - name: Push review branch
-        if: ${{ inputs.push_branch }}
+        if: ${{ env.PUSH_BRANCH == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
