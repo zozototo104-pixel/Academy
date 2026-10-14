@@ -189,7 +189,7 @@ function testGradingCertificateFlowRegressions() {
   }
 
   const programDetail = file('src/app/api/program-exam/detail/route.ts')
-  assert(programDetail.includes("code: 'PASSED_ALREADY'") && programDetail.includes("code: 'SUBMITTED'"), 'program exam detail must use requested blocking codes')
+  assert(programDetail.includes("code: 'ALREADY_PASSED'") && programDetail.includes("code: 'SUBMITTED'"), 'program exam detail must keep compatible already-passed and submitted blocking codes')
 
   const attemptsReview = file('src/app/api/admin/attempts-review/route.ts')
   assert(attemptsReview.includes('completeEnrollmentIfEligible') && attemptsReview.includes('completeReviewedAttemptIfEligible'), 'review approval must complete enrollment after transaction')
