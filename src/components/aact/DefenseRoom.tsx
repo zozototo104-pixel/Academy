@@ -141,6 +141,7 @@ export function DefenseRoom({
   const [speaking, setSpeaking] = useState(false)
   const [sttSupported, setSttSupported] = useState(true)
   const [lastScore, setLastScore] = useState<number | null>(null)
+  const defenseUnderReview = thesis.defenseStatus === 'NEEDS_REVIEW' || thesis.needsReview === true
   const [finished, setFinished] = useState(thesis.defenseStatus === 'COMPLETED')
   const [aiScore, setAiScore] = useState<number | null>(thesis.aiScore ?? null)
   const [aiRec, setAiRec] = useState<string | null>(thesis.aiRecommendation ?? null)
