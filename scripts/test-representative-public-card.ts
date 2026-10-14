@@ -80,7 +80,7 @@ async function json(response: Response) {
 
 async function testGetPublicAllowlist() {
   const db = makeDb(mockRepresentative())
-  const res = await __representativeVerifyGetForTests(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { headers: { 'x-forwarded-for': '1.1.1.1' } }), 'token-ok', db)
+  const res = await handleRepresentativeVerifyGet(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { headers: { 'x-forwarded-for': '1.1.1.1' } }), 'token-ok', db)
   assert(res.status === 200, 'GET with valid token must return 200')
   const body = await json(res as any)
   assert(body.representative.fullName === 'ممثل الاختبار', 'GET must return public representative name')
