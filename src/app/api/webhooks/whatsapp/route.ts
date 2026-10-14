@@ -440,37 +440,6 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
-function isOfficialAddressQuestion(text: string) {
-  const normalized = normalizeIntentText(text).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
-  if (/\b(?:website|url|web)\b|(?:رابط|الكتروني|التسجيل|المنصه)/i.test(normalized)) return false
-  const asksWhere = /(?:وين|اين|فين|ماذا|ما هو|شو|اعطيني|اريد|بدي|ممكن|where|location|address)/i.test(normalized)
-  const mentionsPlace = /(?:موقع|عنوان|مقر|مكان|تقع|توجد|location|address)/i.test(normalized)
-  const directlyAsksAddress = /(?:عنوانكم|موقعكم|مقركم|عنوان الاكاديميه|موقع الاكاديميه|مقر الاكاديميه)/.test(normalized)
-  return (asksWhere && mentionsPlace) || directlyAsksAddress
-}
-
-async function buildOfficialAddressReply(): Promise<string> {
-  const contact = await getOfficialContact()
-  const address = String(contact?.address || '').trim()
-  return address
-    ? `عنوان الأكاديمية الرسمي بحسب إعدادات الأكاديمية: ${address}`
-    : 'عنوان الأكاديمية غير محدد حالياً في إعدادات التواصل الرسمية. يمكن للإدارة تحديثه من لوحة الإعدادات.'
-}
-
-async function buildOfficialContactReply(): Promise<string> {
-  const contact: any = await getOfficialContact().catch(() => ({}))
-  const whatsapps = contactValues(contact.whatsapp, contact.whatsapps)
-  const phones = contactValues(contact.phone, contact.phones)
-  const email = String(contact.email || '').trim()
-  const lines = ['بيانات التواصل الرسمية للأكاديمية:']
-  if (whatsapps.length) lines.push(`واتساب: ${whatsapps.join(' / ')}`)
-  if (phones.length) lines.push(`هاتف: ${phones.join(' / ')}`)
-  if (email) lines.push(`البريد الرسمي: ${email}`)
-  if (contact.responsiblePerson) lines.push(`مسؤول التواصل: ${String(contact.responsiblePerson).trim()}`)
-  if (lines.length === 1) return 'بيانات التواصل الرسمية غير مضبوطة حالياً في الإعدادات. يمكنك فتح صفحة التواصل الرسمية من الموقع لمتابعة طلبك.'
-  return `${lines.join('\n')}\n\nإذا أرسلت رقمك للتواصل، سنحوّله للموظف المختص للمتابعة.`
-}
-
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
   const handoffKey = conversationKey(message.from)
   const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
