@@ -66,7 +66,16 @@ async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundM
   }
 }
 
+function testWhatsAppSourceWiring() {
+  const route = readFileSync('src/app/api/webhooks/whatsapp/route.ts', 'utf8')
+  assert(!route.includes('getHumanHandoffConfirmationReply'), 'WhatsApp route must not import or call getHumanHandoffConfirmationReply')
+  const cloud = readFileSync('src/lib/whatsapp-cloud.ts', 'utf8')
+  assert(cloud.includes('createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext?: string)'), 'WhatsApp model reply must accept optional extraContext')
+  assert(cloud.includes('سياق داخلي إضافي للنموذج فقط وليس رداً جاهزاً: ${extraContext}'), 'WhatsApp extraContext must be passed into uiContext')
+}
+
 async function main() {
+  testWhatsAppSourceWiring()
   await assertModelOnlyCase('greeting', { text: 'السلام عليكم' }, 'QUERY')
   await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT')
   await assertModelOnlyCase('program-books', { text: 'شو الكتب المقررة لدبلوم الإسعاف النفسي؟' }, 'QUERY')
