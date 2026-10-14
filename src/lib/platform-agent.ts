@@ -935,8 +935,11 @@ export async function platformPublicAgentComplete(opts: {
       diagnostics: { ...directBooksResult.diagnostics, channel: opts.channel || 'WEB_WIDGET' },
     })
   }
-  if (directBooksResult?.reply) return { reply: directBooksResult.reply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, null)
+  if (directBooksResult?.reply) {
+    localRoutingHints.push(`سياق رسمي من قاعدة بيانات المنصة لأسئلة الكتب/المراجع. لا ترجع هذا النص كقالب جاهز؛ حلّل سؤال المستخدم وصغ جواباً طبيعياً عبر الذكاء مع الالتزام بما في هذا السياق فقط:\n${directBooksResult.reply}`)
+  }
+  const programBooksQuestion = Boolean(directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books')
+  const agent = programBooksQuestion ? 'ADMISSIONS' : (intentAnalysis.suggestedAgent || routeAgent(last, null))
   const persona = personaForAgent(agent)
   const centralCatalogSnapshot = await buildScopedProgramCatalogSnapshot({ scope: publicScope, query: last }).catch(() => '')
   const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
