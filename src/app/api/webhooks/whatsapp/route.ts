@@ -641,15 +641,18 @@ async function processWhatsAppEvent(eventId: string) {
   } catch (error: any) {
     const msg = String(error?.message || error || 'unknown WhatsApp processing error').slice(0, 500)
     console.error('official WhatsApp event processing failed:', msg)
-    let fallbackDelivered = false
     try {
-      await sendFallbackAndRequestHuman(message, msg)
-      fallbackDelivered = true
-    } catch (fallbackError: any) {
-      console.error('official WhatsApp fallback reply failed:', String(fallbackError?.message || fallbackError || 'failed').slice(0, 500))
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
+        message: `${msg}\n\n${message.text || ''}`.trim(),
+        source: 'WHATSAPP',
+        sourceRef: conversationKey(message.from),
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    } catch (handoffError: any) {
+      console.error('official WhatsApp handoff after processing failure failed:', String(handoffError?.message || handoffError || 'failed').slice(0, 500))
     }
-    // Do not retry this inbound event after successfully sending a fallback reply.
-    await markInboundEventStatus(eventId, fallbackDelivered ? 'SENT' : 'FAILED', msg)
+    await markInboundEventStatus(eventId, 'FAILED', msg)
     await auditWhatsAppWebhook('WHATSAPP_INBOUND_EVENT_FAILED', {
       eventId,
       messageId: message.id,
