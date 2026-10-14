@@ -32,9 +32,7 @@ function hasPositivePrice(value: unknown): value is number {
 
 function secureProofPayload(proof: any) {
   const { storageKey, storageUrl, ...safeProof } = proof || {}
-  const protectedUrl = storageKey && isPrivateStorageKey(storageKey)
-    ? `/api/admin/payments/proofs/${encodeURIComponent(safeProof.id)}/download`
-    : null
+  const protectedUrl = safeProof.id ? `/api/admin/payments/proofs/${encodeURIComponent(safeProof.id)}/download` : null
   return {
     ...safeProof,
     fileUrl: protectedUrl,
