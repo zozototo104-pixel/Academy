@@ -6,6 +6,8 @@ import { serializeRepresentativeExpanded, serializeRepresentativePublicCard, ver
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+type DbLike = any
+
 function originFrom(req: NextRequest) {
   return req.headers.get('origin') || `${req.nextUrl.protocol}//${req.nextUrl.host}`
 }
@@ -22,8 +24,8 @@ function rateKey(token: string, ip: string) {
   return `token=${safeHash(token)} ip=${safeHash(ip)}`
 }
 
-async function auditAttempt(action: string, token: string, ip: string, entityId?: string | null, extra = '') {
-  await db.auditLog.create({
+async function auditAttempt(dbClient: DbLike, action: string, token: string, ip: string, entityId?: string | null, extra = '') {
+  await dbClient.auditLog.create({
     data: {
       actorName: 'زائر تحقق QR',
       action,
@@ -34,9 +36,9 @@ async function auditAttempt(action: string, token: string, ip: string, entityId?
   }).catch(() => {})
 }
 
-async function rateLimited(action: string, token: string, ip: string, limit: number) {
+async function rateLimited(dbClient: DbLike, action: string, token: string, ip: string, limit: number) {
   const since = new Date(Date.now() - 60 * 60 * 1000)
-  const count = await db.auditLog.count({
+  const count = await dbClient.auditLog.count({
     where: {
       action,
       entity: 'AcademyRepresentative',
@@ -47,22 +49,21 @@ async function rateLimited(action: string, token: string, ip: string, limit: num
   return count >= limit
 }
 
-async function findRepresentative(token: string) {
-  return db.academyRepresentative.findFirst({
+async function findRepresentative(dbClient: DbLike, token: string) {
+  return dbClient.academyRepresentative.findFirst({
     where: { qrToken: token, deletedAt: null },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   }).catch(() => null)
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params
+async function handleGet(req: NextRequest, token: string, dbClient: DbLike) {
   const ip = ipFrom(req)
-  if (await rateLimited('REPRESENTATIVE_VERIFY_GET_ATTEMPT', token, ip, 120)) {
+  if (await rateLimited(dbClient, 'REPRESENTATIVE_VERIFY_GET_ATTEMPT', token, ip, 120)) {
     return NextResponse.json({ error: 'RATE_LIMITED', message: 'حاول لاحقاً.' }, { status: 429 })
   }
-  await auditAttempt('REPRESENTATIVE_VERIFY_GET_ATTEMPT', token, ip)
+  await auditAttempt(dbClient, 'REPRESENTATIVE_VERIFY_GET_ATTEMPT', token, ip)
 
-  const rep = await findRepresentative(token)
+  const rep = await findRepresentative(dbClient, token)
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND', message: 'هذا الرمز غير مسجل لدى الأكاديمية' }, { status: 404 })
 
   return NextResponse.json({
@@ -70,28 +71,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   })
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params
+async function handlePost(req: NextRequest, token: string, dbClient: DbLike) {
   const ip = ipFrom(req)
-  if (await rateLimited('REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip, 5)) {
+  if (await rateLimited(dbClient, 'REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip, 5)) {
     return NextResponse.json({ error: 'RATE_LIMITED', message: 'البيانات غير صحيحة' }, { status: 429 })
   }
-  await auditAttempt('REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip)
+  await auditAttempt(dbClient, 'REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip)
 
   const body = await req.json().catch(() => ({}))
   const last4 = String(body.last4 || '').trim()
-  const rep = await findRepresentative(token)
+  const rep = await findRepresentative(dbClient, token)
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND', message: 'هذا الرمز غير مسجل لدى الأكاديمية' }, { status: 404 })
 
   const ok = verifyRepresentativeLast4(last4, rep.verifyPhoneLast4Hash, rep.verifyEmailLast4Hash)
   if (!ok) {
-    await auditAttempt('VERIFY_REPRESENTATIVE_CARD_FAILED', token, ip, rep.id, `last4Length=${last4.length}`)
+    await auditAttempt(dbClient, 'VERIFY_REPRESENTATIVE_CARD_FAILED', token, ip, rep.id, `last4Length=${last4.length}`)
     return NextResponse.json({ error: 'INVALID_LAST4', message: 'البيانات غير صحيحة' }, { status: 403 })
   }
 
-  await auditAttempt('VERIFY_REPRESENTATIVE_CARD_SUCCESS', token, ip, rep.id)
+  await auditAttempt(dbClient, 'VERIFY_REPRESENTATIVE_CARD_SUCCESS', token, ip, rep.id)
   return NextResponse.json({
     verified: true,
     representative: serializeRepresentativeExpanded(rep, originFrom(req)),
   })
+}
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  return handleGet(req, token, db)
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  return handlePost(req, token, db)
+}
+
+export async function __representativeVerifyGetForTests(req: NextRequest, token: string, dbClient: DbLike) {
+  return handleGet(req, token, dbClient)
+}
+
+export async function __representativeVerifyPostForTests(req: NextRequest, token: string, dbClient: DbLike) {
+  return handlePost(req, token, dbClient)
 }
