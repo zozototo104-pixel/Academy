@@ -162,12 +162,17 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
-  if (!message.text) {
-    return 'أهلاً بك في الأكاديمية الأمريكية للاستشارات والتدريب. حالياً أستطيع قراءة الرسائل النصية فقط. اكتب سؤالك نصاً عن البرامج، الرسوم، التسجيل، الشهادات، أو الاعتماد وسأجيبك فوراً.'
-  }
+function whatsAppMessageTextForModel(message: WhatsAppInboundMessage) {
+  const text = String(message.text || '').trim()
+  if (text) return text
+  const type = message.rawType || message.originKind || 'غير نصي'
+  const mime = message.mediaMimeType ? `، نوع الملف: ${message.mediaMimeType}` : ''
+  return `سياق واتساب للنموذج: المستخدم أرسل رسالة ${type}${mime}، ولم يتوفر نص قابل للقراءة منها. حلّل نوع الرسالة وصغ رداً مناسباً دون استخدام نص جاهز.`
+}
 
-  const messages = await recentWhatsAppAgentMessages(message)
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext = '') {
+  const agentMessage = { ...message, text: whatsAppMessageTextForModel(message) }
+  const messages = await recentWhatsAppAgentMessages(agentMessage)
   const contact = await getOfficialContact().catch(() => ({} as any))
   const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
   const result = await platformPublicAgentComplete({
