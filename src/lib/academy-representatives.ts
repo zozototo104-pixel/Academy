@@ -146,13 +146,19 @@ function verificationSecret() {
   return process.env.AACT_REPRESENTATIVE_CARD_SECRET || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET || 'aact-representative-local-secret'
 }
 
+export function normalizeArabicIndicDigits(value?: string | null) {
+  return String(value || '')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+}
+
 export function normalizeLast4(value?: string | null) {
-  const raw = String(value || '').trim()
+  const raw = normalizeArabicIndicDigits(value).trim()
   return /^\d{4}$/.test(raw) ? raw : ''
 }
 
 export function normalizePhoneLast4(value?: string | null) {
-  const digits = String(value || '').replace(/\D+/g, '')
+  const digits = normalizeArabicIndicDigits(value).replace(/\D+/g, '')
   return digits.length >= 4 ? digits.slice(-4) : ''
 }
 
