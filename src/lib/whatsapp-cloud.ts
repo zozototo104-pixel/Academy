@@ -36,6 +36,7 @@ function compactText(value: unknown, max = 1200) {
 }
 
 const WHATSAPP_CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
+const PLATFORM_AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
 
 async function assertWhatsAppFreeformWindowOpen(to: string) {
   const waIdHash = hashWhatsAppId(to)
