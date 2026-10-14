@@ -74,6 +74,8 @@ function testWhatsAppSourceWiring() {
   const cloud = readFileSync('src/lib/whatsapp-cloud.ts', 'utf8')
   assert(cloud.includes('createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext?: string)'), 'WhatsApp model reply must accept optional extraContext')
   assert(cloud.includes('سياق داخلي إضافي للنموذج فقط وليس رداً جاهزاً: ${extraContext}'), 'WhatsApp extraContext must be passed into uiContext')
+  assert(cloud.includes('WHATSAPP_MODEL_UNAVAILABLE_REPLY'), 'WhatsApp must reject the fixed platform unavailable reply instead of sending it')
+  assert(!route.includes('sendFallbackAndRequestHuman') && !route.includes('WHATSAPP_AI_FALLBACK_REPLY'), 'WhatsApp route must not send fixed fallback text when all models fail')
 }
 
 async function main() {
