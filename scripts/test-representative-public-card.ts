@@ -159,6 +159,8 @@ async function testQrEncodesSameUrl() {
   const expectedUrl = representativeVerifyUrl(token, origin)
   const dataUrl = await representativeQrDataUrl(token, origin, 512)
   assert(dataUrl.startsWith('data:image/png;base64,'), 'representative QR must be a PNG data URL')
+  const png = Buffer.from(dataUrl.split(',')[1] || '', 'base64')
+  assert(png.readUInt32BE(16) === 512 && png.readUInt32BE(20) === 512, 'representative QR PNG must be rendered at 512px with renderer quiet zone')
   const qr = QRCode.create(expectedUrl, { margin: 4, errorCorrectionLevel: 'M' } as any) as any
   const encoded = (qr.segments || []).map((segment: any) => {
     const data = segment?.data
