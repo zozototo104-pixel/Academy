@@ -34,6 +34,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
+function fmtDate(value?: string | Date | null) {
+  if (!value) return 'غير محدد'
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return 'غير محدد'
+  return new Intl.DateTimeFormat('ar', { dateStyle: 'medium' }).format(date)
+}
+
 function Info({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
