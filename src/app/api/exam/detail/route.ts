@@ -37,6 +37,10 @@ export async function GET(req: NextRequest) {
       where: { examId },
       orderBy: { order: 'asc' },
     })
+    const totalQuestionPoints = questions.reduce((sum, question) => sum + Math.max(0, Number(question.points || 0)), 0)
+    if (!questions.length || totalQuestionPoints <= 0) {
+      return NextResponse.json({ error: 'الاختبار لا يحتوي أسئلة منشورة صالحة بعد', code: 'EXAM_HAS_NO_QUESTIONS' }, { status: 409 })
+    }
 
     // بداية رسمية من الخادم. قفل صف الطالب يمنع طلبين متزامنين من إنشاء محاولتين نشطتين.
     // لا نحتسب الوقت القادم من المتصفح؛ createdAt محفوظ من قاعدة البيانات.
