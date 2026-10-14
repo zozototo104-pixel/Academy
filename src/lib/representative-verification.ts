@@ -75,7 +75,9 @@ export async function handleRepresentativeVerifyGet(req: NextRequest, token: str
 
 export async function handleRepresentativeVerifyPost(req: NextRequest, token: string, dbClient: DbLike) {
   const ip = ipFrom(req)
-  if (await rateLimited(dbClient, 'REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip, 5)) {
+  const rate = await rateLimited(dbClient, 'REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip, 5)
+  if (rate.unavailable) return NextResponse.json({ error: 'RATE_LIMIT_UNAVAILABLE', message: 'تعذر التحقق حالياً. حاول لاحقاً.' }, { status: 503 })
+  if (rate.limited) {
     return NextResponse.json({ error: 'RATE_LIMITED', message: 'البيانات غير صحيحة' }, { status: 429 })
   }
   await auditAttempt(dbClient, 'REPRESENTATIVE_VERIFY_POST_ATTEMPT', token, ip)
