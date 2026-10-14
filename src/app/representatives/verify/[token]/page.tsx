@@ -108,6 +108,19 @@ export default async function RepresentativeVerifyPage({ params }: PageProps) {
             <DigitalRepresentativeCard rep={rep} />
           )}
 
+          <div className="mt-6 rounded-[2rem] border border-slate-100 bg-slate-50 p-4">
+            <h2 className="text-lg font-black text-[#0f2b46]">البيانات العامة المعتمدة</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">الاسم</p><p className="mt-1 text-sm font-bold">{rep.fullName}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">المسمى</p><p className="mt-1 text-sm font-bold">{rep.displayTitle || 'ممثل الأكاديمية'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">الرتبة أو الدرجة</p><p className="mt-1 text-sm font-bold">{rep.academicRank || rep.degreeTitle || 'غير محدد'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">الدولة والمنطقة</p><p className="mt-1 text-sm font-bold">{rep.country} — {rep.region}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">النطاق</p><p className="mt-1 text-sm font-bold">{rep.territory || rep.city || 'غير محدد'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">مجال التمثيل</p><p className="mt-1 text-sm font-bold">{rep.specialization || 'غير محدد'}</p></div>
+              <div className="rounded-2xl bg-white p-3"><p className="text-[11px] font-black text-slate-500">نوع التمثيل</p><p className="mt-1 text-sm font-bold">{rep.representativeRole || 'غير محدد'}</p></div>
+            </div>
+          </div>
+
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <p className="text-[11px] font-black text-slate-500">تاريخ التحقق الحالي</p>
