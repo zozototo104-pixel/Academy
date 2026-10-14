@@ -183,7 +183,7 @@ function testGradingCertificateFlowRegressions() {
   assert(finalGrade.includes("OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }]"), 'final grade must include normal attempts with null appealStatus')
   assert(finalGrade.includes("attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number'"), 'final grade must prefer reviewed appeal finalScore')
 
-  for (const route of ['src/app/api/exam/detail/route.ts', 'src/app/api/exam/submit/route.ts', 'src/app/api/program-exam/detail/route.ts', 'src/app/api/program-exam/submit/route.ts']) {
+  for (const route of ['src/app/api/exam/detail/route.ts', 'src/app/api/exam/submit/route.ts', 'src/app/api/program-exam/detail/route.ts', 'src/app/api/program-exam/submit/route.ts', 'src/app/api/admin/program-exam-questions/route.ts']) {
     const code = file(route)
     assert(code.includes('EXAM_HAS_NO_QUESTIONS'), `${route} must reject exams with no published questions/points`)
   }
