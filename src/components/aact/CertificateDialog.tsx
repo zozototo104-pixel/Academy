@@ -70,7 +70,8 @@ export function CertificateDialog({
   useEffect(() => {
     if (!certificate || !open) return
     const verifyId = certificate.qrToken || certificate.serial
-    const verifyUrl = `${window.location.origin}/verify/certificates/${encodeURIComponent(verifyId)}`
+    const baseUrl = String(process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, '')
+    const verifyUrl = `${baseUrl}/verify/certificates/${encodeURIComponent(verifyId)}`
     api<{ qr: string }>(`/api/certificates/qr?data=${encodeURIComponent(verifyUrl)}`)
       .then((d) => setQr(d.qr))
       .catch(() => setQr(null))
