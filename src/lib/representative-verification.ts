@@ -87,7 +87,7 @@ export async function handleRepresentativeVerifyPost(req: NextRequest, token: st
   const rep = await findRepresentative(dbClient, token)
   if (!rep) return NextResponse.json({ error: 'NOT_FOUND', message: 'هذا الرمز غير مسجل لدى الأكاديمية' }, { status: 404 })
 
-  const ok = verifyRepresentativeLast4(last4, rep.verifyPhoneLast4Hash, rep.verifyEmailLast4Hash)
+  const ok = verifyRepresentativeLast4(last4, rep.verifyPhoneLast4Hash)
   if (!ok) {
     await auditAttempt(dbClient, 'VERIFY_REPRESENTATIVE_CARD_FAILED', token, ip, rep.id, `last4Length=${last4.length}`)
     return NextResponse.json({ error: 'INVALID_LAST4', message: 'البيانات غير صحيحة' }, { status: 403 })
