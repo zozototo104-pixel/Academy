@@ -103,6 +103,7 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
       select: { score: true, finalScore: true, appealStatus: true, answers: { select: { points: true, maxPoints: true } } },
     })
     const bestAttemptScore = best(attempts.map((attempt) => {
+      if (attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number') return attempt.finalScore
       // Use the raw answer-derived percentage for certification decisions; stored scores may be rounded for display.
       return percentFromAnswers(attempt.answers) ?? attempt.finalScore ?? attempt.score
     }))
