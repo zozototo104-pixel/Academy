@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
     if (!attempt || attempt.userId !== user.id) {
       return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
     }
+    if (attempt.status !== 'GRADED') {
+      return NextResponse.json({ error: 'لا يمكن تقديم اعتراض إلا على محاولة مصححة ومعتمدة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
+    }
     if (attempt.appealStatus === 'PENDING') {
       return NextResponse.json({ error: 'اعتراضك قيد المراجعة بالفعل' }, { status: 409 })
     }
