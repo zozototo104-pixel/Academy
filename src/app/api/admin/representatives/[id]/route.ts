@@ -24,6 +24,13 @@ function int(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? Math.floor(n) : fallback
 }
 
+function optionalDate(value: unknown) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 async function uniqueSlug(base: string, excludeId: string) {
   const clean = normalizeRepresentativeSlug(base)
   for (let i = 0; i < 20; i += 1) {
