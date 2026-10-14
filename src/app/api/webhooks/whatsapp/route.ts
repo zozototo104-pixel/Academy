@@ -574,6 +574,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
       sourceRef: conversationKey(inboundMessage.from),
     })
     await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
+    handoffCreated = true
     await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
       from: maskPhone(inboundMessage.from),
       messageId: inboundMessage.id,
