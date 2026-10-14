@@ -353,6 +353,12 @@ export async function POST(req: NextRequest) {
     const publishedQuestions = await db.programQuestion.findMany({ where: { examId, status: 'PUBLISHED' }, select: { points: true } })
     const totalPoints = publishedQuestions.reduce((s, q) => s + q.points, 0)
     const totalQ = publishedQuestions.length
+    if (totalQ <= 0 || totalPoints <= 0) {
+      return NextResponse.json(
+        { error: 'لا يمكن نشر الامتحان قبل وجود أسئلة منشورة بمجموع علامات أكبر من صفر.', code: 'EXAM_HAS_NO_QUESTIONS' },
+        { status: 409 }
+      )
+    }
 
     await db.programExam.update({
       where: { id: examId },

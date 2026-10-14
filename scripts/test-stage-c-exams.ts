@@ -90,7 +90,7 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   assert(finalGrade.includes('unitQuizAverage') && finalGrade.includes('exams.length'), 'final grade must require all ready unit exams')
   assert(finalGrade.includes("status: 'GRADED', passed: true"), 'unit exam eligibility must require passed graded attempts')
   assert(finalGrade.includes('programExamAverage'), 'final grade must require program exams')
-  assert(finalGrade.includes('status: \'GRADED\', passed: true, appealStatus: { not: \'PENDING\' }'), 'program exam eligibility must require passed graded non-pending attempts')
+  assert(finalGrade.includes("status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }]"), 'program exam eligibility must require passed graded non-pending attempts, including normal null appealStatus attempts')
   assert(finalGrade.includes('assignmentAverage'), 'final grade must include published assignments')
   assert(finalGrade.includes("where: { programId, status: 'PUBLISHED' }"), 'published assignments must be enumerated')
   assert(finalGrade.includes("submission.status !== 'GRADED'"), 'published assignments must be submitted and graded')

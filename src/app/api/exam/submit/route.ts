@@ -95,6 +95,10 @@ export async function POST(req: NextRequest) {
     })
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
     if (exam.status !== 'READY') return NextResponse.json({ error: 'لا يمكن تسليم اختبار وحدة غير منشور لأنه يحتوي أسئلة تحتاج مراجعة.' }, { status: 403 })
+    const publishedPoints = exam.questions.reduce((sum, question) => sum + Math.max(0, Number(question.points || 0)), 0)
+    if (!exam.questions.length || publishedPoints <= 0) {
+      return NextResponse.json({ error: 'الاختبار لا يحتوي أسئلة منشورة صالحة بعد', code: 'EXAM_HAS_NO_QUESTIONS' }, { status: 409 })
+    }
 
     const enrollment = await db.enrollment.findUnique({
       where: { userId_programId: { userId: user.id, programId: exam.unit.programId } },

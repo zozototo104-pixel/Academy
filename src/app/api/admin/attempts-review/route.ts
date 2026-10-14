@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -158,6 +159,22 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
   return { score, passed }
 }
 
+async function completeReviewedAttemptIfEligible(type: AttemptType, attemptId: string, passed: boolean) {
+  if (!passed) return null
+  if (type === 'UNIT') {
+    const attempt = await db.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
+    const programId = attempt?.exam?.unit?.programId
+    if (!attempt?.userId || !programId) return null
+    const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
+    return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+  }
+  const attempt = await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
+  const programId = attempt?.exam?.programId
+  if (!attempt?.userId || !programId) return null
+  const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
+  return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
@@ -197,7 +214,8 @@ export async function POST(req: NextRequest) {
       await ensureNoNullOpenAnswers(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
-    return NextResponse.json({ ok: true, ...result })
+    const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })
@@ -236,7 +254,8 @@ export async function PATCH(req: NextRequest) {
       await ensureNoNullOpenAnswers(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
-    return NextResponse.json({ ok: true, ...result })
+    const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })
