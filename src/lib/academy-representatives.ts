@@ -14,6 +14,9 @@ export type RepresentativePublicProfile = {
   id: string
   slug: string
   status: string
+  cardNumber?: string | null
+  validFrom?: string | Date | null
+  validUntil?: string | Date | null
   fullName: string
   displayTitle?: string | null
   degreeTitle?: string | null
