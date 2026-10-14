@@ -248,12 +248,6 @@ export async function analyzeHumanHandoffIntent(message: string, context?: {
   }
 }
 
-export function withHumanHandoffActiveNote(reply: string) {
-  if (!reply.trim()) return reply
-  if (reply.includes('طلبك السابق للتواصل مع الإدارة')) return reply
-  return `${reply.trim()}${HUMAN_HANDOFF_ACTIVE_NOTE}`
-}
-
 export async function hasOpenHumanHandoffRequest(args: {
   userId?: string | null
   sourceRef?: string | null
