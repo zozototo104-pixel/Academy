@@ -1432,8 +1432,13 @@ ${recent || 'بدأت الجلسة للتو.'}
 
       {/* أدوات التحكم */}
       <div className="space-y-2.5 border-t border-white/10 bg-[#0f2b46] p-3">
+        {defenseUnderReview && (
+          <div className="rounded-xl border border-amber-300/60 bg-amber-100/15 p-3 text-center text-xs font-black text-amber-100">
+            المناقشة قيد مراجعة اللجنة
+          </div>
+        )}
         {isStudent && messages.length === 0 ? (
-          <Button onClick={start} disabled={busy} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+          <Button onClick={start} disabled={busy || defenseUnderReview} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
             {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Video className="ml-2 h-4 w-4" />}
             بدء الجلسة — يفتح خبير الذكاء الاصطناعي المناقشة (مع بدء التسجيل)
           </Button>
