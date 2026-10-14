@@ -29,6 +29,9 @@ jobs:
     env:
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      MIGRATION_NAME: ${{ inputs.migration_name }}
+      CONFIRM: ${{ inputs.confirm }}
+      RUN_REF: ${{ github.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
