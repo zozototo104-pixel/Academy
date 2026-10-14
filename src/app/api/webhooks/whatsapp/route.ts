@@ -521,7 +521,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     : []
 
   const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
-  await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
+  await audit('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
     promptActive,
