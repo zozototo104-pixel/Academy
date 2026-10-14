@@ -326,8 +326,6 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
-        immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
-        requestHuman: true,
         failureReason: 'empty_transcript',
       }
     }
