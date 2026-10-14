@@ -391,6 +391,9 @@ export default function AdminRepresentativesTab() {
               <CountryCombobox value={form.country} onChange={(value) => update('country', value)} />
               <div><Label>المنطقة الجغرافية</Label><Input value={form.region} onChange={(e) => update('region', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الصفة المعروضة</Label><Input value={form.displayTitle} onChange={(e) => update('displayTitle', e.target.value)} placeholder="ممثل الأكاديمية في..." className="mt-2 rounded-2xl" /></div>
+              <div><Label>رقم البطاقة</Label><Input value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} placeholder="REP-2026-0001" className="mt-2 rounded-2xl" /></div>
+              <div><Label>بداية الصلاحية</Label><Input type="date" value={form.validFrom} onChange={(e) => update('validFrom', e.target.value)} className="mt-2 rounded-2xl" /></div>
+              <div><Label>نهاية الصلاحية</Label><Input type="date" value={form.validUntil} onChange={(e) => update('validUntil', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الدرجة العلمية</Label><Input value={form.degreeTitle} onChange={(e) => update('degreeTitle', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <div><Label>الرتبة العلمية</Label><Input value={form.academicRank} onChange={(e) => update('academicRank', e.target.value)} placeholder="بروفيسور / دكتور..." className="mt-2 rounded-2xl" /></div>
               <div><Label>المدينة</Label><Input value={form.city} onChange={(e) => update('city', e.target.value)} className="mt-2 rounded-2xl" /></div>
