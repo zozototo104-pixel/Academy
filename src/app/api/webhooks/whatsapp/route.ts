@@ -280,7 +280,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       return {
         message: {
           ...message,
-          text: '🎤 رسالة صوتية طويلة أو كبيرة الحجم.',
+          text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية طويلة أو كبيرة الحجم، ولم يتم تفريغها إلى نص. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.',
           mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
           mediaFileSize: fileSize,
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
