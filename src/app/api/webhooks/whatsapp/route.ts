@@ -455,7 +455,17 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
-async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
+type ResolveWhatsAppBotReplyDeps = {
+  hasRecentAudit?: typeof hasRecentWhatsAppAudit
+  hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
+  audit?: typeof auditWhatsAppWebhook
+  classifyRoutingIntent?: typeof classifyWhatsAppRoutingIntent
+  createHandoff?: typeof createHumanHandoffRequest
+  markRequested?: typeof markWhatsAppConversationRequested
+  createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+}
+
+async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
   const handoffKey = conversationKey(message.from)
   const hasRecentAudit = deps.hasRecentAudit || hasRecentWhatsAppAudit
   const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
@@ -483,8 +493,8 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
-  const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
-  await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
+  const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
+  await audit('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
     promptActive,
@@ -501,12 +511,15 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
         sourceRef: handoffKey,
       })
       await markRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-      handoffCreated = true
     }
-    if (routingIntent.intent === 'HUMAN_HANDOFF') await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
   }
 
-  return createOfficialWhatsAppAgentReply(message)
+  const extraContext = JSON.stringify({ routingIntent, promptActive, handoffOpen }).slice(0, 1200)
+  return createAgentReply(message, extraContext)
+}
+
+export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
+  return resolveWhatsAppBotReply(message, storedInbound, deps)
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
