@@ -35,6 +35,9 @@ interface ReadStoredFileInput {
   url?: string | null
   data?: string | null
   mimeType?: string | null
+  allowedHosts?: Iterable<string> | null
+  maxBytes?: number | null
+  timeoutMs?: number | null
 }
 
 function cleanSegment(value: string, fallback: string): string {
@@ -116,7 +119,7 @@ function isPrivateIp(address: string) {
   return !(/^[23][0-9a-f]{3}:/.test(lower)) || lower.startsWith('2001:db8:') || lower.startsWith('2001:')
 }
 
-function configuredAllowedStorageHosts() {
+export function configuredAllowedStorageHosts() {
   const values = [
     process.env.AACT_STORAGE_ALLOWED_HOSTS,
     process.env.AACT_STORAGE_PUBLIC_BASE_URL,
@@ -133,22 +136,70 @@ function configuredAllowedStorageHosts() {
   return hosts
 }
 
-async function assertSafeStorageFetchUrl(rawUrl: string) {
+function normalizeAllowedHosts(values?: Iterable<string> | null) {
+  const hosts = new Set<string>()
+  for (const value of values || []) {
+    const raw = String(value || '').trim()
+    if (!raw) continue
+    try {
+      hosts.add(new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase())
+    } catch {
+      continue
+    }
+  }
+  return hosts
+}
+
+async function assertSafeStorageFetchUrl(rawUrl: string, allowedHosts?: Iterable<string> | null) {
   let parsed: URL
   try { parsed = new URL(rawUrl) } catch { throw new Error('UNSAFE_STORAGE_URL') }
   if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('UNSAFE_STORAGE_URL')
   const host = parsed.hostname.toLowerCase()
-  if (!configuredAllowedStorageHosts().has(host)) throw new Error('STORAGE_HOST_NOT_ALLOWED')
+  const hosts = allowedHosts ? normalizeAllowedHosts(allowedHosts) : configuredAllowedStorageHosts()
+  if (!hosts.has(host)) throw new Error('STORAGE_HOST_NOT_ALLOWED')
   const literal = net.isIP(host)
   const addresses = literal ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => [])
   if (!addresses.length || addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('STORAGE_PRIVATE_HOST_REJECTED')
 }
 
-async function safeFetchStoredUrl(rawUrl: string) {
-  await assertSafeStorageFetchUrl(rawUrl)
-  const res = await fetch(rawUrl, { cache: 'no-store', redirect: 'manual' })
-  if (res.status >= 300 && res.status < 400) throw new Error('STORAGE_REDIRECT_REJECTED')
-  return res
+async function readResponseBufferWithLimit(res: Response, maxBytes?: number | null) {
+  const limit = Number(maxBytes || 0)
+  const contentLength = Number(res.headers.get('content-length') || 0)
+  if (limit > 0 && Number.isFinite(contentLength) && contentLength > limit) throw new Error('STORAGE_FILE_TOO_LARGE')
+  if (!res.body) {
+    const buffer = Buffer.from(await res.arrayBuffer())
+    if (limit > 0 && buffer.byteLength > limit) throw new Error('STORAGE_FILE_TOO_LARGE')
+    return buffer
+  }
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      total += value.byteLength
+      if (limit > 0 && total > limit) {
+        await reader.cancel().catch(() => null)
+        throw new Error('STORAGE_FILE_TOO_LARGE')
+      }
+      chunks.push(value)
+    }
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total)
+}
+
+async function safeFetchStoredUrl(rawUrl: string, options: { allowedHosts?: Iterable<string> | null; maxBytes?: number | null; timeoutMs?: number | null } = {}) {
+  await assertSafeStorageFetchUrl(rawUrl, options.allowedHosts)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, Number(options.timeoutMs || 15_000)))
+  try {
+    const res = await fetch(rawUrl, { cache: 'no-store', redirect: 'manual', signal: controller.signal })
+    if (res.status >= 300 && res.status < 400) throw new Error('STORAGE_REDIRECT_REJECTED')
+    return res
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function getS3Config() {
@@ -442,8 +493,11 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
     for (const root of roots) {
       const absolutePath = path.join(root, key)
       try {
+        const stat = await fs.stat(absolutePath)
+        if (Number(input.maxBytes || 0) > 0 && stat.size > Number(input.maxBytes)) throw new Error('STORAGE_FILE_TOO_LARGE')
         return { buffer: await fs.readFile(absolutePath), mimeType }
-      } catch {
+      } catch (error: any) {
+        if (String(error?.message || error) === 'STORAGE_FILE_TOO_LARGE') throw error
         // Try next legacy location.
       }
     }
@@ -451,10 +505,10 @@ export async function readStoredFile(input: ReadStoredFileInput): Promise<{ buff
   }
 
   if (url && /^https?:\/\//i.test(url)) {
-    const res = await safeFetchStoredUrl(url)
+    const res = await safeFetchStoredUrl(url, { allowedHosts: input.allowedHosts, maxBytes: input.maxBytes, timeoutMs: input.timeoutMs })
     if (!res.ok) return null
     return {
-      buffer: Buffer.from(await res.arrayBuffer()),
+      buffer: await readResponseBufferWithLimit(res, input.maxBytes),
       mimeType: res.headers.get('content-type') || mimeType,
     }
   }
