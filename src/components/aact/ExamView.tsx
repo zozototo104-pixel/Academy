@@ -363,11 +363,11 @@ export function ExamView() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
         const err = e as ApiError
-        if (err.status === 409 && err.code === 'ATTEMPT_EXPIRED') {
+        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           setSubmitting(false)
-          toast({ title: 'انتهى الوقت', description: 'انتهت المحاولة وحُسبت صفر', variant: 'destructive' })
+          toast({ title: 'تنبيه الاختبار', description: examErrorMessage(err), variant: 'destructive' })
           navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
           return
         }
