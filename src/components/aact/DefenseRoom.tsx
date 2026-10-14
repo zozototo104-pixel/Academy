@@ -981,6 +981,10 @@ ${recent || 'بدأت الجلسة للتو.'}
   }
 
   const endSession = async () => {
+    if (defenseUnderReview) {
+      toast({ title: 'المناقشة قيد مراجعة اللجنة', description: 'تم إغلاق إنهاء المناقشة حتى تعتمد اللجنة النتيجة.' })
+      return
+    }
     setBusy(true)
     try {
       const d = await api<{ messages: DefenseMsg[]; aiScore?: number; aiRecommendation?: string; minutes?: string }>('/api/defense', {
