@@ -123,7 +123,7 @@ async function testPostCorrectPhoneLast4() {
 }
 
 async function testEmailLast4Rejected() {
-  assert(!verifyRepresentativeLast4('.com', hashRepresentativeVerifier('+962790001234'), legacyEmailHash('.com')), 'email suffix .com must never verify representative details')
+  assert(!verifyRepresentativeLast4('.com', hashRepresentativeVerifier('+962790001234')), 'email suffix .com must never verify representative details')
   const db = makeDb(mockRepresentative())
   const res = await handleRepresentativeVerifyPost(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '.com' }), headers: { 'content-type': 'application/json' } }), 'token-ok', db)
   assert(res.status === 403, 'POST with .com must be rejected')
