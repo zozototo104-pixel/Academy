@@ -57,11 +57,14 @@ export async function GET() {
       payments: visiblePayments.map((p) => ({
         ...p,
         reference: p.admissionId ? refById[p.admissionId] : null,
-        proofs: (p.proofs || []).map((proof) => ({
-          ...proof,
-          fileUrl: proof.storageKey ? getStorageDownloadPathForKey(proof.storageKey) : null,
-          downloadUrl: proof.storageKey ? getStorageDownloadPathForKey(proof.storageKey) : null,
-        })),
+        proofs: (p.proofs || []).map((proof) => {
+          const { storageKey, storageUrl, ...safeProof } = proof as any
+          return {
+            ...safeProof,
+            fileUrl: storageKey ? getStorageDownloadPathForKey(storageKey) : null,
+            downloadUrl: storageKey ? getStorageDownloadPathForKey(storageKey) : null,
+          }
+        }),
       })),
       tuitionPlans,
     })
