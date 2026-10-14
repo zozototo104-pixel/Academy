@@ -53,8 +53,11 @@ function normalizeArabic(text: string): string {
 }
 
 function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
+}
+')
 }
 ')
 }
