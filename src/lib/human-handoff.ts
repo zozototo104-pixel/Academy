@@ -52,8 +52,22 @@ function normalizeArabic(text: string): string {
     .trim()
 }
 
-function includesAny(n: string, words: string[]) {
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\function includesAny(n: string, words: string[]) {
   return words.some((w) => n.includes(normalizeArabic(w)))
+}
+')
+}
+
+function includesAny(n: string, words: string[]) {
+  const haystack = normalizeArabic(n).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim()
+  if (!haystack) return false
+  return words.some((w) => {
+    const phrase = normalizeArabic(w).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim()
+    if (!phrase) return false
+    const pattern = phrase.split(/\s+/).map(escapeRegex).join('\\s+')
+    return new RegExp(`(?:^|\\s)${pattern}(?:\\s|$)`, 'u').test(haystack)
+  })
 }
 
 function hasHandoffAction(n: string) {
