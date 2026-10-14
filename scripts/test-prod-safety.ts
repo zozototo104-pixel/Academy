@@ -212,6 +212,7 @@ async function main() {
   await testFileAccessPolicyBehavior()
   testOfficialSettingsDeploymentHook()
   testAiDeadlines()
+  testWhatsAppMinimalSafety()
   testAactTestRecipientBlocks()
   testDependencyPins()
   console.log('✓ production safety behavioral checks passed')
