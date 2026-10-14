@@ -48,7 +48,7 @@ jobs:
             echo 'Confirmation text did not match MARK_BASELINE_APPLIED.'
             exit 1
           fi
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
             echo "Invalid migration_name: $name"
             exit 1
