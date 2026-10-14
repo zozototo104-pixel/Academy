@@ -116,7 +116,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          git add "prisma/migrations/$MIGRATION_NAME/migration.sql"
           git commit -m "Add Prisma baseline migration"
           git push origin "$branch"
           echo "Created review branch: $branch"
