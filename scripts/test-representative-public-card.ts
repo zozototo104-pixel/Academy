@@ -12,12 +12,10 @@ import {
   handleRepresentativeVerifyPost,
 } from '../src/lib/representative-verification'
 
+process.env.NEXT_PUBLIC_APP_URL = 'https://academy.test'
+
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
-}
-
-function legacyEmailHash(value: string) {
-  return createHash('sha256').update(`aact-representative-local-secret:${value}`).digest('hex')
 }
 
 function mockRepresentative(overrides: Record<string, unknown> = {}) {
