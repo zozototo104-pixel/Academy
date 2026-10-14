@@ -270,14 +270,14 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
   if (await hasExceededVoiceHourlyLimit(message)) {
     return {
       message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
-      immediateReply: 'وصلتنا عدة رسائل صوتية خلال وقت قصير. ممكن تكتب سؤالك نصاً أو تحاول لاحقاً؟',
+      requestHuman: true,
+      failureReason: 'voice_hourly_limit',
     }
   }
 
   if (!message.mediaId) {
     return {
       message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
-      immediateReply: WHATSAPP_VOICE_HANDOFF_REPLY,
       requestHuman: true,
       failureReason: 'missing_media_id',
     }
