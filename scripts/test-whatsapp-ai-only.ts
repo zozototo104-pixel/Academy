@@ -33,7 +33,7 @@ function message(partial: Partial<WhatsAppInboundMessage>): WhatsAppInboundMessa
   }
 }
 
-async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundMessage>, intent: Intent, options: { expectHandoff?: boolean } = {}) {
+async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundMessage>, intent: Intent, options: { expectHandoff?: boolean; contextFlags?: Record<string, unknown>; expectContext?: string[] } = {}) {
   let modelCalls = 0
   let handoffCalls = 0
   let markCalls = 0
