@@ -62,7 +62,12 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
   const credential = buildCertificateCredential(cert)
   const credentialUrl = certificateCredentialUrl(cert)
   const verificationUrl = certificateVerificationUrl(cert)
-  const qr = await QRCode.toDataURL(credentialUrl, { width: 180, margin: 1 }).catch(() => '')
+  const qr = await QRCode.toDataURL(verificationUrl, {
+    width: 512,
+    margin: 4,
+    color: { dark: '#0f2b46', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
+  }).catch(() => '')
   const proofOk = verifyCertificateCredential(credential)
 
   return (
