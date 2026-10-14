@@ -34,15 +34,19 @@ async function auditAttempt(dbClient: DbLike, action: string, token: string, ip:
 
 async function rateLimited(dbClient: DbLike, action: string, token: string, ip: string, limit: number) {
   const since = new Date(Date.now() - 60 * 60 * 1000)
-  const count = await dbClient.auditLog.count({
-    where: {
-      action,
-      entity: 'AcademyRepresentative',
-      createdAt: { gte: since },
-      details: { contains: rateKey(token, ip) },
-    },
-  }).catch(() => 0)
-  return count >= limit
+  try {
+    const count = await dbClient.auditLog.count({
+      where: {
+        action,
+        entity: 'AcademyRepresentative',
+        createdAt: { gte: since },
+        details: { contains: rateKey(token, ip) },
+      },
+    })
+    return { limited: count >= limit, unavailable: false }
+  } catch {
+    return { limited: true, unavailable: true }
+  }
 }
 
 async function findRepresentative(dbClient: DbLike, token: string) {
