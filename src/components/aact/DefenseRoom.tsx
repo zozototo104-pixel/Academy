@@ -1458,7 +1458,7 @@ ${recent || 'بدأت الجلسة للتو.'}
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || !sttSupported || transcriptOn || liveAdvisorOn}
+              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || defenseUnderReview || !sttSupported || transcriptOn || liveAdvisorOn}
                 className={`flex-1 border-white/25 font-bold ${listening ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-transparent text-white hover:bg-white/10'}`}>
                 {listening ? <Mic className="ml-1 h-3.5 w-3.5 animate-pulse" /> : <MicOff className="ml-1 h-3.5 w-3.5" />}
                 {listening ? 'أستمع إليك… تحدث الآن' : 'الإجابة صوتياً'}
