@@ -162,7 +162,7 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage) {
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext?: string) {
   const modelMessage = message.text ? message : { ...message, text: '[رسالة واتساب غير نصية أو فارغة]' }
   const messages = await recentWhatsAppAgentMessages(modelMessage)
   const contact = await getOfficialContact().catch(() => ({} as any))
