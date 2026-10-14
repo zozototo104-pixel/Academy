@@ -55,7 +55,15 @@ export async function GET() {
     const approvedInstallmentAdmissions = new Set(tuitionPlans.filter((p: any) => p?.appealStatus === 'APPROVED').map((p: any) => p.admissionId))
     const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedInstallmentAdmissions.has(p.admissionId)))
     return NextResponse.json({
-      payments: visiblePayments.map((p) => ({ ...p, reference: p.admissionId ? refById[p.admissionId] : null })),
+      payments: visiblePayments.map((p) => ({
+        ...p,
+        reference: p.admissionId ? refById[p.admissionId] : null,
+        proofs: (p.proofs || []).map((proof) => ({
+          ...proof,
+          fileUrl: proof.storageKey ? getStorageDownloadPathForKey(proof.storageKey) : null,
+          downloadUrl: proof.storageKey ? getStorageDownloadPathForKey(proof.storageKey) : null,
+        })),
+      })),
       tuitionPlans,
     })
   } catch (e) {
