@@ -74,6 +74,15 @@ export async function GET() {
       const isStudyProgram = flow ? flow.isStudyProgram : a.programRef?.category !== 'SERVICE'
       return {
         ...a,
+        files: undefined,
+        documents: (a.files || []).map((file) => ({
+          id: file.id,
+          docType: file.docType,
+          fileName: file.fileName,
+          size: file.size,
+          fileUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+          downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
+        })),
         requestType: isStudyProgram ? 'STUDY' : 'SERVICE',
         serviceKind: flow?.kind || null,
         displayTitle: a.programRef?.titleAr || a.program,
