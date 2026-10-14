@@ -252,20 +252,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
-async function sendImmediateVoiceReply(message: WhatsAppInboundMessage, text: string) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, text, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
-    text,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
-}
-
 async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   const since = new Date(Date.now() - 60 * 60 * 1000)
   const count = await db.whatsAppInboundEvent.count({
