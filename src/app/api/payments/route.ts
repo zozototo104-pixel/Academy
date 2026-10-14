@@ -34,6 +34,8 @@ export async function GET() {
             fileName: true,
             mimeType: true,
             fileSize: true,
+            storageKey: true,
+            storageUrl: true,
             createdAt: true,
             reviewedAt: true,
           },
