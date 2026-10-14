@@ -144,44 +144,46 @@ function verificationSecret() {
 }
 
 export function normalizeLast4(value?: string | null) {
+  const raw = String(value || '').trim()
+  return /^\d{4}$/.test(raw) ? raw : ''
+}
+
+export function normalizePhoneLast4(value?: string | null) {
   const digits = String(value || '').replace(/\D+/g, '')
-  if (digits.length >= 4) return digits.slice(-4)
-  const clean = String(value || '').trim().toLowerCase()
-  return clean.length >= 4 ? clean.slice(-4) : ''
+  return digits.length >= 4 ? digits.slice(-4) : ''
 }
 
 export function hashRepresentativeVerifier(value?: string | null) {
-  const last4 = normalizeLast4(value)
-  if (!last4) return null
+  const last4 = normalizePhoneLast4(value)
+  if (!/^\d{4}$/.test(last4)) return null
   return createHash('sha256').update(`${verificationSecret()}:${last4}`).digest('hex')
 }
 
-export function verifyRepresentativeLast4(input: string, phoneHash?: string | null, emailHash?: string | null) {
-  const candidate = hashRepresentativeVerifier(input)
-  if (!candidate) return false
-  const checks = [phoneHash, emailHash].filter(Boolean) as string[]
-  return checks.some((stored) => {
-    try {
-      const a = Buffer.from(candidate, 'hex')
-      const b = Buffer.from(stored, 'hex')
-      return a.length === b.length && timingSafeEqual(a, b)
-    } catch {
-      return false
-    }
-  })
+export function verifyRepresentativeLast4(input: string, phoneHash?: string | null, _emailHash?: string | null) {
+  const last4 = normalizeLast4(input)
+  if (!last4 || !phoneHash) return false
+  const candidate = createHash('sha256').update(`${verificationSecret()}:${last4}`).digest('hex')
+  try {
+    const a = Buffer.from(candidate, 'hex')
+    const b = Buffer.from(phoneHash, 'hex')
+    return a.length === b.length && timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
 }
 
 export function representativeVerifyUrl(token: string, origin?: string | null) {
-  const base = String(origin || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
+  const base = String(process.env.NEXT_PUBLIC_APP_URL || origin || '').replace(/\/+$/, '')
   return `${base || ''}/representatives/verify/${encodeURIComponent(token)}`
 }
 
-export async function representativeQrDataUrl(token: string, origin?: string | null) {
+export async function representativeQrDataUrl(token: string, origin?: string | null, width = 512) {
   const url = representativeVerifyUrl(token, origin)
   return QRCode.toDataURL(url || `/representatives/verify/${encodeURIComponent(token)}`, {
-    margin: 1,
-    width: 320,
-    color: { dark: '#0f2b46', light: '#ffffff' },
+    margin: 4,
+    width,
+    color: { dark: '#0f2b46', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
   })
 }
 
@@ -197,6 +199,64 @@ function representativePublicFileUrl(row: any, file: any) {
   if (!row?.slug || !file?.id || !file.storageProvider || !file.storageKey) return null
   if (file.storageProvider === 'external-url') return null
   return `/api/representatives/${encodeURIComponent(row.slug)}/files/${encodeURIComponent(file.id)}`
+}
+
+function approvedPublicFiles(row: any): RepresentativePublicFile[] {
+  return Array.isArray(row.files) ? row.files
+    .filter((file: any) => (file.reviewStatus || 'APPROVED') === 'APPROVED')
+    .map((file: any) => ({
+      id: file.id,
+      kind: file.kind,
+      title: file.title,
+      description: file.description,
+      externalUrl: file.externalUrl,
+      fileUrl: representativePublicFileUrl(row, file) || (file.storageKey ? null : file.fileUrl),
+    })) : []
+}
+
+export function serializeRepresentativePublicCard(row: any, origin?: string | null) {
+  const token = row.qrToken || null
+  return {
+    id: row.id,
+    slug: row.slug,
+    status: row.status,
+    statusLabel: row.status === 'ACTIVE' ? 'ممثل معتمد ✅' : 'موقوف / غير ساري ❌',
+    active: row.status === 'ACTIVE',
+    fullName: row.fullName,
+    displayTitle: row.displayTitle,
+    degreeTitle: row.degreeTitle,
+    academicRank: row.academicRank,
+    country: row.country,
+    region: row.region,
+    territory: row.territory,
+    city: row.city,
+    specialization: row.specialization,
+    representativeRole: row.representativeRole,
+    profilePhotoUrl: representativePublicAssetUrl(row, 'profilePhoto') || row.profilePhotoUrl,
+    officialCardUrl: representativePublicAssetUrl(row, 'officialCard') || row.officialCardUrl,
+    verifyUrl: token ? representativeVerifyUrl(token, origin) : null,
+    verifiedAt: new Date().toISOString(),
+    academy: {
+      name: 'الأكاديمية الأمريكية للاستشارات والتدريب',
+      url: String(process.env.NEXT_PUBLIC_APP_URL || origin || '').replace(/\/+$/, ''),
+    },
+  }
+}
+
+export function serializeRepresentativeExpanded(row: any, origin?: string | null) {
+  return {
+    ...serializeRepresentativePublicCard(row, origin),
+    phone: row.phone,
+    email: row.email,
+    whatsapp: row.whatsapp,
+    website: row.website,
+    shortBio: row.shortBio,
+    professionalBio: row.professionalBio,
+    worksSummary: row.worksSummary,
+    achievements: row.achievements,
+    publicContactNote: row.publicContactNote,
+    files: approvedPublicFiles(row),
+  }
 }
 
 export function serializeRepresentative(row: any, origin?: string | null, includeToken = false): RepresentativePublicProfile {
