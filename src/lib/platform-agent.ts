@@ -911,10 +911,21 @@ export async function platformPublicAgentComplete(opts: {
       console.warn('Public intent classifier failed; continuing with local routing rules.', error)
       return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
     })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
-  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
-  if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
+  const localRoutingHints: string[] = []
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
+    localRoutingHints.push(`إشارة توجيه فقط: المصنّف فهم أن المستخدم يريد تواصلاً بشرياً. لا ترد برد جاهز؛ حلّل الرسالة وصغ جواباً عبر الذكاء مستخدماً بيانات التواصل الرسمية إن كانت مناسبة.`)
+  }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
+    localRoutingHints.push('إشارة توجيه فقط: توجد كلمات طلب تواصل/إدارة. لا تستخدم رداً مخزناً؛ حلّل النص وصغ الرد عبر الذكاء.')
+  }
+  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
+    const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    if (paymentContext) localRoutingHints.push(`سياق دفع رسمي لاستخدام الذكاء في الصياغة، وليس رداً جاهزاً:\n${paymentContext}`)
+  }
+  if (wantsPaymentMethodsInfo(last)) {
+    const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    if (paymentContext) localRoutingHints.push(`سياق دفع رسمي مستنتج من السؤال، وليس رداً جاهزاً:\n${paymentContext}`)
+  }
   const publicScope = resolveAiKnowledgeScope({ channel: opts.channel, role: 'PUBLIC' })
   const directBooksResult = await buildScopedDirectProgramBooksResult(last, publicScope).catch(() => null)
   if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
