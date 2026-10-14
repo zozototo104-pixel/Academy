@@ -33,15 +33,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const recentGreetingKeys = new Map<string, number>()
 const pendingInboundMessages = new Map<string, WhatsAppInboundMessage>()
-const IMMEDIATE_GREETING_WINDOW_MS = 24 * 60 * 60 * 1000
 const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
 const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
 const WHATSAPP_VOICE_HOURLY_LIMIT = 10
-const WHATSAPP_VOICE_TOO_LONG_REPLY = 'الرسالة الصوتية طويلة، ممكن تختصرها أو تكتب سؤالك؟'
-const WHATSAPP_VOICE_HANDOFF_REPLY = 'استلمنا رسالتك الصوتية ✅ تعذر تحليلها الآن بسبب ضغط/مشكلة مؤقتة، وسيتم تحويل المحادثة للموظف لمتابعة طلبك.'
 const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
 function conversationKey(from: string) {
