@@ -109,7 +109,11 @@ function examErrorMessage(error: ApiError) {
   if (error.code === 'SEM1_REQUIRED') return 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني.'
   if (error.code === 'EXAM_NOT_READY_MARKED') return 'اضغط زر «جاهز للامتحان» من بوابة الطالب قبل بدء الاختبار.'
   if (error.code === 'PENDING_PAYMENT') return 'تسجيلك بانتظار الدفع. سيتم تحويلك إلى صفحة السداد.'
-  if (error.code === 'ATTEMPT_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  if (error.code === 'PASSED_ALREADY' || error.code === 'ALREADY_PASSED') return 'لقد اجتزت هذا الاختبار سابقاً. سيتم توجيهك للنتائج.'
+  if (error.code === 'SUBMITTED' || error.code === 'ATTEMPT_SUBMITTED') return 'محاولتك محفوظة وقيد التصحيح. سيتم توجيهك للنتائج.'
+  if (error.code === 'ATTEMPT_EXPIRED' || error.code === 'UNIT_EXAM_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
+  if (error.code === 'ATTEMPT_ALREADY_CLAIMED') return 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل. سيتم توجيهك للنتائج.'
+  if (error.code === 'EXAM_HAS_NO_QUESTIONS') return 'هذا الاختبار غير جاهز للنشر لأنه لا يحتوي أسئلة منشورة صالحة بعد.'
   return error.message
 }
 
