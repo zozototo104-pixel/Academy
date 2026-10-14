@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         unitTitle: exam.unit.title,
         programId: exam.unit.programId,
         programTitle: exam.unit.program.titleAr,
-        totalPoints: questions.reduce((s, q) => s + q.points, 0),
+        totalPoints: totalQuestionPoints,
       },
       questions: questions.map((q) => ({
         id: q.id,
