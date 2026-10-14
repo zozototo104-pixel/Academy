@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
             echo "Invalid migration_name: $name"
             echo "Use only letters, numbers, underscore, and dash."
