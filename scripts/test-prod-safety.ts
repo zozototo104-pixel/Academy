@@ -110,6 +110,7 @@ function testPrivateStoragePolicy() {
   const dashboard = file('src/components/aact/DashboardView.tsx')
   assert(dashboard.includes('fileUrl?: string | null') && dashboard.includes('downloadUrl?: string | null'), 'student dashboard assignment submission type must include protected file URLs')
   assert(dashboard.includes('تحميل ملفي'), 'student dashboard must expose a download button for uploaded assignment files')
+  assert(dashboard.includes('studentSummary.summary.latestAdmission?.documents') && dashboard.includes('وثائق الطلب'), 'student dashboard must expose protected admission document links')
   const thesis = file('src/app/api/thesis/route.ts')
   assert(thesis.includes('getStorageDownloadPathForKey(thesis.fileStorageKey)'), 'student thesis files must expose protected file URLs')
   const adminAssignments = file('src/app/api/admin/assignments/route.ts')
