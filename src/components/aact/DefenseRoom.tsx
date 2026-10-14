@@ -1495,7 +1495,7 @@ ${recent || 'بدأت الجلسة للتو.'}
                 className="flex-1 bg-white/10 font-bold text-white hover:bg-white/20">
                 <Volume2 className="ml-1 h-3.5 w-3.5" /> إعادة سماع السؤال
               </Button>
-              <Button size="sm" variant="outline" onClick={endSession} disabled={busy} className="border-red-400/40 bg-transparent font-bold text-red-300 hover:bg-red-500/10">
+              <Button size="sm" variant="outline" onClick={endSession} disabled={busy || defenseUnderReview} className="border-red-400/40 bg-transparent font-bold text-red-300 hover:bg-red-500/10">
                 <PhoneOff className="ml-1 h-3.5 w-3.5" /> إنهاء الجلسة
               </Button>
             </div>
