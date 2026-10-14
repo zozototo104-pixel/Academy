@@ -179,13 +179,8 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
     ].join(' ')),
   })
 
-  return result.reply || 'أهلاً بك، كيف يمكنني مساعدتك في برامج الأكاديمية؟'
-}
-
-export function buildOfficialWhatsAppImmediateGreeting(message: WhatsAppInboundMessage) {
-  const name = compactText(message.name, 60)
-  const displayName = name || 'ضيفنا الكريم'
-  return `أهلاً وسهلاً بك ${displayName} في الأكاديمية الأمريكية للاستشارات والتدريب.\nأنا هنا لمساعدتك في أي شيء يخص المنصة التعليمية AACT، وسأجهز لك الرد المناسب الآن.`
+  if (!String(result.reply || '').trim()) throw new Error('WHATSAPP_MODEL_EMPTY_REPLY')
+  return result.reply
 }
 
 async function sendOfficialWhatsAppMessageStatus(message: WhatsAppInboundMessage, includeTyping: boolean) {
