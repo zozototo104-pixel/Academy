@@ -467,6 +467,7 @@ type WhatsAppResolveDeps = {
   hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
   createHandoff?: typeof createHumanHandoffRequest
   markRequested?: typeof markWhatsAppConversationRequested
+  audit?: typeof auditWhatsAppWebhook
 }
 
 function routingIntentContext(intent: WhatsAppRoutingIntent, handoffOpen: boolean, handoffCreated: boolean) {
