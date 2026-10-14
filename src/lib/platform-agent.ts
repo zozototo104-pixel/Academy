@@ -1061,7 +1061,8 @@ export async function platformAgentComplete(opts: {
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
-  const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
+  const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
+  const context = mergeContext(mergeContext(mergeContext(dataContext, routingContext), conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
