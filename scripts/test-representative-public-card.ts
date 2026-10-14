@@ -122,6 +122,12 @@ async function testPostCorrectPhoneLast4() {
   assert(body.representative.email === 'rep@example.com', 'expanded payload must include email after verification')
 }
 
+async function testArabicAndPersianDigitsNormalize() {
+  const phoneHash = hashRepresentativeVerifier('+962790001234')
+  assert(verifyRepresentativeLast4('١٢٣٤', phoneHash), 'Arabic-Indic digits must verify last4')
+  assert(verifyRepresentativeLast4('۱۲۳۴', phoneHash), 'Persian digits must verify last4')
+}
+
 async function testEmailLast4Rejected() {
   assert(!verifyRepresentativeLast4('.com', hashRepresentativeVerifier('+962790001234')), 'email suffix .com must never verify representative details')
   const db = makeDb(mockRepresentative())
