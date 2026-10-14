@@ -6,7 +6,6 @@ import { notify, audit } from '@/lib/notify'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { getSettings } from '@/lib/settings'
 import { dollarsToCents } from '@/lib/money'
-import { getStorageDownloadPathForKey } from '@/lib/storage'
 import { isPrivateStorageKey } from '@/lib/prod-safety'
 
 function cleanText(value: unknown, max = 500) {
