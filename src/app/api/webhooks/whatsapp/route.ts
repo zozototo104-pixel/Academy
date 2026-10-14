@@ -47,54 +47,6 @@ function waIdHash(from: string) {
   return whatsappWaIdHash(from)
 }
 
-async function markSimpleGreetingReplySent(key: string, from: string, messageId: string) {
-  recentGreetingKeys.set(key, Date.now())
-  await auditWhatsAppWebhook('WHATSAPP_SIMPLE_GREETING_REPLY_SENT', {
-    from: maskPhone(from),
-    messageId,
-    windowHours: Math.round(IMMEDIATE_GREETING_WINDOW_MS / 60 / 60 / 1000),
-  }, key)
-}
-
-function normalizeGreetingText(value: string) {
-  return String(value || '')
-    .trim()
-    .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function isSimpleWhatsAppGreeting(text: string) {
-  const normalized = normalizeGreetingText(text)
-  if (!normalized) return false
-  const greetings = new Set([
-    'السلام عليكم',
-    'سلام عليكم',
-    'وعليكم السلام',
-    'السلام عليكم ورحمه الله',
-    'السلام عليكم ورحمه الله وبركاته',
-    'مرحبا',
-    'هلا',
-    'اهلا',
-    'اهلا وسهلا',
-    'صباح الخير',
-    'مساء الخير',
-  ])
-  return greetings.has(normalized)
-}
-
-function simpleWhatsAppGreetingReply(text: string) {
-  const greeting = normalizeGreetingText(text)
-  if (greeting.includes('صباح')) return 'صباح النور 🌟 كيف يمكنني مساعدتك اليوم؟'
-  if (greeting.includes('مساء')) return 'مساء النور 🌟 كيف يمكنني مساعدتك اليوم؟'
-  if (greeting.includes('السلام') || greeting.startsWith('سلام')) return 'وعليكم السلام ورحمة الله 🌟 كيف يمكنني مساعدتك اليوم؟'
-  return 'أهلًا وسهلًا بك في الأكاديمية 🌟 كيف يمكنني مساعدتك اليوم؟'
-}
-
 async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
   const found = await db.auditLog.findFirst({
