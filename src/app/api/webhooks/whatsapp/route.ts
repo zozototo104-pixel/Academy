@@ -442,7 +442,7 @@ function looksLikeContactIntentCandidate(text: string): boolean {
 function fallbackContactIntent(text: string): WhatsAppContactIntent {
   const n = normalizeIntentText(text)
   const hasPhone = hasPhoneLikeValue(n)
-  const givesOwnContact = /(?:رقمي|نمري|نمرتي|هذا رقمي|هذا الرقم|خد رقمي|خذ رقمي|تواصلوا معي|تواصل معي|اتصلوا علي|اتصل علي|كلمني|كلموني|ابعثولي|راسلوني|على هذا الرقم|ع هذا الرقم)/.test(n)
+  const givesOwnContact = hasAnyIntentPhrase(n, ['رقمي', 'نمري', 'نمرتي', 'هذا رقمي', 'هذا الرقم', 'خد رقمي', 'خذ رقمي', 'تواصلوا معي', 'تواصل معي', 'اتصلوا علي', 'اتصل علي', 'كلمني', 'كلموني', 'ابعثولي', 'راسلوني', 'على هذا الرقم', 'ع هذا الرقم'])
   if (hasPhone && givesOwnContact) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.78, reason: 'fallback-own-contact' }
   if (hasPhone && /^(?:\+?\d[\d\s().-]{6,}\d)\s*$/.test(n)) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.72, reason: 'fallback-phone-only' }
 
