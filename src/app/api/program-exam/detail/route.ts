@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
         })
         if (submitted) return { blocked: 'GRADING' as const, attempt: null }
         const passedAttempt = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, passed: true, appealStatus: { not: 'PENDING' } },
+          where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
           select: { id: true },
         })
         if (passedAttempt) return { blocked: 'PASSED' as const, attempt: null }
