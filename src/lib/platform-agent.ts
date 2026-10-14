@@ -56,19 +56,6 @@ async function buildOfficialContactLines() {
   return lines
 }
 
-async function buildHumanSupportReply() {
-  const contacts = await buildOfficialContactLines()
-  return [
-    'أهلًا وسهلًا بك 🌟',
-    contacts.length
-      ? 'يسعدنا خدمتك. إذا كنت ترغب بالتواصل مع موظف حقيقي أو الإدارة مباشرة، يمكنك استخدام بيانات التواصل الرسمية التالية:'
-      : 'يسعدنا خدمتك. بيانات التواصل غير مضبوطة حالياً، استخدم صفحة التواصل الرسمية من الموقع.',
-    ...contacts,
-    '',
-    'اكتب لنا اسمك وموضوعك باختصار، وسيتم توجيهك للموظف المختص بإذن الله.',
-  ].join('\n')
-}
-
 function normalizeArabic(text: string): string {
   return String(text || '')
     .toLowerCase()
@@ -83,8 +70,22 @@ function normalizeArabic(text: string): string {
     .trim()
 }
 
+function normalizedTokens(value: string) {
+  return normalizeArabic(value).split(' ').filter(Boolean)
+}
+
+function includesPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
+}
+
 function includesAny(n: string, words: string[]) {
-  return words.some((w) => n.includes(normalizeArabic(w)))
+  const textTokens = normalizedTokens(n)
+  return words.some((w) => includesPhraseByWholeTokens(textTokens, w))
 }
 
 function wantsHumanSupport(message: string) {
@@ -911,10 +912,21 @@ export async function platformPublicAgentComplete(opts: {
       console.warn('Public intent classifier failed; continuing with local routing rules.', error)
       return { intent: 'UNKNOWN' as ConversationIntentKind, confidence: 0, suggestedAgent: routeAgent(last, null), raw: '', classifierFailed: true }
     })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
-  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
-  if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
+  const localRoutingHints: string[] = []
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
+    localRoutingHints.push(`إشارة توجيه فقط: المصنّف فهم أن المستخدم يريد تواصلاً بشرياً. لا ترد برد جاهز؛ حلّل الرسالة وصغ جواباً عبر الذكاء مستخدماً بيانات التواصل الرسمية إن كانت مناسبة.`)
+  }
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
+    localRoutingHints.push('إشارة توجيه فقط: توجد كلمات طلب تواصل/إدارة. لا تستخدم رداً مخزناً؛ حلّل النص وصغ الرد عبر الذكاء.')
+  }
+  if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
+    const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    if (paymentContext) localRoutingHints.push(`سياق دفع رسمي لاستخدام الذكاء في الصياغة، وليس رداً جاهزاً:\n${paymentContext}`)
+  }
+  if (wantsPaymentMethodsInfo(last)) {
+    const paymentContext = await buildPaymentMethodsContext().catch(() => '')
+    if (paymentContext) localRoutingHints.push(`سياق دفع رسمي مستنتج من السؤال، وليس رداً جاهزاً:\n${paymentContext}`)
+  }
   const publicScope = resolveAiKnowledgeScope({ channel: opts.channel, role: 'PUBLIC' })
   const directBooksResult = await buildScopedDirectProgramBooksResult(last, publicScope).catch(() => null)
   if (directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books') {
@@ -924,14 +936,28 @@ export async function platformPublicAgentComplete(opts: {
       diagnostics: { ...directBooksResult.diagnostics, channel: opts.channel || 'WEB_WIDGET' },
     })
   }
-  if (directBooksResult?.reply) return { reply: directBooksResult.reply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, null)
+  const programBooksQuestion = Boolean(directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books')
+  if (programBooksQuestion) {
+    localRoutingHints.push([
+      'أولوية صارمة: آخر رسالة من المستخدم تسأل عن الكتب/المراجع/المواد المقررة لبرنامج معيّن، وليست سؤالاً عن عنوان الأكاديمية أو بيانات التواصل.',
+      'يجب أن يصوغ الذكاء جواباً عن الكتب المقررة فقط من كتالوج البرامج وسياق الكتب أدناه. لا تذكر عنوان الأكاديمية أو الولاية أو رقم التواصل إلا إذا سأل المستخدم عن ذلك صراحة.',
+      directBooksResult?.reply
+        ? `سياق رسمي من قاعدة بيانات المنصة لأسئلة الكتب/المراجع. لا ترجع هذا النص كقالب جاهز؛ حلّل سؤال المستخدم وصغ جواباً طبيعياً عبر الذكاء مع الالتزام بما في هذا السياق فقط:\n${directBooksResult.reply}`
+        : 'لم يتم العثور على قائمة كتب مباشرة؛ استخدم فهرس البرامج والكتب الرسمي في السياق، وإذا لم تجد كتباً للبرنامج المطابق فقل ذلك بوضوح.',
+    ].join('\n'))
+  } else if (directBooksResult?.reply) {
+    localRoutingHints.push(`سياق رسمي من قاعدة بيانات المنصة لأسئلة الكتب/المراجع. لا ترجع هذا النص كقالب جاهز؛ حلّل سؤال المستخدم وصغ جواباً طبيعياً عبر الذكاء مع الالتزام بما في هذا السياق فقط:\n${directBooksResult.reply}`)
+  }
+  const agent = programBooksQuestion ? 'ADMISSIONS' : (intentAnalysis.suggestedAgent || routeAgent(last, null))
   const persona = personaForAgent(agent)
   const centralCatalogSnapshot = await buildScopedProgramCatalogSnapshot({ scope: publicScope, query: last }).catch(() => '')
-  const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
+  const legacyPlatformSnapshot = programBooksQuestion ? '' : await buildPublicPlatformSnapshot(last)
   const platformSnapshot = mergeContext(centralCatalogSnapshot, legacyPlatformSnapshot)
   const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
-  const context = mergeContext(mergeContext(baseContext, conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
+  const routingContext = localRoutingHints.length
+    ? ['إشارات وسياقات رسمية للذكاء فقط — ليست ردوداً جاهزة ولا يجوز نسخها دون تحليل سؤال المستخدم:', ...localRoutingHints].join('\n\n')
+    : ''
+  const context = mergeContext(mergeContext(mergeContext(routingContext, baseContext), conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
@@ -1012,6 +1038,7 @@ export async function platformAgentComplete(opts: {
   assertWithinDeadline(opts.deadlineMs, 'Platform agent deadline exceeded')
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
+  const platformRoutingHints: string[] = []
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = resolveAiKnowledgeScope({ role: user.role, mode: opts.mode })
     const directBooksResult = await buildScopedDirectProgramBooksResult(last, scope).catch(() => null)
@@ -1027,14 +1054,15 @@ export async function platformAgentComplete(opts: {
     if (directBooksReply) return { reply: directBooksReply, agent: 'ADMIN_QUALITY', engine: 'LOCAL_RULE' }
   }
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
-  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'GEMINI' }
-  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) return { reply: await buildHumanSupportReply(), agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+  if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) platformRoutingHints.push('المصنّف فهم أن المستخدم يريد موظفاً أو دعماً بشرياً؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
+  if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) platformRoutingHints.push('قواعد التصنيف وجدت طلب تواصل/موظف؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
-  const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
+  const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
+  const context = mergeContext(mergeContext(mergeContext(dataContext, routingContext), conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
@@ -1128,6 +1156,7 @@ export async function platformAgentStream(opts: {
 
   const last = [...opts.messages].reverse().find((m) => m.role === 'user')?.content || ''
   const user = await db.user.findUnique({ where: { id: opts.userId }, select: { role: true } }).catch(() => null)
+  const platformRoutingHints: string[] = []
 
   if (user?.role === 'ADMIN' || user?.role === 'SUPERVISOR') {
     const scope = resolveAiKnowledgeScope({ role: user.role, mode: opts.mode })
@@ -1149,14 +1178,10 @@ export async function platformAgentStream(opts: {
 
   const intentAnalysis = await analyzeConversationIntent(opts.messages, { channel: opts.mode || 'WEB', role: user?.role, deadlineMs: opts.deadlineMs })
   if (intentAnalysis.intent === 'HUMAN_HANDOFF' && intentAnalysis.confidence >= 0.58) {
-    const reply = await buildHumanSupportReply()
-    await emit(reply)
-    return { reply, agent: 'SUPPORT', engine: 'GEMINI' }
+    platformRoutingHints.push('المصنّف فهم أن المستخدم يريد موظفاً أو دعماً بشرياً؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   }
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) {
-    const reply = await buildHumanSupportReply()
-    await emit(reply)
-    return { reply, agent: 'SUPPORT', engine: 'LOCAL_RULE' }
+    platformRoutingHints.push('قواعد التصنيف وجدت طلب تواصل/موظف؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   }
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) {
     const reply = await buildDynamicPaymentMethodsReply()
@@ -1171,7 +1196,8 @@ export async function platformAgentStream(opts: {
 
   const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
-  const context = mergeContext(mergeContext(dataContext, conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
+  const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
+  const context = mergeContext(mergeContext(mergeContext(dataContext, routingContext), conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent stream deadline exceeded')

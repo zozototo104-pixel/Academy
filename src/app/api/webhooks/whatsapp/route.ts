@@ -57,14 +57,6 @@ async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   return !!found
 }
 
-async function markWhatsAppHumanSupportPrompt(key: string, from: string, messageId: string) {
-  await auditWhatsAppWebhook('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', {
-    from: maskPhone(from),
-    messageId,
-    nextExpected: 'name_and_subject',
-  }, key)
-}
-
 function maskPhone(value?: string | null) {
   return maskWhatsAppPhone(value)
 }
@@ -290,7 +282,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       return {
         message: {
           ...message,
-          text: '🎤 رسالة صوتية طويلة أو كبيرة الحجم.',
+          text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية طويلة أو كبيرة الحجم، ولم يتم تفريغها إلى نص. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.',
           mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
           mediaFileSize: fileSize,
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
@@ -393,6 +385,29 @@ function normalizeIntentText(text: string): string {
     .trim()
 }
 
+function normalizedIntentTokens(value: string) {
+  return normalizeIntentText(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+}
+
+function includesIntentPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedIntentTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
+}
+
+function hasAnyIntentPhrase(text: string, phrases: string[]) {
+  const tokens = normalizedIntentTokens(text)
+  return phrases.some((phrase) => includesIntentPhraseByWholeTokens(tokens, phrase))
+}
+
 function hasPhoneLikeValue(text: string): boolean {
   return /(?:\+?\d[\d\s().-]{6,}\d)/.test(text)
 }
@@ -400,13 +415,13 @@ function hasPhoneLikeValue(text: string): boolean {
 function looksLikeContactIntentCandidate(text: string): boolean {
   const n = normalizeIntentText(text)
   if (hasPhoneLikeValue(n)) return true
-  return /(?:تواصل|التواصل|واتساب|واتس|رقم|ارقام|نمره|نمرة|هاتف|جوال|موبايل|اتصل|اتصال|كلم|كلمني|احكي|بريد|ايميل|email|phone|whatsapp|call|contact)/i.test(n)
+  return hasAnyIntentPhrase(n, ['تواصل', 'التواصل', 'واتساب', 'واتس', 'رقم', 'ارقام', 'نمره', 'نمرة', 'هاتف', 'جوال', 'موبايل', 'اتصل', 'اتصال', 'كلم', 'كلمني', 'احكي', 'بريد', 'ايميل', 'email', 'phone', 'whatsapp', 'call', 'contact'])
 }
 
 function fallbackContactIntent(text: string): WhatsAppContactIntent {
   const n = normalizeIntentText(text)
   const hasPhone = hasPhoneLikeValue(n)
-  const givesOwnContact = /(?:رقمي|نمري|نمرتي|هذا رقمي|هذا الرقم|خد رقمي|خذ رقمي|تواصلوا معي|تواصل معي|اتصلوا علي|اتصل علي|كلمني|كلموني|ابعثولي|راسلوني|على هذا الرقم|ع هذا الرقم)/.test(n)
+  const givesOwnContact = hasAnyIntentPhrase(n, ['رقمي', 'نمري', 'نمرتي', 'هذا رقمي', 'هذا الرقم', 'خد رقمي', 'خذ رقمي', 'تواصلوا معي', 'تواصل معي', 'اتصلوا علي', 'اتصل علي', 'كلمني', 'كلموني', 'ابعثولي', 'راسلوني', 'على هذا الرقم', 'ع هذا الرقم'])
   if (hasPhone && givesOwnContact) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.78, reason: 'fallback-own-contact' }
   if (hasPhone && /^(?:\+?\d[\d\s().-]{6,}\d)\s*$/.test(n)) return { intent: 'PROVIDED_OWN_CONTACT', confidence: 0.72, reason: 'fallback-phone-only' }
 
@@ -442,9 +457,16 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
 
 async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
   const handoffKey = conversationKey(message.from)
-  const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
+  const hasRecentAudit = deps.hasRecentAudit || hasRecentWhatsAppAudit
+  const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
+  const createHandoff = deps.createHandoff || createHumanHandoffRequest
+  const markRequested = deps.markRequested || markWhatsAppConversationRequested
+  const createAgentReply = deps.createAgentReply || createOfficialWhatsAppAgentReply
+  const classifyRoutingIntent = deps.classifyRoutingIntent || classifyWhatsAppRoutingIntent
+  const audit = deps.audit || auditWhatsAppWebhook
+  const promptActive = await hasRecentAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
   const maskedFrom = maskPhone(message.from)
-  const handoffOpen = await hasOpenHumanHandoffRequest({
+  const handoffOpen = await hasOpenHandoff({
     sourceRef: handoffKey,
     phone: maskedFrom || null,
   })
@@ -472,13 +494,14 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
 
   if (routingIntent.intent === 'PROVIDED_OWN_CONTACT' || routingIntent.intent === 'HANDOFF_DETAILS' || routingIntent.intent === 'HUMAN_HANDOFF') {
     if (!handoffOpen) {
-      const handoff = await createHumanHandoffRequest({
+      const handoff = await createHandoff({
         user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
         message: text || 'WHATSAPP_HUMAN_HANDOFF_INTENT',
         source: 'WHATSAPP',
         sourceRef: handoffKey,
       })
-      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      await markRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      handoffCreated = true
     }
     if (routingIntent.intent === 'HUMAN_HANDOFF') await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
   }
@@ -534,7 +557,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     console.warn('official WhatsApp typing indicator failed:', String(typingError?.message || typingError || 'failed').slice(0, 220))
   })
 
-  // A substantive question gets one answer; simple greetings are handled above.
+  // Every bot reply, including greetings and media clarification, is generated by the AI model.
 
   const stopTypingRefresh = keepTypingIndicatorAlive(
     inboundMessage,
