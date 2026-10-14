@@ -144,7 +144,13 @@ async function testQrEncodesSameUrl() {
   const dataUrl = await representativeQrDataUrl(token, origin, 512)
   assert(dataUrl.startsWith('data:image/png;base64,'), 'representative QR must be a PNG data URL')
   const qr = QRCode.create(expectedUrl, { margin: 4, errorCorrectionLevel: 'M' } as any) as any
-  const encoded = (qr.segments || []).map((segment: any) => String(segment.data || '')).join('')
+  const encoded = (qr.segments || []).map((segment: any) => {
+    const data = segment?.data
+    if (typeof data === 'string') return data
+    if (data instanceof Uint8Array || Buffer.isBuffer(data)) return Buffer.from(data).toString('utf8')
+    if (Array.isArray(data)) return Buffer.from(data).toString('utf8')
+    return String(data || '')
+  }).join('')
   assert(encoded === expectedUrl, 'QR library model must encode the exact representative verification URL')
 }
 
