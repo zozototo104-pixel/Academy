@@ -70,8 +70,22 @@ function normalizeArabic(text: string): string {
     .trim()
 }
 
+function normalizedTokens(value: string) {
+  return normalizeArabic(value).split(' ').filter(Boolean)
+}
+
+function includesPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
+}
+
 function includesAny(n: string, words: string[]) {
-  return words.some((w) => n.includes(normalizeArabic(w)))
+  const textTokens = normalizedTokens(n)
+  return words.some((w) => includesPhraseByWholeTokens(textTokens, w))
 }
 
 function wantsHumanSupport(message: string) {
