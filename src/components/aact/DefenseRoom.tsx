@@ -69,6 +69,7 @@ interface DefenseThesis {
   committee?: string | null
   agentMember?: string | null
   defenseStatus?: string | null
+  needsReview?: boolean | null
   aiScore?: number | null
   aiRecommendation?: string | null
   defenseMinutes?: string | null
@@ -140,6 +141,7 @@ export function DefenseRoom({
   const [speaking, setSpeaking] = useState(false)
   const [sttSupported, setSttSupported] = useState(true)
   const [lastScore, setLastScore] = useState<number | null>(null)
+  const defenseUnderReview = thesis.defenseStatus === 'NEEDS_REVIEW' || thesis.needsReview === true
   const [finished, setFinished] = useState(thesis.defenseStatus === 'COMPLETED')
   const [aiScore, setAiScore] = useState<number | null>(thesis.aiScore ?? null)
   const [aiRec, setAiRec] = useState<string | null>(thesis.aiRecommendation ?? null)
@@ -945,6 +947,10 @@ ${recent || 'بدأت الجلسة للتو.'}
 
   const sendAnswer = async (text?: string) => {
     const answer = (text ?? input).trim()
+    if (defenseUnderReview) {
+      toast({ title: 'المناقشة قيد مراجعة اللجنة', description: 'تم إغلاق إرسال الإجابات حتى تعتمد اللجنة النتيجة.' })
+      return
+    }
     if (!answer || busy) return
     setBusy(true)
     setInput('')
@@ -975,6 +981,10 @@ ${recent || 'بدأت الجلسة للتو.'}
   }
 
   const endSession = async () => {
+    if (defenseUnderReview) {
+      toast({ title: 'المناقشة قيد مراجعة اللجنة', description: 'تم إغلاق إنهاء المناقشة حتى تعتمد اللجنة النتيجة.' })
+      return
+    }
     setBusy(true)
     try {
       const d = await api<{ messages: DefenseMsg[]; aiScore?: number; aiRecommendation?: string; minutes?: string }>('/api/defense', {
@@ -1422,8 +1432,13 @@ ${recent || 'بدأت الجلسة للتو.'}
 
       {/* أدوات التحكم */}
       <div className="space-y-2.5 border-t border-white/10 bg-[#0f2b46] p-3">
+        {defenseUnderReview && (
+          <div className="rounded-xl border border-amber-300/60 bg-amber-100/15 p-3 text-center text-xs font-black text-amber-100">
+            المناقشة قيد مراجعة اللجنة
+          </div>
+        )}
         {isStudent && messages.length === 0 ? (
-          <Button onClick={start} disabled={busy} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+          <Button onClick={start} disabled={busy || defenseUnderReview} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
             {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Video className="ml-2 h-4 w-4" />}
             بدء الجلسة — يفتح خبير الذكاء الاصطناعي المناقشة (مع بدء التسجيل)
           </Button>
@@ -1434,15 +1449,16 @@ ${recent || 'بدأت الجلسة للتو.'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAnswer() } }}
-                placeholder={`اكتب إجابتك على السؤال (${answeredCount + 1} من 5) أو استخدم الميكروفون…`}
+                placeholder={defenseUnderReview ? 'المناقشة قيد مراجعة اللجنة' : `اكتب إجابتك على السؤال (${answeredCount + 1} من 5) أو استخدم الميكروفون…`}
+                disabled={defenseUnderReview}
                 className="min-h-16 flex-1 border-white/20 bg-white/95 text-xs text-[#0f2b46] placeholder:text-slate-400"
               />
-              <Button size="sm" onClick={() => sendAnswer()} disabled={busy || !input.trim()} className="h-9 flex-1 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+              <Button size="sm" onClick={() => sendAnswer()} disabled={busy || defenseUnderReview || !input.trim()} className="h-9 flex-1 bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || !sttSupported || transcriptOn || liveAdvisorOn}
+              <Button size="sm" variant={listening ? 'default' : 'outline'} onClick={toggleMic} disabled={busy || defenseUnderReview || !sttSupported || transcriptOn || liveAdvisorOn}
                 className={`flex-1 border-white/25 font-bold ${listening ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-transparent text-white hover:bg-white/10'}`}>
                 {listening ? <Mic className="ml-1 h-3.5 w-3.5 animate-pulse" /> : <MicOff className="ml-1 h-3.5 w-3.5" />}
                 {listening ? 'أستمع إليك… تحدث الآن' : 'الإجابة صوتياً'}
@@ -1479,7 +1495,7 @@ ${recent || 'بدأت الجلسة للتو.'}
                 className="flex-1 bg-white/10 font-bold text-white hover:bg-white/20">
                 <Volume2 className="ml-1 h-3.5 w-3.5" /> إعادة سماع السؤال
               </Button>
-              <Button size="sm" variant="outline" onClick={endSession} disabled={busy} className="border-red-400/40 bg-transparent font-bold text-red-300 hover:bg-red-500/10">
+              <Button size="sm" variant="outline" onClick={endSession} disabled={busy || defenseUnderReview} className="border-red-400/40 bg-transparent font-bold text-red-300 hover:bg-red-500/10">
                 <PhoneOff className="ml-1 h-3.5 w-3.5" /> إنهاء الجلسة
               </Button>
             </div>

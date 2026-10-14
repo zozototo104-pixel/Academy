@@ -29,6 +29,9 @@ jobs:
     env:
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      MIGRATION_NAME: ${{ inputs.migration_name }}
+      CONFIRM: ${{ inputs.confirm }}
+      RUN_REF: ${{ github.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,15 +40,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ '${{ github.ref }}' != 'refs/heads/main' ]; then
-            echo 'Refusing to mark production baseline from a non-main ref: ${{ github.ref }}'
+          if [ "$RUN_REF" != 'refs/heads/main' ]; then
+            echo "Refusing to mark production baseline from a non-main ref: $RUN_REF"
             exit 1
           fi
-          if [ '${{ inputs.confirm }}' != 'MARK_BASELINE_APPLIED' ]; then
+          if [ "$CONFIRM" != 'MARK_BASELINE_APPLIED' ]; then
             echo 'Confirmation text did not match MARK_BASELINE_APPLIED.'
             exit 1
           fi
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           if ! [[ "$name" =~ ^[0-9A-Za-z_-]+$ ]]; then
             echo "Invalid migration_name: $name"
             exit 1
@@ -74,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bunx prisma migrate resolve --schema prisma/schema.prisma --applied '${{ inputs.migration_name }}'
+          bunx prisma migrate resolve --schema prisma/schema.prisma --applied "$MIGRATION_NAME"
 
       - name: Show migration status after resolve
         shell: bash
