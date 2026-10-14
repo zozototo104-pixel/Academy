@@ -272,7 +272,7 @@ export function serializeRepresentativePublicCard(row: any, origin?: string | nu
     verifiedAt: new Date().toISOString(),
     academy: {
       name: 'الأكاديمية الأمريكية للاستشارات والتدريب',
-      url: String(process.env.NEXT_PUBLIC_APP_URL || origin || '').replace(/\/+$/, ''),
+      url: String(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, ''),
     },
   }
 }
