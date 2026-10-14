@@ -40,8 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ '${{ github.ref }}' != 'refs/heads/main' ]; then
-            echo 'Refusing to mark production baseline from a non-main ref: ${{ github.ref }}'
+          if [ "$RUN_REF" != 'refs/heads/main' ]; then
+            echo "Refusing to mark production baseline from a non-main ref: $RUN_REF"
             exit 1
           fi
           if [ '${{ inputs.confirm }}' != 'MARK_BASELINE_APPLIED' ]; then
