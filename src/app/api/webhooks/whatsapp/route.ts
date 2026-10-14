@@ -611,43 +611,20 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     return 'SKIPPED'
   }
 
-  if (prepared.immediateReply) {
-    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    await sendImmediateVoiceReply(inboundMessage, prepared.immediateReply)
-    if (prepared.requestHuman) {
-      const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
-        message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
-        source: 'WHATSAPP',
-        sourceRef: conversationKey(inboundMessage.from),
-      })
-      await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
-      await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
-        from: maskPhone(inboundMessage.from),
-        messageId: inboundMessage.id,
-        conversationId: storedInbound?.conversation?.id || null,
-        reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
-      }, storedInbound?.conversation?.id || inboundMessage.id)
-    }
-    return 'SENT'
-  }
-
-  if (isSimpleWhatsAppGreeting(inboundMessage.text)) {
-    await sendOfficialWhatsAppReadReceipt(inboundMessage).catch(() => null)
-    const greetingReply = simpleWhatsAppGreetingReply(inboundMessage.text)
-    const sendResult = await sendOfficialWhatsAppText(inboundMessage.from, greetingReply, {
-      phoneNumberId: inboundMessage.phoneNumberId,
-      replyToMessageId: inboundMessage.id,
+  if (prepared.requestHuman) {
+    const handoff = await createHumanHandoffRequest({
+      user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
+      message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
+      source: 'WHATSAPP',
+      sourceRef: conversationKey(inboundMessage.from),
     })
-    await recordWhatsAppOutboundMessage({
-      waId: inboundMessage.from,
-      phoneNumberId: inboundMessage.phoneNumberId,
-      text: greetingReply,
-      sender: 'BOT',
-      whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-    }).catch(() => {})
-    await markSimpleGreetingReplySent(conversationKey(inboundMessage.from), inboundMessage.from, inboundMessage.id)
-    return 'SENT'
+    await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
+      from: maskPhone(inboundMessage.from),
+      messageId: inboundMessage.id,
+      conversationId: storedInbound?.conversation?.id || null,
+      reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
+    }, storedInbound?.conversation?.id || inboundMessage.id)
   }
 
   await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
