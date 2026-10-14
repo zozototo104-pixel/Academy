@@ -102,6 +102,9 @@ function testPrivateStoragePolicy() {
 
   const adminAdmissions = file('src/app/api/admin/admissions/route.ts')
   assert(adminAdmissions.includes('getStorageDownloadPathForKey(file.storageKey)'), 'admin admission documents must expose protected file URLs')
+  const studentAdmissions = file('src/app/api/admissions/route.ts')
+  assert(studentAdmissions.includes('files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } }'), 'student admissions GET must select document storage keys')
+  assert(studentAdmissions.includes('fileUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null'), 'student admissions GET must expose protected document file URLs')
   const assignments = file('src/app/api/assignments/route.ts')
   assert(assignments.includes('getStorageDownloadPathForKey(submission.fileStorageKey)'), 'student assignment files must expose protected file URLs')
   const dashboard = file('src/components/aact/DashboardView.tsx')
