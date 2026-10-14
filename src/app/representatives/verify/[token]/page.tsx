@@ -69,6 +69,9 @@ function DigitalRepresentativeCard({ rep }: { rep: any }) {
             <Info label="النطاق" value={rep.territory || rep.city} />
             <Info label="مجال التمثيل" value={rep.specialization} />
             <Info label="نوع التمثيل" value={rep.representativeRole} />
+            <Info label="رقم البطاقة" value={rep.cardNumber} />
+            <Info label="بداية الصلاحية" value={fmtDate(rep.validFrom)} />
+            <Info label="نهاية الصلاحية" value={fmtDate(rep.validUntil)} />
           </div>
         </div>
       </div>
