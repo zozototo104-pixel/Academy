@@ -1051,6 +1051,11 @@ export function DashboardView() {
                                 <p className="font-black text-[#0f2b46]">تسليمك الحالي</p>
                                 {submission.answerText && <p className="mt-1 rounded-lg bg-white p-2 ring-1 ring-slate-100">{submission.answerText}</p>}
                                 {submission.fileName && <p className="mt-1 text-[#a8841a]">ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}</p>}
+                                {(submission.fileUrl || submission.downloadUrl) && (
+                                  <a className="mt-2 inline-flex rounded-lg border border-[#d6bb6e]/60 bg-white px-3 py-1.5 text-[11px] font-black text-[#0f2b46] hover:bg-[#fff7df]" href={submission.fileUrl || submission.downloadUrl || '#'} target="_blank" rel="noopener noreferrer">
+                                    تحميل ملفي
+                                  </a>
+                                )}
                                 {submission.feedback && <p className={`mt-1 ${needsRevision ? 'text-amber-700' : 'text-emerald-700'}`}>ملاحظة التصحيح: {submission.feedback}</p>}
                               </div>
                             )}
