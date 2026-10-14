@@ -5,6 +5,7 @@ import { markInvoicePaid } from '@/lib/settle-payment'
 import { isProductionRuntime, sandboxPaymentsAllowed, sandboxPaymentsBlockedMessage } from '@/lib/payments'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 // GET /api/payments — فواتير المستخدم (حسب حسابه أو بريده في طلبات الالتحاق)
 export async function GET() {
