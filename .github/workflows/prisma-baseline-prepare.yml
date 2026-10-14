@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name='${{ inputs.migration_name }}'
+          name="$MIGRATION_NAME"
           mkdir -p "prisma/migrations/$name"
           bunx prisma migrate diff \
             --from-empty \
