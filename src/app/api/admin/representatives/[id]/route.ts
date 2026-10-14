@@ -104,7 +104,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       slug,
       onboardingStatus: data.status === 'ACTIVE' ? 'APPROVED' : current.onboardingStatus,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
-      verifyEmailLast4Hash: null,
       updatedById: user.id,
     },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
