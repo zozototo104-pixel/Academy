@@ -456,12 +456,12 @@ export default function AdminRepresentativesTab() {
               </div>
               <div className="rounded-2xl border border-[#c9a227]/20 bg-amber-50 p-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  {selected?.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-24 w-24 rounded-xl bg-white p-2" />}
+                  {selected?.qrDataUrl && <img src={selected.qrDataUrl} alt="QR" className="h-64 w-64 min-h-[256px] min-w-[256px] rounded-xl bg-white p-4 [image-rendering:pixelated]" />}
                   <div>
                     <p className="text-sm font-black text-[#0f2b46]">رابط التحقق الآمن</p>
                     {selected?.verifyUrl ? <a href={selected.verifyUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-xs font-bold text-[#bf1646]">{selected.verifyUrl}</a> : <p className="text-xs font-bold text-slate-500">يظهر بعد الحفظ.</p>}
-                    {selected?.qrToken && <a href={`/representatives/qr/${selected.qrToken}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG للمسح والطباعة</a>}
-                    <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق يحتاج آخر 4 أرقام من الجوال أو الإيميل المسجل.</p>
+                    {selected?.qrToken && <a href={`/representatives/qr/${selected.qrToken}?download=1`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block rounded-full border border-[#0f2b46]/15 bg-white px-3 py-1 text-[11px] font-black text-[#0f2b46]">فتح QR كصورة PNG كبيرة للمسح والطباعة</a>}
+                    <p className="mt-2 text-xs font-bold leading-6 text-slate-500">التحقق الموسّع يحتاج آخر 4 أرقام من الجوال المسجل فقط.</p>
                   </div>
                 </div>
               </div>
