@@ -74,8 +74,14 @@ type Representative = FormState & {
   files?: Array<{ id: string; kind: string; title: string; description?: string | null; externalUrl?: string | null; fileUrl?: string | null; reviewStatus?: string | null; reviewNote?: string | null }>
 }
 
+function toDateInput(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
 function formFromRepresentative(rep: Representative): FormState {
-  return { ...EMPTY_FORM, ...rep, featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
+  return { ...EMPTY_FORM, ...rep, validFrom: toDateInput(rep.validFrom as any), validUntil: toDateInput(rep.validUntil as any), featured: !!rep.featured, sortOrder: Number(rep.sortOrder || 0) }
 }
 
 function shouldAutoRewriteAfterUpload(assetType: string, extras?: Record<string, string>) {
