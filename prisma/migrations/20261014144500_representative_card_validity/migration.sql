@@ -1,0 +1,4 @@
+ALTER TABLE "AcademyRepresentative"
+  ADD COLUMN IF NOT EXISTS "cardNumber" TEXT,
+  ADD COLUMN IF NOT EXISTS "validFrom" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "validUntil" TIMESTAMP(3);
