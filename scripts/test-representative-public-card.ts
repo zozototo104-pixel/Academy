@@ -127,7 +127,7 @@ async function testRateLimitSixthAttempt() {
     const res = await handleRepresentativeVerifyPost(req(), 'token-ok', db)
     assert(res.status === 403, `attempt ${i + 1} must be invalid before limit`)
   }
-  const sixth = await __representativeVerifyPostForTests(req(), 'token-ok', db)
+  const sixth = await handleRepresentativeVerifyPost(req(), 'token-ok', db)
   assert(sixth.status === 429, 'sixth POST attempt within an hour must return 429')
 }
 
