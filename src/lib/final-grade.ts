@@ -99,8 +99,8 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
   const bestScores: number[] = []
   for (const exam of exams) {
     const attempts = await client.programExamAttempt.findMany({
-      where: { userId, examId: exam.id, status: 'GRADED', passed: true, appealStatus: { not: 'PENDING' } },
-      select: { score: true, finalScore: true, answers: { select: { points: true, maxPoints: true } } },
+      where: { userId, examId: exam.id, status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
+      select: { score: true, finalScore: true, appealStatus: true, answers: { select: { points: true, maxPoints: true } } },
     })
     const bestAttemptScore = best(attempts.map((attempt) => {
       // Use the raw answer-derived percentage for certification decisions; stored scores may be rounded for display.
