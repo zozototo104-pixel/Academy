@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
