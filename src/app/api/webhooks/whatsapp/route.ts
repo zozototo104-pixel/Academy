@@ -599,8 +599,15 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   )
 
   let reply = ''
+  const failureReason = String(prepared.failureReason || '')
+  const contextFlags: WhatsAppModelContextFlags = {
+    handoffCreated,
+    voiceNotTranscribed: Boolean(prepared.requestHuman && inboundMessage.originKind === 'VOICE' && failureReason !== 'voice_file_too_large'),
+    voiceTooLong: failureReason === 'voice_file_too_large' || failureReason === 'voice_hourly_limit',
+    nonTextMessage: inboundMessage.rawType && inboundMessage.rawType !== 'text' ? inboundMessage.rawType : null,
+  }
   try {
-    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
+    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound, { contextFlags }), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
   } finally {
     stopTypingRefresh()
   }
