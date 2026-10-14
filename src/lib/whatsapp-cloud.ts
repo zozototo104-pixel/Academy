@@ -181,7 +181,9 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
     ].filter(Boolean).join(' ')),
   })
 
-  if (!String(result.reply || '').trim()) throw new Error('WHATSAPP_MODEL_EMPTY_REPLY')
+  const reply = String(result.reply || '').trim()
+  if (!reply) throw new Error('WHATSAPP_MODEL_EMPTY_REPLY')
+  if (reply === PLATFORM_AI_UNAVAILABLE_MESSAGE) throw new Error('WHATSAPP_MODEL_UNAVAILABLE_REPLY')
   return result.reply
 }
 
