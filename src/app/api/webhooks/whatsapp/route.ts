@@ -58,14 +58,6 @@ async function hasRecentWhatsAppAudit(action: string, key: string, days = 7) {
   return !!found
 }
 
-async function markWhatsAppHumanSupportPrompt(key: string, from: string, messageId: string) {
-  await auditWhatsAppWebhook('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', {
-    from: maskPhone(from),
-    messageId,
-    nextExpected: 'name_and_subject',
-  }, key)
-}
-
 function maskPhone(value?: string | null) {
   return maskWhatsAppPhone(value)
 }
