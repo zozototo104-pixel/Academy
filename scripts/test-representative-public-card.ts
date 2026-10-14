@@ -9,9 +9,9 @@ import {
   verifyRepresentativeLast4,
 } from '../src/lib/academy-representatives'
 import {
-  __representativeVerifyGetForTests,
-  __representativeVerifyPostForTests,
-} from '../src/app/api/representatives/verify/[token]/route'
+  handleRepresentativeVerifyGet,
+  handleRepresentativeVerifyPost,
+} from '../src/lib/representative-verification'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
