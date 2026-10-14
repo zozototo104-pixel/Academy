@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { requireAdmin, requireUser } from '@/lib/auth'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
 
