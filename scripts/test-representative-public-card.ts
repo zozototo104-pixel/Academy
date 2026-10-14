@@ -120,6 +120,12 @@ async function testEmailLast4Rejected() {
   assert(res.status === 403, 'POST with .com must be rejected')
 }
 
+async function testNoPhoneCannotExpand() {
+  const db = makeDb(mockRepresentative({ verifyPhoneLast4Hash: null, phone: null }))
+  const res = await handleRepresentativeVerifyPost(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '1234' }), headers: { 'content-type': 'application/json' } }), 'token-ok', db)
+  assert(res.status === 403, 'representative without registered phone hash must not unlock expanded profile')
+}
+
 async function testRateLimitSixthAttempt() {
   const db = makeDb(mockRepresentative())
   const req = () => new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '0000' }), headers: { 'content-type': 'application/json', 'x-forwarded-for': '9.9.9.9' } })
