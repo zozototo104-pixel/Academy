@@ -9,6 +9,7 @@ import {
   remainingDeadlineMs,
 } from '../src/lib/prod-safety'
 import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
+import { getStorageDownloadPathForKey } from '../src/lib/storage'
 import { __handleFileGetForTests } from '../src/app/api/files/[...key]/route'
 
 function assert(condition: unknown, message: string) {
