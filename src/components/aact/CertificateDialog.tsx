@@ -108,7 +108,7 @@ export function CertificateDialog({
                   <img
                     src={qr}
                     alt="رمز التحقق QR"
-                    className="absolute rounded bg-white p-1"
+                    className="absolute rounded bg-white p-2 [image-rendering:pixelated]"
                     style={{
                       left: `${Number(layout.qr?.x ?? 50)}%`,
                       top: `${Number(layout.qr?.y ?? 86)}%`,
