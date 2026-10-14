@@ -209,7 +209,8 @@ export async function POST(req: NextRequest) {
       await ensureNoNullOpenAnswers(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
-    return NextResponse.json({ ok: true, ...result })
+    const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })
