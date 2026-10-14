@@ -102,8 +102,8 @@ jobs:
       - name: Upload generated baseline artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prisma-baseline-migration-${{ inputs.migration_name }}
-          path: prisma/migrations/${{ inputs.migration_name }}/migration.sql
+          name: prisma-baseline-migration-${{ env.MIGRATION_NAME }}
+          path: prisma/migrations/${{ env.MIGRATION_NAME }}/migration.sql
           if-no-files-found: error
           retention-days: 7
 
