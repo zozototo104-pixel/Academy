@@ -381,13 +381,6 @@ type WhatsAppContactIntent = {
   reason?: string
 }
 
-function contactValues(primary?: unknown, list?: unknown): string[] {
-  const values = [primary, ...(Array.isArray(list) ? list : [])]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-  return Array.from(new Set(values))
-}
-
 function normalizeIntentText(text: string): string {
   return String(text || '')
     .replace(/[\u064b-\u065f\u0670]/g, '')
