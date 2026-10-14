@@ -62,12 +62,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
   const credential = buildCertificateCredential(cert)
   const credentialUrl = certificateCredentialUrl(cert)
   const verificationUrl = certificateVerificationUrl(cert)
-  const qr = await QRCode.toDataURL(verificationUrl, {
-    width: 512,
-    margin: 4,
-    color: { dark: '#0f2b46', light: '#FFFFFF' },
-    errorCorrectionLevel: 'M',
-  }).catch(() => '')
+  const qr = await QRCode.toDataURL(credentialUrl, { width: 180, margin: 1 }).catch(() => '')
   const proofOk = verifyCertificateCredential(credential)
 
   return (
@@ -105,8 +100,8 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
           </div>
 
           <aside className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5 text-center">
-            {qr ? <img src={qr} alt="QR صفحة التحقق" className="mx-auto h-56 w-56 rounded-xl bg-white p-4 ring-1 ring-[#c9a227]/30 [image-rendering:pixelated]" /> : null}
-            <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى صفحة التحقق الرسمية</p>
+            {qr ? <img src={qr} alt="QR JSON-LD" className="mx-auto h-44 w-44 rounded-xl bg-white p-2 ring-1 ring-[#c9a227]/30" /> : null}
+            <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى ملف JSON القابل للتحقق</p>
             <p className="mt-2 font-mono text-[11px] font-bold text-slate-500" dir="ltr">{cert.qrToken}</p>
             <a href={`/api/pdf/certificates/${encodeURIComponent(cert.qrToken)}`} className="mt-4 inline-flex w-full justify-center rounded-xl border border-[#c9a227] bg-white px-4 py-2 text-xs font-black text-[#a8841a]">PDF الشهادة</a>
           </aside>
