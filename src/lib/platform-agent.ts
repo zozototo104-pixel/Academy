@@ -935,20 +935,28 @@ export async function platformPublicAgentComplete(opts: {
       diagnostics: { ...directBooksResult.diagnostics, channel: opts.channel || 'WEB_WIDGET' },
     })
   }
-  if (directBooksResult?.reply) {
+  const programBooksQuestion = Boolean(directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books')
+  if (programBooksQuestion) {
+    localRoutingHints.push([
+      'أولوية صارمة: آخر رسالة من المستخدم تسأل عن الكتب/المراجع/المواد المقررة لبرنامج معيّن، وليست سؤالاً عن عنوان الأكاديمية أو بيانات التواصل.',
+      'يجب أن يصوغ الذكاء جواباً عن الكتب المقررة فقط من كتالوج البرامج وسياق الكتب أدناه. لا تذكر عنوان الأكاديمية أو الولاية أو رقم التواصل إلا إذا سأل المستخدم عن ذلك صراحة.',
+      directBooksResult?.reply
+        ? `سياق رسمي من قاعدة بيانات المنصة لأسئلة الكتب/المراجع. لا ترجع هذا النص كقالب جاهز؛ حلّل سؤال المستخدم وصغ جواباً طبيعياً عبر الذكاء مع الالتزام بما في هذا السياق فقط:\n${directBooksResult.reply}`
+        : 'لم يتم العثور على قائمة كتب مباشرة؛ استخدم فهرس البرامج والكتب الرسمي في السياق، وإذا لم تجد كتباً للبرنامج المطابق فقل ذلك بوضوح.',
+    ].join('\n'))
+  } else if (directBooksResult?.reply) {
     localRoutingHints.push(`سياق رسمي من قاعدة بيانات المنصة لأسئلة الكتب/المراجع. لا ترجع هذا النص كقالب جاهز؛ حلّل سؤال المستخدم وصغ جواباً طبيعياً عبر الذكاء مع الالتزام بما في هذا السياق فقط:\n${directBooksResult.reply}`)
   }
-  const programBooksQuestion = Boolean(directBooksResult?.diagnostics && directBooksResult.diagnostics.reason !== 'query_not_program_books')
   const agent = programBooksQuestion ? 'ADMISSIONS' : (intentAnalysis.suggestedAgent || routeAgent(last, null))
   const persona = personaForAgent(agent)
   const centralCatalogSnapshot = await buildScopedProgramCatalogSnapshot({ scope: publicScope, query: last }).catch(() => '')
-  const legacyPlatformSnapshot = await buildPublicPlatformSnapshot(last)
+  const legacyPlatformSnapshot = programBooksQuestion ? '' : await buildPublicPlatformSnapshot(last)
   const platformSnapshot = mergeContext(centralCatalogSnapshot, legacyPlatformSnapshot)
   const baseContext = mergeContext(buildPublicVisitorContext(opts.channel), platformSnapshot)
   const routingContext = localRoutingHints.length
     ? ['إشارات وسياقات رسمية للذكاء فقط — ليست ردوداً جاهزة ولا يجوز نسخها دون تحليل سؤال المستخدم:', ...localRoutingHints].join('\n\n')
     : ''
-  const context = mergeContext(mergeContext(mergeContext(baseContext, routingContext), conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
+  const context = mergeContext(mergeContext(mergeContext(routingContext, baseContext), conversationStyleContext(intentAnalysis, opts.channel)), opts.uiContext)
   const system = buildPlatformAgentSystem(agent, context)
   const isWhatsApp = opts.channel === 'WHATSAPP'
   const timeoutMs = isWhatsApp ? platformAiTimeoutMs(42_000) : remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(22_000))
