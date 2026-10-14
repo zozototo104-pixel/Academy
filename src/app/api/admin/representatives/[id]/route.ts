@@ -50,6 +50,9 @@ async function audit(actorId: string, action: string, entityId: string, details:
 function dataFromBody(body: any) {
   const data: any = {
     status: text(body.status, 30) || 'ACTIVE',
+    cardNumber: text(body.cardNumber, 120),
+    validFrom: optionalDate(body.validFrom),
+    validUntil: optionalDate(body.validUntil),
     fullName: text(body.fullName, 220),
     displayTitle: text(body.displayTitle, 260),
     degreeTitle: text(body.degreeTitle, 220),
