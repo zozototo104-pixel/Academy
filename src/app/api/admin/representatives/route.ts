@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       slug,
       qrToken,
       verifyPhoneLast4Hash: hashRepresentativeVerifier(data.phone),
-      verifyEmailLast4Hash: hashRepresentativeVerifier(data.email),
+      verifyEmailLast4Hash: null,
       createdById: user.id,
       updatedById: user.id,
     },
