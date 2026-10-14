@@ -10,10 +10,11 @@ export async function GET(req: NextRequest) {
     if (qrLimit) return qrLimit
 
     if (!data) return NextResponse.json({ error: 'بيانات QR مطلوبة' }, { status: 400 })
+    const width = req.nextUrl.searchParams.get('download') === '1' || req.nextUrl.searchParams.get('size') === '1024' ? 1024 : 512
     const url = await QRCode.toDataURL(data.slice(0, 512), {
-      width: 220,
-      margin: 1,
-      color: { dark: '#0f2b46', light: '#ffffff' },
+      width,
+      margin: 4,
+      color: { dark: '#0f2b46', light: '#FFFFFF' },
       errorCorrectionLevel: 'M',
     })
     return NextResponse.json({ qr: url })
