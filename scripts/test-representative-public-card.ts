@@ -105,7 +105,7 @@ async function testWrongToken() {
 
 async function testPostCorrectPhoneLast4() {
   const db = makeDb(mockRepresentative())
-  const res = await __representativeVerifyPostForTests(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '1234' }), headers: { 'content-type': 'application/json' } }), 'token-ok', db)
+  const res = await handleRepresentativeVerifyPost(new NextRequest('https://academy.test/api/representatives/verify/token-ok', { method: 'POST', body: JSON.stringify({ last4: '1234' }), headers: { 'content-type': 'application/json' } }), 'token-ok', db)
   const body = await json(res as any)
   assert(res.status === 200, 'POST with correct phone last4 must return 200')
   assert(body.verified === true, 'POST with correct phone last4 must be verified')
