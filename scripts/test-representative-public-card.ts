@@ -166,6 +166,7 @@ async function testQrEncodesSameUrl() {
 async function main() {
   await testGetPublicAllowlist()
   await testSuspendedStatus()
+  await testExpiredStatus()
   await testWrongToken()
   await testPostCorrectPhoneLast4()
   await testEmailLast4Rejected()
