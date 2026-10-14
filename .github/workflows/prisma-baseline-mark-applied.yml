@@ -44,7 +44,7 @@ jobs:
             echo "Refusing to mark production baseline from a non-main ref: $RUN_REF"
             exit 1
           fi
-          if [ '${{ inputs.confirm }}' != 'MARK_BASELINE_APPLIED' ]; then
+          if [ "$CONFIRM" != 'MARK_BASELINE_APPLIED' ]; then
             echo 'Confirmation text did not match MARK_BASELINE_APPLIED.'
             exit 1
           fi
