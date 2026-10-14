@@ -15,25 +15,27 @@ function normalizeArabic(text: string): string {
     .trim()
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\function includesAny(n: string, words: string[]) {
-  return words.some((w) => n.includes(normalizeArabic(w)))
+function normalizedTokens(value: string) {
+  return normalizeArabic(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
 }
-')
-}
-')
+
+function includesPhraseByWholeTokens(textTokens: string[], phrase: string) {
+  const phraseTokens = normalizedTokens(phrase)
+  if (!phraseTokens.length) return false
+  for (let index = 0; index <= textTokens.length - phraseTokens.length; index++) {
+    if (phraseTokens.every((token, offset) => textTokens[index + offset] === token)) return true
+  }
+  return false
 }
 
 function includesAny(n: string, words: string[]) {
-  const haystack = normalizeArabic(n).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim()
-  if (!haystack) return false
-  return words.some((w) => {
-    const phrase = normalizeArabic(w).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim()
-    if (!phrase) return false
-    const pattern = phrase.split(/\s+/).map(escapeRegex).join('\\s+')
-    return new RegExp(`(?:^|\\s)${pattern}(?:\\s|$)`, 'u').test(haystack)
-  })
+  const textTokens = normalizedTokens(n)
+  return words.some((w) => includesPhraseByWholeTokens(textTokens, w))
 }
 
 function hasHandoffAction(n: string) {
