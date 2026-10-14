@@ -565,6 +565,7 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     return 'SKIPPED'
   }
 
+  let handoffCreated = false
   if (prepared.requestHuman) {
     const handoff = await createHumanHandoffRequest({
       user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
