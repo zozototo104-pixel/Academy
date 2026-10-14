@@ -947,6 +947,10 @@ ${recent || 'بدأت الجلسة للتو.'}
 
   const sendAnswer = async (text?: string) => {
     const answer = (text ?? input).trim()
+    if (defenseUnderReview) {
+      toast({ title: 'المناقشة قيد مراجعة اللجنة', description: 'تم إغلاق إرسال الإجابات حتى تعتمد اللجنة النتيجة.' })
+      return
+    }
     if (!answer || busy) return
     setBusy(true)
     setInput('')
