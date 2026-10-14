@@ -622,6 +622,18 @@ export function DashboardView() {
               <p><b>الدفع:</b> {studentSummary.summary.unpaidPayments ? `يوجد ${studentSummary.summary.unpaidPayments} دفعة تحتاج متابعة` : 'لا توجد دفعات معلقة'}</p>
               <p><b>التسجيل الدراسي:</b> {studentSummary.summary.activeEnrollment ? `مسجل في ${studentSummary.summary.activeEnrollment.program?.titleAr || 'برنامج'}` : 'لا يوجد تسجيل دراسي نشط'}</p>
             </div>
+            {studentSummary.summary.latestAdmission?.documents?.length ? (
+              <div className="mt-3 rounded-2xl border border-[#c9a227]/20 bg-[#fffaf0] p-3">
+                <p className="mb-2 text-xs font-black text-[#0f2b46]">وثائق الطلب</p>
+                <div className="flex flex-wrap gap-2">
+                  {studentSummary.summary.latestAdmission.documents.map((doc: any) => (doc.fileUrl || doc.downloadUrl) ? (
+                    <a key={doc.id || doc.fileName} href={doc.fileUrl || doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-[#c9a227]/40 bg-white px-3 py-1.5 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                      <FileText className="ml-1 h-3.5 w-3.5" /> {doc.fileName || doc.docType || 'وثيقة'}
+                    </a>
+                  ) : null)}
+                </div>
+              </div>
+            ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button size="sm" variant="outline" onClick={() => setDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
                 الدفعات
