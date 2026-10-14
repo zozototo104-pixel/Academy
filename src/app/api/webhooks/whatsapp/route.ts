@@ -468,42 +468,48 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
-function isOfficialAddressQuestion(text: string) {
-  const normalized = normalizeIntentText(text).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
-  if (/\b(?:website|url|web)\b|(?:رابط|الكتروني|التسجيل|المنصه)/i.test(normalized)) return false
-  const asksWhere = /(?:وين|اين|فين|ماذا|ما هو|شو|اعطيني|اريد|بدي|ممكن|where|location|address)/i.test(normalized)
-  const mentionsPlace = /(?:موقع|عنوان|مقر|مكان|تقع|توجد|location|address)/i.test(normalized)
-  const directlyAsksAddress = /(?:عنوانكم|موقعكم|مقركم|عنوان الاكاديميه|موقع الاكاديميه|مقر الاكاديميه)/.test(normalized)
-  return (asksWhere && mentionsPlace) || directlyAsksAddress
+type WhatsAppResolveDeps = {
+  classifyRoutingIntent?: typeof classifyWhatsAppRoutingIntent
+  createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+  hasRecentAudit?: typeof hasRecentWhatsAppAudit
+  hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
+  createHandoff?: typeof createHumanHandoffRequest
+  markRequested?: typeof markWhatsAppConversationRequested
 }
 
-async function buildOfficialAddressReply(): Promise<string> {
-  const contact = await getOfficialContact()
-  const address = String(contact?.address || '').trim()
-  return address
-    ? `عنوان الأكاديمية الرسمي بحسب إعدادات الأكاديمية: ${address}`
-    : 'عنوان الأكاديمية غير محدد حالياً في إعدادات التواصل الرسمية. يمكن للإدارة تحديثه من لوحة الإعدادات.'
+function routingIntentContext(intent: WhatsAppRoutingIntent, handoffOpen: boolean, handoffCreated: boolean) {
+  const lines = [
+    `تصنيف داخلي لاستخدام النموذج فقط: ${intent.intent}.`,
+    intent.reason ? `سبب التصنيف الداخلي: ${intent.reason}.` : '',
+  ].filter(Boolean)
+  if (intent.intent === 'REQUEST_OFFICIAL_CONTACT') {
+    lines.push('المستخدم يطلب بيانات التواصل الرسمية. استخدم معلومات الإعدادات الرسمية الموجودة في سياق النموذج، وصغ الجواب بنفسك دون رد جاهز.')
+  }
+  if (intent.intent === 'PROVIDED_OWN_CONTACT') {
+    lines.push(handoffCreated
+      ? 'المستخدم أرسل بيانات تواصل خاصة به، وتم تسجيل طلب تحويل لموظف. صغ تأكيداً مناسباً عبر النموذج دون نص ثابت.'
+      : 'المستخدم أرسل بيانات تواصل خاصة به، وكان لديه طلب تحويل مفتوح بالفعل. صغ توضيحاً مناسباً عبر النموذج دون نص ثابت.')
+  }
+  if (intent.intent === 'HANDOFF_DETAILS' || intent.intent === 'HUMAN_HANDOFF') {
+    lines.push(handoffCreated
+      ? 'تم تسجيل طلب تحويل لموظف. صغ أنت تأكيد التحويل للمستخدم دون استخدام رد جاهز.'
+      : 'يوجد طلب تحويل لموظف مفتوح مسبقاً. صغ أنت الرد المناسب للمستخدم دون استخدام رد جاهز.')
+  }
+  if (handoffOpen) lines.push('معلومة سياقية: يوجد طلب تحويل سابق مفتوح لهذه المحادثة. لا تضف ملاحظة جاهزة؛ صغها ضمن جوابك إذا كانت مفيدة.')
+  return lines.join('\n')
 }
 
-async function buildOfficialContactReply(): Promise<string> {
-  const contact: any = await getOfficialContact().catch(() => ({}))
-  const whatsapps = contactValues(contact.whatsapp, contact.whatsapps)
-  const phones = contactValues(contact.phone, contact.phones)
-  const email = String(contact.email || '').trim()
-  const lines = ['بيانات التواصل الرسمية للأكاديمية:']
-  if (whatsapps.length) lines.push(`واتساب: ${whatsapps.join(' / ')}`)
-  if (phones.length) lines.push(`هاتف: ${phones.join(' / ')}`)
-  if (email) lines.push(`البريد الرسمي: ${email}`)
-  if (contact.responsiblePerson) lines.push(`مسؤول التواصل: ${String(contact.responsiblePerson).trim()}`)
-  if (lines.length === 1) return 'بيانات التواصل الرسمية غير مضبوطة حالياً في الإعدادات. يمكنك فتح صفحة التواصل الرسمية من الموقع لمتابعة طلبك.'
-  return `${lines.join('\n')}\n\nإذا أرسلت رقمك للتواصل، سنحوّله للموظف المختص للمتابعة.`
-}
-
-async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any) {
+async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
   const handoffKey = conversationKey(message.from)
-  const promptActive = await hasRecentWhatsAppAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
+  const hasRecentAudit = deps.hasRecentAudit || hasRecentWhatsAppAudit
+  const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
+  const createHandoff = deps.createHandoff || createHumanHandoffRequest
+  const markRequested = deps.markRequested || markWhatsAppConversationRequested
+  const createAgentReply = deps.createAgentReply || createOfficialWhatsAppAgentReply
+  const classifyRoutingIntent = deps.classifyRoutingIntent || classifyWhatsAppRoutingIntent
+  const promptActive = await hasRecentAudit('WHATSAPP_HUMAN_SUPPORT_PROMPT_SENT', handoffKey)
   const maskedFrom = maskPhone(message.from)
-  const handoffOpen = await hasOpenHumanHandoffRequest({
+  const handoffOpen = await hasOpenHandoff({
     sourceRef: handoffKey,
     phone: maskedFrom || null,
   })
@@ -520,10 +526,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
-  // A physical address is authoritative in admin settings, not in generated answers.
-  if (isOfficialAddressQuestion(text)) return await buildOfficialAddressReply()
-
-  const routingIntent = await classifyWhatsAppRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
+  const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
   await auditWhatsAppWebhook('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
     text: text.slice(0, 180),
@@ -532,53 +535,25 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     decision: routingIntent,
   }, message.id)
 
-  if (routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT') return await buildOfficialContactReply()
-
-  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT') {
+  let handoffCreated = false
+  if (routingIntent.intent === 'PROVIDED_OWN_CONTACT' || routingIntent.intent === 'HANDOFF_DETAILS' || routingIntent.intent === 'HUMAN_HANDOFF') {
     if (!handoffOpen) {
-      const handoff = await createHumanHandoffRequest({
-        user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
-        message: text,
-        source: 'WHATSAPP',
-        sourceRef: handoffKey,
-      })
-      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    }
-    return handoffOpen
-      ? 'استلمنا بيانات تواصلك ✅ طلب المتابعة موجود بالفعل لدى الفريق، وسيتم الرد عليك عبر المحادثة أو الرقم الذي أرسلته.'
-      : 'استلمنا رقمك أو بيانات تواصلك ✅ سيتم تحويلها للموظف المختص للمتابعة.'
-  }
-
-  if (routingIntent.intent === 'HANDOFF_DETAILS') {
-    const handoff = await createHumanHandoffRequest({
-      user: { name: 'زائر واتساب', phone: maskPhone(message.from) || undefined, rawPhone: message.from },
-      message: text,
-      source: 'WHATSAPP',
-      sourceRef: handoffKey,
-    })
-    await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-    return getHumanHandoffConfirmationReply()
-  }
-
-  if (routingIntent.intent === 'HUMAN_HANDOFF') {
-    if (!handoffOpen) {
-      const handoff = await createHumanHandoffRequest({
+      const handoff = await createHandoff({
         user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
-        message: text || 'طلب صريح للتواصل مع موظف',
+        message: text || (routingIntent.intent === 'HUMAN_HANDOFF' ? 'طلب صريح للتواصل مع موظف' : 'بيانات تواصل من زائر واتساب'),
         source: 'WHATSAPP',
         sourceRef: handoffKey,
       })
-      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      await markRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+      handoffCreated = true
     }
-    await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-    return handoffOpen ? getHumanSupportReply() : getHumanHandoffConfirmationReply()
   }
 
-  const agentReply = await createOfficialWhatsAppAgentReply(message)
-  if (agentReply.trim() === (await getHumanSupportReply()).trim()) {
-    await markWhatsAppHumanSupportPrompt(handoffKey, message.from, message.id)
-  }
-  return handoffOpen ? withHumanHandoffActiveNote(agentReply) : agentReply
+  return createAgentReply(message, routingIntentContext(routingIntent, handoffOpen, handoffCreated))
+}
+
+export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
+  return resolveWhatsAppBotReply(message, storedInbound, deps)
 }
 
 async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<'SENT' | 'SKIPPED'> {
