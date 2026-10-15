@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
           waiverCodes: {
             orderBy: { createdAt: 'desc' },
             take: 3,
-            select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, reason: true, status: true, expiresAt: true, verifiedAt: true, approvedAt: true, createdAt: true },
+            select: { id: true, codePreview: true, waiverType: true, requestedAmount: true, reason: true, status: true, emailStatus: true, expiresAt: true, verifiedAt: true, approvedAt: true, createdAt: true },
           },
         },
       }),
