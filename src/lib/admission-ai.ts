@@ -509,8 +509,17 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
   }
 
   // تصنيف متعدد المعايير: لا نقرر النوع من كلمة واحدة، لأن السيرة قد تحتوي MBA، والشهادة قد تحتوي Nationality.
-  if (/\bcv\b|resume|curriculum vitae|سيره ذاتيه|سيرة ذاتية/.test(n) || hasAny(visual, KEYWORDS.cvDoc)) addEvidence('CV', 6, 'عنوان/بنية سيرة ذاتية')
-  if (/work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|البيانات الشخصيه|البيانات الشخصية|الخبرات العمليه|الخبرات العملية|المهارات|الدورات|ورش/.test(n)) addEvidence('CV', 3, 'خبرات/مهارات/دورات أو بيانات شخصية')
+  const cvTitleSignal = /\bcv\b|resume|curriculum vitae|(?:ال)?سير[هة]\s+(?:ال)?ذاتي[هة]/.test(n) || hasAny(visual, KEYWORDS.cvDoc)
+  const cvSectionCount = [
+    /البيانات\s+(?:الشخصيه|الشخصية)|personal\s+information/.test(n),
+    /work experience|professional experience|employment|الخبرات\s+(?:العمليه|العملية)|خبرات\s+عملية/.test(n),
+    /training\s*&\s*work experience|courses|workshops|الدورات|ورش/.test(n),
+    /skills|other skills|المهارات/.test(n),
+    /objective|interests|الهدف|الاهتمامات/.test(n),
+  ].filter(Boolean).length
+  if (cvTitleSignal) addEvidence('CV', 10, 'عنوان/بنية سيرة ذاتية صريحة')
+  if (cvSectionCount >= 2) addEvidence('CV', 6, 'أقسام سيرة ذاتية متعددة')
+  else if (cvSectionCount === 1) addEvidence('CV', 3, 'خبرات/مهارات/دورات أو بيانات شخصية')
   if (/email|gmail|hotmail|@|phone|mobile|الهاتف|البريد/.test(n)) addEvidence('CV', 1, 'بيانات تواصل داخل مستند مهني')
 
   if (hasAny(visual, KEYWORDS.transcriptDoc) || /transcript|academic record|grade report|كشف علامات|كشف درجات|marks|gpa|المعدل|الساعات المعتمده|الساعات المعتمدة|course title|semester/.test(n)) addEvidence('TRANSCRIPT', 6, 'كشف علامات/سجل أكاديمي')
