@@ -11,6 +11,7 @@ import { inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-i
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { dollarsToCents } from '@/lib/money'
+import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import {
   appendAdmissionDocumentReplacement,
   extractAdmissionDocumentReplacement,
