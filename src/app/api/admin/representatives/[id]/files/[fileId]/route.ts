@@ -125,7 +125,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!existing) return NextResponse.json({ error: 'FILE_NOT_FOUND' }, { status: 404 })
   const result = await db.$transaction(async (tx) => {
     const representativeUpdate = action === 'APPROVE' ? pendingRepresentativeData(existing) : {}
-    let updatedRepresentative = null
+    let updatedRepresentative: AcademyRepresentative | null = null
     if (Object.keys(representativeUpdate).length > 0) {
       updatedRepresentative = await tx.academyRepresentative.update({
         where: { id },
