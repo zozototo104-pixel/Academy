@@ -106,6 +106,7 @@ export default function AdminRepresentativesTab() {
   const [rewriting, setRewriting] = useState(false)
   const [onboardingBusy, setOnboardingBusy] = useState(false)
   const [onboardingLink, setOnboardingLink] = useState('')
+  const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
