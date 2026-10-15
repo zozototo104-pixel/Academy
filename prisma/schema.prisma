@@ -421,6 +421,16 @@ model PaymentWaiverCode {
   @@index([expiresAt])
 }
 
+model PaymentWaiverAttempt {
+  id        String   @id @default(cuid())
+  paymentId String
+  userId    String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, userId, success, createdAt])
+}
+
 model PaymentProof {
   id          String   @id @default(cuid())
   paymentId   String
