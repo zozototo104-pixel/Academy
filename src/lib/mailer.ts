@@ -209,13 +209,17 @@ export async function emailAdminAlert(to: string, title: string, body: string, e
   await sendEmail({ to, event, subject: title, html: emailTemplate(title, `<p>${escapeHtml(body)}</p>`, { label: 'فتح لوحة الإدارة', url: appLink('/?view=admin') }) })
 }
 
-export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<boolean> {
-  return sendEmail({
+export async function emailRepresentativeOnboardingInvitationDetailed(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<EmailDeliveryStatus> {
+  return sendEmailDetailed({
     to,
     event: 'REPRESENTATIVE_ONBOARDING_INVITATION',
     subject: 'استكمال ملف ممثل الأكاديمية الرسمي',
     html: emailTemplate('استكمال ملف ممثل الأكاديمية 🌐', `<p>${greeting(input.name)}،</p><p>تم اعتماد طلب التمثيل/الوكالة، والخطوة التالية هي استكمال ملف ممثل الأكاديمية.</p>${infoRows([{ label: 'الدولة/النطاق', value: input.territory || input.country }, { label: 'رقم العقد', value: input.contractNo || 'حسب سجل الوكالة في المنصة' }])}`, { label: 'استكمال ملف الممثل', url: input.onboardingUrl }),
   })
+}
+
+export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<boolean> {
+  return (await emailRepresentativeOnboardingInvitationDetailed(to, input)) === 'SENT'
 }
 
 export async function emailAdminRepresentativeProfileSubmitted(to: string, input: { name: string; country: string; region: string; email?: string | null }) {
