@@ -258,7 +258,7 @@ export async function emailPaymentReceipt(to: string, name: string, invoiceNo: s
   })
 }
 
-export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null }) {
+export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null; link?: string | null }) {
   await sendEmail({
     to,
     event: 'PAYMENT_WAIVER_CODE',
