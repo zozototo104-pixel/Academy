@@ -293,6 +293,13 @@ function testSecurityBatchAFollowup() {
 
   const waiverRoute = file('src/app/api/admin/payments/waivers/route.ts')
   assert(waiverRoute.includes('ActivePaymentWaiverExistsError') && waiverRoute.includes('status: 409') && waiverRoute.includes("code: 'ACTIVE_WAIVER_EXISTS'"), 'waiver API must return 409 ACTIVE_WAIVER_EXISTS for duplicate active code issuance')
+  assert(waiverRoute.includes('emailStatus: result.emailStatus'), 'waiver API must return email delivery status to admin UI')
+  assert(waiverLib.includes('PaymentWaiverRateLimitError') && waiverLib.includes('failedAttempts >= 5') && waiverLib.includes('status = 429'), 'student waiver code verification must rate-limit wrong attempts by database')
+  assert(waiverLib.includes("updateMany({\n    where: { id: waiver.id, status: 'ISSUED' }") && waiverLib.includes('WAIVER_CODE_ALREADY_USED'), 'student waiver code verification must atomically move ISSUED to VERIFIED')
+  assert(waiverLib.includes("if (current.status !== 'VERIFIED')") && !waiverLib.includes("['VERIFIED', 'ISSUED', 'APPROVED'].includes(waiver.status)"), 'admin waiver approval must accept VERIFIED only')
+  assert(waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${current.paymentId} FOR UPDATE') && waiverLib.includes("where: { id: current.id, status: 'VERIFIED' }"), 'admin waiver approval must lock the invoice and be idempotent')
+  assert(waiverLib.includes('waiveAllAdmissionTuitionPayments') && waiverLib.includes('scholarshipFull: true'), 'full scholarships must waive all admission tuition invoices and mark the application')
+  assert(waiverLib.includes("? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)"), 'partial waiver equal to remaining balance must be allowed and settle the invoice')
 
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')
