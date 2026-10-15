@@ -22,9 +22,15 @@ export default function RepresentativeOnboardingPage() {
     try {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error('رابط الاستكمال غير صالح أو انتهى.')
+      if (!res.ok) throw new Error(data.message || data.error || 'رابط الاستكمال غير صالح أو انتهى.')
       setRep(data.representative)
       if (!preserveForm) setForm({
+        fullName: data.representative.fullName || '',
+        fullNameEn: '',
+        phone: data.representative.phone || '',
+        whatsapp: data.representative.whatsapp || '',
+        email: data.representative.email || '',
+        country: data.representative.country || '',
         degreeTitle: data.representative.degreeTitle || '',
         academicRank: data.representative.academicRank || '',
         city: data.representative.city || '',
