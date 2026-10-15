@@ -264,6 +264,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     data: {
       degreeTitle: text(body.degreeTitle, 220) ?? rep.degreeTitle,
       academicRank: text(body.academicRank, 160) ?? rep.academicRank,
+      country: text(body.country, 120) ?? rep.country,
       city: text(body.city, 120) ?? rep.city,
       specialization: text(body.specialization, 260) ?? rep.specialization,
       rawBio: text(body.rawBio, 12000) ?? rep.rawBio,
