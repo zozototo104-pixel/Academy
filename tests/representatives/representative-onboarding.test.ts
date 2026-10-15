@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 import { hashRepresentativeOnboardingToken, verifyRepresentativeLast4 } from '../../src/lib/academy-representatives'
 
+process.env.SMTP_HOST = ''
+process.env.SMTP_USER = ''
+process.env.SMTP_PASS = ''
+process.env.RESEND_API_KEY = ''
+process.env.MAIL_FROM = ''
+process.env.RESEND_FROM = ''
+
 const representatives = new Map<string, any>()
 const files = new Map<string, any>()
 const rateWindows = new Map<string, any>()
