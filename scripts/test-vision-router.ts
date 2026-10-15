@@ -29,6 +29,7 @@ assert(textAi.includes("type: 'image_url'") && textAi.includes("type: 'file'"), 
 assert(textAi.includes("type: 'image'") && textAi.includes("type: 'document'"), 'Anthropic must send image/document content blocks')
 assert(textAi.includes('createVision') && textAi.includes("provider === 'ZAI' && hasVisionAttachments(opts)"), 'ZAI vision calls must use createVision')
 
+assert(textAi.includes("geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS)"), 'Gemini router key order must be env first, then configured DB keys')
 assert(textAi.includes('candidateKeys(provider, s)') && textAi.includes('for (const key of candidateKeys(provider, s))'), 'router must keep rotating through provider keys, including Gemini DB/env keys')
 assert(textAi.includes('OPENAI_COMPAT') && textAi.includes('s.openaiCompatTier === \'PAID\''), 'paid OpenAI-compatible provider must remain last-resort governed by existing policy')
 assert(textAi.includes('recordAttempt(attempt)') && textAi.includes('logRouterSummary(attempts'), 'router must keep audit diagnostics for successful and failed providers')
