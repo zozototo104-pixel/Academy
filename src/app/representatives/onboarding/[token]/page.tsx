@@ -12,7 +12,7 @@ export default function RepresentativeOnboardingPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [rep, setRep] = useState<any>(null)
-  const [form, setForm] = useState<any>({ degreeTitle: '', academicRank: '', city: '', specialization: '', rawBio: '', worksSummary: '', achievements: '', website: '', publicContactNote: '' })
+  const [form, setForm] = useState<any>({ fullName: '', fullNameEn: '', phone: '', whatsapp: '', email: '', country: '', degreeTitle: '', academicRank: '', city: '', specialization: '', rawBio: '', worksSummary: '', achievements: '', website: '', publicContactNote: '' })
   const [linkTitle, setLinkTitle] = useState('رابط أعمال')
   const [linkUrl, setLinkUrl] = useState('')
 
