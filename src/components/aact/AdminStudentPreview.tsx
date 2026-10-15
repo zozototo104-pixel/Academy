@@ -134,6 +134,7 @@ export function AdminStudentPreview() {
   const [error, setError] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const { confirmAction, dialog } = useAdminActionDialog()
 
   const id = useMemo(() => {
     if (studentPreviewId) return studentPreviewId
