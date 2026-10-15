@@ -1697,10 +1697,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const s: Settings = effectiveOpts.routerPolicy ? { ...baseSettings, policy: effectiveOpts.routerPolicy } : baseSettings
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
-  const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
-  const sticky = opts.stickyScope ? stickyModels.get(opts.stickyScope) : null
-  const preferredProviders = (opts.preferredProviders || []).filter(Boolean)
-  const baseOrderedProviders = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
+  const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
+  const preferredProviders = (effectiveOpts.preferredProviders || []).filter(Boolean)
+  const baseOrderedProviders = providerOrder(s, taskLevel)
+    .filter((provider) => !excluded.has(provider))
+    .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
   const orderedProviders = preferredProviders.length
     ? [...baseOrderedProviders].sort((a, b) => {
       const ai = preferredProviders.indexOf(a)
