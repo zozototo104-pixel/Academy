@@ -269,6 +269,47 @@ function testDependencyPins() {
   assert(pkg.devDependencies['eslint-config-next'] === '^16.4.1', 'eslint-config-next must match Next.js patch')
 }
 
+function testSecurityBatchA() {
+  const loginRoute = file('src/app/api/auth/login/route.ts')
+  assert(!loginRoute.includes('token,'), 'login response must not return a token field')
+  assert(loginRoute.includes("user: { id: user.id, name: user.name, email: user.email, role: user.role }"), 'login response must still return the user object')
+
+  const store = file('src/lib/store.ts')
+  assert(!store.includes('Authorization: `Bearer'), 'client API helper must not send browser-stored bearer tokens')
+  assert(!store.includes('window.localStorage, TOKEN_KEY') && !store.includes('window.sessionStorage, TOKEN_KEY'), 'client store must not read/write auth tokens in browser storage')
+
+  const page = file('src/app/page.tsx')
+  assert(!page.includes('saveToken(') && !page.includes('getToken()'), 'page bootstrap must not persist or read auth tokens')
+  const authView = file('src/components/aact/AuthView.tsx')
+  assert(!authView.includes('saveToken') && authView.includes("api<{ user: any }>('/api/auth/login'"), 'auth view must rely on HttpOnly cookie login')
+
+  const prismaDeploy = file('scripts/prisma-deploy.ts')
+  assert(prismaDeploy.includes("process.env.VERCEL_ENV !== 'production'") && prismaDeploy.includes("console.log('skipped')"), 'prisma deploy build hook must skip outside production')
+  const officialAiMigration = file('scripts/migrate-official-ai-settings.ts')
+  assert(officialAiMigration.includes("if (!isProductionDeployment())") && officialAiMigration.includes("console.log('skipped')"), 'official AI settings migration must skip outside production')
+  const vercelSetup = file('scripts/vercel-production-setup.ts')
+  assert(vercelSetup.includes("process.env.VERCEL_ENV !== 'production'") && vercelSetup.includes("console.log('skipped')"), 'Vercel production setup must skip outside production')
+
+  const vercel = JSON.parse(file('vercel.json'))
+  assert(Array.isArray(vercel.regions) && vercel.regions.includes('fra1'), 'vercel.json must pin the fra1 region')
+
+  const emailVerification = file('src/lib/email-verification.ts')
+  assert(emailVerification.includes('process.env.NEXT_PUBLIC_APP_URL') && !emailVerification.includes('x-forwarded-host') && !emailVerification.includes("req.headers.get('host')"), 'email verification URLs must use NEXT_PUBLIC_APP_URL only')
+  const googleRoute = file('src/app/api/auth/google/route.ts')
+  assert(googleRoute.includes('process.env.NEXT_PUBLIC_APP_URL') && !googleRoute.includes('x-forwarded-host') && !googleRoute.includes("headers.get('host')"), 'Google OAuth start must use NEXT_PUBLIC_APP_URL only')
+  const googleCallback = file('src/app/api/auth/google/callback/route.ts')
+  assert(googleCallback.includes('process.env.NEXT_PUBLIC_APP_URL') && !googleCallback.includes('x-forwarded-host') && !googleCallback.includes("headers.get('host')"), 'Google OAuth callback must use NEXT_PUBLIC_APP_URL only')
+
+  const adminBooks = file('src/app/api/admin/books/route.ts')
+  assert(adminBooks.includes("parsed.protocol !== 'https:'"), 'admin book links must require HTTPS')
+  assert(adminBooks.includes("lookup(parsed.hostname") && adminBooks.includes('isBlockedBookLinkIp(record.address)'), 'admin book links must reject internal IPs after DNS lookup')
+  assert(adminBooks.includes("redirect: 'manual'"), 'admin book link fetch must not auto-follow redirects')
+  assert(adminBooks.includes('readResponseBufferWithLimit(res, MAX_BOOK_SIZE)'), 'admin book link fetch must enforce a maximum response size')
+
+  const payments = file('src/app/api/payments/route.ts')
+  assert(payments.includes("const isPrivileged = user.role === 'ADMIN'") && !payments.includes("user.role === 'ADMIN' || user.role === 'SUPERVISOR'"), 'payments privileged access must be ADMIN-only')
+}
+
 async function main() {
   testDeadlineMath()
   testProductionFixtureGuards()
