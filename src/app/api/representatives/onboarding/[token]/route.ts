@@ -230,6 +230,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   const rep = loaded.representative
   const body = await req.json().catch(() => ({}))
   const submit = body.submit === true
+  const pendingSensitiveChanges: Record<string, string> = {}
+  const sensitiveFields = [
+    ['fullName', 'الاسم الكامل بالعربي', rep.fullName],
+    ['fullNameEn', 'الاسم الكامل بالإنجليزي', null],
+    ['email', 'البريد الإلكتروني', rep.email],
+    ['phone', 'الهاتف', rep.phone],
+    ['whatsapp', 'واتساب', rep.whatsapp],
+  ] as const
+  for (const [key, label, current] of sensitiveFields) {
+    const next = text(body[key], key === 'fullNameEn' ? 220 : 320)
+    if (next && next !== String(current || '')) pendingSensitiveChanges[label] = next
+  }
+  if (Object.keys(pendingSensitiveChanges).length > 0) {
+    await db.academyRepresentativeFile.create({
+      data: {
+        representativeId: rep.id,
+        kind: 'PROFILE_CHANGE',
+        title: 'تعديل بيانات حساسة بانتظار مراجعة الإدارة',
+        description: JSON.stringify(pendingSensitiveChanges, null, 2),
+        reviewStatus: 'PENDING_REVIEW',
+      },
+    }).catch(() => null)
+  }
   let safeWebsite = rep.website
   if (body.website) {
     try { safeWebsite = await validatePublicHttpsUrl(String(body.website)) }
