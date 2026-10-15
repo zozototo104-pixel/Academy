@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // تحقق ملكية صارم: الطالب يملك الفاتورة فقط إذا كان بريد الطلب/الفاتورة يطابق بريده المؤكد.
     const email = user.email.toLowerCase()
-    const isPrivileged = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+    const isPrivileged = user.role === 'ADMIN'
     let owns = isPrivileged
     if (!owns && payment.admissionId) {
       const app = await db.admissionApplication.findUnique({
