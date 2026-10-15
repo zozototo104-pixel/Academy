@@ -128,7 +128,9 @@ async function fetchGoogleProfile(accessToken: string) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(_req?: NextRequest) {
+  if (!_req) throw new Error('NextRequest is required for Google OAuth callback')
+  const req = _req
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
