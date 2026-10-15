@@ -18,12 +18,10 @@ export function createEmailVerificationToken() {
   }
 }
 
-export function emailVerificationUrl(req: NextRequest, token: string) {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  const base = host
-    ? `${proto}://${host}`
-    : String(process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://aactacademy.com').replace(/\/+$/, '')
+export function emailVerificationUrl(_req: NextRequest, token: string) {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required to build email verification URLs')
+  const base = configured.replace(/\/+$/, '')
   const url = new URL('/api/auth/verify-email', base)
   url.searchParams.set('token', token)
   return url.toString()
