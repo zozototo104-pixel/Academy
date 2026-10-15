@@ -313,6 +313,10 @@ function testSecurityBatchAFollowup() {
   assert(admissionAi.includes('onlyVisionUnavailable') && admissionAi.includes("else if (onlyVisionUnavailable) verdict = 'NEEDS_CLARIFICATION'"), 'vision-reader failures for all uploaded files must require clarification rather than rejection')
   assert(admissionAi.includes("status: 'MISSING'") && admissionAi.includes('hardProblems++'), 'truly missing required documents must remain hard problems')
   assert(admissionAi.includes("args.unverifiableRequired === 0") && admissionAi.includes('unverified === 0') && admissionAi.includes("verdict = 'RECOMMEND_APPROVE'"), 'unreadable/unverified attachments must never auto-approve')
+  const transcriptSignalIndex = admissionAi.indexOf('const transcriptSignal')
+  const weakIdReturnIndex = admissionAi.indexOf('if (strongIdSignal || (weakIdSignal')
+  assert(transcriptSignalIndex > -1 && weakIdReturnIndex > -1 && transcriptSignalIndex < weakIdReturnIndex, 'academic transcript/degree signals must be evaluated before weak ID cues such as nationality')
+  assert(admissionAi.includes('مؤشرات الهوية الضعيفة مثل nationality/gender') && admissionAi.includes('academy|school'), 'degree certificates with nationality text must not be classified as ID/passport')
 }
 
 function testSecurityBatchA() {
