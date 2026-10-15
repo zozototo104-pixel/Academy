@@ -162,10 +162,10 @@ function buildInvoiceSvg(data: {
   ], 262, { xLabel: 690, xValue: 92, rowH: 38 })
 
   const payerRows = lineRows([
-    { label: 'اسم الدافع / Payer', value: data.payerName },
-    { label: 'البريد / Email', value: data.payerEmail, dir: 'ltr' },
-    { label: 'الدولة / Country', value: data.payerCountry },
-    { label: 'مرجع الطلب / Reference', value: data.reference, dir: 'ltr' },
+    { label: 'Payer', value: data.payerName, dir: 'ltr' },
+    { label: 'Email', value: data.payerEmail, dir: 'ltr' },
+    { label: 'Country', value: data.payerCountry, dir: 'ltr' },
+    { label: 'Reference', value: data.reference, dir: 'ltr' },
   ], 500, { xLabel: 690, xValue: 92, rowH: 38 })
 
   const descSvg = descLines.map((l, i) => text(690, 772 + i * 30, l, { size: 17, fill: TEXT, weight: 700, anchor: 'end', dir: 'rtl' })).join('')
