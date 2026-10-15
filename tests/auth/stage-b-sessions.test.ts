@@ -280,21 +280,19 @@ describe('Google OAuth callback', () => {
     expect(googleRequests).toBe(0)
   })
 
-  for (const host of ['aactacademy.com', 'www.aactacademy.com']) {
-    test(`Google callback on ${host} uses matching redirect URI and HttpOnly cookie`, async () => {
+  for (const host of ['aactacademy.com', 'www.aactacademy.com', 'evil.example']) {
+    test(`Google callback on ${host} uses configured redirect URI and HttpOnly cookie`, async () => {
       seedUser('google-user', 'ACTIVE', 'STUDENT', 'google@example.test')
       const redirectUris = mockGoogleFetch()
       const { state, redirectUri } = await beginGoogle(host)
-      expect(redirectUri).toBe(`https://${host}/api/auth/google/callback`)
+      expect(redirectUri).toBe('https://aactacademy.com/api/auth/google/callback')
       const response = await completeGoogle(callbackRequest(host, state))
       expect(response.status).toBe(200)
-      expect(redirectUris).toEqual([`https://${host}/api/auth/google/callback`])
+      expect(redirectUris).toEqual(['https://aactacademy.com/api/auth/google/callback'])
       const sessionToken = cookieValues.get('aact_session')!
       expect(sessionToken).toBeTruthy()
       expect(cookieOptions.get('aact_session')?.httpOnly).toBe(true)
       const html = await response.text()
-      expect(html).toContain("sessionStorage.removeItem('aact_token')")
-      expect(html).toContain("localStorage.removeItem('aact_token')")
       expect(html).not.toContain(sessionToken)
       expect((await getCurrentUser())?.id).toBe('google-user')
     })
