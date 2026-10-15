@@ -49,6 +49,67 @@ async function audit(actorId: string, action: string, entityId: string, details:
   }).catch(() => {})
 }
 
+const pendingProfileFieldMap: Record<string, string> = {
+  'الاسم الكامل بالعربي': 'fullName',
+  'البريد الإلكتروني': 'email',
+  'الهاتف': 'phone',
+  'واتساب': 'whatsapp',
+  'الدرجة العلمية': 'degreeTitle',
+  'الرتبة العلمية': 'academicRank',
+  'الدولة': 'country',
+  'المدينة': 'city',
+  'التخصص': 'specialization',
+  'السيرة الخام': 'rawBio',
+  'الأعمال والخبرات': 'worksSummary',
+  'الإنجازات': 'achievements',
+  'ملاحظة التواصل العامة': 'publicContactNote',
+  'الموقع الإلكتروني': 'website',
+}
+
+function parsePendingProfileData(file: any) {
+  if (!['PROFILE_CHANGE', 'PROFILE_UPDATE'].includes(String(file?.kind || '').toUpperCase())) return {}
+  let raw: Record<string, unknown> = {}
+  try { raw = JSON.parse(String(file.description || '{}')) } catch { return {} }
+  const data: Record<string, string> = {}
+  for (const [label, value] of Object.entries(raw)) {
+    const field = pendingProfileFieldMap[label]
+    if (!field) continue
+    const next = String(value ?? '').trim()
+    if (next) data[field] = next.slice(0, field === 'rawBio' ? 12000 : 6000)
+  }
+  if (data.phone) data.verifyPhoneLast4Hash = hashRepresentativeVerifier(data.phone) as any
+  return data
+}
+
+function pendingAssetData(file: any) {
+  const kind = String(file?.kind || '').toUpperCase()
+  if (kind === 'PROFILE_PHOTO') {
+    return {
+      profilePhotoUrl: file.fileUrl,
+      profilePhotoName: file.fileName,
+      profilePhotoMime: file.mimeType,
+      profilePhotoSize: file.size,
+      profilePhotoStorageProvider: file.storageProvider,
+      profilePhotoStorageKey: file.storageKey,
+    }
+  }
+  if (kind === 'OFFICIAL_CARD') {
+    return {
+      officialCardUrl: file.fileUrl,
+      officialCardName: file.fileName,
+      officialCardMime: file.mimeType,
+      officialCardSize: file.size,
+      officialCardStorageProvider: file.storageProvider,
+      officialCardStorageKey: file.storageKey,
+    }
+  }
+  return {}
+}
+
+function pendingRepresentativeData(file: any) {
+  return { ...parsePendingProfileData(file), ...pendingAssetData(file) }
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   const user = await requireAdmin()
   const { id, fileId } = await params
