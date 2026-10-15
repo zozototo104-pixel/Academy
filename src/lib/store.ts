@@ -190,61 +190,18 @@ export const useAppStore = create<AppState>((set) => ({
   setMobileMenuOpen: (v) => set({ mobileMenuOpen: v }),
 }))
 
-// ---- رمز الجلسة (Bearer Token) ----
-// الكوكي httpOnly هو قناة الجلسة الأساسية في المتصفح.
-// نحتفظ بنسخة Bearer مؤقتة في sessionStorage فقط لدعم البيئات التي تحجب الكوكيز
-// (iframe المعاينة / حجب كوكيز الطرف الثالث / WebView أندرويد) دون بقاء التوكن في localStorage طويل المدى.
-const TOKEN_KEY = 'aact_token'
-
-function storageGet(storage: Storage | undefined, key: string): string | null {
-  try {
-    return storage?.getItem(key) || null
-  } catch {
-    return null
-  }
-}
-
-function storageSet(storage: Storage | undefined, key: string, value: string) {
-  try {
-    storage?.setItem(key, value)
-  } catch (error) {
-    console.warn(`Failed to write ${key} to browser storage.`, error)
-  }
-}
-
-function storageRemove(storage: Storage | undefined, key: string) {
-  try {
-    storage?.removeItem(key)
-  } catch (error) {
-    console.warn(`Failed to remove ${key} from browser storage.`, error)
-  }
-}
-
+// جلسة المتصفح أصبحت cookie-only عبر HttpOnly cookie.
+// هذه الصادرات تبقى مؤقتاً لتقليل كسر الاستيرادات القديمة دون قراءة أو كتابة أي Bearer token في تخزين المتصفح.
 export function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  const sessionToken = storageGet(window.sessionStorage, TOKEN_KEY)
-  if (sessionToken) return sessionToken
-
-  // ترحيل آمن للتوكنات القديمة: استخدمها لهذه الجلسة فقط ثم احذفها من localStorage.
-  const legacyToken = storageGet(window.localStorage, TOKEN_KEY)
-  if (legacyToken) {
-    storageSet(window.sessionStorage, TOKEN_KEY, legacyToken)
-    storageRemove(window.localStorage, TOKEN_KEY)
-    return legacyToken
-  }
   return null
 }
 
-export function saveToken(t: string) {
-  if (typeof window === 'undefined') return
-  storageSet(window.sessionStorage, TOKEN_KEY, t)
-  storageRemove(window.localStorage, TOKEN_KEY)
+export function saveToken(_t: string) {
+  // Intentionally no-op: browser auth uses the HttpOnly session cookie only.
 }
 
 export function clearToken() {
-  if (typeof window === 'undefined') return
-  storageRemove(window.sessionStorage, TOKEN_KEY)
-  storageRemove(window.localStorage, TOKEN_KEY)
+  // Intentionally no-op: server-side logout/session expiry owns cookie cleanup.
 }
 
 function wait(ms: number) {
@@ -266,7 +223,6 @@ function isTransientFetchError(err: unknown): boolean {
 export type ApiError = Error & { data?: any; status?: number; code?: string }
 
 export async function api<T = any>(url: string, options?: RequestInit): Promise<T> {
-  const token = getToken()
   const isForm = typeof FormData !== 'undefined' && options?.body instanceof FormData
   const maxAttempts = isForm ? 1 : 3
   let lastNetworkError: unknown = null
@@ -278,14 +234,12 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
         cache: 'no-store',
         headers: {
           ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options?.headers || {}),
         },
       })
       const data = await res.json().catch(() => ({}))
-      // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
-      if (res.status === 401 && token) {
-        clearToken()
+      // انتهت صلاحية الجلسة على الخادم → نظّف المستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
+      if (res.status === 401) {
         try { useAppStore.setState({ user: null }) } catch (error) { console.warn('Failed to clear app user after unauthorized API response.', error) }
       }
       if (!res.ok) {

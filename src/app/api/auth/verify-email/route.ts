@@ -6,22 +6,21 @@ import { emailWelcome } from '@/lib/mailer'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function appBaseUrl(req: NextRequest) {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  if (host) return `${proto}://${host}`.replace(/\/$/, '')
-  return String(process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://aactacademy.com').replace(/\/+$/, '')
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required for email verification redirects')
+  return configured.replace(/\/+$/, '')
 }
 
-function redirectAuth(req: NextRequest, params: Record<string, string>) {
-  const url = new URL('/?view=auth', appBaseUrl(req))
+function redirectAuth(params: Record<string, string>) {
+  const url = new URL('/?view=auth', appBaseUrl())
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
   return NextResponse.redirect(url)
 }
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token') || ''
-  if (!token || token.length < 20) return redirectAuth(req, { verify_email: 'invalid' })
+  if (!token || token.length < 20) return redirectAuth({ verify_email: 'invalid' })
 
   const tokenHash = hashEmailVerificationToken(token)
   const user = await db.user.findFirst({
@@ -33,7 +32,7 @@ export async function GET(req: NextRequest) {
     select: { id: true, email: true, name: true, emailVerifiedAt: true },
   }).catch(() => null)
 
-  if (!user) return redirectAuth(req, { verify_email: 'invalid_or_expired' })
+  if (!user) return redirectAuth({ verify_email: 'invalid_or_expired' })
 
   await db.user.update({
     where: { id: user.id },
@@ -46,7 +45,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!user.emailVerifiedAt) emailWelcome(user.email, user.name).catch(() => {})
-  const response = redirectAuth(req, { email_verified: '1', email: user.email, reset_session: '1' })
+  const response = redirectAuth({ email_verified: '1', email: user.email, reset_session: '1' })
   response.cookies.set('aact_session', '', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0 })
   return response
 }

@@ -17,6 +17,14 @@ const deployCandidates = [
   'SUPABASE_URL',
 ]
 
+const args = new Set(process.argv.slice(2))
+const mutatesDatabase = args.size === 0 || args.has('--migrate') || args.has('--push') || args.has('--force-push')
+
+if (process.env.VERCEL_ENV !== 'production' && mutatesDatabase) {
+  console.log('skipped')
+  process.exit(0)
+}
+
 function resolveDatabaseUrl() {
   for (const key of deployCandidates) {
     const value = process.env[key]
@@ -98,8 +106,6 @@ function shouldRunMigrateDeploy(args: Set<string>) {
 
   return args.has('--migrate')
 }
-
-const args = new Set(process.argv.slice(2))
 
 run('npx', ['prisma', 'generate'])
 

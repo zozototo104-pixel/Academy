@@ -2,6 +2,7 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "framework": "nextjs",
+  "regions": ["fra1"],
   "crons": [
     {
       "path": "/api/cron/backup",

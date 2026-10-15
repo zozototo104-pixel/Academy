@@ -92,7 +92,7 @@ function cleanStorageKey(value: string): string {
   return key
 }
 
-function isPrivateIp(address: string) {
+export function isPrivateIp(address: string) {
   const family = net.isIP(address)
   if (!family) return true
   if (family === 4) {

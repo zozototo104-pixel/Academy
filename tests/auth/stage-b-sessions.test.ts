@@ -1,9 +1,19 @@
 /// <reference types="bun-types" />
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 import { createHmac } from 'node:crypto'
 
-type FakeUser = { id: string; email: string; name: string; role: string; status: string; emailVerifiedAt?: Date | null }
+type FakeUser = {
+  id: string
+  email: string
+  name: string
+  role: string
+  status: string
+  emailVerifiedAt?: Date | null
+  emailVerificationTokenHash?: string | null
+  emailVerificationExpiresAt?: Date | null
+  emailVerificationSentAt?: Date | null
+}
 type FakeSession = { id: string; token: string; userId: string; expiresAt: Date }
 
 const users = new Map<string, FakeUser>()
@@ -30,6 +40,14 @@ const db = {
   user: {
     findUnique: async ({ where }: { where: { id?: string; email?: string } }) =>
       [...users.values()].find((u) => (where.id ? u.id === where.id : u.email === where.email)) || null,
+    findFirst: async ({ where }: { where: any }) =>
+      [...users.values()].find((u) => {
+        if (where.status && u.status !== where.status) return false
+        if (where.emailVerificationTokenHash && u.emailVerificationTokenHash !== where.emailVerificationTokenHash) return false
+        const gt = where.emailVerificationExpiresAt?.gt
+        if (gt && (!u.emailVerificationExpiresAt || u.emailVerificationExpiresAt <= gt)) return false
+        return true
+      }) || null,
     update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
       const user = users.get(where.id)
       if (!user) throw new Error('USER_NOT_FOUND')
@@ -84,6 +102,7 @@ mock.module('next/headers', () => ({
   headers: async () => new Headers(bearerToken ? { authorization: `Bearer ${bearerToken}` } : {}),
 }))
 mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/mailer', () => ({ emailWelcome: async () => {} }))
 mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
 mock.module('@/lib/admin-query', () => ({
   adminPaginationMeta: () => ({}),
@@ -94,10 +113,13 @@ const { createSession, getCurrentUser, requireAdmin } = await import('../../src/
 const { PATCH: updateStudent } = await import('../../src/app/api/admin/students/route')
 const { GET: startGoogle } = await import('../../src/app/api/auth/google/route')
 const { GET: completeGoogle } = await import('../../src/app/api/auth/google/callback/route')
+const { GET: verifyEmail } = await import('../../src/app/api/auth/verify-email/route')
+const { hashEmailVerificationToken } = await import('../../src/lib/email-verification')
 const originalFetch = globalThis.fetch
 const previousAuthSecret = process.env.AUTH_SECRET
 const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID
 const previousGoogleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+const previousNextPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL
 
 function seedUser(id: string, status = 'ACTIVE', role = 'STUDENT', email = `${id}@example.test`): FakeUser {
   const user = { id, email, name: id, role, status }
@@ -163,6 +185,7 @@ beforeEach(() => {
   process.env.AUTH_SECRET = 'stage-b-test-only-secret'
   process.env.GOOGLE_CLIENT_ID = 'stage-b-test-only-client'
   process.env.GOOGLE_CLIENT_SECRET = 'stage-b-test-only-client-secret'
+  process.env.NEXT_PUBLIC_APP_URL = 'https://aactacademy.com'
 })
 
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -246,6 +269,29 @@ describe('server-side session security', () => {
   })
 })
 
+describe('email verification redirects', () => {
+  test('uses NEXT_PUBLIC_APP_URL even when request host is untrusted', async () => {
+    const token = 'verify-token-abcdefghijklmnopqrstuvwxyz'
+    const user = seedUser('verify-user', 'ACTIVE', 'STUDENT', 'verify@example.test')
+    user.emailVerificationTokenHash = hashEmailVerificationToken(token)
+    user.emailVerificationExpiresAt = new Date(Date.now() + 60_000)
+    user.emailVerificationSentAt = new Date()
+
+    const response = await verifyEmail(new NextRequest(`https://evil.example/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      headers: { host: 'evil.example', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' },
+    }))
+
+    expect(response.status).toBe(307)
+    const location = response.headers.get('location')!
+    expect(location).not.toContain('evil.example')
+    const url = new URL(location)
+    expect(url.origin).toBe('https://aactacademy.com')
+    expect(url.searchParams.get('email_verified')).toBe('1')
+    expect(url.searchParams.get('email')).toBe('verify@example.test')
+    expect(users.get('verify-user')?.emailVerificationTokenHash).toBeNull()
+  })
+})
+
 describe('Google OAuth callback', () => {
   test('a missing state cookie rejects callback before Google or database calls', async () => {
     const { state } = await beginGoogle('aactacademy.com')
@@ -278,21 +324,19 @@ describe('Google OAuth callback', () => {
     expect(googleRequests).toBe(0)
   })
 
-  for (const host of ['aactacademy.com', 'www.aactacademy.com']) {
-    test(`Google callback on ${host} uses matching redirect URI and HttpOnly cookie`, async () => {
+  for (const host of ['aactacademy.com', 'www.aactacademy.com', 'evil.example']) {
+    test(`Google callback on ${host} uses configured redirect URI and HttpOnly cookie`, async () => {
       seedUser('google-user', 'ACTIVE', 'STUDENT', 'google@example.test')
       const redirectUris = mockGoogleFetch()
       const { state, redirectUri } = await beginGoogle(host)
-      expect(redirectUri).toBe(`https://${host}/api/auth/google/callback`)
+      expect(redirectUri).toBe('https://aactacademy.com/api/auth/google/callback')
       const response = await completeGoogle(callbackRequest(host, state))
       expect(response.status).toBe(200)
-      expect(redirectUris).toEqual([`https://${host}/api/auth/google/callback`])
+      expect(redirectUris).toEqual(['https://aactacademy.com/api/auth/google/callback'])
       const sessionToken = cookieValues.get('aact_session')!
       expect(sessionToken).toBeTruthy()
       expect(cookieOptions.get('aact_session')?.httpOnly).toBe(true)
       const html = await response.text()
-      expect(html).toContain("sessionStorage.removeItem('aact_token')")
-      expect(html).toContain("localStorage.removeItem('aact_token')")
       expect(html).not.toContain(sessionToken)
       expect((await getCurrentUser())?.id).toBe('google-user')
     })
@@ -310,12 +354,12 @@ describe('Google OAuth callback', () => {
 })
 
 // Restore environment variables after the test suite; no external credentials are ever used.
-import { afterAll } from 'bun:test'
 afterAll(() => {
   for (const [key, previous] of [
     ['AUTH_SECRET', previousAuthSecret],
     ['GOOGLE_CLIENT_ID', previousGoogleClientId],
     ['GOOGLE_CLIENT_SECRET', previousGoogleClientSecret],
+    ['NEXT_PUBLIC_APP_URL', previousNextPublicAppUrl],
   ] as const) {
     if (previous === undefined) delete process.env[key]
     else process.env[key] = previous

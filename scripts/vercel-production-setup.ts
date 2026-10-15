@@ -13,6 +13,11 @@ function enabled(value?: string) {
   return ['1', 'yes', 'YES', 'true', 'TRUE'].includes(String(value || '').trim())
 }
 
+if (process.env.VERCEL_ENV !== 'production') {
+  console.log('skipped')
+  process.exit(0)
+}
+
 if (!process.env.DATABASE_URL) {
   if (enabled(process.env.AACT_RUN_DB_SETUP) || enabled(process.env.AACT_RUN_DB_PUSH)) {
     console.error('DATABASE_URL is required for DB setup/schema push.')

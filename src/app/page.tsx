@@ -1,6 +1,6 @@
 'use client'
 
-import { api, clearToken, getToken, saveToken, useAppStore } from '@/lib/store'
+import { api, clearToken, useAppStore } from '@/lib/store'
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { AcademyLogo, Header, Footer, FloatingActions } from '@/components/aact/Shell'
@@ -153,14 +153,12 @@ export default function Home() {
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
   // Keep the first client render identical to the server HTML.
-  // Reading localStorage/getToken() inside the useState initializer causes React hydration
-  // mismatch #418 for returning users and for Playwright, which injects the token before page load.
+  // Startup state is presentation-only; authentication now relies on the HttpOnly cookie.
   const [startupDone, setStartupDone] = useState(false)
 
   useEffect(() => {
     try {
-      const q = new URLSearchParams(window.location.search)
-      if (q.has('authToken') || hasSeenStartup() || Boolean(getToken())) {
+      if (hasSeenStartup()) {
         setStartupDone(true)
       }
     } catch (error) {
@@ -177,12 +175,8 @@ export default function Home() {
       clearToken()
       setUser(null)
     }
-    const oauthToken = q.get('authToken')
-    if (oauthToken) {
-      saveToken(oauthToken)
-      try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist OAuth startup skip flag.', error) }
+    if (q.has('authToken')) {
       q.delete('authToken')
-      q.delete('oauth')
       const cleanUrl = `${window.location.pathname}${q.toString() ? `?${q.toString()}` : ''}${window.location.hash}`
       window.history.replaceState(null, '', cleanUrl)
     }
@@ -192,16 +186,13 @@ export default function Home() {
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
     const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
     const loadMe = async () => {
-      const activeToken = resetSession ? null : (oauthToken || getToken())
-      const shouldRetryAuth = Boolean(oauthToken || oauthReturn || activeToken)
-      const maxAttempts = shouldRetryAuth ? 6 : 1
+      const maxAttempts = oauthReturn ? 6 : 1
 
       let last: any = null
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const res = await fetch('/api/auth/me', {
           cache: 'no-store',
           credentials: 'same-origin',
-          headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
         })
         const data = await res.json().catch(() => ({}))
         last = data
@@ -219,7 +210,7 @@ export default function Home() {
         if (d?.user) {
           setUser(d.user)
           const targetView = routeForUser(d.user)
-          if (currentView === 'auth' || oauthReturn || oauthToken) {
+          if (currentView === 'auth' || oauthReturn) {
             navigate(targetView as any)
           }
         } else {
@@ -232,7 +223,7 @@ export default function Home() {
       .catch(() => {
         if (!alive) return
         // عند رجوع Safari/Chrome من كاميرا الفيديو أو ضعف الشبكة قد يفشل فحص الجلسة لحظياً.
-        // لا نرمي المستخدم للرئيسية إذا كان معه رمز جلسة ويحاول فتح صفحة محمية، بل نعرض شاشة إعادة اتصال.
+        // لا نرمي المستخدم للرئيسية إذا كان يفتح صفحة محمية، بل نعرض شاشة إعادة اتصال.
         clearToken()
         setAuthRecovering(false)
         setUser(null)
@@ -308,11 +299,9 @@ export default function Home() {
     setAuthRecovering(false)
     setAuthChecked(false)
     try {
-      const token = getToken()
       const res = await fetch('/api/auth/me', {
         cache: 'no-store',
         credentials: 'same-origin',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await res.json().catch(() => ({ user: null }))
       if (res.ok && d?.user) {

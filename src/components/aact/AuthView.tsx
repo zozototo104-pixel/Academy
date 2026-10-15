@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, api, saveToken, clearToken } from '@/lib/store'
+import { useAppStore, api, clearToken } from '@/lib/store'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '@/hooks/use-toast'
@@ -54,11 +54,10 @@ export function AuthView() {
     e?.preventDefault()
     setLoading('login')
     try {
-      const d = await api<{ user: any; token?: string }>('/api/auth/login', {
+      const d = await api<{ user: any }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginData),
       })
-      if (d.token) saveToken(d.token)
       try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after login.', error) }
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
@@ -76,13 +75,12 @@ export function AuthView() {
     clearToken()
     setUser(null)
     try {
-      const d = await api<{ user: any; token?: string; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
+      const d = await api<{ user: any; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
         method: 'POST',
         headers: { 'X-AACT-Register-Form': 'web' },
         body: JSON.stringify(regData),
       })
-      if (d.token) {
-        saveToken(d.token)
+      if (!d.requiresEmailVerification && d.user) {
         try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after registration.', error) }
         setUser(d.user)
         navigate('dashboard')

@@ -1,10 +1,11 @@
+import { lookup } from 'node:dns/promises'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
-import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { isPrivateIp, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -83,26 +84,85 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
+async function validateBookLinkUrl(raw: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return { ok: false, error: 'رابط الكتاب غير صالح — يجب أن يكون رابط HTTPS مباشراً' }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, error: 'رابط الكتاب يجب أن يبدأ بـ https://' }
+  }
+
+  const host = parsed.hostname.toLowerCase()
+  if (host === 'localhost' || host.endsWith('.localhost')) {
+    return { ok: false, error: 'رابط الكتاب لا يمكن أن يشير إلى localhost أو شبكة داخلية' }
+  }
+
+  try {
+    const records = await lookup(parsed.hostname, { all: true, verbatim: true })
+    if (!records.length) return { ok: false, error: 'تعذر التحقق من عنوان رابط الكتاب' }
+    if (records.some((record) => isPrivateIp(record.address))) {
+      return { ok: false, error: 'رابط الكتاب لا يمكن أن يشير إلى localhost أو شبكة داخلية' }
+    }
+  } catch {
+    return { ok: false, error: 'تعذر التحقق من عنوان رابط الكتاب' }
+  }
+
+  return { ok: true, url: parsed.toString() }
+}
+
+async function readResponseBufferWithLimit(res: Response, maxBytes: number) {
+  const contentLength = Number(res.headers.get('content-length') || '0')
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error('REMOTE_BOOK_TOO_LARGE')
+  }
+
+  if (!res.body) {
+    const arr = await res.arrayBuffer()
+    if (arr.byteLength > maxBytes) throw new Error('REMOTE_BOOK_TOO_LARGE')
+    return Buffer.from(arr)
+  }
+
+  const reader = res.body.getReader()
+  const chunks: Buffer[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+    total += value.byteLength
+    if (total > maxBytes) throw new Error('REMOTE_BOOK_TOO_LARGE')
+    chunks.push(Buffer.from(value))
+  }
+  return Buffer.concat(chunks, total)
+}
+
 /** جلب محتوى رابط الكتاب من الإنترنت واستخراج نصه ليقرأه خبير الذكاء الاصطناعي (PDF أو صفحة HTML) */
 async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: string; buffer?: Buffer; htmlText?: string; note?: string }> {
   try {
+    const validation = await validateBookLinkUrl(url)
+    if (!validation.ok) return { ok: false, mime: '', note: validation.error }
+
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 15000)
-    const res = await fetch(url, {
+    const res = await fetch(validation.url, {
       signal: ctrl.signal,
-      redirect: 'follow',
+      redirect: 'manual',
       headers: { 'User-Agent': 'Mozilla/5.0 (AACT-Academy-Platform; book-indexing)' },
     })
     clearTimeout(timer)
+    if (res.status >= 300 && res.status < 400) return { ok: false, mime: '', note: 'رابط الكتاب يعيد توجيهاً، والتحويلات غير مسموحة لأمان الخادم' }
     if (!res.ok) return { ok: false, mime: '', note: `الرابط أعاد حالة ${res.status}` }
     const mime = res.headers.get('content-type') || ''
+    const payload = await readResponseBufferWithLimit(res, MAX_BOOK_SIZE)
     if (mime.includes('pdf')) {
-      const arr = await res.arrayBuffer()
-      if (arr.byteLength > MAX_BOOK_SIZE) return { ok: false, mime, note: 'حجم الملف على الرابط يتجاوز 10 ميجابايت' }
-      return { ok: true, mime, buffer: Buffer.from(arr) }
+      return { ok: true, mime, buffer: payload }
     }
     if (mime.includes('text/') || mime.includes('html')) {
-      const html = await res.text()
+      const html = payload.toString('utf8')
       // استخراج نص الصفحة: إزالة السكربتات والأنماط والوسوم
       const text = html
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -116,6 +176,9 @@ async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: strin
     }
     return { ok: false, mime, note: 'نوع المحتوى غير مدعوم للاستخراج الآلي (الرابط يبقى متاحاً للطلاب للقراءة)' }
   } catch (e: any) {
+    if (String(e?.message || e) === 'REMOTE_BOOK_TOO_LARGE') {
+      return { ok: false, mime: '', note: 'حجم الملف على الرابط يتجاوز 10 ميجابايت' }
+    }
     return { ok: false, mime: '', note: `تعذر الوصول للرابط: ${String(e?.message || e).slice(0, 100)}` }
   }
 }
@@ -182,13 +245,9 @@ export async function POST(req: NextRequest) {
 
     // رابط الكتاب على الإنترنت (بديل أو مكمّل للملف المرفوع) — يُجلب نصه آلياً ليقرأه خبير الذكاء الاصطناعي
     if (linkRaw) {
-      try {
-        const u = new URL(linkRaw)
-        if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
-        link = linkRaw.slice(0, 600)
-      } catch {
-        return NextResponse.json({ error: 'رابط الكتاب غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
-      }
+      const validation = await validateBookLinkUrl(linkRaw)
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 })
+      link = validation.url.slice(0, 600)
       if (!file || file.size === 0) {
         if (isCatalogOrSearchLink(link!)) {
           linkReadStatus = 'SEARCH_LINK_ONLY'
@@ -353,13 +412,9 @@ export async function PATCH(req: NextRequest) {
     let linkReadStatus = book.linkReadStatus || 'NOT_ATTEMPTED'
 
     if (linkRaw) {
-      try {
-        const u = new URL(linkRaw)
-        if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
-        link = linkRaw.slice(0, 600)
-      } catch {
-        return NextResponse.json({ error: 'رابط القراءة غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
-      }
+      const validation = await validateBookLinkUrl(linkRaw)
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 })
+      link = validation.url.slice(0, 600)
     }
 
     if (file && file.size > 0) {

@@ -18,28 +18,20 @@ function createSignedState() {
   return `${nonce}.${ts}.${signState(nonce, ts)}`
 }
 
-function appBaseUrl(req: NextRequest) {
-  // Google OAuth يجب أن يعود إلى نفس الدومين الذي بدأ منه الطالب.
-  // لذلك نفضّل Host الفعلي للطلب على NEXTAUTH_URL/APP_URL حتى لا يعيد متغير قديم المستخدم إلى دومين Vercel سابق.
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  if (host) {
-    // Keep the exact host that receives the state cookie. Redirecting from www
-    // to the apex only for Google's callback loses this host-only cookie.
-    return `${proto}://${host}`.replace(/\/$/, '')
-  }
-  const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required for Google OAuth redirects')
   return configured.replace(/\/$/, '')
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(_req?: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) {
-    return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', req.url))
+    return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', appBaseUrl()))
   }
 
   const state = createSignedState()
-  const baseUrl = appBaseUrl(req)
+  const baseUrl = appBaseUrl()
   const redirectUri = `${baseUrl}/api/auth/google/callback`
   const store = await cookies()
   store.set(STATE_COOKIE, state, {

@@ -33,28 +33,20 @@ function verifySignedState(state: string | null) {
   return safeEqual(sig, signState(nonce, ts))
 }
 
-function appBaseUrl(req: NextRequest) {
-  // Google OAuth يجب أن يعود إلى نفس الدومين الذي بدأ منه الطالب.
-  // لذلك نفضّل Host الفعلي للطلب على NEXTAUTH_URL/APP_URL حتى لا يعيد متغير قديم المستخدم إلى دومين Vercel سابق.
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  if (host) {
-    // The token exchange redirect_uri must exactly match the host used when
-    // the cookie-bound state was created, including its www prefix.
-    return `${proto}://${host}`.replace(/\/$/, '')
-  }
-  const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required for Google OAuth redirects')
   return configured.replace(/\/$/, '')
 }
 
-function authRedirect(req: NextRequest, params: Record<string, string>) {
-  const url = new URL('/?view=auth', appBaseUrl(req))
+function authRedirect(_req: NextRequest, params: Record<string, string>) {
+  const url = new URL('/?view=auth', appBaseUrl())
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   return NextResponse.redirect(url)
 }
 
-function oauthLanding(req: NextRequest, token: string, view: string) {
-  const target = new URL('/', appBaseUrl(req))
+function oauthLanding(_req: NextRequest, token: string, view: string) {
+  const target = new URL('/', appBaseUrl())
   target.searchParams.set('view', view)
   target.searchParams.set('oauth', 'google_ok')
   const targetJson = JSON.stringify(`${target.pathname}${target.search}`)
@@ -76,9 +68,6 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   <div class="card"><div class="spin"></div><p>تم تسجيل الدخول عبر Google<br/>يتم فتح حسابك الآن…</p></div>
   <script>
     (function(){
-      // Discard both legacy Bearer tokens so the newly issued HttpOnly cookie wins.
-      try { sessionStorage.removeItem('aact_token'); } catch(e) {}
-      try { localStorage.removeItem('aact_token'); } catch(e) {}
       try { sessionStorage.setItem('aact_skip_startup', '1'); } catch(e) {}
       location.replace(${targetJson});
     })();
@@ -92,7 +81,7 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
       'cache-control': 'no-store, no-cache, must-revalidate',
     },
   })
-  // تثبيت الجلسة من السيرفر أيضاً، وليس فقط localStorage، لأن Safari أحياناً يرجع للتطبيق قبل ثبات التخزين المحلي.
+  // تثبيت الجلسة من السيرفر أيضاً لأن Safari أحياناً يرجع للتطبيق قبل اكتمال الانتقال.
   res.cookies.set('aact_session', token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -103,12 +92,12 @@ function oauthLanding(req: NextRequest, token: string, view: string) {
   return res
 }
 
-async function exchangeCode(req: NextRequest, code: string) {
+async function exchangeCode(code: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) throw new Error('GOOGLE_NOT_CONFIGURED')
 
-  const redirectUri = `${appBaseUrl(req)}/api/auth/google/callback`
+  const redirectUri = `${appBaseUrl()}/api/auth/google/callback`
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -139,7 +128,9 @@ async function fetchGoogleProfile(accessToken: string) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(_req?: NextRequest) {
+  if (!_req) throw new Error('NextRequest is required for Google OAuth callback')
+  const req = _req
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
@@ -157,7 +148,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const accessToken = await exchangeCode(req, code as string)
+    const accessToken = await exchangeCode(code as string)
     const profile = await fetchGoogleProfile(accessToken)
     if (!profile.emailVerified) return authRedirect(req, { oauth_error: 'email_not_verified' })
 

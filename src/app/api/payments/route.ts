@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // تحقق ملكية صارم: الطالب يملك الفاتورة فقط إذا كان بريد الطلب/الفاتورة يطابق بريده المؤكد.
     const email = user.email.toLowerCase()
-    const isPrivileged = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+    const isPrivileged = user.role === 'ADMIN'
     let owns = isPrivileged
     if (!owns && payment.admissionId) {
       const app = await db.admissionApplication.findUnique({
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       owns = !!enr && enr.userId === user.id
     } else {
       // فاتورة بلا رابط مالك معروف — للإدارة فقط
-      owns = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+      owns = isPrivileged
     }
     if (!owns) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })

@@ -1,0 +1,80 @@
+name: Refresh bun.lock
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Refresh bun.lock
+        run: |
+          bun install
+          bun update next eslint-config-next react react-dom
+
+      - name: Verify installed versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { readFileSync } = require('node:fs')
+
+          function installedVersion(name) {
+            const pkg = JSON.parse(readFileSync(`node_modules/${name}/package.json`, 'utf8'))
+            console.log(`${name}@${pkg.version}`)
+            return pkg.version.split('.').map(Number)
+          }
+
+          function atLeast(actual, required) {
+            const [major, minor, patch] = actual
+            const [requiredMajor, requiredMinor, requiredPatch] = required
+            return major > requiredMajor || (major === requiredMajor && (minor > requiredMinor || (minor === requiredMinor && patch >= requiredPatch)))
+          }
+
+          const next = installedVersion('next')
+          installedVersion('eslint-config-next')
+          const sharp = installedVersion('sharp')
+          const react = installedVersion('react')
+          const reactDom = installedVersion('react-dom')
+
+          if (!atLeast(next, [16, 4, 1])) {
+            console.error(`Installed next@${next.join('.')} is below the required 16.4.1 patch level`)
+            process.exit(1)
+          }
+
+          if (!atLeast(sharp, [0, 35, 5])) {
+            console.error(`Installed sharp@${sharp.join('.')} is below the required 0.35.5 patch level`)
+            process.exit(1)
+          }
+
+          if (!atLeast(react, [19, 3, 0])) {
+            console.error(`Installed react@${react.join('.')} is below the required 19.3.0 patch level`)
+            process.exit(1)
+          }
+
+          if (!atLeast(reactDom, [19, 3, 0])) {
+            console.error(`Installed react-dom@${reactDom.join('.')} is below the required 19.3.0 patch level`)
+            process.exit(1)
+          }
+          NODE
+
+      - name: Commit refreshed lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add package.json bun.lock
+          git diff --cached --quiet || git commit -m "Refresh bun.lock"
+          git push
