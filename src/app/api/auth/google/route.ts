@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createHmac, randomBytes } from 'crypto'
 
@@ -24,7 +24,7 @@ function appBaseUrl() {
   return configured.replace(/\/$/, '')
 }
 
-export async function GET() {
+export async function GET(_req?: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) {
     return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', appBaseUrl()))
