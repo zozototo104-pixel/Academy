@@ -225,8 +225,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const rep = await loadRepresentative(token)
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const loaded = await loadRepresentative(token)
+  if (!loaded.representative) return onboardingNotFound(loaded.expired)
+  const rep = loaded.representative
   const body = await req.json().catch(() => ({}))
   const submit = body.submit === true
   let safeWebsite = rep.website
