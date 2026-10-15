@@ -196,9 +196,13 @@ export function getToken(): string | null {
   return null
 }
 
-export function saveToken(_t: string) {}
+export function saveToken(_t: string) {
+  // Intentionally no-op: browser auth uses the HttpOnly session cookie only.
+}
 
-export function clearToken() {}
+export function clearToken() {
+  // Intentionally no-op: server-side logout/session expiry owns cookie cleanup.
+}
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
