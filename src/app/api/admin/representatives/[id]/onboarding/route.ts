@@ -20,6 +20,15 @@ function addDays(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000)
 }
 
+async function sendOnboardingEmail(to: string, input: Parameters<typeof emailRepresentativeOnboardingInvitationDetailed>[1]) {
+  const status = await emailRepresentativeOnboardingInvitationDetailed(to, input)
+  return {
+    sent: status === 'SENT',
+    status,
+    failureReason: status === 'SENT' ? null : status === 'SKIPPED' ? 'EMAIL_DELIVERY_SKIPPED_OR_NOT_CONFIGURED' : 'EMAIL_DELIVERY_FAILED',
+  }
+}
+
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAdmin()
   const { id } = await params
@@ -48,22 +57,38 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     select: { id: true, onboardingStatus: true, fullName: true, email: true, country: true, territory: true, cardNumber: true, onboardingExpiresAt: true },
   })
 
+  let emailSent = false
   let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = 'SKIPPED'
+  let emailFailureReason: string | null = updated.email && updated.email.includes('@') ? null : 'NO_REPRESENTATIVE_EMAIL'
   if (updated.email && updated.email.includes('@')) {
-    emailStatus = await emailRepresentativeOnboardingInvitationDetailed(updated.email, {
-      name: updated.fullName,
-      country: updated.country,
-      territory: updated.territory,
-      contractNo: updated.cardNumber,
-      onboardingUrl: url,
-    })
+    try {
+      const delivery = await sendOnboardingEmail(updated.email, {
+        name: updated.fullName,
+        country: updated.country,
+        territory: updated.territory,
+        contractNo: updated.cardNumber,
+        onboardingUrl: url,
+      })
+      const sent = delivery.sent
+      emailStatus = sent ? 'SENT' : 'FAILED'
+      if (delivery.status === 'SKIPPED') emailStatus = 'SKIPPED'
+      emailSent = sent
+      emailFailureReason = delivery.failureReason
+    } catch (error) {
+      emailStatus = 'FAILED'
+      emailSent = false
+      emailFailureReason = String((error as any)?.message || error || 'EMAIL_DELIVERY_FAILED').slice(0, 400)
+      console.warn('Failed to send representative onboarding invitation.', error)
+    }
   }
 
   await audit(user.id, 'CREATE_REPRESENTATIVE_ONBOARDING_LINK', id, `${representative.fullName} — expires=${expiresAt.toISOString()} — email=${emailStatus}`)
   return NextResponse.json({
     onboardingStatus: updated.onboardingStatus,
     expiresAt: updated.onboardingExpiresAt,
+    emailSent,
     emailStatus,
+    emailFailureReason,
     url,
   })
 }
