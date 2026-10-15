@@ -1457,7 +1457,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
         responseMimeType: opts.json ? 'application/json' : undefined,
       },
     }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Gemini', response.status, data)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
