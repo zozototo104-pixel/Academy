@@ -913,7 +913,12 @@ export function AdminFinanceTab() {
       })
       setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
       await copyWaiverCode(payment.id, result.code)
-      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code}` })
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
