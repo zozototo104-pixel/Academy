@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { claimAiHealthRun } from '@/lib/ai-health'
+import { db } from '@/lib/db'
+import { audit } from '@/lib/notify'
 import { redactDeep } from '@/lib/secret-crypto'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
