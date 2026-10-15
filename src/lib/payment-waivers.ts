@@ -185,6 +185,12 @@ export async function createPaymentWaiverCode(params: {
     if (purpose === 'APPLICATION_FEE' && requestedAmountCents <= currentCents) throw new Error('للإعفاء الجزئي من فاتورة التقديم أدخل مبلغاً أكبر من رسوم التقديم حتى يخصم الباقي من الرسوم الدراسية.')
   }
 
+  const activeWaiver = await db.paymentWaiverCode.findFirst({
+    where: { paymentId: payment.id, status: { in: ['ISSUED', 'VERIFIED'] } },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (activeWaiver) throw new Error(`يوجد كود إعفاء نشط لهذه الفاتورة (${activeWaiver.codePreview}). استخدمه أو اعتمده قبل توليد كود جديد.`)
+
   await db.paymentWaiverCode.updateMany({
     where: { paymentId: payment.id, status: { in: ['ISSUED', 'VERIFIED'] } },
     data: { status: 'CANCELLED' },
