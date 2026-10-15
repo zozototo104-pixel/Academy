@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType } from '@/lib/payment-waivers'
+import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType } from '@/lib/payment-waivers'
 import { audit } from '@/lib/notify'
 
 function cleanText(value: unknown, max = 700) {
