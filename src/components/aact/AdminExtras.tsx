@@ -904,16 +904,20 @@ export function AdminFinanceTab() {
       tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
     })
     if (reason === null) return
+    setWaiverBusy(payment.id)
     try {
       const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
-      try { await navigator.clipboard?.writeText(result.code) } catch (error) { console.warn('Failed to copy waiver code automatically.', error) }
-      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.` })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code}` })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
     }
   }
 
