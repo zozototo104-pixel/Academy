@@ -1541,6 +1541,7 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
   if (provider === 'GEMINI') return callGemini(key, model, opts)
   if (provider === 'OPENAI') return callOpenAIResponses(s, key, model, opts)
   if (provider === 'ANTHROPIC') return callAnthropic(key, model, opts)
+  if (provider === 'ZAI' && hasVisionAttachments(opts)) return callZaiVision(model, opts)
   return callChatCompletions(provider, baseFor(s, provider), key, model, opts)
 }
 
