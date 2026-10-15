@@ -178,10 +178,10 @@ function buildInvoiceSvg(data: {
   <rect x="0" y="138" width="${PAGE_W}" height="8" fill="${BRAND_GOLD}"/>
   <circle cx="704" cy="70" r="38" fill="${BRAND_GOLD}" opacity="0.95"/>
   ${text(704, 80, 'AACT', { size: 24, fill: '#ffffff', weight: 900, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(665, 54, 'الأكاديمية الأمريكية للاستشارات والتدريب', { size: 24, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'rtl' })}
-  ${text(665, 88, 'American Academy for Consulting and Training', { size: 18, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 62, 'OFFICIAL INVOICE', { size: 27, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 96, 'فاتورة رسمية قابلة للطباعة', { size: 18, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'rtl' })}
+  ${text(665, 54, 'American Academy for Consulting and Training', { size: 24, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(665, 88, 'AACT Platform', { size: 18, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(86, 62, data.status.startsWith('PAID') || data.status.startsWith('WAIVED') ? 'OFFICIAL RECEIPT' : 'OFFICIAL INVOICE', { size: 27, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(86, 96, data.status, { size: 18, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <rect x="52" y="178" width="690" height="64" rx="20" fill="${statusBg}" stroke="${statusColor}" stroke-width="1.2"/>
   ${text(705, 218, data.status, { size: 22, fill: statusColor, weight: 900, anchor: 'end', dir: 'rtl' })}
