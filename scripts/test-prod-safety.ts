@@ -286,7 +286,7 @@ function testPrismaDeployPreviewPushSkips() {
 function testSecurityBatchAFollowup() {
   const waiverLib = file('src/lib/payment-waivers.ts')
   assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
-  assert(waiverLib.includes('db.$transaction(async (tx)') && waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE'), 'payment waiver creation must lock the payment row inside a transaction')
+  assert(waiverLib.includes('db.$transaction(async (tx)') && waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE'), 'payment waiver creation must lock the payment row inside a transaction')
   assert(waiverLib.includes("status: { in: ['ISSUED', 'VERIFIED'] }") && waiverLib.includes('throw new ActivePaymentWaiverExistsError(activeWaiver.codePreview)'), 'payment waiver transaction must reject existing active codes before create')
   assert(!waiverLib.includes("data: { status: 'CANCELLED' }"), 'payment waiver creation must not cancel active codes to create a replacement')
   assert(waiverLib.includes("PAYMENT_WAIVER_CODE_CREATED") && waiverLib.includes('waiver.codePreview'), 'payment waiver audit logs must use codePreview only')
