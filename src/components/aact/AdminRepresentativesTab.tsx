@@ -158,6 +158,7 @@ export default function AdminRepresentativesTab() {
   function choose(rep: Representative) {
     setSelectedId(rep.id)
     setOnboardingLink('')
+    setOnboardingResult({})
     setForm(formFromRepresentative(rep))
   }
 
