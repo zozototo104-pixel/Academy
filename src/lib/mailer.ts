@@ -266,7 +266,7 @@ export async function emailPaymentWaiverCode(to: string, input: { name: string; 
     html: emailTemplate(
       'كود إعفاء مالي من الأكاديمية 🎓',
       `<p>${greeting(input.name)}،</p><p>أصدرت الإدارة كود إعفاء مالي مرتبطاً بفاتورتك. أدخل الكود من بوابة الطالب ضمن بطاقة الفاتورة، ثم انتظر اعتماد الإدارة النهائي.</p>${infoRows([{ label: 'رقم الفاتورة', value: input.invoiceNo }, { label: 'البند', value: input.description }, { label: 'نوع الإعفاء', value: input.waiverLabel }, { label: 'كود الإعفاء', value: input.code }, { label: 'تنبيه', value: 'الكود مرتبط بحسابك وهذه الفاتورة فقط، ولا يعتبر دفعاً فعلياً.' }])}${input.reason ? `<p><strong>ملاحظة الإدارة:</strong> ${escapeHtml(input.reason)}</p>` : ''}`,
-      { label: 'فتح بوابة الطالب', url: appLink('/?view=dashboard') }
+      { label: 'فتح الفاتورة في بوابة الطالب', url: appLink(input.link || '/?view=dashboard&tab=payments') }
     ),
   })
 }
