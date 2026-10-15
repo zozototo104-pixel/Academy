@@ -61,11 +61,9 @@ const DISCUSSION_LIVE_MODELS = [
 ]
 
 const VISION_MODELS = [
-  'gemini-3.5-flash-lite',
+  process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite',
   'gemini-3.5-flash',
   'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
 ]
 
 export const GEMINI_LIVE_MODEL_FALLBACKS = SUPERVISOR_LIVE_MODELS

@@ -28,6 +28,11 @@ export interface TextAiTurn {
   text: string
 }
 
+export interface TextAiAttachment {
+  mimeType: string
+  base64: string
+}
+
 export interface TextAiCallOpts {
   system: string
   history: TextAiTurn[]
@@ -37,6 +42,7 @@ export interface TextAiCallOpts {
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
   purpose?: TextAiPurpose
+  attachments?: TextAiAttachment[]
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
@@ -141,6 +147,10 @@ const UNOROUTER_TEXT_MODELS = [
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
+const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
+const VISION_ATTEMPT_TIMEOUT_MS = 25_000
+const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
+const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 let roundRobin = 0
@@ -423,6 +433,10 @@ function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
   return Math.min(base, defaults[taskLevel])
 }
 
+function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
+  return hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
+}
+
 function aiDiscoveryTimeoutMs(): number {
   const configured = Number(env('AI_DISCOVERY_TIMEOUT_MS'))
   if (Number.isFinite(configured) && configured >= 1500) return Math.min(Math.floor(configured), 15000)
@@ -578,8 +592,8 @@ async function settings() {
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
     paidMonthlyLimitUsd: Math.max(0, Number(rows.AI_PAID_MONTHLY_LIMIT_USD || env('AI_PAID_MONTHLY_LIMIT_USD') || 0) || 0),
     openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
-    // الأولوية: إعدادات المنصة المشفرة أولاً، ثم Vercel Environment Variables كاحتياط.
-    geminiKeys: parseKeys(rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS, env('GEMINI_API_KEY'), env('GEMINI_API_KEYS')),
+    // Vision/text routing: env Gemini key first, then all configured DB keys with the existing key rotation/cooldown policy.
+    geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
     geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
     openaiKeys: parseKeys(rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS, env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
@@ -1270,6 +1284,56 @@ function promptWithJsonInstruction(opts: TextAiCallOpts): string {
   return opts.json ? `${opts.system}\n\nأعد الناتج بصيغة JSON صالحة فقط بدون Markdown وبدون أي شرح خارج JSON.` : opts.system
 }
 
+function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
+  const out: TextAiAttachment[] = []
+  for (const attachment of opts.attachments || []) {
+    const mimeType = String(attachment?.mimeType || '').toLowerCase().trim()
+    const base64 = String(attachment?.base64 || '').replace(/^data:[^,]+,/, '').trim()
+    if (!mimeType || !base64) continue
+    const bytes = Math.ceil(base64.length * 3 / 4)
+    if (bytes > MAX_VISION_ATTACHMENT_BYTES) {
+      const error: any = new Error('VISION_ATTACHMENT_TOO_LARGE')
+      error.status = 413
+      throw error
+    }
+    out.push({ mimeType, base64 })
+  }
+  return out
+}
+
+function hasVisionAttachments(opts: TextAiCallOpts): boolean {
+  return normalizedAttachments(opts).length > 0
+}
+
+function attachmentDataUrl(attachment: TextAiAttachment) {
+  return `data:${attachment.mimeType};base64,${attachment.base64}`
+}
+
+function attachmentIncludesPdf(attachments?: TextAiAttachment[]) {
+  return (attachments || []).some((item) => item.mimeType === 'application/pdf')
+}
+
+function providerSupportsVisionAttachments(provider: ConcreteProvider) {
+  return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
+}
+
+function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
+  if (!attachments.length) return true
+  if (!providerSupportsVisionAttachments(provider)) return false
+  const id = model.toLowerCase()
+  const modalities = (capability?.modalities || []).join(' ').toLowerCase()
+  const vision = capability?.vision === true || /vision|image|multimodal|input_image|image_url|gemini|claude|gpt-4o|gpt-5|glm-4\.5|glm-5v|auto/.test(`${id} ${modalities}`)
+  if (!vision) return false
+  if (attachmentIncludesPdf(attachments)) {
+    return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
+  }
+  return true
+}
+
+function userTextForAttachments(opts: TextAiCallOpts) {
+  return opts.history.filter((m) => m.role === 'user' && m.text?.trim()).map((m) => m.text).join('\n\n').trim() || 'حلّل المرفقات المرسلة.'
+}
+
 function toChatMessages(opts: TextAiCallOpts): { role: 'system' | 'user' | 'assistant'; content: string }[] {
   return [
     { role: 'system', content: promptWithJsonInstruction(opts) },
@@ -1278,10 +1342,72 @@ function toChatMessages(opts: TextAiCallOpts): { role: 'system' | 'user' | 'assi
 }
 
 function toGeminiContents(opts: TextAiCallOpts) {
-  return opts.history.filter((m) => m.text?.trim()).map((m) => ({
+  const contents = opts.history.filter((m) => m.text?.trim()).map((m) => ({
     role: m.role === 'user' ? 'user' : 'model',
-    parts: [{ text: m.text }],
+    parts: [{ text: m.text } as any],
   }))
+  const attachments = normalizedAttachments(opts)
+  if (attachments.length) {
+    contents.push({
+      role: 'user',
+      parts: [
+        { text: userTextForAttachments(opts) } as any,
+        ...attachments.map((attachment) => ({ inlineData: { mimeType: attachment.mimeType, data: attachment.base64 } })),
+      ],
+    })
+  }
+  return contents
+}
+
+function openAiVisionContent(opts: TextAiCallOpts, mode: 'responses' | 'chat') {
+  const attachments = normalizedAttachments(opts)
+  const textPart = mode === 'responses' ? { type: 'input_text', text: userTextForAttachments(opts) } : { type: 'text', text: userTextForAttachments(opts) }
+  const parts: any[] = [textPart]
+  for (const attachment of attachments) {
+    const url = attachmentDataUrl(attachment)
+    if (attachment.mimeType === 'application/pdf') {
+      parts.push(mode === 'responses'
+        ? { type: 'input_file', filename: 'attachment.pdf', file_data: url }
+        : { type: 'file', file: { filename: 'attachment.pdf', file_data: url } })
+    } else {
+      parts.push(mode === 'responses'
+        ? { type: 'input_image', image_url: url }
+        : { type: 'image_url', image_url: { url } })
+    }
+  }
+  return parts
+}
+
+function toOpenAiResponsesInput(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return toChatMessages(opts)
+  return [
+    { role: 'system', content: promptWithJsonInstruction(opts) },
+    { role: 'user', content: openAiVisionContent(opts, 'responses') },
+  ]
+}
+
+function toOpenAiChatMessages(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return toChatMessages(opts)
+  return [
+    { role: 'system', content: promptWithJsonInstruction(opts) },
+    { role: 'user', content: openAiVisionContent(opts, 'chat') },
+  ]
+}
+
+function toAnthropicMessages(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return opts.history.filter((m) => m.text?.trim()).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+  return [{
+    role: 'user',
+    content: [
+      { type: 'text', text: userTextForAttachments(opts) },
+      ...attachments.map((attachment) => attachment.mimeType === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 } }
+        : { type: 'image', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 } }),
+    ],
+  }]
 }
 
 async function parseResponse(response: Response): Promise<any> {
@@ -1331,7 +1457,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
         responseMimeType: opts.json ? 'application/json' : undefined,
       },
     }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Gemini', response.status, data)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
@@ -1353,8 +1479,8 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
   const response = await fetchWithTimeout('OpenAI', `${s.openaiBaseUrl}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: toChatMessages(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+    body: JSON.stringify({ model, input: toOpenAiResponsesInput(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)
   const text = extractOpenAiText(data)
@@ -1363,16 +1489,31 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
 }
 
 async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
-  const messages = opts.history.filter((m) => m.text?.trim()).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+  const messages = toAnthropicMessages(opts)
   const response = await fetchWithTimeout('Anthropic', 'https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('Anthropic', response.status, data)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
   if (!text) throw new Error('ANTHROPIC_EMPTY_RESPONSE')
+  return text
+}
+
+async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<string> {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) throw new Error('ZAI_VISION_REQUIRES_ATTACHMENT')
+  const { getZAI } = await import('@/lib/ai')
+  const zai = await getZAI()
+  const response = await zai.chat.completions.createVision({
+    model,
+    messages: [{ role: 'user', content: openAiVisionContent(opts, 'chat') }],
+    thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' },
+  } as any)
+  const text = String(response?.choices?.[0]?.message?.content || '').trim()
+  if (!text) throw new Error('ZAI_EMPTY_RESPONSE')
   return text
 }
 
@@ -1386,13 +1527,13 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     },
     body: JSON.stringify({
       model,
-      messages: toChatMessages(opts),
+      messages: toOpenAiChatMessages(opts),
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
       ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
@@ -1404,6 +1545,7 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
   if (provider === 'GEMINI') return callGemini(key, model, opts)
   if (provider === 'OPENAI') return callOpenAIResponses(s, key, model, opts)
   if (provider === 'ANTHROPIC') return callAnthropic(key, model, opts)
+  if (provider === 'ZAI' && hasVisionAttachments(opts)) return callZaiVision(model, opts)
   return callChatCompletions(provider, baseFor(s, provider), key, model, opts)
 }
 
@@ -1630,14 +1772,19 @@ async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
+  const attachments = normalizedAttachments(opts)
+  const visionCall = attachments.length > 0
+  const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
   const baseSettings = await settings()
-  const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
-  const taskLevel = opts.taskLevel || 'GENERAL'
-  const excluded = excludedConcreteProviders(opts.excludeProviders)
-  const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
-  const sticky = opts.stickyScope ? stickyModels.get(opts.stickyScope) : null
-  const preferredProviders = (opts.preferredProviders || []).filter(Boolean)
-  const baseOrderedProviders = providerOrder(s, taskLevel).filter((provider) => !excluded.has(provider))
+  const s: Settings = effectiveOpts.routerPolicy ? { ...baseSettings, policy: effectiveOpts.routerPolicy } : baseSettings
+  const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
+  const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
+  const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
+  const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
+  const preferredProviders = (effectiveOpts.preferredProviders || []).filter(Boolean)
+  const baseOrderedProviders = providerOrder(s, taskLevel)
+    .filter((provider) => !excluded.has(provider))
+    .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
   const orderedProviders = preferredProviders.length
     ? [...baseOrderedProviders].sort((a, b) => {
       const ai = preferredProviders.indexOf(a)
@@ -1652,15 +1799,15 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
     : orderedProviders
   if (!providers.length) {
-    if (isVerifierCall(opts)) throw verifierUnavailable([])
+    if (isVerifierCall(effectiveOpts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
-    throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+    throw new Error(visionCall ? 'TEXT_AI_ROUTER_NO_VISION_PROVIDER' : 'TEXT_AI_ROUTER_NOT_CONFIGURED')
   }
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
-  const estimatedPaidCost = estimatedPaidCostUsd(opts)
+  const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
@@ -1671,15 +1818,17 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) continue
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, opts.purpose)
-    const baseModels = candidateModels.filter((model) => modelFamilyAllowed(model, excludedFamilies))
+    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const baseModels = candidateModels
+      .filter((model) => modelFamilyAllowed(model, excludedFamilies))
+      .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
     const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
     const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
-    if (isVerifierCall(opts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
+    if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
       for (const key of candidateKeys(provider, s)) {
@@ -1691,17 +1840,17 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           continue
         }
         if (!(await keyRateAllowed(provider, key))) continue
-        if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
+        if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, opts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, effectiveOpts)
           const text = providerResult.text
-          opts.validate?.(text, { provider, model })
+          effectiveOpts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, opts.purpose)
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
           lastResult = { provider, model, ok: true, at }
-          if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
+          if (effectiveOpts.stickyScope) stickyModels.set(effectiveOpts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
@@ -1719,7 +1868,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: opts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, opts.purpose)
+          await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           if (isSchemaFailureLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             break
@@ -1758,9 +1907,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   }
 
   logRouterSummary(attempts, false)
-  if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
-  if (isVerifierCall(opts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
-  if (isVerifierCall(opts)) throw verifierUnavailable(attempts)
+  if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
+  if (isVerifierCall(effectiveOpts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
+  if (isVerifierCall(effectiveOpts)) throw verifierUnavailable(attempts)
   if (taskLevel === 'ACADEMIC_CRITICAL') {
     const err: any = academicProviderUnavailable(attempts)
     if (skippedCooldownUntil) err.retryAt = new Date(skippedCooldownUntil).toISOString()
