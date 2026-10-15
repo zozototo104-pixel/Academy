@@ -45,9 +45,9 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: {
-      user: { select: { email: true, name: true } },
-      admission: { select: { email: true, fullName: true } },
-      enrollment: { include: { user: { select: { email: true, name: true } } } },
+      user: { select: { id: true, email: true, name: true } },
+      admission: { select: { id: true, userId: true, email: true, fullName: true } },
+      enrollment: { include: { user: { select: { id: true, email: true, name: true } } } },
       agent: { select: { email: true, repName: true, orgName: true } },
     },
   })
