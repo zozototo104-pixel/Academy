@@ -60,11 +60,10 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const token = await withTiming('auth_login_createSession', () => createSession(user.id))
+      await withTiming('auth_login_createSession', () => createSession(user.id))
 
       return NextResponse.json({
         user: { id: user.id, name: user.name, email: user.email, role: user.role },
-        token,
       })
     } catch (e: any) {
       console.error('Login error:', e)
