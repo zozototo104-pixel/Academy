@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
       expiresDays: Number(body.expiresDays || 7),
     })
-    return NextResponse.json({ code: result.code, waiver: result.waiver })
+    return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (e instanceof ActivePaymentWaiverExistsError || e?.code === 'ACTIVE_WAIVER_EXISTS') {
