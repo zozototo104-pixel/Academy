@@ -1717,9 +1717,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
     : orderedProviders
   if (!providers.length) {
-    if (isVerifierCall(opts)) throw verifierUnavailable([])
+    if (isVerifierCall(effectiveOpts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
-    throw new Error('TEXT_AI_ROUTER_NOT_CONFIGURED')
+    throw new Error(visionCall ? 'TEXT_AI_ROUTER_NO_VISION_PROVIDER' : 'TEXT_AI_ROUTER_NOT_CONFIGURED')
   }
   const errors: string[] = []
   const attempts: TextAiAttemptDiagnostics[] = []
