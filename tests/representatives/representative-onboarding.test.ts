@@ -350,9 +350,9 @@ describe('representative active profile pending review', () => {
     expect(profileRes.status).toBe(200)
     expect(rep.fullName).toBe('ممثل معتمد جديد')
     expect(rep.phone).toBe('+970 59 123 4567')
-    expect(rep.email).toBe('new.rep@example.test')
+    expect(rep.email).toBe('new.rep.1234@example.test')
     expect(verifyRepresentativeLast4('4567', rep.verifyPhoneLast4Hash)).toBe(true)
-    expect(verifyRepresentativeLast4('test', rep.verifyEmailLast4Hash)).toBe(true)
+    expect(verifyRepresentativeLast4('1234', rep.verifyEmailLast4Hash)).toBe(true)
 
     const cardRes = await adminFileRoute.PATCH(
       new Request(`https://academy.test/api/admin/representatives/${rep.id}/files/${cardFile.id}`, { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE' }), headers: { 'content-type': 'application/json' } }),
