@@ -1280,6 +1280,56 @@ function promptWithJsonInstruction(opts: TextAiCallOpts): string {
   return opts.json ? `${opts.system}\n\nأعد الناتج بصيغة JSON صالحة فقط بدون Markdown وبدون أي شرح خارج JSON.` : opts.system
 }
 
+function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
+  const out: TextAiAttachment[] = []
+  for (const attachment of opts.attachments || []) {
+    const mimeType = String(attachment?.mimeType || '').toLowerCase().trim()
+    const base64 = String(attachment?.base64 || '').replace(/^data:[^,]+,/, '').trim()
+    if (!mimeType || !base64) continue
+    const bytes = Math.ceil(base64.length * 3 / 4)
+    if (bytes > MAX_VISION_ATTACHMENT_BYTES) {
+      const error: any = new Error('VISION_ATTACHMENT_TOO_LARGE')
+      error.status = 413
+      throw error
+    }
+    out.push({ mimeType, base64 })
+  }
+  return out
+}
+
+function hasVisionAttachments(opts: TextAiCallOpts): boolean {
+  return normalizedAttachments(opts).length > 0
+}
+
+function attachmentDataUrl(attachment: TextAiAttachment) {
+  return `data:${attachment.mimeType};base64,${attachment.base64}`
+}
+
+function attachmentIncludesPdf(attachments?: TextAiAttachment[]) {
+  return (attachments || []).some((item) => item.mimeType === 'application/pdf')
+}
+
+function providerSupportsVisionAttachments(provider: ConcreteProvider) {
+  return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
+}
+
+function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
+  if (!attachments.length) return true
+  if (!providerSupportsVisionAttachments(provider)) return false
+  const id = model.toLowerCase()
+  const modalities = (capability?.modalities || []).join(' ').toLowerCase()
+  const vision = capability?.vision === true || /vision|image|multimodal|input_image|image_url|gemini|claude|gpt-4o|gpt-5|glm-4\.5|glm-5v|auto/.test(`${id} ${modalities}`)
+  if (!vision) return false
+  if (attachmentIncludesPdf(attachments)) {
+    return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
+  }
+  return true
+}
+
+function userTextForAttachments(opts: TextAiCallOpts) {
+  return opts.history.filter((m) => m.role === 'user' && m.text?.trim()).map((m) => m.text).join('\n\n').trim() || 'حلّل المرفقات المرسلة.'
+}
+
 function toChatMessages(opts: TextAiCallOpts): { role: 'system' | 'user' | 'assistant'; content: string }[] {
   return [
     { role: 'system', content: promptWithJsonInstruction(opts) },
