@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const accessToken = await exchangeCode(req, code as string)
+    const accessToken = await exchangeCode(code as string)
     const profile = await fetchGoogleProfile(accessToken)
     if (!profile.emailVerified) return authRedirect(req, { oauth_error: 'email_not_verified' })
 
