@@ -1498,6 +1498,21 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
   return text
 }
 
+async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<string> {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) throw new Error('ZAI_VISION_REQUIRES_ATTACHMENT')
+  const { getZAI } = await import('@/lib/ai')
+  const zai = await getZAI()
+  const response = await zai.chat.completions.createVision({
+    model,
+    messages: [{ role: 'user', content: openAiVisionContent(opts, 'chat') }],
+    thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' },
+  } as any)
+  const text = String(response?.choices?.[0]?.message?.content || '').trim()
+  if (!text) throw new Error('ZAI_EMPTY_RESPONSE')
+  return text
+}
+
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
