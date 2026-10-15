@@ -112,6 +112,13 @@ async function getResendConfig(): Promise<{ apiKey: string; from: string }> {
   }
 }
 
+export async function isEmailDeliveryConfigured(): Promise<boolean> {
+  const smtp = await getSmtpConfig().catch(() => null)
+  if (smtp?.enabled) return true
+  const resend = await getResendConfig().catch(() => null)
+  return !!(resend?.apiKey && resend?.from)
+}
+
 async function sendWithResend(input: SendEmailInput): Promise<boolean> {
   const { apiKey, from } = await getResendConfig()
   if (!apiKey || !from) return false
